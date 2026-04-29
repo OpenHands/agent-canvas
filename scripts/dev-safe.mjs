@@ -73,6 +73,32 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
   };
 }
 
+export function buildNpmScriptCommand(
+  scriptName,
+  platform = process.platform,
+  env = process.env,
+  nodeExecPath = process.execPath,
+) {
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
+    };
+  }
+
+  if (platform === "win32") {
+    return {
+      command: env.ComSpec || "cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  return {
+    command: "npm",
+    args: ["run", scriptName],
+  };
+}
+
 async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   const startedAt = Date.now();
 
@@ -184,8 +210,8 @@ async function main() {
     throw error;
   }
 
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  frontend = spawnProcess(npmCommand, ["run", "dev:frontend"], {
+  const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  frontend = spawnProcess(frontendCommand.command, frontendCommand.args, {
     cwd: config.cwd,
     env: {
       ...process.env,

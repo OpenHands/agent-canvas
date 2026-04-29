@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   buildSafeDevConfig,
+  buildNpmScriptCommand,
   formatMissingAgentServerGuidance,
 } from "../../scripts/dev-safe.mjs";
 
@@ -27,7 +28,7 @@ describe("formatMissingAgentServerGuidance", () => {
     );
     expect(guidance).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(guidance).toContain(
-      "/workspace/project/agent-server-gui/README.md",
+      path.join("/workspace/project/agent-server-gui", "README.md"),
     );
     expect(guidance).toContain(
       "https://docs.astral.sh/uv/getting-started/installation/",
@@ -49,7 +50,7 @@ describe("buildSafeDevConfig", () => {
     expect(config.backendHost).toBe("127.0.0.1:18000");
     expect(config.workingDir).toBe(cwd);
     expect(config.stateDir).toBe(
-      path.join(cwd, ".openhands-dev", "safe-dev-18000"),
+      path.resolve(cwd, ".openhands-dev", "safe-dev-18000"),
     );
     expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
     expect(config.conversationsPath).toBe(
@@ -74,8 +75,60 @@ describe("buildSafeDevConfig", () => {
     expect(config.vscodePort).toBe(19010);
     expect(config.backendBaseUrl).toBe("http://127.0.0.1:19000");
     expect(config.backendHost).toBe("127.0.0.1:19000");
-    expect(config.stateDir).toBe(path.join(cwd, ".tmp", "dev-safe"));
+    expect(config.stateDir).toBe(path.resolve(cwd, ".tmp", "dev-safe"));
     expect(config.workingDir).toBe("/workspace/custom-repo");
+  });
+});
+
+describe("buildNpmScriptCommand", () => {
+  it("reuses npm's own CLI path when available", () => {
+    const command = buildNpmScriptCommand(
+      "dev:frontend",
+      "win32",
+      {
+        npm_execpath: "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        npm_node_execpath: "C:\\nodejs\\node.exe",
+      },
+      "C:\\fallback\\node.exe",
+    );
+
+    expect(command).toEqual({
+      command: "C:\\nodejs\\node.exe",
+      args: [
+        "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "dev:frontend",
+      ],
+    });
+  });
+
+  it("runs npm directly on POSIX platforms", () => {
+    const command = buildNpmScriptCommand("dev:frontend", "linux", {});
+
+    expect(command).toEqual({
+      command: "npm",
+      args: ["run", "dev:frontend"],
+    });
+  });
+
+  it("runs npm through cmd.exe on Windows", () => {
+    const command = buildNpmScriptCommand("dev:frontend", "win32", {
+      ComSpec: "C:\\Windows\\System32\\cmd.exe",
+    });
+
+    expect(command).toEqual({
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
+    });
+  });
+
+  it("falls back to cmd.exe when ComSpec is unavailable on Windows", () => {
+    const command = buildNpmScriptCommand("dev:frontend", "win32", {});
+
+    expect(command).toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
+    });
   });
 });
 
