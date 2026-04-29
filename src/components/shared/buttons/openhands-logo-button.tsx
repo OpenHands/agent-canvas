@@ -1,6 +1,6 @@
-import { NavLink } from "react-router";
 import { useTranslation } from "react-i18next";
 import OpenHandsLogo from "#/assets/branding/openhands-logo.svg?react";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
@@ -12,9 +12,9 @@ export function OpenHandsLogoButton() {
 
   return (
     <StyledTooltip content={tooltipText}>
-      <NavLink to="/" aria-label={ariaLabel}>
+      <NavigationLink to="/" aria-label={ariaLabel}>
         <OpenHandsLogo width={46} height={30} />
-      </NavLink>
+      </NavigationLink>
     </StyledTooltip>
   );
 }

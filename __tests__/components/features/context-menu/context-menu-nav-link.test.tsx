@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
-import { MemoryRouter } from "react-router";
+import { renderWithProviders } from "test-utils";
 import { ContextMenuNavLink } from "#/components/features/context-menu/context-menu-nav-link";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -12,11 +12,7 @@ const mockNavItem = {
 };
 
 const renderContextMenuNavLink = (item = mockNavItem, onClick = vi.fn()) =>
-  render(
-    <MemoryRouter>
-      <ContextMenuNavLink item={item} onClick={onClick} />
-    </MemoryRouter>,
-  );
+  renderWithProviders(<ContextMenuNavLink item={item} onClick={onClick} />);
 
 describe("ContextMenuNavLink", () => {
   it("should render the link with icon and text", () => {

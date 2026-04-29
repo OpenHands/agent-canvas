@@ -1,7 +1,7 @@
 import React from "react";
-import { NavLink, useParams, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { useNavigation } from "#/context/navigation-context";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
 import { useStartTasks } from "#/hooks/query/use-start-tasks";
 import { useInfiniteScroll } from "#/hooks/use-infinite-scroll";
@@ -10,6 +10,7 @@ import { useUnifiedPauseConversationSandbox } from "#/hooks/mutation/use-unified
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { ConfirmStopModal } from "./confirm-stop-modal";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExitConversationModal } from "./exit-conversation-modal";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { Provider } from "#/types/settings";
@@ -25,9 +26,8 @@ interface ConversationPanelProps {
 
 export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const { t } = useTranslation();
-  const { conversationId: currentConversationId } = useParams();
+  const { conversationId: currentConversationId, navigate } = useNavigation();
   const ref = useClickOutsideElement<HTMLDivElement>(onClose);
-  const navigate = useNavigate();
 
   const [confirmDeleteModalVisible, setConfirmDeleteModalVisible] =
     React.useState(false);
@@ -162,17 +162,17 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
       )}
       {/* Render in-progress start tasks first */}
       {startTasks?.map((task) => (
-        <NavLink
+        <NavigationLink
           key={task.id}
           to={`/conversations/task-${task.id}`}
           onClick={onClose}
         >
           <StartTaskCard task={task} />
-        </NavLink>
+        </NavigationLink>
       ))}
       {/* Then render completed conversations */}
       {conversations?.map((conversation) => (
-        <NavLink
+        <NavigationLink
           key={conversation.id}
           to={`/conversations/${conversation.id}`}
           onClick={onClose}
@@ -203,7 +203,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
             }
             llmModel={conversation.llm_model}
           />
-        </NavLink>
+        </NavigationLink>
       ))}
 
       {/* Loading indicator for fetching more conversations */}

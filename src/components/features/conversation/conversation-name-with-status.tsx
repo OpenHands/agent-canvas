@@ -1,10 +1,10 @@
 import React from "react";
-import { useParams } from "react-router";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUnifiedPauseConversationSandbox } from "#/hooks/mutation/use-unified-stop-conversation";
 import { useUnifiedResumeConversationSandbox } from "#/hooks/mutation/use-unified-start-conversation";
+import { useConversationId } from "#/hooks/use-conversation-id";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { getStatusColor } from "#/utils/utils";
 import { AgentState } from "#/types/agent-state";
@@ -13,7 +13,7 @@ import { ServerStatusContextMenu } from "../controls/server-status-context-menu"
 import { ConversationName } from "./conversation-name";
 
 export function ConversationNameWithStatus() {
-  const { conversationId } = useParams<{ conversationId: string }>();
+  const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
   const { curAgentState } = useAgentState();
   const { isTask, taskStatus } = useTaskPolling();

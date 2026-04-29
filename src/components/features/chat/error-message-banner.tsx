@@ -1,7 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import { X } from "lucide-react";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -44,12 +44,12 @@ export function ErrorMessageBanner({
               i18nKey={message}
               components={{
                 a: (
-                  <Link
+                  <NavigationLink
                     className="underline font-bold cursor-pointer"
                     to="/settings/billing"
                   >
                     link
-                  </Link>
+                  </NavigationLink>
                 ),
               }}
             />

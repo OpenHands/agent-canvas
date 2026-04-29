@@ -1,7 +1,7 @@
 import { IoLockClosed } from "react-icons/io5";
 import { Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
 
 export function SecurityLock() {
@@ -16,13 +16,13 @@ export function SecurityLock() {
       }
       placement="top"
     >
-      <Link
+      <NavigationLink
         to="/settings"
         className="mr-2 cursor-pointer hover:opacity-80 transition-all"
         aria-label={t(I18nKey.SETTINGS$TITLE)}
       >
         <IoLockClosed size={20} />
-      </Link>
+      </NavigationLink>
     </Tooltip>
   );
 }

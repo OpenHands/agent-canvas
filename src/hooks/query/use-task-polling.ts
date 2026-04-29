@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import { useNavigation } from "#/context/navigation-context";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
 /**
@@ -21,7 +21,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
  */
 export const useTaskPolling = () => {
   const { conversationId } = useConversationId();
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
 
   // Check if this is a task ID (format: "task-{uuid}")
   const isTask = conversationId.startsWith("task-");

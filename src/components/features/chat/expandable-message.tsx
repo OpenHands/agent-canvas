@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import { useConfig } from "#/hooks/query/use-config";
 import { I18nKey } from "#/i18n/declaration";
 import ArrowDown from "#/icons/angle-down-solid.svg?react";
@@ -8,6 +7,7 @@ import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import CheckCircle from "#/icons/check-circle-solid.svg?react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { OpenHandsObservation } from "#/types/core/observations";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { cn } from "#/utils/utils";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MonoComponent } from "./mono-component";
@@ -107,12 +107,12 @@ export function ExpandableMessage({
           <div className="font-bold text-danger">
             {t(I18nKey.STATUS$ERROR_LLM_OUT_OF_CREDITS)}
           </div>
-          <Link
+          <NavigationLink
             className="mt-2 mb-2 w-full h-10 rounded-sm flex items-center justify-center gap-2 bg-primary text-[#0D0F11]"
             to="/settings/billing"
           >
             {t(I18nKey.BILLING$CLICK_TO_TOP_UP)}
-          </Link>
+          </NavigationLink>
         </div>
       </div>
     );

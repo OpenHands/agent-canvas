@@ -3,13 +3,9 @@ import { screen, render } from "@testing-library/react";
 import React from "react";
 
 // Mock modules before importing the component
-vi.mock("react-router", async () => {
-  const actual = await vi.importActual("react-router");
-  return {
-    ...(actual as object),
-    useParams: () => ({ conversationId: "test-conversation-id" }),
-  };
-});
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useConversationId: () => ({ conversationId: "test-conversation-id" }),
+}));
 
 vi.mock("#/context/conversation-context", () => ({
   useConversation: () => ({ conversationId: "test-conversation-id" }),

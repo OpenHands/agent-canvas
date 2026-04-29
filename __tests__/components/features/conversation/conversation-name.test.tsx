@@ -12,7 +12,6 @@ import {
 import { renderWithProviders } from "test-utils";
 import { ConversationName } from "#/components/features/conversation/conversation-name";
 import { ConversationNameContextMenu } from "#/components/features/conversation/conversation-name-context-menu";
-import { BrowserRouter } from "react-router";
 import type { Conversation } from "#/api/open-hands.types";
 
 // Hoisted mocks for controllable return values
@@ -88,13 +87,14 @@ vi.mock("react-i18next", async () => {
   };
 });
 
-// Helper function to render ConversationName with Router context
+// Helper function to render ConversationName with navigation context
 const renderConversationNameWithRouter = () => {
-  return renderWithProviders(
-    <BrowserRouter>
-      <ConversationName />
-    </BrowserRouter>,
-  );
+  return renderWithProviders(<ConversationName />, {
+    navigation: {
+      currentPath: "/conversations/test-conversation-id",
+      conversationId: "test-conversation-id",
+    },
+  });
 };
 
 describe("ConversationName", () => {

@@ -1,12 +1,12 @@
-import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "../../settings/brand-button";
+import { useNavigation } from "#/context/navigation-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 
 export function CreateConversationButton() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
 
   const {
     mutate: createConversation,

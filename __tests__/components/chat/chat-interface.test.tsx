@@ -16,7 +16,10 @@ import { renderWithProviders, useParamsMock } from "test-utils";
 import type { Message } from "#/message";
 import { SUGGESTIONS } from "#/utils/suggestions";
 import { ChatInterface } from "#/components/features/chat/chat-interface";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import {
+  useConversationId,
+  useOptionalConversationId,
+} from "#/hooks/use-conversation-id";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useConfig } from "#/hooks/query/use-config";
@@ -31,7 +34,10 @@ vi.mock("#/context/ws-client-provider");
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
-vi.mock("#/hooks/use-conversation-id");
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useConversationId: vi.fn(),
+  useOptionalConversationId: vi.fn(),
+}));
 
 vi.mock("#/hooks/use-user-providers", () => ({
   useUserProviders: () => ({
@@ -92,6 +98,9 @@ const renderWithQueryClient = (
 beforeEach(() => {
   useParamsMock.mockReturnValue({ conversationId: "test-conversation-id" });
   vi.mocked(useConversationId).mockReturnValue({
+    conversationId: "test-conversation-id",
+  });
+  vi.mocked(useOptionalConversationId).mockReturnValue({
     conversationId: "test-conversation-id",
   });
 });

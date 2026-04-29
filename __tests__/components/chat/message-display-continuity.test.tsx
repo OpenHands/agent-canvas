@@ -6,7 +6,10 @@ import { render } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useParamsMock, createUserMessageEvent } from "test-utils";
 import { ChatInterface } from "#/components/features/chat/chat-interface";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import {
+  useConversationId,
+  useOptionalConversationId,
+} from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useConfig } from "#/hooks/query/use-config";
@@ -22,7 +25,10 @@ vi.mock("#/context/ws-client-provider");
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
-vi.mock("#/hooks/use-conversation-id");
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useConversationId: vi.fn(),
+  useOptionalConversationId: vi.fn(),
+}));
 vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/contexts/conversation-websocket-context");
 
@@ -111,6 +117,9 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
 
     useParamsMock.mockReturnValue({ conversationId: "test-conversation-id" });
     vi.mocked(useConversationId).mockReturnValue({
+      conversationId: "test-conversation-id",
+    });
+    vi.mocked(useOptionalConversationId).mockReturnValue({
       conversationId: "test-conversation-id",
     });
 

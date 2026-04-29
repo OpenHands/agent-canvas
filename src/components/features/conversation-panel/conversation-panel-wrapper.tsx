@@ -1,5 +1,5 @@
 import ReactDOM from "react-dom";
-import { useLocation } from "react-router";
+import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
 
 interface ConversationPanelWrapperProps {
@@ -10,7 +10,7 @@ export function ConversationPanelWrapper({
   isOpen,
   children,
 }: React.PropsWithChildren<ConversationPanelWrapperProps>) {
-  const { pathname } = useLocation();
+  const { currentPath } = useNavigation();
 
   if (!isOpen) return null;
 
@@ -21,7 +21,7 @@ export function ConversationPanelWrapper({
     <div
       className={cn(
         "absolute h-full w-full left-0 top-0 z-[100] bg-black/80 rounded-xl",
-        pathname === "/" && "bottom-0 top-0 md:top-3 md:bottom-3 h-auto",
+        currentPath === "/" && "bottom-0 top-0 md:top-3 md:bottom-3 h-auto",
       )}
     >
       {children}

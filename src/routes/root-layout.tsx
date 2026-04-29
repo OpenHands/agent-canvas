@@ -18,6 +18,7 @@ import { AlertBanner } from "#/components/features/alerts/alert-banner";
 import { cn } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
+import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -90,44 +91,46 @@ export default function MainApp() {
   }
 
   return (
-    <div
-      data-testid="root-layout"
-      className={cn(
-        "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-        pathname === "/" ? "p-0" : "p-0 md:p-3 md:pl-0",
-      )}
-    >
-      <title>{appTitle}</title>
-      <Sidebar />
+    <ReactRouterNavigationProvider>
+      <div
+        data-testid="root-layout"
+        className={cn(
+          "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
+          pathname === "/" ? "p-0" : "p-0 md:p-3 md:pl-0",
+        )}
+      >
+        <title>{appTitle}</title>
+        <Sidebar />
 
-      <div className="flex flex-col w-full h-[calc(100%-50px)] md:h-full gap-3">
-        {config.data &&
-          (config.data.maintenance_start_time ||
-            (config.data.faulty_models &&
-              config.data.faulty_models.length > 0) ||
-            config.data.error_message) && (
-            <AlertBanner
-              maintenanceStartTime={config.data.maintenance_start_time}
-              faultyModels={config.data.faulty_models}
-              errorMessage={config.data.error_message}
-              updatedAt={config.data.updated_at}
-            />
-          )}
-        <div
-          id="root-outlet"
-          className="flex-1 relative overflow-auto custom-scrollbar"
-        >
-          <Outlet />
+        <div className="flex flex-col w-full h-[calc(100%-50px)] md:h-full gap-3">
+          {config.data &&
+            (config.data.maintenance_start_time ||
+              (config.data.faulty_models &&
+                config.data.faulty_models.length > 0) ||
+              config.data.error_message) && (
+              <AlertBanner
+                maintenanceStartTime={config.data.maintenance_start_time}
+                faultyModels={config.data.faulty_models}
+                errorMessage={config.data.error_message}
+                updatedAt={config.data.updated_at}
+              />
+            )}
+          <div
+            id="root-outlet"
+            className="flex-1 relative overflow-auto custom-scrollbar"
+          >
+            <Outlet />
+          </div>
         </div>
-      </div>
 
-      {consentFormIsOpen && (
-        <AnalyticsConsentFormModal
-          onClose={() => {
-            setConsentFormIsOpen(false);
-          }}
-        />
-      )}
-    </div>
+        {consentFormIsOpen && (
+          <AnalyticsConsentFormModal
+            onClose={() => {
+              setConsentFormIsOpen(false);
+            }}
+          />
+        )}
+      </div>
+    </ReactRouterNavigationProvider>
   );
 }

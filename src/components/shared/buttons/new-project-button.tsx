@@ -1,6 +1,6 @@
-import { NavLink } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import PlusIcon from "#/icons/u-plus.svg?react";
 import { cn } from "#/utils/utils";
@@ -16,7 +16,7 @@ export function NewProjectButton({ disabled = false }: NewProjectButtonProps) {
 
   return (
     <StyledTooltip content={startNewProject} placement="right">
-      <NavLink
+      <NavigationLink
         to="/"
         data-testid="new-project-button"
         aria-label={startNewProject}
@@ -31,7 +31,7 @@ export function NewProjectButton({ disabled = false }: NewProjectButtonProps) {
         })}
       >
         <PlusIcon width={24} height={24} />
-      </NavLink>
+      </NavigationLink>
     </StyledTooltip>
   );
 }

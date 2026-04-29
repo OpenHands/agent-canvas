@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
 import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
 import { Provider } from "#/types/settings";
 import { formatTimeDelta } from "#/utils/format-time-delta";
@@ -21,7 +21,7 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
     conversation.selected_repository && conversation.selected_branch;
 
   return (
-    <Link
+    <NavigationLink
       to={`/conversations/${conversation.id}`}
       className="flex flex-col gap-1 p-[14px] cursor-pointer w-full rounded-lg hover:bg-[#5C5D62] transition-all duration-300 text-left"
     >
@@ -86,6 +86,6 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
           )}
         </div>
       </div>
-    </Link>
+    </NavigationLink>
   );
 }

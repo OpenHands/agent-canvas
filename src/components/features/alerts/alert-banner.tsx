@@ -1,9 +1,9 @@
-import { useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { FaTriangleExclamation } from "react-icons/fa6";
 import CloseIcon from "#/icons/close.svg?react";
+import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
@@ -27,7 +27,7 @@ export function AlertBanner({
     null,
   );
 
-  const { pathname } = useLocation();
+  const { currentPath } = useNavigation();
 
   // Format ISO timestamp to user's local timezone
   const formatMaintenanceTime = (isoTimeString: string): string => {
@@ -118,7 +118,7 @@ export function AlertBanner({
       className={cn(
         "bg-[#0D0F11] border border-primary text-white p-4 rounded",
         "flex flex-row items-center justify-between m-1",
-        pathname === "/" && "mt-3 mr-3",
+        currentPath === "/" && "mt-3 mr-3",
       )}
     >
       <div className="flex items-center">

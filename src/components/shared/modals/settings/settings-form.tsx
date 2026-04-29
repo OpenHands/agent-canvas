@@ -1,7 +1,7 @@
-import { useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import React from "react";
 import { usePostHog } from "posthog-js/react";
+import { useNavigation } from "#/context/navigation-context";
 import { I18nKey } from "#/i18n/declaration";
 import { DangerModal } from "../confirmation-modals/danger-modal";
 import { extractSettings } from "#/utils/settings-utils";
@@ -23,8 +23,7 @@ interface SettingsFormProps {
 export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   const posthog = usePostHog();
   const { mutate: saveUserSettings } = useSaveSettings();
-
-  const location = useLocation();
+  const { currentPath } = useNavigation();
   const { t } = useTranslation();
 
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -62,7 +61,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
-    if (location.pathname.startsWith("/conversations/")) {
+    if (currentPath.startsWith("/conversations/")) {
       setConfirmEndSessionModalOpen(true);
     } else {
       handleFormSubmission(formData);
