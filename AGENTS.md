@@ -69,9 +69,14 @@
 - OpenHands repo bootstrap files live under `.openhands/`:
   - `.openhands/setup.sh` installs frontend dependencies with `npm ci` when needed, creates `.env` from `.env.sample` if missing, appends `VITE_WORKING_DIR` for this repo when unset, and generates `src/i18n/declaration.ts` via `npm run make-i18n`.
   - `.openhands/pre-commit.sh` mirrors the repo's local quality gate with `npm run lint && npm run test`.
-- `.github/workflows/pr-review.yml` is configured for on-demand OpenHands reviews only (`review-this` label or requesting `openhands-agent` / `all-hands-bot`), uses the OpenHands app LLM proxy defaults, and expects a repository `LLM_API_KEY` secret.
-- HeroUI rollback / migration notes:
-  - The attempted HeroUI v3 upgrade changed global theme wiring and homepage design tokens enough that the repo currently prefers `@heroui/react@2.8.10` until a broader visual validation pass is done.
-  - Keep the v2 Tailwind integration active via `@plugin '../hero.ts'` in `src/tailwind.css` and source HeroUI classes from `node_modules/@heroui/theme/dist/**/*`.
-  - The settings UI currently relies on the v2 `Autocomplete` + `AutocompleteItem`/`AutocompleteSection` APIs in `settings-dropdown-input.tsx` and `model-selector.tsx`; a future v3 retry will need to replace those controls again.
+- GitHub PR-review automation should stay aligned with the current OpenHands repo conventions: keep the review workflow at `.github/workflows/pr-review-by-openhands.yml`, keep the companion `.github/workflows/pr-review-evaluation.yml`, auto-run on newly opened non-draft PRs and `ready_for_review` events from established contributors, still support the `review-this` label / `openhands-agent` / `all-hands-bot` reviewer triggers, use the OpenHands app LLM proxy defaults, and use the dual-trigger pattern (`pull_request` for same-repo PRs, `pull_request_target` for forks) so workflow changes can self-verify without widening fork secret exposure.
+- The repo now includes `.agents/skills/custom-codereview-guide.md`, adapted from `OpenHands/software-agent-sdk`, to force PR reviews to always leave either an APPROVE or COMMENT review instead of silently finishing with no review object.
+
+
+- HeroUI v3 migration notes:
+  - The repo now uses `@heroui/react@3.0.3` plus `@heroui/styles@3.0.3`.
+  - `src/tailwind.css` should import `@heroui/styles`; the old `hero.ts` Tailwind plugin file was removed and should not be reintroduced.
+  - Settings selectors no longer use the v2 `Autocomplete` APIs. `settings-dropdown-input.tsx` and `model-selector.tsx` now use HeroUI v3 `ComboBox` + `ListBox` patterns, and the model/provider comboboxes must keep their `name` attributes so `FormData` submission still populates settings diffs.
+  - Tooltip consumers that used the old monolithic `Tooltip` props should prefer the shared `StyledTooltip` wrapper so HeroUI v3 trigger/content typing stays centralized.
+  - Visual verification artifacts for the migration live under `.pr/issue-44/`; to reproduce the static screenshots, use `npm run build:mock`, serve `build/` (for example with `python -m http.server --directory build`), and navigate client-side before capturing screenshots because a plain static server will not provide SPA deep-link fallbacks.
 

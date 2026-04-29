@@ -31,6 +31,8 @@ If you do not already have the backend installed, install `uv` first (OpenHands 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
+Need Windows or another install method? See the official uv installation guide: <https://docs.astral.sh/uv/getting-started/installation/>
+
 Then install or upgrade the agent server package together with the tool/workspace dependencies it needs:
 
 ```sh

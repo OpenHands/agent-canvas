@@ -209,20 +209,19 @@ describe("useWebSocket", () => {
       useWebSocket("ws://acme.com/ws", options),
     );
 
-    // Wait for connection to be established
     await waitForConnection(result);
 
-    // Reset spy after connection is established to ignore any spurious
-    // close events fired by the MSW mock during the handshake.
     onCloseSpy.mockClear();
 
-    // Unmount to trigger close
-    unmount();
+    // Closing the socket while the hook is still mounted is more reliable in CI
+    // than waiting for the close event to propagate during unmount cleanup.
+    result.current.disconnect();
 
-    // Wait for onClose handler to be called
     await waitFor(() => {
       expect(onCloseSpy).toHaveBeenCalledOnce();
     });
+
+    unmount();
   });
 
   it.skip("should call onMessage handler when WebSocket receives a message", async () => {

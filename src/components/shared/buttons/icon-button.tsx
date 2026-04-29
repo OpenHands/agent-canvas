@@ -17,7 +17,7 @@ export function IconButton({
   return (
     <Button
       type="button"
-      variant="flat"
+      variant="ghost"
       onPress={onClick}
       className="cursor-pointer text-[12px] bg-transparent aspect-square px-0 min-w-[20px] h-[20px]"
       aria-label={ariaLabel}

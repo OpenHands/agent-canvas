@@ -8,10 +8,11 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
-    "@heroui/react": "2.8.10",
+    "@heroui/react": "3.0.3",
+    "@heroui/styles": "3.0.3",
     "@microlink/react-json-view": "1.31.18",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/typescript-client": "github:OpenHands/typescript-client#39228dd",
+    "@openhands/typescript-client": "github:OpenHands/typescript-client#7d20f119d68893903c3eab7070416e6317f72716",
     "@react-router/node": "7.14.1",
     "@react-router/serve": "7.14.1",
     "@tailwindcss/vite": "4.2.2",
@@ -46,7 +47,7 @@
     "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
     "tailwind-scrollbar": "4.0.2",
-    "vite": "8.0.8",
+    "vite": "8.0.9",
     "zustand": "5.0.12"
   },
   "scripts": {

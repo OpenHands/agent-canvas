@@ -1,15 +1,13 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
-@plugin '../hero.ts';
 @config "../tailwind.config.js";
-@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 
 @plugin 'tailwind-scrollbar' {
   nocompatible: true;
   preferredstrategy: "pseudoelements";
 }
 
-/* OLD TAILWIND STYLES */
 @theme {
   --color-primary: #c9b974;
   --color-logo: #cfb755;
@@ -22,6 +20,41 @@
   --color-tertiary-light: #b7bdc2;
   --color-content: #ecedee;
   --color-content-2: #f9fbfe;
+}
+
+:root {
+  color-scheme: dark;
+  --background: #0d0f11;
+  --foreground: #ecedee;
+  --surface: #24272e;
+  --surface-foreground: #ecedee;
+  --overlay: #24272e;
+  --overlay-foreground: #ecedee;
+  --muted: #9099ac;
+  --scrollbar: rgba(208, 217, 250, 0.3);
+  --default: #454545;
+  --default-foreground: #ecedee;
+  --accent: #c9b974;
+  --accent-foreground: #0d0f11;
+  --success: #a5e75e;
+  --success-foreground: #0d0f11;
+  --warning: #c9b974;
+  --warning-foreground: #0d0f11;
+  --danger: #e76a5e;
+  --danger-foreground: #f9fbfe;
+  --segment: #24272e;
+  --segment-foreground: #ecedee;
+  --border-width: 1px;
+  --field-border-width: 1px;
+  --border: #717888;
+  --separator: rgba(113, 120, 136, 0.5);
+  --focus: #c9b974;
+  --link: #ecedee;
+  --radius: 5px;
+  --field-radius: 5px;
+  --surface-shadow: none;
+  --overlay-shadow: none;
+  --field-shadow: none;
 }
 
 .button-base {

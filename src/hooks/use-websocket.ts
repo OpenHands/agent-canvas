@@ -156,7 +156,7 @@ export const useWebSocket = <T = string>(
   }, [url, connectWebSocket]);
 
   const sendMessage = React.useCallback(
-    (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+    (data: string | Blob | BufferSource) => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(data);
       }
