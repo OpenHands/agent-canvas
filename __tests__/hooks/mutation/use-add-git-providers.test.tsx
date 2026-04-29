@@ -14,10 +14,6 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
-vi.mock("#/context/use-selected-organization", () => ({
-  useSelectedOrganizationId: () => ({ organizationId: "org-1" }),
-}));
-
 const buildProviders = (
   overrides: Partial<Record<Provider, ProviderToken>> = {},
 ): Record<Provider, ProviderToken> => ({
@@ -48,7 +44,7 @@ describe("useAddGitProviders", () => {
   it("invalidates personal settings queries after saving providers", async () => {
     vi.spyOn(SecretsService, "addGitProvider").mockResolvedValue(true);
 
-    const personalSettingsQueryKey = ["settings", "personal", "org-1"] as const;
+    const personalSettingsQueryKey = ["settings", "personal"] as const;
     queryClient.setQueryData(personalSettingsQueryKey, {
       provider_tokens_set: {},
     });

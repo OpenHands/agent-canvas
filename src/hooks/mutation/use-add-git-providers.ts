@@ -11,11 +11,11 @@ export const useAddGitProviders = () => {
     mutationFn: ({
       providers,
     }: {
-      providers: Record<Provider, ProviderToken>;
+      providers: Partial<Record<Provider, ProviderToken>>;
     }) => SecretsService.addGitProvider(providers),
     onSuccess: async (_, { providers }) => {
       const connectedProviders = Object.entries(providers)
-        .filter(([, value]) => value.token && value.token.trim() !== "")
+        .filter(([, value]) => value?.token && value.token.trim() !== "")
         .map(([key]) => key);
 
       if (connectedProviders.length > 0) {
