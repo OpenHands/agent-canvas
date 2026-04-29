@@ -1,18 +1,22 @@
 import {
-  Autocomplete,
-  AutocompleteItem,
-  AutocompleteSection,
+  ComboBox,
+  Header,
+  Input,
+  ListBox,
+  Separator,
+  Spinner,
+  type Key,
 } from "@heroui/react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { mapProvider } from "#/utils/map-provider";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
+import { mapProvider } from "#/utils/map-provider";
 import { cn } from "#/utils/utils";
-import { HelpLink } from "#/ui/help-link";
 import { PRODUCT_URL } from "#/utils/constants";
-import { useSearchProviders } from "#/hooks/query/use-search-providers";
 import { useProviderModels } from "#/hooks/query/use-provider-models";
+import { useSearchProviders } from "#/hooks/query/use-search-providers";
+import { HelpLink } from "#/ui/help-link";
 
 interface ModelSelectorProps {
   isDisabled?: boolean;
@@ -24,6 +28,125 @@ interface ModelSelectorProps {
   ) => void;
   wrapperClassName?: string;
   labelClassName?: string;
+}
+
+interface ComboBoxSectionItem {
+  key: string;
+  label: string;
+  section: "verified" | "others";
+  testId?: string;
+}
+
+const INPUT_GROUP_CLASS =
+  "bg-tertiary border border-[#717888] h-10 w-full rounded-sm px-2 flex items-center gap-2";
+const POPOVER_CLASS =
+  "bg-tertiary rounded-xl border border-[#717888] overflow-hidden";
+const LIST_BOX_ITEM_CLASS =
+  "px-3 py-2 text-sm text-content hover:bg-white/5 cursor-pointer rounded-md mx-1";
+const TRIGGER_CLASS = "text-tertiary-light/80 hover:text-content transition-colors";
+const SECTION_HEADER_CLASS = "px-3 pt-2 pb-1 text-xs uppercase text-tertiary-light";
+const SECTION_SEPARATOR_CLASS = "my-1 h-px bg-[#717888]/50";
+
+function SectionedComboBox({
+  ariaLabel,
+  testId,
+  items,
+  placeholder,
+  selectedKey,
+  inputValue,
+  isDisabled,
+  isRequired,
+  isLoading,
+  verifiedLabel,
+  othersLabel,
+  onSelectionChange,
+  onInputChange,
+}: {
+  ariaLabel: string;
+  testId: string;
+  items: ComboBoxSectionItem[];
+  placeholder: string;
+  selectedKey: string | null;
+  inputValue: string;
+  isDisabled?: boolean;
+  isRequired?: boolean;
+  isLoading?: boolean;
+  verifiedLabel: string;
+  othersLabel: string;
+  onSelectionChange: (key: Key | null) => void;
+  onInputChange?: (value: string) => void;
+}) {
+  const verifiedItems = React.useMemo(
+    () => items.filter((item) => item.section === "verified"),
+    [items],
+  );
+  const otherItems = React.useMemo(
+    () => items.filter((item) => item.section === "others"),
+    [items],
+  );
+
+  return (
+    <ComboBox
+      aria-label={ariaLabel}
+      className="w-full"
+      inputValue={inputValue}
+      isDisabled={isDisabled}
+      isRequired={isRequired}
+      items={items}
+      name={testId}
+      onInputChange={onInputChange}
+      onSelectionChange={onSelectionChange}
+      selectedKey={selectedKey}
+    >
+      <ComboBox.InputGroup className={INPUT_GROUP_CLASS}>
+        <Input
+          aria-label={ariaLabel}
+          className="flex-1 bg-transparent text-sm text-content placeholder:italic outline-none"
+          data-testid={testId}
+          placeholder={placeholder}
+        />
+        {isLoading ? <Spinner size="sm" /> : null}
+        <ComboBox.Trigger className={TRIGGER_CLASS} />
+      </ComboBox.InputGroup>
+      <ComboBox.Popover className={POPOVER_CLASS}>
+        <ListBox className="max-h-60 overflow-auto py-1">
+          <ListBox.Section>
+            <Header className={SECTION_HEADER_CLASS}>{verifiedLabel}</Header>
+            {verifiedItems.map((item) => (
+              <ListBox.Item
+                className={LIST_BOX_ITEM_CLASS}
+                data-testid={item.testId}
+                id={item.key}
+                key={item.key}
+                textValue={item.label}
+              >
+                {item.label}
+              </ListBox.Item>
+            ))}
+          </ListBox.Section>
+          {otherItems.length > 0 ? (
+            <>
+              <Separator className={SECTION_SEPARATOR_CLASS} />
+              <ListBox.Section>
+                <Header className={SECTION_HEADER_CLASS}>{othersLabel}</Header>
+                {otherItems.map((item) => (
+                  <ListBox.Item
+                    className={LIST_BOX_ITEM_CLASS}
+                    data-testid={item.testId}
+                    id={item.key}
+                    key={item.key}
+                    textValue={item.label}
+                  >
+                    {item.label}
+                  </ListBox.Item>
+                ))}
+              </ListBox.Section>
+            </>
+          ) : null}
+        </ListBox>
+      </ComboBox.Popover>
+    </ComboBox>
+  );
 }
 
 export function ModelSelector({
@@ -39,6 +162,12 @@ export function ModelSelector({
     null,
   );
   const [selectedModel, setSelectedModel] = React.useState<string | null>(null);
+  const [pendingCurrentModel, setPendingCurrentModel] = React.useState<{
+    provider: string | null;
+    model: string | null;
+  } | null>(null);
+  const [providerInputValue, setProviderInputValue] = React.useState("");
+  const [modelInputValue, setModelInputValue] = React.useState("");
 
   const { data: providers = [] } = useSearchProviders();
   const {
@@ -48,54 +177,143 @@ export function ModelSelector({
   } = useProviderModels(selectedProvider);
 
   const verifiedProviders = React.useMemo(
-    () => providers.filter((p) => p.verified),
+    () => providers.filter((provider) => provider.verified),
     [providers],
   );
   const unverifiedProviders = React.useMemo(
-    () => providers.filter((p) => !p.verified),
+    () => providers.filter((provider) => !provider.verified),
     [providers],
   );
 
   const verifiedModels = React.useMemo(
-    () => providerModels.filter((m) => m.verified),
+    () => providerModels.filter((model) => model.verified),
     [providerModels],
   );
   const unverifiedModels = React.useMemo(
-    () => providerModels.filter((m) => !m.verified),
+    () => providerModels.filter((model) => !model.verified),
     [providerModels],
   );
 
-  React.useEffect(() => {
-    if (currentModel) {
-      const { provider, model } = extractModelAndProvider(currentModel);
+  const providerItems = React.useMemo<ComboBoxSectionItem[]>(
+    () => [
+      ...verifiedProviders.map((provider) => ({
+        key: provider.name,
+        label: mapProvider(provider.name),
+        section: "verified" as const,
+        testId: `provider-item-${provider.name}`,
+      })),
+      ...unverifiedProviders.map((provider) => ({
+        key: provider.name,
+        label: mapProvider(provider.name),
+        section: "others" as const,
+      })),
+    ],
+    [unverifiedProviders, verifiedProviders],
+  );
 
-      setLitellmId(currentModel);
-      setSelectedProvider(provider || null);
-      setSelectedModel(model);
-      onDefaultValuesChanged?.(provider || null, model);
+  const modelItems = React.useMemo<ComboBoxSectionItem[]>(
+    () => [
+      ...verifiedModels.map((model) => ({
+        key: model.name,
+        label: model.name,
+        section: "verified" as const,
+      })),
+      ...unverifiedModels.map((model) => ({
+        key: model.name,
+        label: model.name,
+        section: "others" as const,
+        testId: `model-item-${model.name}`,
+      })),
+    ],
+    [unverifiedModels, verifiedModels],
+  );
+
+  React.useEffect(() => {
+    if (!currentModel) {
+      return;
     }
-  }, [currentModel]);
+
+    const { provider, model } = extractModelAndProvider(currentModel);
+
+    setLitellmId(currentModel);
+    setPendingCurrentModel({ provider: provider || null, model });
+    setSelectedProvider(provider || null);
+    setSelectedModel(null);
+    setProviderInputValue(provider ? mapProvider(provider) : "");
+    setModelInputValue(model ?? "");
+    onDefaultValuesChanged?.(provider || null, model);
+  }, [currentModel, onDefaultValuesChanged]);
+
+  React.useEffect(() => {
+    if (!selectedProvider) {
+      setModelInputValue("");
+      setSelectedModel(null);
+      return;
+    }
+
+    const nextProviderLabel = mapProvider(selectedProvider);
+    if (providerInputValue !== nextProviderLabel) {
+      setProviderInputValue(nextProviderLabel);
+    }
+  }, [providerInputValue, selectedProvider]);
+
+  React.useEffect(() => {
+    if (!pendingCurrentModel?.model) {
+      return;
+    }
+
+    if (pendingCurrentModel.provider !== selectedProvider) {
+      return;
+    }
+
+    const matchingModel = providerModels.find(
+      (model) => model.name === pendingCurrentModel.model,
+    );
+
+    if (!matchingModel) {
+      return;
+    }
+
+    setSelectedModel(matchingModel.name);
+    setModelInputValue(matchingModel.name);
+    setPendingCurrentModel(null);
+  }, [pendingCurrentModel, providerModels, selectedProvider]);
+
+  React.useEffect(() => {
+    if (!selectedModel) {
+      return;
+    }
+
+    setModelInputValue(selectedModel);
+  }, [modelItems.length, selectedModel]);
 
   const handleChangeProvider = (provider: string) => {
     setSelectedProvider(provider);
     setSelectedModel(null);
+    setModelInputValue("");
+    setProviderInputValue(mapProvider(provider));
     setLitellmId(`${provider}/`);
     onChange?.(provider, null);
   };
 
   const handleChangeModel = (model: string) => {
     let fullModel = `${selectedProvider}/${model}`;
+
     if (selectedProvider === "openai") {
-      // LiteLLM lists OpenAI models without the openai/ prefix
       fullModel = model;
     }
+
     setLitellmId(fullModel);
     setSelectedModel(model);
+    setModelInputValue(model);
     onChange?.(selectedProvider, model);
   };
 
   const clear = () => {
     setSelectedProvider(null);
+    setSelectedModel(null);
+    setProviderInputValue("");
+    setModelInputValue("");
     setLitellmId(null);
   };
 
@@ -112,51 +330,29 @@ export function ModelSelector({
         <label className={cn("text-sm", labelClassName)}>
           {t(I18nKey.LLM$PROVIDER)}
         </label>
-        <Autocomplete
-          data-testid="llm-provider-input"
-          isRequired
-          isVirtualized={false}
-          name="llm-provider-input"
+        <SectionedComboBox
+          ariaLabel={t(I18nKey.LLM$PROVIDER)}
+          inputValue={providerInputValue}
           isDisabled={isDisabled}
-          aria-label={t(I18nKey.LLM$PROVIDER)}
+          isRequired
+          items={providerItems}
+          onInputChange={(value) => {
+            setProviderInputValue(value);
+            if (!value) {
+              clear();
+            }
+          }}
+          onSelectionChange={(key) => {
+            if (key?.toString()) {
+              handleChangeProvider(key.toString());
+            }
+          }}
+          othersLabel={t(I18nKey.MODEL_SELECTOR$OTHERS)}
           placeholder={t(I18nKey.LLM$SELECT_PROVIDER_PLACEHOLDER)}
-          isClearable={false}
-          onSelectionChange={(e) => {
-            if (e?.toString()) handleChangeProvider(e.toString());
-          }}
-          onInputChange={(value) => !value && clear()}
-          defaultSelectedKey={selectedProvider ?? undefined}
           selectedKey={selectedProvider}
-          classNames={{
-            popoverContent: "bg-tertiary rounded-xl border border-[#717888]",
-          }}
-          inputProps={{
-            classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[#717888] h-10 w-full rounded-sm p-2 placeholder:italic",
-            },
-          }}
-        >
-          <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
-            {verifiedProviders.map((provider) => (
-              <AutocompleteItem
-                data-testid={`provider-item-${provider.name}`}
-                key={provider.name}
-              >
-                {mapProvider(provider.name)}
-              </AutocompleteItem>
-            ))}
-          </AutocompleteSection>
-          {unverifiedProviders.length > 0 ? (
-            <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
-              {unverifiedProviders.map((provider) => (
-                <AutocompleteItem key={provider.name}>
-                  {mapProvider(provider.name)}
-                </AutocompleteItem>
-              ))}
-            </AutocompleteSection>
-          ) : null}
-        </Autocomplete>
+          testId="llm-provider-input"
+          verifiedLabel={t(I18nKey.MODEL_SELECTOR$VERIFIED)}
+        />
       </fieldset>
 
       {selectedProvider === "openhands" && (
@@ -165,8 +361,8 @@ export function ModelSelector({
           text={t(I18nKey.SETTINGS$NEED_OPENHANDS_ACCOUNT)}
           linkText={t(I18nKey.SETTINGS$CLICK_HERE)}
           href={PRODUCT_URL.PRODUCTION}
-          size="settings"
           linkColor="white"
+          size="settings"
         />
       )}
 
@@ -174,51 +370,27 @@ export function ModelSelector({
         <label className={cn("text-sm", labelClassName)}>
           {t(I18nKey.LLM$MODEL)}
         </label>
-        <Autocomplete
-          data-testid="llm-model-input"
-          isRequired
-          isVirtualized={false}
-          isLoading={isLoadingModels}
-          name="llm-model-input"
-          aria-label={t(I18nKey.LLM$MODEL)}
-          placeholder={t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
-          isClearable={false}
-          onSelectionChange={(e) => {
-            if (e?.toString()) handleChangeModel(e.toString());
-          }}
+        <SectionedComboBox
+          ariaLabel={t(I18nKey.LLM$MODEL)}
+          inputValue={modelInputValue}
           isDisabled={isDisabled || !selectedProvider}
+          isLoading={isLoadingModels}
+          isRequired
+          items={modelItems}
+          onInputChange={setModelInputValue}
+          onSelectionChange={(key) => {
+            if (key?.toString()) {
+              handleChangeModel(key.toString());
+            }
+          }}
+          othersLabel={t(I18nKey.MODEL_SELECTOR$OTHERS)}
+          placeholder={t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
           selectedKey={selectedModel}
-          defaultSelectedKey={selectedModel ?? undefined}
-          classNames={{
-            popoverContent: "bg-tertiary rounded-xl border border-[#717888]",
-          }}
-          inputProps={{
-            classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[#717888] h-10 w-full rounded-sm p-2 placeholder:italic",
-            },
-          }}
-        >
-          <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
-            {verifiedModels.map((model) => (
-              <AutocompleteItem key={model.name}>{model.name}</AutocompleteItem>
-            ))}
-          </AutocompleteSection>
-          {unverifiedModels.length > 0 ? (
-            <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
-              {unverifiedModels.map((model) => (
-                <AutocompleteItem
-                  data-testid={`model-item-${model.name}`}
-                  key={model.name}
-                >
-                  {model.name}
-                </AutocompleteItem>
-              ))}
-            </AutocompleteSection>
-          ) : null}
-        </Autocomplete>
+          testId="llm-model-input"
+          verifiedLabel={t(I18nKey.MODEL_SELECTOR$VERIFIED)}
+        />
         {modelsError && (
-          <p data-testid="models-error" className="text-danger text-xs">
+          <p className="text-danger text-xs" data-testid="models-error">
             {t(I18nKey.CONFIGURATION$ERROR_FETCH_MODELS)}
           </p>
         )}

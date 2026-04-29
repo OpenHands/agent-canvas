@@ -69,12 +69,13 @@
 - OpenHands repo bootstrap files live under `.openhands/`:
   - `.openhands/setup.sh` installs frontend dependencies with `npm ci` when needed, creates `.env` from `.env.sample` if missing, appends `VITE_WORKING_DIR` for this repo when unset, and generates `src/i18n/declaration.ts` via `npm run make-i18n`.
   - `.openhands/pre-commit.sh` mirrors the repo's local quality gate with `npm run lint && npm run test`.
-- `.github/workflows/pr-review.yml` is configured for on-demand OpenHands reviews only (`review-this` label or requesting `openhands-agent` / `all-hands-bot`), uses the OpenHands app LLM proxy defaults, and expects a repository `LLM_API_KEY` secret.
-- HeroUI rollback / migration notes:
-  - The attempted HeroUI v3 upgrade changed global theme wiring and homepage design tokens enough that the repo currently prefers `@heroui/react@2.8.10` until a broader visual validation pass is done.
-  - Keep the v2 Tailwind integration active via `@plugin '../hero.ts'` in `src/tailwind.css` and source HeroUI classes from `node_modules/@heroui/theme/dist/**/*`.
-  - The settings UI currently relies on the v2 `Autocomplete` + `AutocompleteItem`/`AutocompleteSection` APIs in `settings-dropdown-input.tsx` and `model-selector.tsx`; a future v3 retry will need to replace those controls again.
+- `.github/workflows/pr-review.yml` mirrors the OpenHands/extensions PR review workflow: it auto-runs for newly opened non-draft PRs and `ready_for_review` events from established contributors, still supports the `review-this` label / `openhands-agent` / `all-hands-bot` reviewer triggers, uses the OpenHands app LLM proxy defaults, and expects `LLM_API_KEY`, `OPENHANDS_BOT_GITHUB_PAT_PUBLIC`, and optional `LMNR_SKILLS_API_KEY` repository secrets.
+- HeroUI v3 migration notes:
+  - The repo now uses `@heroui/react@3.0.3` plus `@heroui/styles@3.0.3`.
+  - `src/tailwind.css` should import `@heroui/styles`; the old `hero.ts` Tailwind plugin file was removed and should not be reintroduced.
+  - Settings selectors no longer use the v2 `Autocomplete` APIs. `settings-dropdown-input.tsx` and `model-selector.tsx` now use HeroUI v3 `ComboBox` + `ListBox` patterns, and the model/provider comboboxes must keep their `name` attributes so `FormData` submission still populates settings diffs.
+  - Tooltip consumers that used the old monolithic `Tooltip` props should prefer the shared `StyledTooltip` wrapper so HeroUI v3 trigger/content typing stays centralized.
+  - Visual verification artifacts for the migration live under `.pr/issue-44/`; to reproduce the static screenshots, use `npm run build:mock`, serve `build/` (for example with `python -m http.server --directory build`), and navigate client-side before capturing screenshots because a plain static server will not provide SPA deep-link fallbacks.
 - Route decoupling note: `src/components/` should stay free of direct `react-router` imports. Route state now flows through `src/context/navigation-context.tsx`, the standalone app bridges router state with `src/routes/react-router-navigation-provider.tsx`, and link-like UI should use `src/components/shared/navigation-link.tsx`.
 - Test helper note: `test-utils.tsx` now wraps renders with a default `NavigationProvider` (`currentPath: "/"`, `conversationId: "test-conversation-id"`). Navigation-sensitive tests can override that via `renderWithProviders(..., { navigation: { ... } })`.
-
 

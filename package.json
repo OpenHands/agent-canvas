@@ -8,7 +8,8 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
-    "@heroui/react": "2.8.10",
+    "@heroui/react": "3.0.3",
+    "@heroui/styles": "3.0.3",
     "@microlink/react-json-view": "1.31.18",
     "@monaco-editor/react": "4.7.0",
     "@openhands/typescript-client": "github:OpenHands/typescript-client#7d20f119d68893903c3eab7070416e6317f72716",

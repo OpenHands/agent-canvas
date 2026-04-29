@@ -1,4 +1,4 @@
-import { Tooltip } from "@heroui/react";
+import { StyledTooltip } from "./styled-tooltip";
 
 interface TrajectoryActionButtonProps {
   testId?: string;
@@ -26,13 +26,13 @@ export function TrajectoryActionButton({
 
   if (tooltip) {
     return (
-      <Tooltip
-        content={tooltip}
+      <StyledTooltip
         closeDelay={100}
-        className="bg-white text-black hover:bg-transparent"
+        content={tooltip}
+        tooltipClassName="bg-white text-black hover:bg-transparent"
       >
         {button}
-      </Tooltip>
+      </StyledTooltip>
     );
   }
 

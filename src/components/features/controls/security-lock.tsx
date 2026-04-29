@@ -1,14 +1,14 @@
 import { IoLockClosed } from "react-icons/io5";
-import { Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 export function SecurityLock() {
   const { t } = useTranslation();
 
   return (
-    <Tooltip
+    <StyledTooltip
       content={
         <div className="max-w-xs p-2">
           {t(I18nKey.SETTINGS$CONFIRMATION_MODE_LOCK_TOOLTIP)}
@@ -23,6 +23,6 @@ export function SecurityLock() {
       >
         <IoLockClosed size={20} />
       </NavigationLink>
-    </Tooltip>
+    </StyledTooltip>
   );
 }

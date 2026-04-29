@@ -1,7 +1,7 @@
-import { Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { StyledTooltip } from "./buttons/styled-tooltip";
 
 interface ActionTooltipProps {
   type: "confirm" | "reject";
@@ -26,7 +26,7 @@ export function ActionTooltip({ type, onClick }: ActionTooltipProps) {
     : `${t(I18nKey.BUTTON$CANCEL)} ⇧⌘⌫`;
 
   return (
-    <Tooltip content={content} closeDelay={100}>
+    <StyledTooltip closeDelay={100} content={content}>
       <button
         data-testid={`action-${type}-button`}
         type="button"
@@ -41,6 +41,6 @@ export function ActionTooltip({ type, onClick }: ActionTooltipProps) {
       >
         {buttonLabel}
       </button>
-    </Tooltip>
+    </StyledTooltip>
   );
 }
