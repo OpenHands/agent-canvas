@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import GitSettingsScreen, { clientLoader } from "#/routes/git-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { GIT_PROVIDER_TOKENS_UNSUPPORTED_MESSAGE } from "#/api/secrets-service";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
+import GitSettingsScreen, { clientLoader } from "#/routes/git-settings";
 import { Settings } from "#/types/settings";
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
@@ -41,32 +41,19 @@ describe("GitSettingsScreen", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders OSS git provider token inputs", async () => {
+  it("shows an unsupported notice instead of Git provider token controls", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
     renderGitSettingsScreen();
 
-    const githubTokenInput = await screen.findByTestId("github-token-input");
-
-    expect(githubTokenInput).toBeInTheDocument();
-    expect(screen.getByTestId("gitlab-token-input")).toBeInTheDocument();
-    expect(screen.getByTestId("submit-button")).toBeDisabled();
-  });
-
-  it("enables saving after a provider token changes", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
-
-    renderGitSettingsScreen();
-
-    const user = userEvent.setup();
-    const githubTokenInput = await screen.findByTestId("github-token-input");
-    const submitButton = screen.getByTestId("submit-button");
-
-    expect(submitButton).toBeDisabled();
-
-    await user.type(githubTokenInput, "ghp_test_token");
-
-    expect(submitButton).toBeEnabled();
+    expect(
+      await screen.findByTestId("git-provider-settings-unavailable"),
+    ).toHaveTextContent(GIT_PROVIDER_TOKENS_UNSUPPORTED_MESSAGE);
+    expect(screen.queryByTestId("github-token-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("submit-button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("disconnect-tokens-button"),
+    ).not.toBeInTheDocument();
   });
 });
 

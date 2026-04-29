@@ -3,10 +3,12 @@ import {
   CustomSecret,
   CustomSecretPage,
   CustomSecretWithoutValue,
-  POSTProviderTokens,
   SearchSecretsParams,
 } from "./secrets-service.types";
 import { Provider, ProviderToken } from "#/types/settings";
+
+export const GIT_PROVIDER_TOKENS_UNSUPPORTED_MESSAGE =
+  "Git provider tokens can't currently be saved from Settings > Git when using openhands-agent-server directly. Current agent-server releases do not expose a compatible credential settings API.";
 
 export class SecretsService {
   /**
@@ -84,14 +86,9 @@ export class SecretsService {
     return status === 200;
   }
 
-  static async addGitProvider(providers: Record<Provider, ProviderToken>) {
-    const tokens: POSTProviderTokens = {
-      provider_tokens: providers,
-    };
-    const { data } = await openHands.post<boolean>(
-      "/api/v1/secrets/git-providers",
-      tokens,
-    );
-    return data;
+  static async addGitProvider(
+    _providers: Record<Provider, ProviderToken>,
+  ): Promise<boolean> {
+    throw new Error(GIT_PROVIDER_TOKENS_UNSUPPORTED_MESSAGE);
   }
 }
