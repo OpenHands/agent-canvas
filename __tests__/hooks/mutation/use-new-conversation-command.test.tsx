@@ -6,9 +6,13 @@ import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation
 
 const mockNavigate = vi.fn();
 
-vi.mock("react-router", () => ({
-  useNavigate: () => mockNavigate,
-  useParams: () => ({ conversationId: "conv-123" }),
+vi.mock("#/context/navigation-context", () => ({
+  useNavigation: () => ({
+    currentPath: "/conversations/conv-123",
+    conversationId: "conv-123",
+    isNavigating: false,
+    navigate: mockNavigate,
+  }),
 }));
 
 vi.mock("react-i18next", () => ({

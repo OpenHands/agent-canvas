@@ -1,8 +1,7 @@
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { createRoutesStub } from "react-router";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { renderWithProviders } from "test-utils";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import { NewConversation } from "#/components/features/home/new-conversation/new-conversation";
 
@@ -41,29 +40,14 @@ vi.mock("react-i18next", async () => {
   };
 });
 
-const renderNewConversation = () => {
-  const RouterStub = createRoutesStub([
-    {
-      Component: NewConversation,
-      path: "/",
-    },
-    {
-      Component: () => <div data-testid="conversation-screen" />,
-      path: "/conversations/:conversationId",
-    },
-  ]);
-
-  return render(<RouterStub />, {
-    wrapper: ({ children }) => (
-      <QueryClientProvider client={new QueryClient()}>
-        {children}
-      </QueryClientProvider>
-    ),
+const renderNewConversation = (navigate = vi.fn()) =>
+  renderWithProviders(<NewConversation />, {
+    navigation: { navigate },
   });
-};
 
 describe("NewConversation", () => {
-  it("should create an empty conversation and redirect when pressing the launch from scratch button", async () => {
+  it("should create an empty conversation and navigate when pressing the launch from scratch button", async () => {
+    const navigate = vi.fn();
     const createConversationSpy = vi
       .spyOn(V1ConversationService, "createConversation")
       .mockResolvedValue({
@@ -93,15 +77,15 @@ describe("NewConversation", () => {
         updated_at: new Date().toISOString(),
       });
 
-    renderNewConversation();
+    renderNewConversation(navigate);
 
     const launchButton = screen.getByTestId("launch-new-conversation-button");
     await userEvent.click(launchButton);
 
     expect(createConversationSpy).toHaveBeenCalledOnce();
-
-    // expect to be redirected to /conversations/:conversationId
-    await screen.findByTestId("conversation-screen");
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/conversations/conv-123");
+    });
   });
 
   it("should change the launch button text to 'Loading...' when creating a conversation", async () => {

@@ -1,7 +1,7 @@
 import { http, delay, HttpResponse } from "msw";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Provider, Settings, SettingsValue } from "#/types/settings";
+import { Settings, SettingsValue } from "#/types/settings";
 
 /** Simple recursive merge — objects merge, scalars overwrite. */
 function deepMerge(
@@ -567,30 +567,4 @@ export const SETTINGS_HANDLERS = [
     return HttpResponse.json(null, { status: 400 });
   }),
 
-  http.post("/api/add-git-providers", async ({ request }) => {
-    const body = await request.json();
-
-    if (typeof body === "object" && body?.provider_tokens) {
-      const rawTokens = body.provider_tokens as Record<
-        string,
-        { token?: string }
-      >;
-
-      const providerTokensSet: Partial<Record<Provider, string | null>> =
-        Object.fromEntries(
-          Object.entries(rawTokens)
-            .filter(([, val]) => val?.token)
-            .map(([provider]) => [provider as Provider, ""]),
-        );
-
-      MOCK_USER_PREFERENCES.settings = {
-        ...(MOCK_USER_PREFERENCES.settings || MOCK_DEFAULT_USER_SETTINGS),
-        provider_tokens_set: providerTokensSet,
-      };
-
-      return HttpResponse.json(true, { status: 200 });
-    }
-
-    return HttpResponse.json(null, { status: 400 });
-  }),
 ];

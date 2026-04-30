@@ -1,6 +1,5 @@
 import React from "react";
 import { usePostHog } from "posthog-js/react";
-import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
@@ -34,6 +33,7 @@ import { useConversationWebSocket } from "#/contexts/conversation-websocket-cont
 import ChatStatusIndicator from "./chat-status-indicator";
 import { getStatusColor, getStatusText } from "#/utils/utils";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { I18nKey } from "#/i18n/declaration";
 
 function getEntryPoint(
@@ -112,7 +112,7 @@ export function ChatInterface() {
   }, [isAgentRunning, handleBuildPlanClick, scrollDomToBottom]);
 
   const { selectedRepository, replayJson } = useInitialQueryStore();
-  const params = useParams();
+  const { conversationId } = useOptionalConversationId();
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
 
   const optimisticUserMessage = getOptimisticUserMessage();
@@ -124,7 +124,7 @@ export function ChatInterface() {
   const showV1Messages =
     v1FullEvents.length > 0 || !conversationWebSocket?.isLoadingHistory;
 
-  const isReturningToConversation = !!params.conversationId;
+  const isReturningToConversation = !!conversationId;
   // Only show loading skeleton when genuinely loading AND no events in store yet.
   // If events exist (e.g., remount after data was already fetched), skip skeleton.
   const isHistoryLoading = !showV1Messages;
@@ -137,7 +137,7 @@ export function ChatInterface() {
   ) => {
     // Handle /new command for V1 conversations
     if (content.trim() === "/new") {
-      if (!params.conversationId) {
+      if (!conversationId) {
         displayErrorToast(t(I18nKey.CONVERSATION$CLEAR_NO_ID));
         return;
       }
@@ -187,7 +187,7 @@ export function ChatInterface() {
 
     const { skipped_files: skippedFiles, uploaded_files: uploadedFiles } =
       files.length > 0
-        ? await uploadFiles({ conversationId: params.conversationId!, files })
+        ? await uploadFiles({ conversationId: conversationId!, files })
         : { skipped_files: [], uploaded_files: [] };
 
     skippedFiles.forEach((f) => displayErrorToast(f.reason));
@@ -292,7 +292,7 @@ export function ChatInterface() {
         </div>
 
         <div className="flex flex-col gap-[6px]">
-          <BtwMessages conversationId={params.conversationId} />
+          <BtwMessages conversationId={conversationId} />
           <div className="flex justify-between relative">
             <div className="flex items-end gap-1">
               <ConfirmationModeEnabled />

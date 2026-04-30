@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
-import { MemoryRouter } from "react-router";
+import { renderWithProviders } from "test-utils";
 import { SettingsNavLink } from "#/components/features/settings/settings-nav-link";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -14,13 +14,11 @@ const mockNavItem = {
 const renderSettingsNavLink = (
   item = mockNavItem,
   onClick = vi.fn(),
-  initialPath = "/",
+  currentPath = "/",
 ) =>
-  render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <SettingsNavLink item={item} onClick={onClick} />
-    </MemoryRouter>,
-  );
+  renderWithProviders(<SettingsNavLink item={item} onClick={onClick} />, {
+    navigation: { currentPath },
+  });
 
 describe("SettingsNavLink", () => {
   it("should render the link with icon and text", () => {
@@ -53,6 +51,12 @@ describe("SettingsNavLink", () => {
 
     // Assert
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("should mark the current settings route as active", () => {
+    renderSettingsNavLink(mockNavItem, vi.fn(), "/settings/test");
+
+    expect(screen.getByRole("link")).toHaveAttribute("aria-current", "page");
   });
 
   it("should render different text based on item prop", () => {

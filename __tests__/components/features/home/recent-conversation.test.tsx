@@ -1,7 +1,6 @@
 import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
-import { BrowserRouter } from "react-router";
 import { RecentConversation } from "#/components/features/home/recent-conversations/recent-conversation";
 import type { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
 import { V1ExecutionStatus } from "#/types/v1/core";
@@ -47,11 +46,7 @@ const baseConversation: V1AppConversation = {
 };
 
 const renderRecentConversation = (conversation: V1AppConversation) =>
-  renderWithProviders(
-    <BrowserRouter>
-      <RecentConversation conversation={conversation} />
-    </BrowserRouter>,
-  );
+  renderWithProviders(<RecentConversation conversation={conversation} />);
 
 describe("RecentConversation - llm_model", () => {
   it("should render the llm model when provided", () => {

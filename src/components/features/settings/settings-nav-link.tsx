@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { NavLink } from "react-router";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { cn } from "#/utils/utils";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
@@ -15,7 +15,7 @@ export function SettingsNavLink({ item, onClick }: SettingsNavLinkProps) {
   const { to, icon, text } = item;
 
   return (
-    <NavLink
+    <NavigationLink
       end
       to={to}
       onClick={onClick}
@@ -40,6 +40,6 @@ export function SettingsNavLink({ item, onClick }: SettingsNavLinkProps) {
           {t(text as I18nKey)}
         </Typography.Text>
       </div>
-    </NavLink>
+    </NavigationLink>
   );
 }

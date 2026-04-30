@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
 import { SuggestedTask } from "#/utils/types";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { TaskIssueNumber } from "./task-issue-number";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
 
 const getTaskTypeMap = (
@@ -25,7 +25,7 @@ export function TaskCard({ task }: TaskCardProps) {
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
 
   const handleLaunchConversation = () => {
     setOptimisticUserMessage(t("TASK$ADDRESSING_TASK"));

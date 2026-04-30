@@ -1,5 +1,4 @@
 import React from "react";
-import { useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useGitUser } from "#/hooks/query/use-git-user";
 import { UserActions } from "./user-actions";
@@ -14,12 +13,13 @@ import { ConversationPanelWrapper } from "../conversation-panel/conversation-pan
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
+import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
 import { ENABLE_AUTOMATIONS } from "#/utils/feature-flags";
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const { pathname } = useLocation();
+  const { currentPath } = useNavigation();
   const user = useGitUser();
   const { data: config } = useConfig();
   const {
@@ -36,7 +36,7 @@ export function Sidebar() {
   const settingsErrorStatus = getErrorStatus(settingsError);
 
   React.useEffect(() => {
-    if (pathname === "/settings") {
+    if (currentPath === "/settings") {
       setSettingsModalIsOpen(false);
     } else if (
       !isFetchingSettings &&
@@ -56,7 +56,7 @@ export function Sidebar() {
       setSettingsModalIsOpen(true);
     }
   }, [
-    pathname,
+    currentPath,
     isFetchingSettings,
     settingsIsError,
     settingsErrorStatus,
@@ -70,7 +70,7 @@ export function Sidebar() {
         aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
         className={cn(
           "h-[54px] p-3 md:p-0 md:h-[40px] md:h-auto flex flex-row md:flex-col gap-1 bg-base md:w-[75px] md:min-w-[75px] sm:pt-0 sm:px-2 md:pt-[14px] md:px-0",
-          pathname === "/" && "md:pt-6.5 md:pb-3",
+          currentPath === "/" && "md:pt-6.5 md:pb-3",
         )}
       >
         <nav className="flex flex-row md:flex-col items-center justify-between w-full h-auto md:w-auto md:h-full">

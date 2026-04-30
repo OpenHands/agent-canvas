@@ -1,6 +1,6 @@
-import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { useNavigation } from "#/context/navigation-context";
 import { BrandButton } from "../settings/brand-button";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
@@ -9,7 +9,7 @@ import PlusIcon from "#/icons/u-plus.svg?react";
 export function NewConversation() {
   const { t } = useTranslation();
 
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
   const {
     mutate: createConversation,
     isPending,

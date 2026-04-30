@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import React from "react";
-import { useParams, useNavigate } from "react-router";
+import { useNavigation } from "#/context/navigation-context";
 import useMetricsStore from "#/stores/metrics-store";
 import { useDeleteConversation } from "./mutation/use-delete-conversation";
 import { useUnifiedPauseConversationSandbox } from "./mutation/use-unified-stop-conversation";
@@ -31,8 +31,7 @@ export function useConversationNameContextMenu({
   onContextMenuToggle,
 }: UseConversationNameContextMenuProps) {
   const { t } = useTranslation();
-  const { conversationId: currentConversationId } = useParams();
-  const navigate = useNavigate();
+  const { conversationId: currentConversationId, navigate } = useNavigation();
   const events = useEventStore((state) => state.events);
   const { mutate: deleteConversation } = useDeleteConversation();
   const { mutate: stopConversation } = useUnifiedPauseConversationSandbox();

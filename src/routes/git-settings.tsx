@@ -4,7 +4,6 @@ import { useConfig } from "#/hooks/query/use-config";
 import { createPermissionGuard } from "#/utils/org/permission-guard";
 import { useSettings } from "#/hooks/query/use-settings";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { useLogout } from "#/hooks/mutation/use-logout";
 import { GitHubTokenInput } from "#/components/features/settings/git-settings/github-token-input";
 import { GitLabTokenInput } from "#/components/features/settings/git-settings/gitlab-token-input";
 import { BitbucketTokenInput } from "#/components/features/settings/git-settings/bitbucket-token-input";
@@ -19,8 +18,10 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { GitSettingInputsSkeleton } from "#/components/features/settings/git-settings/github-settings-inputs-skeleton";
 import { useAddGitProviders } from "#/hooks/mutation/use-add-git-providers";
+import { useDeleteGitProviders } from "#/hooks/mutation/use-delete-git-providers";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { ProjectManagementIntegration } from "#/components/features/settings/project-management/project-management-integration";
+import { Provider, ProviderToken } from "#/types/settings";
 
 export const clientLoader = createPermissionGuard("manage_integrations");
 
@@ -28,7 +29,8 @@ function GitSettingsScreen() {
   const { t } = useTranslation();
 
   const { mutate: saveGitProviders, isPending } = useAddGitProviders();
-  const { mutate: disconnectGitTokens } = useLogout();
+  const { mutate: disconnectGitTokens, isPending: isDisconnecting } =
+    useDeleteGitProviders();
 
   const { data: settings, isLoading } = useSettings();
   const { providers } = useUserProviders();
@@ -80,48 +82,44 @@ function GitSettingsScreen() {
       formData.get("disconnect-tokens-button") !== null;
 
     if (disconnectButtonClicked) {
-      disconnectGitTokens();
+      disconnectGitTokens(undefined, {
+        onSuccess: () => {
+          displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
+        },
+        onError: (error) => {
+          const errorMessage = retrieveAxiosErrorMessage(error);
+          displayErrorToast(errorMessage || t(I18nKey.ERROR$GENERIC));
+        },
+      });
       return;
     }
 
-    const githubToken = (
-      formData.get("github-token-input")?.toString() || ""
-    ).trim();
-    const gitlabToken = (
-      formData.get("gitlab-token-input")?.toString() || ""
-    ).trim();
-    const bitbucketToken = (
-      formData.get("bitbucket-token-input")?.toString() || ""
-    ).trim();
-    const bitbucketDCToken = (
-      formData.get("bitbucket-dc-token-input")?.toString() || ""
-    ).trim();
-    const azureDevOpsToken = (
-      formData.get("azure-devops-token-input")?.toString() || ""
-    ).trim();
-    const forgejoToken = (
-      formData.get("forgejo-token-input")?.toString() || ""
-    ).trim();
-    const githubHost = (
-      formData.get("github-host-input")?.toString() || ""
-    ).trim();
-    const gitlabHost = (
-      formData.get("gitlab-host-input")?.toString() || ""
-    ).trim();
-    const bitbucketHost = (
-      formData.get("bitbucket-host-input")?.toString() || ""
-    ).trim();
-    const bitbucketDCHost = (
-      formData.get("bitbucket-dc-host-input")?.toString() || ""
-    ).trim();
-    const azureDevOpsHost = (
-      formData.get("azure-devops-host-input")?.toString() || ""
-    ).trim();
-    const forgejoHost = (
-      formData.get("forgejo-host-input")?.toString() || ""
-    ).trim();
+    const githubToken =
+      (formData.get("github-token-input")?.toString() || "").trim();
+    const gitlabToken =
+      (formData.get("gitlab-token-input")?.toString() || "").trim();
+    const bitbucketToken =
+      (formData.get("bitbucket-token-input")?.toString() || "").trim();
+    const bitbucketDCToken =
+      (formData.get("bitbucket-dc-token-input")?.toString() || "").trim();
+    const azureDevOpsToken =
+      (formData.get("azure-devops-token-input")?.toString() || "").trim();
+    const forgejoToken =
+      (formData.get("forgejo-token-input")?.toString() || "").trim();
+    const githubHost =
+      (formData.get("github-host-input")?.toString() || "").trim();
+    const gitlabHost =
+      (formData.get("gitlab-host-input")?.toString() || "").trim();
+    const bitbucketHost =
+      (formData.get("bitbucket-host-input")?.toString() || "").trim();
+    const bitbucketDCHost =
+      (formData.get("bitbucket-dc-host-input")?.toString() || "").trim();
+    const azureDevOpsHost =
+      (formData.get("azure-devops-host-input")?.toString() || "").trim();
+    const forgejoHost =
+      (formData.get("forgejo-host-input")?.toString() || "").trim();
 
-    const providerTokens: Record<string, { token: string; host: string }> = {
+    const providerTokens: Partial<Record<Provider, ProviderToken>> = {
       github: { token: githubToken, host: githubHost },
       gitlab: { token: gitlabToken, host: gitlabHost },
       bitbucket: { token: bitbucketToken, host: bitbucketHost },
@@ -276,12 +274,13 @@ function GitSettingsScreen() {
           type="submit"
           variant="secondary"
           isDisabled={
-            !isGitHubTokenSet &&
-            !isGitLabTokenSet &&
-            !isBitbucketTokenSet &&
-            !isBitbucketDCTokenSet &&
-            !isAzureDevOpsTokenSet &&
-            !isForgejoTokenSet
+            isDisconnecting ||
+            (!isGitHubTokenSet &&
+              !isGitLabTokenSet &&
+              !isBitbucketTokenSet &&
+              !isBitbucketDCTokenSet &&
+              !isAzureDevOpsTokenSet &&
+              !isForgejoTokenSet)
           }
         >
           {t(I18nKey.GIT$DISCONNECT_TOKENS)}
@@ -290,7 +289,7 @@ function GitSettingsScreen() {
           testId="submit-button"
           type="submit"
           variant="primary"
-          isDisabled={isPending || formIsClean}
+          isDisabled={isPending || isDisconnecting || formIsClean}
         >
           {!isPending && t("SETTINGS$SAVE_CHANGES")}
           {isPending && t("SETTINGS$SAVING")}

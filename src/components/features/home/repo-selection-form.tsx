@@ -1,8 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 // Removed useRepositoryBranches import - GitBranchDropdown manages its own data
+import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { Branch, GitRepository } from "#/types/git";
 import { BrandButton } from "../settings/brand-button";
@@ -24,7 +24,7 @@ export function RepositorySelectionForm({
   onRepoSelection,
   isLoadingSettings = false,
 }: RepositorySelectionFormProps) {
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
 
   const [selectedRepository, setSelectedRepository] =
     React.useState<GitRepository | null>(null);

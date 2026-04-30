@@ -1,7 +1,7 @@
 import React from "react";
-import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { SettingsNavItem } from "#/constants/settings-nav";
 
 interface ContextMenuNavLinkProps {
@@ -14,7 +14,7 @@ export function ContextMenuNavLink({ item, onClick }: ContextMenuNavLinkProps) {
   const { to, icon, text } = item;
 
   return (
-    <Link
+    <NavigationLink
       to={to}
       onClick={onClick}
       className="flex items-center gap-2 p-2 cursor-pointer hover:bg-white/10 hover:text-white rounded w-full text-xs"
@@ -26,6 +26,6 @@ export function ContextMenuNavLink({ item, onClick }: ContextMenuNavLinkProps) {
         size: 16, // For react-icons compatibility
       } as React.SVGProps<SVGSVGElement>)}
       {t(text as I18nKey)}
-    </Link>
+    </NavigationLink>
   );
 }

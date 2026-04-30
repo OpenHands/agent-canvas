@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router";
 import { GitControlBarRepoButton } from "./git-control-bar-repo-button";
 import { GitControlBarBranchButton } from "./git-control-bar-branch-button";
 import { GitControlBarPullButton } from "./git-control-bar-pull-button";
@@ -16,6 +15,7 @@ import { Branch, GitRepository } from "#/types/git";
 import { I18nKey } from "#/i18n/declaration";
 import { GitControlBarTooltipWrapper } from "./git-control-bar-tooltip-wrapper";
 import { OpenRepositoryModal } from "./open-repository-modal";
+import { useConversationId } from "#/hooks/use-conversation-id";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -26,7 +26,7 @@ interface GitControlBarProps {
 
 export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { t } = useTranslation();
-  const { conversationId } = useParams<{ conversationId: string }>();
+  const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
   const { addRecentRepository } = useHomeStore();
   const { setOptimisticUserMessage } = useOptimisticUserMessageStore();

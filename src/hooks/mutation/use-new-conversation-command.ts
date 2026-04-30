@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { I18nKey } from "#/i18n/declaration";
@@ -9,11 +8,12 @@ import {
   displaySuccessToast,
   TOAST_OPTIONS,
 } from "#/utils/custom-toast-handlers";
+import { useNavigation } from "#/context/navigation-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 
 export const useNewConversationCommand = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
   const { t } = useTranslation();
   const { data: conversation } = useActiveConversation();
 

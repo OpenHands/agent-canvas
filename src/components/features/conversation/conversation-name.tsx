@@ -1,8 +1,8 @@
 import React from "react";
-import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
+import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
@@ -18,7 +18,7 @@ import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 export function ConversationName() {
   const { t } = useTranslation();
-  const { conversationId } = useParams<{ conversationId: string }>();
+  const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
   const { mutate: updateConversation } = useUpdateConversation();
 

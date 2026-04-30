@@ -1,8 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { createRoutesStub } from "react-router";
+import { renderWithProviders } from "test-utils";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import GitService from "#/api/git-service/git-service.api";
 import { TaskCard } from "#/components/features/home/tasks/task-card";
@@ -39,26 +38,10 @@ const MOCK_RESPOSITORIES: GitRepository[] = [
   { id: "5", full_name: "repo5", git_provider: "azure_devops", is_public: true },
 ];
 
-const renderTaskCard = (task = MOCK_TASK_1) => {
-  const RouterStub = createRoutesStub([
-    {
-      Component: () => <TaskCard task={task} />,
-      path: "/",
-    },
-    {
-      Component: () => <div data-testid="conversation-screen" />,
-      path: "/conversations/:conversationId",
-    },
-  ]);
-
-  return render(<RouterStub />, {
-    wrapper: ({ children }) => (
-      <QueryClientProvider client={new QueryClient()}>
-        {children}
-      </QueryClientProvider>
-    ),
+const renderTaskCard = (task = MOCK_TASK_1, navigate = vi.fn()) =>
+  renderWithProviders(<TaskCard task={task} />, {
+    navigation: { navigate },
   });
-};
 
 describe("TaskCard", () => {
   it("format the issue id", async () => {
@@ -177,6 +160,8 @@ describe("TaskCard", () => {
   });
 
   it("should navigate to the conversation page after creating a conversation", async () => {
+    const navigate = vi.fn();
+
     vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue({
       id: "task-id",
       created_by_user_id: null,
@@ -204,12 +189,15 @@ describe("TaskCard", () => {
       updated_at: new Date().toISOString(),
     });
 
-    renderTaskCard();
+    renderTaskCard(MOCK_TASK_1, navigate);
 
     const launchButton = screen.getByTestId("task-launch-button");
     await userEvent.click(launchButton);
 
-    // Wait for navigation to the conversation page
-    await screen.findByTestId("conversation-screen");
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith(
+        "/conversations/test-conversation-id",
+      );
+    });
   });
 });

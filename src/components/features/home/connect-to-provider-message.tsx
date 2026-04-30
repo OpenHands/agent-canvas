@@ -1,6 +1,6 @@
-import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { useSettings } from "#/hooks/query/use-settings";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import { I18nKey } from "#/i18n/declaration";
@@ -20,7 +20,7 @@ export function ConnectToProviderMessage() {
         </div>
         <p>{t("HOME$CONNECT_PROVIDER_MESSAGE")}</p>
       </div>
-      <Link
+      <NavigationLink
         data-testid="navigate-to-settings-button"
         to="/settings/integrations"
         className="self-start w-full"
@@ -34,7 +34,7 @@ export function ConnectToProviderMessage() {
           {!isLoading && t("SETTINGS$TITLE")}
           {isLoading && t("HOME$LOADING")}
         </BrandButton>
-      </Link>
+      </NavigationLink>
     </div>
   );
 }

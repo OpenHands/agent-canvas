@@ -11,6 +11,10 @@ import {
   ObservationEvent,
   PlanningFileEditorObservation,
 } from "#/types/v1/core";
+import {
+  NavigationProvider,
+  type NavigationContextValue,
+} from "#/context/navigation-context";
 import { SecurityRisk } from "#/types/v1/core";
 
 export const useParamsMock = vi.fn(() => ({
@@ -49,8 +53,20 @@ i18n.use(initReactI18next).init({
   },
 });
 
+const createNavigationValue = (
+  overrides: Partial<NavigationContextValue> = {},
+): NavigationContextValue => ({
+  currentPath: "/",
+  conversationId: "test-conversation-id",
+  isNavigating: false,
+  navigate: vi.fn(),
+  ...overrides,
+});
+
 // This type interface extends the default options for render from RTL
-interface ExtendedRenderOptions extends Omit<RenderOptions, "queries"> {}
+interface ExtendedRenderOptions extends Omit<RenderOptions, "queries"> {
+  navigation?: Partial<NavigationContextValue>;
+}
 
 // Export our own customized renderWithProviders function that renders with QueryClient and i18next providers
 // Since we're using Zustand stores, we don't need a Redux Provider wrapper
@@ -58,6 +74,9 @@ export function renderWithProviders(
   ui: React.ReactElement,
   renderOptions: ExtendedRenderOptions = {},
 ) {
+  const { navigation, ...rtlRenderOptions } = renderOptions;
+  const navigationValue = createNavigationValue(navigation);
+
   function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider
@@ -67,11 +86,15 @@ export function renderWithProviders(
           })
         }
       >
-        <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
+        <I18nextProvider i18n={i18n}>
+          <NavigationProvider value={navigationValue}>
+            {children}
+          </NavigationProvider>
+        </I18nextProvider>
       </QueryClientProvider>
     );
   }
-  return render(ui, { wrapper: Wrapper, ...renderOptions });
+  return render(ui, { wrapper: Wrapper, ...rtlRenderOptions });
 }
 
 export const createAxiosNotFoundErrorObject = () =>

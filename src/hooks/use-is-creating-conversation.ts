@@ -1,5 +1,5 @@
 import { useIsMutating } from "@tanstack/react-query";
-import { useNavigation } from "react-router";
+import { useNavigation } from "#/context/navigation-context";
 
 export const useIsCreatingConversation = () => {
   const navigation = useNavigation();
@@ -7,7 +7,7 @@ export const useIsCreatingConversation = () => {
     mutationKey: ["create-conversation"],
   });
 
-  const isNavigating = Boolean(navigation.location);
+  const isNavigating = navigation.isNavigating;
   const hasPendingMutations = numberOfPendingMutations > 0;
 
   return hasPendingMutations || isNavigating;

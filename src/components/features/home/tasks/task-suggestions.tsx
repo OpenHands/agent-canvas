@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import { TaskGroup } from "./task-group";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { useSuggestedTasks } from "#/hooks/query/use-suggested-tasks";
 import { TaskSuggestionsSkeleton } from "./task-suggestions-skeleton";
 import { cn, getDisplayedTaskGroups, getTotalTaskCount } from "#/utils/utils";
@@ -85,14 +85,14 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
                 {t(I18nKey.TASKS$NO_GIT_PROVIDERS_DESCRIPTION)}
               </Typography.Text>
 
-              <Link
+              <NavigationLink
                 to="/settings/integrations"
                 className="w-fit hover:underline"
               >
                 <Typography.Text className="text-xs leading-4 text-[#FAFAFA] font-normal">
                   {t(I18nKey.TASKS$NO_GIT_PROVIDERS_CTA)}
                 </Typography.Text>
-              </Link>
+              </NavigationLink>
             </div>
           ) : (
             <Typography.Text className="text-xs leading-4 text-white font-medium px-[14px]">
