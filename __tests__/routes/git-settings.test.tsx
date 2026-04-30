@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import GitSettingsScreen, { clientLoader } from "#/routes/git-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
+import GitSettingsScreen, { clientLoader } from "#/routes/git-settings";
 import { Settings } from "#/types/settings";
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
@@ -67,6 +67,22 @@ describe("GitSettingsScreen", () => {
     await user.type(githubTokenInput, "ghp_test_token");
 
     expect(submitButton).toBeEnabled();
+  });
+
+  it("enables disconnecting when a provider is already configured", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        provider_tokens_set: {
+          github: "github.com",
+        },
+      }),
+    );
+
+    renderGitSettingsScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("disconnect-tokens-button")).toBeEnabled();
+    });
   });
 });
 
