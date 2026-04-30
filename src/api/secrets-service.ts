@@ -1,12 +1,88 @@
+import SettingsService from "./settings-service/settings-service.api";
 import { openHands } from "./open-hands-axios";
 import {
   CustomSecret,
   CustomSecretPage,
   CustomSecretWithoutValue,
-  POSTProviderTokens,
   SearchSecretsParams,
 } from "./secrets-service.types";
-import { Provider, ProviderToken } from "#/types/settings";
+import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
+
+const GIT_PROVIDER_STORAGE_KEY = "openhands-agent-server-git-provider-tokens";
+
+type StoredGitProviderTokens = Partial<Record<Provider, ProviderToken>>;
+
+const normalizeHost = (host: string | null | undefined): string | null => {
+  const trimmed = typeof host === "string" ? host.trim() : "";
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const readStoredGitProviders = (): StoredGitProviderTokens => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GIT_PROVIDER_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([provider, value]) => {
+        if (!(provider in ProviderOptions) || !value || typeof value !== "object") {
+          return [];
+        }
+
+        const token =
+          typeof (value as ProviderToken).token === "string"
+            ? (value as ProviderToken).token.trim()
+            : "";
+
+        if (!token) {
+          return [];
+        }
+
+        return [
+          [
+            provider,
+            {
+              token,
+              host: normalizeHost((value as ProviderToken).host),
+            },
+          ],
+        ];
+      }),
+    ) as StoredGitProviderTokens;
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredGitProviders = (providers: StoredGitProviderTokens) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (Object.keys(providers).length === 0) {
+    window.localStorage.removeItem(GIT_PROVIDER_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(GIT_PROVIDER_STORAGE_KEY, JSON.stringify(providers));
+};
+
+const buildProviderTokensSet = (
+  providers: StoredGitProviderTokens,
+): Partial<Record<Provider, string | null>> =>
+  Object.fromEntries(
+    Object.entries(providers).map(([provider, value]) => [provider, value?.host ?? null]),
+  ) as Partial<Record<Provider, string | null>>;
 
 export class SecretsService {
   /**
@@ -39,13 +115,10 @@ export class SecretsService {
    * @deprecated Use searchSecrets instead. This method uses the deprecated V0 API.
    */
   static async getSecrets(): Promise<CustomSecretWithoutValue[]> {
-    // Fetch all secrets by iterating through pages
     const allSecrets: CustomSecretWithoutValue[] = [];
     let pageId: string | null = null;
 
-    // eslint-disable-next-line no-await-in-loop
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop
       const page = await SecretsService.searchSecrets({
         page_id: pageId ?? undefined,
         limit: 100,
@@ -84,14 +157,41 @@ export class SecretsService {
     return status === 200;
   }
 
-  static async addGitProvider(providers: Record<Provider, ProviderToken>) {
-    const tokens: POSTProviderTokens = {
-      provider_tokens: providers,
-    };
-    const { data } = await openHands.post<boolean>(
-      "/api/v1/secrets/git-providers",
-      tokens,
-    );
-    return data;
+  static async addGitProvider(
+    providers: Partial<Record<Provider, ProviderToken>>,
+  ): Promise<boolean> {
+    const storedProviders = readStoredGitProviders();
+    const nextProviders: StoredGitProviderTokens = { ...storedProviders };
+
+    for (const [provider, value] of Object.entries(providers) as [
+      Provider,
+      ProviderToken,
+    ][]) {
+      const token = value.token.trim();
+      const host = normalizeHost(value.host);
+
+      if (token) {
+        nextProviders[provider] = { token, host };
+        continue;
+      }
+
+      const existing = nextProviders[provider];
+      if (existing) {
+        nextProviders[provider] = {
+          token: existing.token,
+          host,
+        };
+      }
+    }
+
+    writeStoredGitProviders(nextProviders);
+    return SettingsService.saveSettings({
+      provider_tokens_set: buildProviderTokensSet(nextProviders),
+    });
+  }
+
+  static async deleteGitProviders(): Promise<boolean> {
+    writeStoredGitProviders({});
+    return SettingsService.saveSettings({ provider_tokens_set: {} });
   }
 }

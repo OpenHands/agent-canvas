@@ -1,5 +1,3 @@
-import { Provider, ProviderToken } from "#/types/settings";
-
 export type CustomSecret = {
   name: string;
   value: string;
@@ -17,10 +15,6 @@ export interface CustomSecretPage {
 /** @deprecated Use CustomSecretPage instead */
 export interface GetSecretsResponse {
   custom_secrets: CustomSecretWithoutValue[];
-}
-
-export interface POSTProviderTokens {
-  provider_tokens: Record<Provider, ProviderToken>;
 }
 
 export interface SearchSecretsParams {
