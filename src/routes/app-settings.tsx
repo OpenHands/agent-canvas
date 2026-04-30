@@ -31,7 +31,7 @@ export const clientLoader = createPermissionGuard(
   "manage_application_settings",
 );
 
-function AppSettingsScreen() {
+export function AppSettingsScreen() {
   const posthog = usePostHog();
   const { t } = useTranslation();
 

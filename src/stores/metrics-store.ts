@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-interface MetricsState {
+export interface MetricsState {
   cost: number | null;
   max_budget_per_task: number | null;
   usage: {
@@ -13,7 +13,7 @@ interface MetricsState {
   } | null;
 }
 
-interface MetricsStore extends MetricsState {
+export interface MetricsStore extends MetricsState {
   setMetrics: (metrics: MetricsState) => void;
 }
 

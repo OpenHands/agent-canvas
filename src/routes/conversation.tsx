@@ -117,8 +117,8 @@ function AppContent() {
   );
 }
 
-function App() {
+export function ConversationView() {
   return <AppContent />;
 }
 
-export default App;
+export default ConversationView;

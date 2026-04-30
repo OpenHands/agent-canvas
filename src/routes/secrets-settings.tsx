@@ -16,7 +16,7 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 
 export const clientLoader = createPermissionGuard("manage_secrets");
 
-function SecretsSettingsScreen() {
+export function SecretsSettingsScreen() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const tableContainerRef = useRef<HTMLDivElement>(null);

@@ -1,6 +1,10 @@
 // @vitest-environment node
 import viteConfig from "../vite.config";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+afterEach(() => {
+  delete process.env.BUILD_LIB;
+});
 
 describe("vite optimizeDeps", () => {
   it("prebundles core client entry dependencies", async () => {
@@ -13,6 +17,37 @@ describe("vite optimizeDeps", () => {
         "react/jsx-runtime",
         "react-dom/client",
         "react-router/dom",
+      ]),
+    );
+  });
+});
+
+describe("vite library build", () => {
+  it("configures a dual-format preserved-module library build", async () => {
+    process.env.BUILD_LIB = "true";
+
+    const config = await viteConfig({ mode: "production", command: "build" });
+
+    expect((config as { copyPublicDir?: boolean }).copyPublicDir).toBe(false);
+    expect(config.build?.lib).toMatchObject({
+      formats: ["es"],
+    });
+    expect(config.build?.rollupOptions?.external).toEqual(
+      expect.arrayContaining(["react", "react-dom", "react-router"]),
+    );
+    expect(config.build?.rollupOptions?.output).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          format: "es",
+          preserveModules: true,
+          preserveModulesRoot: "src",
+        }),
+        expect.objectContaining({
+          format: "cjs",
+          preserveModules: true,
+          preserveModulesRoot: "src",
+          exports: "named",
+        }),
       ]),
     );
   });

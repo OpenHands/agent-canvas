@@ -25,7 +25,7 @@ import { Provider, ProviderToken } from "#/types/settings";
 
 export const clientLoader = createPermissionGuard("manage_integrations");
 
-function GitSettingsScreen() {
+export function GitSettingsScreen() {
   const { t } = useTranslation();
 
   const { mutate: saveGitProviders, isPending } = useAddGitProviders();
@@ -94,30 +94,42 @@ function GitSettingsScreen() {
       return;
     }
 
-    const githubToken =
-      (formData.get("github-token-input")?.toString() || "").trim();
-    const gitlabToken =
-      (formData.get("gitlab-token-input")?.toString() || "").trim();
-    const bitbucketToken =
-      (formData.get("bitbucket-token-input")?.toString() || "").trim();
-    const bitbucketDCToken =
-      (formData.get("bitbucket-dc-token-input")?.toString() || "").trim();
-    const azureDevOpsToken =
-      (formData.get("azure-devops-token-input")?.toString() || "").trim();
-    const forgejoToken =
-      (formData.get("forgejo-token-input")?.toString() || "").trim();
-    const githubHost =
-      (formData.get("github-host-input")?.toString() || "").trim();
-    const gitlabHost =
-      (formData.get("gitlab-host-input")?.toString() || "").trim();
-    const bitbucketHost =
-      (formData.get("bitbucket-host-input")?.toString() || "").trim();
-    const bitbucketDCHost =
-      (formData.get("bitbucket-dc-host-input")?.toString() || "").trim();
-    const azureDevOpsHost =
-      (formData.get("azure-devops-host-input")?.toString() || "").trim();
-    const forgejoHost =
-      (formData.get("forgejo-host-input")?.toString() || "").trim();
+    const githubToken = (
+      formData.get("github-token-input")?.toString() || ""
+    ).trim();
+    const gitlabToken = (
+      formData.get("gitlab-token-input")?.toString() || ""
+    ).trim();
+    const bitbucketToken = (
+      formData.get("bitbucket-token-input")?.toString() || ""
+    ).trim();
+    const bitbucketDCToken = (
+      formData.get("bitbucket-dc-token-input")?.toString() || ""
+    ).trim();
+    const azureDevOpsToken = (
+      formData.get("azure-devops-token-input")?.toString() || ""
+    ).trim();
+    const forgejoToken = (
+      formData.get("forgejo-token-input")?.toString() || ""
+    ).trim();
+    const githubHost = (
+      formData.get("github-host-input")?.toString() || ""
+    ).trim();
+    const gitlabHost = (
+      formData.get("gitlab-host-input")?.toString() || ""
+    ).trim();
+    const bitbucketHost = (
+      formData.get("bitbucket-host-input")?.toString() || ""
+    ).trim();
+    const bitbucketDCHost = (
+      formData.get("bitbucket-dc-host-input")?.toString() || ""
+    ).trim();
+    const azureDevOpsHost = (
+      formData.get("azure-devops-host-input")?.toString() || ""
+    ).trim();
+    const forgejoHost = (
+      formData.get("forgejo-host-input")?.toString() || ""
+    ).trim();
 
     const providerTokens: Partial<Record<Provider, ProviderToken>> = {
       github: { token: githubToken, host: githubHost },

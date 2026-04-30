@@ -1,11 +1,21 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
+
+const LIB_ENTRY = fileURLToPath(new URL("./src/index.ts", import.meta.url));
+const LIB_EXTERNALS = [
+  "react",
+  "react-dom",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+  "react-router",
+];
 
 export default defineConfig(({ mode }) => {
   const {
@@ -15,6 +25,7 @@ export default defineConfig(({ mode }) => {
     VITE_INSECURE_SKIP_VERIFY = "false",
   } = loadEnv(mode, process.cwd());
 
+  const isLibraryBuild = process.env.BUILD_LIB === "true";
   const USE_TLS = VITE_USE_TLS === "true";
   const INSECURE_SKIP_VERIFY = VITE_INSECURE_SKIP_VERIFY === "true";
   const PROTOCOL = USE_TLS ? "https" : "http";
@@ -26,11 +37,45 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      !process.env.VITEST && reactRouter(),
+      !process.env.VITEST && !isLibraryBuild && reactRouter(),
       viteTsconfigPaths(),
       svgr(),
       tailwindcss(),
     ],
+    build: isLibraryBuild
+      ? {
+          outDir: "dist",
+          emptyOutDir: true,
+          sourcemap: true,
+          lib: {
+            entry: LIB_ENTRY,
+            formats: ["es"],
+          },
+          rollupOptions: {
+            external: LIB_EXTERNALS,
+            output: [
+              {
+                format: "es",
+                preserveModules: true,
+                preserveModulesRoot: "src",
+                entryFileNames: "[name].js",
+                chunkFileNames: "chunks/[name]-[hash].js",
+                assetFileNames: "assets/[name]-[hash][extname]",
+              },
+              {
+                format: "cjs",
+                preserveModules: true,
+                preserveModulesRoot: "src",
+                entryFileNames: "[name].cjs",
+                chunkFileNames: "chunks/[name]-[hash].cjs",
+                assetFileNames: "assets/[name]-[hash][extname]",
+                exports: "named",
+              },
+            ],
+          },
+        }
+      : undefined,
+    copyPublicDir: !isLibraryBuild,
     optimizeDeps: {
       include: [
         // Pre-bundle client entry dependencies so the first page load does not 504
@@ -63,7 +108,7 @@ export default defineConfig(({ mode }) => {
         "react-icons/lu",
         "react-icons/di",
         "react-icons/io5",
-        "react-icons/io", // Added to prevent runtime optimization
+        "react-icons/io",
         "@monaco-editor/react",
         "react-textarea-autosize",
         "react-markdown",

@@ -43,7 +43,7 @@ interface MCPServerConfig {
   env?: Record<string, string>;
 }
 
-function MCPSettingsScreen() {
+export function MCPSettingsScreen() {
   const { t } = useTranslation();
   const { data: settings, isLoading } = useSettings();
   const { data: config } = useConfig();
