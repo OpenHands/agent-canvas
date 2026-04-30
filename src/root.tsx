@@ -1,5 +1,4 @@
 import {
-  Link,
   Links,
   Meta,
   MetaFunction,
@@ -20,10 +19,7 @@ import {
   isAgentServerUnavailableError,
   MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
-import {
-  AgentServerChecklist,
-  AgentServerConnectionForm,
-} from "#/components/features/settings/agent-server-onboarding";
+import { AgentServerConnectionForm } from "#/components/features/settings/agent-server-onboarding";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 
@@ -100,7 +96,6 @@ function AgentServerOnboardingLayout({
   statusMessage,
   statusDetails,
   version,
-  checklistVariant = "connect",
 }: {
   testId: string;
   eyebrow: string;
@@ -110,7 +105,6 @@ function AgentServerOnboardingLayout({
   statusMessage: string;
   statusDetails?: string | null;
   version?: string | null;
-  checklistVariant?: "connect" | "upgrade";
 }) {
   const { t } = useTranslation();
 
@@ -139,17 +133,18 @@ function AgentServerOnboardingLayout({
               version={version}
             />
 
-            <AgentServerChecklist
-              variant={checklistVariant}
-              className="mt-8"
-            />
-
-            <Link
-              to="/settings/agent-server"
-              className="mt-8 inline-flex w-fit items-center rounded-md border border-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-primary/50 hover:text-primary"
-            >
-              {t("SETTINGS$AGENT_SERVER_OPEN_SETTINGS_PAGE")}
-            </Link>
+            <p className="mt-6 max-w-3xl text-sm leading-6 text-gray-400">
+              {t("SETTINGS$AGENT_SERVER_SETUP_GUIDE_HINT")}{" "}
+              <a
+                href="https://github.com/OpenHands/agent-server-gui"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-2 transition-colors hover:text-white"
+              >
+                {t("SETTINGS$AGENT_SERVER_SETUP_GUIDE_LINK")}
+              </a>
+              .
+            </p>
           </section>
 
           <aside className="lg:pt-6">
@@ -181,7 +176,6 @@ function UnsupportedAgentServerNotice({
         minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
       })}
       version={error.serverVersion}
-      checklistVariant="upgrade"
     />
   );
 }

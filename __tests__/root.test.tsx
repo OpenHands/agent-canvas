@@ -29,6 +29,9 @@ const TRANSLATIONS: Record<string, string> = {
   "SETTINGS$AGENT_SERVER_UNKNOWN_VERSION_STATUS_MESSAGE":
     "We reached something at that URL, but it did not identify itself as an agent server version {{minimumVersion}} or newer. Double-check the URL or upgrade the server.",
   "SETTINGS$AGENT_SERVER_OPEN_SETTINGS_PAGE": "Open full settings page",
+  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_HINT":
+    "If you need help starting or upgrading the server, see the",
+  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_LINK": "setup instructions",
   "SETTINGS$AGENT_SERVER_DETECTED_VERSION": "Detected version: {{version}}",
   "SETTINGS$AGENT_SERVER_DETAILS_LABEL": "Details: {{details}}",
   "SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE": "Connection details",
@@ -160,6 +163,13 @@ describe("App root compatibility guard", () => {
     expect(
       screen.getByRole("heading", { name: /connect to your agent server/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /setup instructions/i }),
+    ).toHaveAttribute("href", "https://github.com/OpenHands/agent-server-gui");
+    expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /open full settings page/i }),
+    ).not.toBeInTheDocument();
     expect(serverInfoRequests).toBe(1);
     expect(screen.queryByText(/connection blocked/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();

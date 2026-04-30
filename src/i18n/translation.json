@@ -6374,6 +6374,41 @@
     "uk": "Open full settings page",
     "ca": "Open full settings page"
   },
+  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_HINT": {
+    "en": "If you need help starting or upgrading the server, see the",
+    "ja": "If you need help starting or upgrading the server, see the",
+    "zh-CN": "If you need help starting or upgrading the server, see the",
+    "zh-TW": "If you need help starting or upgrading the server, see the",
+    "ko-KR": "If you need help starting or upgrading the server, see the",
+    "no": "If you need help starting or upgrading the server, see the",
+    "it": "If you need help starting or upgrading the server, see the",
+    "pt": "If you need help starting or upgrading the server, see the",
+    "es": "If you need help starting or upgrading the server, see the",
+    "ar": "If you need help starting or upgrading the server, see the",
+    "fr": "If you need help starting or upgrading the server, see the",
+    "tr": "If you need help starting or upgrading the server, see the",
+    "de": "If you need help starting or upgrading the server, see the",
+    "uk": "If you need help starting or upgrading the server, see the",
+    "ca": "If you need help starting or upgrading the server, see the"
+  },
+  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_LINK": {
+    "en": "setup instructions",
+    "ja": "setup instructions",
+    "zh-CN": "setup instructions",
+    "zh-TW": "setup instructions",
+    "ko-KR": "setup instructions",
+    "no": "setup instructions",
+    "it": "setup instructions",
+    "pt": "setup instructions",
+    "es": "setup instructions",
+    "ar": "setup instructions",
+    "fr": "setup instructions",
+    "tr": "setup instructions",
+    "de": "setup instructions",
+    "uk": "setup instructions",
+    "ca": "setup instructions"
+  },
+
   "SETTINGS$AGENT_SERVER_DETAILS_LABEL": {
     "en": "Details: {{details}}",
     "ja": "Details: {{details}}",
