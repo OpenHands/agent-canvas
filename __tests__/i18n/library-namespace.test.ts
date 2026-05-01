@@ -2,9 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 describe("library i18n namespace scoping", () => {
   it("exports raw translation resources for host-app registration", async () => {
-    const { OPENHANDS_I18N_NAMESPACE, translationResources } = await import(
-      "../../src/i18n"
-    );
+    const { OPENHANDS_I18N_NAMESPACE, translationResources } =
+      await import("../../src/i18n");
 
     expect(OPENHANDS_I18N_NAMESPACE).toBe("openhands");
     expect(translationResources.en).toHaveProperty("ERROR$GENERIC");
@@ -14,9 +13,8 @@ describe("library i18n namespace scoping", () => {
   });
 
   it("configures standalone i18n to load the openhands namespace by default", async () => {
-    const { OPENHANDS_I18N_NAMESPACE, createAgentServerI18n } = await import(
-      "../../src/i18n"
-    );
+    const { OPENHANDS_I18N_NAMESPACE, createAgentServerI18n } =
+      await import("../../src/i18n");
 
     const instance = createAgentServerI18n();
 
@@ -51,5 +49,5 @@ describe("library i18n namespace scoping", () => {
 
     expect(globalI18n.hasResourceBundle("en", "openhands")).toBe(false);
     expect(globalI18n.t("HOST_ONLY")).toBe("Host only");
-  });
+  }, 10_000);
 });

@@ -2,7 +2,7 @@ import React from "react";
 import { OpenHandsEvent } from "#/types/v1/core";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "../../features/chat/chat-message";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useOptimisticUserMessageStore } from "#/context/conversation-context";
 import { usePlanPreviewEvents } from "./hooks/use-plan-preview-events";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";

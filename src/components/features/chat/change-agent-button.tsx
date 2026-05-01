@@ -6,7 +6,7 @@ import { I18nKey } from "#/i18n/declaration";
 import CodeTagIcon from "#/icons/code-tag.svg?react";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { ChangeAgentContextMenu } from "./change-agent-context-menu";
 import { cn } from "#/utils/utils";
 import { useAgentState } from "#/hooks/use-agent-state";

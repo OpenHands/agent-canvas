@@ -3,10 +3,15 @@ import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import { useConversationId } from "#/hooks/use-conversation-id";
-import { useCommandStore } from "#/stores/command-store";
-import { useConversationStore } from "#/stores/conversation-store";
-import { useAgentStore } from "#/stores/agent-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import {
+  ConversationProvider,
+  useAgentStore,
+  useCommandStore,
+  useConversationStore,
+  useErrorMessageStore,
+  useEventStore,
+  useV1ConversationStateStore,
+} from "#/context/conversation-context";
 import { AgentState } from "#/types/agent-state";
 
 import { EventHandler } from "../wrapper/event-handler";
@@ -23,9 +28,7 @@ import { ConversationNameWithStatus } from "#/components/features/conversation/c
 
 import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
-import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
-import { useEventStore } from "#/stores/use-event-store";
 
 function AppContent() {
   const { t } = useTranslation("openhands");
@@ -118,7 +121,13 @@ function AppContent() {
 }
 
 export function ConversationView() {
-  return <AppContent />;
+  const { conversationId } = useConversationId();
+
+  return (
+    <ConversationProvider conversationId={conversationId}>
+      <AppContent />
+    </ConversationProvider>
+  );
 }
 
 export default ConversationView;

@@ -4,7 +4,7 @@ import {
   clearEmptyContent,
   getTextContent,
 } from "#/components/features/chat/utils/chat-input.utils";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useDraftPersistence } from "./use-draft-persistence";
 

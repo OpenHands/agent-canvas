@@ -13,7 +13,7 @@ import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import { GitProviderDropdown } from "./git-provider-dropdown";
 import { GitBranchDropdown } from "./git-branch-dropdown";
 import { GitRepoDropdown } from "./git-repo-dropdown";
-import { useHomeStore } from "#/stores/home-store";
+import { useHomeStore } from "#/context/global-store-hooks";
 
 interface RepositorySelectionFormProps {
   onRepoSelection: (repo: GitRepository | null) => void;

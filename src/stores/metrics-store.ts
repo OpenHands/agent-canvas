@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
 export interface MetricsState {
   cost: number | null;
@@ -17,11 +17,18 @@ export interface MetricsStore extends MetricsState {
   setMetrics: (metrics: MetricsState) => void;
 }
 
-const useMetricsStore = create<MetricsStore>((set) => ({
+export type MetricsStoreApi = StoreApi<MetricsStore>;
+
+const createMetricsState: StateCreator<MetricsStore> = (set) => ({
   cost: null,
   max_budget_per_task: null,
   usage: null,
   setMetrics: (metrics) => set(metrics),
-}));
+});
+
+export const createMetricsStore = (): MetricsStoreApi =>
+  createStore<MetricsStore>()(createMetricsState);
+
+const useMetricsStore = create<MetricsStore>()(createMetricsState);
 
 export default useMetricsStore;

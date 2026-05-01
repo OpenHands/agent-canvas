@@ -1,25 +1,26 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
-interface OptimisticUserMessageState {
+export interface OptimisticUserMessageState {
   optimisticUserMessage: string | null;
 }
 
-interface OptimisticUserMessageActions {
+export interface OptimisticUserMessageActions {
   setOptimisticUserMessage: (message: string) => void;
   getOptimisticUserMessage: () => string | null;
   removeOptimisticUserMessage: () => void;
 }
 
-type OptimisticUserMessageStore = OptimisticUserMessageState &
+export type OptimisticUserMessageStore = OptimisticUserMessageState &
   OptimisticUserMessageActions;
+export type OptimisticUserMessageStoreApi =
+  StoreApi<OptimisticUserMessageStore>;
 
-const initialState: OptimisticUserMessageState = {
-  optimisticUserMessage: null,
-};
-
-export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
+const createOptimisticUserMessageState =
+  (
+    initialMessage: string | null = null,
+  ): StateCreator<OptimisticUserMessageStore> =>
   (set, get) => ({
-    ...initialState,
+    optimisticUserMessage: initialMessage,
 
     setOptimisticUserMessage: (message: string) =>
       set(() => ({
@@ -32,5 +33,14 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       set(() => ({
         optimisticUserMessage: null,
       })),
-  }),
-);
+  });
+
+export const createOptimisticUserMessageStore = (
+  initialMessage: string | null = null,
+): OptimisticUserMessageStoreApi =>
+  createStore<OptimisticUserMessageStore>()(
+    createOptimisticUserMessageState(initialMessage),
+  );
+
+export const useOptimisticUserMessageStore =
+  create<OptimisticUserMessageStore>()(createOptimisticUserMessageState());

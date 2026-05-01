@@ -2,7 +2,7 @@ import { useConversationLocalStorageState } from "#/utils/conversation-local-sto
 import {
   useConversationStore,
   type ConversationTab,
-} from "#/stores/conversation-store";
+} from "#/context/conversation-context";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
 /**

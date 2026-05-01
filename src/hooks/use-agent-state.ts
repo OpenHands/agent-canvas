@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import { useV1ConversationStateStore } from "#/context/conversation-context";
 import { AgentState } from "#/types/agent-state";
 import { V1ExecutionStatus } from "#/types/v1/core/base/common";
 

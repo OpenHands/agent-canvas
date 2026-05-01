@@ -8,7 +8,7 @@ import ClockIcon from "#/icons/u-clock-three.svg?react";
 import { ChatResumeAgentButton } from "../chat/chat-play-button";
 import { cn, isTaskPolling } from "#/utils/utils";
 import { AgentLoading } from "./agent-loading";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import CircleErrorIcon from "#/icons/circle-error.svg?react";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";

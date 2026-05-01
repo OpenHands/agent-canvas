@@ -3,7 +3,7 @@ import { SuggestedTask } from "#/utils/types";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { TaskIssueNumber } from "./task-issue-number";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useOptimisticUserMessageStore } from "#/context/global-store-hooks";
 import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
 

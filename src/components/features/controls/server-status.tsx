@@ -4,7 +4,7 @@ import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { getStatusColor, getStatusText } from "#/utils/utils";
-import { useErrorMessageStore } from "#/stores/error-message-store";
+import { useErrorMessageStore } from "#/context/conversation-context";
 import { V1SandboxStatus } from "#/api/sandbox-service/sandbox-service.types";
 
 export interface ServerStatusProps {

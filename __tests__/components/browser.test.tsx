@@ -7,11 +7,18 @@ vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 
-vi.mock("#/context/conversation-context", () => ({
-  useConversation: () => ({ conversationId: "test-conversation-id" }),
-  ConversationProvider: ({ children }: { children: React.ReactNode }) =>
-    children,
-}));
+vi.mock("#/context/conversation-context", async () => {
+  const { useBrowserStore } = await vi.importActual<
+    typeof import("#/stores/browser-store")
+  >("#/stores/browser-store");
+
+  return {
+    useConversation: () => ({ conversationId: "test-conversation-id" }),
+    useBrowserStore,
+    ConversationProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
+  };
+});
 
 vi.mock("react-i18next", async () => {
   const actual = await vi.importActual("react-i18next");

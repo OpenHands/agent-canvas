@@ -5,11 +5,13 @@ import { AgentState } from "#/types/agent-state";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";
 import { ActionTooltip } from "../action-tooltip";
 import { isOpenHandsAction, isActionOrObservation } from "#/types/core/guards";
-import { ActionSecurityRisk } from "#/stores/security-analyzer-store";
+import {
+  ActionSecurityRisk,
+  useEventMessageStore,
+  useEventStore,
+} from "#/context/conversation-context";
 import { RiskAlert } from "#/components/shared/risk-alert";
 import WarningIcon from "#/icons/u-warning.svg?react";
-import { useEventMessageStore } from "#/stores/event-message-store";
-import { useEventStore } from "#/stores/use-event-store";
 import { isV0Event } from "#/types/v1/type-guards";
 import { useSendMessage } from "#/hooks/use-send-message";
 

@@ -4,7 +4,7 @@ import { OpenHandsObservation } from "#/types/core/observations";
 import { isOpenHandsAction, isOpenHandsObservation } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "./chat-message";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useOptimisticUserMessageStore } from "#/context/conversation-context";
 
 interface MessagesProps {
   messages: (OpenHandsAction | OpenHandsObservation)[];

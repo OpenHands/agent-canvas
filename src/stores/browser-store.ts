@@ -1,26 +1,31 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
-interface BrowserState {
-  // URL of browser window (placeholder for now, will be replaced with the actual URL later)
+export interface BrowserState {
   url: string;
-  // Base64-encoded screenshot of browser window (placeholder for now, will be replaced with the actual screenshot later)
   screenshotSrc: string;
 }
 
-interface BrowserStore extends BrowserState {
+export interface BrowserStore extends BrowserState {
   setUrl: (url: string) => void;
   setScreenshotSrc: (screenshotSrc: string) => void;
   reset: () => void;
 }
+
+export type BrowserStoreApi = StoreApi<BrowserStore>;
 
 const initialState: BrowserState = {
   url: "https://github.com/OpenHands/OpenHands",
   screenshotSrc: "",
 };
 
-export const useBrowserStore = create<BrowserStore>((set) => ({
+const createBrowserState: StateCreator<BrowserStore> = (set) => ({
   ...initialState,
   setUrl: (url: string) => set({ url }),
   setScreenshotSrc: (screenshotSrc: string) => set({ screenshotSrc }),
   reset: () => set(initialState),
-}));
+});
+
+export const createBrowserStore = (): BrowserStoreApi =>
+  createStore<BrowserStore>()(createBrowserState);
+
+export const useBrowserStore = create<BrowserStore>()(createBrowserState);

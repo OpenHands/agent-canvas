@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import {
@@ -13,7 +13,9 @@ import type { Conversation } from "#/api/open-hands.types";
 import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
 
 // Mock dependencies
-vi.mock("#/stores/conversation-store");
+vi.mock("#/context/conversation-context", () => ({
+  useConversationStore: vi.fn(),
+}));
 vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/hooks/mutation/use-create-conversation");
 vi.mock("#/utils/conversation-local-storage");
@@ -37,7 +39,9 @@ function asMockReturnValue<T>(value: Partial<T>): T {
   return value as T;
 }
 
-function makeConversation(overrides?: Partial<V1AppConversation>): V1AppConversation {
+function makeConversation(
+  overrides?: Partial<V1AppConversation>,
+): V1AppConversation {
   return {
     id: "conv-123",
     title: "Test Conversation",

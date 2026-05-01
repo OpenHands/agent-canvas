@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { cn } from "#/utils/utils";
 
 interface ChatInputFieldProps {

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import { useEventStore } from "#/stores/use-event-store";
-import type { OHEvent } from "#/stores/use-event-store";
+import { useEventStore, type OHEvent } from "#/context/conversation-context";
 import { isTaskTrackingObservation } from "#/types/core/guards";
 import type { OpenHandsParsedEvent } from "#/types/core";
 import { isObservationEvent } from "#/types/v1/type-guards";

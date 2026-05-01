@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 import { OpenHandsEvent } from "#/types/v1/core";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 import { OpenHandsParsedEvent } from "#/types/core";
@@ -58,7 +58,9 @@ export interface EventState {
   clearEvents: () => void;
 }
 
-export const useEventStore = create<EventState>()((set) => ({
+export type EventStoreApi = StoreApi<EventState>;
+
+const createEventState: StateCreator<EventState> = (set) => ({
   events: [],
   eventIds: new Set(),
   uiEvents: [],
@@ -103,4 +105,9 @@ export const useEventStore = create<EventState>()((set) => ({
       eventIds: new Set(),
       uiEvents: [],
     })),
-}));
+});
+
+export const createEventStore = (): EventStoreApi =>
+  createStore<EventState>()(createEventState);
+
+export const useEventStore = create<EventState>()(createEventState);

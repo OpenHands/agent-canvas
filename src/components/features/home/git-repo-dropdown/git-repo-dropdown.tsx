@@ -23,7 +23,7 @@ import { GenericDropdownMenu } from "../shared/generic-dropdown-menu";
 import { useConfig } from "#/hooks/query/use-config";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
-import { useHomeStore } from "#/stores/home-store";
+import { useHomeStore } from "#/context/global-store-hooks";
 import { Typography } from "#/ui/typography";
 
 export interface GitRepoDropdownProps {

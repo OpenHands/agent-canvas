@@ -2,7 +2,7 @@ import React from "react";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";
 import { AgentState } from "#/types/agent-state";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { useEventStore } from "#/stores/use-event-store";
+import { useEventStore } from "#/context/conversation-context";
 import { useSendMessage } from "#/hooks/use-send-message";
 
 interface ServerError {

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 import { devtools } from "zustand/middleware";
 import {
   getConversationState,
@@ -21,7 +21,7 @@ export interface IMessageToSend {
   timestamp: number;
 }
 
-interface ConversationState {
+export interface ConversationState {
   isRightPanelShown: boolean;
   selectedTab: ConversationTab | null;
   images: File[];
@@ -38,7 +38,7 @@ interface ConversationState {
   subConversationTaskId: string | null; // Task ID for sub-conversation creation
 }
 
-interface ConversationActions {
+export interface ConversationActions {
   setIsRightPanelShown: (isRightPanelShown: boolean) => void;
   setSelectedTab: (selectedTab: ConversationTab | null) => void;
   setShouldShownAgentLoading: (shouldShownAgentLoading: boolean) => void;
@@ -64,7 +64,8 @@ interface ConversationActions {
   setPlanContent: (planContent: string | null) => void;
 }
 
-type ConversationStore = ConversationState & ConversationActions;
+export type ConversationStore = ConversationState & ConversationActions;
+export type ConversationStoreApi = StoreApi<ConversationStore>;
 
 const getConversationIdFromLocation = (): string | null => {
   if (typeof window === "undefined") {
@@ -87,14 +88,15 @@ const parseStoredBoolean = (value: string | null): boolean | null => {
   }
 };
 
-const getInitialRightPanelState = (): boolean => {
+const getInitialRightPanelState = (conversationId?: string | null): boolean => {
   if (typeof window === "undefined") {
     return true;
   }
 
-  const conversationId = getConversationIdFromLocation();
-  const keysToCheck = conversationId
-    ? [`conversation-right-panel-shown-${conversationId}`]
+  const scopedConversationId =
+    conversationId ?? getConversationIdFromLocation();
+  const keysToCheck = scopedConversationId
+    ? [`conversation-right-panel-shown-${scopedConversationId}`]
     : [];
 
   // Fallback to legacy global key for users who haven't switched tabs yet
@@ -110,199 +112,224 @@ const getInitialRightPanelState = (): boolean => {
   return true;
 };
 
-const getInitialConversationMode = (): ConversationMode => {
+const getInitialConversationMode = (
+  conversationId?: string | null,
+): ConversationMode => {
   if (typeof window === "undefined") {
     return "code";
   }
 
-  const conversationId = getConversationIdFromLocation();
-  if (!conversationId) {
+  const scopedConversationId =
+    conversationId ?? getConversationIdFromLocation();
+  if (!scopedConversationId) {
     return "code";
   }
 
-  const state = getConversationState(conversationId);
+  const state = getConversationState(scopedConversationId);
   return state.conversationMode;
 };
 
-export const useConversationStore = create<ConversationStore>()(
-  devtools(
-    (set) => ({
-      // Initial state
-      isRightPanelShown: getInitialRightPanelState(),
-      selectedTab: "editor" as ConversationTab,
-      images: [],
-      files: [],
-      loadingFiles: [],
-      loadingImages: [],
-      messageToSend: null,
-      shouldShownAgentLoading: false,
-      submittedMessage: null,
-      shouldHideSuggestions: false,
-      hasRightPanelToggled: true,
-      planContent: null,
-      conversationMode: getInitialConversationMode(),
-      subConversationTaskId: null,
+const createConversationState =
+  (
+    conversationId?: string | null,
+  ): StateCreator<
+    ConversationStore,
+    [["zustand/devtools", never]],
+    [],
+    ConversationStore
+  > =>
+  (set) => ({
+    // Initial state
+    isRightPanelShown: getInitialRightPanelState(conversationId),
+    selectedTab: "editor" as ConversationTab,
+    images: [],
+    files: [],
+    loadingFiles: [],
+    loadingImages: [],
+    messageToSend: null,
+    shouldShownAgentLoading: false,
+    submittedMessage: null,
+    shouldHideSuggestions: false,
+    hasRightPanelToggled: true,
+    planContent: null,
+    conversationMode: getInitialConversationMode(conversationId),
+    subConversationTaskId: null,
 
-      // Actions
-      setIsRightPanelShown: (isRightPanelShown) =>
-        set({ isRightPanelShown }, false, "setIsRightPanelShown"),
+    // Actions
+    setIsRightPanelShown: (isRightPanelShown) =>
+      set({ isRightPanelShown }, false, "setIsRightPanelShown"),
 
-      setSelectedTab: (selectedTab) =>
-        set({ selectedTab }, false, "setSelectedTab"),
+    setSelectedTab: (selectedTab) =>
+      set({ selectedTab }, false, "setSelectedTab"),
 
-      setShouldShownAgentLoading: (shouldShownAgentLoading) =>
-        set({ shouldShownAgentLoading }, false, "setShouldShownAgentLoading"),
+    setShouldShownAgentLoading: (shouldShownAgentLoading) =>
+      set({ shouldShownAgentLoading }, false, "setShouldShownAgentLoading"),
 
-      setShouldHideSuggestions: (shouldHideSuggestions) =>
-        set({ shouldHideSuggestions }, false, "setShouldHideSuggestions"),
+    setShouldHideSuggestions: (shouldHideSuggestions) =>
+      set({ shouldHideSuggestions }, false, "setShouldHideSuggestions"),
 
-      addImages: (images) =>
-        set(
-          (state) => ({ images: [...state.images, ...images] }),
-          false,
-          "addImages",
-        ),
+    addImages: (images) =>
+      set(
+        (state) => ({ images: [...state.images, ...images] }),
+        false,
+        "addImages",
+      ),
 
-      addFiles: (files) =>
-        set(
-          (state) => ({ files: [...state.files, ...files] }),
-          false,
-          "addFiles",
-        ),
+    addFiles: (files) =>
+      set(
+        (state) => ({ files: [...state.files, ...files] }),
+        false,
+        "addFiles",
+      ),
 
-      removeImage: (index) =>
-        set(
-          (state) => {
-            const newImages = [...state.images];
-            newImages.splice(index, 1);
-            return { images: newImages };
+    removeImage: (index) =>
+      set(
+        (state) => {
+          const newImages = [...state.images];
+          newImages.splice(index, 1);
+          return { images: newImages };
+        },
+        false,
+        "removeImage",
+      ),
+
+    removeFile: (index) =>
+      set(
+        (state) => {
+          const newFiles = [...state.files];
+          newFiles.splice(index, 1);
+          return { files: newFiles };
+        },
+        false,
+        "removeFile",
+      ),
+
+    clearImages: () => set({ images: [] }, false, "clearImages"),
+
+    clearFiles: () => set({ files: [] }, false, "clearFiles"),
+
+    clearAllFiles: () =>
+      set(
+        {
+          images: [],
+          files: [],
+          loadingFiles: [],
+          loadingImages: [],
+        },
+        false,
+        "clearAllFiles",
+      ),
+
+    addFileLoading: (fileName) =>
+      set(
+        (state) => {
+          if (!state.loadingFiles.includes(fileName)) {
+            return { loadingFiles: [...state.loadingFiles, fileName] };
+          }
+          return state;
+        },
+        false,
+        "addFileLoading",
+      ),
+
+    removeFileLoading: (fileName) =>
+      set(
+        (state) => ({
+          loadingFiles: state.loadingFiles.filter((name) => name !== fileName),
+        }),
+        false,
+        "removeFileLoading",
+      ),
+
+    addImageLoading: (imageName) =>
+      set(
+        (state) => {
+          if (!state.loadingImages.includes(imageName)) {
+            return { loadingImages: [...state.loadingImages, imageName] };
+          }
+          return state;
+        },
+        false,
+        "addImageLoading",
+      ),
+
+    removeImageLoading: (imageName) =>
+      set(
+        (state) => ({
+          loadingImages: state.loadingImages.filter(
+            (name) => name !== imageName,
+          ),
+        }),
+        false,
+        "removeImageLoading",
+      ),
+
+    clearAllLoading: () =>
+      set({ loadingFiles: [], loadingImages: [] }, false, "clearAllLoading"),
+
+    setMessageToSend: (text) =>
+      set(
+        {
+          messageToSend: {
+            text,
+            timestamp: Date.now(),
           },
-          false,
-          "removeImage",
-        ),
+        },
+        false,
+        "setMessageToSend",
+      ),
 
-      removeFile: (index) =>
-        set(
-          (state) => {
-            const newFiles = [...state.files];
-            newFiles.splice(index, 1);
-            return { files: newFiles };
-          },
-          false,
-          "removeFile",
-        ),
+    setSubmittedMessage: (submittedMessage) =>
+      set({ submittedMessage }, false, "setSubmittedMessage"),
 
-      clearImages: () => set({ images: [] }, false, "clearImages"),
+    resetConversationState: () =>
+      set(
+        {
+          shouldHideSuggestions: false,
+          conversationMode: getInitialConversationMode(conversationId),
+          subConversationTaskId: null,
+          planContent: null,
+        },
+        false,
+        "resetConversationState",
+      ),
 
-      clearFiles: () => set({ files: [] }, false, "clearFiles"),
+    setHasRightPanelToggled: (hasRightPanelToggled) =>
+      set({ hasRightPanelToggled }, false, "setHasRightPanelToggled"),
 
-      clearAllFiles: () =>
-        set(
-          {
-            images: [],
-            files: [],
-            loadingFiles: [],
-            loadingImages: [],
-          },
-          false,
-          "clearAllFiles",
-        ),
-
-      addFileLoading: (fileName) =>
-        set(
-          (state) => {
-            if (!state.loadingFiles.includes(fileName)) {
-              return { loadingFiles: [...state.loadingFiles, fileName] };
-            }
-            return state;
-          },
-          false,
-          "addFileLoading",
-        ),
-
-      removeFileLoading: (fileName) =>
-        set(
-          (state) => ({
-            loadingFiles: state.loadingFiles.filter(
-              (name) => name !== fileName,
-            ),
-          }),
-          false,
-          "removeFileLoading",
-        ),
-
-      addImageLoading: (imageName) =>
-        set(
-          (state) => {
-            if (!state.loadingImages.includes(imageName)) {
-              return { loadingImages: [...state.loadingImages, imageName] };
-            }
-            return state;
-          },
-          false,
-          "addImageLoading",
-        ),
-
-      removeImageLoading: (imageName) =>
-        set(
-          (state) => ({
-            loadingImages: state.loadingImages.filter(
-              (name) => name !== imageName,
-            ),
-          }),
-          false,
-          "removeImageLoading",
-        ),
-
-      clearAllLoading: () =>
-        set({ loadingFiles: [], loadingImages: [] }, false, "clearAllLoading"),
-
-      setMessageToSend: (text) =>
-        set(
-          {
-            messageToSend: {
-              text,
-              timestamp: Date.now(),
-            },
-          },
-          false,
-          "setMessageToSend",
-        ),
-
-      setSubmittedMessage: (submittedMessage) =>
-        set({ submittedMessage }, false, "setSubmittedMessage"),
-
-      resetConversationState: () =>
-        set(
-          {
-            shouldHideSuggestions: false,
-            conversationMode: getInitialConversationMode(),
-            subConversationTaskId: null,
-            planContent: null,
-          },
-          false,
-          "resetConversationState",
-        ),
-
-      setHasRightPanelToggled: (hasRightPanelToggled) =>
-        set({ hasRightPanelToggled }, false, "setHasRightPanelToggled"),
-
-      setConversationMode: (conversationMode) => {
-        const conversationId = getConversationIdFromLocation();
-        if (conversationId) {
-          setConversationState(conversationId, { conversationMode });
-        }
-        set({ conversationMode }, false, "setConversationMode");
-      },
-
-      setSubConversationTaskId: (subConversationTaskId) =>
-        set({ subConversationTaskId }, false, "setSubConversationTaskId"),
-
-      setPlanContent: (planContent) =>
-        set({ planContent }, false, "setPlanContent"),
-    }),
-    {
-      name: "conversation-store",
+    setConversationMode: (conversationMode) => {
+      const scopedConversationId =
+        conversationId ?? getConversationIdFromLocation();
+      if (scopedConversationId) {
+        setConversationState(scopedConversationId, { conversationMode });
+      }
+      set({ conversationMode }, false, "setConversationMode");
     },
-  ),
+
+    setSubConversationTaskId: (subConversationTaskId) =>
+      set({ subConversationTaskId }, false, "setSubConversationTaskId"),
+
+    setPlanContent: (planContent) =>
+      set({ planContent }, false, "setPlanContent"),
+  });
+
+const conversationDevtoolsName = (conversationId?: string | null) =>
+  conversationId
+    ? `conversation-store-${conversationId}`
+    : "conversation-store";
+
+export function createConversationStore(
+  conversationId?: string | null,
+): ConversationStoreApi {
+  return createStore<ConversationStore>()(
+    devtools(createConversationState(conversationId), {
+      name: conversationDevtoolsName(conversationId),
+    }),
+  );
+}
+
+export const useConversationStore = create<ConversationStore>()(
+  devtools(createConversationState(), {
+    name: conversationDevtoolsName(),
+  }),
 );

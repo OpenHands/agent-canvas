@@ -4,7 +4,7 @@ import { UploadedFiles } from "../uploaded-files";
 import { ChatInputRow } from "./chat-input-row";
 import { ChatInputActions } from "./chat-input-actions";
 import { SlashCommandMenu } from "./slash-command-menu";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { cn } from "#/utils/utils";
 import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
 

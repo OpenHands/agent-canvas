@@ -84,6 +84,8 @@
 - GitHub PR-review automation should stay aligned with the current OpenHands repo conventions: keep the review workflow at `.github/workflows/pr-review-by-openhands.yml`, keep the companion `.github/workflows/pr-review-evaluation.yml`, auto-run on newly opened non-draft PRs and `ready_for_review` events from established contributors, still support the `review-this` label / `openhands-agent` / `all-hands-bot` reviewer triggers, use the OpenHands app LLM proxy defaults, and use the dual-trigger pattern (`pull_request` for same-repo PRs, `pull_request_target` for forks) so workflow changes can self-verify without widening fork secret exposure.
 - The repo now includes `.agents/skills/custom-codereview-guide.md`, adapted from `OpenHands/software-agent-sdk`, to force PR reviews to always leave either an APPROVE or COMMENT review instead of silently finishing with no review object.
 
+- Conversation UI state is now scoped through `src/context/conversation-context.tsx`. Conversation components/hooks should import zustand hooks from that context (or `global-store-hooks` for genuinely app-global stores) instead of importing directly from `src/stores`; wrap embeddable conversation surfaces in `ConversationProvider` when they are used outside the route-level `ConversationView`.
+
 - HeroUI v3 migration notes:
   - The repo now uses `@heroui/react@3.0.3` plus `@heroui/styles@3.0.3`.
   - `src/tailwind.css` should import `@heroui/styles`; the old `hero.ts` Tailwind plugin file was removed and should not be reintroduced.
@@ -99,7 +101,6 @@
 - `AgentServerUIRoot`'s themed inner wrapper must set a default `color: var(--foreground)` in addition to the `dark` / `data-theme` markers; otherwise inherited text and `currentColor` SVG icons fall back to dark browser defaults after CSS scoping, causing dark-on-dark regressions on pages like the home screen.
 - Theme/customization tokens for the embedded shell are exposed as `--oh-*` CSS variables. Override them through `styleOverrides`, `style`, or host CSS targeting `[data-agent-server-ui]`; Tailwind theme tokens in `src/tailwind.css` should continue to reference those variables with `@theme inline` so host apps can restyle the UI without reworking component class names.
 - Regression coverage for the CSS isolation work lives in `__tests__/agent-server-ui-providers.test.tsx`, `__tests__/agent-server-ui-style-scope.test.ts`, and the browser-level `tests/css-isolation.spec.ts` Playwright test.
-
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

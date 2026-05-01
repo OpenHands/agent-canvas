@@ -10,7 +10,7 @@ import {
   isHookExecutionEvent,
 } from "#/types/v1/type-guards";
 import { useConfig } from "#/hooks/query/use-config";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { ChatMessage } from "../../features/chat/chat-message";

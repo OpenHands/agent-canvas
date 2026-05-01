@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Provider } from "#/types/settings";
-import { useErrorMessageStore } from "#/stores/error-message-store";
+import { useErrorMessageStore } from "#/context/conversation-context";
 import {
   resumeV1ConversationSandbox,
   updateConversationSandboxStatusInCache,

@@ -5,8 +5,10 @@ import { AgentState } from "#/types/agent-state";
 import { ActionTooltip } from "../action-tooltip";
 import { RiskAlert } from "#/components/shared/risk-alert";
 import WarningIcon from "#/icons/u-warning.svg?react";
-import { useEventMessageStore } from "#/stores/event-message-store";
-import { useEventStore } from "#/stores/use-event-store";
+import {
+  useEventMessageStore,
+  useEventStore,
+} from "#/context/conversation-context";
 import { isV1Event, isActionEvent } from "#/types/v1/type-guards";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useAgentState } from "#/hooks/use-agent-state";

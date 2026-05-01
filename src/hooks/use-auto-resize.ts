@@ -1,5 +1,5 @@
 import { useCallback, useEffect, RefObject, useRef } from "react";
-import { IMessageToSend } from "#/stores/conversation-store";
+import type { IMessageToSend } from "#/context/conversation-context";
 import { EPS } from "#/utils/constants";
 import { getStyleHeightPx, setStyleHeightPx } from "#/utils/utils";
 import { useDragResize } from "./use-drag-resize";

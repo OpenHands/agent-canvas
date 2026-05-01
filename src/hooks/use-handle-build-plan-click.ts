@@ -1,8 +1,10 @@
 import { useCallback } from "react";
-import { useConversationStore } from "#/stores/conversation-store";
+import {
+  useConversationStore,
+  useOptimisticUserMessageStore,
+} from "#/context/conversation-context";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 
 /**
  * Custom hook that encapsulates the logic for handling the Build button click.

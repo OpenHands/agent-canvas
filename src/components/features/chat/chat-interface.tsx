@@ -11,7 +11,7 @@ import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
 import { TypingIndicator } from "./typing-indicator";
 import { ChatSuggestions } from "./chat-suggestions";
 import { ScrollProvider } from "#/context/scroll-context";
-import { useInitialQueryStore } from "#/stores/initial-query-store";
+import { useInitialQueryStore } from "#/context/global-store-hooks";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
@@ -20,13 +20,15 @@ import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bott
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { useErrorMessageStore } from "#/stores/error-message-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import {
+  useConversationStore,
+  useErrorMessageStore,
+  useOptimisticUserMessageStore,
+} from "#/context/conversation-context";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages as V1Messages } from "#/components/v1/chat";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
-import { useConversationStore } from "#/stores/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";

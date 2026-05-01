@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
 export enum ActionSecurityRisk {
   UNKNOWN = -1,
@@ -15,11 +15,11 @@ export type SecurityAnalyzerLog = {
   confirmed_changed: boolean;
 };
 
-interface SecurityAnalyzerState {
+export interface SecurityAnalyzerState {
   logs: SecurityAnalyzerLog[];
 }
 
-interface SecurityAnalyzerStore extends SecurityAnalyzerState {
+export interface SecurityAnalyzerStore extends SecurityAnalyzerState {
   appendSecurityAnalyzerInput: (message: {
     id: number;
     args: {
@@ -34,42 +34,51 @@ interface SecurityAnalyzerStore extends SecurityAnalyzerState {
   clearLogs: () => void;
 }
 
+export type SecurityAnalyzerStoreApi = StoreApi<SecurityAnalyzerStore>;
+
 const initialLogs: SecurityAnalyzerLog[] = [];
 
-export const useSecurityAnalyzerStore = create<SecurityAnalyzerStore>(
-  (set) => ({
-    logs: initialLogs,
-    appendSecurityAnalyzerInput: (message) =>
-      set((state) => {
-        const log: SecurityAnalyzerLog = {
-          id: message.id,
-          content:
-            message.args.command ||
-            message.args.code ||
-            message.args.content ||
-            message.message ||
-            "",
-          security_risk: message.args.security_risk,
-          confirmation_state: message.args.confirmation_state,
-          confirmed_changed: false,
-        };
+const createSecurityAnalyzerState: StateCreator<SecurityAnalyzerStore> = (
+  set,
+) => ({
+  logs: initialLogs,
+  appendSecurityAnalyzerInput: (message) =>
+    set((state) => {
+      const log: SecurityAnalyzerLog = {
+        id: message.id,
+        content:
+          message.args.command ||
+          message.args.code ||
+          message.args.content ||
+          message.message ||
+          "",
+        security_risk: message.args.security_risk,
+        confirmation_state: message.args.confirmation_state,
+        confirmed_changed: false,
+      };
 
-        const existingLog = state.logs.find(
-          (stateLog) =>
-            stateLog.id === log.id ||
-            (stateLog.confirmation_state === "awaiting_confirmation" &&
-              stateLog.content === log.content),
-        );
+      const existingLog = state.logs.find(
+        (stateLog) =>
+          stateLog.id === log.id ||
+          (stateLog.confirmation_state === "awaiting_confirmation" &&
+            stateLog.content === log.content),
+      );
 
-        if (existingLog) {
-          if (existingLog.confirmation_state !== log.confirmation_state) {
-            existingLog.confirmation_state = log.confirmation_state;
-            existingLog.confirmed_changed = true;
-          }
-          return { logs: [...state.logs] }; // Return new array to trigger re-render
+      if (existingLog) {
+        if (existingLog.confirmation_state !== log.confirmation_state) {
+          existingLog.confirmation_state = log.confirmation_state;
+          existingLog.confirmed_changed = true;
         }
-        return { logs: [...state.logs, log] };
-      }),
-    clearLogs: () => set({ logs: initialLogs }),
-  }),
+        return { logs: [...state.logs] };
+      }
+      return { logs: [...state.logs, log] };
+    }),
+  clearLogs: () => set({ logs: initialLogs }),
+});
+
+export const createSecurityAnalyzerStore = (): SecurityAnalyzerStoreApi =>
+  createStore<SecurityAnalyzerStore>()(createSecurityAnalyzerState);
+
+export const useSecurityAnalyzerStore = create<SecurityAnalyzerStore>(
+  createSecurityAnalyzerState,
 );

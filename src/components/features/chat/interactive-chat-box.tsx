@@ -6,7 +6,7 @@ import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
 import { AgentState } from "#/types/agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { GitControlBar } from "./git-control-bar";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { processFiles, processImages } from "#/utils/file-processing";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";

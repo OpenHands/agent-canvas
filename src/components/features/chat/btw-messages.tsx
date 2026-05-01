@@ -1,5 +1,5 @@
 import CheckCircle from "#/icons/check-circle-solid.svg?react";
-import { useBtwStore } from "#/stores/btw-store";
+import { useBtwStore } from "#/context/global-store-hooks";
 import { GenericEventMessage } from "./generic-event-message";
 
 function GotItButton({ onClick }: { onClick: () => void }) {

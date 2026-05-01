@@ -1,18 +1,20 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
-interface EventMessageState {
-  submittedEventIds: number[]; // Avoid the flashing issue of the confirmation buttons
-  v1SubmittedEventIds: string[]; // V1 event IDs (V1 uses string IDs)
+export interface EventMessageState {
+  submittedEventIds: number[];
+  v1SubmittedEventIds: string[];
 }
 
-interface EventMessageStore extends EventMessageState {
+export interface EventMessageStore extends EventMessageState {
   addSubmittedEventId: (id: number) => void;
   removeSubmittedEventId: (id: number) => void;
   addV1SubmittedEventId: (id: string) => void;
   removeV1SubmittedEventId: (id: string) => void;
 }
 
-export const useEventMessageStore = create<EventMessageStore>((set) => ({
+export type EventMessageStoreApi = StoreApi<EventMessageStore>;
+
+const createEventMessageState: StateCreator<EventMessageStore> = (set) => ({
   submittedEventIds: [],
   v1SubmittedEventIds: [],
   addSubmittedEventId: (id: number) =>
@@ -35,4 +37,11 @@ export const useEventMessageStore = create<EventMessageStore>((set) => ({
         (eventId) => eventId !== id,
       ),
     })),
-}));
+});
+
+export const createEventMessageStore = (): EventMessageStoreApi =>
+  createStore<EventMessageStore>()(createEventMessageState);
+
+export const useEventMessageStore = create<EventMessageStore>()(
+  createEventMessageState,
+);

@@ -17,8 +17,8 @@ import { GitControlBarTooltipWrapper } from "./git-control-bar-tooltip-wrapper";
 import { OpenRepositoryModal } from "./open-repository-modal";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { useHomeStore } from "#/stores/home-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useHomeStore } from "#/context/global-store-hooks";
+import { useOptimisticUserMessageStore } from "#/context/conversation-context";
 
 interface GitControlBarProps {
   onSuggestionsClick: (value: string) => void;

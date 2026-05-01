@@ -4,7 +4,7 @@ import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";

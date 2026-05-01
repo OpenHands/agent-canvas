@@ -1,4 +1,4 @@
-import { ActionSecurityRisk } from "#/stores/security-analyzer-store";
+import { ActionSecurityRisk } from "#/context/conversation-context";
 import {
   FileWriteAction,
   CommandAction,

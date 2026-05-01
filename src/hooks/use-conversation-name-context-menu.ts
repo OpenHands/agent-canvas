@@ -1,13 +1,12 @@
 import { useTranslation } from "react-i18next";
 import React from "react";
 import { useNavigation } from "#/context/navigation-context";
-import useMetricsStore from "#/stores/metrics-store";
+import { useEventStore, useMetricsStore } from "#/context/conversation-context";
 import { useDeleteConversation } from "./mutation/use-delete-conversation";
 import { useUnifiedPauseConversationSandbox } from "./mutation/use-unified-stop-conversation";
 import { useUpdateConversationPublicFlag } from "./mutation/use-update-conversation-public-flag";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
-import { useEventStore } from "#/stores/use-event-store";
 
 import { useActiveConversation } from "./query/use-active-conversation";
 import { useDownloadConversation } from "./use-download-conversation";

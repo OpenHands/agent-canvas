@@ -8,7 +8,7 @@ import { useSlashCommand } from "#/hooks/chat/use-slash-command";
 import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { V1SandboxStatus } from "#/api/sandbox-service/sandbox-service.types";
 
 export interface CustomChatInputProps {

@@ -1,21 +1,22 @@
-import { create } from "zustand";
+import { create, createStore, type StateCreator, type StoreApi } from "zustand";
 
-interface ErrorMessageState {
+export interface ErrorMessageState {
   errorMessage: string | null;
 }
 
-interface ErrorMessageActions {
+export interface ErrorMessageActions {
   setErrorMessage: (message: string) => void;
   removeErrorMessage: () => void;
 }
 
-type ErrorMessageStore = ErrorMessageState & ErrorMessageActions;
+export type ErrorMessageStore = ErrorMessageState & ErrorMessageActions;
+export type ErrorMessageStoreApi = StoreApi<ErrorMessageStore>;
 
 const initialState: ErrorMessageState = {
   errorMessage: null,
 };
 
-export const useErrorMessageStore = create<ErrorMessageStore>((set) => ({
+const createErrorMessageState: StateCreator<ErrorMessageStore> = (set) => ({
   ...initialState,
 
   setErrorMessage: (message: string) =>
@@ -27,4 +28,11 @@ export const useErrorMessageStore = create<ErrorMessageStore>((set) => ({
     set(() => ({
       errorMessage: null,
     })),
-}));
+});
+
+export const createErrorMessageStore = (): ErrorMessageStoreApi =>
+  createStore<ErrorMessageStore>()(createErrorMessageState);
+
+export const useErrorMessageStore = create<ErrorMessageStore>()(
+  createErrorMessageState,
+);

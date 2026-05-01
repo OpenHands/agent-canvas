@@ -10,12 +10,18 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
-import { useEventStore } from "#/stores/use-event-store";
-import { useErrorMessageStore } from "#/stores/error-message-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
-import { useCommandStore } from "#/stores/command-store";
-import { useBrowserStore } from "#/stores/browser-store";
+import {
+  useBrowserStoreApi,
+  useCommandStore,
+  useConversationStore,
+  useConversationStoreApi,
+  useErrorMessageStore,
+  useErrorMessageStoreApi,
+  useEventStore,
+  useMetricsStoreApi,
+  useOptimisticUserMessageStore,
+  useV1ConversationStateStore,
+} from "#/context/conversation-context";
 import {
   isV1Event,
   isAgentErrorEvent,
@@ -45,11 +51,9 @@ import type {
 } from "#/api/conversation-service/v1-conversation-service.types";
 import EventService from "#/api/event-service/event-service.api";
 import PendingMessageService from "#/api/pending-message-service/pending-message-service.api";
-import { useConversationStore } from "#/stores/conversation-store";
 import { isBudgetOrCreditError, trackError } from "#/utils/error-handler";
 import { useTracking } from "#/hooks/use-tracking";
 import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-file";
-import useMetricsStore from "#/stores/metrics-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
@@ -104,6 +108,10 @@ export function ConversationWebSocketProvider({
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const { addEvent } = useEventStore();
+  const browserStore = useBrowserStoreApi();
+  const conversationStore = useConversationStoreApi();
+  const errorMessageStore = useErrorMessageStoreApi();
+  const metricsStore = useMetricsStoreApi();
   const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
   const { removeOptimisticUserMessage } = useOptimisticUserMessageStore();
   const { setExecutionStatus } = useV1ConversationStateStore();
@@ -143,7 +151,7 @@ export function ConversationWebSocketProvider({
   // Budget/credit errors persist until an agent event proves the LLM is working.
   const handleNonErrorEvent = useCallback(
     (event: { source?: string }) => {
-      const currentError = useErrorMessageStore.getState().errorMessage;
+      const currentError = errorMessageStore.getState().errorMessage;
       const isBudgetError =
         currentError === I18nKey.STATUS$ERROR_LLM_OUT_OF_CREDITS;
       const isAgentEvent = event.source === "agent";
@@ -155,7 +163,7 @@ export function ConversationWebSocketProvider({
 
       removeErrorMessage();
     },
-    [removeErrorMessage],
+    [errorMessageStore, removeErrorMessage],
   );
 
   // Helper function to update metrics from stats event
@@ -183,10 +191,10 @@ export function ConversationWebSocketProvider({
               }
             : null,
         };
-        useMetricsStore.getState().setMetrics(metrics);
+        metricsStore.getState().setMetrics(metrics);
       }
     },
-    [],
+    [metricsStore],
   );
 
   // Build WebSocket URL from props
@@ -473,13 +481,13 @@ export function ConversationWebSocketProvider({
               const screenshotSrc = screenshotData.startsWith("data:")
                 ? screenshotData
                 : `data:image/png;base64,${screenshotData}`;
-              useBrowserStore.getState().setScreenshotSrc(screenshotSrc);
+              browserStore.getState().setScreenshotSrc(screenshotSrc);
             }
           }
 
           // Handle BrowserNavigateAction events - update browser store with URL
           if (isBrowserNavigateActionEvent(event)) {
-            useBrowserStore.getState().setUrl(event.action.url);
+            browserStore.getState().setUrl(event.action.url);
           }
         }
       } catch (error) {
@@ -500,6 +508,7 @@ export function ConversationWebSocketProvider({
       appendInput,
       appendOutput,
       updateMetricsFromStats,
+      browserStore,
       trackCreditLimitReached,
       posthog,
     ],
@@ -833,7 +842,7 @@ export function ConversationWebSocketProvider({
   // Falls back to REST API queue when WebSocket is not connected
   const sendMessage = useCallback(
     async (message: V1SendMessageRequest): Promise<SendMessageResult> => {
-      const currentMode = useConversationStore.getState().conversationMode;
+      const currentMode = conversationStore.getState().conversationMode;
       const currentSocket =
         currentMode === "plan" ? planningAgentSocket : mainSocket;
 
@@ -875,7 +884,13 @@ export function ConversationWebSocketProvider({
         throw error;
       }
     },
-    [mainSocket, planningAgentSocket, setErrorMessage, conversationId],
+    [
+      mainSocket,
+      planningAgentSocket,
+      conversationStore,
+      setErrorMessage,
+      conversationId,
+    ],
   );
 
   // Track main socket state changes

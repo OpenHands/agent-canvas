@@ -1,6 +1,6 @@
 import React from "react";
 import { isOpenHandsAction, isActionOrObservation } from "#/types/core/guards";
-import { useEventStore } from "#/stores/use-event-store";
+import { useEventStore } from "#/context/conversation-context";
 import {
   shouldRenderEvent,
   hasUserEvent,

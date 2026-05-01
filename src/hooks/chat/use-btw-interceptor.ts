@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { askV1Agent } from "#/hooks/mutation/conversation-mutation-utils";
-import { useBtwStore } from "#/stores/btw-store";
+import { useBtwStore } from "#/context/global-store-hooks";
 import { BTW_COMMAND } from "#/utils/constants";
 
 const BTW_PREFIX = `${BTW_COMMAND} `;

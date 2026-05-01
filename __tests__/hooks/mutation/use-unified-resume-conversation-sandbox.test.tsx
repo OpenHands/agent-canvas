@@ -5,12 +5,7 @@ import React from "react";
 import { SandboxService } from "#/api/sandbox-service/sandbox-service.api";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import { useUnifiedResumeConversationSandbox } from "#/hooks/mutation/use-unified-start-conversation";
-
-// Mock the error message store
-vi.mock("#/stores/error-message-store", () => ({
-  useErrorMessageStore: (selector: (state: { removeErrorMessage: () => void }) => unknown) =>
-    selector({ removeErrorMessage: vi.fn() }),
-}));
+import { ConversationProvider } from "#/context/conversation-context";
 
 describe("useUnifiedResumeConversationSandbox", () => {
   let queryClient: QueryClient;
@@ -27,13 +22,18 @@ describe("useUnifiedResumeConversationSandbox", () => {
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <ConversationProvider conversationId="test-conv-id">
+        {children}
+      </ConversationProvider>
     </QueryClientProvider>
   );
 
   it("invalidates sandbox and vscode_url queries on settled", async () => {
     // Mock the API calls in the mutation chain
-    vi.spyOn(V1ConversationService, "batchGetAppConversations").mockResolvedValue([
+    vi.spyOn(
+      V1ConversationService,
+      "batchGetAppConversations",
+    ).mockResolvedValue([
       {
         id: "test-conv-id",
         created_by_user_id: null,
@@ -56,15 +56,22 @@ describe("useUnifiedResumeConversationSandbox", () => {
         updated_at: new Date().toISOString(),
       },
     ]);
-    vi.spyOn(SandboxService, "resumeSandbox").mockResolvedValue({ success: true });
+    vi.spyOn(SandboxService, "resumeSandbox").mockResolvedValue({
+      success: true,
+    });
 
     // Pre-populate query cache with stale sandbox data
-    queryClient.setQueryData(["sandboxes", "batch", ["test-sandbox-id"]], [
-      {
-        sandbox_id: "test-sandbox-id",
-        exposed_urls: [{ name: "VSCODE", url: "https://old-runtime.example.com" }],
-      },
-    ]);
+    queryClient.setQueryData(
+      ["sandboxes", "batch", ["test-sandbox-id"]],
+      [
+        {
+          sandbox_id: "test-sandbox-id",
+          exposed_urls: [
+            { name: "VSCODE", url: "https://old-runtime.example.com" },
+          ],
+        },
+      ],
+    );
     queryClient.setQueryData(["unified", "vscode_url", "test-conv-id"], {
       url: "https://old-runtime.example.com",
       error: null,
@@ -73,7 +80,9 @@ describe("useUnifiedResumeConversationSandbox", () => {
     // Spy on invalidateQueries
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { result } = renderHook(() => useUnifiedResumeConversationSandbox(), { wrapper });
+    const { result } = renderHook(() => useUnifiedResumeConversationSandbox(), {
+      wrapper,
+    });
 
     // Trigger the mutation
     result.current.mutate({ conversationId: "test-conv-id" });

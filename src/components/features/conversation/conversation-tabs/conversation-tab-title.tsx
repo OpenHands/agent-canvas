@@ -3,7 +3,7 @@ import RefreshIcon from "#/icons/u-refresh.svg?react";
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { useAgentState } from "#/hooks/use-agent-state";
-import { useConversationStore } from "#/stores/conversation-store";
+import { useConversationStore } from "#/context/conversation-context";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
