@@ -1,7 +1,6 @@
 import SettingsService from "./settings-service/settings-service.api";
-import { openHands } from "./open-hands-axios";
+import { createSettingsClient } from "./typescript-client";
 import {
-  CustomSecret,
   CustomSecretPage,
   CustomSecretWithoutValue,
   SearchSecretsParams,
@@ -87,32 +86,43 @@ const buildProviderTokensSet = (
 export class SecretsService {
   /**
    * Search/list custom secrets with pagination support.
-   * Uses the new V1 API endpoint: GET /api/v1/secrets/search
+   * Uses the agent-server settings client for local persistence.
    */
   static async searchSecrets(
     params: SearchSecretsParams = {},
   ): Promise<CustomSecretPage> {
-    const queryParams = new URLSearchParams();
+    try {
+      const client = createSettingsClient();
+      const response = await client.listSecrets();
 
-    if (params.name__contains) {
-      queryParams.set("name__contains", params.name__contains);
-    }
-    if (params.page_id) {
-      queryParams.set("page_id", params.page_id);
-    }
-    if (params.limit) {
-      queryParams.set("limit", params.limit.toString());
-    }
+      // Filter by name if requested
+      let items = response.secrets.map((s) => ({
+        name: s.name,
+        description: s.description ?? undefined,
+      }));
 
-    const queryString = queryParams.toString();
-    const url = `/api/v1/secrets/search${queryString ? `?${queryString}` : ""}`;
+      if (params.name__contains) {
+        const query = params.name__contains.toLowerCase();
+        items = items.filter((s) => s.name.toLowerCase().includes(query));
+      }
 
-    const { data } = await openHands.get<CustomSecretPage>(url);
-    return data;
+      // Simple pagination (agent-server doesn't have built-in pagination)
+      const limit = params.limit ?? 100;
+      const startIndex = params.page_id ? parseInt(params.page_id, 10) : 0;
+      const paginatedItems = items.slice(startIndex, startIndex + limit);
+      const hasMore = startIndex + limit < items.length;
+
+      return {
+        items: paginatedItems,
+        next_page_id: hasMore ? String(startIndex + limit) : null,
+      };
+    } catch {
+      return { items: [], next_page_id: null };
+    }
   }
 
   /**
-   * @deprecated Use searchSecrets instead. This method uses the deprecated V0 API.
+   * Get all secrets (names and descriptions only, no values).
    */
   static async getSecrets(): Promise<CustomSecretWithoutValue[]> {
     const allSecrets: CustomSecretWithoutValue[] = [];
@@ -131,30 +141,48 @@ export class SecretsService {
     return allSecrets;
   }
 
+  /**
+   * Create a new custom secret via the agent-server.
+   */
   static async createSecret(name: string, value: string, description?: string) {
-    const secret: CustomSecret = {
-      name,
-      value,
-      description,
-    };
-
-    const { status } = await openHands.post("/api/v1/secrets", secret);
-    return status === 201;
+    try {
+      const client = createSettingsClient();
+      await client.createSecret({ name, value, description: description ?? null });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  static async updateSecret(id: string, name: string, description?: string) {
-    const secret: CustomSecretWithoutValue = {
-      name,
-      description,
-    };
-
-    const { status } = await openHands.put(`/api/v1/secrets/${id}`, secret);
-    return status === 200;
+  /**
+   * Update a secret's metadata (description). For agent-server, we need to
+   * re-create the secret with the same value since we can't update in place
+   * without the value.
+   */
+  static async updateSecret(_id: string, name: string, description?: string) {
+    try {
+      // For agent-server, we can only update by re-creating with a new value
+      // This is a limitation - in practice, users should delete and recreate
+      const client = createSettingsClient();
+      const currentValue = await client.getSecretValue(name);
+      await client.createSecret({ name, value: currentValue, description: description ?? null });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  static async deleteSecret(id: string) {
-    const { status } = await openHands.delete<boolean>(`/api/v1/secrets/${id}`);
-    return status === 200;
+  /**
+   * Delete a custom secret via the agent-server.
+   */
+  static async deleteSecret(name: string) {
+    try {
+      const client = createSettingsClient();
+      await client.deleteSecret(name);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   static async addGitProvider(

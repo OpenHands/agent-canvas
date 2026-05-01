@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import { createSettingsClient } from "../typescript-client";
 
-const STORAGE_KEY = "openhands-agent-server-settings";
+const LOCAL_CACHE_KEY = "openhands-agent-server-settings";
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -11,13 +11,16 @@ const mergeRecords = (
   next: Record<string, SettingsValue> | null | undefined,
 ) => ({ ...(base ?? {}), ...(next ?? {}) });
 
-const readStoredSettings = (): Partial<Settings> => {
+/**
+ * Read cached settings from localStorage (used as fallback when server unavailable).
+ */
+const readLocalCache = (): Partial<Settings> => {
   if (typeof window === "undefined") {
     return {};
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
     if (!raw) return {};
     return (JSON.parse(raw) as Partial<Settings>) ?? {};
   } catch {
@@ -25,6 +28,19 @@ const readStoredSettings = (): Partial<Settings> => {
   }
 };
 
+/**
+ * Write settings to localStorage as a local cache.
+ */
+const writeLocalCache = (settings: Settings) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(settings));
+};
+
+/**
+ * Converts server response format to frontend Settings format.
+ * The server stores `agent_settings` and `conversation_settings` as nested records,
+ * but the frontend expects top-level fields like `llm_model`, `agent`, etc.
+ */
 const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   const agentSettings = mergeRecords(
     DEFAULT_SETTINGS.agent_settings ?? {},
@@ -94,14 +110,34 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   return merged;
 };
 
-const writeStoredSettings = (settings: Settings) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-};
-
 class SettingsService {
+  /**
+   * Get settings from the agent server, with local cache fallback.
+   * The server persists settings to disk, while localStorage acts as a cache
+   * for faster initial loads and offline scenarios.
+   */
   static async getSettings(): Promise<Settings> {
-    return syncDerivedSettings(readStoredSettings());
+    try {
+      const client = createSettingsClient();
+      const response = await client.getSettings();
+
+      // Convert server response to frontend format
+      const fromServer: Partial<Settings> = {
+        agent_settings: response.agent_settings,
+        conversation_settings: response.conversation_settings,
+        llm_api_key_set: response.llm_api_key_is_set,
+      };
+
+      const merged = syncDerivedSettings(fromServer);
+
+      // Update local cache
+      writeLocalCache(merged);
+
+      return merged;
+    } catch {
+      // Fallback to local cache if server unavailable
+      return syncDerivedSettings(readLocalCache());
+    }
   }
 
   static async getSettingsSchema(): Promise<SettingsSchema> {
@@ -112,6 +148,10 @@ class SettingsService {
     return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
   }
 
+  /**
+   * Save settings to the agent server.
+   * Sends only the diff (changed fields) to the server, which merges with existing.
+   */
   static async saveSettings(
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
@@ -185,9 +225,25 @@ class SettingsService {
     delete nextSettings.agent_settings_diff;
     delete nextSettings.conversation_settings_diff;
 
-    const merged = syncDerivedSettings(nextSettings);
-    writeStoredSettings(merged);
-    return true;
+    try {
+      // Send to agent server for persistence
+      const client = createSettingsClient();
+      await client.updateSettings({
+        agent_settings_diff: agentSettingsDiff,
+        conversation_settings_diff: conversationSettingsDiff,
+      });
+
+      // Update local cache on success
+      const merged = syncDerivedSettings(nextSettings);
+      writeLocalCache(merged);
+
+      return true;
+    } catch {
+      // Fallback: save to local cache only if server unavailable
+      const merged = syncDerivedSettings(nextSettings);
+      writeLocalCache(merged);
+      return true;
+    }
   }
 }
 

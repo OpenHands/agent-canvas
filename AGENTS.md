@@ -62,7 +62,13 @@
 
   - A successful end-to-end live run in this environment required a real LLM config (`LLM_MODEL` + `LLM_API_KEY`). The default `litellm_proxy/...` model with no `llm_api_key` failed at runtime with a `litellm.AuthenticationError`.
 
-- Git provider token persistence note: this direct-agent-server frontend now persists `Settings > Git` provider tokens locally in browser storage instead of posting to an app-backend secrets route. `src/api/secrets-service.ts` writes the token payload to localStorage, mirrors provider hosts into `provider_tokens_set` through `SettingsService.saveSettings()`, and `use-delete-git-providers` clears that local state.
+- **Settings persistence architecture**: Settings are now persisted via the agent-server REST API (`/api/settings` endpoints) instead of relying solely on localStorage. The `SettingsService` in `src/api/settings-service/settings-service.api.ts` uses the `@openhands/typescript-client` `SettingsClient` for CRUD operations:
+  - `getSettings()` fetches from the agent-server with localStorage as fallback
+  - `saveSettings()` posts diffs to the server and updates the local cache
+  - The local cache key `openhands-agent-server-settings` remains for offline scenarios and faster initial loads
+  - The agent-server persists settings to `~/.openhands/settings.json` on disk
+- **Secrets persistence**: Custom secrets (`Settings > Secrets`) are now managed via the agent-server's `SettingsClient.createSecret()`, `listSecrets()`, `deleteSecret()` methods. The server encrypts API keys using the SDK's Cipher utility and stores them at `~/.openhands/secrets.json`.
+- Git provider token persistence note: this direct-agent-server frontend still persists `Settings > Git` provider tokens locally in browser storage (`openhands-agent-server-git-provider-tokens`) while mirroring host metadata into settings via `SettingsService.saveSettings()`.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install backend, optional `.env`, run `npm run dev`).
