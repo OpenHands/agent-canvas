@@ -242,12 +242,10 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   llm.model =
     typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
 
-  const apiKey = normalizeSecretString(llm.api_key);
-  if (apiKey) {
-    llm.api_key = apiKey;
-  } else {
-    delete llm.api_key;
-  }
+  // Note: We intentionally do NOT send api_key in the start conversation request.
+  // The agent-server will fill it in from persisted settings via server-side merge.
+  // This avoids exposing secrets in the request payload.
+  delete llm.api_key;
 
   const baseUrl = normalizeSecretString(llm.base_url);
   if (baseUrl) {
