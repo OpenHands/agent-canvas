@@ -55,6 +55,13 @@ export function toConversationUrl(conversationId: string): string {
   return `${getAgentServerBaseUrl()}/api/conversations/${conversationId}`;
 }
 
+// TODO(i18n): extract "Conversation" once we add CONVERSATION$DEFAULT_TITLE
+// with `{{shortId}}` interpolation. Kept as a literal for now to keep the
+// fallback inside this pure adapter rather than fanning out to display sites.
+export function getDefaultConversationTitle(conversationId: string): string {
+  return `Conversation ${conversationId.slice(0, 5)}`;
+}
+
 export function toV1AppConversation(
   info: DirectConversationInfo,
 ): V1AppConversation {
@@ -64,7 +71,7 @@ export function toV1AppConversation(
     selected_repository: null,
     selected_branch: null,
     git_provider: null,
-    title: info.title ?? null,
+    title: info.title?.trim() ? info.title : getDefaultConversationTitle(info.id),
     trigger: null,
     pr_number: [],
     llm_model: info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model,

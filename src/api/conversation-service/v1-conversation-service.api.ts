@@ -10,6 +10,7 @@ import {
   buildStartConversationRequest,
   downloadTextFile,
   emptyHooksResponse,
+  getDefaultConversationTitle,
   loadSkillsForConversation,
   toV1AppConversation,
   toV1ConversationPage,
@@ -259,7 +260,7 @@ class V1ConversationService {
 
     return {
       id: data.id,
-      title: data.title ?? null,
+      title: data.title?.trim() ? data.title : getDefaultConversationTitle(data.id),
       metrics: data.metrics
         ? {
             accumulated_cost: data.metrics.accumulated_cost ?? null,
