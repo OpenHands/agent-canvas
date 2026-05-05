@@ -323,6 +323,18 @@ function buildConfiguredConversationSettings(options: {
   };
 }
 
+/**
+ * A secret looked up from the agent-server at runtime.
+ * This allows secrets configured in Settings > Secrets to be available
+ * to conversations without exposing values to the frontend.
+ */
+interface LookupSecret {
+  kind: "LookupSecret";
+  url: string;
+  headers?: Record<string, string>;
+  description?: string;
+}
+
 export interface StartConversationOptions {
   settings: Settings;
   query?: string;
@@ -345,6 +357,12 @@ export interface StartConversationOptions {
    * If true, the server will decrypt them before use.
    */
   secretsEncrypted?: boolean;
+  /**
+   * Custom secrets to include in the conversation.
+   * Each entry maps a secret name to metadata (description).
+   * The actual values are fetched at runtime via LookupSecret.
+   */
+  customSecrets?: Array<{ name: string; description?: string }>;
 }
 
 export function buildStartConversationRequest(options: StartConversationOptions) {
@@ -418,6 +436,33 @@ export function buildStartConversationRequest(options: StartConversationOptions)
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
+  // Add custom secrets as LookupSecret entries
+  // The agent-server will fetch values at runtime from /api/settings/secrets/{name}
+  if (options.customSecrets && options.customSecrets.length > 0) {
+    const baseUrl = getAgentServerBaseUrl();
+    const sessionApiKey = getAgentServerSessionApiKey();
+
+    const secrets: Record<string, LookupSecret> = {};
+    for (const secret of options.customSecrets) {
+      const lookupSecret: LookupSecret = {
+        kind: "LookupSecret",
+        url: `${baseUrl}/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+        description: secret.description,
+      };
+
+      // Include session API key header if configured
+      if (sessionApiKey) {
+        lookupSecret.headers = {
+          "X-Session-API-Key": sessionApiKey,
+        };
+      }
+
+      secrets[secret.name] = lookupSecret;
+    }
+
+    payload.secrets = secrets;
+  }
+
   return payload;
 }
 
@@ -425,6 +470,9 @@ export function buildStartConversationRequest(options: StartConversationOptions)
  * Build a start conversation request using encrypted settings from the server.
  * This is the recommended way to start conversations from the frontend,
  * as it ensures secrets are never exposed in plaintext to the browser.
+ *
+ * Also fetches custom secrets from the settings store and adds them as
+ * LookupSecret entries so they're available to the conversation at runtime.
  */
 export async function buildStartConversationRequestWithEncryptedSettings(options: {
   settings: Settings;
@@ -434,15 +482,24 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   conversationId?: string;
   workingDir?: string;
 }): Promise<Record<string, unknown>> {
-  // Fetch settings with encrypted secrets
+  // Import SecretsService dynamically to avoid circular dependencies
+  const { SecretsService } = await import("./secrets-service");
+
+  // Fetch settings with encrypted secrets and custom secrets list in parallel
+  const [settingsResult, customSecrets] = await Promise.all([
+    SettingsService.getSettingsForConversation(),
+    SecretsService.getSecrets(),
+  ]);
+
   const { agentSettings, conversationSettings, secretsEncrypted } =
-    await SettingsService.getSettingsForConversation();
+    settingsResult;
 
   return buildStartConversationRequest({
     ...options,
     encryptedAgentSettings: agentSettings,
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
+    customSecrets,
   });
 }
 
