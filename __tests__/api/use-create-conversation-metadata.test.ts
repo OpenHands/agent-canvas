@@ -5,13 +5,17 @@ import React from "react";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 
-const { mockHttpPost, mockCreateHttpClient, mockGetSettings } = vi.hoisted(
-  () => ({
-    mockHttpPost: vi.fn(),
-    mockCreateHttpClient: vi.fn(),
-    mockGetSettings: vi.fn(),
-  }),
-);
+const {
+  mockHttpPost,
+  mockCreateHttpClient,
+  mockGetSettings,
+  mockGetSettingsForConversation,
+} = vi.hoisted(() => ({
+  mockHttpPost: vi.fn(),
+  mockCreateHttpClient: vi.fn(),
+  mockGetSettings: vi.fn(),
+  mockGetSettingsForConversation: vi.fn(),
+}));
 
 vi.mock("#/api/typescript-client", () => ({
   createHttpClient: mockCreateHttpClient,
@@ -31,7 +35,10 @@ vi.mock("#/api/agent-server-config", () => ({
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
-  default: { getSettings: mockGetSettings },
+  default: {
+    getSettings: mockGetSettings,
+    getSettingsForConversation: mockGetSettingsForConversation,
+  },
 }));
 
 vi.mock("#/hooks/use-tracking", () => ({
@@ -50,9 +57,16 @@ describe("useCreateConversation persists selected repository metadata", () => {
     window.localStorage.clear();
     mockHttpPost.mockReset();
     mockCreateHttpClient.mockReset();
+    mockGetSettings.mockReset();
+    mockGetSettingsForConversation.mockReset();
     mockGetSettings.mockResolvedValue({
       agent_settings: { llm: { model: "gpt-4o" } },
       conversation_settings: {},
+    });
+    mockGetSettingsForConversation.mockResolvedValue({
+      agentSettings: { llm: { model: "gpt-4o" } },
+      conversationSettings: {},
+      secretsEncrypted: true,
     });
     mockCreateHttpClient.mockReturnValue({
       get: vi.fn(),

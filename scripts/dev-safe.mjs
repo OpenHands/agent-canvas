@@ -10,6 +10,8 @@ const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
+// Default secret key for local development (DO NOT use in production)
+const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 
 function isEnoentError(error) {
   return Boolean(
@@ -125,6 +127,8 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
   );
   const conversationsPath = path.join(stateDir, "conversations");
   const workspacesPath = path.join(stateDir, "workspaces");
+  // Use provided secret key or default for local development
+  const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
 
   return {
     cwd,
@@ -138,6 +142,7 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
     backendBaseUrl: `http://127.0.0.1:${backendPort}`,
     backendHost: `127.0.0.1:${backendPort}`,
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
+    secretKey,
   };
 }
 
@@ -224,12 +229,17 @@ async function main() {
       ? `version: ${process.env.OH_AGENT_SERVER_VERSION}`
       : "latest release";
 
+  const secretKeySource = process.env.OH_SECRET_KEY
+    ? "custom (from OH_SECRET_KEY)"
+    : "default (for local development)";
+
   console.log("Starting isolated agent-server + frontend dev stack...");
   console.log(`- agent-server: ${agentServerSource}`);
   console.log(`- backend: ${config.backendBaseUrl}`);
   console.log(`- vscode port: ${config.vscodePort}`);
   console.log(`- working dir: ${config.workingDir}`);
   console.log(`- isolated state dir: ${config.stateDir}`);
+  console.log(`- secret key: ${secretKeySource}`);
   console.log("");
 
   const backend = spawnProcess(
@@ -249,6 +259,7 @@ async function main() {
         OH_CONVERSATIONS_PATH: config.conversationsPath,
         OH_BASH_EVENTS_DIR: config.bashEventsDir,
         OH_VSCODE_PORT: String(config.vscodePort),
+        OH_SECRET_KEY: config.secretKey,
       },
     },
   );
