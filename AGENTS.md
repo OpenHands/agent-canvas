@@ -3,7 +3,7 @@
 - This repository is a near-direct port of the OpenHands frontend, adapted to talk straight to `software-agent-sdk` / `agent_server` without the usual OpenHands app backend.
 - Frontend API adaptation lives mainly in `src/api/`:
   - `option-service` fabricates an OSS web-client config and reads models/providers from `agent_server` LLM endpoints.
-  - `settings-service` stores settings locally in browser localStorage and reads schemas from `agent_server` `/api/settings/*` endpoints.
+  - `settings-service` uses agent server `/api/settings` endpoints for persistence; reads schemas from `/api/settings/agent-schema` and `/api/settings/conversation-schema`, fetches settings with optional `X-Expose-Secrets: encrypted` header for conversation start payloads, and saves settings via PATCH with diffs.
   - `v1-conversation-service`, `event-service`, `git-service`, and `skills-service` are mapped directly to `agent_server` REST endpoints.
   - `open-hands-axios` injects the optional `X-Session-API-Key` from env/local config for all requests.
 - Supported env vars for deployment:
@@ -73,6 +73,7 @@
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables:
   - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.18.0")
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
+  - `OH_SECRET_KEY` — secret key for settings encryption; uses a default value for local dev, override for production
   - Default: latest released version from PyPI
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
