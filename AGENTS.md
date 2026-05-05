@@ -48,9 +48,7 @@
     - When the browser is accessing the frontend through a remote host (for example an All Hands work URL) but `VITE_BACKEND_BASE_URL` points at `127.0.0.1`/`localhost`, browser-side REST calls must fall back to the frontend origin so Vite can proxy `/api` and `/sockets` to the local backend.
   - `GET /api/conversations` expects repeated `ids` params (`?ids=a&ids=b`), not Axios's default bracket form (`ids[]=a`), so the shared Axios client needs a custom params serializer.
   - Runtime git panels should prefer the conversation's reported `workspace.working_dir` when present; falling back to `/workspace/project` can produce 500s like `Not a git repository` for direct local workspaces such as `/workspace/project/agent-server-gui`.
-  - For the current `openhands-agent-server` PyPI/uv-tool flow, `uv tool install -U openhands-agent-server` alone was not sufficient in this environment. A working install was:
-    - `uv tool install -U --with openhands-tools --with openhands-workspace openhands-agent-server`
-    - `uv tool install` exposes the executable as `agent-server`, not `openhands-agent-server`, and may require adding `~/.local/bin` to `PATH`.
+  - For development, `npm run dev` now uses `uvx` to run a temporary agent-server installation, so no permanent `uv tool install` is required. For standalone installations, `uv tool install -U --with openhands-tools --with openhands-workspace openhands-agent-server` would expose the executable as `agent-server` (not `openhands-agent-server`), possibly requiring `~/.local/bin` on `PATH`.
   - Current SDK / agent-server conversation start payloads must use SDK-registered snake_case tool names, not the old class-style names. Working names against SDK v1.18.1 were:
     - `terminal`
     - `file_editor`
@@ -70,15 +68,19 @@
 - Git provider token persistence note: this direct-agent-server frontend now persists `Settings > Git` provider tokens locally in browser storage instead of posting to an app-backend secrets route. `src/api/secrets-service.ts` writes the token payload to localStorage, mirrors provider hosts into `provider_tokens_set` through `SettingsService.saveSettings()`, and `use-delete-git-providers` clears that local state.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 
-- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install backend, optional `.env`, run `npm run dev`).
+- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
-- `scripts/dev-safe.mjs` should fail fast if `agent-server` cannot be spawned (for example missing PATH entries).
+- `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables:
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.18.0")
+  - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
+  - Default: latest released version from PyPI
+- `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
 - Vercel deployment note: React Router builds for this repo must keep `build/client` intact on actual Vercel builds and include `presets: [vercelPreset()]` from `@vercel/react-router/vite`; flattening `build/client` during a Vercel build produces deployments with empty outputs (`routes: null`, no static files) and a production 404.
 
 - The repo should include a root `LICENSE` file to satisfy the incubator-program requirements.
 - OpenHands repo bootstrap files live under `.openhands/`:
-  - `.openhands/setup.sh` installs frontend dependencies with `npm ci` when needed, creates `.env` from `.env.sample` if missing, appends `VITE_WORKING_DIR` for this repo when unset, and generates `src/i18n/declaration.ts` via `npm run make-i18n`.
+  - `.openhands/setup.sh` installs `uv` (via `curl -LsSf https://astral.sh/uv/install.sh | sh`) if not present, installs frontend dependencies with `npm ci` when needed, creates `.env` from `.env.sample` if missing, appends `VITE_WORKING_DIR` for this repo when unset, and generates `src/i18n/declaration.ts` via `npm run make-i18n`.
   - `.openhands/pre-commit.sh` mirrors the repo's local quality gate with `npm run lint && npm run test`.
 - GitHub PR-review automation should stay aligned with the current OpenHands repo conventions: keep the review workflow at `.github/workflows/pr-review-by-openhands.yml`, keep the companion `.github/workflows/pr-review-evaluation.yml`, auto-run on newly opened non-draft PRs and `ready_for_review` events from established contributors, still support the `review-this` label / `openhands-agent` / `all-hands-bot` reviewer triggers, use the OpenHands app LLM proxy defaults, and use the dual-trigger pattern (`pull_request` for same-repo PRs, `pull_request_target` for forks) so workflow changes can self-verify without widening fork secret exposure.
 - The repo now includes `.agents/skills/custom-codereview-guide.md`, adapted from `OpenHands/software-agent-sdk`, to force PR reviews to always leave either an APPROVE or COMMENT review instead of silently finishing with no review object.
