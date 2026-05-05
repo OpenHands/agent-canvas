@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
+const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
+const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
 
 function isEnoentError(error) {
   return Boolean(
@@ -19,27 +21,82 @@ function isEnoentError(error) {
   );
 }
 
-export function formatMissingAgentServerGuidance(cwd = process.cwd()) {
+export function formatMissingUvxGuidance(cwd = process.cwd()) {
   const readmePath = path.join(cwd, "README.md");
 
   return [
-    "Failed to start agent-server. Make sure it is installed and on your PATH.",
+    "Failed to start uvx. Make sure uv is installed and on your PATH.",
     "",
     "To fix this:",
-    "1. Install the backend CLI:",
-    "   uv tool install -U --with openhands-tools --with openhands-workspace openhands-agent-server",
-    "2. Make sure the uv tool bin dir is on your PATH:",
+    "1. Install uv:",
+    "   curl -LsSf https://astral.sh/uv/install.sh | sh",
+    "2. Make sure the uv bin dir is on your PATH:",
     '   export PATH="$HOME/.local/bin:$PATH"',
-    "   command -v agent-server",
+    "   command -v uvx",
     "",
     "Need Windows or another install method? https://docs.astral.sh/uv/getting-started/installation/",
     `See the local Quickstart for details: ${readmePath}`,
-    "- README > Quickstart > 2. Install OpenHands Agent Server",
     "",
     "Other options:",
     "- npm run dev:frontend   # use an already running backend",
     "- npm run dev:mock       # run the frontend with mock APIs",
   ].join("\n");
+}
+
+/**
+ * Build the uvx command and arguments for running agent-server.
+ *
+ * Environment variables:
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.18.0")
+ * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name (takes precedence over version)
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {{ command: string, args: string[] }}
+ */
+export function buildAgentServerCommand(env = process.env) {
+  const gitRef = env.OH_AGENT_SERVER_GIT_REF;
+  const version = env.OH_AGENT_SERVER_VERSION;
+
+  const uvxArgs = [];
+
+  if (gitRef) {
+    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // The software-agent-sdk repo has packages in subdirectories:
+    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
+    uvxArgs.push(
+      "--from",
+      `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-tools`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-workspace`,
+      "agent-server",
+    );
+  } else if (version) {
+    // Use specific PyPI version: uvx --with ... openhands-agent-server==version
+    uvxArgs.push(
+      "--with",
+      "openhands-tools",
+      "--with",
+      "openhands-workspace",
+      `${DEFAULT_AGENT_SERVER_PACKAGE}==${version}`,
+    );
+  } else {
+    // Use latest released version: uvx --with ... openhands-agent-server
+    uvxArgs.push(
+      "--with",
+      "openhands-tools",
+      "--with",
+      "openhands-workspace",
+      DEFAULT_AGENT_SERVER_PACKAGE,
+    );
+  }
+
+  return {
+    command: "uvx",
+    args: uvxArgs,
+  };
 }
 
 function parsePort(value, fallback) {
@@ -133,8 +190,8 @@ function spawnProcess(command, args, options) {
   const child = spawn(command, args, { stdio: "inherit", ...options });
 
   child.once("error", (error) => {
-    if (isEnoentError(error) && command === "agent-server") {
-      console.error(formatMissingAgentServerGuidance(options?.cwd));
+    if (isEnoentError(error) && command === "uvx") {
+      console.error(formatMissingUvxGuidance(options?.cwd));
     } else if (isEnoentError(error)) {
       console.error(
         `Failed to start ${command}. Make sure it is installed and on your PATH.`,
@@ -160,7 +217,15 @@ async function main() {
     mkdirSync(dir, { recursive: true });
   }
 
+  const agentServerCmd = buildAgentServerCommand();
+  const agentServerSource = process.env.OH_AGENT_SERVER_GIT_REF
+    ? `git ref: ${process.env.OH_AGENT_SERVER_GIT_REF}`
+    : process.env.OH_AGENT_SERVER_VERSION
+      ? `version: ${process.env.OH_AGENT_SERVER_VERSION}`
+      : "latest release";
+
   console.log("Starting isolated agent-server + frontend dev stack...");
+  console.log(`- agent-server: ${agentServerSource}`);
   console.log(`- backend: ${config.backendBaseUrl}`);
   console.log(`- vscode port: ${config.vscodePort}`);
   console.log(`- working dir: ${config.workingDir}`);
@@ -168,8 +233,14 @@ async function main() {
   console.log("");
 
   const backend = spawnProcess(
-    "agent-server",
-    ["--host", "127.0.0.1", "--port", String(config.backendPort)],
+    agentServerCmd.command,
+    [
+      ...agentServerCmd.args,
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(config.backendPort),
+    ],
     {
       cwd: config.cwd,
       env: {

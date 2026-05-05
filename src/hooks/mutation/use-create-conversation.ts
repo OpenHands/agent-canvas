@@ -17,6 +17,7 @@ interface CreateConversationVariables {
   parentConversationId?: string;
   agentType?: "default" | "plan";
   plugins?: PluginSpec[];
+  workingDir?: string;
 }
 
 // Response type for V1 conversations
@@ -37,12 +38,26 @@ export const useCreateConversation = () => {
     mutationFn: async (
       variables: CreateConversationVariables,
     ): Promise<CreateConversationResponse> => {
-      const { query, conversationInstructions, plugins } = variables;
+      const {
+        query,
+        conversationInstructions,
+        plugins,
+        repository,
+        workingDir,
+      } = variables;
 
       const conversation = await V1ConversationService.createConversation(
         query,
         conversationInstructions,
         plugins,
+        repository
+          ? {
+              selected_repository: repository.name,
+              selected_branch: repository.branch ?? null,
+              git_provider: repository.gitProvider,
+            }
+          : null,
+        workingDir,
       );
 
       return {

@@ -75,6 +75,12 @@ describe("useCreateConversation", () => {
         "Please address the comments",
         "Focus on review comments",
         undefined,
+        {
+          selected_repository: "owner/repo",
+          selected_branch: "main",
+          git_provider: "github",
+        },
+        undefined,
       );
     });
   });

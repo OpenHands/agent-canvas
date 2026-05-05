@@ -1,5 +1,5 @@
 import { ConnectToProviderMessage } from "./connect-to-provider-message";
-import { RepositorySelectionForm } from "./repo-selection-form";
+import { LaunchTabs } from "./launch-tabs";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { GitRepository } from "#/types/git";
 
@@ -19,7 +19,7 @@ export function RepoConnector({ onRepoSelection }: RepoConnectorProps) {
     >
       {!providersAreSet && <ConnectToProviderMessage />}
       {providersAreSet && (
-        <RepositorySelectionForm
+        <LaunchTabs
           onRepoSelection={onRepoSelection}
           isLoadingSettings={isLoadingSettings}
         />

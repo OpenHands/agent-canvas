@@ -11,7 +11,7 @@ This repository is a near-direct port of the OpenHands frontend adapted to talk 
 
 - Node.js 22.12.x or later
 - `npm`
-- OpenHands Agent Server (`agent-server`) installed and available on your `PATH`
+- `uv` (for running the agent server via `uvx`)
 
 ### 1. Clone and install the frontend
 
@@ -21,9 +21,9 @@ cd agent-server-gui
 npm install
 ```
 
-### 2. Install OpenHands Agent Server
+### 2. Install uv
 
-If you do not already have the backend installed, install `uv` first (OpenHands SDK recommends `uv` 0.8.13+):
+If you do not already have `uv` installed, install it first (OpenHands SDK recommends `uv` 0.8.13+):
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -31,23 +31,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Need Windows or another install method? See the official uv installation guide: <https://docs.astral.sh/uv/getting-started/installation/>
 
-Then install or upgrade the agent server package together with the tool/workspace dependencies it needs:
-
-```sh
-uv tool install -U \
-  --with openhands-tools \
-  --with openhands-workspace \
-  openhands-agent-server
-```
-
-`uv tool install` exposes the server as the `agent-server` CLI. If `~/.local/bin` is not already on your `PATH`, add it before continuing:
+If `~/.local/bin` is not already on your `PATH`, add it:
 
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
-command -v agent-server
+command -v uvx
 ```
 
-If you prefer installing from source or want the full SDK setup flow, see the OpenHands SDK docs: <https://docs.openhands.dev/sdk/getting-started>
+The `npm run dev` command uses `uvx` to automatically download and run the agent server, so no separate installation step is needed.
 
 ### 3. Optional: create a `.env` file
 

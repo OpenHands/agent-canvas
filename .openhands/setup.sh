@@ -6,6 +6,22 @@ ENV_FILE="$REPO_ROOT/.env"
 
 cd "$REPO_ROOT" || exit 1
 
+# Install uv if not present (required for running agent-server via uvx)
+if ! command -v uvx &> /dev/null; then
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  # Add uv to PATH for the rest of this script
+  export PATH="$HOME/.local/bin:$PATH"
+
+  # Verify installation
+  if ! command -v uvx &> /dev/null; then
+    echo "Warning: uv installed but uvx not found in PATH."
+    echo "You may need to add ~/.local/bin to your PATH:"
+    echo '  export PATH="$HOME/.local/bin:$PATH"'
+  fi
+fi
+
 if [ ! -d node_modules ]; then
   npm ci
 fi

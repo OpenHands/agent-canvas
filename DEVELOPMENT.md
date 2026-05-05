@@ -12,9 +12,22 @@ npm run dev
 
 This is an alias for `npm run dev:safe`.
 
-It starts a dedicated local `agent-server` for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
+It uses `uvx` to run a temporary `agent-server` installation for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
 
-Useful overrides:
+### Agent server version selection
+
+By default, the latest released version from PyPI is used. You can override this:
+
+```sh
+# Use a specific PyPI version
+OH_AGENT_SERVER_VERSION=1.18.0 npm run dev
+
+# Use a git branch or commit (takes precedence over version)
+OH_AGENT_SERVER_GIT_REF=main npm run dev
+OH_AGENT_SERVER_GIT_REF=abc1234 npm run dev
+```
+
+### Other useful overrides
 
 - `OH_GUI_SAFE_BACKEND_PORT` — backend port for the isolated server (default `18000`)
 - `OH_GUI_SAFE_VSCODE_PORT` — VS Code sidecar port (default `backend port + 1`)

@@ -1,47 +1,71 @@
 import { RepositoryPage, BranchPage, InstallationPage } from "#/types/git";
+import { Provider } from "#/types/settings";
 import { GitChange, GitChangeDiff } from "../open-hands.types";
 import V1ConversationService from "../conversation-service/v1-conversation-service.api";
 import { createRemoteWorkspace } from "../typescript-client";
 import { mapAnyGitStatusToV0Status } from "#/utils/git-status-mapper";
+import { ProviderHandler } from "../git-providers/provider-handler";
+
+const safeProvider = (value: string): Provider => value as Provider;
 
 class GitService {
   static async searchGitRepositories(
-    _query: string,
-    _provider: string,
-    _limit = 100,
-    _pageId?: string,
-    _installationId?: string,
+    query: string,
+    provider: string,
+    limit = 100,
+    pageId?: string,
+    installationId?: string,
   ): Promise<RepositoryPage> {
-    return { items: [], next_page_id: null };
+    return ProviderHandler.searchRepositories(safeProvider(provider), {
+      query: query || undefined,
+      installationId,
+      pageId,
+      limit,
+    });
   }
 
   static async retrieveUserGitRepositories(
-    _provider: string,
-    _pageId?: string,
-    _limit = 30,
-    _installationId?: string,
+    provider: string,
+    pageId?: string,
+    limit = 30,
+    installationId?: string,
   ): Promise<RepositoryPage> {
-    return { items: [], next_page_id: null };
+    return ProviderHandler.searchRepositories(safeProvider(provider), {
+      installationId,
+      pageId,
+      limit,
+    });
   }
 
   static async retrieveInstallationRepositories(
-    _provider: string,
-    _installationIndex: number,
-    _installations: string[],
-    _pageId?: string,
-    _limit = 30,
+    provider: string,
+    installationIndex: number,
+    installations: string[],
+    pageId?: string,
+    limit = 30,
   ): Promise<RepositoryPage> {
-    return { items: [], next_page_id: null };
+    const installationId = installations[installationIndex];
+    if (!installationId) return { items: [], next_page_id: null };
+    return ProviderHandler.searchRepositories(safeProvider(provider), {
+      installationId,
+      pageId,
+      limit,
+    });
   }
 
   static async getRepositoryBranches(
-    _repository: string,
-    _provider: string,
-    _query: string = "",
-    _pageId?: string,
-    _limit = 30,
+    repository: string,
+    provider: string,
+    query: string = "",
+    pageId?: string,
+    limit = 30,
   ): Promise<BranchPage> {
-    return { items: [], next_page_id: null };
+    return ProviderHandler.getBranches(safeProvider(provider), {
+      repository,
+      query: query || undefined,
+      pageId,
+      limit,
+    });
   }
 
   static async searchRepositoryBranches(
@@ -51,21 +75,23 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
-    return this.getRepositoryBranches(
+    return ProviderHandler.getBranches(safeProvider(provider), {
       repository,
-      provider,
       query,
       pageId,
       limit,
-    );
+    });
   }
 
   static async getUserInstallations(
-    _provider: string,
-    _pageId?: string,
-    _limit = 100,
+    provider: string,
+    pageId?: string,
+    limit = 100,
   ): Promise<InstallationPage> {
-    return { items: [], next_page_id: null };
+    return ProviderHandler.getInstallations(safeProvider(provider), {
+      pageId,
+      limit,
+    });
   }
 
   static async getGitChanges(conversationId: string): Promise<GitChange[]> {
