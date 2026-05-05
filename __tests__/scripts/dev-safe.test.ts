@@ -39,17 +39,21 @@ describe("formatMissingUvxGuidance", () => {
 });
 
 describe("buildAgentServerCommand", () => {
-  it("uses latest release by default", () => {
+  it("uses main branch by default (until settings APIs are released)", () => {
     const cmd = buildAgentServerCommand({});
 
     expect(cmd.command).toBe("uvx");
+    // Currently defaults to main branch due to unreleased settings persistence APIs
     expect(cmd.args).toEqual([
+      "--from",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-agent-server",
       "--with",
-      "openhands-tools",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-tools",
       "--with",
-      "openhands-workspace",
-      "openhands-agent-server",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-workspace",
+      "agent-server",
     ]);
+    expect(cmd.source).toBe("git (main, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set", () => {
@@ -63,21 +67,23 @@ describe("buildAgentServerCommand", () => {
       "openhands-workspace",
       "openhands-agent-server==1.18.0",
     ]);
+    expect(cmd.source).toBe("PyPI (1.18.0)");
   });
 
   it("uses git ref with subdirectory syntax for monorepo", () => {
-    const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_GIT_REF: "main" });
+    const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_GIT_REF: "feature-branch" });
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-agent-server",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-tools",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-tools",
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-workspace",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-workspace",
       "agent-server",
     ]);
+    expect(cmd.source).toBe("git (feature-branch)");
   });
 
   it("uses git ref for commit SHA", () => {
@@ -93,6 +99,7 @@ describe("buildAgentServerCommand", () => {
       "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-workspace",
       "agent-server",
     ]);
+    expect(cmd.source).toBe("git (abc1234)");
   });
 
   it("git ref takes precedence over version", () => {

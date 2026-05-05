@@ -67,8 +67,18 @@
   - Keep the settings route on the compact `AgentServerConnectionForm` variant with `showSectionHeader={false}` and no checklist; the blocked root onboarding should stay similarly minimal, with only the status card plus a single sentence that links to the repo setup instructions.
   - For local screenshot/GIF capture of SPA routes, serve `build/` with an SPA fallback (for example `sirv build --single`) and restart the static server after each rebuild so hashed asset URLs stay in sync.
 
-- Git provider token persistence note: `src/api/secrets-service.ts` stores git provider tokens via the agent-server secrets API (`PUT /api/settings/secrets`) with a naming convention of `GIT_PROVIDER_{PROVIDER}_TOKEN`, while also keeping a local cache in localStorage for UI purposes (host mappings). The `addGitProvider` and `deleteGitProviders` methods coordinate between the server-side secrets store and local cache.
+- Git provider token persistence note: `src/api/secrets-service.ts` stores git provider tokens in TWO places:
+  1. **Agent-server secrets API** (`PUT /api/settings/secrets`) with naming convention `GIT_PROVIDER_{PROVIDER}_TOKEN` - for agent runtime use
+  2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
+  The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
+
+- **SDK Dependency for Settings Persistence (PR #98)**: The settings persistence API changes depend on [software-agent-sdk PR #3060](https://github.com/OpenHands/software-agent-sdk/pull/3060) which adds:
+  - `/api/settings` GET/PATCH with `X-Expose-Secrets: encrypted` header support
+  - `/api/settings/secrets` CRUD endpoints for custom secrets
+  - `OH_SECRET_KEY` environment variable for encryption
+  
+  **IMPORTANT**: Until PR #3060 is merged and released, `npm run dev` must use `OH_AGENT_SERVER_GIT_REF=main` to point at the SDK main branch (or the feature branch), not a released PyPI version. The dev scripts now default to `main` for this reason. Once released, update `dev-safe.mjs` to use the minimum required version.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.

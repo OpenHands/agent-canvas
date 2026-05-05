@@ -37,6 +37,30 @@ const mergeRecords = (
 ) => ({ ...(base ?? {}), ...(next ?? {}) });
 
 /**
+ * Retry helper for API calls with exponential backoff.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 500,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff: 500ms, 1000ms, 2000ms
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * In-memory cache for settings to avoid repeated network calls.
  * The cache is invalidated on save operations.
  */
@@ -150,7 +174,7 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
 
 class SettingsService {
   /**
-   * Fetch settings from the agent server API.
+   * Fetch settings from the agent server API with retry logic.
    *
    * @param exposeSecrets - Controls how secrets are returned:
    *   - undefined: Secrets are redacted ("**********") - safe for display
@@ -165,9 +189,8 @@ class SettingsService {
       headers["X-Expose-Secrets"] = exposeSecrets;
     }
 
-    const response = await createHttpClient().get<SettingsApiResponse>(
-      "/api/settings",
-      { headers },
+    const response = await withRetry(() =>
+      createHttpClient().get<SettingsApiResponse>("/api/settings", { headers }),
     );
 
     return response.data;
@@ -199,6 +222,9 @@ class SettingsService {
    * Get settings with encrypted secrets for starting conversations.
    * The encrypted secrets can be passed to the start conversation API
    * with secrets_encrypted=true for server-side decryption.
+   *
+   * @throws Error if encrypted settings cannot be fetched - conversations
+   *   should not start with broken/redacted credentials.
    */
   static async getSettingsForConversation(): Promise<{
     agentSettings: Record<string, SettingsValue>;
@@ -214,30 +240,18 @@ class SettingsService {
       };
     }
 
-    try {
-      const response = await this.fetchSettingsFromApi("encrypted");
-      settingsCache.encrypted = response;
-      if (!settingsCache.timestamp) {
-        settingsCache.timestamp = Date.now();
-      }
-      return {
-        agentSettings: response.agent_settings,
-        conversationSettings: response.conversation_settings,
-        secretsEncrypted: true,
-      };
-    } catch (error) {
-      console.warn(
-        "Failed to fetch encrypted settings, falling back to current settings:",
-        error,
-      );
-      // Fall back to current cached settings without encryption flag
-      const settings = await this.getSettings();
-      return {
-        agentSettings: settings.agent_settings ?? {},
-        conversationSettings: settings.conversation_settings ?? {},
-        secretsEncrypted: false,
-      };
+    // Fetch encrypted settings - this MUST succeed for conversations to work.
+    // Do not fall back to redacted settings as that would cause auth failures.
+    const response = await this.fetchSettingsFromApi("encrypted");
+    settingsCache.encrypted = response;
+    if (!settingsCache.timestamp) {
+      settingsCache.timestamp = Date.now();
     }
+    return {
+      agentSettings: response.agent_settings,
+      conversationSettings: response.conversation_settings,
+      secretsEncrypted: true,
+    };
   }
 
   static async getSettingsSchema(): Promise<SettingsSchema> {
@@ -284,20 +298,14 @@ class SettingsService {
       return true;
     }
 
-    try {
-      await createHttpClient().patch<SettingsApiResponse>(
-        "/api/settings",
-        payload,
-      );
+    await withRetry(() =>
+      createHttpClient().patch<SettingsApiResponse>("/api/settings", payload),
+    );
 
-      // Invalidate cache after successful save
-      clearCache();
+    // Invalidate cache after successful save
+    clearCache();
 
-      return true;
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      throw error;
-    }
+    return true;
   }
 
   /**
