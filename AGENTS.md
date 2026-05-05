@@ -35,6 +35,8 @@
 - `npm run dev:mock` needs MSW handlers for the direct agent-server routes used by the adapted frontend, not the original OpenHands mock paths. Key routes that must stay covered are:
   - bootstrap/model loading: `/server_info`, `/api/llm/models/verified`, `/api/llm/providers`
   - settings schemas: `/api/settings/agent-schema`, `/api/settings/conversation-schema`
+  - settings CRUD: `GET /api/settings`, `PATCH /api/settings`
+  - secrets CRUD: `GET /api/settings/secrets` (list), `GET /api/settings/secrets/:name` (value), `PUT /api/settings/secrets` (upsert), `DELETE /api/settings/secrets/:name`
   - conversation browsing/loading: `/api/conversations/search`, `/api/conversations?ids=...`, `/api/conversations/:id`, `/api/conversations/:id/events/*`
   - runtime git panels: `/api/git/changes`, `/api/git/diff`
 - Static mock verification needs a build created with `VITE_MOCK_API=true` (use `npm run build:mock`); the client must start MSW whenever that flag is enabled, even in production/static builds, otherwise routes like `/settings` and the conversations pane fall through to the static server and crash on undefined `.filter`/`.map` assumptions.
@@ -65,7 +67,7 @@
   - Keep the settings route on the compact `AgentServerConnectionForm` variant with `showSectionHeader={false}` and no checklist; the blocked root onboarding should stay similarly minimal, with only the status card plus a single sentence that links to the repo setup instructions.
   - For local screenshot/GIF capture of SPA routes, serve `build/` with an SPA fallback (for example `sirv build --single`) and restart the static server after each rebuild so hashed asset URLs stay in sync.
 
-- Git provider token persistence note: this direct-agent-server frontend now persists `Settings > Git` provider tokens locally in browser storage instead of posting to an app-backend secrets route. `src/api/secrets-service.ts` writes the token payload to localStorage, mirrors provider hosts into `provider_tokens_set` through `SettingsService.saveSettings()`, and `use-delete-git-providers` clears that local state.
+- Git provider token persistence note: `src/api/secrets-service.ts` stores git provider tokens via the agent-server secrets API (`PUT /api/settings/secrets`) with a naming convention of `GIT_PROVIDER_{PROVIDER}_TOKEN`, while also keeping a local cache in localStorage for UI purposes (host mappings). The `addGitProvider` and `deleteGitProviders` methods coordinate between the server-side secrets store and local cache.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
