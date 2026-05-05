@@ -277,9 +277,19 @@ export class SecretsService {
       const host = normalizeHost(value.host);
 
       if (!token) {
-        // Just updating host for existing token
+        // Just updating host for existing token - still need to update server
         const existing = nextProviders[provider];
         if (existing) {
+          // Re-store to server with updated host in description
+          // This ensures server metadata stays in sync with localStorage
+          const secretName = getGitProviderSecretName(provider);
+          await this.createSecret(
+            secretName,
+            existing.token,
+            `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
+          );
+
+          // Only update localStorage after server storage succeeds
           nextProviders[provider] = {
             token: existing.token,
             host,
