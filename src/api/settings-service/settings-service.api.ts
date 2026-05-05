@@ -1,8 +1,33 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
-import { createSettingsClient } from "../typescript-client";
+import { createHttpClient, createSettingsClient } from "../typescript-client";
 
-const STORAGE_KEY = "openhands-agent-server-settings";
+/**
+ * Response from GET /api/settings
+ * Mirrors the SettingsResponse model in the agent server
+ */
+export interface SettingsApiResponse {
+  agent_settings: Record<string, SettingsValue>;
+  conversation_settings: Record<string, SettingsValue>;
+  llm_api_key_is_set: boolean;
+}
+
+/**
+ * Request payload for PATCH /api/settings
+ */
+export interface SettingsUpdateRequest {
+  agent_settings_diff?: Record<string, SettingsValue>;
+  conversation_settings_diff?: Record<string, SettingsValue>;
+}
+
+/**
+ * Secret exposure mode for X-Expose-Secrets header.
+ *
+ * - undefined: Returns redacted secrets ("**********")
+ * - "encrypted": Returns cipher-encrypted values (safe for frontend to round-trip)
+ * - "plaintext": Returns raw secret values (backend use only!)
+ */
+export type ExposeSecretsMode = "encrypted" | "plaintext" | undefined;
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -11,20 +36,51 @@ const mergeRecords = (
   next: Record<string, SettingsValue> | null | undefined,
 ) => ({ ...(base ?? {}), ...(next ?? {}) });
 
-const readStoredSettings = (): Partial<Settings> => {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    return (JSON.parse(raw) as Partial<Settings>) ?? {};
-  } catch {
-    return {};
-  }
+/**
+ * In-memory cache for settings to avoid repeated network calls.
+ * The cache is invalidated on save operations.
+ */
+let settingsCache: {
+  /** Settings with redacted secrets for display */
+  redacted: SettingsApiResponse | null;
+  /** Settings with encrypted secrets for conversation start */
+  encrypted: SettingsApiResponse | null;
+  /** Timestamp when the cache was last populated */
+  timestamp: number;
+} = {
+  redacted: null,
+  encrypted: null,
+  timestamp: 0,
 };
 
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const isCacheValid = () => Date.now() - settingsCache.timestamp < CACHE_TTL_MS;
+
+const clearCache = () => {
+  settingsCache = { redacted: null, encrypted: null, timestamp: 0 };
+};
+
+/**
+ * Transform API response into Settings object with derived fields.
+ */
+const transformApiResponse = (
+  response: SettingsApiResponse,
+): Partial<Settings> => {
+  const agentSettings = response.agent_settings ?? {};
+  const conversationSettings = response.conversation_settings ?? {};
+
+  return {
+    agent_settings: agentSettings,
+    conversation_settings: conversationSettings,
+    llm_api_key_set: response.llm_api_key_is_set,
+  };
+};
+
+/**
+ * Sync derived settings fields from agent_settings and conversation_settings.
+ * This ensures backward compatibility with code that reads top-level fields.
+ */
 const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   const agentSettings = mergeRecords(
     DEFAULT_SETTINGS.agent_settings ?? {},
@@ -60,9 +116,8 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   if (typeof llm?.base_url === "string") {
     merged.llm_base_url = llm.base_url;
   }
-  if (typeof llm?.api_key === "string") {
-    merged.llm_api_key = llm.api_key;
-  }
+  // Note: api_key may be redacted ("**********") when fetched without expose header
+  // We don't sync it to top-level llm_api_key to avoid overwriting with redacted value
   if (typeof condenser?.enabled === "boolean") {
     merged.enable_default_condenser = condenser.enabled;
   }
@@ -88,20 +143,101 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     merged.max_iterations = conversationSettings.max_iterations;
   }
 
-  merged.llm_api_key_set = !!merged.llm_api_key;
   merged.search_api_key_set = !!merged.search_api_key;
 
   return merged;
 };
 
-const writeStoredSettings = (settings: Settings) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-};
-
 class SettingsService {
+  /**
+   * Fetch settings from the agent server API.
+   *
+   * @param exposeSecrets - Controls how secrets are returned:
+   *   - undefined: Secrets are redacted ("**********") - safe for display
+   *   - "encrypted": Secrets are cipher-encrypted - safe for round-trip to start conversation
+   *   - "plaintext": Raw secrets - DO NOT USE from frontend
+   */
+  static async fetchSettingsFromApi(
+    exposeSecrets?: ExposeSecretsMode,
+  ): Promise<SettingsApiResponse> {
+    const headers: Record<string, string> = {};
+    if (exposeSecrets) {
+      headers["X-Expose-Secrets"] = exposeSecrets;
+    }
+
+    const response = await createHttpClient().get<SettingsApiResponse>(
+      "/api/settings",
+      { headers },
+    );
+
+    return response.data;
+  }
+
+  /**
+   * Get settings for display (secrets are redacted).
+   * Uses in-memory cache for performance.
+   */
   static async getSettings(): Promise<Settings> {
-    return syncDerivedSettings(readStoredSettings());
+    // Check cache first
+    if (isCacheValid() && settingsCache.redacted) {
+      return syncDerivedSettings(transformApiResponse(settingsCache.redacted));
+    }
+
+    try {
+      const response = await this.fetchSettingsFromApi();
+      settingsCache.redacted = response;
+      settingsCache.timestamp = Date.now();
+      return syncDerivedSettings(transformApiResponse(response));
+    } catch (error) {
+      // If API fails, return defaults
+      console.warn("Failed to fetch settings from API, using defaults:", error);
+      return syncDerivedSettings({});
+    }
+  }
+
+  /**
+   * Get settings with encrypted secrets for starting conversations.
+   * The encrypted secrets can be passed to the start conversation API
+   * with secrets_encrypted=true for server-side decryption.
+   */
+  static async getSettingsForConversation(): Promise<{
+    agentSettings: Record<string, SettingsValue>;
+    conversationSettings: Record<string, SettingsValue>;
+    secretsEncrypted: boolean;
+  }> {
+    // Check cache first
+    if (isCacheValid() && settingsCache.encrypted) {
+      return {
+        agentSettings: settingsCache.encrypted.agent_settings,
+        conversationSettings: settingsCache.encrypted.conversation_settings,
+        secretsEncrypted: true,
+      };
+    }
+
+    try {
+      const response = await this.fetchSettingsFromApi("encrypted");
+      settingsCache.encrypted = response;
+      if (!settingsCache.timestamp) {
+        settingsCache.timestamp = Date.now();
+      }
+      return {
+        agentSettings: response.agent_settings,
+        conversationSettings: response.conversation_settings,
+        secretsEncrypted: true,
+      };
+    } catch (error) {
+      console.warn(
+        "Failed to fetch encrypted settings, falling back to current settings:",
+        error,
+      );
+      // Fall back to current cached settings without encryption flag
+      const settings = await this.getSettings();
+      return {
+        agentSettings: settings.agent_settings ?? {},
+        conversationSettings: settings.conversation_settings ?? {},
+        secretsEncrypted: false,
+      };
+    }
   }
 
   static async getSettingsSchema(): Promise<SettingsSchema> {
@@ -112,82 +248,64 @@ class SettingsService {
     return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
   }
 
+  /**
+   * Save settings to the agent server API.
+   * Uses PATCH for incremental updates.
+   */
   static async saveSettings(
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
-    const current = await this.getSettings();
+    const payload: SettingsUpdateRequest = {};
 
-    const agentSettingsDiff = (settings.agent_settings_diff ??
-      settings.agent_settings) as Record<string, SettingsValue> | undefined;
-    const conversationSettingsDiff = (settings.conversation_settings_diff ??
-      settings.conversation_settings) as
+    // Extract agent_settings_diff
+    const agentSettingsDiff = settings.agent_settings_diff as
       | Record<string, SettingsValue>
       | undefined;
+    if (agentSettingsDiff && Object.keys(agentSettingsDiff).length > 0) {
+      payload.agent_settings_diff = agentSettingsDiff;
+    }
 
-    const nextAgentSettings = mergeRecords(
-      current.agent_settings ?? {},
-      agentSettingsDiff,
-    );
-    const nextConversationSettings = mergeRecords(
-      current.conversation_settings ?? {},
-      conversationSettingsDiff,
-    );
-
-    const nextSettings: Partial<Settings> & Record<string, unknown> = {
-      ...current,
-      ...settings,
-      agent_settings: nextAgentSettings,
-      conversation_settings: nextConversationSettings,
-    };
-
-    const llm = nextAgentSettings.llm as
+    // Extract conversation_settings_diff
+    const conversationSettingsDiff = settings.conversation_settings_diff as
       | Record<string, SettingsValue>
       | undefined;
-    const condenser = nextAgentSettings.condenser as
-      | Record<string, SettingsValue>
-      | undefined;
-
-    if (llm) {
-      if (typeof llm.model === "string") nextSettings.llm_model = llm.model;
-      if (typeof llm.base_url === "string") {
-        nextSettings.llm_base_url = llm.base_url;
-      }
-      if (typeof llm.api_key === "string") {
-        nextSettings.llm_api_key = llm.api_key;
-      }
+    if (
+      conversationSettingsDiff &&
+      Object.keys(conversationSettingsDiff).length > 0
+    ) {
+      payload.conversation_settings_diff = conversationSettingsDiff;
     }
 
-    if (condenser) {
-      if (typeof condenser.enabled === "boolean") {
-        nextSettings.enable_default_condenser = condenser.enabled;
-      }
-      if (typeof condenser.max_size === "number") {
-        nextSettings.condenser_max_size = condenser.max_size;
-      }
+    // Only call API if we have something to update
+    if (
+      !payload.agent_settings_diff &&
+      !payload.conversation_settings_diff
+    ) {
+      return true;
     }
 
-    if (typeof nextConversationSettings.confirmation_mode === "boolean") {
-      nextSettings.confirmation_mode =
-        nextConversationSettings.confirmation_mode;
-    }
-    if (typeof nextConversationSettings.security_analyzer === "string") {
-      nextSettings.security_analyzer =
-        nextConversationSettings.security_analyzer;
-    }
-    if (typeof nextConversationSettings.max_iterations === "number") {
-      nextSettings.max_iterations = nextConversationSettings.max_iterations;
-    }
-    if (nextAgentSettings.mcp_config) {
-      nextSettings.mcp_config =
-        nextAgentSettings.mcp_config as Settings["mcp_config"];
-    }
+    try {
+      await createHttpClient().patch<SettingsApiResponse>(
+        "/api/settings",
+        payload,
+      );
 
-    delete nextSettings.agent_settings_diff;
-    delete nextSettings.conversation_settings_diff;
+      // Invalidate cache after successful save
+      clearCache();
 
-    const merged = syncDerivedSettings(nextSettings);
-    writeStoredSettings(merged);
-    return true;
+      return true;
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Invalidate the settings cache.
+   * Call this when settings may have changed externally.
+   */
+  static invalidateCache(): void {
+    clearCache();
   }
 }
 

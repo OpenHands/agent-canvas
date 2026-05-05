@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
@@ -13,6 +13,8 @@ describe("SettingsForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock saveSettings to resolve immediately
+    saveSettingsSpy.mockResolvedValue(true);
   });
 
   it("should save the user settings and close the modal when submitted outside a conversation route", async () => {
@@ -26,16 +28,20 @@ describe("SettingsForm", () => {
 
     await user.click(screen.getByTestId("save-settings-button"));
 
-    expect(saveSettingsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agent_settings_diff: expect.objectContaining({
-          llm: expect.objectContaining({
-            model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_settings_diff: expect.objectContaining({
+            llm: expect.objectContaining({
+              model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+            }),
           }),
         }),
-      }),
-    );
-    expect(onCloseMock).toHaveBeenCalled();
+      );
+    });
+    await waitFor(() => {
+      expect(onCloseMock).toHaveBeenCalled();
+    });
   });
 
   it("should confirm before saving when submitted from a conversation route", async () => {
@@ -60,15 +66,19 @@ describe("SettingsForm", () => {
 
     await user.click(confirmButton);
 
-    expect(saveSettingsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agent_settings_diff: expect.objectContaining({
-          llm: expect.objectContaining({
-            model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_settings_diff: expect.objectContaining({
+            llm: expect.objectContaining({
+              model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+            }),
           }),
         }),
-      }),
-    );
-    expect(onCloseMock).toHaveBeenCalled();
+      );
+    });
+    await waitFor(() => {
+      expect(onCloseMock).toHaveBeenCalled();
+    });
   });
 });

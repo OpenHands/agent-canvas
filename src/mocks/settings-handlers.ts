@@ -482,6 +482,99 @@ export const SETTINGS_HANDLERS = [
     return HttpResponse.json(settings);
   }),
 
+  // New settings API endpoints (GET /api/settings with X-Expose-Secrets header support)
+  http.get("/api/settings", async ({ request }) => {
+    await delay();
+    const { settings } = MOCK_USER_PREFERENCES;
+
+    if (!settings) {
+      return HttpResponse.json({
+        agent_settings: {},
+        conversation_settings: {},
+        llm_api_key_is_set: false,
+      });
+    }
+
+    const exposeSecrets = request.headers.get("X-Expose-Secrets");
+
+    // Build agent_settings, handling secrets based on header
+    const agentSettings = structuredClone(settings.agent_settings ?? {}) as Record<string, unknown>;
+    const llm = agentSettings.llm as Record<string, unknown> | undefined;
+    if (llm?.api_key) {
+      if (exposeSecrets === "encrypted") {
+        // Return a mock "encrypted" value
+        llm.api_key = `gAAAAA_mock_encrypted_${String(llm.api_key).slice(0, 8)}`;
+      } else if (exposeSecrets === "plaintext") {
+        // Keep as-is (plaintext)
+      } else {
+        // Redact
+        llm.api_key = "**********";
+      }
+    }
+
+    const llmApiKeySet = !!settings.llm_api_key_set || !!(settings.agent_settings as Record<string, unknown> | undefined)?.llm &&
+      !!(((settings.agent_settings as Record<string, unknown>).llm as Record<string, unknown>)?.api_key);
+
+    return HttpResponse.json({
+      agent_settings: agentSettings,
+      conversation_settings: settings.conversation_settings ?? {},
+      llm_api_key_is_set: llmApiKeySet,
+    });
+  }),
+
+  // PATCH /api/settings - incremental updates
+  http.patch("/api/settings", async ({ request }) => {
+    await delay();
+    const body = (await request.json()) as {
+      agent_settings_diff?: Record<string, unknown>;
+      conversation_settings_diff?: Record<string, SettingsValue>;
+    } | null;
+
+    if (!body) {
+      return HttpResponse.json({ error: "Empty body" }, { status: 400 });
+    }
+
+    if (!body.agent_settings_diff && !body.conversation_settings_diff) {
+      return HttpResponse.json(
+        { error: "At least one of agent_settings_diff or conversation_settings_diff must be provided" },
+        { status: 400 }
+      );
+    }
+
+    const current = MOCK_USER_PREFERENCES.settings || structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+    const nextSettings: Settings = { ...current };
+
+    if (body.agent_settings_diff) {
+      const merged = deepMerge(
+        (current.agent_settings ?? {}) as Record<string, unknown>,
+        body.agent_settings_diff,
+      );
+      nextSettings.agent_settings = merged as Settings["agent_settings"];
+
+      // Sync llm_api_key_set
+      const llm = merged.llm as Record<string, unknown> | undefined;
+      if (llm?.api_key && typeof llm.api_key === "string" && llm.api_key.trim().length > 0) {
+        nextSettings.llm_api_key_set = true;
+      }
+    }
+
+    if (body.conversation_settings_diff) {
+      nextSettings.conversation_settings = {
+        ...(current.conversation_settings ?? {}),
+        ...body.conversation_settings_diff,
+      };
+    }
+
+    MOCK_USER_PREFERENCES.settings = nextSettings;
+
+    // Return the updated settings (without secrets exposed)
+    return HttpResponse.json({
+      agent_settings: nextSettings.agent_settings ?? {},
+      conversation_settings: nextSettings.conversation_settings ?? {},
+      llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
+    });
+  }),
+
   http.get("/api/settings/agent-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_AGENT_SETTINGS_SCHEMA);

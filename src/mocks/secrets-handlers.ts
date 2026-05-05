@@ -23,6 +23,12 @@ const secrets = new Map<string, CustomSecret>(
   DEFAULT_SECRETS.map((secret) => [secret.name, secret]),
 );
 
+/**
+ * Settings-based secrets (for git provider tokens, etc.)
+ * These are separate from the custom secrets above.
+ */
+const settingsSecrets = new Map<string, { value: string; description?: string }>();
+
 export const SECRETS_HANDLERS = [
   // V1 API - Search endpoint with pagination
   http.get("/api/v1/secrets/search", async ({ request }) => {
@@ -160,5 +166,70 @@ export const SECRETS_HANDLERS = [
     }
 
     return HttpResponse.json(false, { status: 400 });
+  }),
+
+  // ── Settings Secrets API (from settings_router) ──
+
+  // GET /api/settings/secrets - List secrets (names and descriptions only)
+  http.get("/api/settings/secrets", async () => {
+    const secretsList = Array.from(settingsSecrets.entries()).map(
+      ([name, { description }]) => ({ name, description }),
+    );
+    return HttpResponse.json({ secrets: secretsList });
+  }),
+
+  // GET /api/settings/secrets/:name - Get secret value
+  http.get("/api/settings/secrets/:name", async ({ params }) => {
+    const { name } = params;
+    if (typeof name !== "string") {
+      return HttpResponse.json({ detail: "Invalid name" }, { status: 400 });
+    }
+
+    const secret = settingsSecrets.get(name);
+    if (!secret) {
+      return HttpResponse.json({ detail: "Secret not found" }, { status: 404 });
+    }
+
+    return new HttpResponse(secret.value, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }),
+
+  // PUT /api/settings/secrets - Create or update a secret
+  http.put("/api/settings/secrets", async ({ request }) => {
+    const body = (await request.json()) as {
+      name: string;
+      value: string;
+      description?: string;
+    } | null;
+
+    if (!body || !body.name || !body.value) {
+      return HttpResponse.json(
+        { detail: "name and value are required" },
+        { status: 400 },
+      );
+    }
+
+    settingsSecrets.set(body.name, {
+      value: body.value,
+      description: body.description,
+    });
+
+    return HttpResponse.json({ name: body.name, description: body.description });
+  }),
+
+  // DELETE /api/settings/secrets/:name - Delete a secret
+  http.delete("/api/settings/secrets/:name", async ({ params }) => {
+    const { name } = params;
+    if (typeof name !== "string") {
+      return HttpResponse.json({ detail: "Invalid name" }, { status: 400 });
+    }
+
+    const deleted = settingsSecrets.delete(name);
+    if (!deleted) {
+      return HttpResponse.json({ detail: "Secret not found" }, { status: 404 });
+    }
+
+    return HttpResponse.json({ deleted: true });
   }),
 ];

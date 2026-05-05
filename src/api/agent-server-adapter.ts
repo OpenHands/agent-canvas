@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Settings } from "#/types/settings";
+import { Settings, SettingsValue } from "#/types/settings";
 import { V1ExecutionStatus } from "#/types/v1/core";
 import {
   getAgentServerBaseUrl,
@@ -15,6 +15,7 @@ import {
   V1AppConversationPage,
 } from "./conversation-service/v1-conversation-service.types";
 import { createHttpClient, createSkillsClient } from "./typescript-client";
+import SettingsService from "./settings-service/settings-service.api";
 
 export interface DirectConversationInfo {
   id: string;
@@ -320,17 +321,52 @@ function buildConfiguredConversationSettings(options: {
   };
 }
 
-export function buildStartConversationRequest(options: {
+export interface StartConversationOptions {
   settings: Settings;
   query?: string;
   conversationInstructions?: string;
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
-}) {
-  const agentSettings = buildConfiguredAgentSettings(options.settings);
+  /**
+   * Pre-fetched agent settings with encrypted secrets.
+   * If provided, these will be used instead of settings.agent_settings.
+   */
+  encryptedAgentSettings?: Record<string, SettingsValue>;
+  /**
+   * Pre-fetched conversation settings with encrypted secrets.
+   * If provided, these will be used instead of settings.conversation_settings.
+   */
+  encryptedConversationSettings?: Record<string, SettingsValue>;
+  /**
+   * Whether the secrets in agent/conversation settings are encrypted.
+   * If true, the server will decrypt them before use.
+   */
+  secretsEncrypted?: boolean;
+}
+
+export function buildStartConversationRequest(options: StartConversationOptions) {
+  // Use encrypted settings if provided, otherwise fall back to regular settings
+  const sourceAgentSettings = options.encryptedAgentSettings
+    ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
+    : options.settings;
+
+  const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
   const agent = createAgentFromSettings(agentSettings);
-  const conversationSettings = buildConfiguredConversationSettings(options);
+
+  // For conversation settings, merge encrypted settings if provided
+  const sourceConversationOptions = options.encryptedConversationSettings
+    ? {
+        ...options,
+        settings: {
+          ...options.settings,
+          conversation_settings: options.encryptedConversationSettings,
+        },
+      }
+    : options;
+
+  const conversationSettings =
+    buildConfiguredConversationSettings(sourceConversationOptions);
 
   const payload: Record<string, unknown> = {
     agent,
@@ -344,6 +380,11 @@ export function buildStartConversationRequest(options: {
     stuck_detection: true,
     autotitle: true,
   };
+
+  // Add secrets_encrypted flag if secrets are encrypted
+  if (options.secretsEncrypted) {
+    payload.secrets_encrypted = true;
+  }
 
   if (options.conversationId) {
     payload.conversation_id = options.conversationId;
@@ -376,6 +417,31 @@ export function buildStartConversationRequest(options: {
   }
 
   return payload;
+}
+
+/**
+ * Build a start conversation request using encrypted settings from the server.
+ * This is the recommended way to start conversations from the frontend,
+ * as it ensures secrets are never exposed in plaintext to the browser.
+ */
+export async function buildStartConversationRequestWithEncryptedSettings(options: {
+  settings: Settings;
+  query?: string;
+  conversationInstructions?: string;
+  plugins?: PluginSpec[];
+  conversationId?: string;
+  workingDir?: string;
+}): Promise<Record<string, unknown>> {
+  // Fetch settings with encrypted secrets
+  const { agentSettings, conversationSettings, secretsEncrypted } =
+    await SettingsService.getSettingsForConversation();
+
+  return buildStartConversationRequest({
+    ...options,
+    encryptedAgentSettings: agentSettings,
+    encryptedConversationSettings: conversationSettings,
+    secretsEncrypted,
+  });
 }
 
 export async function downloadTextFile(path: string): Promise<string> {

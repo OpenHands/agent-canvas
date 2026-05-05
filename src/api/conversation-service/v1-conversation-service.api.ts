@@ -7,7 +7,7 @@ import {
 } from "../agent-server-config";
 import {
   DirectConversationInfo,
-  buildStartConversationRequest,
+  buildStartConversationRequestWithEncryptedSettings,
   downloadTextFile,
   emptyHooksResponse,
   getDefaultConversationTitle,
@@ -59,7 +59,9 @@ class V1ConversationService {
     const settings = await SettingsService.getSettings();
     const conversationId = crypto.randomUUID();
     const workingDir = buildConversationWorkingDir(conversationId);
-    const payload = buildStartConversationRequest({
+
+    // Use encrypted settings to avoid exposing secrets in the browser
+    const payload = await buildStartConversationRequestWithEncryptedSettings({
       settings,
       query: initialUserMsg,
       conversationInstructions,

@@ -1,4 +1,4 @@
-import SettingsService from "./settings-service/settings-service.api";
+import { createHttpClient } from "./typescript-client";
 import { openHands } from "./open-hands-axios";
 import {
   CustomSecret,
@@ -7,6 +7,25 @@ import {
   SearchSecretsParams,
 } from "./secrets-service.types";
 import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
+
+/**
+ * Response from GET /api/settings/secrets
+ */
+interface SecretsListResponse {
+  secrets: Array<{
+    name: string;
+    description?: string;
+  }>;
+}
+
+/**
+ * Request for PUT /api/settings/secrets
+ */
+interface CreateSecretRequest {
+  name: string;
+  value: string;
+  description?: string;
+}
 
 const GIT_PROVIDER_STORAGE_KEY = "openhands-agent-server-git-provider-tokens";
 
@@ -84,16 +103,6 @@ const writeStoredGitProviders = (providers: StoredGitProviderTokens) => {
   );
 };
 
-const buildProviderTokensSet = (
-  providers: StoredGitProviderTokens,
-): Partial<Record<Provider, string | null>> =>
-  Object.fromEntries(
-    Object.entries(providers).map(([provider, value]) => [
-      provider,
-      value?.host ?? null,
-    ]),
-  ) as Partial<Record<Provider, string | null>>;
-
 export class SecretsService {
   /**
    * Search/list custom secrets with pagination support.
@@ -167,6 +176,11 @@ export class SecretsService {
     return status === 200;
   }
 
+  /**
+   * Add or update git provider tokens.
+   * Stores tokens via the agent server secrets API and keeps a local
+   * cache for UI purposes (host mappings).
+   */
   static async addGitProvider(
     providers: Partial<Record<Provider, ProviderToken>>,
   ): Promise<boolean> {
@@ -181,6 +195,20 @@ export class SecretsService {
       const host = normalizeHost(value.host);
 
       if (token) {
+        // Store the token as a secret via the agent server API
+        // Use a consistent naming convention for git provider tokens
+        const secretName = `GIT_PROVIDER_${provider.toUpperCase()}_TOKEN`;
+        try {
+          await createHttpClient().put<void>("/api/settings/secrets", {
+            name: secretName,
+            value: token,
+            description: `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
+          } satisfies CreateSecretRequest);
+        } catch (error) {
+          console.error(`Failed to store git provider token for ${provider}:`, error);
+          // Continue anyway - fall back to local storage
+        }
+
         nextProviders[provider] = { token, host };
         continue;
       }
@@ -194,14 +222,29 @@ export class SecretsService {
       }
     }
 
+    // Keep local cache for UI purposes (host mappings, etc.)
     writeStoredGitProviders(nextProviders);
-    return SettingsService.saveSettings({
-      provider_tokens_set: buildProviderTokensSet(nextProviders),
-    });
+    return true;
   }
 
+  /**
+   * Delete all git provider tokens.
+   */
   static async deleteGitProviders(): Promise<boolean> {
+    const storedProviders = readStoredGitProviders();
+
+    // Delete each provider's secret from the server
+    for (const provider of Object.keys(storedProviders) as Provider[]) {
+      const secretName = `GIT_PROVIDER_${provider.toUpperCase()}_TOKEN`;
+      try {
+        await createHttpClient().delete(`/api/settings/secrets/${secretName}`);
+      } catch (error) {
+        // Ignore 404 errors (secret doesn't exist)
+        console.warn(`Failed to delete git provider secret for ${provider}:`, error);
+      }
+    }
+
     writeStoredGitProviders({});
-    return SettingsService.saveSettings({ provider_tokens_set: {} });
+    return true;
   }
 }

@@ -8,6 +8,7 @@ const {
   mockCreateHttpClient,
   mockCreateRemoteWorkspace,
   mockGetSettings,
+  mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -15,6 +16,7 @@ const {
   mockCreateHttpClient: vi.fn(),
   mockCreateRemoteWorkspace: vi.fn(),
   mockGetSettings: vi.fn(),
+  mockGetSettingsForConversation: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
@@ -37,6 +39,7 @@ vi.mock("#/api/agent-server-config", () => ({
 vi.mock("#/api/settings-service/settings-service.api", () => ({
   default: {
     getSettings: mockGetSettings,
+    getSettingsForConversation: mockGetSettingsForConversation,
   },
 }));
 
@@ -100,6 +103,11 @@ describe("V1ConversationService", () => {
       mockGetSettings.mockResolvedValue({
         agent_settings: { llm: { model: "gpt-4o" } },
         conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
       });
       mockHttpPost.mockResolvedValue({
         data: {

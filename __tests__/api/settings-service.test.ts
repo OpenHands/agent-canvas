@@ -1,62 +1,30 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
-
-const STORAGE_KEY = "openhands-agent-server-settings";
+import { resetTestHandlersMockSettings } from "#/mocks/settings-handlers";
 
 describe("SettingsService", () => {
   beforeEach(() => {
+    // Clear localStorage and reset mock settings state
     window.localStorage.clear();
+    resetTestHandlersMockSettings();
+    // Invalidate the in-memory cache
+    SettingsService.invalidateCache();
   });
 
-  it("treats nested SDK settings as the source of truth when loading", async () => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        agent: "Agent",
-        llm_model: "stale-top-level-model",
-        llm_base_url: "https://stale.example.com",
-        llm_api_key: "stale-key",
-        enable_default_condenser: false,
-        condenser_max_size: 12,
-        confirmation_mode: false,
-        security_analyzer: null,
-        max_iterations: 5,
-        agent_settings: {
-          agent: "CodeActAgent",
-          llm: {
-            model: "nested-model",
-            base_url: "https://nested.example.com",
-            api_key: "nested-key",
-          },
-          condenser: {
-            enabled: true,
-            max_size: 321,
-          },
-        },
-        conversation_settings: {
-          confirmation_mode: true,
-          security_analyzer: "llm",
-          max_iterations: 77,
-        },
-      }),
-    );
-
+  it("fetches settings from the API and normalizes derived fields", async () => {
+    // The mock handler returns default settings
     const settings = await SettingsService.getSettings();
 
+    // Should have normalized settings with derived fields
     expect(settings.agent).toBe("CodeActAgent");
-    expect(settings.llm_model).toBe("nested-model");
-    expect(settings.llm_base_url).toBe("https://nested.example.com");
-    expect(settings.llm_api_key).toBe("nested-key");
-    expect(settings.enable_default_condenser).toBe(true);
-    expect(settings.condenser_max_size).toBe(321);
-    expect(settings.confirmation_mode).toBe(true);
+    expect(settings.llm_model).toBe("openhands/claude-opus-4-5-20251101");
+    expect(settings.confirmation_mode).toBe(false);
     expect(settings.security_analyzer).toBe("llm");
-    expect(settings.max_iterations).toBe(77);
-    expect(settings.agent_settings?.agent).toBe("CodeActAgent");
   });
 
-  it("keeps top-level mirrors in sync when saving nested settings diffs", async () => {
+  it("saves settings via PATCH API and invalidates cache", async () => {
+    // Save some settings
     await SettingsService.saveSettings({
       agent_settings_diff: {
         agent: "CodeActAgent",
@@ -73,23 +41,66 @@ describe("SettingsService", () => {
       },
     });
 
+    // Fetch settings again - should reflect the saved values
     const settings = await SettingsService.getSettings();
 
     expect(settings.llm_model).toBe("saved-model");
     expect(settings.llm_base_url).toBe("https://saved.example.com");
-    expect(settings.llm_api_key).toBe("saved-key");
+    // Note: api_key will be redacted when fetched without X-Expose-Secrets header
     expect(settings.confirmation_mode).toBe(true);
     expect(settings.security_analyzer).toBe("llm");
     expect(settings.max_iterations).toBe(33);
-    expect(settings.agent_settings?.llm).toMatchObject({
-      model: "saved-model",
-      base_url: "https://saved.example.com",
-      api_key: "saved-key",
+  });
+
+  it("returns encrypted secrets when using getSettingsForConversation", async () => {
+    // First save a key
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        llm: {
+          api_key: "test-api-key",
+        },
+      },
     });
-    expect(settings.conversation_settings).toMatchObject({
-      confirmation_mode: true,
-      security_analyzer: "llm",
-      max_iterations: 33,
-    });
+
+    // Get settings for conversation (should have encrypted secrets)
+    const { agentSettings, secretsEncrypted } =
+      await SettingsService.getSettingsForConversation();
+
+    expect(secretsEncrypted).toBe(true);
+    // The mock returns an "encrypted" placeholder for the key
+    const llm = agentSettings.llm as Record<string, unknown> | undefined;
+    expect(llm?.api_key).toMatch(/^gAAAAA_mock_encrypted_/);
+  });
+
+  it("uses cache for repeated getSettings calls", async () => {
+    const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
+
+    // First call - should fetch from API
+    await SettingsService.getSettings();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Second call - should use cache
+    await SettingsService.getSettings();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // After invalidation - should fetch again
+    SettingsService.invalidateCache();
+    await SettingsService.getSettings();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    fetchSpy.mockRestore();
+  });
+
+  it("skips API call when no diffs are provided to saveSettings", async () => {
+    const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
+
+    // Call with empty/no diffs
+    const result = await SettingsService.saveSettings({});
+
+    expect(result).toBe(true);
+    // No fetch should have been made (PATCH not called)
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockRestore();
   });
 });
