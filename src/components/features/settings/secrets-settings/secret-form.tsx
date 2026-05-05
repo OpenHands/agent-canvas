@@ -124,7 +124,8 @@ export function SecretForm({
         required
         defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
         placeholder={t("SECRETS$API_KEY_EXAMPLE")}
-        pattern="^\\S*$"
+        pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
+        title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
       />
       {error && <p className="text-red-500 text-sm">{error}</p>}
 

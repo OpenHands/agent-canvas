@@ -19,6 +19,8 @@ interface SettingsInputProps {
   max?: number;
   step?: number;
   pattern?: string;
+  /** Validation message shown when pattern doesn't match */
+  title?: string;
   labelClassName?: string;
 }
 
@@ -40,6 +42,7 @@ export function SettingsInput({
   max,
   step,
   pattern,
+  title,
   labelClassName,
 }: SettingsInputProps) {
   return (
@@ -63,6 +66,7 @@ export function SettingsInput({
         step={step}
         required={required}
         pattern={pattern}
+        title={title}
         className={cn(
           "bg-tertiary border border-[#717888] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
           "disabled:bg-[#2D2F36] disabled:border-[#2D2F36] disabled:cursor-not-allowed",
