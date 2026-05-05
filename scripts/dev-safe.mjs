@@ -60,9 +60,19 @@ export function buildAgentServerCommand(env = process.env) {
   const uvxArgs = [];
 
   if (gitRef) {
-    // Use git ref: uvx --from 'git+https://...@ref[openhands-tools,openhands-workspace]' agent-server
-    const gitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}[openhands-tools,openhands-workspace]`;
-    uvxArgs.push("--from", gitUrl, "agent-server");
+    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // The software-agent-sdk repo has packages in subdirectories:
+    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
+    uvxArgs.push(
+      "--from",
+      `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-tools`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-workspace`,
+      "agent-server",
+    );
   } else if (version) {
     // Use specific PyPI version: uvx --with ... openhands-agent-server==version
     uvxArgs.push(

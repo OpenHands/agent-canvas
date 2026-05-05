@@ -65,13 +65,17 @@ describe("buildAgentServerCommand", () => {
     ]);
   });
 
-  it("uses git ref when OH_AGENT_SERVER_GIT_REF is set", () => {
+  it("uses git ref with subdirectory syntax for monorepo", () => {
     const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_GIT_REF: "main" });
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@main[openhands-tools,openhands-workspace]",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-tools",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-workspace",
       "agent-server",
     ]);
   });
@@ -82,7 +86,11 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@abc1234[openhands-tools,openhands-workspace]",
+      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-tools",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-workspace",
       "agent-server",
     ]);
   });
@@ -96,7 +104,7 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toContain("--from");
     expect(cmd.args).toContain(
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch[openhands-tools,openhands-workspace]",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
     );
     expect(cmd.args).not.toContain("openhands-agent-server==1.18.0");
   });
