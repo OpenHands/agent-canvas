@@ -1,15 +1,11 @@
 import { createHttpClient } from "./typescript-client";
-import { openHands } from "./open-hands-axios";
 import {
-  CustomSecret,
-  CustomSecretPage,
   CustomSecretWithoutValue,
-  SearchSecretsParams,
 } from "./secrets-service.types";
 import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
 
 /**
- * Response from GET /api/settings/secrets
+ * Response from GET /api/settings/secrets (agent-server API)
  */
 interface SecretsListResponse {
   secrets: Array<{
@@ -19,11 +15,20 @@ interface SecretsListResponse {
 }
 
 /**
- * Request for PUT /api/settings/secrets
+ * Request for PUT /api/settings/secrets (agent-server API)
+ * This is an upsert operation - creates or updates by name.
  */
 interface CreateSecretRequest {
   name: string;
   value: string;
+  description?: string;
+}
+
+/**
+ * Response from PUT /api/settings/secrets (agent-server API)
+ */
+interface CreateSecretResponse {
+  name: string;
   description?: string;
 }
 
@@ -122,75 +127,99 @@ const buildProviderTokensSet = (
 
 export class SecretsService {
   /**
-   * Search/list custom secrets with pagination support.
-   * Uses the new V1 API endpoint: GET /api/v1/secrets/search
+   * List all custom secrets (names and descriptions only, no values).
+   * Uses the agent-server API endpoint: GET /api/settings/secrets
+   *
+   * Note: The agent-server API doesn't support pagination or search filtering.
+   * All secrets are returned in a single response.
    */
-  static async searchSecrets(
-    params: SearchSecretsParams = {},
-  ): Promise<CustomSecretPage> {
-    const queryParams = new URLSearchParams();
-
-    if (params.name__contains) {
-      queryParams.set("name__contains", params.name__contains);
+  static async getSecrets(): Promise<CustomSecretWithoutValue[]> {
+    try {
+      const response = await createHttpClient().get<SecretsListResponse>(
+        "/api/settings/secrets",
+      );
+      return response.data.secrets.map((s) => ({
+        name: s.name,
+        description: s.description,
+      }));
+    } catch (error) {
+      console.error("Failed to fetch secrets:", error);
+      return [];
     }
-    if (params.page_id) {
-      queryParams.set("page_id", params.page_id);
-    }
-    if (params.limit) {
-      queryParams.set("limit", params.limit.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/api/v1/secrets/search${queryString ? `?${queryString}` : ""}`;
-
-    const { data } = await openHands.get<CustomSecretPage>(url);
-    return data;
   }
 
   /**
-   * @deprecated Use searchSecrets instead. This method uses the deprecated V0 API.
+   * Create or update a custom secret (upsert by name).
+   * Uses the agent-server API endpoint: PUT /api/settings/secrets
+   *
+   * @param name - Secret name (must start with letter, contain only letters/numbers/underscores, 1-64 chars)
+   * @param value - Secret value
+   * @param description - Optional description
    */
-  static async getSecrets(): Promise<CustomSecretWithoutValue[]> {
-    const allSecrets: CustomSecretWithoutValue[] = [];
-    let pageId: string | null = null;
-
-    for (;;) {
-      const page = await SecretsService.searchSecrets({
-        page_id: pageId ?? undefined,
-        limit: 100,
-      });
-      allSecrets.push(...page.items);
-      pageId = page.next_page_id;
-      if (!pageId) break;
+  static async createSecret(
+    name: string,
+    value: string,
+    description?: string,
+  ): Promise<boolean> {
+    try {
+      await createHttpClient().put<CreateSecretResponse>(
+        "/api/settings/secrets",
+        {
+          name,
+          value,
+          description,
+        } satisfies CreateSecretRequest,
+      );
+      return true;
+    } catch (error) {
+      console.error(`Failed to create/update secret '${name}':`, error);
+      return false;
     }
-
-    return allSecrets;
   }
 
-  static async createSecret(name: string, value: string, description?: string) {
-    const secret: CustomSecret = {
-      name,
-      value,
-      description,
-    };
-
-    const { status } = await openHands.post("/api/v1/secrets", secret);
-    return status === 201;
+  /**
+   * Update a secret's value and/or description.
+   * Uses the same upsert endpoint as createSecret since agent-server
+   * doesn't have a separate update endpoint.
+   *
+   * @param name - Secret name (used as identifier)
+   * @param value - New secret value
+   * @param description - Optional new description
+   */
+  static async updateSecret(
+    name: string,
+    value: string,
+    description?: string,
+  ): Promise<boolean> {
+    // Agent-server uses upsert, so update is the same as create
+    return this.createSecret(name, value, description);
   }
 
-  static async updateSecret(id: string, name: string, description?: string) {
-    const secret: CustomSecretWithoutValue = {
-      name,
-      description,
-    };
-
-    const { status } = await openHands.put(`/api/v1/secrets/${id}`, secret);
-    return status === 200;
-  }
-
-  static async deleteSecret(id: string) {
-    const { status } = await openHands.delete<boolean>(`/api/v1/secrets/${id}`);
-    return status === 200;
+  /**
+   * Delete a custom secret by name.
+   * Uses the agent-server API endpoint: DELETE /api/settings/secrets/{name}
+   *
+   * @param name - Secret name to delete
+   */
+  static async deleteSecret(name: string): Promise<boolean> {
+    try {
+      const response = await createHttpClient().delete<{ deleted: boolean }>(
+        `/api/settings/secrets/${encodeURIComponent(name)}`,
+      );
+      return response.data?.deleted ?? true;
+    } catch (error) {
+      // 404 means secret doesn't exist - treat as successful deletion
+      if (
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 404
+      ) {
+        return true;
+      }
+      console.error(`Failed to delete secret '${name}':`, error);
+      return false;
+    }
   }
 
   /**

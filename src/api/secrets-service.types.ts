@@ -1,24 +1,15 @@
+/**
+ * Custom secret with name, value, and optional description.
+ * Used for creating/updating secrets via PUT /api/settings/secrets.
+ */
 export type CustomSecret = {
   name: string;
   value: string;
   description?: string;
 };
 
+/**
+ * Custom secret metadata without the secret value.
+ * Used for listing secrets via GET /api/settings/secrets.
+ */
 export type CustomSecretWithoutValue = Omit<CustomSecret, "value">;
-
-/** Paginated response from GET /api/v1/secrets/search */
-export interface CustomSecretPage {
-  items: CustomSecretWithoutValue[];
-  next_page_id: string | null;
-}
-
-/** @deprecated Use CustomSecretPage instead */
-export interface GetSecretsResponse {
-  custom_secrets: CustomSecretWithoutValue[];
-}
-
-export interface SearchSecretsParams {
-  name__contains?: string;
-  page_id?: string;
-  limit?: number;
-}

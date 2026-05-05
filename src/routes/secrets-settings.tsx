@@ -24,7 +24,7 @@ export function SecretsSettingsScreen() {
     hasNextPage,
     isFetchingNextPage,
     onLoadMore,
-  } = useSearchSecrets({ pageSize: 30 });
+  } = useSearchSecrets();
 
   const { mutate: deleteSecret } = useDeleteSecret();
 

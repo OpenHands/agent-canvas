@@ -24,20 +24,13 @@ describe("SecretsSettingsScreen", () => {
   });
 
   it("renders the OSS secrets list for local secrets management", async () => {
-    vi.spyOn(SecretsService, "searchSecrets")
-      .mockResolvedValueOnce({
-        items: [
-          {
-            name: "MY_SECRET",
-            description: "Demo secret",
-          },
-        ],
-        next_page_id: null,
-      })
-      .mockResolvedValue({
-        items: [],
-        next_page_id: null,
-      });
+    // Mock getSecrets (used by useSearchSecrets internally)
+    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
+      {
+        name: "MY_SECRET",
+        description: "Demo secret",
+      },
+    ]);
 
     renderSecretsSettingsScreen();
 

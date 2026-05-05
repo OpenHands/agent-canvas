@@ -1,10 +1,7 @@
-import {
-  useQuery,
-  useInfiniteQuery,
-  InfiniteData,
-} from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { SecretsService } from "#/api/secrets-service";
-import { CustomSecretPage } from "#/api/secrets-service.types";
+import { CustomSecretWithoutValue } from "#/api/secrets-service.types";
 
 export const useGetSecrets = () =>
   useQuery({
@@ -14,50 +11,44 @@ export const useGetSecrets = () =>
 
 interface UseSearchSecretsOptions {
   nameContains?: string;
-  pageSize?: number;
   enabled?: boolean;
 }
 
+/**
+ * Hook for searching/filtering secrets.
+ * Since the agent-server API doesn't support server-side filtering or pagination,
+ * all filtering is done client-side.
+ */
 export const useSearchSecrets = (options: UseSearchSecretsOptions = {}) => {
-  const { nameContains, pageSize = 30, enabled = true } = options;
+  const { nameContains, enabled = true } = options;
 
-  const query = useInfiniteQuery<
-    CustomSecretPage,
-    Error,
-    InfiniteData<CustomSecretPage>,
-    [string, string | undefined, number],
-    string | null
-  >({
-    queryKey: ["secrets-search", nameContains, pageSize],
-    queryFn: async ({ pageParam }) =>
-      SecretsService.searchSecrets({
-        name__contains: nameContains,
-        page_id: pageParam ?? undefined,
-        limit: pageSize,
-      }),
-    getNextPageParam: (lastPage) => lastPage.next_page_id,
-    initialPageParam: null,
+  const query = useQuery<CustomSecretWithoutValue[], Error>({
+    queryKey: ["secrets"],
+    queryFn: SecretsService.getSecrets,
     enabled,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15,
   });
 
-  const onLoadMore = () => {
-    if (query.hasNextPage && !query.isFetchingNextPage) {
-      query.fetchNextPage();
-    }
-  };
-
-  const secrets = query.data?.pages?.flatMap((page) => page.items) ?? [];
+  // Client-side filtering since agent-server doesn't support search params
+  const filteredSecrets = useMemo(() => {
+    if (!query.data) return [];
+    if (!nameContains) return query.data;
+    const lowerFilter = nameContains.toLowerCase();
+    return query.data.filter((secret) =>
+      secret.name.toLowerCase().includes(lowerFilter),
+    );
+  }, [query.data, nameContains]);
 
   return {
-    data: secrets,
+    data: filteredSecrets,
     isLoading: query.isLoading,
     isError: query.isError,
-    hasNextPage: query.hasNextPage ?? false,
-    isFetchingNextPage: query.isFetchingNextPage,
-    fetchNextPage: query.fetchNextPage,
-    onLoadMore,
+    // Agent-server API doesn't support pagination
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: () => {},
+    onLoadMore: () => {},
     refetch: query.refetch,
   };
 };
