@@ -4,6 +4,7 @@ import {
   buildConversationWorkingDir,
   getAgentServerBaseUrl,
   getAgentServerWorkingDir,
+  getVSCodeBaseUrl,
 } from "../agent-server-config";
 import {
   DirectConversationInfo,
@@ -112,8 +113,7 @@ class V1ConversationService {
     const workspaceDir =
       await this.resolveConversationWorkingDir(conversationId);
     const vscode_url = await createVSCodeClient({ sessionApiKey }).getUrl({
-      baseUrl:
-        typeof window !== "undefined" ? window.location.origin : undefined,
+      baseUrl: getVSCodeBaseUrl(),
       workspaceDir,
     });
 

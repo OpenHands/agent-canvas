@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import { getVSCodeBaseUrl } from "#/api/agent-server-config";
 
 const {
   mockHttpGet,
@@ -8,6 +9,7 @@ const {
   mockCreateHttpClient,
   mockCreateRemoteWorkspace,
   mockGetSettings,
+  mockCreateVSCodeClient,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -15,12 +17,13 @@ const {
   mockCreateHttpClient: vi.fn(),
   mockCreateRemoteWorkspace: vi.fn(),
   mockGetSettings: vi.fn(),
+  mockCreateVSCodeClient: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
   createHttpClient: mockCreateHttpClient,
   createRemoteWorkspace: mockCreateRemoteWorkspace,
-  createVSCodeClient: vi.fn(),
+  createVSCodeClient: mockCreateVSCodeClient,
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -32,6 +35,7 @@ vi.mock("#/api/agent-server-config", () => ({
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
   getConfiguredWorkerUrls: vi.fn(() => []),
+  getVSCodeBaseUrl: vi.fn(() => undefined),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -190,6 +194,46 @@ describe("V1ConversationService", () => {
       expect(mockCreateRemoteWorkspace).toHaveBeenCalledWith({
         sessionApiKey: "my-session-key",
       });
+    });
+  });
+
+  describe("getVSCodeUrl", () => {
+    // Regression: previously the GUI passed window.location.origin (port 3001
+    // in dev), so the backend returned an URL pointing at the GUI itself
+    // instead of openvscode-server (port 8001). The fix routes the baseUrl
+    // through getVSCodeBaseUrl(), which honors VITE_VSCODE_BASE_URL.
+    it("forwards the configured VS Code base URL to the typescript client", async () => {
+      // Arrange
+      const mockGetUrl = vi.fn().mockResolvedValue("http://localhost:8001/?tkn=abc");
+      mockCreateVSCodeClient.mockReturnValue({ getUrl: mockGetUrl });
+      vi.mocked(getVSCodeBaseUrl).mockReturnValue("http://localhost:8001");
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-123",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            workspace: { working_dir: "/workspace/agent-server-gui/conv-123" },
+          },
+        ],
+      });
+
+      // Act
+      const result = await V1ConversationService.getVSCodeUrl(
+        "conv-123",
+        null,
+        "test-api-key",
+      );
+
+      // Assert
+      expect(mockCreateVSCodeClient).toHaveBeenCalledWith({
+        sessionApiKey: "test-api-key",
+      });
+      expect(mockGetUrl).toHaveBeenCalledWith({
+        baseUrl: "http://localhost:8001",
+        workspaceDir: "/workspace/agent-server-gui/conv-123",
+      });
+      expect(result.vscode_url).toBe("http://localhost:8001/?tkn=abc");
     });
   });
 });

@@ -157,6 +157,15 @@ export function getAgentServerWorkingDir(): string {
   return DEFAULT_WORKING_DIR;
 }
 
+export function getVSCodeBaseUrl(): string | undefined {
+  const envBaseUrl = import.meta.env.VITE_VSCODE_BASE_URL?.trim();
+  if (envBaseUrl) return envBaseUrl;
+
+  if (typeof window !== "undefined") return window.location.origin;
+
+  return undefined;
+}
+
 export function buildConversationWorkingDir(conversationId: string): string {
   const base = getAgentServerWorkingDir().replace(/\/+$/, "");
   const hex = conversationId.replace(/-/g, "");

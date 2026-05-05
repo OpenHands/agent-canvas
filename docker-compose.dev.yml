@@ -1,0 +1,25 @@
+name: "agent-server-gui-${OH_GUI_SAFE_BACKEND_PORT:-18000}"
+
+services:
+  vscode:
+    image: gitpod/openvscode-server:1.98.2
+    container_name: "agent-server-gui-vscode-${OH_GUI_SAFE_BACKEND_PORT:-18000}"
+    restart: unless-stopped
+    ports:
+      - "${OH_GUI_SAFE_VSCODE_PORT:-18001}:3000"
+    volumes:
+      - "${OH_GUI_WORKSPACES_DIR}:${OH_GUI_WORKSPACES_DIR}"
+      - openvscode-server-data:/home/workspace/.openvscode-server
+    entrypoint:
+      - /home/.openvscode-server/bin/openvscode-server
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --connection-token
+      - "${OH_VSCODE_DEV_TOKEN}"
+      - --disable-workspace-trust
+
+volumes:
+  openvscode-server-data:

@@ -62,6 +62,22 @@ describe("buildSafeDevConfig", () => {
     expect(config.bashEventsDir).toBe(
       path.join(config.stateDir, "bash_events"),
     );
+    expect(config.tokenFile).toBe(
+      path.join(config.stateDir, ".dev-vscode-token"),
+    );
+    expect(config.composeFile).toBe(path.join(cwd, "docker-compose.dev.yml"));
+    expect(config.disableVscodeDocker).toBe(false);
+    if (process.platform !== "win32") {
+      expect(typeof config.hostUid).toBe("number");
+      expect(typeof config.hostGid).toBe("number");
+    }
+  });
+
+  it("disables the VSCode docker preflight when OH_GUI_DISABLE_VSCODE_DOCKER is set", () => {
+    const config = buildSafeDevConfig("/workspace/project/agent-server-gui", {
+      OH_GUI_DISABLE_VSCODE_DOCKER: "1",
+    });
+    expect(config.disableVscodeDocker).toBe(true);
   });
 
   it("honors environment overrides", () => {
@@ -142,6 +158,9 @@ describe("dev-safe CLI startup", () => {
       env: {
         ...process.env,
         PATH: "/usr/bin:/bin",
+        // Skip the Docker preflight so this test continues to exercise the
+        // agent-server-missing path even when docker isn't on PATH.
+        OH_GUI_DISABLE_VSCODE_DOCKER: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -179,5 +198,46 @@ describe("dev-safe CLI startup", () => {
     expect(output).toContain("README.md");
     expect(output).toContain("npm run dev:mock");
     expect(output).toContain("spawn agent-server ENOENT");
+  });
+
+  it("fails fast with Docker guidance when docker is unavailable", async () => {
+    const child = spawn(process.execPath, ["scripts/dev-safe.mjs"], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        // No OH_GUI_DISABLE_VSCODE_DOCKER → preflight runs.
+        // Empty PATH ensures `docker` cannot be found.
+        PATH: "/usr/bin:/bin",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+
+    const exitResult = await Promise.race([
+      once(child, "exit").then(([code, signal]) => ({
+        code,
+        signal,
+        timedOut: false,
+      })),
+      delay(4_000).then(() => ({ code: null, signal: null, timedOut: true })),
+    ]);
+
+    if (exitResult.timedOut) {
+      child.kill("SIGKILL");
+    }
+
+    expect(exitResult.timedOut).toBe(false);
+    expect(exitResult.code).toBe(1);
+    expect(output).toContain("Docker Desktop is required");
+    expect(output).toContain("OH_GUI_DISABLE_VSCODE_DOCKER");
+    // Must fail before attempting to spawn agent-server.
+    expect(output).not.toContain("spawn agent-server ENOENT");
   });
 });

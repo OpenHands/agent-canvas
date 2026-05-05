@@ -1,4 +1,7 @@
-import { getAgentServerWorkingDir } from "../agent-server-config";
+import {
+  getAgentServerWorkingDir,
+  getVSCodeBaseUrl,
+} from "../agent-server-config";
 import {
   GetVSCodeUrlResponse,
   GetTrajectoryResponse,
@@ -50,8 +53,7 @@ class ConversationService {
     const vscode_url = await createVSCodeClient(
       this.getClientOverrides(),
     ).getUrl({
-      baseUrl:
-        typeof window !== "undefined" ? window.location.origin : undefined,
+      baseUrl: getVSCodeBaseUrl(),
       workspaceDir,
     });
 
