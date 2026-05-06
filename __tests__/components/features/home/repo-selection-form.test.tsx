@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RepositorySelectionForm } from "../../../../src/components/features/home/repo-selection-form";
 import { LaunchTabs } from "../../../../src/components/features/home/launch-tabs";
 import GitService from "#/api/git-service/git-service.api";
+import SettingsService from "#/api/settings-service/settings-service.api";
+import { DEFAULT_SETTINGS } from "#/services/settings";
 import { GitRepository } from "#/types/git";
 import { useHomeStore } from "#/stores/home-store";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
@@ -360,5 +362,58 @@ describe("RepositorySelectionForm", () => {
       await screen.findByTestId("workspace-launch-button"),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("git-repo-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("keeps the Workspaces tab reachable when no provider is configured", async () => {
+    mockUseUserProviders.mockReturnValue({ providers: [] });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      DEFAULT_SETTINGS,
+    );
+    useWorkspacesStore.setState({ workspaces: [] });
+
+    render(<LaunchTabs onRepoSelection={mockOnRepoSelection} />, {
+      wrapper: ({ children }) => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
+        >
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await userEvent.click(screen.getByTestId("workspaces-tab"));
+
+    expect(
+      await screen.findByTestId("workspace-launch-button"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the connect-provider empty state in the Repositories tab when no provider is configured", async () => {
+    mockUseUserProviders.mockReturnValue({ providers: [] });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      DEFAULT_SETTINGS,
+    );
+
+    render(<LaunchTabs onRepoSelection={mockOnRepoSelection} />, {
+      wrapper: ({ children }) => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
+        >
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    expect(
+      await screen.findByTestId("navigate-to-settings-button"),
+    ).toBeInTheDocument();
   });
 });

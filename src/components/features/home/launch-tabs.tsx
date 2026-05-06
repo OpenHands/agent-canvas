@@ -4,9 +4,11 @@ import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { GitRepository } from "#/types/git";
+import { useUserProviders } from "#/hooks/use-user-providers";
 
 import { RepositorySelectionForm } from "./repo-selection-form";
 import { WorkspaceSelectionForm } from "./workspace-selection-form";
+import { ConnectToProviderMessage } from "./connect-to-provider-message";
 
 type LaunchTab = "repositories" | "workspaces";
 
@@ -47,6 +49,8 @@ export function LaunchTabs({
   isLoadingSettings = false,
 }: LaunchTabsProps) {
   const { t } = useTranslation("openhands");
+  const { providers } = useUserProviders();
+  const providersAreSet = providers.length > 0;
   const [activeTab, setActiveTab] = React.useState<LaunchTab>("repositories");
 
   return (
@@ -73,7 +77,10 @@ export function LaunchTabs({
       </div>
 
       <div className="min-h-[240px]">
-        {activeTab === "repositories" && (
+        {activeTab === "repositories" && !providersAreSet && (
+          <ConnectToProviderMessage />
+        )}
+        {activeTab === "repositories" && providersAreSet && (
           <RepositorySelectionForm
             onRepoSelection={onRepoSelection}
             isLoadingSettings={isLoadingSettings}
