@@ -103,4 +103,29 @@ describe("SettingsService", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("derives provider_tokens_set from locally stored git provider tokens", async () => {
+    // Arrange: simulate post-save state. SecretsService.addGitProvider writes to
+    // this localStorage key after the server PUT /api/settings/secrets succeeds.
+    // The agent-server API never returns provider_tokens_set, so the GUI must
+    // derive it from local state for useUserProviders / git-settings to recognize
+    // the configured providers.
+    window.localStorage.setItem(
+      "openhands-agent-server-git-provider-tokens",
+      JSON.stringify({
+        github: { token: "ghp_test_123", host: "github.com" },
+        gitlab: { token: "glpat_test_456", host: null },
+      }),
+    );
+
+    // Act
+    const settings = await SettingsService.getSettings();
+
+    // Assert: each stored provider surfaces in provider_tokens_set with its host
+    // (or null), which is what consumers like useUserProviders read.
+    expect(settings.provider_tokens_set).toEqual({
+      github: "github.com",
+      gitlab: null,
+    });
+  });
 });

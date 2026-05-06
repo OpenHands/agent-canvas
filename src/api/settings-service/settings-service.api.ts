@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
+import { Provider, Settings, SettingsSchema, SettingsValue } from "#/types/settings";
+import { getStoredGitProviders } from "../secrets-service";
 import { createHttpClient, createSettingsClient } from "../typescript-client";
 
 /**
@@ -115,12 +116,24 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     settings.conversation_settings ?? {},
   );
 
+  // The agent-server has no concept of provider_tokens_set; the GUI derives it
+  // from locally-stored git provider credentials so the UI knows which
+  // providers are configured after a save.
+  const storedProviders = getStoredGitProviders();
+  const derivedProviderTokensSet = Object.fromEntries(
+    Object.entries(storedProviders).map(([provider, value]) => [
+      provider,
+      value?.host ?? null,
+    ]),
+  ) as Partial<Record<Provider, string | null>>;
+
   const merged = {
     ...deepClone(DEFAULT_SETTINGS),
     ...settings,
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
       ...(settings.provider_tokens_set ?? {}),
+      ...derivedProviderTokensSet,
     },
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
