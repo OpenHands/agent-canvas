@@ -8,6 +8,16 @@ import {
   clearTelemetryData,
 } from "#/services/telemetry";
 
+// Mock import.meta.env for tests
+vi.stubGlobal("import.meta", {
+  env: {
+    DEV: false,
+    VITE_DO_NOT_TRACK: undefined,
+    VITE_TELEMETRY_ENDPOINT: undefined,
+    VITE_POSTHOG_API_KEY: undefined,
+  },
+});
+
 describe("Telemetry Service", () => {
   beforeEach(() => {
     // Clear localStorage before each test

@@ -21925,20 +21925,20 @@
     "uk": "Відхилити"
   },
   "TELEMETRY$OPT_OUT_HINT": {
-    "en": "Set DO_NOT_TRACK=1 to disable telemetry globally.",
-    "ja": "DO_NOT_TRACK=1を設定すると、グローバルでテレメトリを無効にできます。",
-    "zh-CN": "设置 DO_NOT_TRACK=1 可全局禁用遥测。",
-    "zh-TW": "設定 DO_NOT_TRACK=1 可全域停用遙測。",
-    "ko-KR": "DO_NOT_TRACK=1을 설정하여 전역적으로 원격 측정을 비활성화합니다.",
-    "no": "Sett DO_NOT_TRACK=1 for å deaktivere telemetri globalt.",
-    "ar": "اضبط DO_NOT_TRACK=1 لتعطيل القياس عن بُعد عالميًا.",
-    "de": "Setzen Sie DO_NOT_TRACK=1, um Telemetrie global zu deaktivieren.",
-    "fr": "Définissez DO_NOT_TRACK=1 pour désactiver la télémétrie globalement.",
-    "it": "Imposta DO_NOT_TRACK=1 per disabilitare la telemetria globalmente.",
-    "pt": "Defina DO_NOT_TRACK=1 para desativar a telemetria globalmente.",
-    "es": "Establezca DO_NOT_TRACK=1 para deshabilitar la telemetría globalmente.",
-    "ca": "Establiu DO_NOT_TRACK=1 per desactivar la telemetria globalment.",
-    "tr": "Telemetriyi global olarak devre dışı bırakmak için DO_NOT_TRACK=1 ayarlayın.",
-    "uk": "Встановіть DO_NOT_TRACK=1, щоб глобально вимкнути телеметрію."
+    "en": "Set VITE_DO_NOT_TRACK=1 to disable telemetry globally.",
+    "ja": "VITE_DO_NOT_TRACK=1を設定すると、グローバルでテレメトリを無効にできます。",
+    "zh-CN": "设置 VITE_DO_NOT_TRACK=1 可全局禁用遥测。",
+    "zh-TW": "設定 VITE_DO_NOT_TRACK=1 可全域停用遙測。",
+    "ko-KR": "VITE_DO_NOT_TRACK=1을 설정하여 전역적으로 원격 측정을 비활성화합니다.",
+    "no": "Sett VITE_DO_NOT_TRACK=1 for å deaktivere telemetri globalt.",
+    "ar": "اضبط VITE_DO_NOT_TRACK=1 لتعطيل القياس عن بُعد عالميًا.",
+    "de": "Setzen Sie VITE_DO_NOT_TRACK=1, um Telemetrie global zu deaktivieren.",
+    "fr": "Définissez VITE_DO_NOT_TRACK=1 pour désactiver la télémétrie globalement.",
+    "it": "Imposta VITE_DO_NOT_TRACK=1 per disabilitare la telemetria globalmente.",
+    "pt": "Defina VITE_DO_NOT_TRACK=1 para desativar a telemetria globalmente.",
+    "es": "Establezca VITE_DO_NOT_TRACK=1 para deshabilitar la telemetría globalmente.",
+    "ca": "Establiu VITE_DO_NOT_TRACK=1 per desactivar la telemetria globalment.",
+    "tr": "Telemetriyi global olarak devre dışı bırakmak için VITE_DO_NOT_TRACK=1 ayarlayın.",
+    "uk": "Встановіть VITE_DO_NOT_TRACK=1, щоб глобально вимкнути телеметрію."
   }
 }

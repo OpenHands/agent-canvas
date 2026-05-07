@@ -95,7 +95,7 @@ export function TelemetryConsentBanner({
       </div>
       <p className="text-[10px] text-neutral-500 mt-2">
         {t(I18nKey.TELEMETRY$OPT_OUT_HINT, {
-          defaultValue: "Set DO_NOT_TRACK=1 to disable telemetry globally.",
+          defaultValue: "Set VITE_DO_NOT_TRACK=1 to disable telemetry globally.",
         })}
       </p>
     </div>

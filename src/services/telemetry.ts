@@ -3,6 +3,11 @@
  *
  * This module handles anonymous telemetry for the @openhands/agent-canvas package.
  * It tracks "first use" events (not installs) and respects user privacy preferences.
+ *
+ * Configuration via environment variables:
+ * - VITE_TELEMETRY_ENDPOINT: The endpoint to send telemetry events (default: http://localhost:8080/capture)
+ * - VITE_POSTHOG_API_KEY: Your PostHog project API key (required for production)
+ * - VITE_DO_NOT_TRACK: Set to "1" to disable telemetry globally
  */
 
 import packageJson from "../../package.json";
@@ -10,11 +15,12 @@ import packageJson from "../../package.json";
 const TELEMETRY_STORAGE_KEY = "openhands-telemetry";
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 
-// Use localhost for development/testing
-const TELEMETRY_ENDPOINT = "http://localhost:8080/capture";
+// Configurable telemetry endpoint - defaults to localhost for development
+const TELEMETRY_ENDPOINT =
+  import.meta.env.VITE_TELEMETRY_ENDPOINT || "http://localhost:8080/capture";
 
-// PostHog project API key - replace with actual key for production
-const POSTHOG_API_KEY = "phc_your_project_key_here";
+// PostHog project API key - must be set via environment variable for production
+const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY || "";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
@@ -78,6 +84,37 @@ function saveTelemetryState(state: TelemetryState): void {
 }
 
 /**
+ * Check if telemetry is disabled via environment variable.
+ * Works in both Node.js and browser (Vite) environments.
+ */
+function isDoNotTrackEnabled(): boolean {
+  // Check Vite environment variable (browser)
+  if (
+    typeof import.meta !== "undefined" &&
+    import.meta.env?.VITE_DO_NOT_TRACK === "1"
+  ) {
+    return true;
+  }
+
+  // Check Node.js environment variable (SSR/testing)
+  if (typeof process !== "undefined" && process.env?.DO_NOT_TRACK === "1") {
+    return true;
+  }
+
+  // Check browser's navigator.doNotTrack standard
+  if (
+    typeof navigator !== "undefined" &&
+    (navigator.doNotTrack === "1" ||
+      // @ts-expect-error - Some browsers use window.doNotTrack
+      (typeof window !== "undefined" && window.doNotTrack === "1"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Get user's telemetry consent preference
  */
 export function getTelemetryConsent(): TelemetryConsent {
@@ -85,11 +122,8 @@ export function getTelemetryConsent(): TelemetryConsent {
     return "pending";
   }
 
-  // Check environment variable for opt-out
-  if (
-    typeof process !== "undefined" &&
-    process.env?.DO_NOT_TRACK === "1"
-  ) {
+  // Check environment variable for opt-out (works in both Node.js and browser)
+  if (isDoNotTrackEnabled()) {
     return "denied";
   }
 
@@ -128,9 +162,38 @@ export function isTelemetryEnabled(): boolean {
 }
 
 /**
+ * Check if telemetry is properly configured for production use.
+ * Returns false if API key is missing or is the placeholder value.
+ */
+function isTelemetryConfigured(): boolean {
+  if (!POSTHOG_API_KEY) {
+    return false;
+  }
+  // Check for placeholder values that shouldn't be used in production
+  if (
+    POSTHOG_API_KEY.startsWith("phc_your_") ||
+    POSTHOG_API_KEY === "placeholder"
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Send a telemetry event to the collection endpoint
  */
 async function sendTelemetryEvent(event: TelemetryEvent): Promise<boolean> {
+  // Skip sending if not properly configured (allows localhost dev server testing)
+  if (!isTelemetryConfigured() && !TELEMETRY_ENDPOINT.includes("localhost")) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.debug(
+        "[Telemetry] Skipped: API key not configured. Set VITE_POSTHOG_API_KEY for production.",
+      );
+    }
+    return false;
+  }
+
   try {
     const response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
