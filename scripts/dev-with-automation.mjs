@@ -56,6 +56,8 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_GIT_REF = "main";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
+// Default local API key for automation backend auth (matches agent-server pattern)
+const DEFAULT_LOCAL_API_KEY = "openhands-local-api-key";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -168,12 +170,12 @@ function buildAutomationCommand(env = process.env) {
   // Build git URL with ref
   const gitUrl = `git+${repoUrl}@${gitRef}`;
 
+  // Use --refresh to ensure latest commit is fetched for git refs
+  const args = ["--refresh", "--from", gitUrl, "uvicorn", "automation.app:app"];
+
   return {
     command: "uvx",
-    args: [
-      "--from", gitUrl,
-      "uvicorn", "automation.app:app",
-    ],
+    args,
     source: `git (${gitRef})`,
   };
 }
@@ -193,6 +195,9 @@ function buildConfig(args, env = process.env) {
   const vitePort = 3001;
   const vscodePort = backendPort + 1000;
 
+  // Local API key for automation backend auth
+  const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
+
   return {
     // Ingress port (main entry point)
     ingressPort,
@@ -208,6 +213,9 @@ function buildConfig(args, env = process.env) {
 
     // Data directories (same as dev-safe.mjs)
     stateDir: join(homedir(), ".openhands", "agent-canvas"),
+
+    // Auth
+    localApiKey,
 
     verbose: args.verbose,
   };
@@ -379,9 +387,10 @@ function startAutomationBackend(config) {
       env: {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:3001`,
+        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
         AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
-        AUTOMATION_AUTH_DISABLED: "true",
+        // Local API key for self-hosted auth (no cloud API needed)
+        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
         FILE_STORE: "local",
         LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
         OPENHANDS_SUPPRESS_BANNER: "1",
@@ -462,6 +471,8 @@ function startVite(config) {
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
       VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
+      // Automation API key for frontend to authenticate with automation backend
+      VITE_AUTOMATION_API_KEY: config.localApiKey,
     },
     color: c.magenta,
   });
