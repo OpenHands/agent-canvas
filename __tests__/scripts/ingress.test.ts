@@ -110,9 +110,10 @@ describe("ingress proxy functionality", () => {
   let backend1: Server;
   let backend2: Server;
   let ingressProcess: ChildProcess;
-  const backend1Port = 19001;
-  const backend2Port = 19002;
-  const ingressPort = 19000;
+  // Use ports in 29000 range to avoid conflicts with VS Code server (19000)
+  const backend1Port = 29001;
+  const backend2Port = 29002;
+  const ingressPort = 29000;
 
   beforeAll(async () => {
     // Create mock backend 1
@@ -198,7 +199,7 @@ describe("ingress proxy functionality", () => {
 
   it("returns 502 when backend is unavailable", async () => {
     // Start a fresh ingress pointing to a non-existent backend
-    const badIngressPort = 19003;
+    const badIngressPort = 29003;
     const badIngress = spawn(
       process.execPath,
       [
