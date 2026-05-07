@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTelemetry } from "#/hooks/use-telemetry";
 import { I18nKey } from "#/i18n/declaration";
@@ -20,6 +20,7 @@ interface TelemetryConsentBannerProps {
  *
  * This component:
  * - Shows as a full-screen modal overlay when consent is pending
+ * - Waits for translations to load before displaying (prevents key flashing)
  * - Allows users to accept or decline tracking via checkbox
  * - Respects DO_NOT_TRACK environment variable
  * - Persists choice in localStorage
@@ -40,8 +41,20 @@ interface TelemetryConsentBannerProps {
 export function TelemetryConsentBanner({
   onChoice,
 }: TelemetryConsentBannerProps) {
-  const { t } = useTranslation("openhands");
+  const { t, ready } = useTranslation("openhands");
   const { showConsentPrompt, grantConsent, denyConsent } = useTelemetry();
+
+  // Delay showing the modal slightly to ensure smooth rendering
+  // This prevents the modal from flashing during initial hydration
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => {
+    if (ready && showConsentPrompt) {
+      // Small delay to ensure DOM is fully hydrated and translations loaded
+      const timer = setTimeout(() => setIsReady(true), 50);
+      return () => clearTimeout(timer);
+    }
+    setIsReady(false);
+  }, [ready, showConsentPrompt]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -56,7 +69,8 @@ export function TelemetryConsentBanner({
     onChoice?.(analytics);
   };
 
-  if (!showConsentPrompt) {
+  // Don't render until translations are ready and component has stabilized
+  if (!isReady) {
     return null;
   }
 
