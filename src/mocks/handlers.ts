@@ -12,6 +12,10 @@ import { CONVERSATION_HANDLERS } from "./conversation-handlers";
 import { AUTH_HANDLERS } from "./auth-handlers";
 import { FEEDBACK_HANDLERS } from "./feedback-handlers";
 import { ANALYTICS_HANDLERS } from "./analytics-handlers";
+import {
+  AUTOMATION_HANDLERS,
+  resetAutomationMockData,
+} from "./automation-handlers";
 
 export const handlers = [
   ...API_KEYS_HANDLERS,
@@ -24,6 +28,11 @@ export const handlers = [
   ...AUTH_HANDLERS,
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
+  ...AUTOMATION_HANDLERS,
 ];
 
-export { MOCK_DEFAULT_USER_SETTINGS, resetTestHandlersMockSettings };
+export {
+  MOCK_DEFAULT_USER_SETTINGS,
+  resetTestHandlersMockSettings,
+  resetAutomationMockData,
+};

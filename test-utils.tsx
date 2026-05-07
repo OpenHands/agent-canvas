@@ -34,20 +34,24 @@ vi.mock("react-router", async () => {
   };
 });
 
-// Initialize i18n for tests
+// Initialize i18n for tests - return key when translation is missing
 i18n.use(initReactI18next).init({
   lng: "en",
   fallbackLng: "en",
-  ns: ["translation"],
+  ns: ["translation", "openhands"],
   defaultNS: "translation",
   resources: {
     en: {
       translation: {},
+      openhands: {},
     },
   },
   interpolation: {
     escapeValue: false,
   },
+  returnEmptyString: false,
+  missingKeyHandler: false,
+  saveMissing: false,
 });
 
 const createNavigationValue = (
