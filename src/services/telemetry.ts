@@ -11,9 +11,10 @@
  * - Session/custom events: Only sent after user grants consent via the consent modal.
  * - Users can opt out of all future tracking by declining consent.
  *
- * PROXY SUPPORT:
- * To bypass ad blockers, set up a reverse proxy and configure:
- * - VITE_POSTHOG_HOST: Your proxy URL (e.g., https://e.yourdomain.com)
+ * AD BLOCKER BYPASS:
+ * By default, telemetry is routed through OpenHands' reverse proxy (z.openhands.dev)
+ * to avoid being blocked by ad blockers. Library consumers can override this with:
+ * - VITE_POSTHOG_HOST: Custom proxy URL or direct PostHog URL
  * - VITE_POSTHOG_UI_HOST: PostHog UI host (defaults to https://us.posthog.com)
  *
  * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project.
@@ -38,10 +39,11 @@ const POSTHOG_API_KEY =
   import.meta.env.VITE_POSTHOG_API_KEY ||
   "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
 
-// Default to direct PostHog URL, but can be overridden with a reverse proxy
-// to bypass ad blockers. Use a neutral subdomain (avoid "analytics", "tracking", etc.)
+// Default to OpenHands' reverse proxy to bypass ad blockers.
+// The proxy at z.openhands.dev routes to PostHog's US region.
+// Library consumers can override this with their own proxy or direct PostHog URL.
 const POSTHOG_HOST =
-  import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com";
+  import.meta.env.VITE_POSTHOG_HOST || "https://z.openhands.dev";
 
 // UI host is needed for PostHog features like toolbar to work correctly
 // when using a reverse proxy. Defaults to US region.
