@@ -12,6 +12,7 @@ import { callCloudProxy } from "../cloud/proxy";
 import {
   batchGetCloudConversations,
   createCloudAppConversation,
+  downloadCloudConversation,
   getCloudAppConversationStartTask,
   searchCloudConversations,
 } from "../cloud/conversation-service.api";
@@ -319,6 +320,10 @@ class V1ConversationService {
   }
 
   static async downloadConversation(conversationId: string): Promise<Blob> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return downloadCloudConversation(conversationId);
+    }
+
     const response = await createHttpClient().get<Blob>(
       `/api/file/download-trajectory/${conversationId}`,
       {

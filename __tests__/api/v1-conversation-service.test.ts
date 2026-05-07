@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 
 const {
@@ -144,6 +145,32 @@ describe("V1ConversationService", () => {
       expect(secondPayload.workspace.working_dir).toBe(
         `/state/workspaces/${secondHex}`,
       );
+    });
+  });
+
+  describe("downloadConversation local branch", () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    afterEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    it("hits the local /api/file/download-trajectory endpoint with responseType blob when active backend is local", async () => {
+      const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
+      mockHttpGet.mockResolvedValue({ data: zipBlob });
+
+      const result =
+        await V1ConversationService.downloadConversation("conv-abc");
+
+      expect(mockHttpGet).toHaveBeenCalledWith(
+        "/api/file/download-trajectory/conv-abc",
+        expect.objectContaining({ responseType: "blob" }),
+      );
+      expect(result).toBe(zipBlob);
     });
   });
 

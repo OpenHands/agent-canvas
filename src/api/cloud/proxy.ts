@@ -38,6 +38,12 @@ interface CloudProxyRequest {
   authMode?: "bearer" | "session-api-key" | "none";
   /** Required when `authMode === "session-api-key"`. */
   sessionApiKey?: string | null;
+  /**
+   * Axios responseType for the inner POST to the bundled agent-server.
+   * Set to "blob" when the upstream cloud endpoint returns a binary
+   * payload (e.g. ZIP downloads); leave undefined for default JSON.
+   */
+  responseType?: "blob";
 }
 
 function buildUpstreamAuthHeaders(
@@ -86,6 +92,7 @@ export async function callCloudProxy<TResponse = unknown>(
     {
       headers: buildAuthHeaders(bundled),
       timeout: 30_000,
+      ...(req.responseType ? { responseType: req.responseType } : {}),
     },
   );
 

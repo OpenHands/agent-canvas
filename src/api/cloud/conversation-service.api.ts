@@ -96,6 +96,25 @@ export async function createCloudAppConversation(
 }
 
 /**
+ * Download a v1 app-conversation as a ZIP from the cloud SaaS. Mirrors
+ * the local `V1ConversationService.downloadConversation` interface but
+ * routes through the bundled agent-server's cloud proxy and hits
+ * `GET /api/v1/app-conversations/{id}/download`, which returns
+ * `application/zip` with `Content-Disposition` set by the SaaS.
+ */
+export async function downloadCloudConversation(
+  conversationId: string,
+): Promise<Blob> {
+  const backend = getActiveCloudBackend();
+  return callCloudProxy<Blob>({
+    backend,
+    method: "GET",
+    path: `/api/v1/app-conversations/${conversationId}/download`,
+    responseType: "blob",
+  });
+}
+
+/**
  * Fetch a single v1 app-conversation start task. Mirrors OpenHands'
  * `V1ConversationService.getStartTask` — uses the batch search endpoint
  * with a single id and unwraps the first result.
