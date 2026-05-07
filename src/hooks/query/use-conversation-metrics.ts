@@ -30,8 +30,7 @@ export const useConversationMetrics = (
         );
       return getCombinedMetrics(conversationInfo);
     },
-    enabled:
-      enabled && !!conversationId && !!conversationUrl && !!sessionApiKey,
+    enabled: enabled && !!conversationId && !!conversationUrl,
     staleTime: 1000 * 30,
     gcTime: 1000 * 60 * 5,
     refetchInterval: 1000 * 30,

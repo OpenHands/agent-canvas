@@ -364,13 +364,35 @@ class V1ConversationService {
 
   static async getRuntimeConversation(
     conversationId: string,
-    _conversationUrl: string | null | undefined,
+    conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<V1RuntimeConversationInfo> {
-    const response = await createHttpClient({ sessionApiKey }).get<
-      DirectConversationInfo & { stats?: V1RuntimeConversationInfo["stats"] }
-    >(`/api/conversations/${conversationId}`);
-    const { data } = response;
+    const active = getActiveBackend().backend;
+
+    type RawRuntime = DirectConversationInfo & {
+      stats?: V1RuntimeConversationInfo["stats"];
+    };
+
+    // Cloud mode: route through the cloud-proxy to the runtime sandbox at
+    // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
+    // mode forwards conversationUrl so the host explicitly resolves to the
+    // conversation's runtime instead of falling back to the active backend.
+    const data: RawRuntime =
+      active.kind === "cloud" && conversationUrl
+        ? await callCloudProxy<RawRuntime>({
+            backend: active,
+            method: "GET",
+            hostOverride: buildHttpBaseUrl(conversationUrl),
+            path: `/api/conversations/${conversationId}`,
+            authMode: "session-api-key",
+            sessionApiKey,
+          })
+        : (
+            await createHttpClient({
+              conversationUrl,
+              sessionApiKey,
+            }).get<RawRuntime>(`/api/conversations/${conversationId}`)
+          ).data;
 
     return {
       id: data.id,
