@@ -131,7 +131,7 @@ describe("Telemetry Service", () => {
 
       expect(capturedBody).toBeDefined();
       const parsed = JSON.parse(capturedBody!);
-      expect(parsed.event).toBe("library_first_use");
+      expect(parsed.event).toBe("canvas_install");
       expect(parsed.properties.package_name).toBe("@openhands/agent-canvas");
       expect(parsed.properties.package_version).toBeDefined();
     });

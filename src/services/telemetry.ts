@@ -211,7 +211,7 @@ export async function trackFirstUse(): Promise<void> {
 
   // Send the event
   const success = await sendTelemetryEvent({
-    event: "library_first_use",
+    event: "canvas_install",
     distinct_id: sessionId,
     properties: {
       package_name: packageJson.name,
@@ -243,7 +243,7 @@ export async function trackSessionStart(): Promise<void> {
   const sessionId = state?.sessionId || generateAnonymousId();
 
   await sendTelemetryEvent({
-    event: "library_session_start",
+    event: "canvas_new_session",
     distinct_id: sessionId,
     properties: {
       package_name: packageJson.name,
