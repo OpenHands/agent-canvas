@@ -7,7 +7,7 @@ import { RiskAlert } from "#/components/shared/risk-alert";
 import WarningIcon from "#/icons/u-warning.svg?react";
 import { useEventMessageStore } from "#/stores/event-message-store";
 import { useEventStore } from "#/stores/use-event-store";
-import { isAgentServerEvent, isActionEvent } from "#/types/agent-server/type-guards";
+import { isActionEvent } from "#/types/agent-server/type-guards";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useRespondToConfirmation } from "#/hooks/mutation/use-respond-to-confirmation";
@@ -27,14 +27,11 @@ export function ConversationConfirmationButtons() {
   const { mutate: respondToConfirmation } = useRespondToConfirmation();
   const events = useEventStore((state) => state.events);
 
-  // Find the most recent V1 action awaiting confirmation
   const awaitingAction = events
-    .filter(isAgentServerEvent)
     .slice()
     .reverse()
     .find((ev) => {
       if (ev.source !== "agent") return false;
-      // For V1, we check if the agent state is waiting for confirmation
       return curAgentState === AgentState.AWAITING_USER_CONFIRMATION;
     });
 
@@ -47,7 +44,7 @@ export function ConversationConfirmationButtons() {
       // Mark event as submitted to prevent duplicate submissions
       addSubmittedEventId(awaitingAction.id);
 
-      // Call the V1 API endpoint
+      // Call the agent-server API endpoint
       respondToConfirmation({
         conversationId: conversation.id,
         conversationUrl: conversation.conversation_url || "",
@@ -55,12 +52,7 @@ export function ConversationConfirmationButtons() {
         accept,
       });
     },
-    [
-      awaitingAction,
-      conversation,
-      addSubmittedEventId,
-      respondToConfirmation,
-    ],
+    [awaitingAction, conversation, addSubmittedEventId, respondToConfirmation],
   );
 
   // Handle keyboard shortcuts

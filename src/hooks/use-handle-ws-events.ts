@@ -13,6 +13,11 @@ interface ServerError {
 
 const isServerError = (data: object): data is ServerError => "error" in data;
 
+const isTypedErrorEvent = (
+  event: object,
+): event is { type: "error"; message?: unknown } =>
+  "type" in event && event.type === "error";
+
 export const useHandleWSEvents = () => {
   const { send } = useSendMessage();
   const events = useEventStore((state) => state.events);
@@ -37,8 +42,8 @@ export const useHandleWSEvents = () => {
       return;
     }
 
-    if ("type" in event && event.type === "error") {
-      const message: string = `${event.message}`;
+    if (isTypedErrorEvent(event)) {
+      const message: string = `${event.message ?? ""}`;
       if (message.startsWith("Agent reached maximum")) {
         // We set the agent state to paused here - if the user clicks resume, it auto updates the max iterations
         send(generateAgentStateChangeEvent(AgentState.PAUSED));

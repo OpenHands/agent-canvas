@@ -23,7 +23,6 @@ import {
 } from "./core/events/conversation-state-event";
 import { HookExecutionEvent } from "./core/events/hook-execution-event";
 import { SystemPromptEvent } from "./core/events/system-event";
-import type { OpenHandsParsedEvent } from "../core/index";
 
 /**
  * Type guard to check if an unknown value is a valid BaseEvent
@@ -217,42 +216,9 @@ export const isHookExecutionEvent = (
 ): event is HookExecutionEvent =>
   "kind" in event && event.kind === "HookExecutionEvent";
 
-// =============================================================================
-// TEMPORARY COMPATIBILITY TYPE GUARDS
-// These will be removed once we fully migrate to V1 events
-// =============================================================================
-
 /**
- * TEMPORARY: Type guard to check if an event is a V1 OpenHandsEvent
- * Uses isBaseEvent to validate the complete event structure
- *
- * @deprecated This is temporary until full V1 migration is complete
+ * Type guard to check if an unknown value is an agent-server OpenHandsEvent.
  */
-export function isAgentServerEvent(
-  event: OpenHandsEvent | OpenHandsParsedEvent,
-): event is OpenHandsEvent {
-  // Use isBaseEvent to validate the complete BaseEvent structure
-  // This ensures the event has all required properties with correct types
+export function isAgentServerEvent(event: unknown): event is OpenHandsEvent {
   return isBaseEvent(event);
-}
-
-/**
- * TEMPORARY: Type guard to check if an event is a V0 OpenHandsParsedEvent
- *
- * @deprecated This is temporary until full V1 migration is complete
- */
-export function isV0Event(
-  event: OpenHandsEvent | OpenHandsParsedEvent,
-): event is OpenHandsParsedEvent {
-  // Handle null/undefined cases
-  if (!event || typeof event !== "object") {
-    return false;
-  }
-
-  // V0 events have numeric IDs and either 'action' or 'observation' properties
-  return (
-    "id" in event &&
-    typeof event.id === "number" &&
-    ("action" in event || "observation" in event)
-  );
 }

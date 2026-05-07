@@ -8,7 +8,7 @@ import {
   isSkillReadyEvent,
 } from "../event-content-helpers/create-skill-ready-event";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
-import { ObservationResultStatus } from "../../../features/chat/event-content-helpers/get-observation-result";
+import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { SkillReadyContentList } from "./skill-ready-content-list";
 
 interface GenericEventMessageWrapperProps {

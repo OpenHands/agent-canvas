@@ -1,11 +1,8 @@
 import { create } from "zustand";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
-import { OpenHandsParsedEvent } from "#/types/core";
-import { isAgentServerEvent } from "#/types/agent-server/type-guards";
 
-// While we transition to v1 events, our store can handle both v0 and v1 events
-export type OHEvent = (OpenHandsEvent | OpenHandsParsedEvent) & {
+export type OHEvent = OpenHandsEvent & {
   isFromPlanningAgent?: boolean;
 };
 
@@ -82,10 +79,7 @@ export const useEventStore = create<EventState>()((set) => ({
           : state.eventIds;
 
       // Process UI events and sort if needed
-      let newUiEvents = isAgentServerEvent(event)
-        ? // @ts-expect-error - temporary, needs proper typing
-          handleEventForUI(event, state.uiEvents)
-        : [...state.uiEvents, event];
+      let newUiEvents = handleEventForUI(event, state.uiEvents);
 
       if (needsSorting(state.uiEvents, event)) {
         newUiEvents = newUiEvents.sort(compareEventsByTimestamp);

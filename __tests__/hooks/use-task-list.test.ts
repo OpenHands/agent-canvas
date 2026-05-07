@@ -3,29 +3,9 @@ import { renderHook, act } from "@testing-library/react";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useEventStore } from "#/stores/use-event-store";
 import type { OHEvent } from "#/stores/use-event-store";
-import type { TaskTrackingObservation } from "#/types/core/observations";
+import type { MessageEvent } from "#/types/agent-server/core";
 
-function createV0TaskTrackingObservation(
-  id: number,
-  command: string,
-  taskList: TaskTrackingObservation["extras"]["task_list"],
-): TaskTrackingObservation {
-  return {
-    id,
-    source: "agent",
-    observation: "task_tracking",
-    message: "Task tracking update",
-    timestamp: `2025-07-01T00:00:0${id}Z`,
-    cause: 0,
-    content: "",
-    extras: {
-      command,
-      task_list: taskList,
-    },
-  };
-}
-
-function createAgentServerTaskTrackerObservation(
+function createTaskTrackerObservation(
   id: string,
   command: string,
   taskList: Array<{
@@ -47,7 +27,21 @@ function createAgentServerTaskTrackerObservation(
       command,
       task_list: taskList,
     },
-  } as unknown as OHEvent;
+  } as OHEvent;
+}
+
+function createUserMessage(id: string): MessageEvent {
+  return {
+    id,
+    timestamp: `2025-07-01T00:00:0${id}Z`,
+    source: "user",
+    llm_message: {
+      role: "user",
+      content: [{ type: "text", text: "Hello" }],
+    },
+    activated_microagents: [],
+    extended_content: [],
+  };
 }
 
 beforeEach(() => {
@@ -67,18 +61,10 @@ describe("useTaskList", () => {
   });
 
   it("returns empty taskList when no task tracking observations exist", () => {
+    const event = createUserMessage("1");
     useEventStore.setState({
-      events: [
-        {
-          id: 1,
-          source: "user",
-          action: "message",
-          args: { content: "Hello", image_urls: [], file_urls: [] },
-          message: "Hello",
-          timestamp: "2025-07-01T00:00:01Z",
-        },
-      ],
-      eventIds: new Set([1]),
+      events: [event],
+      eventIds: new Set(["1"]),
       uiEvents: [],
     });
 
@@ -88,192 +74,114 @@ describe("useTaskList", () => {
     expect(result.current.hasTaskList).toBe(false);
   });
 
-  describe("v0 events", () => {
-    it('returns the task list from a TaskTrackingObservation with command="plan"', () => {
-      const tasks = [
-        { id: "1", title: "First task", status: "todo" as const },
-        { id: "2", title: "Second task", status: "in_progress" as const },
-      ];
-      const event = createV0TaskTrackingObservation(1, "plan", tasks);
+  it('returns the task list from a TaskTrackerObservation with command="plan"', () => {
+    const tasks = [
+      { title: "First task", notes: "", status: "todo" as const },
+      {
+        title: "Second task",
+        notes: "some note",
+        status: "in_progress" as const,
+      },
+    ];
+    const event = createTaskTrackerObservation("1", "plan", tasks);
 
-      useEventStore.setState({
-        events: [event],
-        eventIds: new Set([1]),
-        uiEvents: [event],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual(tasks);
-      expect(result.current.hasTaskList).toBe(true);
+    useEventStore.setState({
+      events: [event],
+      eventIds: new Set(["1"]),
+      uiEvents: [event],
     });
 
-    it('ignores TaskTrackingObservation events with command !== "plan"', () => {
-      const tasks = [{ id: "1", title: "First task", status: "todo" as const }];
-      const event = createV0TaskTrackingObservation(1, "update", tasks);
+    const { result } = renderHook(() => useTaskList());
 
-      useEventStore.setState({
-        events: [event],
-        eventIds: new Set([1]),
-        uiEvents: [event],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([]);
-      expect(result.current.hasTaskList).toBe(false);
-    });
-
-    it("returns the latest task list when multiple plan events exist", () => {
-      const earlyTasks = [
-        { id: "1", title: "First task", status: "todo" as const },
-      ];
-      const lateTasks = [
-        { id: "1", title: "First task", status: "done" as const },
-        { id: "2", title: "New task", status: "in_progress" as const },
-      ];
-
-      const event1 = createV0TaskTrackingObservation(1, "plan", earlyTasks);
-      const event2 = createV0TaskTrackingObservation(2, "plan", lateTasks);
-
-      useEventStore.setState({
-        events: [event1, event2],
-        eventIds: new Set([1, 2]),
-        uiEvents: [event1, event2],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual(lateTasks);
-      expect(result.current.hasTaskList).toBe(true);
-    });
-
-    it("updates when new events are added to the store", () => {
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.hasTaskList).toBe(false);
-
-      const tasks = [{ id: "1", title: "New task", status: "todo" as const }];
-      const event = createV0TaskTrackingObservation(1, "plan", tasks);
-
-      act(() => {
-        useEventStore.setState({
-          events: [event],
-          eventIds: new Set([1]),
-          uiEvents: [event],
-        });
-      });
-
-      expect(result.current.taskList).toEqual(tasks);
-      expect(result.current.hasTaskList).toBe(true);
-    });
-
-    it("returns hasTaskList=false when the latest plan has an empty task list", () => {
-      const event = createV0TaskTrackingObservation(1, "plan", []);
-
-      useEventStore.setState({
-        events: [event],
-        eventIds: new Set([1]),
-        uiEvents: [event],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([]);
-      expect(result.current.hasTaskList).toBe(false);
-    });
+    expect(result.current.taskList).toEqual([
+      { id: "1", title: "First task", notes: undefined, status: "todo" },
+      {
+        id: "2",
+        title: "Second task",
+        notes: "some note",
+        status: "in_progress",
+      },
+    ]);
+    expect(result.current.hasTaskList).toBe(true);
   });
 
-  describe("v1 events", () => {
-    it('returns the task list from a v1 TaskTrackerObservation with command="plan"', () => {
-      const tasks = [
-        { title: "First task", notes: "", status: "todo" as const },
-        {
-          title: "Second task",
-          notes: "some note",
-          status: "in_progress" as const,
-        },
-      ];
-      const event = createAgentServerTaskTrackerObservation("1", "plan", tasks);
+  it('ignores TaskTrackerObservation with command !== "plan"', () => {
+    const tasks = [{ title: "First task", notes: "", status: "todo" as const }];
+    const event = createTaskTrackerObservation("1", "view", tasks);
 
+    useEventStore.setState({
+      events: [event],
+      eventIds: new Set(["1"]),
+      uiEvents: [event],
+    });
+
+    const { result } = renderHook(() => useTaskList());
+
+    expect(result.current.taskList).toEqual([]);
+    expect(result.current.hasTaskList).toBe(false);
+  });
+
+  it("returns the latest task list when multiple plan events exist", () => {
+    const earlyTasks = [
+      { title: "First task", notes: "", status: "todo" as const },
+    ];
+    const lateTasks = [
+      { title: "First task", notes: "", status: "done" as const },
+      { title: "New task", notes: "wip", status: "in_progress" as const },
+    ];
+
+    const event1 = createTaskTrackerObservation("1", "plan", earlyTasks);
+    const event2 = createTaskTrackerObservation("2", "plan", lateTasks);
+
+    useEventStore.setState({
+      events: [event1, event2],
+      eventIds: new Set(["1", "2"]),
+      uiEvents: [event1, event2],
+    });
+
+    const { result } = renderHook(() => useTaskList());
+
+    expect(result.current.taskList).toEqual([
+      { id: "1", title: "First task", notes: undefined, status: "done" },
+      { id: "2", title: "New task", notes: "wip", status: "in_progress" },
+    ]);
+    expect(result.current.hasTaskList).toBe(true);
+  });
+
+  it("updates when new events are added to the store", () => {
+    const { result } = renderHook(() => useTaskList());
+
+    expect(result.current.hasTaskList).toBe(false);
+
+    const tasks = [{ title: "New task", notes: "", status: "todo" as const }];
+    const event = createTaskTrackerObservation("1", "plan", tasks);
+
+    act(() => {
       useEventStore.setState({
         events: [event],
         eventIds: new Set(["1"]),
         uiEvents: [event],
       });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([
-        { id: "1", title: "First task", notes: undefined, status: "todo" },
-        {
-          id: "2",
-          title: "Second task",
-          notes: "some note",
-          status: "in_progress",
-        },
-      ]);
-      expect(result.current.hasTaskList).toBe(true);
     });
 
-    it('ignores v1 TaskTrackerObservation with command !== "plan"', () => {
-      const tasks = [
-        { title: "First task", notes: "", status: "todo" as const },
-      ];
-      const event = createAgentServerTaskTrackerObservation("1", "view", tasks);
+    expect(result.current.taskList).toEqual([
+      { id: "1", title: "New task", notes: undefined, status: "todo" },
+    ]);
+    expect(result.current.hasTaskList).toBe(true);
+  });
 
-      useEventStore.setState({
-        events: [event],
-        eventIds: new Set(["1"]),
-        uiEvents: [event],
-      });
+  it("returns hasTaskList=false when the latest plan has an empty task list", () => {
+    const event = createTaskTrackerObservation("1", "plan", []);
 
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([]);
-      expect(result.current.hasTaskList).toBe(false);
+    useEventStore.setState({
+      events: [event],
+      eventIds: new Set(["1"]),
+      uiEvents: [event],
     });
 
-    it("returns the latest v1 task list when multiple plan events exist", () => {
-      const earlyTasks = [
-        { title: "First task", notes: "", status: "todo" as const },
-      ];
-      const lateTasks = [
-        { title: "First task", notes: "", status: "done" as const },
-        { title: "New task", notes: "wip", status: "in_progress" as const },
-      ];
+    const { result } = renderHook(() => useTaskList());
 
-      const event1 = createAgentServerTaskTrackerObservation("1", "plan", earlyTasks);
-      const event2 = createAgentServerTaskTrackerObservation("2", "plan", lateTasks);
-
-      useEventStore.setState({
-        events: [event1, event2],
-        eventIds: new Set(["1", "2"]),
-        uiEvents: [event1, event2],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([
-        { id: "1", title: "First task", notes: undefined, status: "done" },
-        { id: "2", title: "New task", notes: "wip", status: "in_progress" },
-      ]);
-      expect(result.current.hasTaskList).toBe(true);
-    });
-
-    it("returns hasTaskList=false when the latest v1 plan has an empty task list", () => {
-      const event = createAgentServerTaskTrackerObservation("1", "plan", []);
-
-      useEventStore.setState({
-        events: [event],
-        eventIds: new Set(["1"]),
-        uiEvents: [event],
-      });
-
-      const { result } = renderHook(() => useTaskList());
-
-      expect(result.current.taskList).toEqual([]);
-      expect(result.current.hasTaskList).toBe(false);
-    });
+    expect(result.current.taskList).toEqual([]);
+    expect(result.current.hasTaskList).toBe(false);
   });
 });

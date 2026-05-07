@@ -7,7 +7,6 @@ import { useAgentState } from "#/hooks/use-agent-state";
 export const useConversationHooks = () => {
   const { conversationId } = useConversationId();
   const { curAgentState } = useAgentState();
-
   return useQuery({
     queryKey: ["conversation", conversationId, "hooks"],
     queryFn: async () => {
@@ -15,7 +14,8 @@ export const useConversationHooks = () => {
         throw new Error("No conversation ID provided");
       }
 
-      const data = await AgentServerConversationService.getHooks(conversationId);
+      const data =
+        await AgentServerConversationService.getHooks(conversationId);
       return data.hooks;
     },
     enabled:

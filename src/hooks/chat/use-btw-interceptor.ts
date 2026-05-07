@@ -8,7 +8,7 @@ const BTW_PREFIX = `${BTW_COMMAND} `;
 /**
  * Intercepts "/btw <question>" submissions and routes them through the
  * ask_agent side-channel. Everything else falls through to `onSubmit`.
- * Passthrough when `conversationId` is null (e.g. V0 conversations).
+ * Passthrough when `conversationId` is null.
  */
 export const useBtwInterceptor = (
   conversationId: string | null | undefined,

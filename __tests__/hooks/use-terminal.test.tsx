@@ -3,28 +3,17 @@ import { useTerminal } from "#/hooks/use-terminal";
 import { Command, useCommandStore } from "#/stores/command-store";
 import { renderWithProviders } from "../../test-utils";
 
-// Mock the WsClient context
-vi.mock("#/context/ws-client-provider", () => ({
-  useWsClient: () => ({
-    send: vi.fn(),
-    status: "CONNECTED",
-    isLoadingMessages: false,
-    events: [],
-  }),
-}));
-
 // Mock useActiveConversation
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => ({
     data: {
       id: "test-conversation-id",
-      conversation_version: "V0",
     },
     isFetched: true,
   }),
 }));
 
-// Mock useConversationWebSocket (returns null for V0 conversations)
+// Mock useConversationWebSocket
 vi.mock("#/contexts/conversation-websocket-context", () => ({
   useConversationWebSocket: () => null,
 }));

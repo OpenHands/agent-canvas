@@ -53,7 +53,6 @@ export function ChatInterface() {
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
   const {
-    v0Events,
     renderableEvents,
     allConversationEvents,
     totalEvents,
@@ -215,12 +214,7 @@ export function ChatInterface() {
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    renderableEvents.length,
-    v0Events.length,
-    optimisticUserMessage,
-    scrollDomToBottom,
-  ]);
+  }, [renderableEvents.length, optimisticUserMessage, scrollDomToBottom]);
 
   // Create a ScrollProvider with the scroll hook values
   const scrollProviderValue = {

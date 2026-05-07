@@ -18,10 +18,8 @@ import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
-import { OpenHandsAction } from "#/types/core/actions";
 
 // Module-level mocks
-vi.mock("#/context/ws-client-provider");
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
@@ -72,8 +70,10 @@ vi.mock("#/components/shared/buttons/scroll-to-bottom-button", () => ({
 }));
 
 vi.mock("#/components/conversation-events/chat", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/components/conversation-events/chat")>()),
-  Messages: () => <div data-testid="v1-messages" />,
+  ...(await importOriginal<
+    typeof import("#/components/conversation-events/chat")
+  >()),
+  Messages: () => <div data-testid="conversation-messages" />,
 }));
 
 // Helper to render with QueryClient and route params
@@ -93,20 +93,6 @@ const renderWithQueryClient = (
     </QueryClientProvider>,
   );
 
-// V0 user event (numeric id, action property)
-const createV0UserEvent = (): OpenHandsAction => ({
-  id: 1,
-  source: "user",
-  action: "message",
-  args: {
-    content: "Hello from V0",
-    image_urls: [],
-    file_urls: [],
-  },
-  message: "Hello from V0",
-  timestamp: "2025-07-01T00:00:00Z",
-});
-
 describe("ChatInterface – message display continuity (spec 3.1)", () => {
   let queryClient: QueryClient;
 
@@ -124,7 +110,7 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
     });
 
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {},
+      data: { app_mode: "local" },
     });
     (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       mutate: vi.fn(),
@@ -140,7 +126,7 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
       isLoading: false,
     });
 
-    // Default: no conversation (V0 behavior)
+    // Default: no active conversation
     vi.mocked(useActiveConversation).mockReturnValue({
       data: undefined,
     } as ReturnType<typeof useActiveConversation>);
@@ -149,15 +135,15 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
     vi.mocked(useConversationWebSocket).mockReturnValue(null);
   });
 
-  describe("V1 conversations", () => {
+  describe("conversations", () => {
     beforeEach(() => {
-      // Set up V1 conversation
+      // Set up conversation
       vi.mocked(useActiveConversation).mockReturnValue({
         data: {},
       } as ReturnType<typeof useActiveConversation>);
     });
 
-    it("shows messages immediately when V1 events exist in store, even while loading", () => {
+    it("shows messages immediately when agent-server events exist in store, even while loading", () => {
       // Simulate: history is loading but events already exist in store (e.g., remount)
       vi.mocked(useConversationWebSocket).mockReturnValue({
         isLoadingHistory: true,
@@ -165,11 +151,12 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
         sendMessage: vi.fn(),
       });
 
-      // Put V1 user events in the store
-      const v1UserEvent = createUserMessageEvent("evt-1");
+      // Put agent-server user events in the store
+      const userEvent = createUserMessageEvent("evt-1");
       useEventStore.setState({
-        events: [v1UserEvent],
-        uiEvents: [v1UserEvent],
+        events: [userEvent],
+        eventIds: new Set(["evt-1"]),
+        uiEvents: [userEvent],
       });
 
       renderWithQueryClient(<ChatInterface />, queryClient);
@@ -192,6 +179,7 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
       // Store is empty
       useEventStore.setState({
         events: [],
+        eventIds: new Set(),
         uiEvents: [],
       });
 
@@ -209,11 +197,12 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
         sendMessage: vi.fn(),
       });
 
-      // V1 events in store
-      const v1UserEvent = createUserMessageEvent("evt-2");
+      // agent-server events in store
+      const userEvent = createUserMessageEvent("evt-2");
       useEventStore.setState({
-        events: [v1UserEvent],
-        uiEvents: [v1UserEvent],
+        events: [userEvent],
+        eventIds: new Set(["evt-1"]),
+        uiEvents: [userEvent],
       });
 
       renderWithQueryClient(<ChatInterface />, queryClient);

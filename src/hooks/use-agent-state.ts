@@ -5,9 +5,11 @@ import { AgentState } from "#/types/agent-state";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 /**
- * Maps V1 agent status to V0 AgentState
+ * Maps agent execution status to AgentState
  */
-function mapExecutionStatusToAgentState(status: ExecutionStatus | null): AgentState {
+function mapExecutionStatusToAgentState(
+  status: ExecutionStatus | null,
+): AgentState {
   if (!status) {
     return AgentState.LOADING;
   }
@@ -38,9 +40,7 @@ export interface UseAgentStateResult {
 }
 
 /**
- * Unified hook that returns the current agent state
- * - For V0 conversations: Returns state from useAgentStore
- * - For V1 conversations: Returns mapped state from useConversationStateStore
+ * Returns the current agent state from conversation execution status.
  */
 export function useAgentState(): UseAgentStateResult {
   const liveExecutionStatus = useConversationStateStore(

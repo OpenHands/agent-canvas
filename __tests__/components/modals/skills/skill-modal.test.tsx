@@ -54,7 +54,7 @@ describe("SkillsModal", () => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
-    // Setup default mock for getSkills (V1)
+    // Setup default mock for getSkills (agent-server)
     vi.spyOn(AgentServerConversationService, "getSkills").mockResolvedValue({
       skills: mockSkills,
     });
@@ -116,5 +116,5 @@ describe("SkillsModal", () => {
   });
 });
 
-// Note: Tests for V0 API and v1_enabled settings were removed as the component
-// now uses V1 API exclusively via useConversationSkills hook
+// Note: Tests for deprecated API and removed settings were removed as the component
+// now uses agent-server API exclusively via useConversationSkills hook

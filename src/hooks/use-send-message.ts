@@ -8,20 +8,18 @@ interface SendResult {
 }
 
 /**
- * Unified hook for sending messages that works with both V0 and V1 conversations
- * - For V0 conversations: Uses Socket.IO WebSocket via useWsClient
- * - For V1 conversations: Uses native WebSocket via ConversationWebSocketProvider
+ * Sends user messages through the active conversation WebSocket.
  */
 export function useSendMessage() {
   const { conversationId } = useConversationId();
 
-  // Get V1 context (will be null if not in V1 provider)
+  // Get agent-server context (null outside a conversation provider)
   const conversationContext = useConversationWebSocket();
 
   const send = useCallback(
     async (event: Record<string, unknown>): Promise<SendResult> => {
       if (conversationContext) {
-        // V1: Convert V0 event format to V1 message format
+        // Convert chat input payloads to agent-server message content.
         const { action, args } = event as {
           action: string;
           args?: {
@@ -33,7 +31,7 @@ export function useSendMessage() {
         };
 
         if (action === "message" && args?.content) {
-          // Build V1 message content array
+          // Build agent-server message content array
           const content: Array<MessageContent> = [
             {
               type: "text",
@@ -49,7 +47,7 @@ export function useSendMessage() {
             });
           }
 
-          // Send via V1 WebSocket context (uses correct host/port)
+          // Send via WebSocket context (uses correct host/port)
           const result = await conversationContext.sendMessage({
             role: "user",
             content,

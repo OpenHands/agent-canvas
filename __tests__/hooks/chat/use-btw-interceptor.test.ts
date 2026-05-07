@@ -12,8 +12,7 @@ vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
 }));
 
 const CONV = "conv-1";
-const entries = () =>
-  useBtwStore.getState().entriesByConversation[CONV] ?? [];
+const entries = () => useBtwStore.getState().entriesByConversation[CONV] ?? [];
 
 describe("useBtwInterceptor", () => {
   beforeEach(() => {
@@ -56,7 +55,7 @@ describe("useBtwInterceptor", () => {
     expect(entries()[0].response).toBe("boom");
   });
 
-  it("falls through when conversationId is null (feature off for V0)", () => {
+  it("falls through when conversationId is null", () => {
     const onSubmit = vi.fn();
     const { result } = renderHook(() => useBtwInterceptor(null, onSubmit));
     act(() => result.current("/btw why?"));

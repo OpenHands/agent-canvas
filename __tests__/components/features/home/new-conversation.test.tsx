@@ -11,7 +11,7 @@ vi.mock("#/hooks/query/use-settings", async () => {
   );
   return {
     ...actual,
-    getSettingsQueryFn: vi.fn().mockResolvedValue({ v1_enabled: true }),
+    getSettingsQueryFn: vi.fn().mockResolvedValue({}),
   };
 });
 
