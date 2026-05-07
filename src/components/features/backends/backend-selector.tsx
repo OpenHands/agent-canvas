@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { useMatch, useNavigate } from "react-router";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -75,6 +76,8 @@ export function BackendSelector() {
   const currentUserIds = useCloudCurrentUserId();
   const { mutateAsync: switchOrg, isPending: isSwitching } =
     useSwitchCloudOrganization();
+  const navigate = useNavigate();
+  const conversationMatch = useMatch("/conversations/:conversationId");
 
   const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
@@ -137,7 +140,7 @@ export function BackendSelector() {
       testId="backend-selector"
       key={`${activeValue}-${activeOption?.label ?? ""}`}
       defaultValue={activeOption ?? { value: activeValue, label: bundledLabel }}
-      onChange={(item) => {
+      onChange={async (item) => {
         if (!item || item.value === activeValue) return;
         const { backendId, orgId } = parseOptionValue(item.value);
         const target = backends.find((b) => b.id === backendId);
@@ -148,23 +151,28 @@ export function BackendSelector() {
         // already in place before any of our backend-keyed queries
         // refetch — they fire exactly once, with the correct context.
         //
-        // We use `mutateAsync` + `.then` (rather than `mutate(... ,
+        // We use `mutateAsync` + `await` (rather than `mutate(... ,
         // { onSuccess })`) because per-call onSuccess callbacks were
         // observed not to run reliably for this hook in practice; the
         // promise-based shape is unambiguous.
         if (orgId && target?.kind === "cloud") {
-          switchOrg({ orgId, backend: target })
-            .then(() => setActive(backendId, orgId))
-            .catch(() => {
-              // Error is surfaced by the mutation cache's global handler.
-            });
-          return;
+          try {
+            await switchOrg({ orgId, backend: target });
+          } catch {
+            // Error is surfaced by the mutation cache's global handler.
+            return;
+          }
         }
 
         // Pure backend swap (local-↔-bundled or backend-only cloud
-        // selection without an org): no `/switch` involved, update
-        // active directly.
+        // selection without an org) skips `/switch` and updates active
+        // directly; cloud-with-org falls through here after `/switch`.
         setActive(backendId, orgId);
+
+        // The current conversation belongs to the previous backend
+        // and is no longer reachable under the new one — redirect home
+        // so the user lands on a coherent screen.
+        if (conversationMatch) navigate("/");
       }}
       placeholder={bundledLabel}
       loading={someCloudLoading || isSwitching}

@@ -2,6 +2,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
@@ -27,9 +28,11 @@ function renderWithProviders(ui: React.ReactElement) {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ActiveBackendProvider>{ui}</ActiveBackendProvider>
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>{ui}</ActiveBackendProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -277,5 +280,90 @@ describe("BackendSelector", () => {
     const wrapper = screen.getByTestId("backend-selector");
     const input = wrapper.querySelector("input") as HTMLInputElement;
     expect(input.value).toBe("Local 1");
+  });
+
+  it("redirects to home when switching backends from a conversation route", async () => {
+    function ConversationRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/conversations/:conversationId", Component: ConversationRoute },
+      { path: "/", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/conversations/abc"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    expect(await screen.findByTestId("home")).toBeInTheDocument();
+  });
+
+  it("does not redirect when switching backends from a non-conversation route", async () => {
+    function SettingsRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/settings", Component: SettingsRoute },
+      { path: "/", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/settings"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    const wrapper = screen.getByTestId("backend-selector");
+    const input = wrapper.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("Local 1");
+    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 });
