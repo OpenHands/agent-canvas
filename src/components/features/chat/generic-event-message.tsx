@@ -54,7 +54,11 @@ export function GenericEventMessage({
       <div className="flex items-center justify-between font-bold text-neutral-300">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}
-          {title}
+          {/* Wrap the title in a span so any whitespace inside Trans-rendered
+              fragments (e.g. "Editing <path>...</path>") is preserved by
+              normal inline flow instead of being collapsed between
+              anonymous flex items. */}
+          <span>{title}</span>
           {chevronPosition === "after" && chevron}
         </div>
 
