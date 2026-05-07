@@ -45,7 +45,7 @@ export function AddBackendModal({ onClose }: AddBackendModalProps) {
   const canSubmit =
     name.trim().length > 0 &&
     host.trim().length > 0 &&
-    apiKey.trim().length > 0;
+    (kind === "local" || apiKey.trim().length > 0);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

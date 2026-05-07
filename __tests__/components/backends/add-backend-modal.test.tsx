@@ -87,6 +87,52 @@ describe("AddBackendModal", () => {
     expect(localRadio.checked).toBe(false);
   });
 
+  it("allows submitting a local backend with a blank API key", async () => {
+    const onClose = vi.fn();
+    renderWithProviders(<AddBackendModal onClose={onClose} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://127.0.0.1:18002",
+    );
+    // No API key entered; kind auto-infers to "local" from the host.
+
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-backends") ?? "[]",
+    );
+    expect(stored).toMatchObject([
+      {
+        name: "Local Extra",
+        host: "http://127.0.0.1:18002",
+        apiKey: "",
+        kind: "local",
+      },
+    ]);
+  });
+
+  it("keeps submit disabled for cloud backends until an API key is entered", async () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    const submit = screen.getByTestId(
+      "add-backend-submit",
+    ) as HTMLButtonElement;
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("add-backend-name"), "Cloud");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://app.all-hands.dev",
+    );
+    expect(submit).toBeDisabled();
+
+    await user.type(screen.getByTestId("add-backend-api-key"), "token");
+    expect(submit).not.toBeDisabled();
+  });
+
   it("saves the backend and closes WITHOUT switching the active selection", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
