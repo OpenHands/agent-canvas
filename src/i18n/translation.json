@@ -21940,5 +21940,39 @@
     "ca": "Establiu VITE_DO_NOT_TRACK=1 per desactivar la telemetria globalment.",
     "tr": "Telemetriyi global olarak devre dışı bırakmak için VITE_DO_NOT_TRACK=1 ayarlayın.",
     "uk": "Встановіть VITE_DO_NOT_TRACK=1, щоб глобально вимкнути телеметрію."
+  },
+  "TELEMETRY$SEND_ANONYMOUS_DATA": {
+    "en": "Send anonymous usage data",
+    "ja": "匿名の使用データを送信する",
+    "zh-CN": "发送匿名使用数据",
+    "zh-TW": "傳送匿名使用數據",
+    "ko-KR": "익명 사용 데이터 전송",
+    "no": "Send anonyme bruksdata",
+    "ar": "إرسال بيانات الاستخدام المجهولة",
+    "de": "Anonyme Nutzungsdaten senden",
+    "fr": "Envoyer des données d'utilisation anonymes",
+    "it": "Invia dati di utilizzo anonimi",
+    "pt": "Enviar dados de uso anônimos",
+    "es": "Enviar datos de uso anónimos",
+    "ca": "Envia dades d'ús anònimes",
+    "tr": "Anonim kullanım verileri gönder",
+    "uk": "Надіслати анонімні дані використання"
+  },
+  "TELEMETRY$CONFIRM_PREFERENCES": {
+    "en": "Confirm preferences",
+    "ja": "設定を確認",
+    "zh-CN": "确认偏好设置",
+    "zh-TW": "確認偏好設定",
+    "ko-KR": "환경 설정 확인",
+    "no": "Bekreft preferanser",
+    "ar": "تأكيد التفضيلات",
+    "de": "Einstellungen bestätigen",
+    "fr": "Confirmer les préférences",
+    "it": "Conferma preferenze",
+    "pt": "Confirmar preferências",
+    "es": "Confirmar preferencias",
+    "ca": "Confirma les preferències",
+    "tr": "Tercihleri onayla",
+    "uk": "Підтвердити налаштування"
   }
 }
