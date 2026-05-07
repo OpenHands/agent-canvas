@@ -262,7 +262,7 @@ function markFirstUseSent(): void {
  *
  * The event is:
  * - Completely anonymous (no PII, just a random PostHog distinct_id)
- * - Sent only once per installation (tracked via localStorage)
+ * - Sent only once per installation (tracked via localStorage, persists across sessions)
  * - Still respects DO_NOT_TRACK environment variable and browser setting
  *
  * Users who want complete privacy can:
@@ -275,7 +275,7 @@ export async function trackInstall(): Promise<void> {
     return;
   }
 
-  // Already sent install event
+  // Already sent install event (persisted in localStorage - survives app relaunches)
   if (hasFirstUseSent()) {
     return;
   }
@@ -303,7 +303,7 @@ export async function trackInstall(): Promise<void> {
     embedded: typeof window !== "undefined" && window.self !== window.top,
   });
 
-  // Mark as sent
+  // Mark as sent (stored in localStorage - persists across browser sessions)
   markFirstUseSent();
 
   // Restore opt-out state if user hasn't granted consent yet
@@ -312,13 +312,6 @@ export async function trackInstall(): Promise<void> {
   if (currentConsent !== "granted") {
     posthog.opt_out_capturing();
   }
-}
-
-/**
- * @deprecated Use trackInstall() instead. This function now just calls trackInstall().
- */
-export async function trackFirstUse(): Promise<void> {
-  return trackInstall();
 }
 
 /**

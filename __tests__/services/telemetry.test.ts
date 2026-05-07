@@ -20,7 +20,6 @@ import {
   setTelemetryConsent,
   isTelemetryEnabled,
   trackInstall,
-  trackFirstUse,
   trackEvent,
   clearTelemetryData,
 } from "#/services/telemetry";
@@ -151,18 +150,6 @@ describe("Telemetry Service", () => {
 
       // Should NOT call opt_out_capturing when consent is granted
       expect(mockPosthog.opt_out_capturing).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("trackFirstUse (deprecated)", () => {
-    it("calls trackInstall (backward compatibility)", async () => {
-      await trackFirstUse();
-
-      expect(mockPosthog.capture).toHaveBeenCalledTimes(1);
-      expect(mockPosthog.capture).toHaveBeenCalledWith(
-        "canvas_install",
-        expect.any(Object),
-      );
     });
   });
 

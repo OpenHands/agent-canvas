@@ -47,7 +47,6 @@ export {
   setTelemetryConsent,
   isTelemetryEnabled,
   trackInstall,
-  trackFirstUse, // @deprecated - use trackInstall instead
   trackSessionStart,
   trackEvent,
   clearTelemetryData,
