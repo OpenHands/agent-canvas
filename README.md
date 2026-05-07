@@ -56,7 +56,21 @@ Then edit the values you need.
 npm run dev
 ```
 
-This starts an isolated local `agent-server` for this checkout and the frontend on [http://localhost:3001](http://localhost:3001).
+This starts the full stack:
+- Agent server (via uvx)
+- Automation backend (via uvx)
+- Vite dev server
+- Ingress proxy (routes traffic to all backends)
+
+Access the UI at [http://localhost:8000](http://localhost:8000)
+
+#### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Ingress port | `8000` |
+| `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
+| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
 
 ### 5. First-run sanity check
 
@@ -66,6 +80,18 @@ After the page opens:
 - `/settings` should load
 - configure a working LLM model + API key under `Settings > LLM` before running the first live task
 - you should be able to open or create a conversation
+- `/api/automation/docs` should show the automation API docs
+
+### Alternative: Minimal Mode (without Automation)
+
+To run without the automation service:
+
+```sh
+npm run dev:minimal
+```
+
+This runs only agent-server + Vite (no automation backend or ingress).
+Access at `http://localhost:3001/`
 
 ## More documentation
 

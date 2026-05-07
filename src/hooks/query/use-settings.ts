@@ -3,6 +3,7 @@ import axios from "axios";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsScope, SettingsValue } from "#/types/settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import {
   pickFirstBoolean,
   pickFirstNumber,
@@ -123,7 +124,7 @@ export const getSettingsQueryFn = async (
 
 export const useSettings = (scope: SettingsScope = "personal") => {
   const query = useQuery({
-    queryKey: ["settings", scope],
+    queryKey: SETTINGS_QUERY_KEYS.byScope(scope),
     queryFn: () => getSettingsQueryFn(scope),
     retry: (_, error) => getErrorStatus(error) !== 404,
     refetchOnWindowFocus: false,

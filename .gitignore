@@ -4,6 +4,8 @@ src/i18n/declaration.ts
 .env
 node_modules/
 build/
+
+
 /test-results/
 /playwright-report/
 /blob-report/
