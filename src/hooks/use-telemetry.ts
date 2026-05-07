@@ -55,16 +55,16 @@ export function useTelemetry(): UseTelemetryReturn {
   const [consent, setConsentState] = useState<TelemetryConsent>(() =>
     getTelemetryConsent(),
   );
-  const [hasTrackedFirstUse, setHasTrackedFirstUse] = useState(false);
 
-  // Track first use when consent is granted
+  // Track first use and session start when consent is granted
+  // Note: trackFirstUse() has built-in deduplication via localStorage,
+  // so it's safe to call multiple times - it only sends once per install
   useEffect(() => {
-    if (consent === "granted" && !hasTrackedFirstUse) {
-      setHasTrackedFirstUse(true);
+    if (consent === "granted") {
       trackFirstUse();
       trackSessionStart();
     }
-  }, [consent, hasTrackedFirstUse]);
+  }, [consent]);
 
   const grantConsent = useCallback(() => {
     setTelemetryConsent("granted");
