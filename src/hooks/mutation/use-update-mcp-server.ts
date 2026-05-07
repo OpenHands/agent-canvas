@@ -8,6 +8,7 @@ import {
   MCPStdioServer,
 } from "#/types/settings";
 import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
+import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -75,7 +76,7 @@ export function useUpdateMcpServer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["settings", "personal"],
+        queryKey: SETTINGS_QUERY_KEYS.personal(),
       });
     },
   });

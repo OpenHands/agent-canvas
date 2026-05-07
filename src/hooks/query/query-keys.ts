@@ -3,9 +3,17 @@
  * Using constants ensures type safety and prevents typos.
  */
 
+import { SettingsScope } from "#/types/settings";
+
 export const QUERY_KEYS = {
   /** Web client configuration from the server */
   WEB_CLIENT_CONFIG: ["web-client-config"] as const,
+} as const;
+
+export const SETTINGS_QUERY_KEYS = {
+  all: ["settings"] as const,
+  byScope: (scope: SettingsScope) => ["settings", scope] as const,
+  personal: () => ["settings", "personal"] as const,
 } as const;
 
 /** Cache configuration shared across all config-related queries */

@@ -8,6 +8,7 @@ import {
   SettingsValue,
 } from "#/types/settings";
 import { useSettings } from "../query/use-settings";
+import { SETTINGS_QUERY_KEYS } from "../query/query-keys";
 
 type SettingsUpdate = Partial<Settings> & Record<string, unknown>;
 
@@ -82,7 +83,7 @@ export const useSaveSettings = (scope: SettingsScope = "personal") => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["settings", scope],
+        queryKey: SETTINGS_QUERY_KEYS.byScope(scope),
       });
     },
     meta: {

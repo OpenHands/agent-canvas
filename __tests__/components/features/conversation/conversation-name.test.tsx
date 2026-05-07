@@ -312,10 +312,14 @@ describe("ConversationName", () => {
     expect(model).toHaveAttribute("title", "openai/gpt-4o");
     expect(model.querySelector("svg")).toBeInTheDocument();
 
-    // Verify truncation structure: text is wrapped in a span with truncate class
-    const textSpan = model.querySelector("span.truncate");
+    // Verify the model name is rendered in full (no truncation)
+    const textSpan = model.querySelector("span");
     expect(textSpan).toBeInTheDocument();
     expect(textSpan).toHaveTextContent("openai/gpt-4o");
+    expect(textSpan).not.toHaveClass("truncate");
+    expect(model).not.toHaveClass("max-w-[150px]");
+    expect(model).not.toHaveClass("overflow-hidden");
+    expect(model).toHaveClass("whitespace-nowrap");
   });
 
   it("should not render the llm model when not available", () => {
