@@ -1,9 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoutesStub } from "react-router";
 import SettingsScreen, { clientLoader } from "#/routes/settings";
 import OptionService from "#/api/option-service/option-service.api";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
 import { getFirstAvailablePath } from "#/utils/settings-utils";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 
@@ -14,9 +20,24 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
   ],
 }));
 
+const cloudBackend: Backend = {
+  id: "prod",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-token",
+  kind: "cloud",
+};
+
 describe("settings route", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
   });
 
   it("prefers OSS fallback routes only", () => {
@@ -59,6 +80,30 @@ describe("settings route", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/settings/mcp");
+  });
+
+  it("redirects local-only settings paths to /settings when the active backend is cloud", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    const getConfigSpy = vi.spyOn(OptionService, "getConfig");
+
+    const integrationsResponse = (await clientLoader({
+      request: new Request("http://localhost/settings/integrations"),
+      params: {},
+      context: {},
+    } as never)) as Response;
+
+    const agentServerResponse = (await clientLoader({
+      request: new Request("http://localhost/settings/agent-server"),
+      params: {},
+      context: {},
+    } as never)) as Response;
+
+    expect(integrationsResponse.status).toBe(302);
+    expect(integrationsResponse.headers.get("Location")).toBe("/settings");
+    expect(agentServerResponse.status).toBe(302);
+    expect(agentServerResponse.headers.get("Location")).toBe("/settings");
+    expect(getConfigSpy).not.toHaveBeenCalled();
   });
 
   it("skips backend config loading for the agent server settings route", async () => {

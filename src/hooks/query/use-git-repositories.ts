@@ -1,6 +1,7 @@
 import { useInfiniteQuery, InfiniteData } from "@tanstack/react-query";
 import { useUserProviders } from "../use-user-providers";
 import { useAppInstallations } from "./use-app-installations";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { RepositoryPage } from "../../types/git";
 import { Provider } from "../../types/settings";
 import GitService from "#/api/git-service/git-service.api";
@@ -21,24 +22,32 @@ export function useGitRepositories(options: UseGitRepositoriesOptions) {
   const { providers } = useUserProviders();
   const { data: page } = useAppInstallations(provider);
   const installations = page?.items;
+  const active = useActiveBackend();
 
   const useInstallationRepos = provider
-    ? shouldUseInstallationRepos(provider)
+    ? shouldUseInstallationRepos(provider, active.backend.kind)
     : false;
 
   const repos = useInfiniteQuery<
     RepositoryPage,
     Error,
     InfiniteData<RepositoryPage>,
-    [string, string[], Provider | null, boolean, number, ...unknown[]],
+    [string, Provider | null, boolean, number, ...unknown[]],
     Cursor
   >({
+    // Key on (provider, useInstallationRepos, pageSize, active.id,
+    // active.orgId) — `providers` (the full array of connected
+    // providers) is intentionally excluded. The slot is already
+    // pinned by `provider` and the active backend; including the
+    // whole array caused a duplicate refetch the moment settings
+    // resolved and the array flipped from [] → ["github"].
     queryKey: [
       "repositories",
-      providers || [],
       provider,
       useInstallationRepos,
       pageSize,
+      active.backend.id,
+      active.orgId,
       ...(useInstallationRepos ? [installations || []] : []),
     ],
     queryFn: async ({ pageParam }) => {

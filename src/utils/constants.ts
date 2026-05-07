@@ -78,6 +78,15 @@ export const BTW_COMMAND = "/btw";
 export const BUILT_IN_COMMANDS: SlashCommandItem[] = [
   {
     skill: {
+      name: "new",
+      type: "agentskills",
+      content: "Creates a new conversation using the same runtime",
+      triggers: ["/new"],
+    },
+    command: "/new",
+  },
+  {
+    skill: {
       name: "btw",
       type: "agentskills",
       content: "Ask the agent a side question without derailing the main task",

@@ -5,10 +5,37 @@ import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { WebClientConfig } from "#/api/option-service/option.types";
 
 const useConfigMock = vi.fn();
+const useActiveBackendMock = vi.fn();
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
 }));
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => useActiveBackendMock(),
+}));
+
+const localActive = {
+  backend: {
+    id: "__bundled__",
+    name: "Local",
+    host: "http://localhost",
+    apiKey: "",
+    kind: "local" as const,
+  },
+  orgId: null,
+};
+
+const cloudActive = {
+  backend: {
+    id: "prod",
+    name: "Production",
+    host: "https://app.all-hands.dev",
+    apiKey: "bearer",
+    kind: "cloud" as const,
+  },
+  orgId: null,
+};
 
 const createConfig = (
   feature_flags: Partial<WebClientConfig["feature_flags"]> = {},
@@ -34,6 +61,7 @@ const createConfig = (
 describe("useSettingsNavItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useActiveBackendMock.mockReturnValue(localActive);
   });
 
   it("returns the OSS settings items in order", () => {
@@ -62,6 +90,25 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings");
     expect(paths).not.toContain("/settings/integrations");
     expect(paths).toContain("/settings/mcp");
+    expect(paths).toContain("/settings/secrets");
+  });
+
+  it("hides local-only sub-pages when the active backend is cloud", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useActiveBackendMock.mockReturnValue(cloudActive);
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((item) => item.type === "item")
+      .map((item) => (item.type === "item" ? item.item.to : null));
+
+    expect(paths).not.toContain("/settings/agent-server");
+    expect(paths).not.toContain("/settings/integrations");
+    expect(paths).toContain("/settings");
+    expect(paths).toContain("/settings/condenser");
+    expect(paths).toContain("/settings/verification");
+    expect(paths).toContain("/settings/mcp");
+    expect(paths).toContain("/settings/skills");
     expect(paths).toContain("/settings/secrets");
   });
 });

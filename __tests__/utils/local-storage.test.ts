@@ -16,27 +16,39 @@ describe("local-storage utilities", () => {
     describe("setLoginMethod", () => {
       it("stores the login method in local storage", () => {
         setLoginMethod(LoginMethod.GITHUB);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("github");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "github",
+        );
       });
 
       it("stores different login methods correctly", () => {
         setLoginMethod(LoginMethod.GITLAB);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("gitlab");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "gitlab",
+        );
 
         setLoginMethod(LoginMethod.BITBUCKET);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("bitbucket");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "bitbucket",
+        );
 
         setLoginMethod(LoginMethod.AZURE_DEVOPS);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("azure_devops");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "azure_devops",
+        );
 
         setLoginMethod(LoginMethod.BITBUCKET_DATA_CENTER);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("bitbucket_data_center");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "bitbucket_data_center",
+        );
       });
 
       it("overwrites previous login method", () => {
         setLoginMethod(LoginMethod.GITHUB);
         setLoginMethod(LoginMethod.GITLAB);
-        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe("gitlab");
+        expect(localStorage.getItem(LOCAL_STORAGE_KEYS.LOGIN_METHOD)).toBe(
+          "gitlab",
+        );
       });
     });
 

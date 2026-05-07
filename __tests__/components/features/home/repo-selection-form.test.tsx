@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { GitRepository } from "#/types/git";
 import { useHomeStore } from "#/stores/home-store";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Create mock functions
 const mockUseUserRepositories = vi.fn();
@@ -346,7 +347,7 @@ describe("RepositorySelectionForm", () => {
             })
           }
         >
-          {children}
+          <ActiveBackendProvider>{children}</ActiveBackendProvider>
         </QueryClientProvider>
       ),
     });

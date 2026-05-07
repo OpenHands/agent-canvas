@@ -1,3 +1,10 @@
+import { getActiveBackend } from "./backend-registry/active-store";
+import {
+  createCloudSecret,
+  deleteCloudSecret,
+  fetchCloudSecrets,
+  updateCloudSecret,
+} from "./cloud/secrets-service.api";
 import { createHttpClient } from "./typescript-client";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
 import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
@@ -170,6 +177,9 @@ export class SecretsService {
    */
   static async getSecrets(): Promise<CustomSecretWithoutValue[]> {
     try {
+      if (getActiveBackend().backend.kind === "cloud") {
+        return await withRetry(() => fetchCloudSecrets());
+      }
       const response = await withRetry(() =>
         createHttpClient().get<SecretsListResponse>("/api/settings/secrets"),
       );
@@ -197,6 +207,10 @@ export class SecretsService {
     value: string,
     description?: string,
   ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      await withRetry(() => createCloudSecret(name, value, description));
+      return;
+    }
     await withRetry(() =>
       createHttpClient().put<CreateSecretResponse>("/api/settings/secrets", {
         name,
@@ -221,6 +235,13 @@ export class SecretsService {
     value: string,
     description?: string,
   ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      // The cloud PUT endpoint renames + redescribes only (no value field),
+      // matching what `useUpdateSecret` actually sends:
+      // (secretToEdit=name, newName=value, description).
+      await withRetry(() => updateCloudSecret(name, value, description));
+      return;
+    }
     // Agent-server uses upsert, so update is the same as create
     await this.createSecret(name, value, description);
   }
@@ -234,6 +255,10 @@ export class SecretsService {
    */
   static async deleteSecret(name: string): Promise<void> {
     try {
+      if (getActiveBackend().backend.kind === "cloud") {
+        await withRetry(() => deleteCloudSecret(name));
+        return;
+      }
       await withRetry(() =>
         createHttpClient().delete<{ deleted: boolean }>(
           `/api/settings/secrets/${encodeURIComponent(name)}`,

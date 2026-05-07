@@ -61,11 +61,13 @@ export interface V1AppConversationStartRequest {
   pr_number?: number[];
   parent_conversation_id?: string | null;
   agent_type?: "default" | "plan";
+  sandbox_id?: string | null;
   plugins?: PluginSpec[] | null; // Plugins to load when starting the conversation
 }
 
 export type V1AppConversationStartTaskStatus =
   | "WORKING"
+  | "WAITING_FOR_SANDBOX"
   | "PREPARING_REPOSITORY"
   | "RUNNING_SETUP_SCRIPT"
   | "SETTING_UP_GIT_HOOKS"
@@ -116,6 +118,7 @@ export interface V1AppConversation {
   execution_status: V1ExecutionStatus | null;
   conversation_url: string | null;
   session_api_key: string | null;
+  sandbox_id: string | null;
   workspace?: V1ConversationWorkspace | null;
   public?: boolean;
   sub_conversation_ids: string[];

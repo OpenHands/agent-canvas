@@ -1,6 +1,18 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Provider, Settings, SettingsSchema, SettingsValue } from "#/types/settings";
+import {
+  Provider,
+  Settings,
+  SettingsSchema,
+  SettingsValue,
+} from "#/types/settings";
 import { getStoredGitProviders } from "../secrets-service";
+import { getActiveBackend } from "../backend-registry/active-store";
+import {
+  fetchCloudConversationSettingsSchema,
+  fetchCloudSettings,
+  fetchCloudSettingsSchema,
+  saveCloudSettings,
+} from "../cloud/settings-service.api";
 import { createHttpClient, createSettingsClient } from "../typescript-client";
 
 /**
@@ -53,7 +65,7 @@ async function withRetry<T>(
       lastError = error;
       if (attempt < maxRetries - 1) {
         // Exponential backoff: 500ms, 1000ms, 2000ms
-        const delay = baseDelayMs * Math.pow(2, attempt);
+        const delay = baseDelayMs * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -214,6 +226,22 @@ class SettingsService {
    * Uses in-memory cache for performance.
    */
   static async getSettings(): Promise<Settings> {
+    // Cloud SaaS uses a different settings shape (flat top-level fields
+    // including provider_tokens_set, llm_model, etc.). Branch out before
+    // touching the local-only cache: cloud responses bypass the local
+    // SettingsApiResponse shape and feed straight into syncDerivedSettings
+    // so cloud-native fields like provider_tokens_set reach the GUI's
+    // useUserProviders → useAppInstallations → useGitRepositories chain.
+    if (getActiveBackend().backend.kind === "cloud") {
+      try {
+        const cloud = await withRetry(() => fetchCloudSettings());
+        return syncDerivedSettings(cloud);
+      } catch (error) {
+        console.warn("Failed to fetch cloud settings, using defaults:", error);
+        return syncDerivedSettings({});
+      }
+    }
+
     // Check cache first
     if (isCacheValid() && settingsCache.redacted) {
       return syncDerivedSettings(transformApiResponse(settingsCache.redacted));
@@ -268,10 +296,16 @@ class SettingsService {
   }
 
   static async getSettingsSchema(): Promise<SettingsSchema> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return (await fetchCloudSettingsSchema()) as SettingsSchema;
+    }
     return (await createSettingsClient().getAgentSchema()) as SettingsSchema;
   }
 
   static async getConversationSettingsSchema(): Promise<SettingsSchema> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return (await fetchCloudConversationSettingsSchema()) as SettingsSchema;
+    }
     return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
   }
 
@@ -304,16 +338,17 @@ class SettingsService {
     }
 
     // Only call API if we have something to update
-    if (
-      !payload.agent_settings_diff &&
-      !payload.conversation_settings_diff
-    ) {
+    if (!payload.agent_settings_diff && !payload.conversation_settings_diff) {
       return true;
     }
 
-    await withRetry(() =>
-      createHttpClient().patch<SettingsApiResponse>("/api/settings", payload),
-    );
+    if (getActiveBackend().backend.kind === "cloud") {
+      await withRetry(() => saveCloudSettings(payload));
+    } else {
+      await withRetry(() =>
+        createHttpClient().patch<SettingsApiResponse>("/api/settings", payload),
+      );
+    }
 
     // Invalidate cache after successful save
     clearCache();

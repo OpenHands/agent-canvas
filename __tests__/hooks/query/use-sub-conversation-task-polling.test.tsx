@@ -25,9 +25,13 @@ describe("useSubConversationTaskPolling", () => {
       },
     });
 
-    return ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
+    return function ({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+    };
   };
 
   const createMockTask = (

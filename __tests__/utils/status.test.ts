@@ -7,6 +7,7 @@ import {
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
 import { V1ExecutionStatus } from "#/types/v1/core";
+import type { V1AppConversationStartTaskStatus } from "#/api/conversation-service/v1-conversation-service.types";
 
 describe("getStatusCode", () => {
   it("returns RUNNING_TASK when execution status is running", () => {
@@ -25,11 +26,7 @@ describe("getStatusCode", () => {
   });
 
   it("returns starting i18n key when task is running setup", () => {
-    const result = getStatusCode(
-      "OPEN",
-      null,
-      "STARTING_CONVERSATION",
-    );
+    const result = getStatusCode("OPEN", null, "STARTING_CONVERSATION");
     expect(result).toBe(I18nKey.CONVERSATION$STARTING_CONVERSATION);
   });
 
@@ -41,6 +38,18 @@ describe("getStatusCode", () => {
   it("returns DISCONNECTED when websocket is closed and no task", () => {
     const result = getStatusCode("CLOSED", V1ExecutionStatus.IDLE);
     expect(result).toBe(I18nKey.CHAT_INTERFACE$DISCONNECTED);
+  });
+
+  it("returns COMMON$WAITING_FOR_SANDBOX when task is waiting for sandbox", () => {
+    const result = getStatusCode("OPEN", null, "WAITING_FOR_SANDBOX");
+    expect(result).toBe(I18nKey.COMMON$WAITING_FOR_SANDBOX);
+  });
+
+  it("falls back to starting i18n key for an unknown task status instead of throwing", () => {
+    const unknownStatus =
+      "FUTURE_STATUS_FROM_CLOUD" as V1AppConversationStartTaskStatus;
+    const result = getStatusCode("OPEN", null, unknownStatus);
+    expect(result).toBe(I18nKey.CONVERSATION$STARTING_CONVERSATION);
   });
 });
 

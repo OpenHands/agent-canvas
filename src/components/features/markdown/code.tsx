@@ -1,8 +1,8 @@
 import React from "react";
 import { ExtraProps } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-content-wrapper";
+import { SyntaxHighlighter } from "./syntax-highlighter";
 
 // See https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
 

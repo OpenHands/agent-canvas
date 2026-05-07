@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { extractSettings } from "#/utils/settings-utils";
 
 function getLlmModel(settings: ReturnType<typeof extractSettings>): unknown {
-  const as = settings.agent_settings_diff as Record<string, unknown> | undefined;
+  const as = settings.agent_settings_diff as
+    | Record<string, unknown>
+    | undefined;
   const llm = as?.llm as Record<string, unknown> | undefined;
   return llm?.model;
 }
@@ -17,9 +19,7 @@ describe("Model name case preservation", () => {
 
     const settings = extractSettings(formData);
 
-    expect(getLlmModel(settings)).toBe(
-      "SambaNova/Meta-Llama-3.1-8B-Instruct",
-    );
+    expect(getLlmModel(settings)).toBe("SambaNova/Meta-Llama-3.1-8B-Instruct");
   });
 
   it("should preserve openai model case", () => {
@@ -56,8 +56,6 @@ describe("Model name case preservation", () => {
     expect(getLlmModel(settings)).not.toBe(
       "sambanova/meta-llama-3.1-8b-instruct",
     );
-    expect(getLlmModel(settings)).toBe(
-      "SambaNova/Meta-Llama-3.1-8B-Instruct",
-    );
+    expect(getLlmModel(settings)).toBe("SambaNova/Meta-Llama-3.1-8B-Instruct");
   });
 });

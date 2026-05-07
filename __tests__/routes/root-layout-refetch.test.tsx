@@ -5,6 +5,7 @@ import { createRoutesStub } from "react-router";
 import MainApp from "#/routes/root-layout";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Hoisted mocks for useIsAuthed and useConfig to allow dynamic control in tests
 const { useIsAuthedMock, useConfigMock } = vi.hoisted(() => ({
@@ -75,7 +76,7 @@ describe("MainApp - Auth refetch behavior", () => {
     render(<RouterStub initialEntries={["/settings"]} />, {
       wrapper: ({ children }) => (
         <QueryClientProvider client={queryClient}>
-          {children}
+          <ActiveBackendProvider>{children}</ActiveBackendProvider>
         </QueryClientProvider>
       ),
     });

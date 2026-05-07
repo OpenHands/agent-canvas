@@ -5,6 +5,7 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { GitRepository } from "#/types/git";
 import { useUserProviders } from "#/hooks/use-user-providers";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 import { RepositorySelectionForm } from "./repo-selection-form";
 import { WorkspaceSelectionForm } from "./workspace-selection-form";
@@ -51,7 +52,16 @@ export function LaunchTabs({
   const { t } = useTranslation("openhands");
   const { providers } = useUserProviders();
   const providersAreSet = providers.length > 0;
+  const isCloud = useActiveBackend().backend.kind === "cloud";
   const [activeTab, setActiveTab] = React.useState<LaunchTab>("repositories");
+
+  // If the active backend is cloud and the workspaces tab was previously
+  // selected, snap back to repositories — workspaces don't apply to cloud.
+  React.useEffect(() => {
+    if (isCloud && activeTab === "workspaces") {
+      setActiveTab("repositories");
+    }
+  }, [isCloud, activeTab]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,13 +77,15 @@ export function LaunchTabs({
         >
           {t(I18nKey.HOME$REPOSITORIES_TAB)}
         </TabButton>
-        <TabButton
-          testId="workspaces-tab"
-          isActive={activeTab === "workspaces"}
-          onClick={() => setActiveTab("workspaces")}
-        >
-          {t(I18nKey.HOME$WORKSPACES_TAB)}
-        </TabButton>
+        {!isCloud && (
+          <TabButton
+            testId="workspaces-tab"
+            isActive={activeTab === "workspaces"}
+            onClick={() => setActiveTab("workspaces")}
+          >
+            {t(I18nKey.HOME$WORKSPACES_TAB)}
+          </TabButton>
+        )}
       </div>
 
       <div className="min-h-[240px]">
@@ -86,7 +98,7 @@ export function LaunchTabs({
             isLoadingSettings={isLoadingSettings}
           />
         )}
-        {activeTab === "workspaces" && (
+        {activeTab === "workspaces" && !isCloud && (
           <WorkspaceSelectionForm isLoadingSettings={isLoadingSettings} />
         )}
       </div>

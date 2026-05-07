@@ -35,6 +35,9 @@ export function ConversationName() {
     handleShowAgentTools,
     handleShowSkills,
     handleShowHooks,
+    handleTogglePublic,
+    handleCopyShareLink,
+    shareUrl,
     handleConfirmDelete,
     handleConfirmStop,
     metricsModalVisible,
@@ -184,6 +187,9 @@ export function ConversationName() {
                 }
                 onShowSkills={shouldShowSkills ? handleShowSkills : undefined}
                 onShowHooks={shouldShowHooks ? handleShowHooks : undefined}
+                onTogglePublic={handleTogglePublic}
+                onCopyShareLink={handleCopyShareLink}
+                shareUrl={shareUrl}
                 onDownloadConversation={
                   shouldShowDownloadConversation
                     ? handleDownloadConversation

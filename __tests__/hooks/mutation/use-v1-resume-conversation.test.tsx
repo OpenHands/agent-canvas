@@ -32,6 +32,7 @@ describe("useV1ResumeConversation", () => {
         created_by_user_id: null,
         conversation_url: "http://localhost:3000",
         session_api_key: "test-key",
+        sandbox_id: null,
         selected_repository: null,
         selected_branch: null,
         git_provider: null,
@@ -64,7 +65,8 @@ describe("useV1ResumeConversation", () => {
     const invalidateCalls = invalidateSpy.mock.calls.map((call) => call[0]);
     const conversationInvalidation = invalidateCalls.find(
       (call) =>
-        call?.queryKey?.[0] === "user" && call?.queryKey?.[1] === "conversation",
+        call?.queryKey?.[0] === "user" &&
+        call?.queryKey?.[1] === "conversation",
     );
 
     expect(conversationInvalidation).toBeDefined();

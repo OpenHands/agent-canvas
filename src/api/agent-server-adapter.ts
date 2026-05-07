@@ -1,12 +1,8 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsValue } from "#/types/settings";
 import { V1ExecutionStatus } from "#/types/v1/core";
-import {
-  getAgentServerBaseUrl,
-  getAgentServerSessionApiKey,
-  getAgentServerWorkingDir,
-  getConfiguredWorkerUrls,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
+import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import {
   GetHooksResponse,
   GetSkillsResponse,
@@ -54,7 +50,10 @@ function browserToolsEnabled() {
 }
 
 export function toConversationUrl(conversationId: string): string {
-  return `${getAgentServerBaseUrl()}/api/conversations/${conversationId}`;
+  // Local-format conversation URL — points at whichever local agent-server
+  // is actually serving the conversation (the bundled one when the active
+  // selection is cloud).
+  return `${getEffectiveLocalBackend().host}/api/conversations/${conversationId}`;
 }
 
 // TODO(i18n): extract "Conversation" once we add CONVERSATION$DEFAULT_TITLE
@@ -74,7 +73,9 @@ export function toV1AppConversation(
     selected_repository: metadata?.selected_repository ?? null,
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
-    title: info.title?.trim() ? info.title : getDefaultConversationTitle(info.id),
+    title: info.title?.trim()
+      ? info.title
+      : getDefaultConversationTitle(info.id),
     trigger: null,
     pr_number: [],
     llm_model: info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model,
@@ -106,7 +107,8 @@ export function toV1AppConversation(
       (info.execution_status as V1AppConversation["execution_status"]) ??
       V1ExecutionStatus.IDLE,
     conversation_url: toConversationUrl(info.id),
-    session_api_key: getAgentServerSessionApiKey(),
+    session_api_key: getEffectiveLocalBackend().apiKey || null,
+    sandbox_id: null,
     workspace: {
       working_dir: info.workspace?.working_dir ?? getAgentServerWorkingDir(),
     },
@@ -365,7 +367,9 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
-export function buildStartConversationRequest(options: StartConversationOptions) {
+export function buildStartConversationRequest(
+  options: StartConversationOptions,
+) {
   // Use encrypted settings if provided, otherwise fall back to regular settings
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
@@ -385,8 +389,9 @@ export function buildStartConversationRequest(options: StartConversationOptions)
       }
     : options;
 
-  const conversationSettings =
-    buildConfiguredConversationSettings(sourceConversationOptions);
+  const conversationSettings = buildConfiguredConversationSettings(
+    sourceConversationOptions,
+  );
 
   const payload: Record<string, unknown> = {
     agent,
@@ -439,8 +444,9 @@ export function buildStartConversationRequest(options: StartConversationOptions)
   // Add custom secrets as LookupSecret entries
   // The agent-server will fetch values at runtime from /api/settings/secrets/{name}
   if (options.customSecrets && options.customSecrets.length > 0) {
-    const baseUrl = getAgentServerBaseUrl();
-    const sessionApiKey = getAgentServerSessionApiKey();
+    const backend = getEffectiveLocalBackend();
+    const baseUrl = backend.host;
+    const sessionApiKey = backend.apiKey || null;
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {
@@ -450,7 +456,8 @@ export function buildStartConversationRequest(options: StartConversationOptions)
         description: secret.description,
       };
 
-      // Include session API key header if configured
+      // Include session API key header if configured (local agent-server only —
+      // cloud LookupSecrets aren't fetched by the local runtime).
       if (sessionApiKey) {
         lookupSecret.headers = {
           "X-Session-API-Key": sessionApiKey,

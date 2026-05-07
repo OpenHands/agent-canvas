@@ -161,13 +161,31 @@ export const getFileExtension = (fileName: string): string => {
   return extension || "FILE";
 };
 
-export const shouldUseInstallationRepos = (provider: Provider) => {
+/**
+ * Whether to use the installation-scoped repo flow
+ * (`/api/v1/git/installations/search` → `/api/v1/git/repositories/search?installation_id=…`)
+ * for the given provider/backend combo.
+ *
+ * Mirrors OpenHands' SaaS frontend (parameterized by `app_mode`):
+ *   - bitbucket / bitbucket_data_center → always installation-based
+ *   - github → installation-based ONLY when the active backend is cloud
+ *   - gitlab / azure_devops / forgejo → direct (search) flow
+ *
+ * `appMode` accepts the active backend `kind` ("local" | "cloud") so call
+ * sites can hand it through directly.
+ */
+export const shouldUseInstallationRepos = (
+  provider: Provider | null | undefined,
+  appMode?: "local" | "cloud",
+) => {
   if (!provider) return false;
 
   switch (provider) {
     case "bitbucket":
     case "bitbucket_data_center":
       return true;
+    case "github":
+      return appMode === "cloud";
     default:
       return false;
   }

@@ -20,6 +20,7 @@ const createConversation = (): V1AppConversation => ({
   execution_status: V1ExecutionStatus.RUNNING,
   conversation_url: "http://localhost:3000/api/conversations/conversation-1",
   session_api_key: "session-key",
+  sandbox_id: null,
   sub_conversation_ids: [],
 });
 

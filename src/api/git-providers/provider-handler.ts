@@ -83,22 +83,32 @@ const requireService = (provider: Provider): GitProviderService => {
   return service;
 };
 
-const firstConfiguredService = (): GitProviderService => {
+const firstConfiguredService = (): GitProviderService | null => {
   const all = collectAllServices();
-  if (all.length === 0) {
-    throw new GitProviderAuthError("No git provider configured");
-  }
-  return all[0];
+  return all[0] ?? null;
 };
 
 export const ProviderHandler = {
   getServiceForProvider: getServiceFor,
 
-  async getUserGitInfo(provider?: Provider): Promise<GitUser> {
-    const service = provider
-      ? requireService(provider)
-      : firstConfiguredService();
-    return service.getUser();
+  /**
+   * Resolve the calling user's git profile from any locally-configured
+   * provider. Returns `null` when no provider is configured — the
+   * caller (e.g. `useGitUser`) treats that as "no info to show", which
+   * is the right outcome for a clean local install or for the brief
+   * window after a Cloud → Local switch where settings haven't refetched
+   * yet. Throwing here would surface as a global error toast.
+   *
+   * When a `provider` is passed explicitly, missing local credentials
+   * are still an error — the caller asked for that specific provider,
+   * so we propagate `requireService`'s `GitProviderAuthError`.
+   */
+  async getUserGitInfo(provider?: Provider): Promise<GitUser | null> {
+    if (provider) {
+      return requireService(provider).getUser();
+    }
+    const service = firstConfiguredService();
+    return service ? service.getUser() : null;
   },
 
   async getSuggestedTasks(

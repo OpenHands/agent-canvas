@@ -6,40 +6,60 @@ import ConversationService from "#/api/conversation-service/conversation-service
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 
 interface VSCodeUrlResult {
   url: string | null;
-  error: string | null;
 }
 
 export const useUnifiedVSCodeUrl = () => {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const runtimeIsReady = useRuntimeIsReady({ allowAgentError: true });
+  const { data: conversation } = useActiveConversation();
+
+  const conversationUrl = conversation?.conversation_url ?? null;
+  const sessionApiKey = conversation?.session_api_key ?? null;
 
   const mainQuery = useQuery<VSCodeUrlResult>({
-    queryKey: ["unified", "vscode_url", conversationId],
+    // Include conversation host + key in the cache key so different
+    // conversations don't share VSCode URL data, and so a cloud-→-local
+    // (or vice versa) swap re-fetches against the right host.
+    queryKey: [
+      "unified",
+      "vscode_url",
+      conversationId,
+      conversationUrl,
+      sessionApiKey,
+    ],
     queryFn: async () => {
       if (!conversationId) throw new Error("No conversation ID");
 
+      // Forward the conversation's owning host + session key so cloud
+      // conversations hit their cloud sandbox rather than falling back
+      // to the bundled local agent-server.
       const response = await V1ConversationService.getVSCodeUrl(
         conversationId,
-        null,
-        null,
+        conversationUrl,
+        sessionApiKey,
       ).catch(() => ConversationService.getVSCodeUrl(conversationId));
 
-      return {
-        url: transformVSCodeUrl(response.vscode_url),
-        error: response.vscode_url ? null : t(I18nKey.VSCODE$URL_NOT_AVAILABLE),
-      };
+      return { url: transformVSCodeUrl(response.vscode_url) };
     },
     enabled: runtimeIsReady && !!conversationId,
     refetchOnMount: true,
     retry: 3,
   });
 
+  // Derive the i18n'd "URL unavailable" message outside `queryFn` so the
+  // queryKey doesn't have to include `t`.
+  const error =
+    mainQuery.data && !mainQuery.data.url
+      ? t(I18nKey.VSCODE$URL_NOT_AVAILABLE)
+      : null;
+
   return {
-    data: mainQuery.data,
+    data: mainQuery.data ? { ...mainQuery.data, error } : undefined,
     error: mainQuery.error,
     isLoading: mainQuery.isLoading,
     isError: mainQuery.isError,

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -10,6 +10,12 @@ const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
+const LOCAL_AGENT_SERVER_SUBDIRS = [
+  "openhands-agent-server",
+  "openhands-sdk",
+  "openhands-tools",
+  "openhands-workspace",
+];
 // Default secret key for local development (DO NOT use in production)
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default to main branch until settings persistence APIs are in a released version.
@@ -51,24 +57,49 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
 /**
  * Build the uvx command and arguments for running agent-server.
  *
- * Environment variables:
+ * Environment variables (highest precedence first):
+ * - OH_AGENT_SERVER_LOCAL_PATH: Absolute path to a software-agent-sdk checkout.
+ *   Runs the local checkout via uvx with editable installs of the workspace
+ *   packages (openhands-sdk, openhands-tools, openhands-workspace) so source
+ *   edits are picked up without a manual reinstall. The agent-server itself
+ *   is rebuilt from local source on each invocation (--reinstall).
+ * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
  * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.18.0")
- * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name (takes precedence over version)
  *
- * If neither is set, defaults to main branch until settings persistence APIs
+ * If none are set, defaults to main branch until settings persistence APIs
  * are released. Set OH_AGENT_SERVER_VERSION to use a released version.
  *
  * @param {Record<string, string | undefined>} env
  * @returns {{ command: string, args: string[], source: string }}
  */
 export function buildAgentServerCommand(env = process.env) {
+  const localPath = env.OH_AGENT_SERVER_LOCAL_PATH;
   const gitRef = env.OH_AGENT_SERVER_GIT_REF;
   const version = env.OH_AGENT_SERVER_VERSION;
 
   const uvxArgs = [];
   let source = "";
 
-  if (gitRef) {
+  if (localPath) {
+    if (!path.isAbsolute(localPath)) {
+      throw new Error(
+        `OH_AGENT_SERVER_LOCAL_PATH must be an absolute path, got: ${localPath}`,
+      );
+    }
+    uvxArgs.push(
+      "--reinstall",
+      "--from",
+      path.join(localPath, "openhands-agent-server"),
+      "--with-editable",
+      path.join(localPath, "openhands-sdk"),
+      "--with-editable",
+      path.join(localPath, "openhands-tools"),
+      "--with-editable",
+      path.join(localPath, "openhands-workspace"),
+      "agent-server",
+    );
+    source = `local (${localPath})`;
+  } else if (gitRef) {
     // Use git ref with subdirectory syntax for uv workspace monorepo
     // The software-agent-sdk repo has packages in subdirectories:
     // openhands-agent-server/, openhands-tools/, openhands-workspace/
@@ -224,6 +255,27 @@ export function buildNpmScriptCommand(
   };
 }
 
+export function validateLocalAgentServerPath(localPath) {
+  if (!path.isAbsolute(localPath)) {
+    throw new Error(
+      `OH_AGENT_SERVER_LOCAL_PATH must be an absolute path, got: ${localPath}`,
+    );
+  }
+  if (!existsSync(localPath)) {
+    throw new Error(
+      `OH_AGENT_SERVER_LOCAL_PATH does not exist: ${localPath}`,
+    );
+  }
+  for (const subdir of LOCAL_AGENT_SERVER_SUBDIRS) {
+    const subdirPath = path.join(localPath, subdir);
+    if (!existsSync(subdirPath)) {
+      throw new Error(
+        `OH_AGENT_SERVER_LOCAL_PATH is missing expected workspace package '${subdir}': ${subdirPath}`,
+      );
+    }
+  }
+}
+
 async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   const startedAt = Date.now();
 
@@ -263,6 +315,10 @@ function spawnProcess(command, args, options) {
 
 async function main() {
   const config = buildSafeDevConfig();
+
+  if (process.env.OH_AGENT_SERVER_LOCAL_PATH) {
+    validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
+  }
 
   for (const dir of [
     config.stateDir,

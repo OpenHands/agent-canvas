@@ -73,7 +73,9 @@ describe("extractModelAndProvider", () => {
       separator: "/",
     });
 
-    expect(extractModelAndProvider("openhands/claude-opus-4-5-20251101")).toEqual({
+    expect(
+      extractModelAndProvider("openhands/claude-opus-4-5-20251101"),
+    ).toEqual({
       provider: "openhands",
       model: "claude-opus-4-5-20251101",
       separator: "/",

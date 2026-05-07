@@ -2,12 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { SecretsService } from "#/api/secrets-service";
 import { CustomSecretWithoutValue } from "#/api/secrets-service.types";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
-export const useGetSecrets = () =>
-  useQuery({
-    queryKey: ["secrets"],
+export const useGetSecrets = () => {
+  const active = useActiveBackend();
+  return useQuery({
+    queryKey: ["secrets", active.backend.id, active.orgId],
     queryFn: SecretsService.getSecrets,
   });
+};
 
 interface UseSearchSecretsOptions {
   nameContains?: string;
@@ -21,9 +24,10 @@ interface UseSearchSecretsOptions {
  */
 export const useSearchSecrets = (options: UseSearchSecretsOptions = {}) => {
   const { nameContains, enabled = true } = options;
+  const active = useActiveBackend();
 
   const query = useQuery<CustomSecretWithoutValue[], Error>({
-    queryKey: ["secrets"],
+    queryKey: ["secrets", active.backend.id, active.orgId],
     queryFn: SecretsService.getSecrets,
     enabled,
     staleTime: 1000 * 60 * 5,

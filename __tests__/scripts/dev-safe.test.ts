@@ -11,7 +11,10 @@ import {
   buildNpmScriptCommand,
   buildAgentServerCommand,
   formatMissingUvxGuidance,
+  validateLocalAgentServerPath,
 } from "../../scripts/dev-safe.mjs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -117,6 +120,96 @@ describe("buildAgentServerCommand", () => {
       "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
     );
     expect(cmd.args).not.toContain("openhands-agent-server==1.18.0");
+  });
+
+  it("uses local path with editable workspace packages when OH_AGENT_SERVER_LOCAL_PATH is set", () => {
+    const sdk = "/abs/path/to/software-agent-sdk";
+    const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_LOCAL_PATH: sdk });
+
+    expect(cmd.command).toBe("uvx");
+    expect(cmd.args).toEqual([
+      "--reinstall",
+      "--from",
+      path.join(sdk, "openhands-agent-server"),
+      "--with-editable",
+      path.join(sdk, "openhands-sdk"),
+      "--with-editable",
+      path.join(sdk, "openhands-tools"),
+      "--with-editable",
+      path.join(sdk, "openhands-workspace"),
+      "agent-server",
+    ]);
+    expect(cmd.source).toBe(`local (${sdk})`);
+  });
+
+  it("local path takes precedence over git ref and version", () => {
+    const sdk = "/abs/path/to/software-agent-sdk";
+    const cmd = buildAgentServerCommand({
+      OH_AGENT_SERVER_LOCAL_PATH: sdk,
+      OH_AGENT_SERVER_GIT_REF: "feature-branch",
+      OH_AGENT_SERVER_VERSION: "1.18.0",
+    });
+
+    expect(cmd.source).toBe(`local (${sdk})`);
+    expect(cmd.args).toContain(path.join(sdk, "openhands-agent-server"));
+    expect(cmd.args).not.toContain(
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+    );
+    expect(cmd.args).not.toContain("openhands-agent-server==1.18.0");
+  });
+
+  it("rejects relative OH_AGENT_SERVER_LOCAL_PATH", () => {
+    expect(() =>
+      buildAgentServerCommand({
+        OH_AGENT_SERVER_LOCAL_PATH: "./software-agent-sdk",
+      }),
+    ).toThrow(/must be an absolute path/);
+  });
+});
+
+describe("validateLocalAgentServerPath", () => {
+  it("passes when all four workspace packages exist", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "sdk-"));
+    try {
+      for (const subdir of [
+        "openhands-agent-server",
+        "openhands-sdk",
+        "openhands-tools",
+        "openhands-workspace",
+      ]) {
+        mkdirSync(path.join(tmp, subdir));
+      }
+      expect(() => validateLocalAgentServerPath(tmp)).not.toThrow();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when the path does not exist", () => {
+    expect(() =>
+      validateLocalAgentServerPath("/definitely/does/not/exist/sdk"),
+    ).toThrow(/does not exist/);
+  });
+
+  it("throws when a workspace package subdirectory is missing", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "sdk-"));
+    try {
+      mkdirSync(path.join(tmp, "openhands-agent-server"));
+      mkdirSync(path.join(tmp, "openhands-sdk"));
+      mkdirSync(path.join(tmp, "openhands-tools"));
+      // openhands-workspace is intentionally absent
+      expect(() => validateLocalAgentServerPath(tmp)).toThrow(
+        /openhands-workspace/,
+      );
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when given a relative path", () => {
+    expect(() => validateLocalAgentServerPath("./sdk")).toThrow(
+      /must be an absolute path/,
+    );
   });
 });
 

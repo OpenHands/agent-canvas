@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
 import { cn } from "#/utils/utils";
@@ -14,6 +16,8 @@ import DownloadIcon from "#/icons/u-download.svg?react";
 import CreditCardIcon from "#/icons/u-credit-card.svg?react";
 import CloseIcon from "#/icons/u-close.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
+import LinkIcon from "#/icons/link-external.svg?react";
+import CopyIcon from "#/icons/copy.svg?react";
 import { ConversationNameContextMenuIconText } from "./conversation-name-context-menu-icon-text";
 import { CONTEXT_MENU_ICON_TEXT_CLASSNAME } from "#/utils/constants";
 
@@ -31,7 +35,10 @@ interface ConversationNameContextMenuProps {
   onShowAgentTools?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onShowSkills?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onShowHooks?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onTogglePublic?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onCopyShareLink?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  shareUrl?: string;
   position?: "top" | "bottom";
 }
 
@@ -44,16 +51,28 @@ export function ConversationNameContextMenu({
   onShowAgentTools,
   onShowSkills,
   onShowHooks,
+  onTogglePublic,
+  onCopyShareLink,
   onDownloadConversation,
+  shareUrl,
   position = "bottom",
 }: ConversationNameContextMenuProps) {
   const isMobile = useBreakpoint();
 
   const { t } = useTranslation("openhands");
+  const { backend } = useActiveBackend();
+  const { data: conversation } = useActiveConversation();
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
   const hasTools = Boolean(onShowAgentTools || onShowSkills || onShowHooks);
   const hasInfo = Boolean(onDisplayCost);
   const hasControl = Boolean(onStop || onDelete);
+  const stopLabelKey =
+    backend.kind === "cloud"
+      ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
+      : I18nKey.COMMON$STOP_CONVERSATION;
+  // Public sharing is a cloud-only SaaS feature; hide it on local backends.
+  const shouldShowPublicSharing =
+    backend.kind === "cloud" && Boolean(onTogglePublic);
 
   return (
     <ContextMenu
@@ -151,6 +170,49 @@ export function ConversationNameContextMenu({
         </ContextMenuListItem>
       )}
 
+      {shouldShowPublicSharing && onTogglePublic && (
+        <li className="flex items-center gap-2 justify-between w-full px-4 h-10 hover:bg-white/10">
+          <button
+            type="button"
+            data-testid="share-publicly-button"
+            onClick={onTogglePublic}
+            className="flex items-center gap-2 flex-1 text-sm text-start cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={conversation?.public || false}
+              readOnly
+              className="w-4 h-4 cursor-pointer"
+            />
+            <span>{t(I18nKey.CONVERSATION$SHARE_PUBLICLY)}</span>
+          </button>
+          {conversation?.public && shareUrl && onCopyShareLink && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                data-testid="copy-share-link-button"
+                onClick={onCopyShareLink}
+                className="p-1 hover:bg-[#717888] rounded cursor-pointer"
+                title={t(I18nKey.BUTTON$COPY_TO_CLIPBOARD)}
+              >
+                <CopyIcon width={16} height={16} />
+              </button>
+              <a
+                data-testid="open-share-link-button"
+                href={shareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 hover:bg-[#717888] rounded cursor-pointer"
+                title={t(I18nKey.BUTTON$OPEN_IN_NEW_TAB)}
+              >
+                <LinkIcon width={16} height={16} />
+              </a>
+            </div>
+          )}
+        </li>
+      )}
+
       {onStop && (
         <ContextMenuListItem
           testId="stop-button"
@@ -159,7 +221,7 @@ export function ConversationNameContextMenu({
         >
           <ConversationNameContextMenuIconText
             icon={<CloseIcon width={16} height={16} />}
-            text={t(I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME)}
+            text={t(stopLabelKey)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
         </ContextMenuListItem>

@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import DocumentIcon from "#/icons/document.svg?react";
+import { BackendSelector } from "#/components/features/backends/backend-selector";
+import { AddBackendMenuItem } from "#/components/features/backends/add-backend-menu-item";
 import { ContextMenuContainer } from "../context-menu/context-menu-container";
 import { ContextMenuNavLink } from "../context-menu/context-menu-nav-link";
 import { SettingsNavHeader } from "../settings/settings-nav-header";
@@ -15,9 +17,13 @@ const contextMenuListItemClassName = cn(
 
 interface UserContextMenuProps {
   onClose: () => void;
+  onOpenAddBackend: () => void;
 }
 
-export function UserContextMenu({ onClose }: UserContextMenuProps) {
+export function UserContextMenu({
+  onClose,
+  onOpenAddBackend,
+}: UserContextMenuProps) {
   const { t } = useTranslation("openhands");
   const settingsNavItems = useSettingsNavItems();
 
@@ -28,7 +34,13 @@ export function UserContextMenu({ onClose }: UserContextMenuProps) {
           {t(I18nKey.USER$ACCOUNT_SETTINGS)}
         </h3>
 
+        <BackendSelector />
+
         <div className="flex flex-col items-start gap-0 w-full">
+          <AddBackendMenuItem onOpen={onOpenAddBackend} />
+
+          <SettingsNavDivider className="my-1.5" />
+
           {settingsNavItems.map((renderedItem, index) => {
             if (renderedItem.type === "header") {
               return (

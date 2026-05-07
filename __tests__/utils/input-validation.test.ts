@@ -89,7 +89,12 @@ describe("getInvalidEmails", () => {
   });
 
   test("returns all invalid emails", () => {
-    const emails = ["valid@example.com", "invalid", "test@", "another@valid.org"];
+    const emails = [
+      "valid@example.com",
+      "invalid",
+      "test@",
+      "another@valid.org",
+    ];
     expect(getInvalidEmails(emails)).toEqual(["invalid", "test@"]);
   });
 
@@ -148,7 +153,9 @@ describe("hasDuplicates", () => {
   });
 
   test("returns true when duplicates exist", () => {
-    expect(hasDuplicates(["a@test.com", "b@test.com", "a@test.com"])).toBe(true);
+    expect(hasDuplicates(["a@test.com", "b@test.com", "a@test.com"])).toBe(
+      true,
+    );
   });
 
   test("returns true for case-insensitive duplicates", () => {

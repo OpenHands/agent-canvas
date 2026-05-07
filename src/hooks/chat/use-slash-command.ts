@@ -3,6 +3,7 @@ import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { Skill } from "#/api/conversation-service/v1-conversation-service.types";
 import { Microagent } from "#/api/open-hands.types";
 import { BUILT_IN_COMMANDS } from "#/utils/constants";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 export type SlashCommandSkill = Skill | Microagent;
 
@@ -32,16 +33,20 @@ export const useSlashCommand = (
   chatInputRef: React.RefObject<HTMLDivElement | null>,
 ) => {
   const { data: skills, isLoading: isSkillsLoading } = useConversationSkills();
+  const isCloud = useActiveBackend().backend.kind === "cloud";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Build slash command items from built-in commands + skills:
   // - Built-in commands (like /new) are included for V1 conversations
+  // - /new is cloud-only — local backends don't surface it
   // - Skills with explicit "/" triggers use those triggers
   // - AgentSkills without "/" triggers get a derived "/<name>" command
   const slashItems = useMemo(() => {
-    const items: SlashCommandItem[] = [...BUILT_IN_COMMANDS];
+    const items: SlashCommandItem[] = BUILT_IN_COMMANDS.filter(
+      (cmd) => isCloud || cmd.command !== "/new",
+    );
 
     // Wait for skills to finish initial load so all commands appear together
     if (isSkillsLoading) return items;
@@ -62,7 +67,7 @@ export const useSlashCommand = (
       }
     });
     return items;
-  }, [skills, isSkillsLoading]);
+  }, [skills, isSkillsLoading, isCloud]);
 
   // Filter items based on user input after "/"
   const filteredItems = useMemo(() => {

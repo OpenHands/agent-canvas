@@ -173,8 +173,8 @@ describe("sdk settings schema helpers", () => {
       agent_settings: {
         ...BASE_SETTINGS.agent_settings,
         critic: {
-          ...(BASE_SETTINGS.agent_settings as Record<string, unknown>)
-            .critic as Record<string, unknown>,
+          ...((BASE_SETTINGS.agent_settings as Record<string, unknown>)
+            .critic as Record<string, unknown>),
           mode: "all_actions",
         },
       },
@@ -303,7 +303,9 @@ describe("sdk settings schema helpers", () => {
       "llm.litellm_extra_body": true,
     };
 
-    expect(buildSdkSettingsPayloadForView(schema, values, dirty, "basic")).toEqual({
+    expect(
+      buildSdkSettingsPayloadForView(schema, values, dirty, "basic"),
+    ).toEqual({
       llm: {
         model: "anthropic/claude-sonnet-4-20250514",
         timeout: 30,
@@ -325,7 +327,9 @@ describe("sdk settings schema helpers", () => {
       mcp_config: null,
     });
 
-    expect(buildSdkSettingsPayloadForView(schema, values, dirty, "all")).toEqual({
+    expect(
+      buildSdkSettingsPayloadForView(schema, values, dirty, "all"),
+    ).toEqual({
       llm: {
         model: "anthropic/claude-sonnet-4-20250514",
         timeout: 90,

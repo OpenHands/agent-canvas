@@ -63,8 +63,8 @@ describe("useAddGitProviders", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalled();
-    expect(queryClient.getQueryState(personalSettingsQueryKey)?.isInvalidated).toBe(
-      true,
-    );
+    expect(
+      queryClient.getQueryState(personalSettingsQueryKey)?.isInvalidated,
+    ).toBe(true);
   });
 });

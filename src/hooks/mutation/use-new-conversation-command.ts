@@ -23,16 +23,36 @@ export const useNewConversationCommand = () => {
         throw new Error("No active conversation");
       }
 
-      const startTask = await V1ConversationService.createConversation();
+      // /new reuses the parent conversation's sandbox (matches OpenHands
+      // SaaS behavior); it is NOT a sub-conversation, so parent_conversation_id
+      // and agent_type stay undefined.
+      const startTask = await V1ConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        conversation.sandbox_id ?? undefined,
+      );
 
-      if (!startTask.app_conversation_id) {
+      if (startTask.status === "ERROR") {
         throw new Error(
           startTask.detail || "Failed to create new conversation",
         );
       }
 
+      // Cloud SaaS returns a WORKING task (no app_conversation_id yet);
+      // navigate to /conversations/task-{id} so useTaskPolling drives it
+      // to READY. Local creates synchronously — app_conversation_id is
+      // already set, so we navigate straight to it.
+      const newConversationId = startTask.app_conversation_id
+        ? startTask.app_conversation_id
+        : `task-${startTask.id}`;
+
       return {
-        newConversationId: startTask.app_conversation_id,
+        newConversationId,
         oldConversationId: conversation.id,
       };
     },

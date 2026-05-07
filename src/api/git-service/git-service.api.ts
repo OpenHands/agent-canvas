@@ -5,8 +5,16 @@ import V1ConversationService from "../conversation-service/v1-conversation-servi
 import { createRemoteWorkspace } from "../typescript-client";
 import { mapAnyGitStatusToV0Status } from "#/utils/git-status-mapper";
 import { ProviderHandler } from "../git-providers/provider-handler";
+import { getActiveBackend } from "../backend-registry/active-store";
+import {
+  getCloudInstallations,
+  getCloudRepositoryBranches,
+  searchCloudRepositories,
+} from "../cloud/git-service.api";
 
 const safeProvider = (value: string): Provider => value as Provider;
+
+const isCloudActive = () => getActiveBackend().backend.kind === "cloud";
 
 class GitService {
   static async searchGitRepositories(
@@ -16,6 +24,15 @@ class GitService {
     pageId?: string,
     installationId?: string,
   ): Promise<RepositoryPage> {
+    if (isCloudActive()) {
+      return searchCloudRepositories({
+        provider: safeProvider(provider),
+        query: query || undefined,
+        limit,
+        pageId,
+        installationId,
+      });
+    }
     return ProviderHandler.searchRepositories(safeProvider(provider), {
       query: query || undefined,
       installationId,
@@ -30,6 +47,14 @@ class GitService {
     limit = 30,
     installationId?: string,
   ): Promise<RepositoryPage> {
+    if (isCloudActive()) {
+      return searchCloudRepositories({
+        provider: safeProvider(provider),
+        limit,
+        pageId,
+        installationId,
+      });
+    }
     return ProviderHandler.searchRepositories(safeProvider(provider), {
       installationId,
       pageId,
@@ -46,6 +71,14 @@ class GitService {
   ): Promise<RepositoryPage> {
     const installationId = installations[installationIndex];
     if (!installationId) return { items: [], next_page_id: null };
+    if (isCloudActive()) {
+      return searchCloudRepositories({
+        provider: safeProvider(provider),
+        installationId,
+        limit,
+        pageId,
+      });
+    }
     return ProviderHandler.searchRepositories(safeProvider(provider), {
       installationId,
       pageId,
@@ -60,6 +93,15 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
+    if (isCloudActive()) {
+      return getCloudRepositoryBranches({
+        provider: safeProvider(provider),
+        repository,
+        query: query || undefined,
+        pageId,
+        limit,
+      });
+    }
     return ProviderHandler.getBranches(safeProvider(provider), {
       repository,
       query: query || undefined,
@@ -75,6 +117,15 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
+    if (isCloudActive()) {
+      return getCloudRepositoryBranches({
+        provider: safeProvider(provider),
+        repository,
+        query,
+        pageId,
+        limit,
+      });
+    }
     return ProviderHandler.getBranches(safeProvider(provider), {
       repository,
       query,
@@ -88,6 +139,13 @@ class GitService {
     pageId?: string,
     limit = 100,
   ): Promise<InstallationPage> {
+    if (isCloudActive()) {
+      return getCloudInstallations({
+        provider: safeProvider(provider),
+        pageId,
+        limit,
+      });
+    }
     return ProviderHandler.getInstallations(safeProvider(provider), {
       pageId,
       limit,

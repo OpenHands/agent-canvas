@@ -168,6 +168,8 @@ describe("WorkspaceSelectionForm", () => {
       undefined,
       null,
       "/Users/me/dev/repo2",
+      undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-xyz"),

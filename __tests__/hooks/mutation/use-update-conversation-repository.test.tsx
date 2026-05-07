@@ -36,9 +36,11 @@ const createWrapper = () => {
     },
   });
 
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  return function ({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
 };
 
 describe("useUpdateConversationRepository", () => {
@@ -54,9 +56,9 @@ describe("useUpdateConversationRepository", () => {
       git_provider: "github",
     };
 
-    vi.mocked(V1ConversationService.updateConversationRepository).mockResolvedValue(
-      mockResponse as any,
-    );
+    vi.mocked(
+      V1ConversationService.updateConversationRepository,
+    ).mockResolvedValue(mockResponse as any);
 
     const { result } = renderHook(() => useUpdateConversationRepository(), {
       wrapper: createWrapper(),
@@ -73,7 +75,9 @@ describe("useUpdateConversationRepository", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(V1ConversationService.updateConversationRepository).toHaveBeenCalledWith(
+    expect(
+      V1ConversationService.updateConversationRepository,
+    ).toHaveBeenCalledWith(
       "test-conversation-id",
       "owner/repo",
       "main",
@@ -89,9 +93,9 @@ describe("useUpdateConversationRepository", () => {
       git_provider: null,
     };
 
-    vi.mocked(V1ConversationService.updateConversationRepository).mockResolvedValue(
-      mockResponse as any,
-    );
+    vi.mocked(
+      V1ConversationService.updateConversationRepository,
+    ).mockResolvedValue(mockResponse as any);
 
     const { result } = renderHook(() => useUpdateConversationRepository(), {
       wrapper: createWrapper(),
@@ -108,18 +112,15 @@ describe("useUpdateConversationRepository", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(V1ConversationService.updateConversationRepository).toHaveBeenCalledWith(
-      "test-conversation-id",
-      null,
-      null,
-      null,
-    );
+    expect(
+      V1ConversationService.updateConversationRepository,
+    ).toHaveBeenCalledWith("test-conversation-id", null, null, null);
   });
 
   it("should handle errors gracefully", async () => {
-    vi.mocked(V1ConversationService.updateConversationRepository).mockRejectedValue(
-      new Error("Failed to update repository"),
-    );
+    vi.mocked(
+      V1ConversationService.updateConversationRepository,
+    ).mockRejectedValue(new Error("Failed to update repository"));
 
     const { result } = renderHook(() => useUpdateConversationRepository(), {
       wrapper: createWrapper(),

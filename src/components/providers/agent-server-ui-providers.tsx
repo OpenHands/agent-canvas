@@ -13,6 +13,7 @@ import {
   getI18n,
   setI18n,
 } from "#/i18n";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { PostHogWrapper } from "./posthog-wrapper";
 import {
   AgentServerUIRoot,
@@ -107,7 +108,7 @@ export function AgentServerUIProviders({
   return (
     <I18nextProvider i18n={resolvedI18n} defaultNS={OPENHANDS_I18N_NAMESPACE}>
       <QueryClientProvider client={resolvedQueryClient}>
-        {wrappedContent}
+        <ActiveBackendProvider>{wrappedContent}</ActiveBackendProvider>
       </QueryClientProvider>
     </I18nextProvider>
   );

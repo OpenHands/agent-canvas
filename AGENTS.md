@@ -82,9 +82,10 @@
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
-- `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables:
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.18.0")
+- `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
+  - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.18.0")
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a default value for local dev, override for production
   - Default: latest released version from PyPI
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).

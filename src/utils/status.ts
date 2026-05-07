@@ -141,6 +141,8 @@ export function getStatusCode(
 
   if (taskStatus && taskStatus !== "READY") {
     switch (taskStatus) {
+      case "WAITING_FOR_SANDBOX":
+        return I18nKey.COMMON$WAITING_FOR_SANDBOX;
       case "SETTING_UP_GIT_HOOKS":
         return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
       case "SETTING_UP_SKILLS":
@@ -152,7 +154,7 @@ export function getStatusCode(
       case "RUNNING_SETUP_SCRIPT":
         return I18nKey.CONVERSATION$STARTING_CONVERSATION;
       default:
-        throw new Error(`Unknown taskStatus: ${taskStatus}`);
+        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
     }
   }
 

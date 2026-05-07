@@ -82,7 +82,16 @@ describe("useConversationHistory", () => {
       expect(result.current.data).toBeDefined();
     });
 
-    expect(EventService.searchEventsV1).toHaveBeenCalledWith("conv-123");
+    // searchEventsV1 now accepts (conversationId, limit, conversationUrl,
+    // sessionApiKey). The latter two are forwarded so cloud-mode calls
+    // can target the correct host. In this test fixture they're null
+    // (no conversation_url / session_api_key on the mocked conversation).
+    expect(EventService.searchEventsV1).toHaveBeenCalledWith(
+      "conv-123",
+      100,
+      null,
+      null,
+    );
   });
 });
 

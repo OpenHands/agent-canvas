@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, test } from "vitest";
+import { describe, it, expect } from "vitest";
 import { getStatusText } from "#/utils/utils";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
@@ -73,9 +73,7 @@ describe("getStatusText", () => {
       t,
     });
 
-    expect(result).toBe(
-     t(I18nKey.CONVERSATION$ERROR_STARTING_CONVERSATION),
-    );
+    expect(result).toBe(t(I18nKey.CONVERSATION$ERROR_STARTING_CONVERSATION));
   });
 
   it("returns READY translation when task is ready", () => {

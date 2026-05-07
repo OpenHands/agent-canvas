@@ -3,6 +3,7 @@ import { Outlet, redirect, useLocation, useMatches } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Route } from "./+types/settings";
 import OptionService from "#/api/option-service/option-service.api";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { queryClient } from "#/query-client-config";
 import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
@@ -10,13 +11,23 @@ import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import {
-  isSettingsPageHidden,
   getFirstAvailablePath,
+  isLocalOnlySettingsPath,
+  isSettingsPageHidden,
 } from "#/utils/settings-utils";
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
   const { pathname } = url;
+
+  // Cloud backends hide local-only settings pages. Block direct URL
+  // navigation, not just the menu link.
+  if (
+    getActiveBackend().backend.kind === "cloud" &&
+    isLocalOnlySettingsPath(pathname)
+  ) {
+    return redirect("/settings");
+  }
 
   if (pathname === "/settings/agent-server") {
     return null;

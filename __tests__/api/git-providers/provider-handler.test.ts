@@ -98,9 +98,18 @@ describe("ProviderHandler", () => {
     expect(page.next_page_id).toBeNull();
   });
 
-  it("throws GitProviderAuthError when no providers are configured", async () => {
-    await expect(ProviderHandler.getUserGitInfo()).rejects.toBeInstanceOf(
-      GitProviderAuthError,
-    );
+  it("returns null when no providers are configured (no throw)", async () => {
+    // Switching from cloud → local while settings is briefly stale
+    // would otherwise hit this code path with no local tokens. Throwing
+    // surfaces as a global error toast — returning null lets the caller
+    // (`useGitUser`) render an empty user-info state instead.
+    const result = await ProviderHandler.getUserGitInfo();
+    expect(result).toBeNull();
+  });
+
+  it("still throws GitProviderAuthError when an explicit provider is requested but missing", async () => {
+    await expect(
+      ProviderHandler.getUserGitInfo("github"),
+    ).rejects.toBeInstanceOf(GitProviderAuthError);
   });
 });

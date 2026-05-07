@@ -15,6 +15,7 @@ export function StartTaskStatusIndicator({
       case "ERROR":
         return "bg-red-500";
       case "WORKING":
+      case "WAITING_FOR_SANDBOX":
       case "PREPARING_REPOSITORY":
       case "RUNNING_SETUP_SCRIPT":
       case "SETTING_UP_GIT_HOOKS":
