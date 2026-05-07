@@ -116,6 +116,7 @@ export interface V1AppConversation {
   execution_status: V1ExecutionStatus | null;
   conversation_url: string | null;
   session_api_key: string | null;
+  sandbox_id: string | null;
   workspace?: V1ConversationWorkspace | null;
   public?: boolean;
   sub_conversation_ids: string[];

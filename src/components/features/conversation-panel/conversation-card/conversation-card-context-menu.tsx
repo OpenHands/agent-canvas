@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { ContextMenu } from "#/ui/context-menu";
 import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
@@ -44,7 +45,12 @@ export function ConversationCardContextMenu({
   position = "bottom",
 }: ConversationCardContextMenuProps) {
   const { t } = useTranslation("openhands");
+  const { backend } = useActiveBackend();
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
+  const stopLabelKey =
+    backend.kind === "cloud"
+      ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
+      : I18nKey.COMMON$STOP_CONVERSATION;
 
   const generateSection = useCallback(
     (items: React.ReactNode[], sectionKey: string, isLast?: boolean) => {
@@ -133,7 +139,7 @@ export function ConversationCardContextMenu({
             >
               <ConversationNameContextMenuIconText
                 icon={<CloseIcon width={16} height={16} />}
-                text={t(I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME)}
+                text={t(stopLabelKey)}
               />
             </ContextMenuListItem>
           ),

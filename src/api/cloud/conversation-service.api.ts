@@ -134,6 +134,22 @@ export async function deleteCloudConversation(
 }
 
 /**
+ * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
+ * OpenHands' `SandboxService.pauseSandbox` — routes through the
+ * bundled agent-server's cloud proxy and hits
+ * `POST /api/v1/sandboxes/{sandboxId}/pause` on the SaaS, which stops
+ * the runtime owning the conversation.
+ */
+export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudProxy<unknown>({
+    backend,
+    method: "POST",
+    path: `/api/v1/sandboxes/${sandboxId}/pause`,
+  });
+}
+
+/**
  * Fetch a single v1 app-conversation start task. Mirrors OpenHands'
  * `V1ConversationService.getStartTask` — uses the batch search endpoint
  * with a single id and unwraps the first result.

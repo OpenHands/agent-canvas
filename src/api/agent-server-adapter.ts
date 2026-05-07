@@ -108,6 +108,7 @@ export function toV1AppConversation(
       V1ExecutionStatus.IDLE,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getEffectiveLocalBackend().apiKey || null,
+    sandbox_id: null,
     workspace: {
       working_dir: info.workspace?.working_dir ?? getAgentServerWorkingDir(),
     },

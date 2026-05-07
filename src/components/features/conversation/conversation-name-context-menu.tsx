@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
 import { cn } from "#/utils/utils";
@@ -50,10 +51,15 @@ export function ConversationNameContextMenu({
   const isMobile = useBreakpoint();
 
   const { t } = useTranslation("openhands");
+  const { backend } = useActiveBackend();
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
   const hasTools = Boolean(onShowAgentTools || onShowSkills || onShowHooks);
   const hasInfo = Boolean(onDisplayCost);
   const hasControl = Boolean(onStop || onDelete);
+  const stopLabelKey =
+    backend.kind === "cloud"
+      ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
+      : I18nKey.COMMON$STOP_CONVERSATION;
 
   return (
     <ContextMenu
@@ -159,7 +165,7 @@ export function ConversationNameContextMenu({
         >
           <ConversationNameContextMenuIconText
             icon={<CloseIcon width={16} height={16} />}
-            text={t(I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME)}
+            text={t(stopLabelKey)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
         </ContextMenuListItem>

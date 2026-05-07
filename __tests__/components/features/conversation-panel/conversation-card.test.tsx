@@ -16,6 +16,13 @@ import { ConversationCard } from "#/components/features/conversation-panel/conve
 import { clickOnEditButton } from "./utils";
 import { ConversationCardActions } from "#/components/features/conversation-panel/conversation-card/conversation-card-actions";
 import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // We'll use the actual i18next implementation but override the translation function
 
@@ -50,6 +57,7 @@ describe("ConversationCard", () => {
       open: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      location: { origin: "http://localhost:3000" },
     });
   });
 
@@ -505,4 +513,55 @@ describe("ConversationCard", () => {
       }
     },
   );
+
+  describe("stop button label by active backend", () => {
+    const cloudBackend: Backend = {
+      id: "prod",
+      name: "Production",
+      host: "https://app.all-hands.dev",
+      apiKey: "bearer-token",
+      kind: "cloud",
+    };
+
+    afterEach(() => {
+      __resetActiveStoreForTests();
+    });
+
+    it("uses COMMON$STOP_CONVERSATION on a local backend", () => {
+      // Default active backend (no provider, no registered backends) is the
+      // bundled local backend.
+      renderWithProviders(
+        <ConversationCardActions
+          contextMenuOpen={true}
+          onContextMenuToggle={vi.fn()}
+          onStop={vi.fn()}
+          executionStatus={V1ExecutionStatus.RUNNING}
+        />,
+      );
+
+      expect(screen.getByTestId("stop-button")).toHaveTextContent(
+        "COMMON$STOP_CONVERSATION",
+      );
+    });
+
+    it("uses COMMON$CLOSE_CONVERSATION_STOP_RUNTIME on a cloud backend", () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      renderWithProviders(
+        <ActiveBackendProvider>
+          <ConversationCardActions
+            contextMenuOpen={true}
+            onContextMenuToggle={vi.fn()}
+            onStop={vi.fn()}
+            executionStatus={V1ExecutionStatus.RUNNING}
+          />
+        </ActiveBackendProvider>,
+      );
+
+      expect(screen.getByTestId("stop-button")).toHaveTextContent(
+        "COMMON$CLOSE_CONVERSATION_STOP_RUNTIME",
+      );
+    });
+  });
 });

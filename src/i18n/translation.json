@@ -18434,7 +18434,38 @@
     "ca": "Feu clic aquí"
   },
   "COMMON$CLOSE_CONVERSATION_STOP_RUNTIME": {
-    "en": "Close Conversation"
+    "en": "Stop Conversation (Runtime)",
+    "ja": "会話を停止（ランタイム）",
+    "zh-CN": "停止对话（运行时）",
+    "zh-TW": "停止對話（執行階段）",
+    "ko-KR": "대화 중지(런타임)",
+    "no": "Stopp samtale (kjøretid)",
+    "it": "Arresta conversazione (runtime)",
+    "pt": "Parar conversa (runtime)",
+    "es": "Detener conversación (runtime)",
+    "ar": "إيقاف المحادثة (وقت التشغيل)",
+    "fr": "Arrêter la conversation (runtime)",
+    "tr": "Konuşmayı Durdur (çalışma zamanı)",
+    "de": "Gespräch stoppen (Runtime)",
+    "uk": "Зупинити розмову (середовище виконання)",
+    "ca": "Atura la conversa (entorn d'execució)"
+  },
+  "COMMON$STOP_CONVERSATION": {
+    "en": "Stop Conversation",
+    "ja": "会話を停止",
+    "zh-CN": "停止对话",
+    "zh-TW": "停止對話",
+    "ko-KR": "대화 중지",
+    "no": "Stopp samtale",
+    "it": "Arresta conversazione",
+    "pt": "Parar conversa",
+    "es": "Detener conversación",
+    "ar": "إيقاف المحادثة",
+    "fr": "Arrêter la conversation",
+    "tr": "Konuşmayı Durdur",
+    "de": "Gespräch stoppen",
+    "uk": "Зупинити розмову",
+    "ca": "Atura la conversa"
   },
   "COMMON$CODE": {
     "en": "Code",

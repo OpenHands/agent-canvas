@@ -1,4 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { pauseCloudSandbox } from "#/api/cloud/conversation-service.api";
 import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
 import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
 
@@ -9,6 +11,7 @@ const fetchV1ConversationData = async (
 ): Promise<{
   conversationUrl: string | null;
   sessionApiKey: string | null;
+  sandboxId: string | null;
 }> => {
   const conversations = await V1ConversationService.batchGetAppConversations([
     conversationId,
@@ -22,12 +25,24 @@ const fetchV1ConversationData = async (
   return {
     conversationUrl: appConversation.conversation_url,
     sessionApiKey: appConversation.session_api_key,
+    sandboxId: appConversation.sandbox_id,
   };
 };
 
 export const pauseV1Conversation = async (conversationId: string) => {
-  const { conversationUrl, sessionApiKey } =
+  const { conversationUrl, sessionApiKey, sandboxId } =
     await fetchV1ConversationData(conversationId);
+
+  if (getActiveBackend().backend.kind === "cloud") {
+    if (!sandboxId) {
+      throw new Error(
+        `Cannot stop runtime: cloud conversation ${conversationId} has no sandbox_id.`,
+      );
+    }
+    await pauseCloudSandbox(sandboxId);
+    return { success: true };
+  }
+
   return V1ConversationService.pauseConversation(
     conversationId,
     conversationUrl,
