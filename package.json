@@ -46,7 +46,7 @@
     "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
     "tailwind-scrollbar": "4.0.2",
-    "vite": "8.0.9",
+    "vite": "8.0.10",
     "zustand": "5.0.12"
   },
   "scripts": {
