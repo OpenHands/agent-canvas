@@ -11123,6 +11123,218 @@
     "uk": "Автоматизації",
     "ca": "Automatitzacions"
   },
+  "AUTOMATIONS$TITLE": {
+    "en": "Automations",
+    "ja": "オートメーション"
+  },
+  "AUTOMATIONS$SUBTITLE": {
+    "en": "View active and inactive automations, search by metadata, and inspect read-only details.",
+    "ja": "アクティブおよび非アクティブなオートメーションを表示し、メタデータで検索し、読み取り専用の詳細を確認します。"
+  },
+  "AUTOMATIONS$EMPTY": {
+    "en": "No automations configured",
+    "ja": "オートメーションが設定されていません"
+  },
+  "AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE": {
+    "en": "How to create an automation",
+    "ja": "オートメーションの作成方法"
+  },
+  "AUTOMATIONS$EMPTY_OPTION_PLUGIN_TITLE": {
+    "en": "Using Claude Code or Codex",
+    "ja": "Claude CodeまたはCodexを使用"
+  },
+  "AUTOMATIONS$EMPTY_OPTION_PLUGIN_DESC": {
+    "en": "and run the command:",
+    "ja": "以下のコマンドを実行:"
+  },
+  "AUTOMATIONS$EMPTY_INSTALL_PLUGIN": {
+    "en": "Install the OpenHands plugin",
+    "ja": "OpenHandsプラグインをインストール"
+  },
+  "AUTOMATIONS$EMPTY_OPTION_CONVERSATION_TITLE": {
+    "en": "Using OpenHands Cloud",
+    "ja": "OpenHands Cloudを使用"
+  },
+  "AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC": {
+    "en": "Start a new conversation and ask OpenHands to create an automation for you.",
+    "ja": "新しい会話を開始し、OpenHandsにオートメーションの作成を依頼してください。"
+  },
+  "AUTOMATIONS$EMPTY_START_CONVERSATION": {
+    "en": "Start a conversation",
+    "ja": "会話を開始"
+  },
+  "AUTOMATIONS$EMPTY_LEARN_MORE": {
+    "en": "Learn more in the documentation",
+    "ja": "ドキュメントで詳細を確認"
+  },
+  "AUTOMATIONS$SEARCH_PLACEHOLDER": {
+    "en": "Search automations...",
+    "ja": "オートメーションを検索..."
+  },
+  "AUTOMATIONS$ACTIVE": {
+    "en": "Active",
+    "ja": "アクティブ"
+  },
+  "AUTOMATIONS$INACTIVE": {
+    "en": "Inactive",
+    "ja": "非アクティブ"
+  },
+  "AUTOMATIONS$TURN_ON": {
+    "en": "Turn on",
+    "ja": "オンにする"
+  },
+  "AUTOMATIONS$TURN_OFF": {
+    "en": "Turn off",
+    "ja": "オフにする"
+  },
+  "AUTOMATIONS$DELETE": {
+    "en": "Delete",
+    "ja": "削除"
+  },
+  "AUTOMATIONS$DELETE_CONFIRM_TITLE": {
+    "en": "Delete automation",
+    "ja": "オートメーションを削除"
+  },
+  "AUTOMATIONS$DELETE_CONFIRM_MESSAGE": {
+    "en": "Delete \"{{name}}\"? This cannot be undone.",
+    "ja": "「{{name}}」を削除しますか？この操作は取り消せません。"
+  },
+  "AUTOMATIONS$CANCEL": {
+    "en": "Cancel",
+    "ja": "キャンセル"
+  },
+  "AUTOMATIONS$LOAD_MORE": {
+    "en": "Load more",
+    "ja": "さらに読み込む"
+  },
+  "AUTOMATIONS$ERROR_TITLE": {
+    "en": "Failed to load automations",
+    "ja": "オートメーションの読み込みに失敗しました"
+  },
+  "AUTOMATIONS$ERROR_RETRY": {
+    "en": "Retry",
+    "ja": "再試行"
+  },
+  "AUTOMATIONS$DETAIL$ACTIVE": {
+    "en": "Active",
+    "ja": "アクティブ"
+  },
+  "AUTOMATIONS$DETAIL$ACTIVITY": {
+    "en": "Activity",
+    "ja": "アクティビティ"
+  },
+  "AUTOMATIONS$DETAIL$ACTIVITY_LOG": {
+    "en": "Activity Log",
+    "ja": "アクティビティログ"
+  },
+  "AUTOMATIONS$DETAIL$BACK_TO_LIST": {
+    "en": "Back to Automations",
+    "ja": "オートメーション一覧に戻る"
+  },
+  "AUTOMATIONS$DETAIL$CONFIGURATION": {
+    "en": "Configuration",
+    "ja": "設定"
+  },
+  "AUTOMATIONS$DETAIL$CREATED": {
+    "en": "Created",
+    "ja": "作成日"
+  },
+  "AUTOMATIONS$DETAIL$FAILED": {
+    "en": "Failed",
+    "ja": "失敗"
+  },
+  "AUTOMATIONS$DETAIL$PENDING": {
+    "en": "Pending",
+    "ja": "保留中"
+  },
+  "AUTOMATIONS$DETAIL$RUNNING": {
+    "en": "Running",
+    "ja": "実行中"
+  },
+  "AUTOMATIONS$DETAIL$INACTIVE": {
+    "en": "Inactive",
+    "ja": "非アクティブ"
+  },
+  "AUTOMATIONS$DETAIL$LAST_RUN": {
+    "en": "Last run",
+    "ja": "最終実行"
+  },
+  "AUTOMATIONS$DETAIL$LOAD_MORE_RUNS": {
+    "en": "Load more",
+    "ja": "さらに読み込む"
+  },
+  "AUTOMATIONS$DETAIL$MODEL": {
+    "en": "Model",
+    "ja": "モデル"
+  },
+  "AUTOMATIONS$DETAIL$NO_RUNS": {
+    "en": "No activity yet",
+    "ja": "まだアクティビティはありません"
+  },
+  "AUTOMATIONS$DETAIL$NO_CONVERSATION": {
+    "en": "Conversation not created",
+    "ja": "会話が作成されていません"
+  },
+  "AUTOMATIONS$DETAIL$TIME_JUST_NOW": {
+    "en": "Just now",
+    "ja": "たった今"
+  },
+  "AUTOMATIONS$DETAIL$TIME_MINUTES_AGO": {
+    "en": "{{count}}m ago",
+    "ja": "{{count}}分前"
+  },
+  "AUTOMATIONS$DETAIL$TIME_HOURS_AGO": {
+    "en": "{{count}}h ago",
+    "ja": "{{count}}時間前"
+  },
+  "AUTOMATIONS$DETAIL$TIME_YESTERDAY": {
+    "en": "Yesterday",
+    "ja": "昨日"
+  },
+  "AUTOMATIONS$DETAIL$TIME_DAYS_AGO": {
+    "en": "{{count}}d ago",
+    "ja": "{{count}}日前"
+  },
+  "AUTOMATIONS$DETAIL$TIME_NEVER": {
+    "en": "Never",
+    "ja": "未実行"
+  },
+  "AUTOMATIONS$DETAIL$NOT_FOUND_MESSAGE": {
+    "en": "The automation you're looking for doesn't exist or has been deleted.",
+    "ja": "お探しのオートメーションは存在しないか、削除されています。"
+  },
+  "AUTOMATIONS$DETAIL$NOT_FOUND_TITLE": {
+    "en": "Automation not found",
+    "ja": "オートメーションが見つかりません"
+  },
+  "AUTOMATIONS$DETAIL$NOTIFICATION": {
+    "en": "Notification",
+    "ja": "通知"
+  },
+  "AUTOMATIONS$DETAIL$PLUGINS": {
+    "en": "Plugins",
+    "ja": "プラグイン"
+  },
+  "AUTOMATIONS$DETAIL$PROMPT": {
+    "en": "Prompt",
+    "ja": "プロンプト"
+  },
+  "AUTOMATIONS$DETAIL$REPOSITORIES": {
+    "en": "Repositories",
+    "ja": "リポジトリ"
+  },
+  "AUTOMATIONS$DETAIL$SCHEDULE": {
+    "en": "Schedule",
+    "ja": "スケジュール"
+  },
+  "AUTOMATIONS$DETAIL$SUCCESSFUL": {
+    "en": "Successful",
+    "ja": "成功"
+  },
+  "AUTOMATIONS$DETAIL$TRIGGER": {
+    "en": "Trigger",
+    "ja": "トリガー"
+  },
   "SIDEBAR$CONVERSATIONS": {
     "en": "Conversations",
     "ja": "会話",
