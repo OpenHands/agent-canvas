@@ -1,5 +1,6 @@
 import { Provider } from "#/types/settings";
 import { SuggestedTask } from "#/utils/types";
+import { v4 as uuidv4 } from 'uuid';
 import {
   buildConversationWorkingDir,
   getAgentServerBaseUrl,
@@ -64,7 +65,7 @@ class V1ConversationService {
     workingDirOverride?: string,
   ): Promise<V1AppConversationStartTask> {
     const settings = await SettingsService.getSettings();
-    const conversationId = crypto.randomUUID();
+    const conversationId = uuidv4();
     const workingDir =
       workingDirOverride ?? buildConversationWorkingDir(conversationId);
 
