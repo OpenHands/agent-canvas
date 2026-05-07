@@ -31,6 +31,11 @@
  *   - PORT: Ingress port (default: 8000)
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
+ *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
+ *
+ * Secrets:
+ *   The automation API key is automatically seeded into agent-server secrets
+ *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
  */
 
 import { spawn, execSync } from "node:child_process";
@@ -153,6 +158,11 @@ ENVIRONMENT VARIABLES:
   OH_AUTOMATION_GIT_REF       Alternative to --automation-ref
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK
   OH_SECRET_KEY               Secret key for sessions
+  AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+
+SECRETS:
+  The automation API key is automatically seeded into agent-server secrets
+  as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -197,6 +207,9 @@ function buildConfig(args, env = process.env) {
 
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
+  
+  // Session API key for agent-server auth (optional)
+  const sessionApiKey = env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
 
   return {
     // Ingress port (main entry point)
@@ -216,6 +229,7 @@ function buildConfig(args, env = process.env) {
 
     // Auth
     localApiKey,
+    sessionApiKey,
 
     verbose: args.verbose,
   };
@@ -480,6 +494,45 @@ function startVite(config) {
   });
 }
 
+/**
+ * Seed the automation API key into agent-server's secrets store.
+ * This makes the key available to agents during conversations.
+ */
+async function seedAutomationSecret(config) {
+  const secretName = "OPENHANDS_AUTOMATION_API_KEY";
+  const secretDescription = "API key for authenticating with the automation backend";
+  
+  logService("secrets", `Seeding ${secretName} into agent-server...`, c.dim);
+  
+  const url = `http://localhost:${config.agentServerPort}/api/settings/secrets`;
+  const body = JSON.stringify({
+    name: secretName,
+    value: config.localApiKey,
+    description: secretDescription,
+  });
+  
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        // Include session API key if configured
+        ...(config.sessionApiKey && { "X-Session-API-Key": config.sessionApiKey }),
+      },
+      body,
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      logService("secrets", `Warning: Failed to seed secret (${response.status}): ${text}`, c.yellow);
+    } else {
+      logService("secrets", `${secretName} seeded successfully`, c.green);
+    }
+  } catch (err) {
+    logService("secrets", `Warning: Failed to seed secret: ${err.message}`, c.yellow);
+  }
+}
+
 function printBanner(config) {
   console.log("");
   console.log(
@@ -534,16 +587,20 @@ async function main() {
     `http://localhost:${config.agentServerPort}/server_info`
   );
 
-  // 2. Start automation backend
+  // 2. Seed automation API key into agent-server secrets
+  // This makes the key available to agents during conversations
+  await seedAutomationSecret(config);
+
+  // 3. Start automation backend
   startAutomationBackend(config);
 
-  // 3. Start Vite dev server (no proxy config needed - ingress handles routing)
+  // 4. Start Vite dev server (no proxy config needed - ingress handles routing)
   startVite(config);
 
-  // 4. Wait for services to be ready
+  // 5. Wait for services to be ready
   await delay(2000);
 
-  // 5. Start ingress proxy (routes traffic to all backends)
+  // 6. Start ingress proxy (routes traffic to all backends)
   startIngress(config);
 
   // Wait for ingress to start
