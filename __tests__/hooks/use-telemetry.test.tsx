@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 
 // Mock posthog-js before importing hook
 vi.mock("posthog-js", () => ({
@@ -8,6 +8,7 @@ vi.mock("posthog-js", () => ({
     capture: vi.fn(),
     opt_in_capturing: vi.fn(),
     opt_out_capturing: vi.fn(),
+    has_opted_out_capturing: vi.fn(() => false),
     reset: vi.fn(),
     register: vi.fn(),
   },
@@ -19,11 +20,13 @@ import { useTelemetry } from "#/hooks/use-telemetry";
 describe("useTelemetry", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   it("returns pending consent initially", () => {
@@ -54,6 +57,35 @@ describe("useTelemetry", () => {
     expect(result.current.showConsentPrompt).toBe(false);
   });
 
+  it("triggers trackInstall on mount (regardless of consent)", async () => {
+    renderHook(() => useTelemetry());
+
+    // trackInstall is called on mount - wait for the async effect
+    await waitFor(() => {
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "canvas_install",
+        expect.any(Object),
+      );
+    });
+  });
+
+  it("only triggers trackInstall once even with multiple renders", async () => {
+    const { rerender } = renderHook(() => useTelemetry());
+
+    // Wait for initial trackInstall
+    await waitFor(() => {
+      expect(posthog.capture).toHaveBeenCalledTimes(1);
+    });
+
+    // Rerender multiple times
+    rerender();
+    rerender();
+    rerender();
+
+    // Should still only have been called once
+    expect(posthog.capture).toHaveBeenCalledTimes(1);
+  });
+
   it("grants consent and enables telemetry", async () => {
     const { result } = renderHook(() => useTelemetry());
 
@@ -81,17 +113,24 @@ describe("useTelemetry", () => {
   });
 
   it("track function does nothing when consent is not granted", () => {
+    localStorage.setItem("openhands-telemetry-first-use", "true"); // Skip install tracking
+    vi.clearAllMocks();
+
     const { result } = renderHook(() => useTelemetry());
 
     act(() => {
       result.current.track("test_event", { foo: "bar" });
     });
 
-    expect(posthog.capture).not.toHaveBeenCalled();
+    // capture should not be called for custom events without consent
+    expect(posthog.capture).not.toHaveBeenCalledWith("test_event", {
+      foo: "bar",
+    });
   });
 
   it("track function calls trackEvent when consent is granted", () => {
     localStorage.setItem("openhands-telemetry-consent", "granted");
+    localStorage.setItem("openhands-telemetry-first-use", "true"); // Skip install tracking
 
     const { result } = renderHook(() => useTelemetry());
 

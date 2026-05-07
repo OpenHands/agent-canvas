@@ -1,16 +1,25 @@
 /**
- * Telemetry service for tracking library usage with user consent.
+ * Telemetry service for tracking library usage.
  *
  * This module handles anonymous telemetry for the @openhands/agent-canvas package
  * using the PostHog SDK for reliable event delivery with batching, retry logic,
  * and offline support.
  *
- * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project when
- * users grant consent. Library consumers can override this by setting
- * VITE_POSTHOG_API_KEY to point telemetry to their own PostHog project.
+ * TRACKING PHILOSOPHY:
+ * - Install event (canvas_install): Sent immediately on first use, regardless of consent.
+ *   This is anonymous and contains no PII - just basic browser info and a random ID.
+ * - Session/custom events: Only sent after user grants consent via the consent modal.
+ * - Users can opt out of all future tracking by declining consent.
  *
- * Users can opt out of telemetry via:
- * - Declining consent in the UI
+ * PROXY SUPPORT:
+ * To bypass ad blockers, set up a reverse proxy and configure:
+ * - VITE_POSTHOG_HOST: Your proxy URL (e.g., https://e.yourdomain.com)
+ * - VITE_POSTHOG_UI_HOST: PostHog UI host (defaults to https://us.posthog.com)
+ *
+ * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project.
+ * Library consumers can override this by setting VITE_POSTHOG_API_KEY.
+ *
+ * Users can disable all telemetry (including install tracking) via:
  * - Setting VITE_DO_NOT_TRACK=1 environment variable
  * - Browser's Do Not Track setting
  */
@@ -28,8 +37,16 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 const POSTHOG_API_KEY =
   import.meta.env.VITE_POSTHOG_API_KEY ||
   "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+
+// Default to direct PostHog URL, but can be overridden with a reverse proxy
+// to bypass ad blockers. Use a neutral subdomain (avoid "analytics", "tracking", etc.)
 const POSTHOG_HOST =
   import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com";
+
+// UI host is needed for PostHog features like toolbar to work correctly
+// when using a reverse proxy. Defaults to US region.
+const POSTHOG_UI_HOST =
+  import.meta.env.VITE_POSTHOG_UI_HOST || "https://us.posthog.com";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
@@ -98,9 +115,14 @@ function isDoNotTrackEnabled(): boolean {
 }
 
 /**
- * Initialize PostHog SDK (called once on first consent grant)
+ * Initialize PostHog SDK.
+ *
+ * @param enableCapturing - If true, enable capturing immediately (for install tracking).
+ *                          If false, start with capturing disabled (for consent-gated tracking).
  */
-async function initializePostHog(): Promise<PostHog | null> {
+async function initializePostHog(
+  enableCapturing = false,
+): Promise<PostHog | null> {
   if (isInitialized) {
     return posthogInstance;
   }
@@ -112,8 +134,10 @@ async function initializePostHog(): Promise<PostHog | null> {
 
   posthog.init(POSTHOG_API_KEY, {
     api_host: POSTHOG_HOST,
-    // Start with capturing disabled - we enable it when consent is granted
-    opt_out_capturing_by_default: true,
+    // UI host is required when using a reverse proxy so PostHog features work correctly
+    ui_host: POSTHOG_UI_HOST,
+    // Start with capturing disabled by default - we enable it explicitly when needed
+    opt_out_capturing_by_default: !enableCapturing,
     // Don't auto-capture page views - we control when to track
     capture_pageview: false,
     // Don't auto-capture clicks etc.
@@ -229,28 +253,44 @@ function markFirstUseSent(): void {
 }
 
 /**
- * Track the first use of the library.
- * This is called when the library components are first mounted.
- * It only sends an event once per installation (tracked via localStorage).
+ * Track the initial install of the library.
+ *
+ * IMPORTANT: This is sent immediately on first use, regardless of consent status.
+ * This allows us to track library adoption even if users haven't made a consent choice yet.
+ *
+ * The event is:
+ * - Completely anonymous (no PII, just a random PostHog distinct_id)
+ * - Sent only once per installation (tracked via localStorage)
+ * - Still respects DO_NOT_TRACK environment variable and browser setting
+ *
+ * Users who want complete privacy can:
+ * - Set VITE_DO_NOT_TRACK=1 or browser's Do Not Track
+ * - Later deny consent to prevent all future tracking
  */
-export async function trackFirstUse(): Promise<void> {
-  // Check consent first
-  if (!isTelemetryEnabled()) {
+export async function trackInstall(): Promise<void> {
+  // Respect hard opt-out via environment variable or browser setting
+  if (isDoNotTrackEnabled()) {
     return;
   }
 
-  // Already sent first use event
+  // Already sent install event
   if (hasFirstUseSent()) {
     return;
   }
 
-  // Initialize PostHog if needed
-  const posthog = await initializePostHog();
+  // Initialize PostHog with capturing enabled (for this one event)
+  const posthog = await initializePostHog(true);
   if (!posthog) {
     return;
   }
 
-  // Capture the event
+  // Temporarily enable capturing if it was disabled
+  const wasOptedOut = posthog.has_opted_out_capturing?.() ?? false;
+  if (wasOptedOut) {
+    posthog.opt_in_capturing();
+  }
+
+  // Capture the install event
   posthog.capture("canvas_install", {
     platform:
       typeof navigator !== "undefined" ? navigator.platform : "unknown",
@@ -263,6 +303,20 @@ export async function trackFirstUse(): Promise<void> {
 
   // Mark as sent
   markFirstUseSent();
+
+  // Restore opt-out state if user hasn't granted consent yet
+  // This ensures we only send the install event, not subsequent events
+  const currentConsent = getTelemetryConsent();
+  if (currentConsent !== "granted") {
+    posthog.opt_out_capturing();
+  }
+}
+
+/**
+ * @deprecated Use trackInstall() instead. This function now just calls trackInstall().
+ */
+export async function trackFirstUse(): Promise<void> {
+  return trackInstall();
 }
 
 /**
