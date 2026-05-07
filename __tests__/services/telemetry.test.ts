@@ -1,4 +1,18 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+
+// Mock posthog-js before importing telemetry service
+vi.mock("posthog-js", () => ({
+  default: {
+    init: vi.fn(),
+    capture: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+    register: vi.fn(),
+  },
+}));
+
+import posthog from "posthog-js";
 import {
   getTelemetryConsent,
   setTelemetryConsent,
@@ -78,27 +92,20 @@ describe("Telemetry Service", () => {
 
   describe("trackFirstUse", () => {
     it("does not send event when consent is not granted", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
       await trackFirstUse();
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(posthog.capture).not.toHaveBeenCalled();
     });
 
     it("sends event when consent is granted", async () => {
       setTelemetryConsent("granted");
-
-      // Mock successful response
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        new Response(null, { status: 200 }),
-      );
-
       await trackFirstUse();
 
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        "https://us.i.posthog.com/capture",
+      expect(posthog.capture).toHaveBeenCalledTimes(1);
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "canvas_install",
         expect.objectContaining({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          platform: expect.any(String),
+          user_agent: expect.any(String),
         }),
       );
     });
@@ -106,74 +113,68 @@ describe("Telemetry Service", () => {
     it("only sends first use event once", async () => {
       setTelemetryConsent("granted");
 
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(null, { status: 200 }),
-      );
-
       await trackFirstUse();
       await trackFirstUse();
       await trackFirstUse();
 
       // Should only be called once
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(posthog.capture).toHaveBeenCalledTimes(1);
     });
 
     it("includes correct event data", async () => {
       setTelemetryConsent("granted");
-
-      let capturedBody: string | undefined;
-      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async (_, init) => {
-        capturedBody = init?.body as string;
-        return new Response(null, { status: 200 });
-      });
-
       await trackFirstUse();
 
-      expect(capturedBody).toBeDefined();
-      const parsed = JSON.parse(capturedBody!);
-      expect(parsed.event).toBe("canvas_install");
-      expect(parsed.properties.package_name).toBe("@openhands/agent-canvas");
-      expect(parsed.properties.package_version).toBeDefined();
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "canvas_install",
+        expect.objectContaining({
+          platform: expect.any(String),
+          user_agent: expect.any(String),
+          referrer: expect.any(String),
+          url_origin: expect.any(String),
+          embedded: expect.any(Boolean),
+        }),
+      );
     });
   });
 
   describe("trackEvent", () => {
     it("does not send event when consent is not granted", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
       await trackEvent("test_event", { foo: "bar" });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(posthog.capture).not.toHaveBeenCalled();
     });
 
     it("sends custom event when consent is granted", async () => {
       setTelemetryConsent("granted");
-
-      let capturedBody: string | undefined;
-      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async (_, init) => {
-        capturedBody = init?.body as string;
-        return new Response(null, { status: 200 });
-      });
-
       await trackEvent("custom_action", { button: "submit" });
 
-      const parsed = JSON.parse(capturedBody!);
-      expect(parsed.event).toBe("custom_action");
-      expect(parsed.properties.button).toBe("submit");
-      expect(parsed.properties.package_name).toBe("@openhands/agent-canvas");
+      expect(posthog.capture).toHaveBeenCalledWith("custom_action", {
+        button: "submit",
+      });
     });
   });
 
   describe("clearTelemetryData", () => {
     it("clears all telemetry data from localStorage", () => {
       setTelemetryConsent("granted");
-      localStorage.setItem(
-        "openhands-telemetry",
-        JSON.stringify({ firstUseSent: true }),
-      );
+      localStorage.setItem("openhands-telemetry-first-use", "true");
 
       clearTelemetryData();
 
       expect(localStorage.getItem("openhands-telemetry-consent")).toBeNull();
-      expect(localStorage.getItem("openhands-telemetry")).toBeNull();
+      expect(localStorage.getItem("openhands-telemetry-first-use")).toBeNull();
+    });
+  });
+
+  describe("PostHog integration", () => {
+    it("calls opt_in_capturing when consent is granted", () => {
+      setTelemetryConsent("granted");
+      expect(posthog.opt_in_capturing).toHaveBeenCalled();
+    });
+
+    it("calls opt_out_capturing when consent is denied", () => {
+      setTelemetryConsent("denied");
+      expect(posthog.opt_out_capturing).toHaveBeenCalled();
     });
   });
 });

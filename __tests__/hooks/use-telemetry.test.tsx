@@ -1,15 +1,25 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+
+// Mock posthog-js before importing hook
+vi.mock("posthog-js", () => ({
+  default: {
+    init: vi.fn(),
+    capture: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+    register: vi.fn(),
+  },
+}));
+
+import posthog from "posthog-js";
 import { useTelemetry } from "#/hooks/use-telemetry";
 
 describe("useTelemetry", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
-    // Mock fetch to prevent actual network calls
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(null, { status: 200 }),
-    );
   });
 
   afterEach(() => {
@@ -77,7 +87,7 @@ describe("useTelemetry", () => {
       result.current.track("test_event", { foo: "bar" });
     });
 
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(posthog.capture).not.toHaveBeenCalled();
   });
 
   it("track function sends event when consent is granted", async () => {
@@ -87,11 +97,9 @@ describe("useTelemetry", () => {
 
     await act(async () => {
       result.current.track("test_event", { foo: "bar" });
-      // Wait for async operation
-      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
-    expect(globalThis.fetch).toHaveBeenCalled();
+    expect(posthog.capture).toHaveBeenCalledWith("test_event", { foo: "bar" });
   });
 
   it("clearData resets consent to pending", () => {

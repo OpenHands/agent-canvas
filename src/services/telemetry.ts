@@ -1,8 +1,9 @@
 /**
  * Telemetry service for tracking library usage with user consent.
  *
- * This module handles anonymous telemetry for the @openhands/agent-canvas package.
- * It tracks "first use" events (not installs) and respects user privacy preferences.
+ * This module handles anonymous telemetry for the @openhands/agent-canvas package
+ * using the PostHog SDK for reliable event delivery with batching, retry logic,
+ * and offline support.
  *
  * All telemetry is sent to the OpenHands PostHog project. Users can opt out via:
  * - Declining consent in the UI
@@ -10,80 +11,29 @@
  * - Browser's Do Not Track setting
  */
 
+import posthog from "posthog-js";
 import packageJson from "../../package.json";
 
-const TELEMETRY_STORAGE_KEY = "openhands-telemetry";
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
+const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 
-// PostHog US Cloud endpoint for telemetry collection
-const TELEMETRY_ENDPOINT = "https://us.i.posthog.com/capture";
-
-// OpenHands PostHog project API key
+// PostHog configuration
 const POSTHOG_API_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+const POSTHOG_HOST = "https://us.i.posthog.com";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
-export interface TelemetryState {
-  firstUseSent: boolean;
-  sessionId: string;
-  lastSeen: number;
-}
-
-export interface TelemetryEvent {
-  event: string;
-  distinct_id: string;
-  properties: Record<string, unknown>;
-  timestamp?: string;
-}
+let isInitialized = false;
 
 /**
- * Generate a simple anonymous ID for telemetry
- * This does not identify the user, just provides event correlation
+ * Check if we're in a browser environment
  */
-function generateAnonymousId(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
+function isBrowser(): boolean {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
 
 /**
- * Get the current telemetry state from localStorage
- */
-function getTelemetryState(): TelemetryState | null {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
-    return null;
-  }
-
-  try {
-    const stored = localStorage.getItem(TELEMETRY_STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored) as TelemetryState;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}
-
-/**
- * Save telemetry state to localStorage
- */
-function saveTelemetryState(state: TelemetryState): void {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
-    return;
-  }
-
-  try {
-    localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage errors (e.g., quota exceeded)
-  }
-}
-
-/**
- * Check if telemetry is disabled via environment variable.
+ * Check if telemetry is disabled via environment variable or browser setting.
  * Works in both Node.js and browser (Vite) environments.
  */
 function isDoNotTrackEnabled(): boolean {
@@ -114,14 +64,46 @@ function isDoNotTrackEnabled(): boolean {
 }
 
 /**
+ * Initialize PostHog SDK (called once on first consent grant)
+ */
+function initializePostHog(): void {
+  if (isInitialized || !isBrowser()) {
+    return;
+  }
+
+  posthog.init(POSTHOG_API_KEY, {
+    api_host: POSTHOG_HOST,
+    // Start with capturing disabled - we enable it when consent is granted
+    opt_out_capturing_by_default: true,
+    // Don't auto-capture page views - we control when to track
+    capture_pageview: false,
+    // Don't auto-capture clicks etc.
+    autocapture: false,
+    // Use localStorage for persistence
+    persistence: "localStorage",
+    // Disable session recording
+    disable_session_recording: true,
+    // Set default properties for all events
+    loaded: (ph) => {
+      ph.register({
+        package_name: packageJson.name,
+        package_version: packageJson.version,
+      });
+    },
+  });
+
+  isInitialized = true;
+}
+
+/**
  * Get user's telemetry consent preference
  */
 export function getTelemetryConsent(): TelemetryConsent {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (!isBrowser()) {
     return "pending";
   }
 
-  // Check environment variable for opt-out (works in both Node.js and browser)
+  // Check environment variable for opt-out
   if (isDoNotTrackEnabled()) {
     return "denied";
   }
@@ -142,12 +124,23 @@ export function getTelemetryConsent(): TelemetryConsent {
  * Set user's telemetry consent preference
  */
 export function setTelemetryConsent(consent: "granted" | "denied"): void {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (!isBrowser()) {
     return;
   }
 
   try {
     localStorage.setItem(TELEMETRY_CONSENT_KEY, consent);
+
+    // Initialize PostHog if not already done
+    initializePostHog();
+
+    if (consent === "granted") {
+      // Enable capturing
+      posthog.opt_in_capturing();
+    } else {
+      // Disable capturing and clear any queued events
+      posthog.opt_out_capturing();
+    }
   } catch {
     // Ignore storage errors
   }
@@ -161,26 +154,32 @@ export function isTelemetryEnabled(): boolean {
 }
 
 /**
- * Send a telemetry event to the collection endpoint
+ * Check if first use event has already been sent
  */
-async function sendTelemetryEvent(event: TelemetryEvent): Promise<boolean> {
-  try {
-    const response = await fetch(TELEMETRY_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: POSTHOG_API_KEY,
-        ...event,
-        timestamp: event.timestamp || new Date().toISOString(),
-      }),
-    });
-
-    return response.ok;
-  } catch {
-    // Silent fail - telemetry should never break the app
+function hasFirstUseSent(): boolean {
+  if (!isBrowser()) {
     return false;
+  }
+
+  try {
+    return localStorage.getItem(TELEMETRY_FIRST_USE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark first use event as sent
+ */
+function markFirstUseSent(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(TELEMETRY_FIRST_USE_KEY, "true");
+  } catch {
+    // Ignore storage errors
   }
 }
 
@@ -195,39 +194,27 @@ export async function trackFirstUse(): Promise<void> {
     return;
   }
 
-  const state = getTelemetryState();
-
   // Already sent first use event
-  if (state?.firstUseSent) {
+  if (hasFirstUseSent()) {
     return;
   }
 
-  const sessionId = state?.sessionId || generateAnonymousId();
-  const newState: TelemetryState = {
-    firstUseSent: true,
-    sessionId,
-    lastSeen: Date.now(),
-  };
+  // Initialize PostHog if needed
+  initializePostHog();
 
-  // Send the event
-  const success = await sendTelemetryEvent({
-    event: "canvas_install",
-    distinct_id: sessionId,
-    properties: {
-      package_name: packageJson.name,
-      package_version: packageJson.version,
-      platform: typeof navigator !== "undefined" ? navigator.platform : "unknown",
-      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
-      referrer: typeof document !== "undefined" ? document.referrer : "",
-      url_origin: typeof window !== "undefined" ? window.location.origin : "",
-      embedded: typeof window !== "undefined" && window.self !== window.top,
-    },
+  // Capture the event
+  posthog.capture("canvas_install", {
+    platform:
+      typeof navigator !== "undefined" ? navigator.platform : "unknown",
+    user_agent:
+      typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+    referrer: typeof document !== "undefined" ? document.referrer : "",
+    url_origin: typeof window !== "undefined" ? window.location.origin : "",
+    embedded: typeof window !== "undefined" && window.self !== window.top,
   });
 
-  // Only save state if event was sent successfully
-  if (success) {
-    saveTelemetryState(newState);
-  }
+  // Mark as sent
+  markFirstUseSent();
 }
 
 /**
@@ -239,24 +226,11 @@ export async function trackSessionStart(): Promise<void> {
     return;
   }
 
-  const state = getTelemetryState();
-  const sessionId = state?.sessionId || generateAnonymousId();
+  // Initialize PostHog if needed
+  initializePostHog();
 
-  await sendTelemetryEvent({
-    event: "canvas_new_session",
-    distinct_id: sessionId,
-    properties: {
-      package_name: packageJson.name,
-      package_version: packageJson.version,
-      is_first_use: !state?.firstUseSent,
-    },
-  });
-
-  // Update last seen
-  saveTelemetryState({
-    firstUseSent: state?.firstUseSent || false,
-    sessionId,
-    lastSeen: Date.now(),
+  posthog.capture("canvas_new_session", {
+    is_first_use: !hasFirstUseSent(),
   });
 }
 
@@ -271,32 +245,39 @@ export async function trackEvent(
     return;
   }
 
-  const state = getTelemetryState();
-  const sessionId = state?.sessionId || generateAnonymousId();
+  // Initialize PostHog if needed
+  initializePostHog();
 
-  await sendTelemetryEvent({
-    event: eventName,
-    distinct_id: sessionId,
-    properties: {
-      package_name: packageJson.name,
-      package_version: packageJson.version,
-      ...properties,
-    },
-  });
+  posthog.capture(eventName, properties);
 }
 
 /**
  * Clear all telemetry data (for privacy/GDPR requests)
  */
 export function clearTelemetryData(): void {
-  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+  if (!isBrowser()) {
     return;
   }
 
   try {
-    localStorage.removeItem(TELEMETRY_STORAGE_KEY);
     localStorage.removeItem(TELEMETRY_CONSENT_KEY);
+    localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
+
+    // Reset PostHog
+    if (isInitialized) {
+      posthog.reset();
+    }
   } catch {
     // Ignore storage errors
   }
+}
+
+/**
+ * Get the PostHog instance for advanced usage (if needed)
+ */
+export function getPostHogInstance(): typeof posthog | null {
+  if (!isInitialized) {
+    return null;
+  }
+  return posthog;
 }

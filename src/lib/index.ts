@@ -50,7 +50,6 @@ export {
   trackSessionStart,
   trackEvent,
   clearTelemetryData,
+  getPostHogInstance,
   type TelemetryConsent,
-  type TelemetryState,
-  type TelemetryEvent,
 } from "../services/telemetry";
