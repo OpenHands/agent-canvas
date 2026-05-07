@@ -20,6 +20,7 @@ import {
   MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 import { AgentServerConnectionForm } from "#/components/features/settings/agent-server-onboarding";
+import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { AgentServerUIRoot } from "#/components/providers";
@@ -37,6 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <AgentServerUIRoot contentClassName="min-h-screen">
           {children}
           <Toaster />
+          <TelemetryConsentBanner />
           <div id="modal-portal-exit" />
         </AgentServerUIRoot>
         <ScrollRestoration />
