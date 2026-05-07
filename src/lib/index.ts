@@ -38,3 +38,18 @@ export {
   type AgentServerUIStyleOverrides,
   type AgentServerUITheme,
 } from "../styles/agent-server-ui-style-scope";
+
+// Telemetry exports
+export { TelemetryConsentBanner } from "../components/features/analytics/telemetry-consent-banner";
+export { useTelemetry, type UseTelemetryReturn } from "../hooks/use-telemetry";
+export {
+  getTelemetryConsent,
+  setTelemetryConsent,
+  isTelemetryEnabled,
+  trackFirstUse,
+  trackSessionStart,
+  trackEvent,
+  clearTelemetryData,
+  getPostHogInstance,
+  type TelemetryConsent,
+} from "../services/telemetry";
