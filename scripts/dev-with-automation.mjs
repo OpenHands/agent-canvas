@@ -209,7 +209,12 @@ function buildConfig(args, env = process.env) {
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
   
   // Session API key for agent-server auth (optional)
-  const sessionApiKey = env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
+  // Check multiple env vars that the agent-server may use:
+  // - SESSION_API_KEY: Used by agent-server default config (V0)
+  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
+  // - OH_SESSION_API_KEY: Common alias
+  // - VITE_SESSION_API_KEY: Used by frontend config
+  const sessionApiKey = env.SESSION_API_KEY || env.OH_SESSION_API_KEYS_0 || env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
 
   return {
     // Ingress port (main entry point)

@@ -178,6 +178,38 @@ describe("buildConfig", () => {
 
     expect(config.sessionApiKey).toBe("oh-key");
   });
+
+  it("reads sessionApiKey from SESSION_API_KEY (agent-server V0 env)", () => {
+    const config = buildConfig({}, { SESSION_API_KEY: "v0-session-key" });
+
+    expect(config.sessionApiKey).toBe("v0-session-key");
+  });
+
+  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
+    const config = buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
+
+    expect(config.sessionApiKey).toBe("v1-session-key");
+  });
+
+  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", () => {
+    const config = buildConfig({}, {
+      SESSION_API_KEY: "v0-key",
+      OH_SESSION_API_KEYS_0: "v1-key",
+    });
+
+    expect(config.sessionApiKey).toBe("v0-key");
+  });
+
+  it("SESSION_API_KEY takes precedence over all other session key env vars", () => {
+    const config = buildConfig({}, {
+      SESSION_API_KEY: "v0-key",
+      OH_SESSION_API_KEYS_0: "v1-key",
+      OH_SESSION_API_KEY: "oh-key",
+      VITE_SESSION_API_KEY: "vite-key",
+    });
+
+    expect(config.sessionApiKey).toBe("v0-key");
+  });
 });
 
 describe("default constants", () => {
