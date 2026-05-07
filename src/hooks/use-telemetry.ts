@@ -66,13 +66,15 @@ export function useTelemetry(): UseTelemetryReturn {
     }
   }, [consent]);
 
-  const grantConsent = useCallback(() => {
-    setTelemetryConsent("granted");
+  const grantConsent = useCallback(async () => {
+    // Must await to ensure PostHog is initialized and opt_in_capturing() is called
+    // before the useEffect triggers tracking calls
+    await setTelemetryConsent("granted");
     setConsentState("granted");
   }, []);
 
-  const denyConsent = useCallback(() => {
-    setTelemetryConsent("denied");
+  const denyConsent = useCallback(async () => {
+    await setTelemetryConsent("denied");
     setConsentState("denied");
   }, []);
 
