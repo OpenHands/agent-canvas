@@ -546,3 +546,16 @@ main().catch((err) => {
   }
   process.exit(1);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Exports for testing
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  buildAutomationCommand,
+  buildConfig,
+  DEFAULT_AUTOMATION_REPO,
+  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_BACKEND_PORT,
+  DEFAULT_AUTOMATION_PORT,
+};
