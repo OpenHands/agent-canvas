@@ -64,6 +64,13 @@ export function useTelemetry(): UseTelemetryReturn {
 
   // Track install immediately on first mount (regardless of consent)
   // This only fires once per installation due to localStorage deduplication
+  //
+  // PRIVACY NOTE: This sends an anonymous install event before the user grants consent.
+  // Data collected: browser platform, user agent, referrer, origin URL, embedded status.
+  // A random PostHog distinct_id is generated (not tied to user identity).
+  // Users can prevent this by setting VITE_DO_NOT_TRACK=1 or browser's DNT setting.
+  // This approach uses "legitimate interest" under GDPR Article 6(1)(f) for basic
+  // aggregate analytics. No cross-site tracking, no advertising, no user profiles.
   const hasTrackedInstall = useRef(false);
   useEffect(() => {
     if (!hasTrackedInstall.current) {
