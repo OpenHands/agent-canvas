@@ -18,8 +18,14 @@ const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 // PostHog US Cloud endpoint for telemetry collection
 const TELEMETRY_ENDPOINT = "https://us.i.posthog.com/capture";
 
-// OpenHands PostHog project API key
-const POSTHOG_API_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
+// OpenHands PostHog project API keys
+const POSTHOG_API_KEY_DEV = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
+const POSTHOG_API_KEY_PROD = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+
+// Use dev key in development, prod key in production
+const POSTHOG_API_KEY = import.meta.env.DEV
+  ? POSTHOG_API_KEY_DEV
+  : POSTHOG_API_KEY_PROD;
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
