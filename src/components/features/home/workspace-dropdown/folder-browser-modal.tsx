@@ -134,14 +134,21 @@ export function FolderBrowserModal({
   const subdirs = listing?.items ?? [];
   const parent = currentPath ? getParentPath(currentPath) : null;
 
+  const getBasename = (path: string): string => {
+    const trimmed = path.replace(/\/+$/, "");
+    if (!trimmed) return "/";
+    const idx = trimmed.lastIndexOf("/");
+    return idx >= 0 ? trimmed.slice(idx + 1) || "/" : trimmed;
+  };
+
   const handleUseThisFolder = () => {
-    if (subdirs.length === 0) return;
-    const items: LocalWorkspace[] = subdirs.map((s) => ({
-      id: s.path,
-      name: s.name,
-      path: s.path,
-    }));
-    onAdd(items);
+    if (!currentPath) return;
+    const item: LocalWorkspace = {
+      id: currentPath,
+      name: getBasename(currentPath),
+      path: currentPath,
+    };
+    onAdd([item]);
     onClose();
   };
 
@@ -272,7 +279,7 @@ export function FolderBrowserModal({
             type="button"
             variant="primary"
             onClick={handleUseThisFolder}
-            isDisabled={subdirs.length === 0}
+            isDisabled={!currentPath || isLoading}
             testId="folder-browser-use"
           >
             {t(I18nKey.HOME$USE_THIS_FOLDER)}

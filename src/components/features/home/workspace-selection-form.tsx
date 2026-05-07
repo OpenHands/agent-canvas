@@ -12,6 +12,7 @@ import FolderIcon from "#/icons/folder.svg?react";
 import { BrandButton } from "../settings/brand-button";
 import { WorkspaceDropdown } from "./workspace-dropdown/workspace-dropdown";
 import { FolderBrowserModal } from "./workspace-dropdown/folder-browser-modal";
+import { ManageWorkspacesModal } from "./workspace-dropdown/manage-workspaces-modal";
 
 interface WorkspaceSelectionFormProps {
   isLoadingSettings?: boolean;
@@ -23,10 +24,11 @@ export function WorkspaceSelectionForm({
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
-  const { workspaces, addWorkspaces } = useWorkspacesStore();
+  const { workspaces, addWorkspaces, removeWorkspace } = useWorkspacesStore();
   const [selectedWorkspace, setSelectedWorkspace] =
     React.useState<LocalWorkspace | null>(null);
   const [isBrowserOpen, setIsBrowserOpen] = React.useState(false);
+  const [isManageOpen, setIsManageOpen] = React.useState(false);
 
   const {
     mutate: createConversation,
@@ -63,6 +65,7 @@ export function WorkspaceSelectionForm({
           disabled={isLoadingSettings}
           onChange={setSelectedWorkspace}
           onAddClick={() => setIsBrowserOpen(true)}
+          onManageClick={() => setIsManageOpen(true)}
           className="max-w-auto"
         />
       </div>
@@ -85,6 +88,18 @@ export function WorkspaceSelectionForm({
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
         onAdd={(items) => addWorkspaces(items)}
+      />
+
+      <ManageWorkspacesModal
+        isOpen={isManageOpen}
+        workspaces={workspaces}
+        onClose={() => setIsManageOpen(false)}
+        onRemove={(path) => {
+          if (selectedWorkspace?.path === path) {
+            setSelectedWorkspace(null);
+          }
+          removeWorkspace(path);
+        }}
       />
     </div>
   );

@@ -1,16 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RepositorySelectionForm } from "../../../../src/components/features/home/repo-selection-form";
-import { LaunchTabs } from "../../../../src/components/features/home/launch-tabs";
 import GitService from "#/api/git-service/git-service.api";
-import SettingsService from "#/api/settings-service/settings-service.api";
-import { DEFAULT_SETTINGS } from "#/services/settings";
 import { GitRepository } from "#/types/git";
 import { useHomeStore } from "#/stores/home-store";
-import { useWorkspacesStore } from "#/stores/workspaces-store";
-import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Create mock functions
 const mockUseUserRepositories = vi.fn();
@@ -334,87 +328,4 @@ describe("RepositorySelectionForm", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("LaunchTabs defaults to Repositories and switches to Workspaces", async () => {
-    mockUseUserProviders.mockReturnValue({ providers: ["github"] });
-    useWorkspacesStore.setState({ workspaces: [] });
-
-    render(<LaunchTabs onRepoSelection={mockOnRepoSelection} />, {
-      wrapper: ({ children }) => (
-        <QueryClientProvider
-          client={
-            new QueryClient({
-              defaultOptions: { queries: { retry: false } },
-            })
-          }
-        >
-          <ActiveBackendProvider>{children}</ActiveBackendProvider>
-        </QueryClientProvider>
-      ),
-    });
-
-    expect(await screen.findByTestId("git-repo-dropdown")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("workspace-launch-button"),
-    ).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByTestId("workspaces-tab"));
-
-    expect(
-      await screen.findByTestId("workspace-launch-button"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("git-repo-dropdown")).not.toBeInTheDocument();
-  });
-
-  it("keeps the Workspaces tab reachable when no provider is configured", async () => {
-    mockUseUserProviders.mockReturnValue({ providers: [] });
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      DEFAULT_SETTINGS,
-    );
-    useWorkspacesStore.setState({ workspaces: [] });
-
-    render(<LaunchTabs onRepoSelection={mockOnRepoSelection} />, {
-      wrapper: ({ children }) => (
-        <QueryClientProvider
-          client={
-            new QueryClient({
-              defaultOptions: { queries: { retry: false } },
-            })
-          }
-        >
-          {children}
-        </QueryClientProvider>
-      ),
-    });
-
-    await userEvent.click(screen.getByTestId("workspaces-tab"));
-
-    expect(
-      await screen.findByTestId("workspace-launch-button"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the connect-provider empty state in the Repositories tab when no provider is configured", async () => {
-    mockUseUserProviders.mockReturnValue({ providers: [] });
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      DEFAULT_SETTINGS,
-    );
-
-    render(<LaunchTabs onRepoSelection={mockOnRepoSelection} />, {
-      wrapper: ({ children }) => (
-        <QueryClientProvider
-          client={
-            new QueryClient({
-              defaultOptions: { queries: { retry: false } },
-            })
-          }
-        >
-          {children}
-        </QueryClientProvider>
-      ),
-    });
-
-    expect(
-      await screen.findByTestId("navigate-to-settings-button"),
-    ).toBeInTheDocument();
-  });
 });

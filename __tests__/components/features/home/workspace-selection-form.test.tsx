@@ -81,7 +81,7 @@ describe("WorkspaceSelectionForm", () => {
     useWorkspacesStore.setState({ workspaces: [] });
   });
 
-  it("Add Workspaces opens Finder-like modal, navigates, and imports subfolders deduped on repeat", async () => {
+  it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
     vi.spyOn(FilesService, "getHome").mockResolvedValue({ home: "/Users/me" });
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
@@ -107,41 +107,91 @@ describe("WorkspaceSelectionForm", () => {
 
     // Pre-seed one workspace to verify dedup
     renderForm([
-      { id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" },
+      { id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" },
     ]);
     const user = userEvent.setup();
 
-    for (let i = 0; i < 2; i += 1) {
-      await user.click(screen.getByTestId("workspace-dropdown"));
-      const addButton = await screen.findByTestId("add-workspaces-button");
-      await user.click(addButton);
+    // First pass: navigate into "dev" then click "Use this folder"
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
 
-      // Modal opens at home; dropdown menu is closed.
-      await screen.findByTestId("folder-browser-modal");
+    await screen.findByTestId("folder-browser-modal");
+    expect(
+      screen.queryByTestId("add-workspaces-button"),
+    ).not.toBeInTheDocument();
+
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await screen.findByTestId("folder-browser-entry-repo2");
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    await waitFor(() =>
       expect(
-        screen.queryByTestId("add-workspaces-button"),
-      ).not.toBeInTheDocument();
+        screen.queryByTestId("folder-browser-modal"),
+      ).not.toBeInTheDocument(),
+    );
 
-      // Navigate into "dev" then click "Use this folder"
-      const devEntry = await screen.findByTestId("folder-browser-entry-dev");
-      await user.click(devEntry);
-      await screen.findByTestId("folder-browser-entry-repo2");
-      await user.click(screen.getByTestId("folder-browser-use"));
+    // The same /Users/me/dev folder should be deduped, not duplicated, and
+    // its children should NOT have been imported as workspaces.
+    expect(
+      useWorkspacesStore.getState().workspaces.map((w) => w.path).sort(),
+    ).toEqual(["/Users/me/dev"]);
 
-      await waitFor(() =>
-        expect(
-          screen.queryByTestId("folder-browser-modal"),
-        ).not.toBeInTheDocument(),
-      );
-    }
+    // Second pass: pick a child folder; it should be added as a single
+    // workspace (still no recursion into its subfolders).
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await user.click(await screen.findByTestId("folder-browser-entry-repo1"));
+    await user.click(screen.getByTestId("folder-browser-use"));
 
-    const stored = useWorkspacesStore.getState().workspaces;
-    expect(stored.map((w) => w.path).sort()).toEqual([
-      "/Users/me/dev/repo1",
-      "/Users/me/dev/repo2",
-      "/Users/me/dev/repo3",
-    ]);
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("folder-browser-modal"),
+      ).not.toBeInTheDocument(),
+    );
+
+    expect(
+      useWorkspacesStore.getState().workspaces.map((w) => w.path).sort(),
+    ).toEqual(["/Users/me/dev", "/Users/me/dev/repo1"]);
     expect(searchSpy).toHaveBeenCalledWith("/Users/me/dev");
+  });
+
+  it("Manage Workspaces lets you remove individual workspaces", async () => {
+    const workspaces: LocalWorkspace[] = [
+      { id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" },
+      { id: "/Users/me/dev/repo2", name: "repo2", path: "/Users/me/dev/repo2" },
+    ];
+    renderForm(workspaces);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("manage-workspaces-button"));
+
+    await screen.findByTestId("manage-workspaces-modal");
+    await user.click(screen.getByTestId("manage-workspaces-remove-repo1"));
+
+    expect(
+      useWorkspacesStore.getState().workspaces.map((w) => w.path),
+    ).toEqual(["/Users/me/dev/repo2"]);
+
+    await user.click(screen.getByTestId("manage-workspaces-done"));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("manage-workspaces-modal"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("Manage Workspaces button is hidden when there are no workspaces", async () => {
+    renderForm([]);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await screen.findByTestId("add-workspaces-button");
+    expect(
+      screen.queryByTestId("manage-workspaces-button"),
+    ).not.toBeInTheDocument();
   });
 
   it("Launch creates a v1 conversation with the selected workspace path as working_dir", async () => {
