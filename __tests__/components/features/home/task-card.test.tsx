@@ -140,6 +140,8 @@ describe("TaskCard", () => {
           git_provider: MOCK_TASK_1.git_provider,
         },
         undefined,
+        undefined,
+        undefined,
       );
     });
   });
