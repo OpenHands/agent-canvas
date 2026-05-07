@@ -16,10 +16,14 @@ import packageJson from "../../package.json";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
+const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 
-// PostHog configuration
-const POSTHOG_API_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
-const POSTHOG_HOST = "https://us.i.posthog.com";
+// PostHog configuration - configurable via env vars with OpenHands defaults
+const POSTHOG_API_KEY =
+  import.meta.env.VITE_POSTHOG_API_KEY ||
+  "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+const POSTHOG_HOST =
+  import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
@@ -218,11 +222,47 @@ export async function trackFirstUse(): Promise<void> {
 }
 
 /**
+ * Check if session start event has already been sent (this browser session)
+ */
+function hasSessionSent(): boolean {
+  if (!isBrowser()) {
+    return false;
+  }
+
+  try {
+    return sessionStorage.getItem(TELEMETRY_SESSION_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark session start event as sent (uses sessionStorage so it resets on new tabs/sessions)
+ */
+function markSessionSent(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(TELEMETRY_SESSION_KEY, "true");
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
  * Track a session start event.
- * Called each time the library is loaded (respects consent).
+ * Called each time a new browser session starts (respects consent).
+ * Uses sessionStorage for deduplication - only sends once per browser session.
  */
 export async function trackSessionStart(): Promise<void> {
   if (!isTelemetryEnabled()) {
+    return;
+  }
+
+  // Already sent session event this browser session
+  if (hasSessionSent()) {
     return;
   }
 
@@ -232,6 +272,9 @@ export async function trackSessionStart(): Promise<void> {
   posthog.capture("canvas_new_session", {
     is_first_use: !hasFirstUseSent(),
   });
+
+  // Mark as sent for this session
+  markSessionSent();
 }
 
 /**
@@ -262,6 +305,7 @@ export function clearTelemetryData(): void {
   try {
     localStorage.removeItem(TELEMETRY_CONSENT_KEY);
     localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
+    sessionStorage.removeItem(TELEMETRY_SESSION_KEY);
 
     // Reset PostHog
     if (isInitialized) {
