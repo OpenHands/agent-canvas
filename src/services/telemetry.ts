@@ -5,13 +5,17 @@
  * using the PostHog SDK for reliable event delivery with batching, retry logic,
  * and offline support.
  *
- * All telemetry is sent to the OpenHands PostHog project. Users can opt out via:
+ * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project when
+ * users grant consent. Library consumers can override this by setting
+ * VITE_POSTHOG_API_KEY to point telemetry to their own PostHog project.
+ *
+ * Users can opt out of telemetry via:
  * - Declining consent in the UI
  * - Setting VITE_DO_NOT_TRACK=1 environment variable
  * - Browser's Do Not Track setting
  */
 
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 import packageJson from "../../package.json";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
@@ -19,6 +23,8 @@ const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 
 // PostHog configuration - configurable via env vars with OpenHands defaults
+// Note: The default API key sends telemetry to OpenHands' PostHog project.
+// Library consumers can override this with their own PostHog project key.
 const POSTHOG_API_KEY =
   import.meta.env.VITE_POSTHOG_API_KEY ||
   "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
@@ -28,12 +34,36 @@ const POSTHOG_HOST =
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
 let isInitialized = false;
+let posthogInstance: PostHog | null = null;
 
 /**
  * Check if we're in a browser environment
  */
 function isBrowser(): boolean {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
+/**
+ * Lazily load PostHog to avoid SSR/Node.js issues.
+ * PostHog is a browser-only library, so we dynamically import it only when needed.
+ */
+async function getPostHog(): Promise<PostHog | null> {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  if (posthogInstance) {
+    return posthogInstance;
+  }
+
+  try {
+    const { default: posthog } = await import("posthog-js");
+    posthogInstance = posthog;
+    return posthog;
+  } catch {
+    // Failed to load PostHog - telemetry will be disabled
+    return null;
+  }
 }
 
 /**
@@ -70,9 +100,14 @@ function isDoNotTrackEnabled(): boolean {
 /**
  * Initialize PostHog SDK (called once on first consent grant)
  */
-function initializePostHog(): void {
-  if (isInitialized || !isBrowser()) {
-    return;
+async function initializePostHog(): Promise<PostHog | null> {
+  if (isInitialized) {
+    return posthogInstance;
+  }
+
+  const posthog = await getPostHog();
+  if (!posthog) {
+    return null;
   }
 
   posthog.init(POSTHOG_API_KEY, {
@@ -97,6 +132,7 @@ function initializePostHog(): void {
   });
 
   isInitialized = true;
+  return posthog;
 }
 
 /**
@@ -127,7 +163,9 @@ export function getTelemetryConsent(): TelemetryConsent {
 /**
  * Set user's telemetry consent preference
  */
-export function setTelemetryConsent(consent: "granted" | "denied"): void {
+export async function setTelemetryConsent(
+  consent: "granted" | "denied",
+): Promise<void> {
   if (!isBrowser()) {
     return;
   }
@@ -136,7 +174,10 @@ export function setTelemetryConsent(consent: "granted" | "denied"): void {
     localStorage.setItem(TELEMETRY_CONSENT_KEY, consent);
 
     // Initialize PostHog if not already done
-    initializePostHog();
+    const posthog = await initializePostHog();
+    if (!posthog) {
+      return;
+    }
 
     if (consent === "granted") {
       // Enable capturing
@@ -204,7 +245,10 @@ export async function trackFirstUse(): Promise<void> {
   }
 
   // Initialize PostHog if needed
-  initializePostHog();
+  const posthog = await initializePostHog();
+  if (!posthog) {
+    return;
+  }
 
   // Capture the event
   posthog.capture("canvas_install", {
@@ -267,7 +311,10 @@ export async function trackSessionStart(): Promise<void> {
   }
 
   // Initialize PostHog if needed
-  initializePostHog();
+  const posthog = await initializePostHog();
+  if (!posthog) {
+    return;
+  }
 
   posthog.capture("canvas_new_session", {
     is_first_use: !hasFirstUseSent(),
@@ -289,7 +336,10 @@ export async function trackEvent(
   }
 
   // Initialize PostHog if needed
-  initializePostHog();
+  const posthog = await initializePostHog();
+  if (!posthog) {
+    return;
+  }
 
   posthog.capture(eventName, properties);
 }
@@ -297,7 +347,7 @@ export async function trackEvent(
 /**
  * Clear all telemetry data (for privacy/GDPR requests)
  */
-export function clearTelemetryData(): void {
+export async function clearTelemetryData(): Promise<void> {
   if (!isBrowser()) {
     return;
   }
@@ -307,9 +357,9 @@ export function clearTelemetryData(): void {
     localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
     sessionStorage.removeItem(TELEMETRY_SESSION_KEY);
 
-    // Reset PostHog
-    if (isInitialized) {
-      posthog.reset();
+    // Reset PostHog if initialized
+    if (isInitialized && posthogInstance) {
+      posthogInstance.reset();
     }
   } catch {
     // Ignore storage errors
@@ -317,11 +367,13 @@ export function clearTelemetryData(): void {
 }
 
 /**
- * Get the PostHog instance for advanced usage (if needed)
+ * Get the PostHog instance for advanced usage (if needed).
+ * Returns the instance if initialized, otherwise null.
+ * Note: This is async because PostHog is lazily loaded.
  */
-export function getPostHogInstance(): typeof posthog | null {
+export async function getPostHogInstance(): Promise<PostHog | null> {
   if (!isInitialized) {
     return null;
   }
-  return posthog;
+  return posthogInstance;
 }
