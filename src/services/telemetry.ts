@@ -4,10 +4,10 @@
  * This module handles anonymous telemetry for the @openhands/agent-canvas package.
  * It tracks "first use" events (not installs) and respects user privacy preferences.
  *
- * Configuration via environment variables:
- * - VITE_TELEMETRY_ENDPOINT: The endpoint to send telemetry events (default: http://localhost:8080/capture)
- * - VITE_POSTHOG_API_KEY: Your PostHog project API key (required for production)
- * - VITE_DO_NOT_TRACK: Set to "1" to disable telemetry globally
+ * All telemetry is sent to the OpenHands PostHog project. Users can opt out via:
+ * - Declining consent in the UI
+ * - Setting VITE_DO_NOT_TRACK=1 environment variable
+ * - Browser's Do Not Track setting
  */
 
 import packageJson from "../../package.json";
@@ -15,12 +15,11 @@ import packageJson from "../../package.json";
 const TELEMETRY_STORAGE_KEY = "openhands-telemetry";
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 
-// Configurable telemetry endpoint - defaults to localhost for development
-const TELEMETRY_ENDPOINT =
-  import.meta.env.VITE_TELEMETRY_ENDPOINT || "http://localhost:8080/capture";
+// PostHog US Cloud endpoint for telemetry collection
+const TELEMETRY_ENDPOINT = "https://us.i.posthog.com/capture";
 
-// PostHog project API key - must be set via environment variable for production
-const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY || "";
+// OpenHands PostHog project API key
+const POSTHOG_API_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 
@@ -162,38 +161,9 @@ export function isTelemetryEnabled(): boolean {
 }
 
 /**
- * Check if telemetry is properly configured for production use.
- * Returns false if API key is missing or is the placeholder value.
- */
-function isTelemetryConfigured(): boolean {
-  if (!POSTHOG_API_KEY) {
-    return false;
-  }
-  // Check for placeholder values that shouldn't be used in production
-  if (
-    POSTHOG_API_KEY.startsWith("phc_your_") ||
-    POSTHOG_API_KEY === "placeholder"
-  ) {
-    return false;
-  }
-  return true;
-}
-
-/**
  * Send a telemetry event to the collection endpoint
  */
 async function sendTelemetryEvent(event: TelemetryEvent): Promise<boolean> {
-  // Skip sending if not properly configured (allows localhost dev server testing)
-  if (!isTelemetryConfigured() && !TELEMETRY_ENDPOINT.includes("localhost")) {
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.debug(
-        "[Telemetry] Skipped: API key not configured. Set VITE_POSTHOG_API_KEY for production.",
-      );
-    }
-    return false;
-  }
-
   try {
     const response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",

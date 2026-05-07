@@ -13,8 +13,6 @@ vi.stubGlobal("import.meta", {
   env: {
     DEV: false,
     VITE_DO_NOT_TRACK: undefined,
-    VITE_TELEMETRY_ENDPOINT: undefined,
-    VITE_POSTHOG_API_KEY: undefined,
   },
 });
 
@@ -97,7 +95,7 @@ describe("Telemetry Service", () => {
 
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        "http://localhost:8080/capture",
+        "https://us.i.posthog.com/capture",
         expect.objectContaining({
           method: "POST",
           headers: { "Content-Type": "application/json" },
