@@ -109,7 +109,7 @@ export function BackendSelector({ openUpward = false }: BackendSelectorProps = {
     useActiveBackendContext();
   const cloudOrgs = useAllCloudOrganizations();
   const currentUserIds = useCloudCurrentUserId();
-  // Probe the bundled backend AND each registered backend every 2s.
+  // Probe the bundled backend AND each registered backend every 10s.
   // The bundled backend is always a separate row in the dropdown, so it
   // needs its own probe even when the registered list is empty.
   const allBackends = React.useMemo(
