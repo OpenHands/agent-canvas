@@ -33,5 +33,10 @@ export const usePaginatedConversations = (limit: number = 20) => {
     getNextPageParam: (lastPage: V1AppConversationPage) =>
       lastPage.next_page_id,
     initialPageParam: undefined as string | undefined,
+    // Poll every 10s so titles, execution status, and timestamps stay fresh
+    // without requiring the user to refresh. React Query refetches in the
+    // background without flipping `isFetching` to a hard loading state, so
+    // the list updates silently.
+    refetchInterval: 10_000,
   });
 };

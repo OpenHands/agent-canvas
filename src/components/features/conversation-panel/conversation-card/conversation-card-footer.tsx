@@ -13,6 +13,7 @@ interface ConversationCardFooterProps {
   lastUpdatedAt: string;
   createdAt?: string;
   executionStatus?: V1ExecutionStatus | null;
+  workspaceWorkingDir?: string | null;
 }
 
 export function ConversationCardFooter({
@@ -20,6 +21,7 @@ export function ConversationCardFooter({
   lastUpdatedAt,
   createdAt,
   executionStatus,
+  workspaceWorkingDir,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -28,14 +30,16 @@ export function ConversationCardFooter({
   return (
     <div
       className={cn(
-        "flex flex-row justify-between items-center mt-1",
+        // Left padding aligns the repo/workspace icon with the title text in
+        // the header (status dot 10px + gap-2 8px = 18px).
+        "flex flex-row justify-between items-center mt-1 pl-[18px]",
         isPaused && "opacity-60",
       )}
     >
       {selectedRepository?.selected_repository ? (
         <ConversationRepoLink selectedRepository={selectedRepository} />
       ) : (
-        <NoRepository />
+        <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
       )}
       <div className="flex items-center gap-2 flex-1 justify-end">
         {(createdAt ?? lastUpdatedAt) && (

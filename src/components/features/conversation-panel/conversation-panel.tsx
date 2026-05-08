@@ -206,6 +206,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           setOpenContextMenuId(isOpen ? conversation.id : null)
         }
         isActive={conversation.id === currentConversationId}
+        workspaceWorkingDir={conversation.workspace?.working_dir}
       />
     </NavigationLink>
   );

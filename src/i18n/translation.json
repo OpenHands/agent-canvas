@@ -13010,6 +13010,24 @@
     "uk": "Розмов не знайдено",
     "ca": "No s'han trobat converses"
   },
+  "CONVERSATION$N_OLDER_CONVERSATIONS": {
+    "en": "older conversations"
+  },
+  "CONVERSATION$SHOW_ALL": {
+    "en": "show all"
+  },
+  "CONVERSATION$HIDE": {
+    "en": "hide"
+  },
+  "CONVERSATION$DELETE_ALL": {
+    "en": "delete all"
+  },
+  "CONVERSATION$CONFIRM_DELETE_OLDER_TITLE": {
+    "en": "Delete older conversations"
+  },
+  "CONVERSATION$CONFIRM_DELETE_OLDER_DESC": {
+    "en": "Are you sure you want to delete {{count}} older conversations? This action cannot be undone."
+  },
   "LANDING$SELECT_GIT_REPO": {
     "en": "Select a Git project",
     "ja": "Gitプロジェクトを選択",
@@ -19282,6 +19300,15 @@
     "de": "Läuft",
     "uk": "Працює",
     "ca": "En execució"
+  },
+  "COMMON$WORKING": {
+    "en": "Working"
+  },
+  "COMMON$PAUSED": {
+    "en": "Paused"
+  },
+  "COMMON$FINISHED": {
+    "en": "Finished"
   },
   "COMMON$WAITING_FOR_SANDBOX": {
     "en": "Waiting for sandbox",
