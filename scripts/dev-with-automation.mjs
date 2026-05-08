@@ -58,7 +58,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
-const DEFAULT_AUTOMATION_GIT_REF = "main";
+const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
+// Default automation version (released PyPI version)
+// Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 // Default local API key for automation backend auth (matches agent-server pattern)
@@ -148,15 +151,17 @@ USAGE:
 
 OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
-  --automation-ref <ref>      Git ref for automation (branch/tag/SHA, default: main)
+  --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
   --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
 ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
-  OH_AUTOMATION_GIT_REF       Alternative to --automation-ref
-  OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK
+  OH_AUTOMATION_GIT_REF       Git ref for automation (overrides default version)
+  OH_AUTOMATION_VERSION       Specific PyPI version for automation (default: ${DEFAULT_AUTOMATION_VERSION})
+  OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
+  OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
 
@@ -172,21 +177,42 @@ ACCESS POINTS:
 
 /**
  * Build the uvx command for running automation backend.
+ *
+ * Environment variables (highest precedence first):
+ * - OH_AUTOMATION_GIT_REF: Git commit SHA or branch name
+ * - OH_AUTOMATION_VERSION: Specific PyPI version (e.g., "1.0.0a1")
+ *
+ * If none are set, defaults to the released version specified by
+ * DEFAULT_AUTOMATION_VERSION. Set OH_AUTOMATION_GIT_REF to use a
+ * git branch or commit instead.
  */
 function buildAutomationCommand(env = process.env) {
-  const gitRef = env.OH_AUTOMATION_GIT_REF || DEFAULT_AUTOMATION_GIT_REF;
+  const gitRef = env.OH_AUTOMATION_GIT_REF;
+  const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
 
-  // Build git URL with ref
-  const gitUrl = `git+${repoUrl}@${gitRef}`;
+  const uvxArgs = [];
+  let source = "";
 
-  // Use --refresh to ensure latest commit is fetched for git refs
-  const args = ["--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app"];
+  if (gitRef) {
+    // Use git ref - refresh to ensure latest commit is fetched
+    const gitUrl = `git+${repoUrl}@${gitRef}`;
+    uvxArgs.push("--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app");
+    source = `git (${gitRef})`;
+  } else if (version) {
+    // Use specific PyPI version
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${version})`;
+  } else {
+    // Default to released PyPI version
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
+  }
 
   return {
     command: "uvx",
-    args,
-    source: `git (${gitRef})`,
+    args: uvxArgs,
+    source,
   };
 }
 
@@ -680,7 +706,8 @@ export {
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
-  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_AUTOMATION_PACKAGE,
+  DEFAULT_AUTOMATION_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 };
