@@ -39,8 +39,7 @@ export function ManageWorkspacesModal({
     dynamicWorkspacesByParent.set(w.parentPath, list);
   });
 
-  const hasContent =
-    staticWorkspaces.length > 0 || workspaceParents.length > 0;
+  const hasContent = staticWorkspaces.length > 0 || workspaceParents.length > 0;
 
   return (
     <ModalBackdrop

@@ -89,10 +89,7 @@ function AppContent() {
   const content = (
     <ConversationSubscriptionsProvider>
       <EventHandler>
-        <div
-          data-testid="app-route"
-          className="flex flex-col h-full"
-        >
+        <div data-testid="app-route" className="flex flex-col h-full">
           <ConversationMain />
         </div>
       </EventHandler>

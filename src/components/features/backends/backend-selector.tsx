@@ -103,7 +103,9 @@ interface BackendSelectorProps {
   openUpward?: boolean;
 }
 
-export function BackendSelector({ openUpward = false }: BackendSelectorProps = {}) {
+export function BackendSelector({
+  openUpward = false,
+}: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, bundledBackend, active, setActive } =
     useActiveBackendContext();
@@ -195,60 +197,60 @@ export function BackendSelector({ openUpward = false }: BackendSelectorProps = {
 
   return (
     <>
-    <Dropdown
-      testId="backend-selector"
-      key={`${activeValue}-${activeOption?.label ?? ""}`}
-      defaultValue={
-        activeOption ?? {
-          value: activeValue,
-          label: bundledLabel,
-          prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
-        }
-      }
-      footer={addBackendFooter}
-      openUpward={openUpward}
-      onChange={async (item) => {
-        if (!item || item.value === activeValue) return;
-        const { backendId, orgId } = parseOptionValue(item.value);
-        const target = backends.find((b) => b.id === backendId);
-
-        // Cloud + org pick: fire `/switch` FIRST against the explicit
-        // target backend, then update the active selection after it
-        // resolves. This ensures the SaaS-side `current_org_id` is
-        // already in place before any of our backend-keyed queries
-        // refetch — they fire exactly once, with the correct context.
-        //
-        // We use `mutateAsync` + `await` (rather than `mutate(... ,
-        // { onSuccess })`) because per-call onSuccess callbacks were
-        // observed not to run reliably for this hook in practice; the
-        // promise-based shape is unambiguous.
-        if (orgId && target?.kind === "cloud") {
-          try {
-            await switchOrg({ orgId, backend: target });
-          } catch {
-            // Error is surfaced by the mutation cache's global handler.
-            return;
+      <Dropdown
+        testId="backend-selector"
+        key={`${activeValue}-${activeOption?.label ?? ""}`}
+        defaultValue={
+          activeOption ?? {
+            value: activeValue,
+            label: bundledLabel,
+            prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
           }
         }
+        footer={addBackendFooter}
+        openUpward={openUpward}
+        onChange={async (item) => {
+          if (!item || item.value === activeValue) return;
+          const { backendId, orgId } = parseOptionValue(item.value);
+          const target = backends.find((b) => b.id === backendId);
 
-        // Pure backend swap (local-↔-bundled or backend-only cloud
-        // selection without an org) skips `/switch` and updates active
-        // directly; cloud-with-org falls through here after `/switch`.
-        setActive(backendId, orgId);
+          // Cloud + org pick: fire `/switch` FIRST against the explicit
+          // target backend, then update the active selection after it
+          // resolves. This ensures the SaaS-side `current_org_id` is
+          // already in place before any of our backend-keyed queries
+          // refetch — they fire exactly once, with the correct context.
+          //
+          // We use `mutateAsync` + `await` (rather than `mutate(... ,
+          // { onSuccess })`) because per-call onSuccess callbacks were
+          // observed not to run reliably for this hook in practice; the
+          // promise-based shape is unambiguous.
+          if (orgId && target?.kind === "cloud") {
+            try {
+              await switchOrg({ orgId, backend: target });
+            } catch {
+              // Error is surfaced by the mutation cache's global handler.
+              return;
+            }
+          }
 
-        // The current conversation belongs to the previous backend
-        // and is no longer reachable under the new one — redirect home
-        // so the user lands on a coherent screen.
-        if (conversationMatch) navigate("/conversations");
-      }}
-      placeholder={bundledLabel}
-      loading={someCloudLoading || isSwitching}
-      options={options}
-      className="bg-[#1F1F1F66] border-[#242424]"
-    />
-    {addBackendModalOpen ? (
-      <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
-    ) : null}
+          // Pure backend swap (local-↔-bundled or backend-only cloud
+          // selection without an org) skips `/switch` and updates active
+          // directly; cloud-with-org falls through here after `/switch`.
+          setActive(backendId, orgId);
+
+          // The current conversation belongs to the previous backend
+          // and is no longer reachable under the new one — redirect home
+          // so the user lands on a coherent screen.
+          if (conversationMatch) navigate("/conversations");
+        }}
+        placeholder={bundledLabel}
+        loading={someCloudLoading || isSwitching}
+        options={options}
+        className="bg-[#1F1F1F66] border-[#242424]"
+      />
+      {addBackendModalOpen ? (
+        <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
+      ) : null}
     </>
   );
 }
