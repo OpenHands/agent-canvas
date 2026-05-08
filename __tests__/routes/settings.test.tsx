@@ -12,6 +12,7 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import { getFirstAvailablePath } from "#/utils/settings-utils";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [
@@ -114,7 +115,9 @@ describe("settings route", () => {
 
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <RouterStub initialEntries={["/settings/app"]} />
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/settings/app"]} />
+        </ActiveBackendProvider>
       </QueryClientProvider>,
     );
 

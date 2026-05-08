@@ -23,6 +23,7 @@ import {
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { Typography } from "#/ui/typography";
+import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 
 export const handle = { hideTitle: true };
 
@@ -193,9 +194,10 @@ export function MCPSettingsScreen() {
     <div className="h-full flex flex-col gap-6 pb-8">
       <div className="flex justify-between items-center">
         <div>
-          <Typography.H2 className="mb-2">
-            {t(I18nKey.SETTINGS$MCP_TITLE)}
-          </Typography.H2>
+          <div className="flex flex-col items-start gap-2 mb-2">
+            <Typography.H2>{t(I18nKey.SETTINGS$MCP_TITLE)}</Typography.H2>
+            <BackendSyncedSettingsBadge />
+          </div>
           <Typography.Paragraph className="text-sm text-[#A3A3A3]">
             {t(I18nKey.SETTINGS$MCP_DESCRIPTION)}
           </Typography.Paragraph>

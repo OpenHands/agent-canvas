@@ -22354,6 +22354,23 @@
     "uk": "Локальний",
     "ca": "Local"
   },
+  "SETTINGS$BACKEND_SYNCED_BADGE": {
+    "en": "These settings are synced from {{name}} backend ({{host}})",
+    "ja": "これらの設定は {{name}} バックエンド ({{host}}) と同期されています",
+    "zh-CN": "这些设置已与 {{name}} 后端 ({{host}}) 同步",
+    "zh-TW": "這些設定已與 {{name}} 後端 ({{host}}) 同步",
+    "ko-KR": "이 설정은 {{name}} 백엔드 ({{host}})에서 동기화됩니다",
+    "no": "Disse innstillingene er synkronisert fra {{name}}-backend ({{host}})",
+    "it": "Queste impostazioni sono sincronizzate dal backend {{name}} ({{host}})",
+    "pt": "Estas configurações estão sincronizadas com o backend {{name}} ({{host}})",
+    "es": "Estas configuraciones están sincronizadas con el backend {{name}} ({{host}})",
+    "ar": "تتم مزامنة هذه الإعدادات من الواجهة الخلفية {{name}} ({{host}})",
+    "fr": "Ces paramètres sont synchronisés depuis le backend {{name}} ({{host}})",
+    "tr": "Bu ayarlar {{name}} arka uç ({{host}}) ile senkronize edilmiştir",
+    "de": "Diese Einstellungen werden mit dem Backend {{name}} ({{host}}) synchronisiert",
+    "uk": "Ці налаштування синхронізовано з бекендом {{name}} ({{host}})",
+    "ca": "Aquesta configuració està sincronitzada amb el backend {{name}} ({{host}})"
+  },
   "BACKEND$REMOVE": {
     "en": "Remove",
     "ja": "削除",

@@ -5,6 +5,7 @@ import MCPSettingsScreen from "#/routes/mcp-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -26,7 +27,7 @@ function renderMcpSettingsScreen() {
           defaultOptions: { queries: { retry: false } },
         })}
       >
-        {children}
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
       </QueryClientProvider>
     ),
   });
