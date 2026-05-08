@@ -1,15 +1,15 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsValue } from "#/types/settings";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import {
   GetHooksResponse,
   GetSkillsResponse,
   PluginSpec,
-  V1AppConversation,
-  V1AppConversationPage,
-} from "./conversation-service/v1-conversation-service.types";
+  AppConversation,
+  AppConversationPage,
+} from "./conversation-service/agent-server-conversation-service.types";
 import { createHttpClient, createSkillsClient } from "./typescript-client";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
@@ -63,9 +63,9 @@ export function getDefaultConversationTitle(conversationId: string): string {
   return `Conversation ${conversationId.slice(0, 5)}`;
 }
 
-export function toV1AppConversation(
+export function toAppConversation(
   info: DirectConversationInfo,
-): V1AppConversation {
+): AppConversation {
   const metadata = getStoredConversationMetadata(info.id);
   return {
     id: info.id,
@@ -104,8 +104,8 @@ export function toV1AppConversation(
     created_at: info.created_at,
     updated_at: info.updated_at,
     execution_status:
-      (info.execution_status as V1AppConversation["execution_status"]) ??
-      V1ExecutionStatus.IDLE,
+      (info.execution_status as AppConversation["execution_status"]) ??
+      ExecutionStatus.IDLE,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getEffectiveLocalBackend().apiKey || null,
     sandbox_id: null,
@@ -117,12 +117,12 @@ export function toV1AppConversation(
   };
 }
 
-export function toV1ConversationPage(data: {
+export function toConversationPage(data: {
   items: DirectConversationInfo[];
   next_page_id?: string | null;
-}): V1AppConversationPage {
+}): AppConversationPage {
   return {
-    items: data.items.map(toV1AppConversation),
+    items: data.items.map(toAppConversation),
     next_page_id: data.next_page_id ?? null,
   };
 }
@@ -523,7 +523,7 @@ export async function downloadTextFile(path: string): Promise<string> {
 }
 
 export async function loadSkillsForConversation(
-  conversation: V1AppConversation | null | undefined,
+  conversation: AppConversation | null | undefined,
 ): Promise<GetSkillsResponse> {
   const projectDir =
     conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();

@@ -6,7 +6,7 @@ import {
   MessageEvent,
   ObservationEvent,
   SecurityRisk,
-} from "#/types/v1/core";
+} from "#/types/agent-server/core";
 
 const mockUserMessageEvent: MessageEvent = {
   id: "test-event-1",

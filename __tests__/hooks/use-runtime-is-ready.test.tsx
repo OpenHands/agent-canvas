@@ -4,8 +4,8 @@ import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { AgentState } from "#/types/agent-state";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 vi.mock("#/hooks/use-agent-state");
 vi.mock("#/hooks/query/use-active-conversation");
@@ -14,7 +14,7 @@ function asMockReturnValue<T>(value: Partial<T>): T {
   return value as T;
 }
 
-function makeConversation(): V1AppConversation {
+function makeConversation(): AppConversation {
   return {
     id: "conv-123",
     title: "Test Conversation",
@@ -23,7 +23,7 @@ function makeConversation(): V1AppConversation {
     git_provider: null,
     updated_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
-    execution_status: V1ExecutionStatus.RUNNING,
+    execution_status: ExecutionStatus.RUNNING,
     conversation_url: null,
     session_api_key: null,
     sandbox_id: null,

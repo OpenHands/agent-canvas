@@ -2,34 +2,34 @@ import { I18nKey } from "#/i18n/declaration";
 import { AgentState } from "#/types/agent-state";
 import { ConversationStatus } from "#/types/conversation-status";
 import { RuntimeStatus } from "#/types/runtime-status";
-import { V1AppConversationStartTaskStatus } from "#/api/conversation-service/v1-conversation-service.types";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
-import { V1_WebSocketConnectionState } from "#/contexts/conversation-websocket-context";
+import { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { WebSocketConnectionState } from "#/contexts/conversation-websocket-context";
 
-const ACTIVE_EXECUTION_STATUSES: ReadonlySet<V1ExecutionStatus> = new Set([
-  V1ExecutionStatus.IDLE,
-  V1ExecutionStatus.RUNNING,
-  V1ExecutionStatus.WAITING_FOR_CONFIRMATION,
-  V1ExecutionStatus.FINISHED,
+const ACTIVE_EXECUTION_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
+  ExecutionStatus.IDLE,
+  ExecutionStatus.RUNNING,
+  ExecutionStatus.WAITING_FOR_CONFIRMATION,
+  ExecutionStatus.FINISHED,
 ]);
 
 export function isExecutionActive(
-  status: V1ExecutionStatus | null | undefined,
+  status: ExecutionStatus | null | undefined,
 ): boolean {
   return !!status && ACTIVE_EXECUTION_STATUSES.has(status);
 }
 
 export function isExecutionPaused(
-  status: V1ExecutionStatus | null | undefined,
+  status: ExecutionStatus | null | undefined,
 ): boolean {
-  return status === V1ExecutionStatus.PAUSED;
+  return status === ExecutionStatus.PAUSED;
 }
 
 export function isExecutionErrored(
-  status: V1ExecutionStatus | null | undefined,
+  status: ExecutionStatus | null | undefined,
 ): boolean {
   return (
-    status === V1ExecutionStatus.ERROR || status === V1ExecutionStatus.STUCK
+    status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK
   );
 }
 
@@ -71,7 +71,7 @@ export const AGENT_STATUS_MAP: {
 };
 
 export function getIndicatorColor(
-  webSocketStatus: V1_WebSocketConnectionState,
+  webSocketStatus: WebSocketConnectionState,
   conversationStatus: ConversationStatus | null,
   runtimeStatus: RuntimeStatus | null,
   agentState: AgentState | null,
@@ -126,10 +126,10 @@ export function getIndicatorColor(
 }
 
 export function getStatusCode(
-  webSocketConnectionState: V1_WebSocketConnectionState,
-  executionStatus: V1ExecutionStatus | null,
-  taskStatus?: V1AppConversationStartTaskStatus | null,
-  subConversationTaskStatus?: V1AppConversationStartTaskStatus | null,
+  webSocketConnectionState: WebSocketConnectionState,
+  executionStatus: ExecutionStatus | null,
+  taskStatus?: AppConversationStartTaskStatus | null,
+  subConversationTaskStatus?: AppConversationStartTaskStatus | null,
 ) {
   if (
     taskStatus === "ERROR" ||
@@ -158,7 +158,7 @@ export function getStatusCode(
     }
   }
 
-  if (executionStatus === V1ExecutionStatus.PAUSED) {
+  if (executionStatus === ExecutionStatus.PAUSED) {
     return I18nKey.CHAT_INTERFACE$STOPPED;
   }
 
@@ -177,15 +177,15 @@ export function getStatusCode(
     }
   }
 
-  if (executionStatus && executionStatus !== V1ExecutionStatus.STUCK) {
+  if (executionStatus && executionStatus !== ExecutionStatus.STUCK) {
     switch (executionStatus) {
-      case V1ExecutionStatus.IDLE:
+      case ExecutionStatus.IDLE:
         return I18nKey.AGENT_STATUS$WAITING_FOR_TASK;
-      case V1ExecutionStatus.RUNNING:
+      case ExecutionStatus.RUNNING:
         return I18nKey.AGENT_STATUS$RUNNING_TASK;
-      case V1ExecutionStatus.WAITING_FOR_CONFIRMATION:
+      case ExecutionStatus.WAITING_FOR_CONFIRMATION:
         return I18nKey.AGENT_STATUS$WAITING_FOR_USER_CONFIRMATION;
-      case V1ExecutionStatus.FINISHED:
+      case ExecutionStatus.FINISHED:
         return I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE;
       default:
         throw new Error(`Unknown executionStatus: ${executionStatus}`);

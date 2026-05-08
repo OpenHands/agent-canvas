@@ -1,6 +1,6 @@
 import { FaClock } from "react-icons/fa";
 import CheckCircle from "#/icons/check-circle-solid.svg?react";
-import { ObservationResultStatus } from "./event-content-helpers/get-observation-result";
+import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 
 interface SuccessIndicatorProps {
   status: ObservationResultStatus;

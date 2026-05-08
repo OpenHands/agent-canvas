@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
 
@@ -55,7 +55,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("V1ConversationService.getRuntimeConversation", () => {
+describe("AgentServerConversationService.getRuntimeConversation", () => {
   describe("cloud mode", () => {
     beforeEach(() => {
       __resetActiveStoreForTests();
@@ -71,7 +71,7 @@ describe("V1ConversationService.getRuntimeConversation", () => {
         "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc";
 
       // Act
-      const result = await V1ConversationService.getRuntimeConversation(
+      const result = await AgentServerConversationService.getRuntimeConversation(
         "conv-abc",
         conversationUrl,
         "session-xyz",
@@ -114,7 +114,7 @@ describe("V1ConversationService.getRuntimeConversation", () => {
         "http://192.168.1.42:8888/api/conversations/conv-abc";
 
       // Act
-      const result = await V1ConversationService.getRuntimeConversation(
+      const result = await AgentServerConversationService.getRuntimeConversation(
         "conv-abc",
         conversationUrl,
         "session-xyz",

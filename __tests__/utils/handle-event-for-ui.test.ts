@@ -5,8 +5,8 @@ import {
   MessageEvent,
   SecurityRisk,
   OpenHandsEvent,
-} from "#/types/v1/core";
-import { ACPToolCallEvent } from "#/types/v1/core/events/acp-tool-call-event";
+} from "#/types/agent-server/core";
+import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 
 describe("handleEventForUI", () => {

@@ -1,6 +1,5 @@
 import {
   afterEach,
-  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -8,12 +7,10 @@ import {
   test,
   vi,
 } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithProviders, useParamsMock } from "test-utils";
-import type { Message } from "#/message";
 import { SUGGESTIONS } from "#/utils/suggestions";
 import { ChatInterface } from "#/components/features/chat/chat-interface";
 import {
@@ -25,12 +22,11 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useConfig } from "#/hooks/query/use-config";
 import { useGetTrajectory } from "#/hooks/mutation/use-get-trajectory";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
-import { OpenHandsAction } from "#/types/core/actions";
+import type { MessageEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 
-vi.mock("#/context/ws-client-provider");
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
@@ -64,14 +60,6 @@ vi.mock("#/hooks/use-agent-state", () => ({
 
 // Helper function to render with Router context
 const renderChatInterfaceWithRouter = () =>
-  renderWithProviders(
-    <MemoryRouter>
-      <ChatInterface />
-    </MemoryRouter>,
-  );
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const renderChatInterface = (messages: Message[]) =>
   renderWithProviders(
     <MemoryRouter>
       <ChatInterface />
@@ -145,24 +133,22 @@ describe("ChatInterface - Chat Suggestions", () => {
   });
 
   test("should hide chat suggestions when there is a user message", () => {
-    const mockUserEvent: OpenHandsAction = {
-      id: 1,
-      source: "user",
-      action: "message",
-      args: {
-        content: "Hello",
-        image_urls: [],
-        file_urls: [],
-      },
-      message: "Hello",
+    const mockUserEvent: MessageEvent = {
+      id: "msg-1",
       timestamp: "2025-07-01T00:00:00Z",
+      source: "user",
+      llm_message: {
+        role: "user",
+        content: [{ type: "text", text: "Hello" }],
+      },
+      activated_microagents: [],
+      extended_content: [],
     };
 
     useEventStore.setState({
       events: [mockUserEvent],
-      uiEvents: [],
-      addEvent: vi.fn(),
-      clearEvents: vi.fn(),
+      eventIds: new Set(["msg-1"]),
+      uiEvents: [mockUserEvent],
     });
 
     renderWithQueryClient(<ChatInterface />, queryClient);
@@ -184,23 +170,6 @@ describe("ChatInterface - Chat Suggestions", () => {
 });
 
 describe("ChatInterface - Empty state", () => {
-  const { send: sendMock } = vi.hoisted(() => ({
-    send: vi.fn(),
-  }));
-
-  const { useWsClient: useWsClientMock } = vi.hoisted(() => ({
-    useWsClient: vi.fn(() => ({
-      send: sendMock,
-      status: "CONNECTED",
-      isLoadingMessages: false,
-      parsedEvents: [],
-    })),
-  }));
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   it.todo("should render suggestions if empty");
 
   it("should render the default suggestions", () => {
@@ -219,66 +188,6 @@ describe("ChatInterface - Empty state", () => {
     });
   });
 
-  it.fails(
-    "should load the a user message to the input when selecting",
-    async () => {
-      // this is to test that the message is in the UI before the socket is called
-      useWsClientMock.mockImplementation(() => ({
-        send: sendMock,
-        status: "CONNECTED",
-        isLoadingMessages: false,
-        parsedEvents: [],
-      }));
-      const user = userEvent.setup();
-      renderChatInterfaceWithRouter();
-
-      const suggestions = screen.getByTestId("chat-suggestions");
-      const displayedSuggestions = within(suggestions).getAllByRole("button");
-      const input = screen.getByTestId("chat-input");
-
-      await user.click(displayedSuggestions[0]);
-
-      // user message loaded to input
-      expect(screen.queryByTestId("chat-suggestions")).toBeInTheDocument();
-      expect(input).toHaveValue(displayedSuggestions[0].textContent);
-    },
-  );
-
-  it.fails(
-    "should send the message to the socket only if the runtime is active",
-    async () => {
-      useWsClientMock.mockImplementation(() => ({
-        send: sendMock,
-        status: "CONNECTED",
-        isLoadingMessages: false,
-        parsedEvents: [],
-      }));
-      const user = userEvent.setup();
-      const { rerender } = renderChatInterfaceWithRouter();
-
-      const suggestions = screen.getByTestId("chat-suggestions");
-      const displayedSuggestions = within(suggestions).getAllByRole("button");
-
-      await user.click(displayedSuggestions[0]);
-      expect(sendMock).not.toHaveBeenCalled();
-
-      useWsClientMock.mockImplementation(() => ({
-        send: sendMock,
-        status: "CONNECTED",
-        isLoadingMessages: false,
-        parsedEvents: [],
-      }));
-      rerender(
-        <MemoryRouter>
-          <ChatInterface />
-        </MemoryRouter>,
-      );
-
-      await waitFor(() =>
-        expect(sendMock).toHaveBeenCalledWith(expect.any(String)),
-      );
-    },
-  );
 });
 
 describe('ChatInterface - Status Indicator', () => {
@@ -300,267 +209,5 @@ describe('ChatInterface - Status Indicator', () => {
     renderChatInterfaceWithRouter();
 
     expect(screen.queryByTestId("chat-status-indicator")).not.toBeInTheDocument();
-  });
-});
-
-describe.skip("ChatInterface - General functionality", () => {
-  beforeAll(() => {
-    // mock useScrollToBottom hook
-    vi.mock("#/hooks/useScrollToBottom", () => ({
-      useScrollToBottom: vi.fn(() => ({
-        scrollDomToBottom: vi.fn(),
-        onChatBodyScroll: vi.fn(),
-        hitBottom: vi.fn(),
-      })),
-    }));
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should render messages", () => {
-    const messages: Message[] = [
-      {
-        sender: "user",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-      {
-        sender: "assistant",
-        content: "Hi",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    renderChatInterface(messages);
-
-    expect(screen.getAllByTestId(/-message/)).toHaveLength(2);
-  });
-
-  it("should render a chat input", () => {
-    const messages: Message[] = [];
-    renderChatInterface(messages);
-
-    expect(screen.getByTestId("chat-input")).toBeInTheDocument();
-  });
-
-  it("should call socket send when submitting a message", async () => {
-    const user = userEvent.setup();
-    const messages: Message[] = [];
-    renderChatInterface(messages);
-
-    const input = screen.getByTestId("chat-input");
-    await user.type(input, "Hello");
-    await user.keyboard("{Enter}");
-
-    // spy on send and expect to have been called
-  });
-
-  it("should render an image carousel with a message", () => {
-    let messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Here are some images",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    const { rerender } = renderChatInterface(messages);
-
-    expect(screen.queryByTestId("image-carousel")).not.toBeInTheDocument();
-
-    messages = [
-      {
-        sender: "assistant",
-        content: "Here are some images",
-        imageUrls: ["image1", "image2"],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-
-    rerender(
-      <MemoryRouter>
-        <ChatInterface />
-      </MemoryRouter>,
-    );
-
-    const imageCarousel = screen.getByTestId("image-carousel");
-    expect(imageCarousel).toBeInTheDocument();
-    expect(within(imageCarousel).getAllByTestId("image-preview")).toHaveLength(
-      2,
-    );
-  });
-
-  it("should render a 'continue' action when there are more than 2 messages and awaiting user input", () => {
-    const messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-      {
-        sender: "user",
-        content: "Hi",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    const { rerender } = renderChatInterface(messages);
-    expect(
-      screen.queryByTestId("continue-action-button"),
-    ).not.toBeInTheDocument();
-
-    messages.push({
-      sender: "assistant",
-      content: "How can I help you?",
-      imageUrls: [],
-      timestamp: new Date().toISOString(),
-      pending: true,
-    });
-
-    rerender(
-      <MemoryRouter>
-        <ChatInterface />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByTestId("continue-action-button")).toBeInTheDocument();
-  });
-
-  it("should render inline errors", () => {
-    const messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-      {
-        type: "error",
-        content: "Something went wrong",
-        sender: "assistant",
-        timestamp: new Date().toISOString(),
-      },
-    ];
-    renderChatInterface(messages);
-
-    const error = screen.getByTestId("error-message");
-    expect(within(error).getByText("Something went wrong")).toBeInTheDocument();
-  });
-
-  it("should render both GitHub buttons initially when ghToken is available", () => {
-    // Note: This test may need adjustment since useRouteLoaderData is now globally mocked
-
-    const messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    renderChatInterface(messages);
-
-    const pushButton = screen.getByRole("button", { name: "Push to Branch" });
-    const prButton = screen.getByRole("button", { name: "Push & Create PR" });
-
-    expect(pushButton).toBeInTheDocument();
-    expect(prButton).toBeInTheDocument();
-    expect(pushButton).toHaveTextContent("Push to Branch");
-    expect(prButton).toHaveTextContent("Push & Create PR");
-  });
-
-  it("should render only 'Push changes to PR' button after PR is created", async () => {
-    // Note: This test may need adjustment since useRouteLoaderData is now globally mocked
-
-    const messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    const { rerender } = renderChatInterface(messages);
-    const user = userEvent.setup();
-
-    // Click the "Push & Create PR" button
-    const prButton = screen.getByRole("button", { name: "Push & Create PR" });
-    await user.click(prButton);
-
-    // Re-render to trigger state update
-    rerender(
-      <MemoryRouter>
-        <ChatInterface />
-      </MemoryRouter>,
-    );
-
-    // Verify only one button is shown
-    const pushToPrButton = screen.getByRole("button", {
-      name: "Push changes to PR",
-    });
-    expect(pushToPrButton).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Push to Branch" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Push & Create PR" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("should render feedback actions if there are more than 3 messages", () => {
-    const messages: Message[] = [
-      {
-        sender: "assistant",
-        content: "Hello",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-      {
-        sender: "user",
-        content: "Hi",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-      {
-        sender: "assistant",
-        content: "How can I help you?",
-        imageUrls: [],
-        timestamp: new Date().toISOString(),
-        pending: true,
-      },
-    ];
-    const { rerender } = renderChatInterface(messages);
-    expect(screen.queryByTestId("feedback-actions")).not.toBeInTheDocument();
-
-    messages.push({
-      sender: "user",
-      content: "I need help",
-      imageUrls: [],
-      timestamp: new Date().toISOString(),
-      pending: true,
-    });
-
-    rerender(
-      <MemoryRouter>
-        <ChatInterface />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByTestId("feedback-actions")).toBeInTheDocument();
   });
 });

@@ -277,7 +277,7 @@ export const resetTestHandlersMockSettings = () => {
   MOCK_USER_PREFERENCES.settings = structuredClone(MOCK_DEFAULT_USER_SETTINGS);
 };
 
-// Mock model data used by both V0 and V1 endpoints
+// Mock model data used by provider/model endpoints
 const MOCK_MODELS = [
   "anthropic/claude-3.5",
   "anthropic/claude-sonnet-4-20250514",
@@ -597,7 +597,7 @@ export const SETTINGS_HANDLERS = [
       if ("agent_settings" in body || "conversation_settings" in body) {
         return HttpResponse.json(
           {
-            error: "Use *_diff nested settings payloads instead of legacy keys",
+            error: "Use *_diff nested settings payloads",
             keys: ["agent_settings", "conversation_settings"].filter(
               (key) => key in body,
             ),

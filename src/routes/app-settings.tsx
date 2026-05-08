@@ -17,7 +17,6 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AppSettingsInputsSkeleton } from "#/components/features/settings/app-settings/app-settings-inputs-skeleton";
-import { parseMaxBudgetPerTask } from "#/utils/settings-utils";
 
 export function AppSettingsScreen() {
   const posthog = usePostHog();
@@ -34,8 +33,6 @@ export function AppSettingsScreen() {
     soundNotificationsSwitchHasChanged,
     setSoundNotificationsSwitchHasChanged,
   ] = React.useState(false);
-  const [maxBudgetPerTaskHasChanged, setMaxBudgetPerTaskHasChanged] =
-    React.useState(false);
   const [gitUserNameHasChanged, setGitUserNameHasChanged] =
     React.useState(false);
   const [gitUserEmailHasChanged, setGitUserEmailHasChanged] =
@@ -53,11 +50,6 @@ export function AppSettingsScreen() {
     const enableSoundNotifications =
       formData.get("enable-sound-notifications-switch")?.toString() === "on";
 
-    const maxBudgetPerTaskValue = formData
-      .get("max-budget-per-task-input")
-      ?.toString();
-    const maxBudgetPerTask = parseMaxBudgetPerTask(maxBudgetPerTaskValue || "");
-
     const gitUserName =
       formData.get("git-user-name-input")?.toString() ||
       DEFAULT_SETTINGS.git_user_name;
@@ -70,7 +62,6 @@ export function AppSettingsScreen() {
         language,
         user_consents_to_analytics: enableAnalytics,
         enable_sound_notifications: enableSoundNotifications,
-        max_budget_per_task: maxBudgetPerTask,
         git_user_name: gitUserName,
         git_user_email: gitUserEmail,
       },
@@ -87,7 +78,6 @@ export function AppSettingsScreen() {
           setLanguageInputHasChanged(false);
           setAnalyticsSwitchHasChanged(false);
           setSoundNotificationsSwitchHasChanged(false);
-          setMaxBudgetPerTaskHasChanged(false);
           setGitUserNameHasChanged(false);
           setGitUserEmailHasChanged(false);
         },
@@ -119,12 +109,6 @@ export function AppSettingsScreen() {
     );
   };
 
-  const checkIfMaxBudgetPerTaskHasChanged = (value: string) => {
-    const newValue = parseMaxBudgetPerTask(value);
-    const currentValue = settings?.max_budget_per_task;
-    setMaxBudgetPerTaskHasChanged(newValue !== currentValue);
-  };
-
   const checkIfGitUserNameHasChanged = (value: string) => {
     const currentValue = settings?.git_user_name;
     setGitUserNameHasChanged(value !== currentValue);
@@ -139,7 +123,6 @@ export function AppSettingsScreen() {
     !languageInputHasChanged &&
     !analyticsSwitchHasChanged &&
     !soundNotificationsSwitchHasChanged &&
-    !maxBudgetPerTaskHasChanged &&
     !gitUserNameHasChanged &&
     !gitUserEmailHasChanged;
 
@@ -177,21 +160,6 @@ export function AppSettingsScreen() {
           >
             {t(I18nKey.SETTINGS$SOUND_NOTIFICATIONS)}
           </SettingsSwitch>
-
-          {!settings?.v1_enabled && (
-            <SettingsInput
-              testId="max-budget-per-task-input"
-              name="max-budget-per-task-input"
-              type="number"
-              label={t(I18nKey.SETTINGS$MAX_BUDGET_PER_CONVERSATION)}
-              defaultValue={settings.max_budget_per_task?.toString() || ""}
-              onChange={checkIfMaxBudgetPerTaskHasChanged}
-              placeholder={t(I18nKey.SETTINGS$MAXIMUM_BUDGET_USD)}
-              min={1}
-              step={1}
-              className="w-full max-w-[680px]" // Match the width of the language field
-            />
-          )}
 
           <div className="border-t border-t-tertiary pt-6 mt-2">
             <h3 className="text-lg font-medium mb-2">

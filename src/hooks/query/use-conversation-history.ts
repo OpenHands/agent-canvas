@@ -21,7 +21,7 @@ export const useConversationHistory = (conversationId?: string) => {
       // Forward the conversation's owning host + session key so cloud
       // conversations hit their cloud sandbox instead of falling back
       // to the bundled local agent-server.
-      return EventService.searchEventsV1(
+      return EventService.searchEvents(
         conversationId,
         100,
         conversation?.conversation_url ?? null,

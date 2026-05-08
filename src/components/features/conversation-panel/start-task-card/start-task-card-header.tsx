@@ -1,10 +1,10 @@
-import type { V1AppConversationStartTaskStatus } from "#/api/conversation-service/v1-conversation-service.types";
+import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { StartTaskStatusIndicator } from "./start-task-status-indicator";
 import { StartTaskStatusBadge } from "./start-task-status-badge";
 
 interface StartTaskCardHeaderProps {
   title: string;
-  taskStatus: V1AppConversationStartTaskStatus;
+  taskStatus: AppConversationStartTaskStatus;
 }
 
 export function StartTaskCardHeader({

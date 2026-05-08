@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
 import { Pre } from "#/ui/pre";
-import { HookMatcher } from "#/api/conversation-service/v1-conversation-service.types";
+import { HookMatcher } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface HookMatcherContentProps {
   matcher: HookMatcher;

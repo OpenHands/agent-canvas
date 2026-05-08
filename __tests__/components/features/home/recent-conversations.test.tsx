@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import { RecentConversations } from "#/components/features/home/recent-conversations/recent-conversations";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 const renderRecentConversations = () => {
   const RouterStub = createRoutesStub([
@@ -30,7 +30,7 @@ const renderRecentConversations = () => {
 
 describe("RecentConversations", () => {
   const searchConversationsSpy = vi.spyOn(
-    V1ConversationService,
+    AgentServerConversationService,
     "searchConversations",
   );
 

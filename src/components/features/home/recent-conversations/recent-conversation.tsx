@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
 import { Provider } from "#/types/settings";
@@ -11,7 +11,7 @@ import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 interface RecentConversationProps {
-  conversation: V1AppConversation;
+  conversation: AppConversation;
 }
 
 export function RecentConversation({ conversation }: RecentConversationProps) {

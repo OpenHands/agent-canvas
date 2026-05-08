@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { IoChevronDown, IoChevronForward } from "react-icons/io5";
 import { I18nKey } from "#/i18n/declaration";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { Typography } from "#/ui/typography";
 import { PluginLaunchParameterInput } from "./plugin-launch-parameter-input";
 

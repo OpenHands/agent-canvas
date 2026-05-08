@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { NewConversation } from "#/components/features/home/new-conversation/new-conversation";
 
 vi.mock("#/hooks/query/use-settings", async () => {
@@ -11,7 +11,7 @@ vi.mock("#/hooks/query/use-settings", async () => {
   );
   return {
     ...actual,
-    getSettingsQueryFn: vi.fn().mockResolvedValue({ v1_enabled: true }),
+    getSettingsQueryFn: vi.fn().mockResolvedValue({}),
   };
 });
 
@@ -45,7 +45,7 @@ describe("NewConversation", () => {
   it("should create an empty conversation and navigate when pressing the launch from scratch button", async () => {
     const navigate = vi.fn();
     const createConversationSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue({
         id: "task-id",
         created_by_user_id: null,
@@ -84,7 +84,7 @@ describe("NewConversation", () => {
 
   it("should change the launch button text to 'Loading...' when creating a conversation", async () => {
     // Mock V1 API to never resolve, keeping the mutation in loading state
-    vi.spyOn(V1ConversationService, "createConversation").mockImplementation(
+    vi.spyOn(AgentServerConversationService, "createConversation").mockImplementation(
       () => new Promise(() => {}),
     );
 

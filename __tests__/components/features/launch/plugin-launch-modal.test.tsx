@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PluginLaunchModal } from "#/components/features/launch/plugin-launch-modal";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 const mockOnStartConversation = vi.fn();
 const mockOnClose = vi.fn();

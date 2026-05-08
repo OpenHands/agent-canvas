@@ -70,11 +70,11 @@ export const useHandlePlanClick = () => {
               t(I18nKey.PLANNING_AGENTT$PLANNING_AGENT_INITIALIZED),
             );
             // Track the task ID to poll for sub-conversation creation
-            if (data.v1_task_id) {
-              setSubConversationTaskId(data.v1_task_id);
+            if (data.task_id) {
+              setSubConversationTaskId(data.task_id);
               // Persist to localStorage so it survives page refresh
               setConversationState(conversation.id, {
-                subConversationTaskId: data.v1_task_id,
+                subConversationTaskId: data.task_id,
               });
             }
           },

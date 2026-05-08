@@ -3,7 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { cn } from "#/utils/utils";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { ConversationCardHeader } from "./conversation-card-header";
 import { ConversationCardActions } from "./conversation-card-actions";
@@ -20,7 +20,7 @@ interface ConversationCardProps {
   selectedRepository: RepositorySelection | null;
   lastUpdatedAt: string;
   createdAt?: string;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
   conversationId?: string;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;

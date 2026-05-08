@@ -9,17 +9,17 @@ import {
   createRemoteWorkspace,
   createVSCodeClient,
 } from "../typescript-client";
-import { V1AppConversation } from "./v1-conversation-service.types";
+import { AppConversation } from "./agent-server-conversation-service.types";
 
 class ConversationService {
-  private static currentConversation: V1AppConversation | null = null;
+  private static currentConversation: AppConversation | null = null;
 
-  static getCurrentConversation(): V1AppConversation | null {
+  static getCurrentConversation(): AppConversation | null {
     return this.currentConversation;
   }
 
   static setCurrentConversation(
-    currentConversation: V1AppConversation | null,
+    currentConversation: AppConversation | null,
   ): void {
     this.currentConversation = currentConversation;
   }

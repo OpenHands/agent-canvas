@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNavigation } from "#/context/navigation-context";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
@@ -32,7 +32,7 @@ export const useTaskPolling = () => {
     queryKey: ["start-task", taskId],
     queryFn: async () => {
       if (!taskId) return null;
-      return V1ConversationService.getStartTask(taskId);
+      return AgentServerConversationService.getStartTask(taskId);
     },
     enabled: !!taskId,
     refetchInterval: (query) => {

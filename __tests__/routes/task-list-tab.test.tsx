@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import TaskListTab from "#/routes/task-list-tab";
 import { useEventStore } from "#/stores/use-event-store";
-import type { TaskTrackingObservation } from "#/types/core/observations";
+import type { OHEvent } from "#/stores/use-event-store";
 
 // Mock i18n
 vi.mock("react-i18next", () => ({
@@ -17,30 +17,39 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-function createTaskTrackingObservation(
-  id: number,
-  tasks: TaskTrackingObservation["extras"]["task_list"],
-): TaskTrackingObservation {
+type TestTask = {
+  id?: string;
+  title: string;
+  status: "todo" | "in_progress" | "done";
+  notes?: string;
+};
+
+function createTaskTrackingObservation(id: string, tasks: TestTask[]): OHEvent {
   return {
     id,
-    source: "agent",
-    observation: "task_tracking",
-    message: "Task tracking update",
     timestamp: `2025-07-01T00:00:0${id}Z`,
-    cause: 0,
-    content: "",
-    extras: {
+    source: "environment",
+    tool_name: "task_tracker",
+    tool_call_id: `call_${id}`,
+    action_id: `action_${id}`,
+    observation: {
+      kind: "TaskTrackerObservation",
+      content: "Task tracking update",
       command: "plan",
-      task_list: tasks,
+      task_list: tasks.map((task) => ({
+        title: task.title,
+        notes: task.notes ?? "",
+        status: task.status,
+      })),
     },
-  };
+  } as OHEvent;
 }
 
-function setTasks(tasks: TaskTrackingObservation["extras"]["task_list"]) {
-  const event = createTaskTrackingObservation(1, tasks);
+function setTasks(tasks: TestTask[]) {
+  const event = createTaskTrackingObservation("1", tasks);
   useEventStore.setState({
     events: [event],
-    eventIds: new Set([1]),
+    eventIds: new Set(["1"]),
     uiEvents: [event],
   });
 }
@@ -135,17 +144,17 @@ describe("TaskListTab", () => {
   });
 
   it("uses the latest plan event when multiple exist", () => {
-    const event1 = createTaskTrackingObservation(1, [
+    const event1 = createTaskTrackingObservation("1", [
       { id: "1", title: "Old task", status: "todo" },
     ]);
-    const event2 = createTaskTrackingObservation(2, [
+    const event2 = createTaskTrackingObservation("2", [
       { id: "1", title: "Updated task", status: "done" },
       { id: "2", title: "New task", status: "in_progress" },
     ]);
 
     useEventStore.setState({
       events: [event1, event2],
-      eventIds: new Set([1, 2]),
+      eventIds: new Set(["1", "2"]),
       uiEvents: [event1, event2],
     });
 

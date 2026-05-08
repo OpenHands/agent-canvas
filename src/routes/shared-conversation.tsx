@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
 import { useSharedConversationEvents } from "#/hooks/query/use-shared-conversation-events";
-import { Messages as V1Messages } from "#/components/v1/chat";
-import { shouldRenderEvent } from "#/components/v1/chat/event-content-helpers/should-render-event";
+import { Messages as Messages } from "#/components/conversation-events/chat";
+import { shouldRenderEvent } from "#/components/conversation-events/chat/event-content-helpers/should-render-event";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
-import { OpenHandsEvent } from "#/types/v1/core";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 import OpenHandsLogo from "#/assets/branding/openhands-logo.svg?react";
 import { useInfiniteScroll } from "#/hooks/use-infinite-scroll";
 
@@ -34,7 +34,7 @@ export default function SharedConversation() {
   const error = conversationError || eventsError;
 
   // Flatten all pages of events into a single array
-  const v1Events = React.useMemo(() => {
+  const conversationEvents = React.useMemo(() => {
     if (!eventsData?.pages) return [];
     return eventsData.pages.flatMap((page) => page.items);
   }, [eventsData?.pages]);
@@ -43,12 +43,12 @@ export default function SharedConversation() {
   // completed tool calls render as a single action/observation unit.
   const renderableEvents = React.useMemo(
     () =>
-      v1Events
+      conversationEvents
         .reduce<
           OpenHandsEvent[]
         >((uiEvents, event) => handleEventForUI(event, uiEvents), [])
         .filter(shouldRenderEvent),
-    [v1Events],
+    [conversationEvents],
   );
 
   // Set up infinite scroll to load more events when user scrolls to bottom
@@ -118,7 +118,7 @@ export default function SharedConversation() {
       >
         <div className="max-w-4xl mx-auto p-4 border border-neutral-700 rounded">
           {renderableEvents.length > 0 ? (
-            <V1Messages messages={renderableEvents} allEvents={v1Events} />
+            <Messages messages={renderableEvents} allEvents={conversationEvents} />
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-neutral-400 py-8">

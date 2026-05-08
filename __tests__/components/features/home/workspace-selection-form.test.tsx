@@ -4,7 +4,7 @@ import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { WorkspaceSelectionForm } from "../../../../src/components/features/home/workspace-selection-form";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import FilesService from "#/api/files-service/files-service.api";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
 import { LocalWorkspace } from "#/types/workspace";
@@ -224,7 +224,7 @@ describe("WorkspaceSelectionForm", () => {
       { id: "/Users/me/dev/repo2", name: "repo2", path: "/Users/me/dev/repo2" },
     ];
     const createSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue(makeStartTask({ app_conversation_id: "conv-xyz" }));
 
     renderForm(workspaces);

@@ -2,8 +2,8 @@ import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { RecentConversation } from "#/components/features/home/recent-conversations/recent-conversation";
-import type { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core";
 
 vi.mock("react-i18next", async () => {
   const actual = await vi.importActual("react-i18next");
@@ -24,10 +24,10 @@ vi.mock("react-i18next", async () => {
   };
 });
 
-const baseConversation: V1AppConversation = {
+const baseConversation: AppConversation = {
   id: "test-id",
   title: "Test Conversation",
-  execution_status: V1ExecutionStatus.RUNNING,
+  execution_status: ExecutionStatus.RUNNING,
   updated_at: "2021-10-01T12:00:00Z",
   created_at: "2021-10-01T12:00:00Z",
   selected_repository: null,
@@ -44,7 +44,7 @@ const baseConversation: V1AppConversation = {
   sub_conversation_ids: [],
 };
 
-const renderRecentConversation = (conversation: V1AppConversation) =>
+const renderRecentConversation = (conversation: AppConversation) =>
   renderWithProviders(<RecentConversation conversation={conversation} />);
 
 describe("RecentConversation - llm_model", () => {

@@ -24,9 +24,9 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
 
 // Mock the underlying mutation service module that the pause/resume hooks call.
 vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
-  pauseV1Conversation: vi.fn(),
-  resumeV1Conversation: vi.fn(),
-  askV1Agent: vi.fn(),
+  pauseConversation: vi.fn(),
+  resumeConversation: vi.fn(),
+  askAgent: vi.fn(),
   updateConversationExecutionStatusInCache: vi.fn(),
   invalidateConversationQueries: vi.fn(),
 }));

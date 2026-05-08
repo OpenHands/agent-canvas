@@ -106,7 +106,6 @@ const normalizeSettingsResponse = (settings: Partial<Settings>): Settings => {
     is_new_user: false,
     disabled_skills:
       settings.disabled_skills ?? DEFAULT_SETTINGS.disabled_skills,
-    v1_enabled: settings.v1_enabled ?? DEFAULT_SETTINGS.v1_enabled,
     agent_settings_schema: settings.agent_settings_schema ?? null,
     agent_settings: settings.agent_settings ?? DEFAULT_SETTINGS.agent_settings,
     conversation_settings_schema:

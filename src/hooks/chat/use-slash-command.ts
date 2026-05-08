@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
-import { Skill } from "#/api/conversation-service/v1-conversation-service.types";
+import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { Microagent } from "#/api/open-hands.types";
 import { BUILT_IN_COMMANDS } from "#/utils/constants";
 import { useActiveBackend } from "#/contexts/active-backend-context";

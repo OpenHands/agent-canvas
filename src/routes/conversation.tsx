@@ -6,7 +6,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useCommandStore } from "#/stores/command-store";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentStore } from "#/stores/agent-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { AgentState } from "#/types/agent-state";
 
 import { EventHandler } from "../wrapper/event-handler";
@@ -16,7 +16,6 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
-import { ConversationSubscriptionsProvider } from "#/context/conversation-subscriptions-provider";
 
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
 import { ConversationNameWithStatus } from "#/components/features/conversation/conversation-name-with-status";
@@ -40,7 +39,7 @@ function AppContent() {
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
   const clearTerminal = useCommandStore((state) => state.clearTerminal);
-  const resetV1ConversationState = useV1ConversationStateStore(
+  const resetConversationRuntimeState = useConversationStateStore(
     (state) => state.reset,
   );
   const setCurrentAgentState = useAgentStore(
@@ -54,7 +53,7 @@ function AppContent() {
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
-    resetV1ConversationState();
+    resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
     clearEvents();
@@ -62,7 +61,7 @@ function AppContent() {
     conversationId,
     clearTerminal,
     resetConversationState,
-    resetV1ConversationState,
+    resetConversationRuntimeState,
     setCurrentAgentState,
     removeErrorMessage,
     clearEvents,
@@ -89,21 +88,19 @@ function AppContent() {
   }, [conversation, isFetched, isAuthed, navigate, t]);
 
   const content = (
-    <ConversationSubscriptionsProvider>
-      <EventHandler>
-        <div
-          data-testid="app-route"
-          className="p-3 md:p-0 flex flex-col h-full gap-3"
-        >
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
-            <ConversationNameWithStatus />
-            <ConversationTabs />
-          </div>
-
-          <ConversationMain />
+    <EventHandler>
+      <div
+        data-testid="app-route"
+        className="p-3 md:p-0 flex flex-col h-full gap-3"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
+          <ConversationNameWithStatus />
+          <ConversationTabs />
         </div>
-      </EventHandler>
-    </ConversationSubscriptionsProvider>
+
+        <ConversationMain />
+      </div>
+    </EventHandler>
   );
 
   // Render WebSocket provider immediately to avoid mount/remount cycles

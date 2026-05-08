@@ -4,8 +4,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useConversationMetrics } from "#/hooks/query/use-conversation-metrics";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 const runtimeInfo = {
   id: "conv-abc",
@@ -13,7 +13,7 @@ const runtimeInfo = {
   metrics: null,
   created_at: "2026-04-16T00:00:00Z",
   updated_at: "2026-04-16T00:00:00Z",
-  status: V1ExecutionStatus.IDLE,
+  status: ExecutionStatus.IDLE,
   stats: {
     usage_to_metrics: {
       agent: {
@@ -46,7 +46,7 @@ describe("useConversationMetrics", () => {
   it("fires the query when sessionApiKey is null (local backends without auth)", async () => {
     // Arrange
     const spy = vi
-      .spyOn(V1ConversationService, "getRuntimeConversation")
+      .spyOn(AgentServerConversationService, "getRuntimeConversation")
       .mockResolvedValue(runtimeInfo);
 
     // Act

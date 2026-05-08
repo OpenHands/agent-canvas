@@ -1,8 +1,8 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useIsAuthed } from "./use-is-authed";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { V1AppConversationPage } from "#/api/conversation-service/v1-conversation-service.types";
+import { AppConversationPage } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 export const usePaginatedConversations = (limit: number = 20) => {
   const { data: userIsAuthenticated } = useIsAuthed();
@@ -22,7 +22,7 @@ export const usePaginatedConversations = (limit: number = 20) => {
       active.orgId,
     ],
     queryFn: async ({ pageParam }) => {
-      const result = await V1ConversationService.searchConversations(
+      const result = await AgentServerConversationService.searchConversations(
         limit,
         pageParam,
       );
@@ -30,7 +30,7 @@ export const usePaginatedConversations = (limit: number = 20) => {
       return result;
     },
     enabled: !!userIsAuthenticated,
-    getNextPageParam: (lastPage: V1AppConversationPage) =>
+    getNextPageParam: (lastPage: AppConversationPage) =>
       lastPage.next_page_id,
     initialPageParam: undefined as string | undefined,
   });

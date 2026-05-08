@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import MainApp from "#/routes/root-layout";
+
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Hoisted mocks for useIsAuthed and useConfig to allow dynamic control in tests

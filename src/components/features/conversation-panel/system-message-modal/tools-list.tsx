@@ -1,4 +1,4 @@
-import { ChatCompletionToolParam } from "#/types/v1/core";
+import { ChatCompletionToolParam } from "#/types/agent-server/core";
 import { ToolItem } from "./tool-item";
 
 interface ToolsListProps {
