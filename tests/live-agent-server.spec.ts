@@ -30,20 +30,85 @@ const EXPECTED_REPLY_TOKEN = "LIVE_AGENT_CANVAS_E2E_OK";
 
 async function dismissAnalyticsModal(page: Page) {
   await page.waitForLoadState("domcontentloaded");
-  const consentDialog = page.getByRole("dialog", {
-    name: "Help improve OpenHands",
-  });
-  const confirmButton = page.getByRole("button", {
-    name: "Confirm preferences",
-  });
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (await confirmButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await confirmButton.click();
-      await expect(consentDialog).toBeHidden({ timeout: 5000 });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const clicked = await page.evaluate(() => {
+      const confirmButton = Array.from(
+        document.querySelectorAll("button"),
+      ).find((button) => button.textContent?.trim() === "Confirm preferences");
+      if (!(confirmButton instanceof HTMLButtonElement)) {
+        return false;
+      }
+      confirmButton.click();
+      return true;
+    });
+
+    if (clicked) {
+      await expect
+        .poll(
+          async () =>
+            page.evaluate(
+              () =>
+                !Array.from(document.querySelectorAll('[role="dialog"]')).some(
+                  (dialog) =>
+                    dialog.textContent?.includes("Help improve OpenHands"),
+                ),
+            ),
+          { timeout: 5_000 },
+        )
+        .toBe(true);
+      return;
     }
+
     await page.waitForTimeout(500);
   }
+}
+
+async function clickButtonByTestIdOrText(
+  page: Page,
+  testId: string,
+  text: string,
+) {
+  // The dev server can keep navigation pending after the UI has rendered in CI,
+  // so check/click the real DOM button without locator navigation auto-waiting.
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(
+          ({ testId, text }) => {
+            const byTestId = document.querySelector(
+              `[data-testid="${testId}"]`,
+            );
+            if (byTestId instanceof HTMLButtonElement) {
+              return true;
+            }
+
+            return Array.from(document.querySelectorAll("button")).some(
+              (button) => button.textContent?.trim() === text,
+            );
+          },
+          { testId, text },
+        ),
+      { timeout: 60_000 },
+    )
+    .toBe(true);
+
+  await page.evaluate(
+    ({ testId, text }) => {
+      const byTestId = document.querySelector(`[data-testid="${testId}"]`);
+      const button =
+        byTestId instanceof HTMLButtonElement
+          ? byTestId
+          : Array.from(document.querySelectorAll("button")).find(
+              (button) => button.textContent?.trim() === text,
+            );
+      if (!(button instanceof HTMLButtonElement)) {
+        throw new Error(`Button not found: ${text}`);
+      }
+      button.click();
+    },
+    { testId, text },
+  );
 }
 
 test.beforeEach(async ({ page }) => {
@@ -89,12 +154,12 @@ test("runs a real Agent Server conversation through the UI", async ({
   expect(settingsResponse.ok()).toBeTruthy();
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("launch-new-conversation-button")).toBeVisible({
-    timeout: 60_000,
-  });
   await dismissAnalyticsModal(page);
-
-  await page.getByTestId("launch-new-conversation-button").click();
+  await clickButtonByTestIdOrText(
+    page,
+    "launch-new-conversation-button",
+    "New Conversation",
+  );
   await expect(page).toHaveURL(/\/conversations\/.+/);
   await expect(page.getByTestId("app-route")).toBeVisible({
     timeout: 60_000,

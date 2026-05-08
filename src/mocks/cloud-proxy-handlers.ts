@@ -5,7 +5,7 @@ import type {
 } from "#/api/conversation-service/v1-conversation-service.types";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 import type { SettingsValue } from "#/types/settings";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import { V1ExecutionStatus } from "#/types/v1/core/base/common";
 import {
   MOCK_AGENT_SETTINGS_SCHEMA,
   MOCK_CONVERSATION_SETTINGS_SCHEMA,
