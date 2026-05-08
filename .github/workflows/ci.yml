@@ -36,3 +36,52 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  live-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LIVE_E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LIVE_E2E_LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
+      LIVE_E2E_LLM_MODEL: ${{ vars.LIVE_E2E_LLM_MODEL || 'litellm_proxy/claude-haiku-4-5-20251001' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install uv
+        if: env.LIVE_E2E_LLM_API_KEY != ''
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Playwright Chromium
+        if: env.LIVE_E2E_LLM_API_KEY != ''
+        run: npx playwright install --with-deps chromium
+
+      - name: Run live Agent Server E2E
+        if: env.LIVE_E2E_LLM_API_KEY != ''
+        run: npm run test:e2e:live
+
+      - name: Skip live Agent Server E2E
+        if: env.LIVE_E2E_LLM_API_KEY == ''
+        run: echo "Skipping live Agent Server E2E because LLM_API_KEY is not configured."
+
+      - name: Upload live E2E artifacts
+        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: live-agent-server-e2e
+          if-no-files-found: ignore
+          path: |
+            playwright-report-live/
+            test-results-live/
