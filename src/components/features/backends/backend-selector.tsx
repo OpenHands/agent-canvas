@@ -9,6 +9,10 @@ import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
+import {
+  ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
+  triggerEnvironmentSwitch,
+} from "#/components/features/backends/environment-switch-overlay";
 
 const VALUE_SEPARATOR = "::";
 
@@ -144,6 +148,20 @@ export function BackendSelector() {
         if (!item || item.value === activeValue) return;
         const { backendId, orgId } = parseOptionValue(item.value);
         const target = backends.find((b) => b.id === backendId);
+
+        // Show the environment-switch overlay immediately so the user
+        // gets feedback before any /switch network call. The overlay
+        // auto-dismisses on its own 980ms timer regardless of whether
+        // the switch succeeds or fails.
+        triggerEnvironmentSwitch(item.label);
+
+        // Hold the active swap for ~400ms — placing it in the middle
+        // of the content-fade-to-black window so React Query refetches
+        // happen while the layout is invisible behind the overlay,
+        // rather than thrashing visibly before the fade.
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
+        });
 
         // Cloud + org pick: fire `/switch` FIRST against the explicit
         // target backend, then update the active selection after it

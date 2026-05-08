@@ -22473,6 +22473,23 @@
     "uk": "Особистий робочий простір",
     "ca": "Espai de treball personal"
   },
+  "BACKEND$SWITCHING_TO": {
+    "en": "Switching to {{environment}}",
+    "ja": "{{environment}} に切り替えています",
+    "zh-CN": "正在切换到 {{environment}}",
+    "zh-TW": "正在切換到 {{environment}}",
+    "ko-KR": "{{environment}}(으)로 전환 중",
+    "no": "Bytter til {{environment}}",
+    "it": "Passaggio a {{environment}}",
+    "pt": "Mudando para {{environment}}",
+    "es": "Cambiando a {{environment}}",
+    "ar": "التبديل إلى {{environment}}",
+    "fr": "Passage à {{environment}}",
+    "tr": "{{environment}} ortamına geçiliyor",
+    "de": "Wechsel zu {{environment}}",
+    "uk": "Перемикання на {{environment}}",
+    "ca": "Canviant a {{environment}}"
+  },
   "TELEMETRY$CONSENT_TITLE": {
     "en": "Help improve OpenHands",
     "ja": "OpenHandsの改善にご協力ください",
