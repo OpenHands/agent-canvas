@@ -15,8 +15,15 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-24.04
+    name: Test and build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-2025
 
     steps:
       - name: Check out repository
