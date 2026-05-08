@@ -1,34 +1,78 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
-const BACKEND_URL =
+export const BACKEND_URL =
   process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18000";
-const LIVE_LLM_API_KEY = process.env.LIVE_E2E_LLM_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const PROXY_LLM_API_KEY = process.env.LLM_API_KEY;
-const LLM_API_KEY =
-  LIVE_LLM_API_KEY ??
-  OPENAI_API_KEY ??
-  ANTHROPIC_API_KEY ??
-  PROXY_LLM_API_KEY ??
-  "";
-const USES_PROXY_KEY = Boolean(
-  LIVE_LLM_API_KEY ||
-  (!OPENAI_API_KEY && !ANTHROPIC_API_KEY && PROXY_LLM_API_KEY),
+export const EXPECTED_REPLY_TOKEN = "LIVE_AGENT_CANVAS_E2E_OK";
+
+function firstNonEmpty(...values: Array<string | undefined>) {
+  return values.find((value) => value?.trim()) ?? "";
+}
+
+const liveLLMApiKey = process.env.LIVE_E2E_LLM_API_KEY;
+const openAIKey = process.env.OPENAI_API_KEY;
+const anthropicKey = process.env.ANTHROPIC_API_KEY;
+const proxyLLMKey = process.env.LLM_API_KEY;
+const llmApiKey = firstNonEmpty(
+  liveLLMApiKey,
+  openAIKey,
+  anthropicKey,
+  proxyLLMKey,
 );
-const LLM_BASE_URL =
+const usesProxyKey = Boolean(
+  liveLLMApiKey?.trim() ||
+  (!openAIKey?.trim() && !anthropicKey?.trim() && proxyLLMKey?.trim()),
+);
+const llmBaseUrl =
   process.env.LIVE_E2E_LLM_BASE_URL ??
-  (USES_PROXY_KEY ? "https://llm-proxy.app.all-hands.dev" : "");
-const LLM_MODEL =
+  (usesProxyKey ? "https://llm-proxy.app.all-hands.dev" : "");
+const llmModel =
   process.env.LIVE_E2E_LLM_MODEL ??
-  (LLM_BASE_URL
+  (llmBaseUrl
     ? "litellm_proxy/claude-haiku-4-5-20251001"
-    : OPENAI_API_KEY
+    : openAIKey?.trim()
       ? "openai/gpt-4o-mini"
       : "anthropic/claude-haiku-4-5-20251001");
-const EXPECTED_REPLY_TOKEN = "LIVE_AGENT_CANVAS_E2E_OK";
 
-async function waitForPath(page: Page, pattern: RegExp) {
+export const hasLiveLLMConfig = Boolean(llmApiKey);
+export const missingLiveLLMConfigMessage =
+  "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.";
+
+export async function configureLiveAgentServer(request: APIRequestContext) {
+  const llmSettings: Record<string, string | number> = {
+    model: llmModel,
+    api_key: llmApiKey,
+    max_output_tokens: 1024,
+    temperature: 0,
+  };
+  if (llmBaseUrl) {
+    llmSettings.base_url = llmBaseUrl;
+  }
+
+  const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
+    data: {
+      agent_settings_diff: {
+        llm: llmSettings,
+        condenser: {
+          enabled: false,
+        },
+      },
+      conversation_settings_diff: {
+        confirmation_mode: false,
+        max_iterations: 4,
+      },
+    },
+  });
+  expect(settingsResponse.ok()).toBeTruthy();
+}
+
+export async function enableLiveE2EFlags(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("analytics-consent", "true");
+    window.localStorage.setItem("FEATURE_AUTOMATIONS", "true");
+  });
+}
+
+export async function waitForPath(page: Page, pattern: RegExp) {
   await expect
     .poll(
       async () => page.evaluate(() => window.location.pathname).catch(() => ""),
@@ -37,7 +81,11 @@ async function waitForPath(page: Page, pattern: RegExp) {
     .toMatch(pattern);
 }
 
-async function waitForTestId(page: Page, testId: string, timeout = 60_000) {
+export async function waitForTestId(
+  page: Page,
+  testId: string,
+  timeout = 60_000,
+) {
   await expect
     .poll(
       async () =>
@@ -53,7 +101,7 @@ async function waitForTestId(page: Page, testId: string, timeout = 60_000) {
     .toBe(true);
 }
 
-async function dismissAnalyticsModal(page: Page) {
+export async function dismissAnalyticsModal(page: Page) {
   await page.waitForLoadState("domcontentloaded");
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -96,7 +144,7 @@ async function dismissAnalyticsModal(page: Page) {
   }
 }
 
-async function clickButtonByTestId(page: Page, testId: string) {
+export async function clickButtonByTestId(page: Page, testId: string) {
   await waitForTestId(page, testId);
 
   await page.evaluate((testId) => {
@@ -108,13 +156,11 @@ async function clickButtonByTestId(page: Page, testId: string) {
   }, testId);
 }
 
-async function clickButtonByTestIdOrText(
+export async function clickButtonByTestIdOrText(
   page: Page,
   testId: string,
   text: string,
 ) {
-  // The dev server can keep navigation pending after the UI has rendered in CI,
-  // so check/click the real DOM button without locator navigation auto-waiting.
   await expect
     .poll(
       async () =>
@@ -155,7 +201,7 @@ async function clickButtonByTestIdOrText(
   );
 }
 
-async function fillChatInput(page: Page, text: string) {
+export async function fillChatInput(page: Page, text: string) {
   await waitForTestId(page, "chat-input");
 
   await page.evaluate((text) => {
@@ -175,7 +221,7 @@ async function fillChatInput(page: Page, text: string) {
   }, text);
 }
 
-async function waitForTestIdText(
+export async function waitForTestIdText(
   page: Page,
   testId: string,
   text: string,
@@ -198,7 +244,7 @@ async function waitForTestIdText(
     .toBe(true);
 }
 
-async function waitForAgentReply(page: Page) {
+export async function waitForAgentReply(page: Page) {
   await expect
     .poll(
       async () =>
@@ -222,76 +268,3 @@ async function waitForAgentReply(page: Page) {
     )
     .toBe("reply");
 }
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "true");
-    window.localStorage.setItem("FEATURE_AUTOMATIONS", "true");
-  });
-});
-
-test("runs a real Agent Server conversation through the UI", async ({
-  page,
-  request,
-}, testInfo) => {
-  test.skip(
-    !LLM_API_KEY,
-    "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.",
-  );
-
-  const llmSettings: Record<string, string | number> = {
-    model: LLM_MODEL,
-    api_key: LLM_API_KEY,
-    max_output_tokens: 1024,
-    temperature: 0,
-  };
-  if (LLM_BASE_URL) {
-    llmSettings.base_url = LLM_BASE_URL;
-  }
-
-  const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
-    data: {
-      agent_settings_diff: {
-        llm: llmSettings,
-        condenser: {
-          enabled: false,
-        },
-      },
-      conversation_settings_diff: {
-        confirmation_mode: false,
-        max_iterations: 4,
-      },
-    },
-  });
-  expect(settingsResponse.ok()).toBeTruthy();
-
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await dismissAnalyticsModal(page);
-  await clickButtonByTestIdOrText(
-    page,
-    "launch-new-conversation-button",
-    "New Conversation",
-  );
-  await waitForPath(page, /\/conversations\/.+/);
-  await waitForTestId(page, "app-route");
-  await waitForTestId(page, "interactive-chat-box");
-
-  await fillChatInput(
-    page,
-    [
-      `Reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
-      "Do not run tools. Do not add any other text.",
-    ].join("\n"),
-  );
-  await clickButtonByTestId(page, "submit-button");
-
-  await waitForTestIdText(page, "user-message", EXPECTED_REPLY_TOKEN, 15_000);
-  await waitForAgentReply(page);
-
-  const screenshotPath = testInfo.outputPath("live-agent-response.png");
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-  await testInfo.attach("live-agent-response", {
-    path: screenshotPath,
-    contentType: "image/png",
-  });
-});

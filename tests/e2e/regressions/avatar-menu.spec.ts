@@ -6,13 +6,16 @@ import test, { expect } from "@playwright/test";
  * This test verifies that the user can move their cursor diagonally from the
  * avatar to the context menu without the menu closing unexpectedly.
  *
- * The component supports both CSS hover and click-to-toggle for the menu.
- * We use click-to-toggle which is more reliable in automated tests than
- * CSS hover simulation.
+ * The component opens the menu on hover and keeps it open during short
+ * diagonal movement through the hover bridge.
  */
 test("avatar context menu stays open when moving cursor diagonally to menu", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("analytics-consent", "true");
+  });
+
   // Intercept GET /api/settings to return settings with a configured provider.
   // In OSS mode, the user context menu only renders when providers are configured.
   await page.route("**/api/settings", async (route) => {
@@ -48,6 +51,15 @@ test("avatar context menu stays open when moving cursor diagonally to menu", asy
 
   await page.goto("/");
 
+  const consentDialog = page.getByRole("dialog", {
+    name: "Help improve OpenHands",
+  });
+  await page
+    .getByRole("button", { name: "Confirm preferences" })
+    .click({ timeout: 5000 })
+    .catch(() => undefined);
+  await expect(consentDialog).toHaveCount(0, { timeout: 5000 });
+
   // Wait for the page to be fully loaded and check for AI config modal
   // The modal may appear for new users in OSS mode without settings
   const aiConfigModal = page.getByTestId("ai-config-modal");
@@ -65,11 +77,8 @@ test("avatar context menu stays open when moving cursor diagonally to menu", asy
   const userAvatar = page.getByTestId("user-avatar");
   await expect(userAvatar).toBeVisible();
 
-  // Use force:true to bypass the hover bridge pseudo-element that can
-  // intercept clicks when the mouse triggers group-hover state
-  await userAvatar.click({ force: true });
+  await userAvatar.hover();
 
-  // The context menu should appear via CSS group-hover
   const contextMenu = page.getByTestId("user-context-menu");
   await expect(contextMenu).toBeVisible();
 

@@ -5,7 +5,7 @@ test("scopes standalone styles to the agent server UI shell", async ({
 }) => {
   await page.goto("/");
 
-  await expect(page.locator("[data-agent-server-ui]")).toBeVisible();
+  await expect(page.locator("[data-agent-server-ui]").first()).toBeVisible();
   const layout = page.getByTestId("root-layout");
   await expect(layout).toBeVisible();
 
@@ -17,7 +17,7 @@ test("scopes standalone styles to the agent server UI shell", async ({
     const hostProbe = document.createElement("div");
     hostProbe.className = "bg-base text-content-2";
     hostProbe.textContent = "host";
-    document.body.appendChild(hostProbe);
+    document.documentElement.appendChild(hostProbe);
 
     const styles = getComputedStyle(hostProbe);
 
