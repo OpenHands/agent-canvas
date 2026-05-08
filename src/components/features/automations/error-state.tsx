@@ -11,14 +11,14 @@ export function ErrorState({ onRetry }: ErrorStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center py-20">
-      <ExclamationCircleIcon className="size-12 text-red-400" />
-      <p className="mt-4 text-sm text-neutral-400">
+      <ExclamationCircleIcon className="size-12 text-status-fail-text" />
+      <p className="mt-4 text-sm text-content-muted">
         {t(I18nKey.AUTOMATIONS$ERROR_TITLE)}
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-4 rounded-lg border border-neutral-600 px-4 py-2 text-sm text-white hover:bg-neutral-700"
+        className="mt-4 rounded-lg border border-border px-4 py-2 text-sm text-white hover:bg-surface-elevated"
       >
         {t(I18nKey.AUTOMATIONS$ERROR_RETRY)}
       </button>

@@ -74,7 +74,7 @@ export function Pagination({
         className={cn(
           "p-2 rounded-md transition-colors",
           canGoPrevious
-            ? "hover:bg-surface-border cursor-pointer"
+            ? "hover:bg-surface-outline cursor-pointer"
             : "opacity-50 cursor-not-allowed",
         )}
         aria-label="Previous page"
@@ -100,7 +100,7 @@ export function Pagination({
               "min-w-[32px] h-8 px-2 text-sm rounded-md transition-colors cursor-pointer",
               currentPage === page
                 ? "bg-surface-button text-white font-medium"
-                : "text-tertiary-alt hover:bg-surface-border",
+                : "text-tertiary-alt hover:bg-surface-outline",
             )}
             aria-current={currentPage === page ? "page" : undefined}
           >
@@ -117,7 +117,7 @@ export function Pagination({
         className={cn(
           "p-2 rounded-md transition-colors",
           canGoNext
-            ? "hover:bg-surface-border cursor-pointer"
+            ? "hover:bg-surface-outline cursor-pointer"
             : "opacity-50 cursor-not-allowed",
         )}
         aria-label="Next page"

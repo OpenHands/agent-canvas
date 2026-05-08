@@ -9,7 +9,7 @@ export function BackLink() {
   return (
     <NavigationLink
       to="/automations"
-      className="inline-flex items-center gap-1.5 text-sm text-neutral-400 hover:text-neutral-200"
+      className="inline-flex items-center gap-1.5 text-sm text-content-muted hover:text-content"
     >
       <ChevronLeftIcon className="size-4" />
       {t(I18nKey.AUTOMATIONS$DETAIL$BACK_TO_LIST)}

@@ -1,6 +1,6 @@
 function SkeletonBlock({ className }: { className: string }) {
   return (
-    <div className={`animate-pulse rounded bg-neutral-700 ${className}`} />
+    <div className={`animate-pulse rounded bg-surface-elevated ${className}`} />
   );
 }
 
