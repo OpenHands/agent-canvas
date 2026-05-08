@@ -10,6 +10,16 @@ type MockConversation = DirectConversationInfo & {
   git_provider?: string | null;
 };
 
+type StartConversationPayload = {
+  conversation_id?: string;
+  initial_message?: {
+    content?: Array<{ type?: string; text?: string }>;
+  } | null;
+  workspace?: {
+    working_dir?: string | null;
+  } | null;
+};
+
 const conversations: MockConversation[] = [
   {
     id: "1",
@@ -57,15 +67,29 @@ function createConversationResponse(
   };
 }
 
+function getOrCreateConversation(conversationId: string): MockConversation {
+  const conversation = CONVERSATIONS.get(conversationId);
+  if (conversation) return conversation;
+
+  const fallbackConversation: MockConversation = {
+    id: conversationId,
+    title: "New Conversation",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    execution_status: "idle",
+  };
+  CONVERSATIONS.set(conversationId, fallbackConversation);
+  return fallbackConversation;
+}
+
 function listConversationResponses(ids?: string[] | null) {
   if (!ids || ids.length === 0) {
     return Array.from(CONVERSATIONS.values()).map(createConversationResponse);
   }
 
-  return ids.map((id) => {
-    const conversation = CONVERSATIONS.get(id);
-    return conversation ? createConversationResponse(conversation) : null;
-  });
+  return ids.map((id) =>
+    createConversationResponse(getOrCreateConversation(id)),
+  );
 }
 
 export const CONVERSATION_HANDLERS = [
@@ -88,21 +112,28 @@ export const CONVERSATION_HANDLERS = [
 
   http.get("/api/conversations/:conversationId", async ({ params }) => {
     const conversationId = params.conversationId as string;
-    const conversation = CONVERSATIONS.get(conversationId);
-    if (conversation) {
-      return HttpResponse.json(createConversationResponse(conversation));
-    }
-    return HttpResponse.json(null, { status: 404 });
+    return HttpResponse.json(
+      createConversationResponse(getOrCreateConversation(conversationId)),
+    );
   }),
 
-  http.post("/api/conversations", async () => {
+  http.post("/api/conversations", async ({ request }) => {
     await delay();
+    const body = (await request
+      .json()
+      .catch(() => null)) as StartConversationPayload | null;
+    const firstText = body?.initial_message?.content?.find(
+      (item) => item.type === "text" && item.text,
+    )?.text;
     const conversation: MockConversation = {
-      id: `${Math.floor(Math.random() * 100000)}`,
-      title: "New Conversation",
+      id: body?.conversation_id ?? `${Math.floor(Math.random() * 100000)}`,
+      title: firstText ? firstText.slice(0, 80) : "New Conversation",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       execution_status: "idle",
+      workspace: {
+        working_dir: body?.workspace?.working_dir ?? null,
+      },
     };
     CONVERSATIONS.set(conversation.id, conversation);
     return HttpResponse.json(createConversationResponse(conversation), {

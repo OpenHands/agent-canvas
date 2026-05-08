@@ -16,6 +16,7 @@ import {
   AUTOMATION_HANDLERS,
   resetAutomationMockData,
 } from "./automation-handlers";
+import { CLOUD_PROXY_HANDLERS } from "./cloud-proxy-handlers";
 
 export const handlers = [
   ...API_KEYS_HANDLERS,
@@ -29,6 +30,7 @@ export const handlers = [
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
   ...AUTOMATION_HANDLERS,
+  ...CLOUD_PROXY_HANDLERS,
 ];
 
 export {
