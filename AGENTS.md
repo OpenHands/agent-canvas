@@ -127,6 +127,8 @@
   - `RepoConnector` no longer renders a tabbed launcher; it just renders `WorkspaceSelectionForm` because this build only ever talks to an agent-server backend (no cloud backend is wired up). The old `LaunchTabs` component was removed; if a cloud backend is ever supported again, branch on backend mode in `RepoConnector` and render `RepositorySelectionForm` for that path.
   - `FolderBrowserModal`'s "Use this folder" button adds **only the currently navigated directory** as a single workspace (named by its basename). It no longer iterates `subdirs` and adds each child as a separate workspace.
   - The `WorkspaceDropdown` sticky footer now exposes both "+ Add Workspace" (opens the folder browser) and "Manage Workspaces" (opens `ManageWorkspacesModal`, which lets users remove individual workspaces via `useWorkspacesStore.removeWorkspace`). The Manage button is hidden when there are no workspaces yet.
+  - The sidebar "+ New Conversation" trigger (`NewConversationButton` in `src/components/features/conversation-panel/`) opens a popover that is a **flat list**, not the home-screen combobox: a leading "No workspace" entry plus one entry per stored workspace, each clicking through to `useCreateConversation` immediately (no separate Launch button). The same sticky "+ Add Workspace" / "Manage Workspaces" footer is reused from the dropdown component, but the embedded `WorkspaceDropdown` itself is gone from this trigger.
+
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

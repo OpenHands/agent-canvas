@@ -11308,7 +11308,7 @@
     "en": "Integrations"
   },
   "SIDEBAR$NEW_CONVERSATION": {
-    "en": "New"
+    "en": "New Conversation"
   },
   "STATUS$CONNECTING_TO_RUNTIME": {
     "en": "Connecting to runtime...",
@@ -15780,6 +15780,23 @@
     "de": "Noch keine Arbeitsbereiche",
     "uk": "Робочих областей ще немає",
     "ca": "Encara no hi ha espais de treball"
+  },
+  "HOME$NO_WORKSPACE_OPTION": {
+    "en": "No workspace",
+    "ja": "ワークスペースなし",
+    "zh-CN": "无工作区",
+    "zh-TW": "無工作區",
+    "ko-KR": "작업 공간 없음",
+    "no": "Ingen arbeidsområde",
+    "it": "Nessuna area di lavoro",
+    "pt": "Sem espaço de trabalho",
+    "es": "Sin espacio de trabajo",
+    "ar": "بدون مساحة عمل",
+    "fr": "Aucun espace de travail",
+    "tr": "Çalışma alanı yok",
+    "de": "Kein Arbeitsbereich",
+    "uk": "Без робочої області",
+    "ca": "Sense espai de treball"
   },
   "HOME$WORKSPACE_PLACEHOLDER": {
     "en": "Select a workspace",
