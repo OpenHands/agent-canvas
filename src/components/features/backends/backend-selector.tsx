@@ -1,4 +1,5 @@
 import React from "react";
+import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
 import { Plus, Settings } from "lucide-react";
@@ -14,6 +15,8 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-overlay";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AddBackendModal } from "./add-backend-modal";
 import { ManageBackendsModal } from "./manage-backends-modal";
 
@@ -160,16 +163,20 @@ export function BackendSelector({
     setManageBackendsModalOpen(true);
   }, []);
 
+  const preventDropdownMenuClose = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
   const addBackendFooter = (
     <div className="flex flex-col gap-1">
       <button
         type="button"
         data-testid="add-backend-menu-item"
-        onMouseDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          openAddBackendModal();
-        }}
+        onMouseDown={preventDropdownMenuClose}
         onClick={openAddBackendModal}
         className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
       >
@@ -179,11 +186,7 @@ export function BackendSelector({
       <button
         type="button"
         data-testid="manage-backends-menu-item"
-        onMouseDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          openManageBackendsModal();
-        }}
+        onMouseDown={preventDropdownMenuClose}
         onClick={openManageBackendsModal}
         className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
       >
@@ -216,7 +219,11 @@ export function BackendSelector({
           if (orgId && target?.kind === "cloud") {
             try {
               await switchOrg({ orgId, backend: target });
-            } catch {
+            } catch (error) {
+              displayErrorToast(
+                retrieveAxiosErrorMessage(error as AxiosError) ||
+                  t(I18nKey.ERROR$GENERIC),
+              );
               return;
             }
           }

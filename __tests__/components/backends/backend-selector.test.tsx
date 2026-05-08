@@ -1,6 +1,12 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,12 +27,17 @@ import {
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
   switchCloudOrganization: vi.fn().mockResolvedValue(undefined),
   getCloudOrganizationMe: vi.fn(),
   getCurrentCloudApiKey: vi.fn(),
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displayErrorToast: vi.fn(),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -83,6 +94,7 @@ beforeEach(() => {
     orgId: null,
     isLegacyKey: true,
   });
+  vi.mocked(displayErrorToast).mockReset();
 });
 
 afterEach(() => {
@@ -425,6 +437,63 @@ describe("BackendSelector", () => {
       "data-target",
       "Acme Local",
     );
+  });
+
+  it("does not open backend modals on mouse down alone", async () => {
+    renderWithProviders(<BackendSelector />);
+
+    await openDropdown();
+
+    fireEvent.mouseDown(screen.getByTestId("add-backend-menu-item"));
+    expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("manage-backends-menu-item"));
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast and keeps the active backend when cloud org switching fails", async () => {
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      new Error("switch failed"),
+    );
+
+    let productionId = "";
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          productionId = ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          }).id;
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    const user = await openDropdown();
+    await waitFor(() => {
+      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Production – Acme Inc"));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("switch failed");
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(stored?.backendId).not.toBe(productionId);
+    expect(stored?.orgId ?? null).toBeNull();
   });
 
   it("renders the backend footer actions and opens/closes the add modal", async () => {

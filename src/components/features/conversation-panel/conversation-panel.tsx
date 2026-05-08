@@ -35,6 +35,8 @@ const partitionByCutoff = <T extends { updated_at: string }>(
   const older: T[] = [];
   for (const item of items) {
     const updatedAt = item.updated_at ? Date.parse(item.updated_at) : NaN;
+    // Missing or unparseable timestamps stay in the "recent" bucket so we
+    // do not accidentally hide them behind the older-conversations toggle.
     if (Number.isFinite(updatedAt) && updatedAt < cutoff) {
       older.push(item);
     } else {

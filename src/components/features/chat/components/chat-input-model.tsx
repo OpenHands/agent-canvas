@@ -10,12 +10,12 @@ export function ChatInputModel() {
 
   return (
     <span
-      className="text-sm font-normal leading-5 text-[#A3A3A3] flex items-center gap-1 whitespace-nowrap"
+      className="text-sm font-normal leading-5 text-[#A3A3A3] inline-flex items-center gap-1 whitespace-nowrap max-w-[220px] min-w-0"
       title={conversation.llm_model}
       data-testid="chat-input-llm-model"
     >
       <CircuitIcon width={14} height={14} className="shrink-0" />
-      <span>{conversation.llm_model}</span>
+      <span className="truncate">{conversation.llm_model}</span>
     </span>
   );
 }

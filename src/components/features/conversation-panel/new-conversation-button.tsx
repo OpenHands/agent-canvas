@@ -82,6 +82,14 @@ export function NewConversationButton() {
     "disabled:opacity-60 disabled:cursor-not-allowed",
   );
 
+  const keepPopoverOpenOnMouseDown = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
   return (
     <div className="relative" ref={popoverRef}>
       <button
@@ -143,7 +151,12 @@ export function NewConversationButton() {
             <button
               type="button"
               data-testid="add-workspaces-button"
-              onClick={() => setBrowserOpen(true)}
+              onMouseDown={keepPopoverOpenOnMouseDown}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setBrowserOpen(true);
+              }}
               className={itemClass}
             >
               {t(I18nKey.HOME$ADD_WORKSPACES)}
@@ -152,7 +165,12 @@ export function NewConversationButton() {
               <button
                 type="button"
                 data-testid="manage-workspaces-button"
-                onClick={() => setManageOpen(true)}
+                onMouseDown={keepPopoverOpenOnMouseDown}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setManageOpen(true);
+                }}
                 className={itemClass}
               >
                 {t(I18nKey.HOME$MANAGE_WORKSPACES)}
