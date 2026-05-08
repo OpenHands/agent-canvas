@@ -52,6 +52,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
     env:
       LIVE_E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LIVE_E2E_LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
@@ -73,6 +74,7 @@ jobs:
 
       - name: Create live E2E PR comment
         if: env.LIVE_E2E_PR_NUMBER != ''
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
