@@ -35,7 +35,12 @@ export default function AutomationsList() {
 
   const isBackendHealthy = healthData?.status === "ok";
 
-  const { data, isLoading, isError, refetch } = useAutomations(limit, 0);
+  // Only fetch automations if the backend is healthy
+  const { data, isLoading, isError, refetch } = useAutomations({
+    limit,
+    offset: 0,
+    enabled: isBackendHealthy,
+  });
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
 

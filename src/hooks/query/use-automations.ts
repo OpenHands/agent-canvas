@@ -5,7 +5,14 @@ import { AUTOMATION_DETAIL_QUERY_KEY } from "./use-automation-detail";
 
 export const AUTOMATIONS_QUERY_KEY = ["automations"] as const;
 
-export function useAutomations(limit = 50, offset = 0) {
+interface UseAutomationsOptions {
+  limit?: number;
+  offset?: number;
+  enabled?: boolean;
+}
+
+export function useAutomations(options: UseAutomationsOptions = {}) {
+  const { limit = 50, offset = 0, enabled = true } = options;
   const active = useActiveBackend();
   return useQuery({
     queryKey: [
@@ -16,6 +23,7 @@ export function useAutomations(limit = 50, offset = 0) {
     ],
     queryFn: () => AutomationService.getAutomations(limit, offset),
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 

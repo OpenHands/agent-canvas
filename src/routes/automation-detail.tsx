@@ -44,13 +44,17 @@ export default function AutomationDetail() {
   const mountedBackendId = useRef(active.backend.id);
   const backendChanged = mountedBackendId.current !== active.backend.id;
 
+  // Only fetch automation details if the backend is healthy and hasn't changed
   const {
     data: automation,
     isLoading,
     isError,
     error,
     refetch,
-  } = useAutomationDetail(backendChanged ? "" : (automationId ?? ""));
+  } = useAutomationDetail({
+    id: automationId ?? "",
+    enabled: isBackendHealthy && !backendChanged,
+  });
 
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();

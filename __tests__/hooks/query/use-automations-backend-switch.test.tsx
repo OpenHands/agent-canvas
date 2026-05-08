@@ -90,9 +90,10 @@ afterEach(() => {
 describe("automation hooks — backend switch", () => {
   it("useAutomations refetches when the active backend changes", async () => {
     // Arrange — mount under the local backend; capture the initial fetch.
-    const { result } = renderHook(() => useAutomations(50, 0), {
-      wrapper: makeWrapper(),
-    });
+    const { result } = renderHook(
+      () => useAutomations({ limit: 50, offset: 0 }),
+      { wrapper: makeWrapper() },
+    );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(AutomationService.getAutomations).toHaveBeenCalledTimes(1);
 
@@ -108,9 +109,10 @@ describe("automation hooks — backend switch", () => {
   });
 
   it("useAutomationDetail refetches when the active backend changes", async () => {
-    const { result } = renderHook(() => useAutomationDetail("auto-1"), {
-      wrapper: makeWrapper(),
-    });
+    const { result } = renderHook(
+      () => useAutomationDetail({ id: "auto-1" }),
+      { wrapper: makeWrapper() },
+    );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
 
