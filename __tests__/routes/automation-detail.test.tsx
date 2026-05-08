@@ -24,6 +24,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     getAutomationRuns: vi.fn(),
     toggleAutomation: vi.fn(),
     deleteAutomation: vi.fn(),
+    checkHealth: vi.fn(),
   },
 }));
 
@@ -80,6 +81,8 @@ function renderDetail() {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  vi.mocked(AutomationService.checkHealth).mockReset();
+  vi.mocked(AutomationService.checkHealth).mockResolvedValue({ status: "ok" });
   vi.mocked(AutomationService.getAutomation).mockReset();
   vi.mocked(AutomationService.getAutomation).mockResolvedValue(automation);
   vi.mocked(AutomationService.getAutomationRuns).mockReset();
