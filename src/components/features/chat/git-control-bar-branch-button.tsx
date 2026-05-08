@@ -24,8 +24,12 @@ export function GitControlBarBranchButton({
     ? settings?.provider_tokens_set[gitProvider]
     : null;
 
-  const hasBranch = selectedBranch && selectedRepository && gitProvider;
-  const branchUrl = hasBranch
+  // Render the linked styling only when we have enough info to build a URL.
+  // Local-workspace fallbacks may give us a branch name without a known
+  // provider — show the branch text in that case but skip the external link.
+  const hasLinkableBranch =
+    !!selectedBranch && !!selectedRepository && !!gitProvider;
+  const branchUrl = hasLinkableBranch
     ? constructBranchUrl(
         gitProvider,
         selectedRepository,
@@ -34,16 +38,16 @@ export function GitControlBarBranchButton({
       )
     : undefined;
 
-  const buttonText = hasBranch ? selectedBranch : t(I18nKey.COMMON$NO_BRANCH);
+  const buttonText = selectedBranch || t(I18nKey.COMMON$NO_BRANCH);
 
   return (
     <a
-      href={hasBranch ? branchUrl : undefined}
+      href={hasLinkableBranch ? branchUrl : undefined}
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
         "group flex flex-row items-center justify-between gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] w-fit flex-shrink-0 max-w-[200px] truncate relative",
-        hasBranch
+        hasLinkableBranch
           ? "border border-[#525252] bg-transparent hover:border-[#454545] cursor-pointer"
           : "border border-[rgba(71,74,84,0.50)] bg-transparent cursor-not-allowed min-w-[108px]",
       )}
@@ -57,7 +61,7 @@ export function GitControlBarBranchButton({
       >
         {buttonText}
       </div>
-      {hasBranch && <GitExternalLinkIcon />}
+      {hasLinkableBranch && <GitExternalLinkIcon />}
     </a>
   );
 }

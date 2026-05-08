@@ -9,6 +9,7 @@ import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
+import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import {
   getFirstAvailablePath,
@@ -27,10 +28,6 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
     isLocalOnlySettingsPath(pathname)
   ) {
     return redirect("/settings");
-  }
-
-  if (pathname === "/settings/agent-server") {
-    return null;
   }
 
   const config = await queryClient.fetchQuery<WebClientConfig>({
@@ -79,7 +76,10 @@ function SettingsScreen() {
       <SettingsLayout navigationItems={navItems}>
         <div className="flex flex-col gap-6 h-full">
           {!shouldHideTitle && (
-            <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
+            <div className="flex flex-col items-start gap-2">
+              <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
+              <BackendSyncedSettingsBadge />
+            </div>
           )}
           <div className="flex-1 overflow-auto custom-scrollbar-always">
             <Outlet />

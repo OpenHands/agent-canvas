@@ -149,6 +149,7 @@ export async function fetchCloudSettings(): Promise<Partial<Settings>> {
 export async function saveCloudSettings(diff: {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
+  disabled_skills?: string[];
 }): Promise<void> {
   const backend = getActiveCloudBackend();
   const body: Record<string, unknown> = {};
@@ -163,6 +164,10 @@ export async function saveCloudSettings(diff: {
     Object.keys(diff.conversation_settings_diff).length > 0
   ) {
     body.conversation_settings_diff = diff.conversation_settings_diff;
+  }
+  // Use !== undefined so re-enabling every skill (empty array) round-trips.
+  if (diff.disabled_skills !== undefined) {
+    body.disabled_skills = diff.disabled_skills;
   }
   await callCloudProxy<unknown>({
     backend,

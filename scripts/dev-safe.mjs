@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
+import net from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -428,6 +435,81 @@ async function main() {
       process.exitCode = code ?? 1;
     }
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Conversation lease cleanup
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if `host:port` accepts a TCP connection within `timeoutMs`.
+ * Used to detect a live agent-server we shouldn't disturb.
+ */
+export function isPortBusy(port, host = "127.0.0.1", timeoutMs = 500) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (busy) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(busy);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+    socket.connect(port, host);
+  });
+}
+
+/**
+ * Remove stale `owner_lease.json` files under `conversationsDir` so a
+ * freshly spawned agent-server can claim ownership and re-load every
+ * existing conversation.
+ *
+ * Why this is needed: each conversation directory carries an
+ * `owner_lease.json` that locks it to a single agent-server's
+ * `owner_instance_id` for a 45 s TTL refreshed by heartbeat. On
+ * graceful shutdown the agent-server unlinks its leases; on a hard
+ * kill (or a fast restart, well under 45 s) the leases linger. A new
+ * agent-server with a fresh `owner_instance_id` will then raise
+ * `ConversationLeaseHeldError` for each conversation at startup load
+ * and skip it entirely — `/api/conversations/search` returns `[]`
+ * even though the meta files are right there on disk.
+ *
+ * The caller MUST verify (e.g. with `isPortBusy`) that no agent-server
+ * is currently bound to the backend port before calling this — there
+ * is no other reliable way to tell a stale lease from an actively
+ * renewed one.
+ *
+ * Returns the number of lease files unlinked.
+ */
+export function releaseStaleConversationLeases(conversationsDir) {
+  if (!existsSync(conversationsDir)) return 0;
+
+  let removed = 0;
+  for (const name of readdirSync(conversationsDir)) {
+    const convDir = path.join(conversationsDir, name);
+    let isDir = false;
+    try {
+      isDir = statSync(convDir).isDirectory();
+    } catch {
+      continue;
+    }
+    if (!isDir) continue;
+
+    const leasePath = path.join(convDir, "owner_lease.json");
+    if (!existsSync(leasePath)) continue;
+    try {
+      unlinkSync(leasePath);
+      removed += 1;
+    } catch {
+      // Best-effort: the new agent-server will simply skip this
+      // conversation as before. Don't fail the whole start.
+    }
+  }
+  return removed;
 }
 
 if (

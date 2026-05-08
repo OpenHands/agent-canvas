@@ -98,3 +98,16 @@ export const useEventStore = create<EventState>()((set) => ({
       uiEvents: [],
     })),
 }));
+
+// In dev builds, expose the store on `window` so that fixture/preview
+// scripts (e.g. .pr/issue-132 demo capture) can inject synthetic events
+// without round-tripping through the agent-server. Tree-shaken in
+// production builds via `import.meta.env.DEV`.
+if (
+  typeof window !== "undefined" &&
+  typeof import.meta !== "undefined" &&
+  (import.meta as { env?: { DEV?: boolean } }).env?.DEV
+) {
+  (window as unknown as { __OH_EVENT_STORE__?: typeof useEventStore }).__OH_EVENT_STORE__ =
+    useEventStore;
+}

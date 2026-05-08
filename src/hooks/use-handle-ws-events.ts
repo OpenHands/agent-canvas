@@ -4,6 +4,7 @@ import { AgentState } from "#/types/agent-state";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useEventStore } from "#/stores/use-event-store";
 import { useSendMessage } from "#/hooks/use-send-message";
+import { isAgentErrorEvent, isAgentServerEvent } from "#/types/agent-server/type-guards";
 
 interface ServerError {
   error: boolean | string;
@@ -27,6 +28,12 @@ export const useHandleWSEvents = () => {
       return;
     }
     const event = events[events.length - 1];
+
+    // V1 agent errors are surfaced inline in the chat log (and via the error
+    // banner), so don't double-notify with a toast.
+    if (isAgentServerEvent(event) && isAgentErrorEvent(event)) {
+      return;
+    }
 
     if (isServerError(event)) {
       if (event.error_code === 401) {

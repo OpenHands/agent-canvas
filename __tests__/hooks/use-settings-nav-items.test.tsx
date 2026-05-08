@@ -93,6 +93,18 @@ describe("useSettingsNavItems", () => {
     expect(paths).toContain("/settings/secrets");
   });
 
+  it("never lists the removed /settings/agent-server entry", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((item) => item.type === "item")
+      .map((item) => (item.type === "item" ? item.item.to : null));
+
+    expect(paths).not.toContain("/settings/agent-server");
+  });
+
+
   it("hides local-only sub-pages when the active backend is cloud", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useActiveBackendMock.mockReturnValue(cloudActive);
@@ -102,7 +114,6 @@ describe("useSettingsNavItems", () => {
       .filter((item) => item.type === "item")
       .map((item) => (item.type === "item" ? item.item.to : null));
 
-    expect(paths).not.toContain("/settings/agent-server");
     expect(paths).not.toContain("/settings/integrations");
     expect(paths).toContain("/settings");
     expect(paths).toContain("/settings/condenser");

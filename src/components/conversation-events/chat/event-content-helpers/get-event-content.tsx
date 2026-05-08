@@ -1,11 +1,19 @@
 import { Trans } from "react-i18next";
 import React from "react";
 import { OpenHandsEvent, ObservationEvent, ActionEvent } from "#/types/agent-server/core";
-import { isActionEvent, isObservationEvent } from "#/types/agent-server/type-guards";
+import {
+  isActionEvent,
+  isObservationEvent,
+  isACPToolCallEvent,
+} from "#/types/agent-server/type-guards";
 import { MonoComponent } from "../../../features/chat/mono-component";
 import { PathComponent } from "../../../features/chat/path-component";
 import { getActionContent } from "./get-action-content";
 import { getObservationContent } from "./get-observation-content";
+import {
+  getACPToolCallContent,
+  getACPToolCallTitleKey,
+} from "./get-acp-tool-call-content";
 import { TaskTrackingObservationContent } from "../task-tracking/task-tracking-observation-content";
 import { TaskTrackerObservation } from "#/types/agent-server/core/base/observation";
 import { SkillReadyEvent, isSkillReadyEvent } from "./create-skill-ready-event";
@@ -38,11 +46,25 @@ const createTitleFromKey = (
   );
 };
 
+/**
+ * Detects the agent-server's default summary fallback, which has the shape
+ * `{tool_name}: {json-args}` (see `_extract_summary` in
+ * `openhands/sdk/agent/agent.py`). When the LLM omits a summary the server
+ * dumps the raw arguments JSON, which renders as a huge unreadable blob in
+ * the chat. Treat that case as "no summary" so the action-kind specific
+ * title (e.g. "Editing <path>", "Running <cmd>") is used instead.
+ */
+const isServerFallbackSummary = (summary: string): boolean =>
+  /^[a-z][a-z0-9_]*\s*:\s*[[{]/i.test(summary);
+
 const getSummaryTitleForActionEvent = (
   event: ActionEvent,
 ): React.ReactNode | null => {
   const summary = event.summary?.trim().replace(/\s+/g, " ") || "";
-  return summary || null;
+  if (!summary || isServerFallbackSummary(summary)) {
+    return null;
+  }
+  return summary;
 };
 
 // Action Event Processing
@@ -264,6 +286,16 @@ export const getEventContent = (
     } else {
       details = getObservationContent(event);
     }
+  } else if (isACPToolCallEvent(event)) {
+    // ACP sub-agent tool calls reuse the same card shape as observations:
+    // title is "Running/Editing/Reading …" via a translation key that
+    // mirrors ACTION_MESSAGE$RUN etc.; details are markdown built from
+    // raw_input + raw_output the same way getTerminalObservationContent
+    // builds "Command: / Output:" blocks.
+    title = createTitleFromKey(getACPToolCallTitleKey(event), {
+      title: event.title,
+    });
+    details = getACPToolCallContent(event);
   } else if (
     // Lenient fallback for action-like events that fail the strict isActionEvent() guard
     // (e.g., missing tool_name or tool_call_id). Extract a title from the action kind

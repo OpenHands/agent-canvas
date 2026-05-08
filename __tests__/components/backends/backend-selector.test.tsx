@@ -10,6 +10,10 @@ import {
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
+import {
+  __resetEnvironmentSwitchOverlayForTests,
+  EnvironmentSwitchOverlay,
+} from "#/components/features/backends/environment-switch-overlay";
 
 import {
   getCloudOrganizations,
@@ -84,6 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  __resetEnvironmentSwitchOverlayForTests();
 });
 
 describe("BackendSelector", () => {
@@ -208,18 +213,14 @@ describe("BackendSelector", () => {
     await openDropdown();
 
     await waitFor(() => {
-      expect(
-        screen.getByText("ProdPersonal – Personal"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("ProdPersonal – Personal")).toBeInTheDocument();
     });
     expect(screen.getByText("ProdAcme – Acme Inc")).toBeInTheDocument();
     // Inaccessible orgs must not appear under either backend.
     expect(
       screen.queryByText("ProdPersonal – Acme Inc"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("ProdAcme – Personal"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("ProdAcme – Personal")).not.toBeInTheDocument();
     expect(screen.queryByText(/Beta Co/)).not.toBeInTheDocument();
   });
 
@@ -387,6 +388,86 @@ describe("BackendSelector", () => {
     await user.click(screen.getByText("Local 1"));
 
     expect(await screen.findByTestId("home")).toBeInTheDocument();
+  });
+
+  it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {
+    // Arrange — selector and overlay are rendered in independent trees
+    // so the selector can be torn down without taking the overlay with
+    // it. This mirrors production: ContextMenuContainer's click-outside
+    // handler unmounts UserContextMenu (and BackendSelector) the moment
+    // the dropdown's portaled option list is clicked, so the trigger
+    // must not depend on BackendSelector staying mounted.
+    const selectorRender = renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+    render(<EnvironmentSwitchOverlay />);
+
+    // Act — select a different backend, then immediately unmount the
+    // selector (the click itself would do this in production via the
+    // outside-click handler).
+    const user = await openDropdown();
+    await user.click(screen.getByText("Acme Local"));
+    selectorRender.unmount();
+
+    // Assert — the overlay is still in the DOM with the chosen target
+    expect(screen.getByTestId("environment-switch-overlay")).toHaveAttribute(
+      "data-target",
+      "Acme Local",
+    );
+  });
+
+  it("redirects to the automations list when switching backends from an automation detail route", async () => {
+    function AutomationDetailRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function AutomationsListRoute() {
+      return <div data-testid="automations-list" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/automations/:automationId", Component: AutomationDetailRoute },
+      { path: "/automations", Component: AutomationsListRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/automations/abc-123"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    expect(
+      await screen.findByTestId("automations-list"),
+    ).toBeInTheDocument();
   });
 
   it("does not redirect when switching backends from a non-conversation route", async () => {

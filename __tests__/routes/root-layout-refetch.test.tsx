@@ -1,10 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import MainApp from "#/routes/root-layout";
-import SettingsService from "#/api/settings-service/settings-service.api";
-import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
+
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Hoisted mocks for useIsAuthed and useConfig to allow dynamic control in tests
@@ -52,6 +51,16 @@ const RouterStub = createRoutesStub([
 ]);
 
 describe("MainApp - Auth refetch behavior", () => {
+  afterEach(async () => {
+    // Wait for any pending async operations (e.g., framer-motion LazyMotion async loads)
+    // Use act to flush all pending state updates before cleanup
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    cleanup();
+    vi.clearAllMocks();
+  });
+
   it("should NOT show loading spinner when auth is refetching for an authenticated user", async () => {
     // Setup: Mock hooks to simulate authenticated user CURRENTLY REFETCHING
     // This is the state when the auth cache is invalidated and refetching

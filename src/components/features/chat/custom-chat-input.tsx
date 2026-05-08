@@ -9,14 +9,11 @@ import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
 import { useConversationStore } from "#/stores/conversation-store";
-import { ExecutionStatus } from "#/types/agent-server/core/base/common";
-import { isExecutionErrored } from "#/utils/status";
 
 export interface CustomChatInputProps {
   disabled?: boolean;
   isNewConversationPending?: boolean;
   showButton?: boolean;
-  executionStatus?: ExecutionStatus | null;
   onSubmit: (message: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -29,7 +26,6 @@ export function CustomChatInput({
   disabled = false,
   isNewConversationPending = false,
   showButton = true,
-  executionStatus = null,
   onSubmit,
   onFocus,
   onBlur,
@@ -44,7 +40,11 @@ export function CustomChatInput({
     setSubmittedMessage,
   } = useConversationStore();
 
-  const isDisabled = disabled || isExecutionErrored(executionStatus);
+  // Note: we intentionally do NOT disable the input when the conversation is
+  // in an ERROR/STUCK execution state. Users should be able to send a follow-up
+  // message to recover the conversation; the message will be delivered
+  // immediately via the WebSocket if connected, or queued via REST otherwise.
+  const isDisabled = disabled;
 
   // Listen to submittedMessage state changes
   useEffect(() => {

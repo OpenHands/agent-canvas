@@ -67,7 +67,6 @@ export function isSettingsPageHidden(
 // Hidden from navigation and blocked at the route loader when the active
 // backend is a cloud SaaS environment.
 export const LOCAL_ONLY_SETTINGS_PATHS = new Set<string>([
-  "/settings/agent-server",
   "/settings/integrations",
 ]);
 

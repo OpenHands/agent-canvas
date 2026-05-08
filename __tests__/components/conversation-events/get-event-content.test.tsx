@@ -81,6 +81,41 @@ describe("getEventContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("ignores the agent-server fallback summary ('tool_name: {args}') and uses the action-kind title", () => {
+    // The SDK's `_extract_summary` emits `f"{tool_name}: {json}"` when the
+    // LLM omits a summary. That blob should not be shown as the title.
+    const actionWithFallbackSummary = {
+      ...terminalActionEvent,
+      summary: 'terminal: {"command":"git status"}',
+    };
+    const { title } = getEventContent(actionWithFallbackSummary);
+
+    render(<span>{title}</span>);
+
+    expect(screen.getByText("ACTION_MESSAGE$RUN")).toBeInTheDocument();
+    expect(
+      screen.queryByText('terminal: {"command":"git status"}'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores fallback summary on the paired observation as well", () => {
+    const actionWithFallbackSummary = {
+      ...terminalActionEvent,
+      summary: 'terminal: {"command":"git status"}',
+    };
+    const { title } = getEventContent(
+      terminalObservationEvent,
+      actionWithFallbackSummary,
+    );
+
+    render(<span>{title}</span>);
+
+    expect(screen.getByText("OBSERVATION_MESSAGE$RUN")).toBeInTheDocument();
+    expect(
+      screen.queryByText('terminal: {"command":"git status"}'),
+    ).not.toBeInTheDocument();
+  });
+
   it("returns empty details for file view action instead of 'Unknown event'", () => {
     const fileViewAction: ActionEvent = {
       id: "action-2",

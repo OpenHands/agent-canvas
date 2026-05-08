@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router";
 import { isAxiosError } from "axios";
 import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
@@ -6,6 +6,7 @@ import {
   useToggleAutomation,
   useDeleteAutomation,
 } from "#/hooks/query/use-automations";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { BackLink } from "#/components/features/automations/detail/back-link";
 import { DetailHeader } from "#/components/features/automations/detail/detail-header";
@@ -24,13 +25,22 @@ export default function AutomationDetail() {
   const { navigate } = useNavigation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // The automationId in the URL belongs to whichever backend was active
+  // when the page first mounted. If the user switches backends, the id
+  // is meaningless under the new backend — disable the query so we
+  // don't fire a request that the backend selector's redirect will
+  // immediately navigate away from anyway.
+  const active = useActiveBackend();
+  const mountedBackendId = useRef(active.backend.id);
+  const backendChanged = mountedBackendId.current !== active.backend.id;
+
   const {
     data: automation,
     isLoading,
     isError,
     error,
     refetch,
-  } = useAutomationDetail(automationId ?? "");
+  } = useAutomationDetail(backendChanged ? "" : (automationId ?? ""));
 
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
@@ -40,24 +50,30 @@ export default function AutomationDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <DetailSkeleton />
+      <div className="min-h-full bg-surface">
+        <div className="p-6 max-w-4xl mx-auto">
+          <DetailSkeleton />
+        </div>
       </div>
     );
   }
 
   if (is404) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <NotFoundState />
+      <div className="min-h-full bg-surface">
+        <div className="p-6 max-w-4xl mx-auto">
+          <NotFoundState />
+        </div>
       </div>
     );
   }
 
   if (isError || !automation) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <ErrorState onRetry={() => refetch()} />
+      <div className="min-h-full bg-surface">
+        <div className="p-6 max-w-4xl mx-auto">
+          <ErrorState onRetry={() => refetch()} />
+        </div>
       </div>
     );
   }
@@ -78,30 +94,32 @@ export default function AutomationDetail() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex flex-col gap-4">
-        <BackLink />
-        <DetailHeader
-          automation={automation}
-          onToggle={handleToggle}
-          onDelete={() => setShowDeleteModal(true)}
-        />
-        {automation.prompt && <PromptSection prompt={automation.prompt} />}
-        <ConfigurationSection automation={automation} />
-        {automation.plugins && automation.plugins.length > 0 && (
-          <PluginsSection plugins={automation.plugins} />
-        )}
-        <ActivitySection
-          createdAt={automation.created_at}
-          lastRunAt={automation.last_triggered_at}
-        />
-        <ActivityLogSection automationId={automation.id} />
-        <DeleteConfirmationModal
-          automationName={automation.name}
-          isOpen={showDeleteModal}
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteModal(false)}
-        />
+    <div className="min-h-full bg-surface">
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-4">
+          <BackLink />
+          <DetailHeader
+            automation={automation}
+            onToggle={handleToggle}
+            onDelete={() => setShowDeleteModal(true)}
+          />
+          {automation.prompt && <PromptSection prompt={automation.prompt} />}
+          <ConfigurationSection automation={automation} />
+          {automation.plugins && automation.plugins.length > 0 && (
+            <PluginsSection plugins={automation.plugins} />
+          )}
+          <ActivitySection
+            createdAt={automation.created_at}
+            lastRunAt={automation.last_triggered_at}
+          />
+          <ActivityLogSection automationId={automation.id} />
+          <DeleteConfirmationModal
+            automationName={automation.name}
+            isOpen={showDeleteModal}
+            onConfirm={handleDelete}
+            onCancel={() => setShowDeleteModal(false)}
+          />
+        </div>
       </div>
     </div>
   );

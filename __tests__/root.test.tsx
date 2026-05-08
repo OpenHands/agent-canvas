@@ -86,14 +86,6 @@ const RouterStub = createRoutesStub([
         Component: () => <div data-testid="app-outlet">app outlet</div>,
         path: "/",
       },
-      {
-        Component: () => (
-          <div data-testid="agent-server-settings-screen">
-            agent server settings
-          </div>
-        ),
-        path: "/settings/agent-server",
-      },
     ],
   },
 ]);
@@ -214,21 +206,5 @@ describe("App root compatibility guard", () => {
       screen.queryByTestId("agent-server-onboarding-screen"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("agent-server-upgrade-screen")).not.toBeInTheDocument();
-  });
-
-  it("still allows the agent server settings route when the backend is unreachable", async () => {
-    server.use(http.get("/server_info", () => HttpResponse.error()));
-
-    renderApp(["/settings/agent-server"]);
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("agent-server-settings-screen"),
-      ).toBeInTheDocument();
-    });
-
-    expect(
-      screen.queryByTestId("agent-server-onboarding-screen"),
-    ).not.toBeInTheDocument();
   });
 });

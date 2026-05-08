@@ -8,6 +8,7 @@ import {
   isUserMessageEvent,
   isPlanningFileEditorObservationEvent,
   isHookExecutionEvent,
+  isACPToolCallEvent,
 } from "#/types/agent-server/type-guards";
 import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -33,6 +34,14 @@ interface EventMessageProps {
   isInLast10Actions: boolean;
   /** Set of event IDs that should render PlanPreview (one per user message phase) */
   planPreviewEventIds?: Set<string>;
+  /**
+   * When true, do not render the inline `ThoughtEventMessage` for action /
+   * observation events. The caller is expected to render the thought
+   * separately (e.g. via a hoisted "thought" rendered item) so the message
+   * pane and the in-group rendering don't double up on the same content.
+   * Has no effect on `ThinkAction`, whose thought IS its action body.
+   */
+  suppressThought?: boolean;
 }
 
 /**
@@ -121,6 +130,7 @@ export function EventMessage({
   isLastMessage,
   isInLast10Actions,
   planPreviewEventIds,
+  suppressThought = false,
 }: EventMessageProps) {
   const { data: config } = useConfig();
   const { planContent } = useConversationStore();
@@ -152,6 +162,15 @@ export function EventMessage({
     return <HookExecutionEventMessage event={event} />;
   }
 
+  // ACP sub-agent tool call events (Claude Code, Codex, Gemini CLI, …)
+  // render through the same generic wrapper used for observation events so
+  // the card shape, success indicator and markdown rendering all match.
+  if (isACPToolCallEvent(event)) {
+    return (
+      <GenericEventMessageWrapper event={event} isLastMessage={isLastMessage} />
+    );
+  }
+
   // Finish actions
   if (isActionEvent(event) && event.action.kind === "FinishAction") {
     return (
@@ -180,10 +199,12 @@ export function EventMessage({
   if (isActionEvent(event)) {
     return (
       <>
-        <ThoughtEventMessage
-          event={event}
-          isFromPlanningAgent={isFromPlanningAgent}
-        />
+        {!suppressThought && (
+          <ThoughtEventMessage
+            event={event}
+            isFromPlanningAgent={isFromPlanningAgent}
+          />
+        )}
         <GenericEventMessageWrapper
           event={event}
           isLastMessage={isLastMessage}
@@ -225,6 +246,7 @@ export function EventMessage({
 
     // Skip ThoughtEventMessage for ThinkAction (thought IS the action)
     const shouldShowThought =
+      !suppressThought &&
       correspondingAction &&
       isActionEvent(correspondingAction) &&
       correspondingAction.action.kind !== "ThinkAction";

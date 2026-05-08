@@ -4,17 +4,14 @@ import {
   isAgentServerUnavailableError,
 } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
-import { useIsOnIntermediatePage } from "#/hooks/use-is-on-intermediate-page";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "./query-keys";
 
 interface UseConfigOptions {
   enabled?: boolean;
 }
 
-export const useConfig = (options?: UseConfigOptions) => {
-  const isOnIntermediatePage = useIsOnIntermediatePage();
-
-  return useQuery({
+export const useConfig = (options?: UseConfigOptions) =>
+  useQuery({
     queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
     queryFn: OptionService.getConfig,
     retry: (failureCount, error) =>
@@ -23,6 +20,5 @@ export const useConfig = (options?: UseConfigOptions) => {
       failureCount < 3,
     meta: { disableToast: true },
     ...CONFIG_CACHE_OPTIONS,
-    enabled: options?.enabled ?? !isOnIntermediatePage,
+    enabled: options?.enabled,
   });
-};

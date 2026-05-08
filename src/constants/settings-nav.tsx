@@ -50,11 +50,6 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     text: "SETTINGS$NAV_APPLICATION",
   },
   {
-    icon: <ServerProcessIcon width={22} height={22} />,
-    to: "/settings/agent-server",
-    text: "SETTINGS$NAV_AGENT_SERVER",
-  },
-  {
     icon: <KeyIcon width={22} height={22} />,
     to: "/settings/secrets",
     text: "SETTINGS$NAV_SECRETS",

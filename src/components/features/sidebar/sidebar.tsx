@@ -15,7 +15,6 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
-import { ENABLE_AUTOMATIONS } from "#/utils/feature-flags";
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
@@ -88,11 +87,9 @@ export function Sidebar() {
               }
               disabled={settings?.email_verified === false}
             />
-            {ENABLE_AUTOMATIONS() && (
-              <AutomationsButton
-                disabled={settings?.email_verified === false}
-              />
-            )}
+            <AutomationsButton
+              disabled={settings?.email_verified === false}
+            />
           </div>
 
           <div className="flex flex-row md:flex-col md:items-center gap-[26px]">

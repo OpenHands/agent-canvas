@@ -10,6 +10,7 @@ import {
   fetchCloudSettings,
   saveCloudSettings,
 } from "#/api/cloud/settings-service.api";
+import SettingsService from "#/api/settings-service/settings-service.api";
 
 vi.mock("axios");
 
@@ -108,6 +109,29 @@ describe("cloud settings via local proxy", () => {
     });
     expect(proxiedBody).not.toHaveProperty("agent_settings");
     expect(proxiedBody).not.toHaveProperty("conversation_settings");
+  });
+
+  it("SettingsService.saveSettings forwards disabled_skills to the cloud proxy when active backend is cloud", async () => {
+    // Arrange: cloud backend already active via beforeEach; mock proxy response.
+    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+    // Act: save a skills-only update — previously this short-circuited and
+    // sent nothing at all, leaving the toggle un-persisted.
+    await SettingsService.saveSettings({
+      disabled_skills: ["SSH Microagent"],
+    });
+
+    // Assert: a single proxied POST /api/v1/settings reached the wire with
+    // disabled_skills as a top-level field on the upstream body.
+    expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(1);
+    const [, envelope] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(envelope).toMatchObject({
+      method: "POST",
+      path: "/api/v1/settings",
+    });
+    expect((envelope as { body: Record<string, unknown> }).body).toEqual({
+      disabled_skills: ["SSH Microagent"],
+    });
   });
 
   it("saveCloudSettings omits an empty conversation_settings_diff (LLM-only save)", async () => {

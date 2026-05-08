@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AutomationService from "#/api/automation-service/automation-service.api";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { AUTOMATION_DETAIL_QUERY_KEY } from "./use-automation-detail";
 
 export const AUTOMATIONS_QUERY_KEY = ["automations"] as const;
 
 export function useAutomations(limit = 50, offset = 0) {
+  const active = useActiveBackend();
   return useQuery({
-    queryKey: [...AUTOMATIONS_QUERY_KEY, { limit, offset }],
+    queryKey: [
+      ...AUTOMATIONS_QUERY_KEY,
+      { limit, offset },
+      active.backend.id,
+      active.orgId,
+    ],
     queryFn: () => AutomationService.getAutomations(limit, offset),
     staleTime: 5 * 60 * 1000,
   });

@@ -6,6 +6,7 @@ import {
   isAgentErrorEvent,
   isConversationStateUpdateEvent,
   isHookExecutionEvent,
+  isACPToolCallEvent,
 } from "#/types/agent-server/type-guards";
 
 export const shouldRenderEvent = (event: OpenHandsEvent) => {
@@ -54,6 +55,12 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
   // Render hook execution events
   if (isHookExecutionEvent(event)) {
     return true;
+  }
+
+  // Render ACP sub-agent tool call events — suppress in_progress (empty args)
+  // so the card only appears once fully populated.
+  if (isACPToolCallEvent(event)) {
+    return event.status !== "in_progress";
   }
 
   // Don't render any other event types (system events, etc.)

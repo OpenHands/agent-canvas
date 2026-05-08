@@ -139,6 +139,77 @@ describe("buildConfig", () => {
 
     expect(config.verbose).toBe(true);
   });
+
+  it("uses default local API key", () => {
+    const config = buildConfig({}, {});
+
+    expect(config.localApiKey).toBe("openhands-local-api-key");
+  });
+
+  it("respects custom AUTOMATION_LOCAL_API_KEY from env", () => {
+    const config = buildConfig({}, { AUTOMATION_LOCAL_API_KEY: "my-custom-key" });
+
+    expect(config.localApiKey).toBe("my-custom-key");
+  });
+
+  it("sets sessionApiKey to null by default", () => {
+    const config = buildConfig({}, {});
+
+    expect(config.sessionApiKey).toBeNull();
+  });
+
+  it("reads sessionApiKey from OH_SESSION_API_KEY", () => {
+    const config = buildConfig({}, { OH_SESSION_API_KEY: "my-session-key" });
+
+    expect(config.sessionApiKey).toBe("my-session-key");
+  });
+
+  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", () => {
+    const config = buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
+
+    expect(config.sessionApiKey).toBe("vite-session-key");
+  });
+
+  it("OH_SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
+    const config = buildConfig({}, {
+      OH_SESSION_API_KEY: "oh-key",
+      VITE_SESSION_API_KEY: "vite-key",
+    });
+
+    expect(config.sessionApiKey).toBe("oh-key");
+  });
+
+  it("reads sessionApiKey from SESSION_API_KEY (agent-server V0 env)", () => {
+    const config = buildConfig({}, { SESSION_API_KEY: "v0-session-key" });
+
+    expect(config.sessionApiKey).toBe("v0-session-key");
+  });
+
+  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
+    const config = buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
+
+    expect(config.sessionApiKey).toBe("v1-session-key");
+  });
+
+  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", () => {
+    const config = buildConfig({}, {
+      SESSION_API_KEY: "v0-key",
+      OH_SESSION_API_KEYS_0: "v1-key",
+    });
+
+    expect(config.sessionApiKey).toBe("v0-key");
+  });
+
+  it("SESSION_API_KEY takes precedence over all other session key env vars", () => {
+    const config = buildConfig({}, {
+      SESSION_API_KEY: "v0-key",
+      OH_SESSION_API_KEYS_0: "v1-key",
+      OH_SESSION_API_KEY: "oh-key",
+      VITE_SESSION_API_KEY: "vite-key",
+    });
+
+    expect(config.sessionApiKey).toBe("v0-key");
+  });
 });
 
 describe("default constants", () => {
@@ -185,6 +256,9 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--automation-ref");
     expect(output).toContain("--automation-repo");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
+    expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
+    expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
+    expect(output).toContain("SECRETS:");
   });
 
   it("exits promptly when uvx is missing", async () => {

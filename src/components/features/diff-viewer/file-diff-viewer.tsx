@@ -174,7 +174,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
     if (isMarkdownFile) {
       return (
         <div
-          className="w-full border border-neutral-600 overflow-auto p-4 bg-neutral-900 prose prose-invert max-w-none"
+          className="w-full border-b border-[#474A54] overflow-auto p-4 bg-neutral-900 prose prose-invert max-w-none"
           data-testid="markdown-preview"
         >
           <MarkdownRenderer
@@ -205,15 +205,12 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
   return (
     <div data-testid="file-diff-viewer-outer" className="w-full flex flex-col">
       <div
-        className={cn(
-          "flex justify-between items-center px-2.5 py-3.5 border border-neutral-600 rounded-xl hover:cursor-pointer",
-          !isCollapsed && !isLoading && "border-b-0 rounded-b-none",
-        )}
+        className="flex justify-between items-center px-3 py-2.5 border-b border-[#474A54] hover:cursor-pointer"
         onClick={() => setIsCollapsed((prev) => !prev)}
       >
         <span className="text-sm w-full text-content flex items-center gap-2">
-          {isFetchingData ? <LoadingSpinner className="w-5 h-5" /> : statusIcon}
-          <strong className="w-full truncate">{filePath}</strong>
+          {isFetchingData ? <LoadingSpinner className="w-4 h-4" /> : statusIcon}
+          <strong className="w-full truncate font-medium">{filePath}</strong>
           {!isCollapsed && (
             <span
               className="flex items-center gap-0.5 shrink-0"
@@ -228,8 +225,8 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
                   className={cn(
                     "p-1 rounded transition-colors cursor-pointer",
                     viewMode === mode
-                      ? "bg-neutral-600 text-white"
-                      : "text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200",
+                      ? "bg-[#474A54] text-white"
+                      : "text-[#9099ac] hover:bg-[#474A54] hover:text-white",
                   )}
                 >
                   <Icon className="w-4 h-4" />

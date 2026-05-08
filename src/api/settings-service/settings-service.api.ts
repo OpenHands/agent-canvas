@@ -31,6 +31,7 @@ export interface SettingsApiResponse {
 export interface SettingsUpdateRequest {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
+  disabled_skills?: string[];
 }
 
 /**
@@ -337,16 +338,40 @@ class SettingsService {
       payload.conversation_settings_diff = conversationSettingsDiff;
     }
 
+    // Extract disabled_skills (cloud-only — local agent-server has no skills concept)
+    const disabledSkills = settings.disabled_skills as string[] | undefined;
+    if (Array.isArray(disabledSkills)) {
+      payload.disabled_skills = disabledSkills;
+    }
+
     // Only call API if we have something to update
-    if (!payload.agent_settings_diff && !payload.conversation_settings_diff) {
+    if (
+      !payload.agent_settings_diff &&
+      !payload.conversation_settings_diff &&
+      payload.disabled_skills === undefined
+    ) {
       return true;
     }
 
     if (getActiveBackend().backend.kind === "cloud") {
       await withRetry(() => saveCloudSettings(payload));
     } else {
+      // The local agent-server PATCH /api/settings rejects unknown fields and
+      // requires at least one of the two diff fields. Strip disabled_skills
+      // and skip the request entirely if nothing else was changed.
+      const { disabled_skills: _droppedDisabledSkills, ...localPayload } =
+        payload;
+      if (
+        !localPayload.agent_settings_diff &&
+        !localPayload.conversation_settings_diff
+      ) {
+        return true;
+      }
       await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>("/api/settings", payload),
+        createHttpClient().patch<SettingsApiResponse>(
+          "/api/settings",
+          localPayload,
+        ),
       );
     }
 

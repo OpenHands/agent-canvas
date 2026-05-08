@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { useIsOnIntermediatePage } from "#/hooks/use-is-on-intermediate-page";
 import { SettingsSchema } from "#/types/settings";
 import { useIsAuthed } from "./use-is-authed";
 
@@ -8,7 +7,6 @@ const useSettingsSchema = (
   type: "agent" | "conversation",
   fallbackSchema?: SettingsSchema | null,
 ) => {
-  const isOnIntermediatePage = useIsOnIntermediatePage();
   const { data: userIsAuthenticated } = useIsAuthed();
   const { data, error, isLoading, isFetching } = useQuery({
     queryKey: ["settings-schema", type],
@@ -20,7 +18,7 @@ const useSettingsSchema = (
     refetchOnWindowFocus: false,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15,
-    enabled: !fallbackSchema && !isOnIntermediatePage && !!userIsAuthenticated,
+    enabled: !fallbackSchema && !!userIsAuthenticated,
     meta: {
       disableToast: true,
     },

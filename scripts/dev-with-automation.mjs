@@ -31,6 +31,11 @@
  *   - PORT: Ingress port (default: 8000)
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
+ *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
+ *
+ * Secrets:
+ *   The automation API key is automatically seeded into agent-server secrets
+ *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
  */
 
 import { spawn, execSync } from "node:child_process";
@@ -153,6 +158,11 @@ ENVIRONMENT VARIABLES:
   OH_AUTOMATION_GIT_REF       Alternative to --automation-ref
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK
   OH_SECRET_KEY               Secret key for sessions
+  AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+
+SECRETS:
+  The automation API key is automatically seeded into agent-server secrets
+  as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -197,6 +207,14 @@ function buildConfig(args, env = process.env) {
 
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
+  
+  // Session API key for agent-server auth (optional)
+  // Check multiple env vars that the agent-server may use:
+  // - SESSION_API_KEY: Used by agent-server default config (V0)
+  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
+  // - OH_SESSION_API_KEY: Common alias
+  // - VITE_SESSION_API_KEY: Used by frontend config
+  const sessionApiKey = env.SESSION_API_KEY || env.OH_SESSION_API_KEYS_0 || env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
 
   return {
     // Ingress port (main entry point)
@@ -216,6 +234,7 @@ function buildConfig(args, env = process.env) {
 
     // Auth
     localApiKey,
+    sessionApiKey,
 
     verbose: args.verbose,
   };
@@ -318,21 +337,27 @@ function spawnService(name, command, args, options = {}) {
 
 async function waitForService(name, url, timeoutMs = 30000) {
   const start = Date.now();
+  let lastError = null;
 
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         logService(name, `Ready at ${url}`, c.green);
         return true;
       }
-    } catch {
+    } catch (err) {
+      lastError = err;
       // Keep trying
     }
     await delay(500);
   }
 
-  logService(name, `Timeout waiting for ${url}`, c.red);
+  const elapsed = Math.round((Date.now() - start) / 1000);
+  logService(name, `Timeout waiting for ${url} after ${elapsed}s`, c.red);
+  if (lastError) {
+    logService(name, `Last error: ${lastError.message}`, c.dim);
+  }
   return false;
 }
 
@@ -480,6 +505,89 @@ function startVite(config) {
   });
 }
 
+/**
+ * Seed the automation API key into agent-server's secrets store.
+ * This makes the key available to agents during conversations.
+ *
+ * Includes retry logic to handle slow server startup or transient failures.
+ *
+ * @param {object} config - Configuration object with agentServerPort, localApiKey, sessionApiKey
+ * @param {object} options - Options for retry behavior
+ * @param {number} options.maxRetries - Maximum number of retry attempts (default: 5)
+ * @param {number} options.retryDelayMs - Delay between retries in ms (default: 2000)
+ * @param {number} options.timeoutMs - Request timeout in ms (default: 10000)
+ * @returns {Promise<boolean>} True if seeding succeeded, false otherwise
+ */
+async function seedAutomationSecret(config, options = {}) {
+  const {
+    maxRetries = 5,
+    retryDelayMs = 2000,
+    timeoutMs = 10000,
+  } = options;
+
+  const secretName = "OPENHANDS_AUTOMATION_API_KEY";
+  const secretDescription = "API key for authenticating with the automation backend";
+
+  logService("secrets", `Seeding ${secretName} into agent-server...`, c.dim);
+
+  const url = `http://localhost:${config.agentServerPort}/api/settings/secrets`;
+  const body = JSON.stringify({
+    name: secretName,
+    value: config.localApiKey,
+    description: secretDescription,
+  });
+
+  const headers = {
+    "Content-Type": "application/json",
+    // Include session API key if configured
+    ...(config.sessionApiKey && { "X-Session-API-Key": config.sessionApiKey }),
+  };
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "PUT",
+        headers,
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (response.ok) {
+        logService("secrets", `${secretName} seeded successfully`, c.green);
+        return true;
+      }
+
+      const text = await response.text();
+      lastError = `HTTP ${response.status}: ${text}`;
+
+      // Don't retry on authentication errors - they won't resolve with retries
+      if (response.status === 401 || response.status === 403) {
+        logService("secrets", `Warning: Failed to seed secret (${response.status}): ${text}`, c.yellow);
+        return false;
+      }
+
+      // Retry on server errors or service unavailable
+      if (attempt < maxRetries) {
+        logService("secrets", `Retry ${attempt}/${maxRetries} after ${response.status}...`, c.dim);
+        await delay(retryDelayMs);
+      }
+    } catch (err) {
+      lastError = err.message;
+
+      // Connection errors likely mean server isn't ready - wait and retry
+      if (attempt < maxRetries) {
+        logService("secrets", `Retry ${attempt}/${maxRetries}: ${err.message}`, c.dim);
+        await delay(retryDelayMs);
+      }
+    }
+  }
+
+  logService("secrets", `Warning: Failed to seed secret after ${maxRetries} attempts: ${lastError}`, c.yellow);
+  return false;
+}
+
 function printBanner(config) {
   console.log("");
   console.log(
@@ -529,21 +637,33 @@ async function main() {
 
   // 1. Start agent-server first (other services depend on it)
   startAgentServer(config);
-  await waitForService(
+
+  // Wait for agent-server to be ready (60s timeout for slow systems)
+  const agentServerReady = await waitForService(
     "agent-server",
-    `http://localhost:${config.agentServerPort}/server_info`
+    `http://localhost:${config.agentServerPort}/server_info`,
+    60000  // 60 second timeout for initial startup
   );
 
-  // 2. Start automation backend
+  // 2. Seed automation API key into agent-server secrets
+  // This makes the key available to agents during conversations
+  // Note: seedAutomationSecret has its own retry logic if server is still warming up
+  if (agentServerReady) {
+    await seedAutomationSecret(config);
+  } else {
+    logService("secrets", "Skipping secret seeding - agent-server not ready", c.yellow);
+  }
+
+  // 3. Start automation backend
   startAutomationBackend(config);
 
-  // 3. Start Vite dev server (no proxy config needed - ingress handles routing)
+  // 4. Start Vite dev server (no proxy config needed - ingress handles routing)
   startVite(config);
 
-  // 4. Wait for services to be ready
+  // 5. Wait for services to be ready
   await delay(2000);
 
-  // 5. Start ingress proxy (routes traffic to all backends)
+  // 6. Start ingress proxy (routes traffic to all backends)
   startIngress(config);
 
   // Wait for ingress to start

@@ -22,8 +22,13 @@
 - `__tests__/vite-config.test.ts` should import `vite.config` directly under `// @vitest-environment node`; spawning plain `node -e 'import ./vite.config.ts'` is not portable across Node patch releases in CI.
 - `vitest.setup.ts` must guard DOM-specific globals (`HTMLCanvasElement`, `HTMLElement`, `window`) because some suites run in the Node environment instead of jsdom.
 - `__tests__/components/providers/posthog-wrapper.test.tsx` must wrap `PostHogWrapper` in a `QueryClientProvider`; the wrapper now reads its client from React Query context instead of importing the global singleton.
+- WebSocket hook regression note: `__tests__/hooks/use-websocket.test.ts`'s `onClose` callback assertion was flaky against the shared MSW websocket server in CI; keep that single test on a deterministic stubbed `WebSocket` close path instead of relying on MSW close timing.
+- Library i18n regression note: `__tests__/i18n/library-namespace.test.ts` imports `../../src/index`, which can take >5s under the full Vitest suite after `vi.resetModules()`. Keep an explicit per-test timeout (currently 15s) so the suite doesn't fail on slow workers.
 
-- `@openhands/typescript-client` is consumed directly from `github:OpenHands/typescript-client#4716d2e`; that package ships the needed subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`.
+- `src/components/shared/buttons/styled-tooltip.tsx` should keep HeroUI tooltip animations disabled in Vitest (`disableAnimation` when `import.meta.env.MODE === "test"`); otherwise full-suite runs can end with unhandled `window is not defined` rejections from `framer-motion` after jsdom teardown (seen via `recent-conversation` tests in CI).
+- `__tests__/i18n/library-namespace.test.ts` imports the full library entry and can exceed Vitest's default 5s timeout under full-suite load; keep an explicit higher timeout on that case unless the test is substantially narrowed.
+
+- `@openhands/typescript-client` is consumed directly from `github:OpenHands/typescript-client#6b9603f`; that package ships the needed subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
 - Shared TypeScript-client adapters live in `src/api/typescript-client.ts`; prefer those helpers for agent-server-backed REST/workspace/event/VS Code calls before falling back to `open-hands-axios`.
 - Local verification/build gotchas:
   - `npm run typecheck` assumes generated translation types exist; run `npm run make-i18n` first if `src/i18n/declaration.ts` is missing.
@@ -70,14 +75,14 @@
 - Git provider token persistence note: `src/api/secrets-service.ts` stores git provider tokens in TWO places:
   1. **Agent-server secrets API** (`PUT /api/settings/secrets`) with naming convention `GIT_PROVIDER_{PROVIDER}_TOKEN` - for agent runtime use
   2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
-  The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
+     The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 
 - **SDK Dependency for Settings Persistence (PR #98)**: The settings persistence API changes depend on [software-agent-sdk PR #3060](https://github.com/OpenHands/software-agent-sdk/pull/3060) which adds:
   - `/api/settings` GET/PATCH with `X-Expose-Secrets: encrypted` header support
   - `/api/settings/secrets` CRUD endpoints for custom secrets
   - `OH_SECRET_KEY` environment variable for encryption
-  
+
   **IMPORTANT**: Until PR #3060 is merged and released, `npm run dev` must use `OH_AGENT_SERVER_GIT_REF=main` to point at the SDK main branch (or the feature branch), not a released PyPI version. The dev scripts now default to `main` for this reason. Once released, update `dev-safe.mjs` to use the minimum required version.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
@@ -122,6 +127,13 @@
 - Theme/customization tokens for the embedded shell are exposed as `--oh-*` CSS variables. Override them through `styleOverrides`, `style`, or host CSS targeting `[data-agent-server-ui]`; Tailwind theme tokens in `src/tailwind.css` should continue to reference those variables with `@theme inline` so host apps can restyle the UI without reworking component class names.
 - Regression coverage for the CSS isolation work lives in `__tests__/agent-server-ui-providers.test.tsx`, `__tests__/agent-server-ui-style-scope.test.ts`, and the browser-level `tests/css-isolation.spec.ts` Playwright test.
 
+- Action grouping in the chat stream:
+  - `src/components/v1/chat/group-events.ts` folds runs of consecutive groupable events (regular `ActionEvent`/`ObservationEvent` cards, but not `FinishAction`, `ThinkAction`, `PlanningFileEditorObservation`, `TaskTrackerObservation`, hooks, errors, or message events) into single `RenderedItem` groups. The threshold lives in `EVENT_GROUP_MIN_SIZE` (currently 2, so even pairs of back-to-back actions get folded).
+  - `EventGroup` (`src/components/v1/chat/event-message-components/event-group.tsx`) is the collapsible header that wraps each run. Default state is collapsed; the header shows `EVENT_GROUP$ACTIONS_COMPLETED` (with a success check) when the group is done, or `EVENT_GROUP$ACTIONS_PROGRESS` plus the currently-running action's title (from `getEventContent`) while a member `ActionEvent` has not yet been replaced by its observation in the UI events array. Expanding renders the original `EventMessage`s verbatim so each card still expands the way it did before.
+  - Agent thoughts attached to an `ActionEvent` (`event.thought`) are hoisted out of groups: `groupEvents` emits a third `RenderedItem` kind `"thought"` whenever a groupable event carries (or, for an observation, originates from) a non-empty thought, flushing the current run and starting a new one. `messages.tsx` renders that item via `ThoughtEventMessage` and passes `suppressThought` to `EventMessage` so the inline thought isn't duplicated inside the group's expanded content. `ThinkAction` is excluded from this hoisting because the thought IS its action body and is rendered through its own codepath.
+  - `groupEvents` now de-duplicates hoisted thoughts by action ID so mixed UI arrays that temporarily contain both an action and its replacement observation do not emit the same thought twice; `minSize` is treated as a validated internal invariant (`>= 1`).
+  - `EventGroup` should return `null` for an empty `events` array and wire the toggle button to the expanded body with `aria-controls` / `role="region"` / `aria-labelledby`.
+  - `src/components/v1/chat/messages.tsx` is the only consumer; the grouping is transparent to upstream code. Coverage lives in `__tests__/components/v1/chat/group-events.test.ts` (pure logic, including thought hoisting) and `__tests__/components/v1/chat/event-message-components/event-group.test.tsx` (rendering/interaction).
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

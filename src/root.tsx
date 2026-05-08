@@ -5,7 +5,6 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLocation,
 } from "react-router";
 import "./tailwind.css";
 import "./index.css";
@@ -231,26 +230,17 @@ export const meta: MetaFunction = () => [
 ];
 
 export default function App() {
-  const location = useLocation();
   const config = useConfig();
-  const isAgentServerSettingsRoute =
-    location.pathname === "/settings/agent-server";
 
-  if (!isAgentServerSettingsRoute && (config.isPending || config.isLoading)) {
+  if (config.isPending || config.isLoading) {
     return <AgentServerBootstrapLoading />;
   }
 
-  if (
-    !isAgentServerSettingsRoute &&
-    isAgentServerUnavailableError(config.error)
-  ) {
+  if (isAgentServerUnavailableError(config.error)) {
     return <MissingAgentServerNotice error={config.error} />;
   }
 
-  if (
-    !isAgentServerSettingsRoute &&
-    isAgentServerIncompatibilityError(config.error)
-  ) {
+  if (isAgentServerIncompatibilityError(config.error)) {
     if (!config.error.serverVersion) {
       return <UnknownAgentServerNotice />;
     }

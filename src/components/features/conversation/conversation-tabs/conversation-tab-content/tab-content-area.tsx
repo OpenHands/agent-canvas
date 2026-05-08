@@ -6,7 +6,7 @@ interface TabContentAreaProps {
 
 export function TabContentArea({ children }: TabContentAreaProps) {
   return (
-    <div className="overflow-hidden flex-grow rounded-b-xl h-full w-full relative">
+    <div className="overflow-hidden flex-grow h-full w-full relative">
       {children}
     </div>
   );

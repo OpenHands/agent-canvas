@@ -22,7 +22,9 @@ import {
   ServerErrorEvent,
 } from "./core/events/conversation-state-event";
 import { HookExecutionEvent } from "./core/events/hook-execution-event";
+import { ACPToolCallEvent } from "./core/events/acp-tool-call-event";
 import { SystemPromptEvent } from "./core/events/system-event";
+
 
 /**
  * Type guard to check if an unknown value is a valid BaseEvent
@@ -217,8 +219,23 @@ export const isHookExecutionEvent = (
   "kind" in event && event.kind === "HookExecutionEvent";
 
 /**
- * Type guard to check if an unknown value is an agent-server OpenHandsEvent.
+ * Type guard function to check if an event is an ACP tool call event
  */
-export function isAgentServerEvent(event: unknown): event is OpenHandsEvent {
+export const isACPToolCallEvent = (
+  event: OpenHandsEvent,
+): event is ACPToolCallEvent =>
+  "kind" in event && event.kind === "ACPToolCallEvent";
+
+// =============================================================================
+// COMPATIBILITY TYPE GUARDS
+// =============================================================================
+
+/**
+ * Type guard to check if an event is an agent-server OpenHandsEvent.
+ * Uses isBaseEvent to validate the complete event structure.
+ */
+export function isAgentServerEvent(
+  event: unknown,
+): event is OpenHandsEvent {
   return isBaseEvent(event);
 }

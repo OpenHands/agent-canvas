@@ -1,14 +1,17 @@
 import { OpenHandsEvent, ActionEvent } from "#/types/agent-server/core";
 import { GenericEventMessage } from "../../../features/chat/generic-event-message";
 import { getEventContent } from "../event-content-helpers/get-event-content";
-import { getObservationResult } from "../event-content-helpers/get-observation-result";
-import { isObservationEvent } from "#/types/agent-server/type-guards";
+import {
+  getACPToolCallResult,
+  getObservationResult,
+} from "../event-content-helpers/get-observation-result";
+import { isACPToolCallEvent, isObservationEvent } from "#/types/agent-server/type-guards";
 import {
   SkillReadyEvent,
   isSkillReadyEvent,
 } from "../event-content-helpers/create-skill-ready-event";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
-import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
+import { ObservationResultStatus } from "../event-content-helpers/get-observation-result";
 import { SkillReadyContentList } from "./skill-ready-content-list";
 
 interface GenericEventMessageWrapperProps {
@@ -39,6 +42,8 @@ export function GenericEventMessageWrapper({
     success = "success";
   } else if (isObservationEvent(event)) {
     success = getObservationResult(event);
+  } else if (isACPToolCallEvent(event)) {
+    success = getACPToolCallResult(event);
   }
 
   // For Skill Ready events with items, render expandable skill list

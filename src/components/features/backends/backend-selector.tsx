@@ -9,6 +9,10 @@ import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
+import {
+  ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
+  triggerEnvironmentSwitch,
+} from "#/components/features/backends/environment-switch-overlay";
 
 const VALUE_SEPARATOR = "::";
 
@@ -78,6 +82,7 @@ export function BackendSelector() {
     useSwitchCloudOrganization();
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
+  const automationDetailMatch = useMatch("/automations/:automationId");
 
   const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
@@ -145,6 +150,20 @@ export function BackendSelector() {
         const { backendId, orgId } = parseOptionValue(item.value);
         const target = backends.find((b) => b.id === backendId);
 
+        // Show the environment-switch overlay immediately so the user
+        // gets feedback before any /switch network call. The overlay
+        // auto-dismisses on its own 980ms timer regardless of whether
+        // the switch succeeds or fails.
+        triggerEnvironmentSwitch(item.label);
+
+        // Hold the active swap for ~400ms — placing it in the middle
+        // of the content-fade-to-black window so React Query refetches
+        // happen while the layout is invisible behind the overlay,
+        // rather than thrashing visibly before the fade.
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
+        });
+
         // Cloud + org pick: fire `/switch` FIRST against the explicit
         // target backend, then update the active selection after it
         // resolves. This ensures the SaaS-side `current_org_id` is
@@ -164,15 +183,20 @@ export function BackendSelector() {
           }
         }
 
+        // The current conversation/automation belongs to the previous
+        // backend and is no longer reachable under the new one — redirect
+        // BEFORE flipping the active selection so the route change and
+        // backend change land in the same render batch. Otherwise the
+        // detail page re-renders once with the new backend (its query
+        // key includes `active.backend.id`) and react-query fires a
+        // fetch for the previous backend's id against the new backend.
+        if (conversationMatch) navigate("/");
+        else if (automationDetailMatch) navigate("/automations");
+
         // Pure backend swap (local-↔-bundled or backend-only cloud
         // selection without an org) skips `/switch` and updates active
         // directly; cloud-with-org falls through here after `/switch`.
         setActive(backendId, orgId);
-
-        // The current conversation belongs to the previous backend
-        // and is no longer reachable under the new one — redirect home
-        // so the user lands on a coherent screen.
-        if (conversationMatch) navigate("/");
       }}
       placeholder={bundledLabel}
       loading={someCloudLoading || isSwitching}

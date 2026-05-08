@@ -4776,23 +4776,6 @@
     "uk": "Додаток",
     "ca": "Aplicació"
   },
-  "SETTINGS$NAV_AGENT_SERVER": {
-    "en": "Agent Server",
-    "ja": "Agent Server",
-    "zh-CN": "Agent Server",
-    "zh-TW": "Agent Server",
-    "ko-KR": "Agent Server",
-    "no": "Agent Server",
-    "it": "Agent Server",
-    "pt": "Agent Server",
-    "es": "Agent Server",
-    "ar": "Agent Server",
-    "fr": "Agent Server",
-    "tr": "Agent Server",
-    "de": "Agent Server",
-    "uk": "Agent Server",
-    "ca": "Agent Server"
-  },
   "SETTINGS$NAV_SECRETS": {
     "en": "Secrets",
     "ja": "シークレット",
@@ -5660,23 +5643,6 @@
     "uk": "Налаштуйте ім'я користувача та електронну пошту, які OpenHands використовує для фіксації змін.",
     "ca": "Configura el nom d'usuari i el correu electrònic que OpenHands utilitza per confirmar els canvis."
   },
-  "SETTINGS$AGENT_SERVER_DESCRIPTION": {
-    "en": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "ja": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "zh-CN": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "zh-TW": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "ko-KR": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "no": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "it": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "pt": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "es": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "ar": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "fr": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "tr": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "de": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "uk": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them.",
-    "ca": "Set the agent server URL and optional session API key that Agent Canvas should use. Start or choose a compatible server, then save here to reconnect. Deployment defaults appear automatically until you override them."
-  },
   "SETTINGS$AGENT_SERVER_URL": {
     "en": "Agent server URL",
     "ja": "Agent server URL",
@@ -6050,23 +6016,6 @@
     "de": "Agent Canvas needs an agent server before it can load conversations, tools, and settings. Start or choose a compatible server, then connect it here.",
     "uk": "Agent Canvas needs an agent server before it can load conversations, tools, and settings. Start or choose a compatible server, then connect it here.",
     "ca": "Agent Canvas needs an agent server before it can load conversations, tools, and settings. Start or choose a compatible server, then connect it here."
-  },
-  "SETTINGS$AGENT_SERVER_SETTINGS_TITLE": {
-    "en": "Agent server connection",
-    "ja": "Agent server connection",
-    "zh-CN": "Agent server connection",
-    "zh-TW": "Agent server connection",
-    "ko-KR": "Agent server connection",
-    "no": "Agent server connection",
-    "it": "Agent server connection",
-    "pt": "Agent server connection",
-    "es": "Agent server connection",
-    "ar": "Agent server connection",
-    "fr": "Agent server connection",
-    "tr": "Agent server connection",
-    "de": "Agent server connection",
-    "uk": "Agent server connection",
-    "ca": "Agent server connection"
   },
   "SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_TITLE": {
     "en": "We couldn't reach the configured server",
@@ -21314,6 +21263,91 @@
     "uk": "Стандартна помилка",
     "ca": "Stderr"
   },
+  "ACTION_MESSAGE$ACP_RUN": {
+    "en": "Running <cmd>{{title}}</cmd>",
+    "ja": "<cmd>{{title}}</cmd> を実行中",
+    "zh-CN": "正在运行 <cmd>{{title}}</cmd>",
+    "zh-TW": "正在執行 <cmd>{{title}}</cmd>",
+    "ko-KR": "<cmd>{{title}}</cmd> 실행 중",
+    "no": "Kjører <cmd>{{title}}</cmd>",
+    "ar": "تشغيل <cmd>{{title}}</cmd>",
+    "de": "Führe <cmd>{{title}}</cmd> aus",
+    "fr": "Exécution de <cmd>{{title}}</cmd>",
+    "it": "Esecuzione di <cmd>{{title}}</cmd>",
+    "pt": "Executando <cmd>{{title}}</cmd>",
+    "es": "Ejecutando <cmd>{{title}}</cmd>",
+    "tr": "<cmd>{{title}}</cmd> çalıştırılıyor",
+    "uk": "Виконується <cmd>{{title}}</cmd>",
+    "ca": "Executant <cmd>{{title}}</cmd>"
+  },
+  "ACTION_MESSAGE$ACP_EDIT": {
+    "en": "Editing <cmd>{{title}}</cmd>",
+    "ja": "<cmd>{{title}}</cmd> を編集中",
+    "zh-CN": "正在编辑 <cmd>{{title}}</cmd>",
+    "zh-TW": "正在編輯 <cmd>{{title}}</cmd>",
+    "ko-KR": "<cmd>{{title}}</cmd> 편집 중",
+    "no": "Redigerer <cmd>{{title}}</cmd>",
+    "ar": "تحرير <cmd>{{title}}</cmd>",
+    "de": "Bearbeite <cmd>{{title}}</cmd>",
+    "fr": "Édition de <cmd>{{title}}</cmd>",
+    "it": "Modifica di <cmd>{{title}}</cmd>",
+    "pt": "Editando <cmd>{{title}}</cmd>",
+    "es": "Editando <cmd>{{title}}</cmd>",
+    "tr": "<cmd>{{title}}</cmd> düzenleniyor",
+    "uk": "Редагується <cmd>{{title}}</cmd>",
+    "ca": "Editant <cmd>{{title}}</cmd>"
+  },
+  "ACTION_MESSAGE$ACP_READ": {
+    "en": "Reading <cmd>{{title}}</cmd>",
+    "ja": "<cmd>{{title}}</cmd> を読み取り中",
+    "zh-CN": "正在读取 <cmd>{{title}}</cmd>",
+    "zh-TW": "正在讀取 <cmd>{{title}}</cmd>",
+    "ko-KR": "<cmd>{{title}}</cmd> 읽는 중",
+    "no": "Leser <cmd>{{title}}</cmd>",
+    "ar": "قراءة <cmd>{{title}}</cmd>",
+    "de": "Lese <cmd>{{title}}</cmd>",
+    "fr": "Lecture de <cmd>{{title}}</cmd>",
+    "it": "Lettura di <cmd>{{title}}</cmd>",
+    "pt": "Lendo <cmd>{{title}}</cmd>",
+    "es": "Leyendo <cmd>{{title}}</cmd>",
+    "tr": "<cmd>{{title}}</cmd> okunuyor",
+    "uk": "Читається <cmd>{{title}}</cmd>",
+    "ca": "Llegint <cmd>{{title}}</cmd>"
+  },
+  "ACTION_MESSAGE$ACP_FETCH": {
+    "en": "Fetching <cmd>{{title}}</cmd>",
+    "ja": "<cmd>{{title}}</cmd> を取得中",
+    "zh-CN": "正在获取 <cmd>{{title}}</cmd>",
+    "zh-TW": "正在取得 <cmd>{{title}}</cmd>",
+    "ko-KR": "<cmd>{{title}}</cmd> 가져오는 중",
+    "no": "Henter <cmd>{{title}}</cmd>",
+    "ar": "جلب <cmd>{{title}}</cmd>",
+    "de": "Lade <cmd>{{title}}</cmd>",
+    "fr": "Récupération de <cmd>{{title}}</cmd>",
+    "it": "Recupero di <cmd>{{title}}</cmd>",
+    "pt": "Buscando <cmd>{{title}}</cmd>",
+    "es": "Obteniendo <cmd>{{title}}</cmd>",
+    "tr": "<cmd>{{title}}</cmd> alınıyor",
+    "uk": "Завантажується <cmd>{{title}}</cmd>",
+    "ca": "Obtenint <cmd>{{title}}</cmd>"
+  },
+  "ACTION_MESSAGE$ACP_TOOL": {
+    "en": "<cmd>{{title}}</cmd>",
+    "ja": "<cmd>{{title}}</cmd>",
+    "zh-CN": "<cmd>{{title}}</cmd>",
+    "zh-TW": "<cmd>{{title}}</cmd>",
+    "ko-KR": "<cmd>{{title}}</cmd>",
+    "no": "<cmd>{{title}}</cmd>",
+    "ar": "<cmd>{{title}}</cmd>",
+    "de": "<cmd>{{title}}</cmd>",
+    "fr": "<cmd>{{title}}</cmd>",
+    "it": "<cmd>{{title}}</cmd>",
+    "pt": "<cmd>{{title}}</cmd>",
+    "es": "<cmd>{{title}}</cmd>",
+    "tr": "<cmd>{{title}}</cmd>",
+    "uk": "<cmd>{{title}}</cmd>",
+    "ca": "<cmd>{{title}}</cmd>"
+  },
   "COMMON$TYPE_EMAIL_AND_PRESS_SPACE": {
     "en": "Type email and press Space",
     "ja": "メールアドレスを入力してスペースキーを押してください",
@@ -22320,6 +22354,23 @@
     "uk": "Локальний",
     "ca": "Local"
   },
+  "SETTINGS$BACKEND_SYNCED_BADGE": {
+    "en": "These settings are synced from {{name}} backend ({{host}})",
+    "ja": "これらの設定は {{name}} バックエンド ({{host}}) と同期されています",
+    "zh-CN": "这些设置已与 {{name}} 后端 ({{host}}) 同步",
+    "zh-TW": "這些設定已與 {{name}} 後端 ({{host}}) 同步",
+    "ko-KR": "이 설정은 {{name}} 백엔드 ({{host}})에서 동기화됩니다",
+    "no": "Disse innstillingene er synkronisert fra {{name}}-backend ({{host}})",
+    "it": "Queste impostazioni sono sincronizzate dal backend {{name}} ({{host}})",
+    "pt": "Estas configurações estão sincronizadas com o backend {{name}} ({{host}})",
+    "es": "Estas configuraciones están sincronizadas con el backend {{name}} ({{host}})",
+    "ar": "تتم مزامنة هذه الإعدادات من الواجهة الخلفية {{name}} ({{host}})",
+    "fr": "Ces paramètres sont synchronisés depuis le backend {{name}} ({{host}})",
+    "tr": "Bu ayarlar {{name}} arka uç ({{host}}) ile senkronize edilmiştir",
+    "de": "Diese Einstellungen werden mit dem Backend {{name}} ({{host}}) synchronisiert",
+    "uk": "Ці налаштування синхронізовано з бекендом {{name}} ({{host}})",
+    "ca": "Aquesta configuració està sincronitzada amb el backend {{name}} ({{host}})"
+  },
   "BACKEND$REMOVE": {
     "en": "Remove",
     "ja": "削除",
@@ -22421,6 +22472,23 @@
     "de": "Persönlicher Arbeitsbereich",
     "uk": "Особистий робочий простір",
     "ca": "Espai de treball personal"
+  },
+  "BACKEND$SWITCHING_TO": {
+    "en": "Switching to {{environment}}",
+    "ja": "{{environment}} に切り替えています",
+    "zh-CN": "正在切换到 {{environment}}",
+    "zh-TW": "正在切換到 {{environment}}",
+    "ko-KR": "{{environment}}(으)로 전환 중",
+    "no": "Bytter til {{environment}}",
+    "it": "Passaggio a {{environment}}",
+    "pt": "Mudando para {{environment}}",
+    "es": "Cambiando a {{environment}}",
+    "ar": "التبديل إلى {{environment}}",
+    "fr": "Passage à {{environment}}",
+    "tr": "{{environment}} ortamına geçiliyor",
+    "de": "Wechsel zu {{environment}}",
+    "uk": "Перемикання на {{environment}}",
+    "ca": "Canviant a {{environment}}"
   },
   "TELEMETRY$CONSENT_TITLE": {
     "en": "Help improve OpenHands",
@@ -22540,5 +22608,17 @@
     "ca": "Confirma les preferències",
     "tr": "Tercihleri onayla",
     "uk": "Підтвердити налаштування"
+  },
+  "EVENT_GROUP$ACTIONS_COMPLETED": {
+    "en": "{{count}} actions completed"
+  },
+  "EVENT_GROUP$ACTIONS_PROGRESS": {
+    "en": "{{completed}} of {{total}} actions"
+  },
+  "EVENT_GROUP$EXPAND": {
+    "en": "Expand actions"
+  },
+  "EVENT_GROUP$COLLAPSE": {
+    "en": "Collapse actions"
   }
 }

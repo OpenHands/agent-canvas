@@ -19,6 +19,8 @@ export function StyledTooltip({
   showArrow = false,
   closeDelay = 100,
 }: StyledTooltipProps) {
+  const disableAnimation = import.meta.env.MODE === "test";
+
   return (
     <Tooltip
       content={content}
@@ -26,6 +28,7 @@ export function StyledTooltip({
       placement={placement}
       className={cn("bg-white text-black", tooltipClassName)}
       showArrow={showArrow}
+      disableAnimation={disableAnimation}
     >
       <div className="inline-flex">{children}</div>
     </Tooltip>

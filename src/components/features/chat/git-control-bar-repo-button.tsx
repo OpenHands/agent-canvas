@@ -23,22 +23,24 @@ export function GitControlBarRepoButton({
   const { t } = useTranslation("openhands");
   const { data: settings } = useSettings();
 
-  const hasRepository = selectedRepository && gitProvider;
+  // Render as an external link only when we know both the repo and the
+  // provider (so the URL is well-defined). Local-workspace fallbacks may
+  // populate `selectedRepository` without a provider; in that case we still
+  // show the repo name but keep the button non-link styling.
+  const hasLinkableRepo = !!selectedRepository && !!gitProvider;
 
   // Get the host for the current provider from settings
   const providerHost = gitProvider
     ? settings?.provider_tokens_set[gitProvider]
     : null;
 
-  const repositoryUrl = hasRepository
+  const repositoryUrl = hasLinkableRepo
     ? constructRepositoryUrl(gitProvider, selectedRepository, providerHost)
     : undefined;
 
-  const buttonText = hasRepository
-    ? selectedRepository
-    : t(I18nKey.COMMON$NO_REPO_CONNECTED);
+  const buttonText = selectedRepository || t(I18nKey.COMMON$NO_REPO_CONNECTED);
 
-  if (hasRepository) {
+  if (hasLinkableRepo) {
     return (
       <a
         href={repositoryUrl}

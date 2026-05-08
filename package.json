@@ -11,7 +11,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.19",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/typescript-client": "github:OpenHands/typescript-client#7d20f119d68893903c3eab7070416e6317f72716",
+    "@openhands/typescript-client": "github:OpenHands/typescript-client#6b9603f06ea0ecc9bc715bf2192e274c23cd3be6",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tailwindcss/vite": "4.2.4",
@@ -43,6 +43,7 @@
     "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
     "sirv-cli": "3.0.1",
+    "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
     "tailwind-scrollbar": "4.0.2",
     "uuid": "^14.0.0",
@@ -54,6 +55,7 @@
     "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:extra-backend": "node --env-file-if-exists=.env scripts/dev-extra-backend.mjs",
     "dev:automation": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
+    "dev:static": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:minimal": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:frontend": "npm run make-i18n && cross-env VITE_MOCK_API=false react-router dev",
     "dev:mock": "npm run make-i18n && cross-env VITE_MOCK_API=true react-router dev",
@@ -89,6 +91,7 @@
     ]
   },
   "devDependencies": {
+    "@mswjs/socket.io-binding": "0.2.0",
     "@playwright/test": "1.59.1",
     "@react-router/dev": "7.14.2",
     "@tailwindcss/typography": "0.5.19",

@@ -104,6 +104,26 @@ describe("SettingsService", () => {
     fetchSpy.mockRestore();
   });
 
+  it("skips PATCH for a skills-only save against a local backend", async () => {
+    // Arrange: skills are a cloud-only feature. The local agent-server's
+    // PATCH /api/settings rejects payloads without agent/conversation diffs
+    // (the MSW handler returns 400 in that case), so a successful no-op here
+    // also confirms disabled_skills is not leaked to the local backend.
+    const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
+
+    // Act
+    const result = await SettingsService.saveSettings({
+      disabled_skills: ["SSH Microagent"],
+    });
+
+    // Assert: returns true and never fires the PATCH (no fetch invalidation
+    // either, because the cache wasn't cleared).
+    expect(result).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockRestore();
+  });
+
   it("derives provider_tokens_set from locally stored git provider tokens", async () => {
     // Arrange: simulate post-save state. SecretsService.addGitProvider writes to
     // this localStorage key after the server PUT /api/settings/secrets succeeds.
