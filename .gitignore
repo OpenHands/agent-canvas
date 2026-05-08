@@ -4,10 +4,13 @@ src/i18n/declaration.ts
 .env
 node_modules/
 build/
+.tmp/
 
 
 /test-results/
+/test-results-live/
 /playwright-report/
+/playwright-report-live/
 /blob-report/
 /playwright/.cache/
 .react-router/

@@ -56,7 +56,7 @@ jobs:
     env:
       LIVE_E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LIVE_E2E_LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
-      LIVE_E2E_LLM_MODEL: ${{ vars.LIVE_E2E_LLM_MODEL || 'litellm_proxy/claude-haiku-4-5-20251001' }}
+      LIVE_E2E_LLM_MODEL: ${{ vars.LIVE_E2E_LLM_MODEL || 'openhands/claude-haiku-4-5-20251001' }}
       LIVE_E2E_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
       LIVE_E2E_REPORT_PATH: live-e2e-report.md
       LIVE_E2E_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

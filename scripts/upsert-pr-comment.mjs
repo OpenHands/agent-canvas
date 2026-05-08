@@ -25,7 +25,7 @@ function parseArgs(argv) {
       args[key] = next;
       index += 1;
     } else {
-      args[key] = "true";
+      args[key] = "";
     }
   }
   return args;

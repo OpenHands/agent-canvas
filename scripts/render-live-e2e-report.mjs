@@ -24,7 +24,7 @@ function parseArgs(argv) {
       args[key] = next;
       index += 1;
     } else {
-      args[key] = "true";
+      args[key] = "";
     }
   }
   return args;
@@ -83,9 +83,13 @@ function formatError(result) {
 }
 
 function sanitizeForComment(value) {
-  return String(value)
+  return stripAnsi(value)
     .replaceAll("@OpenHands", "@\u200BOpenHands")
     .replaceAll("@openhands", "@\u200Bopenhands");
+}
+
+function stripAnsi(value) {
+  return String(value).replace(/\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 }
 
 function escapeCell(value) {

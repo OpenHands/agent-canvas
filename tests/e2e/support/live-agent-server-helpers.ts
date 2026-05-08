@@ -28,7 +28,7 @@ const llmBaseUrl =
 const llmModel =
   process.env.LIVE_E2E_LLM_MODEL ??
   (llmBaseUrl
-    ? "litellm_proxy/claude-haiku-4-5-20251001"
+    ? "openhands/claude-haiku-4-5-20251001"
     : openAIKey?.trim()
       ? "openai/gpt-4o-mini"
       : "anthropic/claude-haiku-4-5-20251001");
@@ -41,7 +41,8 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
   const llmSettings: Record<string, string | number> = {
     model: llmModel,
     api_key: llmApiKey,
-    max_output_tokens: 1024,
+    extended_thinking_budget: 1024,
+    max_output_tokens: 2048,
     temperature: 0,
   };
   if (llmBaseUrl) {
