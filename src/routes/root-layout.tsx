@@ -10,6 +10,7 @@ import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
+import { EnvironmentSwitchOverlay } from "#/components/features/backends/environment-switch-overlay";
 import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
@@ -131,6 +132,7 @@ export default function MainApp() {
           />
         )}
       </div>
+      <EnvironmentSwitchOverlay />
     </ReactRouterNavigationProvider>
   );
 }
