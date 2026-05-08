@@ -5,7 +5,6 @@ import type {
 } from "#/api/conversation-service/v1-conversation-service.types";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 import type { SettingsValue } from "#/types/settings";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
 import {
   MOCK_AGENT_SETTINGS_SCHEMA,
   MOCK_CONVERSATION_SETTINGS_SCHEMA,
@@ -20,6 +19,9 @@ interface CloudProxyEnvelope {
 const CLOUD_USER_ID = "user-1";
 const CLOUD_ORG_ID = CLOUD_USER_ID;
 const CLOUD_RUNTIME_URL = "https://runtime.mock.all-hands.dev";
+const IDLE_EXECUTION_STATUS = "idle" as NonNullable<
+  V1AppConversation["execution_status"]
+>;
 
 let currentOrgId = CLOUD_ORG_ID;
 let nextCloudConversationId = 2;
@@ -100,7 +102,7 @@ const cloudConversations = new Map<string, V1AppConversation>([
       metrics: null,
       created_at: now,
       updated_at: now,
-      execution_status: V1ExecutionStatus.IDLE,
+      execution_status: IDLE_EXECUTION_STATUS,
       conversation_url: `${CLOUD_RUNTIME_URL}/api/conversations/cloud-conversation-1`,
       session_api_key: "cloud-session-key",
       sandbox_id: "sandbox-cloud-1",
@@ -202,7 +204,7 @@ function createCloudConversation(body: unknown): V1AppConversationStartTask {
     metrics: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    execution_status: V1ExecutionStatus.IDLE,
+    execution_status: IDLE_EXECUTION_STATUS,
     conversation_url: `${CLOUD_RUNTIME_URL}/api/conversations/${id}`,
     session_api_key: "cloud-session-key",
     sandbox_id: `sandbox-${id}`,

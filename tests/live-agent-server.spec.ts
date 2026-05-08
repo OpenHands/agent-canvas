@@ -28,32 +28,64 @@ const LLM_MODEL =
       : "anthropic/claude-haiku-4-5-20251001");
 const EXPECTED_REPLY_TOKEN = "LIVE_AGENT_CANVAS_E2E_OK";
 
+async function waitForPath(page: Page, pattern: RegExp) {
+  await expect
+    .poll(
+      async () => page.evaluate(() => window.location.pathname).catch(() => ""),
+      { timeout: 60_000 },
+    )
+    .toMatch(pattern);
+}
+
+async function waitForTestId(page: Page, testId: string, timeout = 60_000) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(
+            (testId) =>
+              document.querySelector(`[data-testid="${testId}"]`) != null,
+            testId,
+          )
+          .catch(() => false),
+      { timeout },
+    )
+    .toBe(true);
+}
+
 async function dismissAnalyticsModal(page: Page) {
   await page.waitForLoadState("domcontentloaded");
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const clicked = await page.evaluate(() => {
-      const confirmButton = Array.from(
-        document.querySelectorAll("button"),
-      ).find((button) => button.textContent?.trim() === "Confirm preferences");
-      if (!(confirmButton instanceof HTMLButtonElement)) {
-        return false;
-      }
-      confirmButton.click();
-      return true;
-    });
+    const clicked = await page
+      .evaluate(() => {
+        const confirmButton = Array.from(
+          document.querySelectorAll("button"),
+        ).find(
+          (button) => button.textContent?.trim() === "Confirm preferences",
+        );
+        if (!(confirmButton instanceof HTMLButtonElement)) {
+          return false;
+        }
+        confirmButton.click();
+        return true;
+      })
+      .catch(() => false);
 
     if (clicked) {
       await expect
         .poll(
           async () =>
-            page.evaluate(
-              () =>
-                !Array.from(document.querySelectorAll('[role="dialog"]')).some(
-                  (dialog) =>
+            page
+              .evaluate(
+                () =>
+                  !Array.from(
+                    document.querySelectorAll('[role="dialog"]'),
+                  ).some((dialog) =>
                     dialog.textContent?.includes("Help improve OpenHands"),
-                ),
-            ),
+                  ),
+              )
+              .catch(() => false),
           { timeout: 5_000 },
         )
         .toBe(true);
@@ -62,6 +94,18 @@ async function dismissAnalyticsModal(page: Page) {
 
     await page.waitForTimeout(500);
   }
+}
+
+async function clickButtonByTestId(page: Page, testId: string) {
+  await waitForTestId(page, testId);
+
+  await page.evaluate((testId) => {
+    const button = document.querySelector(`[data-testid="${testId}"]`);
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error(`Button not found: ${testId}`);
+    }
+    button.click();
+  }, testId);
 }
 
 async function clickButtonByTestIdOrText(
@@ -109,6 +153,74 @@ async function clickButtonByTestIdOrText(
     },
     { testId, text },
   );
+}
+
+async function fillChatInput(page: Page, text: string) {
+  await waitForTestId(page, "chat-input");
+
+  await page.evaluate((text) => {
+    const input = document.querySelector('[data-testid="chat-input"]');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error("Chat input not found");
+    }
+    input.focus();
+    input.textContent = text;
+    input.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        data: text,
+        inputType: "insertText",
+      }),
+    );
+  }, text);
+}
+
+async function waitForTestIdText(
+  page: Page,
+  testId: string,
+  text: string,
+  timeout = 60_000,
+) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(
+            ({ testId, text }) =>
+              Array.from(
+                document.querySelectorAll(`[data-testid="${testId}"]`),
+              ).some((element) => element.textContent?.includes(text)),
+            { testId, text },
+          )
+          .catch(() => false),
+      { timeout },
+    )
+    .toBe(true);
+}
+
+async function waitForAgentReply(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate((expectedReplyToken) => {
+            const hasReply = Array.from(
+              document.querySelectorAll('[data-testid="agent-message"]'),
+            ).some((element) =>
+              element.textContent?.includes(expectedReplyToken),
+            );
+            if (hasReply) {
+              return "reply";
+            }
+            if (document.body.textContent?.includes("Error occurred")) {
+              return "error";
+            }
+            return "pending";
+          }, EXPECTED_REPLY_TOKEN)
+          .catch(() => "pending"),
+      { timeout: 120_000 },
+    )
+    .toBe("reply");
 }
 
 test.beforeEach(async ({ page }) => {
@@ -160,40 +272,21 @@ test("runs a real Agent Server conversation through the UI", async ({
     "launch-new-conversation-button",
     "New Conversation",
   );
-  await expect(page).toHaveURL(/\/conversations\/.+/);
-  await expect(page.getByTestId("app-route")).toBeVisible({
-    timeout: 60_000,
-  });
-  await expect(page.getByTestId("interactive-chat-box")).toBeVisible({
-    timeout: 60_000,
-  });
+  await waitForPath(page, /\/conversations\/.+/);
+  await waitForTestId(page, "app-route");
+  await waitForTestId(page, "interactive-chat-box");
 
-  await page
-    .getByTestId("chat-input")
-    .fill(
-      [
-        `Reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
-        "Do not run tools. Do not add any other text.",
-      ].join("\n"),
-    );
-  await page.getByTestId("submit-button").click();
-
-  await expect(page.getByTestId("user-message")).toContainText(
-    EXPECTED_REPLY_TOKEN,
-    { timeout: 15_000 },
+  await fillChatInput(
+    page,
+    [
+      `Reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
+      "Do not run tools. Do not add any other text.",
+    ].join("\n"),
   );
-  const reply = page.getByTestId("agent-message").filter({
-    hasText: EXPECTED_REPLY_TOKEN,
-  });
-  const agentError = page.getByText("Error occurred");
-  const outcome = await Promise.race([
-    reply.waitFor({ state: "visible", timeout: 120_000 }).then(() => "reply"),
-    agentError
-      .waitFor({ state: "visible", timeout: 120_000 })
-      .then(() => "error"),
-  ]);
+  await clickButtonByTestId(page, "submit-button");
 
-  expect(outcome).toBe("reply");
+  await waitForTestIdText(page, "user-message", EXPECTED_REPLY_TOKEN, 15_000);
+  await waitForAgentReply(page);
 
   const screenshotPath = testInfo.outputPath("live-agent-response.png");
   await page.screenshot({ path: screenshotPath, fullPage: true });

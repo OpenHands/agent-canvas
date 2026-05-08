@@ -28,7 +28,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "rm -rf .tmp/live-e2e-state && " +
+      "rm -rf .tmp/live-e2e-state node_modules/.vite && " +
       [
         "OH_CANVAS_SAFE_STATE_DIR=.tmp/live-e2e-state",
         "VITE_ENABLE_BROWSER_TOOLS=false",

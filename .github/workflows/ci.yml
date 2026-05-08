@@ -2,9 +2,16 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -38,6 +45,9 @@ jobs:
         run: npm run build
 
   live-e2e:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'live-e2e')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
