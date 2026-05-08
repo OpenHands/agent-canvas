@@ -181,7 +181,7 @@ function buildAutomationCommand(env = process.env) {
   const gitUrl = `git+${repoUrl}@${gitRef}`;
 
   // Use --refresh to ensure latest commit is fetched for git refs
-  const args = ["--refresh", "--from", gitUrl, "uvicorn", "automation.app:app"];
+  const args = ["--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app"];
 
   return {
     command: "uvx",

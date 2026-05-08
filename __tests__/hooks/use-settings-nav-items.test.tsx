@@ -104,6 +104,7 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/agent-server");
   });
 
+
   it("hides local-only sub-pages when the active backend is cloud", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useActiveBackendMock.mockReturnValue(cloudActive);

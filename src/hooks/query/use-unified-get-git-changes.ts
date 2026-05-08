@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import V1GitService from "#/api/git-service/v1-git-service.api";
+import AgentServerGitService from "#/api/git-service/agent-server-git-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -35,7 +35,7 @@ export const useUnifiedGetGitChanges = () => {
     queryFn: async () => {
       if (!conversationId) throw new Error("No conversation ID");
 
-      return V1GitService.getGitChanges(
+      return AgentServerGitService.getGitChanges(
         conversationUrl,
         sessionApiKey,
         gitPath,

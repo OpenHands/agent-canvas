@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 export const useUpdateConversation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (variables: { conversationId: string; newTitle: string }) =>
-      V1ConversationService.updateConversationTitle(
+      AgentServerConversationService.updateConversationTitle(
         variables.conversationId,
         variables.newTitle,
       ),

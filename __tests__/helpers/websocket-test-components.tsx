@@ -3,8 +3,8 @@ import { useConversationWebSocket } from "#/contexts/conversation-websocket-cont
 import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
-import { isV1Event } from "#/types/v1/type-guards";
-import { OpenHandsEvent } from "#/types/v1/core";
+import { isAgentServerEvent } from "#/types/agent-server/type-guards";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 
 /**
  * Test component to access and display WebSocket connection state
@@ -31,7 +31,7 @@ export function EventStoreComponent() {
       <div data-testid="events-count">{events.length}</div>
       <div data-testid="ui-events-count">{uiEvents.length}</div>
       <div data-testid="latest-event-id">
-        {isV1Event(events[events.length - 1])
+        {isAgentServerEvent(events[events.length - 1])
           ? (events[events.length - 1] as OpenHandsEvent).id
           : "none"}
       </div>

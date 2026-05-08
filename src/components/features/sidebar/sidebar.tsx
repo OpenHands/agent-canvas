@@ -9,7 +9,6 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
-import { ENABLE_AUTOMATIONS } from "#/utils/feature-flags";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
@@ -101,14 +100,12 @@ export function Sidebar() {
             testId="sidebar-conversations-link"
             disabled={linkDisabled}
           />
-          {ENABLE_AUTOMATIONS() && (
-            <SidebarNavLink
-              to="/automations"
-              label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
-              testId="sidebar-automations-link"
-              disabled={linkDisabled}
-            />
-          )}
+          <SidebarNavLink
+            to="/automations"
+            label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
+            testId="sidebar-automations-link"
+            disabled={linkDisabled}
+          />
           <SidebarNavLink
             to="/skills"
             label={t(I18nKey.SIDEBAR$SKILLS)}

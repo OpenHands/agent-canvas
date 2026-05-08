@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { useNavigation } from "#/context/navigation-context";
 import { I18nKey } from "#/i18n/declaration";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import {
-  pauseV1Conversation,
+  pauseConversation,
   updateConversationExecutionStatusInCache,
 } from "./conversation-mutation-utils";
 
@@ -18,7 +18,7 @@ export const useUnifiedPauseConversation = () => {
   return useMutation({
     mutationKey: ["stop-conversation"],
     mutationFn: async (variables: { conversationId: string }) =>
-      pauseV1Conversation(variables.conversationId),
+      pauseConversation(variables.conversationId),
     onMutate: async () => {
       const toastId = toast.loading(
         t(I18nKey.TOAST$STOPPING_CONVERSATION),
@@ -55,7 +55,7 @@ export const useUnifiedPauseConversation = () => {
       updateConversationExecutionStatusInCache(
         queryClient,
         variables.conversationId,
-        V1ExecutionStatus.PAUSED,
+        ExecutionStatus.PAUSED,
       );
 
       if (currentConversationId === variables.conversationId) {

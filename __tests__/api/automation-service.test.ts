@@ -4,13 +4,17 @@ import type {
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
+import type { Backend } from "#/api/backend-registry/types";
 
 // Use vi.hoisted to define mocks that will be available during vi.mock hoisting
-const { mockGet, mockPatch, mockDelete } = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-  mockPatch: vi.fn(),
-  mockDelete: vi.fn(),
-}));
+const { mockGet, mockPatch, mockDelete, mockCallCloudProxy, mockGetActive } =
+  vi.hoisted(() => ({
+    mockGet: vi.fn(),
+    mockPatch: vi.fn(),
+    mockDelete: vi.fn(),
+    mockCallCloudProxy: vi.fn(),
+    mockGetActive: vi.fn(),
+  }));
 
 vi.mock("axios", () => ({
   default: {
@@ -27,8 +31,32 @@ vi.mock("axios", () => ({
   },
 }));
 
+vi.mock("#/api/cloud/proxy", () => ({
+  callCloudProxy: mockCallCloudProxy,
+}));
+
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getActiveBackend: mockGetActive,
+}));
+
 // Import after mocking
 import AutomationService from "#/api/automation-service/automation-service.api";
+
+const localBackend: Backend = {
+  id: "local-1",
+  name: "Local",
+  host: "http://localhost:8000",
+  apiKey: "session-key",
+  kind: "local",
+};
+
+const cloudBackend: Backend = {
+  id: "cloud-1",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-key",
+  kind: "cloud",
+};
 
 const mockAutomation: Automation = {
   id: "1",
@@ -44,7 +72,18 @@ const mockAutomation: Automation = {
 
 describe("AutomationService", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // restoreAllMocks (vs clearAllMocks) re-attaches the original
+    // implementations of any class methods spied via vi.spyOn in earlier
+    // tests, so the cloud-routing assertions actually exercise the real
+    // method bodies instead of stale spies.
+    vi.restoreAllMocks();
+    mockGet.mockReset();
+    mockPatch.mockReset();
+    mockDelete.mockReset();
+    mockCallCloudProxy.mockReset();
+    // Default: active backend is local. Cloud-routing tests override this.
+    mockGetActive.mockReset();
+    mockGetActive.mockReturnValue({ backend: localBackend, orgId: null });
   });
 
   describe("listAutomations", () => {
@@ -198,6 +237,81 @@ describe("AutomationService", () => {
         enabled: false,
       });
       expect(result).toEqual(toggled);
+    });
+  });
+
+  // When the active backend is cloud the local axios instance must be
+  // bypassed entirely; calls must route through `callCloudProxy` so the
+  // bundled local agent-server forwards the request server-side to the
+  // cloud host.
+  describe("cloud routing", () => {
+    beforeEach(() => {
+      mockGetActive.mockReturnValue({ backend: cloudBackend, orgId: null });
+    });
+
+    it("listAutomations routes to callCloudProxy with pagination in the path", async () => {
+      const response: AutomationsResponse = {
+        automations: [mockAutomation],
+        total: 1,
+      };
+      mockCallCloudProxy.mockResolvedValue(response);
+
+      const result = await AutomationService.listAutomations({
+        limit: 10,
+        offset: 5,
+      });
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "GET",
+        path: "/api/automation/v1?limit=10&offset=5",
+      });
+      expect(mockGet).not.toHaveBeenCalled();
+      expect(result).toEqual(response);
+    });
+
+    it("getAutomation routes to callCloudProxy with the id in the path", async () => {
+      mockCallCloudProxy.mockResolvedValue(mockAutomation);
+
+      const result = await AutomationService.getAutomation("abc");
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "GET",
+        path: "/api/automation/v1/abc",
+      });
+      expect(result).toEqual(mockAutomation);
+    });
+
+    it("updateAutomation forwards method PATCH and body via callCloudProxy", async () => {
+      const updated = { ...mockAutomation, enabled: false };
+      mockCallCloudProxy.mockResolvedValue(updated);
+
+      const result = await AutomationService.updateAutomation("abc", {
+        enabled: false,
+      });
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "PATCH",
+        path: "/api/automation/v1/abc",
+        body: { enabled: false },
+      });
+      expect(mockPatch).not.toHaveBeenCalled();
+      expect(result).toEqual(updated);
+    });
+
+    it("deleteAutomation forwards method DELETE via callCloudProxy", async () => {
+      mockCallCloudProxy.mockResolvedValue(undefined);
+
+      await AutomationService.deleteAutomation("abc");
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "DELETE",
+        path: "/api/automation/v1/abc",
+      });
+      expect(mockDelete).not.toHaveBeenCalled();
     });
   });
 });

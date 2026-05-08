@@ -1,11 +1,6 @@
 import { OHEvent } from "#/stores/use-event-store";
-import { isActionOrObservation, isSystemMessage } from "#/types/core/guards";
-import { ChatCompletionToolParam } from "#/types/v1/core";
-import {
-  isSystemPromptEvent,
-  isV0Event,
-  isV1Event,
-} from "#/types/v1/type-guards";
+import { ChatCompletionToolParam } from "#/types/agent-server/core";
+import { isSystemPromptEvent } from "#/types/agent-server/type-guards";
 
 export interface SystemMessageForModal {
   content: string;
@@ -17,31 +12,16 @@ export interface SystemMessageForModal {
 export function adaptSystemMessage(
   events: OHEvent[],
 ): SystemMessageForModal | null {
-  let systemMessage: SystemMessageForModal | null = null;
-  const v0SystemMessage = events
-    .filter(isV0Event)
-    .filter(isActionOrObservation)
-    .find(isSystemMessage);
+  const systemPromptEvent = events.find(isSystemPromptEvent);
 
-  // V1 System Prompt Event
-  const v1SystemPromptEvent = events
-    .filter(isV1Event)
-    .find(isSystemPromptEvent);
-
-  if (v0SystemMessage) {
-    systemMessage = v0SystemMessage.args;
-  } else if (v1SystemPromptEvent) {
-    systemMessage = {
-      content: v1SystemPromptEvent.system_prompt.text,
-      tools: v1SystemPromptEvent.tools ?? null,
-      openhands_version: null,
-      agent_class: null,
-    };
+  if (!systemPromptEvent) {
+    return null;
   }
 
-  if (systemMessage) {
-    return systemMessage;
-  }
-
-  return null;
+  return {
+    content: systemPromptEvent.system_prompt.text,
+    tools: systemPromptEvent.tools ?? null,
+    openhands_version: null,
+    agent_class: null,
+  };
 }

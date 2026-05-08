@@ -14,7 +14,11 @@ const PAGE_SIZE = 20;
 export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
   const { t } = useTranslation("openhands");
   const [limit, setLimit] = useState(PAGE_SIZE);
-  const { data, isLoading } = useAutomationRuns(automationId, limit, 0);
+  const { data, isLoading } = useAutomationRuns({
+    id: automationId,
+    limit,
+    offset: 0,
+  });
 
   const hasMore = data ? data.total > data.runs.length : false;
 

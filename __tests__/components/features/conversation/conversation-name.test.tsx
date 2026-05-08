@@ -12,7 +12,7 @@ import {
 import { renderWithProviders } from "test-utils";
 import { ConversationName } from "#/components/features/conversation/conversation-name";
 import { ConversationNameContextMenu } from "#/components/features/conversation/conversation-name-context-menu";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import type { Backend } from "#/api/backend-registry/types";
 import type { Conversation } from "#/api/open-hands.types";
 
@@ -621,7 +621,7 @@ describe("ConversationName public sharing", () => {
       orgId: null,
     });
     updatePublicFlagSpy = vi
-      .spyOn(V1ConversationService, "updateConversationPublicFlag")
+      .spyOn(AgentServerConversationService, "updateConversationPublicFlag")
       .mockResolvedValue({ id: "test-conversation-id", public: true } as never);
   });
 

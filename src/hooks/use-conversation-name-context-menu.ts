@@ -16,12 +16,12 @@ import {
   adaptSystemMessage,
   SystemMessageForModal,
 } from "#/utils/system-message-adapter";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionActive } from "#/utils/status";
 
 interface UseConversationNameContextMenuProps {
   conversationId?: string;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
   showOptions?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
 }

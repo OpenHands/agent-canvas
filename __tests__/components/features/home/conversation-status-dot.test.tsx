@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "test-utils";
 import { ConversationStatusDot } from "#/components/features/home/recent-conversations/conversation-status-dot";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
   StyledTooltip: ({
@@ -22,29 +22,26 @@ vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
 
 describe("ConversationStatusDot", () => {
   it.each([
-    [V1ExecutionStatus.FINISHED, "conversation-status-check", "COMMON$FINISHED"],
-    [V1ExecutionStatus.RUNNING, "conversation-status-working", "COMMON$WORKING"],
-    [V1ExecutionStatus.PAUSED, "conversation-status-paused", "COMMON$PAUSED"],
-    [V1ExecutionStatus.IDLE, "conversation-status-paused", "COMMON$PAUSED"],
+    [ExecutionStatus.FINISHED, "conversation-status-check", "COMMON$FINISHED"],
+    [ExecutionStatus.RUNNING, "conversation-status-working", "COMMON$WORKING"],
+    [ExecutionStatus.PAUSED, "conversation-status-paused", "COMMON$PAUSED"],
+    [ExecutionStatus.IDLE, "conversation-status-paused", "COMMON$PAUSED"],
     [
-      V1ExecutionStatus.WAITING_FOR_CONFIRMATION,
+      ExecutionStatus.WAITING_FOR_CONFIRMATION,
       "conversation-status-paused",
       "COMMON$PAUSED",
     ],
-    [V1ExecutionStatus.ERROR, "conversation-status-error", "COMMON$ERROR"],
-    [V1ExecutionStatus.STUCK, "conversation-status-error", "COMMON$ERROR"],
-  ])(
-    "renders %s as %s",
-    (status, testId, tooltipLabel) => {
-      renderWithProviders(<ConversationStatusDot executionStatus={status} />);
+    [ExecutionStatus.ERROR, "conversation-status-error", "COMMON$ERROR"],
+    [ExecutionStatus.STUCK, "conversation-status-error", "COMMON$ERROR"],
+  ])("renders %s as %s", (status, testId, tooltipLabel) => {
+    renderWithProviders(<ConversationStatusDot executionStatus={status} />);
 
-      expect(screen.getByTestId(testId)).toBeInTheDocument();
-      expect(screen.getByTestId("styled-tooltip")).toHaveAttribute(
-        "data-content",
-        tooltipLabel,
-      );
-    },
-  );
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
+    expect(screen.getByTestId("styled-tooltip")).toHaveAttribute(
+      "data-content",
+      tooltipLabel,
+    );
+  });
 
   it("renders the unknown state for missing execution status", () => {
     renderWithProviders(<ConversationStatusDot executionStatus={undefined} />);

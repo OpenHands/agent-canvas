@@ -29,7 +29,7 @@ describe("buildAutomationCommand", () => {
       `git+${DEFAULT_AUTOMATION_REPO}@${DEFAULT_AUTOMATION_GIT_REF}`,
     );
     expect(cmd.args).toContain("uvicorn");
-    expect(cmd.args).toContain("automation.app:app");
+    expect(cmd.args).toContain("openhands.automation.app:app");
     expect(cmd.source).toBe(`git (${DEFAULT_AUTOMATION_GIT_REF})`);
   });
 

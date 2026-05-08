@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { toV1AppConversation } from "#/api/agent-server-adapter";
+import { toAppConversation } from "#/api/agent-server-adapter";
 import {
   getStoredConversationMetadata,
   removeStoredConversationMetadata,
@@ -20,14 +20,14 @@ describe("conversation-metadata-store", () => {
     window.localStorage.clear();
   });
 
-  it("toV1AppConversation hydrates repo/branch/git_provider from the store", () => {
+  it("toAppConversation hydrates repo/branch/git_provider from the store", () => {
     setStoredConversationMetadata("conv-1", {
       selected_repository: "octocat/hello-world",
       selected_branch: "main",
       git_provider: "github",
     });
 
-    const conversation = toV1AppConversation(directInfo("conv-1"));
+    const conversation = toAppConversation(directInfo("conv-1"));
 
     expect(conversation).toMatchObject({
       selected_repository: "octocat/hello-world",
@@ -36,8 +36,8 @@ describe("conversation-metadata-store", () => {
     });
   });
 
-  it("toV1AppConversation falls back to nulls when no metadata is stored", () => {
-    const conversation = toV1AppConversation(directInfo("conv-2"));
+  it("toAppConversation falls back to nulls when no metadata is stored", () => {
+    const conversation = toAppConversation(directInfo("conv-2"));
 
     expect(conversation.selected_repository).toBeNull();
     expect(conversation.selected_branch).toBeNull();
@@ -54,6 +54,6 @@ describe("conversation-metadata-store", () => {
     removeStoredConversationMetadata("conv-3");
 
     expect(getStoredConversationMetadata("conv-3")).toBeNull();
-    expect(toV1AppConversation(directInfo("conv-3")).selected_repository).toBeNull();
+    expect(toAppConversation(directInfo("conv-3")).selected_repository).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Typography } from "#/ui/typography";
 import { SkillTriggers } from "./skill-triggers";
 import { SkillContent } from "./skill-content";
-import { Skill } from "#/api/conversation-service/v1-conversation-service.types";
+import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface SkillItemProps {
   skill: Skill;

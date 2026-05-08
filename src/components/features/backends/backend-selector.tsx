@@ -95,6 +95,7 @@ export function BackendSelector({
     useSwitchCloudOrganization();
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
+  const automationDetailMatch = useMatch("/automations/:automationId");
   const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
@@ -228,9 +229,10 @@ export function BackendSelector({
             }
           }
 
-          setActive(backendId, orgId);
-
           if (conversationMatch) navigate("/conversations");
+          else if (automationDetailMatch) navigate("/automations");
+
+          setActive(backendId, orgId);
         }}
         placeholder={bundledLabel}
         loading={someCloudLoading || isSwitching}

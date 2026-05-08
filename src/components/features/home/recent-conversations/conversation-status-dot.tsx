@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 interface ConversationStatusDotProps {
-  executionStatus: V1ExecutionStatus | null | undefined;
+  executionStatus: ExecutionStatus | null | undefined;
 }
 
 type Visual = "check" | "working" | "paused" | "error" | "unknown";
@@ -13,18 +13,18 @@ const PAUSED_GRAY = "#A3A3A3";
 const ERROR_RED = "#FF684E";
 const UNKNOWN_GRAY = "#3C3C49";
 
-const visualFor = (status: V1ExecutionStatus | null | undefined): Visual => {
+const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
-    case V1ExecutionStatus.FINISHED:
+    case ExecutionStatus.FINISHED:
       return "check";
-    case V1ExecutionStatus.RUNNING:
+    case ExecutionStatus.RUNNING:
       return "working";
-    case V1ExecutionStatus.PAUSED:
-    case V1ExecutionStatus.IDLE:
-    case V1ExecutionStatus.WAITING_FOR_CONFIRMATION:
+    case ExecutionStatus.PAUSED:
+    case ExecutionStatus.IDLE:
+    case ExecutionStatus.WAITING_FOR_CONFIRMATION:
       return "paused";
-    case V1ExecutionStatus.ERROR:
-    case V1ExecutionStatus.STUCK:
+    case ExecutionStatus.ERROR:
+    case ExecutionStatus.STUCK:
       return "error";
     default:
       return "unknown";

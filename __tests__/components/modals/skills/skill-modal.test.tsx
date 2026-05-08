@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { SkillsModal } from "#/components/features/conversation-panel/skills-modal";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
 
@@ -54,8 +54,8 @@ describe("SkillsModal", () => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
-    // Setup default mock for getSkills (V1)
-    vi.spyOn(V1ConversationService, "getSkills").mockResolvedValue({
+    // Setup default mock for getSkills (agent-server)
+    vi.spyOn(AgentServerConversationService, "getSkills").mockResolvedValue({
       skills: mockSkills,
     });
 
@@ -83,7 +83,7 @@ describe("SkillsModal", () => {
   describe("Refresh Button Functionality", () => {
     it("should call refetch when refresh button is clicked", async () => {
       const user = userEvent.setup();
-      const refreshSpy = vi.spyOn(V1ConversationService, "getSkills");
+      const refreshSpy = vi.spyOn(AgentServerConversationService, "getSkills");
 
       renderWithProviders(<SkillsModal {...defaultProps} />);
 
@@ -102,7 +102,7 @@ describe("SkillsModal", () => {
 
   describe("Skills Display", () => {
     it("should display skills correctly", async () => {
-      vi.spyOn(V1ConversationService, "getSkills").mockResolvedValue({
+      vi.spyOn(AgentServerConversationService, "getSkills").mockResolvedValue({
         skills: mockSkills,
       });
 
@@ -116,5 +116,5 @@ describe("SkillsModal", () => {
   });
 });
 
-// Note: Tests for V0 API and v1_enabled settings were removed as the component
-// now uses V1 API exclusively via useConversationSkills hook
+// Note: Tests for deprecated API and removed settings were removed as the component
+// now uses agent-server API exclusively via useConversationSkills hook

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { askV1Agent } from "#/hooks/mutation/conversation-mutation-utils";
+import { askAgent } from "#/hooks/mutation/conversation-mutation-utils";
 import { useBtwStore } from "#/stores/btw-store";
 import { BTW_COMMAND } from "#/utils/constants";
 
@@ -8,7 +8,7 @@ const BTW_PREFIX = `${BTW_COMMAND} `;
 /**
  * Intercepts "/btw <question>" submissions and routes them through the
  * ask_agent side-channel. Everything else falls through to `onSubmit`.
- * Passthrough when `conversationId` is null (e.g. V0 conversations).
+ * Passthrough when `conversationId` is null.
  */
 export const useBtwInterceptor = (
   conversationId: string | null | undefined,
@@ -30,7 +30,7 @@ export const useBtwInterceptor = (
       if (!question) return;
 
       const entryId = addPending(conversationId, question);
-      askV1Agent(conversationId, question)
+      askAgent(conversationId, question)
         .then(({ response }) => resolve(conversationId, entryId, response))
         .catch((err) =>
           fail(conversationId, entryId, err?.message ?? "Failed to ask agent"),

@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Provider } from "#/types/settings";
 import { useErrorMessageStore } from "#/stores/error-message-store";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import {
-  resumeV1Conversation,
+  resumeConversation,
   updateConversationExecutionStatusInCache,
   invalidateConversationQueries,
 } from "./conversation-mutation-utils";
@@ -19,7 +19,7 @@ export const useUnifiedResumeConversation = () => {
     mutationFn: async (variables: {
       conversationId: string;
       providers?: Provider[];
-    }) => resumeV1Conversation(variables.conversationId),
+    }) => resumeConversation(variables.conversationId),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([
@@ -46,7 +46,7 @@ export const useUnifiedResumeConversation = () => {
       updateConversationExecutionStatusInCache(
         queryClient,
         variables.conversationId,
-        V1ExecutionStatus.RUNNING,
+        ExecutionStatus.RUNNING,
       );
     },
   });

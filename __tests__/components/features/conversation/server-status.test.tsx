@@ -7,7 +7,7 @@ import { ServerStatusContextMenu } from "#/components/features/controls/server-s
 import { ConversationStatus } from "#/types/conversation-status";
 import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 // Mock the agent state hook
 vi.mock("#/hooks/use-agent-state", () => ({
@@ -70,7 +70,7 @@ describe("ServerStatus", () => {
   it("should render server status with RUNNING conversation status", () => {
     mockAgentStore(AgentState.RUNNING);
 
-    renderWithProviders(<ServerStatus executionStatus={V1ExecutionStatus.RUNNING} />);
+    renderWithProviders(<ServerStatus executionStatus={ExecutionStatus.RUNNING} />);
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("ServerStatus", () => {
   it("should render server status with STOPPED conversation status", () => {
     mockAgentStore(AgentState.RUNNING);
 
-    renderWithProviders(<ServerStatus executionStatus={V1ExecutionStatus.PAUSED} />);
+    renderWithProviders(<ServerStatus executionStatus={ExecutionStatus.PAUSED} />);
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
     expect(screen.getByText("Server Stopped")).toBeInTheDocument();
@@ -88,7 +88,7 @@ describe("ServerStatus", () => {
   it("should render STARTING status when agent state is LOADING", () => {
     mockAgentStore(AgentState.LOADING);
 
-    renderWithProviders(<ServerStatus executionStatus={V1ExecutionStatus.IDLE} />);
+    renderWithProviders(<ServerStatus executionStatus={ExecutionStatus.IDLE} />);
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
     expect(screen.getByText("Starting")).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("ServerStatus", () => {
   it("should render STARTING status when agent state is INIT", () => {
     mockAgentStore(AgentState.INIT);
 
-    renderWithProviders(<ServerStatus executionStatus={V1ExecutionStatus.IDLE} />);
+    renderWithProviders(<ServerStatus executionStatus={ExecutionStatus.IDLE} />);
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
     expect(screen.getByText("Starting")).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("ServerStatus", () => {
   it("should render ERROR status when agent state is ERROR", () => {
     mockAgentStore(AgentState.ERROR);
 
-    renderWithProviders(<ServerStatus executionStatus={V1ExecutionStatus.RUNNING} />);
+    renderWithProviders(<ServerStatus executionStatus={ExecutionStatus.RUNNING} />);
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
     expect(screen.getByText("Error")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("ServerStatus", () => {
     mockAgentStore(AgentState.RUNNING);
 
     renderWithProviders(
-      <ServerStatus executionStatus={V1ExecutionStatus.RUNNING} isPausing={true} />,
+      <ServerStatus executionStatus={ExecutionStatus.RUNNING} isPausing={true} />,
     );
 
     expect(screen.getByTestId("server-status")).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe("ServerStatus", () => {
     mockAgentStore(AgentState.RUNNING);
 
     renderWithProviders(
-      <ServerStatus executionStatus={V1ExecutionStatus.RUNNING} className="custom-class" />,
+      <ServerStatus executionStatus={ExecutionStatus.RUNNING} className="custom-class" />,
     );
 
     const container = screen.getByTestId("server-status");
@@ -167,7 +167,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.RUNNING}
+        executionStatus={ExecutionStatus.RUNNING}
         onStopServer={vi.fn()}
       />,
     );
@@ -183,7 +183,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.PAUSED}
+        executionStatus={ExecutionStatus.PAUSED}
         onStartServer={vi.fn()}
       />,
     );
@@ -199,7 +199,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.RUNNING}
+        executionStatus={ExecutionStatus.RUNNING}
       />,
     );
 
@@ -213,7 +213,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.PAUSED}
+        executionStatus={ExecutionStatus.PAUSED}
       />,
     );
 
@@ -229,7 +229,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.RUNNING}
+        executionStatus={ExecutionStatus.RUNNING}
         onStopServer={onStopServer}
       />,
     );
@@ -248,7 +248,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.PAUSED}
+        executionStatus={ExecutionStatus.PAUSED}
         onStartServer={onStartServer}
       />,
     );
@@ -265,7 +265,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.RUNNING}
+        executionStatus={ExecutionStatus.RUNNING}
         onStopServer={vi.fn()}
       />,
     );
@@ -281,7 +281,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.PAUSED}
+        executionStatus={ExecutionStatus.PAUSED}
         onStartServer={vi.fn()}
       />,
     );
@@ -299,7 +299,7 @@ describe("ServerStatusContextMenu", () => {
       <ServerStatusContextMenu
         {...defaultProps}
         onClose={onClose}
-        executionStatus={V1ExecutionStatus.RUNNING}
+        executionStatus={ExecutionStatus.RUNNING}
         onStopServer={vi.fn()}
       />,
     );
@@ -315,7 +315,7 @@ describe("ServerStatusContextMenu", () => {
     renderWithProviders(
       <ServerStatusContextMenu
         {...defaultProps}
-        executionStatus={V1ExecutionStatus.IDLE}
+        executionStatus={ExecutionStatus.IDLE}
       />,
     );
 

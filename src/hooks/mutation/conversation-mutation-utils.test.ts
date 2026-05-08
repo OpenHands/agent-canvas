@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { updateConversationExecutionStatusInCache } from "./conversation-mutation-utils";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
-const createConversation = (): V1AppConversation => ({
+const createConversation = (): AppConversation => ({
   id: "conversation-1",
   created_by_user_id: null,
   selected_repository: null,
@@ -17,7 +17,7 @@ const createConversation = (): V1AppConversation => ({
   metrics: null,
   created_at: "2026-04-16T00:00:00Z",
   updated_at: "2026-04-16T00:00:00Z",
-  execution_status: V1ExecutionStatus.RUNNING,
+  execution_status: ExecutionStatus.RUNNING,
   conversation_url: "http://localhost:3000/api/conversations/conversation-1",
   session_api_key: "session-key",
   sandbox_id: null,
@@ -37,17 +37,17 @@ describe("updateConversationExecutionStatusInCache", () => {
     updateConversationExecutionStatusInCache(
       queryClient,
       conversation.id,
-      V1ExecutionStatus.PAUSED,
+      ExecutionStatus.PAUSED,
     );
 
     expect(
-      queryClient.getQueryData<V1AppConversation | null>([
+      queryClient.getQueryData<AppConversation | null>([
         "user",
         "conversation",
         conversation.id,
       ]),
     ).toMatchObject({
-      execution_status: V1ExecutionStatus.PAUSED,
+      execution_status: ExecutionStatus.PAUSED,
     });
   });
 });

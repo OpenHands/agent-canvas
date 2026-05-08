@@ -2,7 +2,7 @@
  * Types for the pending message service
  */
 
-import type { V1MessageContent } from "../conversation-service/v1-conversation-service.types";
+import type { MessageContent } from "../conversation-service/agent-server-conversation-service.types";
 
 /**
  * Response when queueing a pending message
@@ -18,5 +18,5 @@ export interface PendingMessageResponse {
  */
 export interface QueuePendingMessageRequest {
   role?: "user";
-  content: V1MessageContent[];
+  content: MessageContent[];
 }

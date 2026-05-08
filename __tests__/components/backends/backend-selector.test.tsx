@@ -553,6 +553,49 @@ describe("BackendSelector", () => {
     ).toEqual([]);
   });
 
+  it("redirects to the automations list when switching backends from an automation detail route", async () => {
+    function AutomationDetailRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function AutomationsListRoute() {
+      return <div data-testid="automations-list" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/automations/:automationId", Component: AutomationDetailRoute },
+      { path: "/automations", Component: AutomationsListRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/automations/abc-123"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    expect(
+      await screen.findByTestId("automations-list"),
+    ).toBeInTheDocument();
+  });
+
   it("does not redirect when switching backends from a non-conversation route", async () => {
     function SettingsRoute() {
       return (

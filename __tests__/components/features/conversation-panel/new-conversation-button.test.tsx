@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "test-utils";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { NewConversationButton } from "#/components/features/conversation-panel/new-conversation-button";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
 
@@ -91,7 +91,7 @@ describe("NewConversationButton", () => {
     ]);
     const navigate = vi.fn();
     const createSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue(makeStartTask("conv-123"));
 
     const user = userEvent.setup();
@@ -126,7 +126,7 @@ describe("NewConversationButton", () => {
         path: "/workspace/project/repo1",
       },
     ]);
-    vi.spyOn(V1ConversationService, "createConversation").mockImplementation(
+    vi.spyOn(AgentServerConversationService, "createConversation").mockImplementation(
       () => new Promise(() => {}),
     );
 

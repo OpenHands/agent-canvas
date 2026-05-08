@@ -42,7 +42,6 @@ type CloudSettingsResponse = {
   git_user_email?: string;
   user_consents_to_analytics?: boolean | null;
   is_new_user?: boolean;
-  v1_enabled?: boolean;
   remote_runtime_resource_factor?: number | null;
   max_budget_per_task?: number | null;
   provider_tokens_set?: Partial<Record<Provider, string | null>>;

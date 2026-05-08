@@ -3,7 +3,7 @@ import { formatTimeDelta } from "#/utils/format-time-delta";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { RepositorySelection } from "#/api/open-hands.types";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionPaused } from "#/utils/status";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
@@ -12,7 +12,7 @@ interface ConversationCardFooterProps {
   selectedRepository: RepositorySelection | null;
   lastUpdatedAt: string;
   createdAt?: string;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
   workspaceWorkingDir?: string | null;
 }
 

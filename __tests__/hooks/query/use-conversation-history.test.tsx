@@ -7,7 +7,7 @@ import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import type { Conversation } from "#/api/open-hands.types";
-import type { OpenHandsEvent } from "#/types/v1/core";
+import type { OpenHandsEvent } from "#/types/agent-server/core";
 
 function makeConversation(version: "V0" | "V1"): Conversation {
   return {
@@ -61,7 +61,7 @@ describe("useConversationHistory", () => {
   });
 
   it("calls V1 REST endpoint for V1 conversations", async () => {
-    const v1SearchEventsSpy = vi.spyOn(EventService, "searchEventsV1");
+    const v1SearchEventsSpy = vi.spyOn(EventService, "searchEvents");
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: makeConversation("V1"),
@@ -82,11 +82,11 @@ describe("useConversationHistory", () => {
       expect(result.current.data).toBeDefined();
     });
 
-    // searchEventsV1 now accepts (conversationId, limit, conversationUrl,
+    // searchEvents now accepts (conversationId, limit, conversationUrl,
     // sessionApiKey). The latter two are forwarded so cloud-mode calls
     // can target the correct host. In this test fixture they're null
     // (no conversation_url / session_api_key on the mocked conversation).
-    expect(EventService.searchEventsV1).toHaveBeenCalledWith(
+    expect(EventService.searchEvents).toHaveBeenCalledWith(
       "conv-123",
       100,
       null,
@@ -125,7 +125,7 @@ describe("useConversationHistory cache key stability", () => {
   });
 
   it("does not refetch when conversation object changes but version stays the same", async () => {
-    const v1Spy = vi.spyOn(EventService, "searchEventsV1");
+    const v1Spy = vi.spyOn(EventService, "searchEvents");
     v1Spy.mockResolvedValue([makeEvent()]);
 
     const conv1 = makeConversation("V1");
@@ -178,11 +178,11 @@ describe("useConversationHistory cache key stability", () => {
 
     // Note: The behavior of always using V1 API regardless of conversation_version
     // means the "version change triggers refetch" test is no longer applicable.
-    // The hook now consistently uses searchEventsV1 for all conversations.
+    // The hook now consistently uses searchEvents for all conversations.
   });
 
   it("treats cached history as never stale (staleTime is Infinity)", async () => {
-    const v1Spy = vi.spyOn(EventService, "searchEventsV1");
+    const v1Spy = vi.spyOn(EventService, "searchEvents");
     v1Spy.mockResolvedValue([makeEvent()]);
 
     vi.mocked(useUserConversation).mockReturnValue({
@@ -214,7 +214,7 @@ describe("useConversationHistory cache key stability", () => {
   });
 
   it("has gcTime of at least 30 minutes for navigation resilience", async () => {
-    const v1Spy = vi.spyOn(EventService, "searchEventsV1");
+    const v1Spy = vi.spyOn(EventService, "searchEvents");
     v1Spy.mockResolvedValue([makeEvent()]);
 
     vi.mocked(useUserConversation).mockReturnValue({

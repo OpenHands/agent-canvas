@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import GitService from "#/api/git-service/git-service.api";
 import { TaskCard } from "#/components/features/home/tasks/task-card";
 import { GitRepository } from "#/types/git";
@@ -14,7 +14,7 @@ vi.mock("#/hooks/query/use-settings", async () => {
   );
   return {
     ...actual,
-    getSettingsQueryFn: vi.fn().mockResolvedValue({ v1_enabled: true }),
+    getSettingsQueryFn: vi.fn().mockResolvedValue({}),
   };
 });
 
@@ -49,7 +49,7 @@ describe("TaskCard", () => {
 
   it("should call createConversation when clicking the launch button", async () => {
     const createConversationSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue({
         id: "task-id",
         created_by_user_id: null,
@@ -99,7 +99,7 @@ describe("TaskCard", () => {
 
     it("should call create conversation with suggest task trigger and selected suggested task", async () => {
       const createConversationSpy = vi
-        .spyOn(V1ConversationService, "createConversation")
+        .spyOn(AgentServerConversationService, "createConversation")
         .mockResolvedValue({
           id: "task-id",
           created_by_user_id: null,
@@ -149,7 +149,7 @@ describe("TaskCard", () => {
   it("should navigate to the conversation page after creating a conversation", async () => {
     const navigate = vi.fn();
 
-    vi.spyOn(V1ConversationService, "createConversation").mockResolvedValue({
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue({
       id: "task-id",
       created_by_user_id: null,
       status: "READY",

@@ -1,16 +1,16 @@
 import type {
-  V1MetricsSnapshot,
-  V1RuntimeConversationInfo,
-  V1TokenUsage,
-} from "#/api/conversation-service/v1-conversation-service.types";
+  MetricsSnapshot,
+  RuntimeConversationInfo,
+  TokenUsage,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
 
 /**
  * TypeScript equivalent of the get_combined_metrics method from the Python SDK
  * Combines metrics from all LLM usage IDs in the conversation stats
  */
 export function getCombinedMetrics(
-  conversationInfo: V1RuntimeConversationInfo,
-): V1MetricsSnapshot {
+  conversationInfo: RuntimeConversationInfo,
+): MetricsSnapshot {
   const { stats } = conversationInfo;
 
   if (!stats?.usage_to_metrics) {
@@ -23,7 +23,7 @@ export function getCombinedMetrics(
 
   let totalCost = 0;
   let maxBudgetPerTask: number | null = null;
-  let combinedTokenUsage: V1TokenUsage | null = null;
+  let combinedTokenUsage: TokenUsage | null = null;
 
   // Iterate through all metrics and combine them
   for (const metrics of Object.values(stats.usage_to_metrics)) {

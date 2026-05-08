@@ -4,7 +4,7 @@ import { IoClose } from "react-icons/io5";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { Typography } from "#/ui/typography";
 import { cn } from "#/utils/utils";
 import { PluginLaunchPluginSection } from "./plugin-launch-plugin-section";

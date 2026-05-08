@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
@@ -20,13 +20,11 @@ interface CreateConversationVariables {
   workingDir?: string;
 }
 
-// Response type for V1 conversations
 interface CreateConversationResponse {
   conversation_id: string;
   session_api_key: string | null;
   url: string | null;
-  v1_task_id?: string;
-  is_v1?: boolean;
+  task_id?: string;
 }
 
 export const useCreateConversation = () => {
@@ -48,7 +46,7 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
-      const conversation = await V1ConversationService.createConversation(
+      const conversation = await AgentServerConversationService.createConversation(
         query,
         conversationInstructions,
         plugins,
@@ -77,8 +75,7 @@ export const useCreateConversation = () => {
         conversation_id: conversationId,
         session_api_key: null,
         url: conversation.agent_server_url,
-        v1_task_id: conversation.id,
-        is_v1: true,
+        task_id: conversation.id,
       };
     },
     onSuccess: async (_, { repository }) => {

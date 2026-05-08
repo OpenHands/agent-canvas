@@ -8,14 +8,14 @@ import { ServerStatusContextMenuIconText } from "./server-status-context-menu-ic
 import { ServerStatus } from "./server-status";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionActive, isExecutionPaused } from "#/utils/status";
 
 interface ServerStatusContextMenuProps {
   onClose: () => void;
   onStopServer?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onStartServer?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  executionStatus: V1ExecutionStatus | null;
+  executionStatus: ExecutionStatus | null;
   position?: "top" | "bottom";
   className?: string;
   isPausing?: boolean;

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { getCombinedMetrics } from "#/utils/conversation-metrics";
-import type { V1MetricsSnapshot } from "#/api/conversation-service/v1-conversation-service.types";
+import type { MetricsSnapshot } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 export const useConversationMetrics = (
   conversationId: string | null | undefined,
@@ -9,7 +9,7 @@ export const useConversationMetrics = (
   sessionApiKey: string | null | undefined,
   enabled: boolean = true,
 ): {
-  data: V1MetricsSnapshot | undefined;
+  data: MetricsSnapshot | undefined;
   isLoading: boolean;
   error: unknown;
 } => {
@@ -23,7 +23,7 @@ export const useConversationMetrics = (
     queryFn: async () => {
       if (!conversationId) throw new Error("Conversation ID is required");
       const conversationInfo =
-        await V1ConversationService.getRuntimeConversation(
+        await AgentServerConversationService.getRuntimeConversation(
           conversationId,
           conversationUrl,
           sessionApiKey,

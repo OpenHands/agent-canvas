@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import type { ActionEvent } from "#/types/v1/core/events/action-event";
+import type { ActionEvent } from "#/types/agent-server/core/events/action-event";
 import { stripWorkspacePrefix } from "./path-utils";
 
 /**

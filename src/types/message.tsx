@@ -1,6 +1,6 @@
 /**
  * @deprecated This type is deprecated and will be removed in a future version.
- * Use types in `frontend/src/types/core` instead.
+ * Use agent-server event types instead.
  */
 export interface ActionMessage {
   id: number;

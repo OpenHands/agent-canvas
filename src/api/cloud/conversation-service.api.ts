@@ -1,11 +1,11 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 import type {
-  V1AppConversation,
-  V1AppConversationPage,
-  V1AppConversationStartRequest,
-  V1AppConversationStartTask,
-} from "../conversation-service/v1-conversation-service.types";
+  AppConversation,
+  AppConversationPage,
+  AppConversationStartRequest,
+  AppConversationStartTask,
+} from "../conversation-service/agent-server-conversation-service.types";
 import { callCloudProxy } from "./proxy";
 
 function getActiveCloudBackend(): Backend {
@@ -18,14 +18,14 @@ function getActiveCloudBackend(): Backend {
 
 /**
  * Search the cloud SaaS app-conversations list. Mirrors the local
- * `V1ConversationService.searchConversations` interface but routes
+ * `AgentServerConversationService.searchConversations` interface but routes
  * through the bundled agent-server's cloud proxy and hits the SaaS
  * endpoint `/api/v1/app-conversations/search`.
  */
 export async function searchCloudConversations(
   limit: number = 20,
   pageId?: string,
-): Promise<V1AppConversationPage> {
+): Promise<AppConversationPage> {
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   params.set("limit", String(limit));
@@ -33,7 +33,7 @@ export async function searchCloudConversations(
   params.set("sort_order", "UPDATED_AT_DESC");
 
   const data = await callCloudProxy<{
-    items: V1AppConversation[];
+    items: AppConversation[];
     next_page_id: string | null;
   }>({
     backend,
@@ -49,16 +49,16 @@ export async function searchCloudConversations(
 
 /**
  * Batch-fetch cloud app-conversations by id. Mirrors the local
- * `V1ConversationService.batchGetAppConversations` interface.
+ * `AgentServerConversationService.batchGetAppConversations` interface.
  */
 export async function batchGetCloudConversations(
   ids: string[],
-): Promise<(V1AppConversation | null)[]> {
+): Promise<(AppConversation | null)[]> {
   if (ids.length === 0) return [];
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   for (const id of ids) params.append("ids", id);
-  const data = await callCloudProxy<(V1AppConversation | null)[]>({
+  const data = await callCloudProxy<(AppConversation | null)[]>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations?${params.toString()}`,
@@ -70,8 +70,8 @@ export async function batchGetCloudConversations(
  * Create a v1 app-conversation on the cloud SaaS.
  *
  * Mirrors OpenHands' SaaS flow: POST /api/v1/app-conversations with the
- * `V1AppConversationStartRequest` payload, returning a
- * `V1AppConversationStartTask`. The task is initially WORKING; the caller
+ * `AppConversationStartRequest` payload, returning a
+ * `AppConversationStartTask`. The task is initially WORKING; the caller
  * polls `getCloudAppConversationStartTask` (3s cadence per OpenHands)
  * until status is READY (then `app_conversation_id`, `agent_server_url`,
  * and `session_api_key` are populated) or ERROR.
@@ -83,10 +83,10 @@ export async function batchGetCloudConversations(
  * task.
  */
 export async function createCloudAppConversation(
-  request: V1AppConversationStartRequest,
-): Promise<V1AppConversationStartTask> {
+  request: AppConversationStartRequest,
+): Promise<AppConversationStartTask> {
   const backend = getActiveCloudBackend();
-  const data = await callCloudProxy<V1AppConversationStartTask>({
+  const data = await callCloudProxy<AppConversationStartTask>({
     backend,
     method: "POST",
     path: "/api/v1/app-conversations",
@@ -97,7 +97,7 @@ export async function createCloudAppConversation(
 
 /**
  * Download a v1 app-conversation as a ZIP from the cloud SaaS. Mirrors
- * the local `V1ConversationService.downloadConversation` interface but
+ * the local `AgentServerConversationService.downloadConversation` interface but
  * routes through the bundled agent-server's cloud proxy and hits
  * `GET /api/v1/app-conversations/{id}/download`, which returns
  * `application/zip` with `Content-Disposition` set by the SaaS.
@@ -116,7 +116,7 @@ export async function downloadCloudConversation(
 
 /**
  * Delete a v1 app-conversation on the cloud SaaS. Mirrors the local
- * `V1ConversationService.deleteConversation` interface but routes
+ * `AgentServerConversationService.deleteConversation` interface but routes
  * through the bundled agent-server's cloud proxy and hits
  * `DELETE /api/v1/app-conversations/{id}`, which returns a JSON
  * `Success` envelope (discarded here — the caller only needs to know
@@ -135,7 +135,7 @@ export async function deleteCloudConversation(
 
 /**
  * Toggle the public-sharing flag on a cloud v1 app-conversation. Mirrors
- * OpenHands' `V1ConversationService.updateConversationPublicFlag` —
+ * OpenHands' `AgentServerConversationService.updateConversationPublicFlag` —
  * routes through the bundled agent-server's cloud proxy and hits
  * `PATCH /api/v1/app-conversations/{id}` with `{ public }`, returning
  * the updated conversation.
@@ -143,9 +143,9 @@ export async function deleteCloudConversation(
 export async function updateCloudConversationPublicFlag(
   conversationId: string,
   isPublic: boolean,
-): Promise<V1AppConversation> {
+): Promise<AppConversation> {
   const backend = getActiveCloudBackend();
-  const data = await callCloudProxy<V1AppConversation>({
+  const data = await callCloudProxy<AppConversation>({
     backend,
     method: "PATCH",
     path: `/api/v1/app-conversations/${conversationId}`,
@@ -172,7 +172,7 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
 
 /**
  * Read a file from a cloud conversation's sandbox workspace. Mirrors
- * OpenHands' `V1ConversationService.readConversationFile` — hits
+ * OpenHands' `AgentServerConversationService.readConversationFile` — hits
  * `GET /api/v1/app-conversations/{id}/file?file_path=...` on the SaaS
  * and returns the file content as a string.
  */
@@ -193,16 +193,16 @@ export async function readCloudConversationFile(
 
 /**
  * Fetch a single v1 app-conversation start task. Mirrors OpenHands'
- * `V1ConversationService.getStartTask` — uses the batch search endpoint
+ * `AgentServerConversationService.getStartTask` — uses the batch search endpoint
  * with a single id and unwraps the first result.
  */
 export async function getCloudAppConversationStartTask(
   taskId: string,
-): Promise<V1AppConversationStartTask | null> {
+): Promise<AppConversationStartTask | null> {
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   params.set("ids", taskId);
-  const data = await callCloudProxy<(V1AppConversationStartTask | null)[]>({
+  const data = await callCloudProxy<(AppConversationStartTask | null)[]>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations/start-tasks?${params.toString()}`,

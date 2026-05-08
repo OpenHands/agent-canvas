@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { isHookExecutionEvent } from "#/types/v1/type-guards";
-import { OpenHandsEvent } from "#/types/v1/core";
+import { isHookExecutionEvent } from "#/types/agent-server/type-guards";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 import { GenericEventMessage } from "#/components/features/chat/generic-event-message";
 
 interface HookExecutionEventMessageProps {

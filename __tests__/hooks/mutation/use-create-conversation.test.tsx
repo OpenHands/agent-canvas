@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { SuggestedTask } from "#/utils/types";
 
@@ -14,7 +14,7 @@ vi.mock("#/hooks/use-tracking", () => ({
 describe("useCreateConversation", () => {
   it("passes suggested tasks to the V1 create conversation API", async () => {
     const createConversationSpy = vi
-      .spyOn(V1ConversationService, "createConversation")
+      .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue({
         id: "task-id",
         created_by_user_id: null,

@@ -6,7 +6,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useCommandStore } from "#/stores/command-store";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentStore } from "#/stores/agent-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { AgentState } from "#/types/agent-state";
 
 import { EventHandler } from "../wrapper/event-handler";
@@ -16,8 +16,6 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
-import { ConversationSubscriptionsProvider } from "#/context/conversation-subscriptions-provider";
-
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
 
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
@@ -30,7 +28,6 @@ function AppContent() {
   const { conversationId } = useConversationId();
   const clearEvents = useEventStore((state) => state.clearEvents);
 
-  // Handle both task IDs (task-{uuid}) and regular conversation IDs
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
   const { data: conversation, isFetched } = useActiveConversation();
@@ -38,7 +35,7 @@ function AppContent() {
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
   const clearTerminal = useCommandStore((state) => state.clearTerminal);
-  const resetV1ConversationState = useV1ConversationStateStore(
+  const resetConversationRuntimeState = useConversationStateStore(
     (state) => state.reset,
   );
   const setCurrentAgentState = useAgentStore(
@@ -48,11 +45,10 @@ function AppContent() {
     (state) => state.removeErrorMessage,
   );
 
-  // 1. Cleanup Effect - runs when navigating to a different conversation
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
-    resetV1ConversationState();
+    resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
     clearEvents();
@@ -60,13 +56,12 @@ function AppContent() {
     conversationId,
     clearTerminal,
     resetConversationState,
-    resetV1ConversationState,
+    resetConversationRuntimeState,
     setCurrentAgentState,
     removeErrorMessage,
     clearEvents,
   ]);
 
-  // 2. Task Error Display Effect
   React.useEffect(() => {
     if (isTask && taskStatus === "ERROR") {
       displayErrorToast(
@@ -76,10 +71,8 @@ function AppContent() {
   }, [isTask, taskStatus, taskDetail, t]);
 
   React.useEffect(() => {
-    // Wait for data to be fetched
     if (!isFetched || !isAuthed) return;
 
-    // Handle conversation not found
     if (!conversation) {
       displayErrorToast(t(I18nKey.CONVERSATION$NOT_EXIST_OR_NO_PERMISSION));
       navigate("/conversations");
@@ -87,17 +80,13 @@ function AppContent() {
   }, [conversation, isFetched, isAuthed, navigate, t]);
 
   const content = (
-    <ConversationSubscriptionsProvider>
-      <EventHandler>
-        <div data-testid="app-route" className="flex flex-col h-full">
-          <ConversationMain />
-        </div>
-      </EventHandler>
-    </ConversationSubscriptionsProvider>
+    <EventHandler>
+      <div data-testid="app-route" className="flex flex-col h-full">
+        <ConversationMain />
+      </div>
+    </EventHandler>
   );
 
-  // Render WebSocket provider immediately to avoid mount/remount cycles
-  // The providers internally handle waiting for conversation data to be ready
   return (
     <WebSocketProviderWrapper conversationId={conversationId}>
       {content}

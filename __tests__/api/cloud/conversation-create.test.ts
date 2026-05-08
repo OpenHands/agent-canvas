@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
 
@@ -31,7 +31,7 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("V1ConversationService cloud branch", () => {
+describe("AgentServerConversationService cloud branch", () => {
   it("createConversation POSTs the SaaS payload through the proxy and returns a WORKING task", async () => {
     vi.mocked(axios.post).mockResolvedValue({
       data: {
@@ -47,7 +47,7 @@ describe("V1ConversationService cloud branch", () => {
       },
     });
 
-    const result = await V1ConversationService.createConversation(
+    const result = await AgentServerConversationService.createConversation(
       "fix the bug",
       "Optional title",
       undefined,
@@ -108,7 +108,7 @@ describe("V1ConversationService cloud branch", () => {
       ],
     });
 
-    const result = await V1ConversationService.getStartTask("task-123");
+    const result = await AgentServerConversationService.getStartTask("task-123");
 
     const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
     expect(url).toMatch(/\/api\/cloud-proxy$/);

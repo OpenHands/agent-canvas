@@ -14,6 +14,25 @@ This is an alias for `npm run dev:safe`.
 
 It uses `uvx` to run a temporary `agent-server` installation for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
 
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Ingress port | `8000` |
+| `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
+| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
+
+### Alternative: Minimal Mode (without Automation)
+
+To run without the automation service:
+
+```sh
+npm run dev:minimal
+```
+
+This runs only agent-server + Vite (no automation backend or ingress).
+Access at `http://localhost:3001/`
+
 ### Agent server version selection
 
 By default, the latest released version from PyPI is used. You can override this (highest precedence first):
