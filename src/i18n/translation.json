@@ -12002,13 +12002,55 @@
     "ca": "Activador"
   },
   "AUTOMATIONS$BACKEND_UNAVAILABLE_TITLE": {
-    "en": "Automations Unavailable"
+    "en": "Automations Unavailable",
+    "ja": "オートメーションが利用できません",
+    "zh-CN": "自动化不可用",
+    "zh-TW": "自動化不可用",
+    "ko-KR": "자동화 사용 불가",
+    "no": "Automatiseringer utilgjengelige",
+    "it": "Automazioni non disponibili",
+    "pt": "Automações indisponíveis",
+    "es": "Automatizaciones no disponibles",
+    "ar": "الأتمتة غير متاحة",
+    "fr": "Automatisations indisponibles",
+    "tr": "Otomasyonlar kullanılamıyor",
+    "de": "Automatisierungen nicht verfügbar",
+    "uk": "Автоматизації недоступні",
+    "ca": "Automatitzacions no disponibles"
   },
   "AUTOMATIONS$BACKEND_UNAVAILABLE_MESSAGE": {
-    "en": "The automations backend is not available right now. Please try again later or check that the automation service is running."
+    "en": "The automations backend is not available right now. Please try again later or check that the automation service is running.",
+    "ja": "オートメーションバックエンドは現在利用できません。後でもう一度試すか、オートメーションサービスが実行されていることを確認してください。",
+    "zh-CN": "自动化后端当前不可用。请稍后重试或检查自动化服务是否正在运行。",
+    "zh-TW": "自動化後端目前不可用。請稍後重試或檢查自動化服務是否正在運行。",
+    "ko-KR": "자동화 백엔드를 현재 사용할 수 없습니다. 나중에 다시 시도하거나 자동화 서비스가 실행 중인지 확인하세요.",
+    "no": "Automatiserings-backend er ikke tilgjengelig akkurat nå. Prøv igjen senere eller sjekk at automatiseringstjenesten kjører.",
+    "it": "Il backend delle automazioni non è disponibile al momento. Riprova più tardi o verifica che il servizio di automazione sia in esecuzione.",
+    "pt": "O backend de automações não está disponível no momento. Tente novamente mais tarde ou verifique se o serviço de automação está em execução.",
+    "es": "El backend de automatizaciones no está disponible en este momento. Inténtelo de nuevo más tarde o verifique que el servicio de automatización esté en ejecución.",
+    "ar": "الواجهة الخلفية للأتمتة غير متاحة حاليًا. يرجى المحاولة مرة أخرى لاحقًا أو التحقق من أن خدمة الأتمتة قيد التشغيل.",
+    "fr": "Le backend des automatisations n'est pas disponible pour le moment. Veuillez réessayer plus tard ou vérifier que le service d'automatisation est en cours d'exécution.",
+    "tr": "Otomasyon arka ucu şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin veya otomasyon hizmetinin çalıştığından emin olun.",
+    "de": "Das Automatisierungs-Backend ist derzeit nicht verfügbar. Bitte versuchen Sie es später erneut oder überprüfen Sie, ob der Automatisierungsdienst ausgeführt wird.",
+    "uk": "Бекенд автоматизації зараз недоступний. Спробуйте пізніше або перевірте, чи запущено сервіс автоматизації.",
+    "ca": "El backend d'automatitzacions no està disponible en aquest moment. Torneu a provar-ho més tard o comproveu que el servei d'automatització s'estigui executant."
   },
   "AUTOMATIONS$BACKEND_UNAVAILABLE_RETRY": {
-    "en": "Retry"
+    "en": "Retry",
+    "ja": "再試行",
+    "zh-CN": "重试",
+    "zh-TW": "重試",
+    "ko-KR": "다시 시도",
+    "no": "Prøv igjen",
+    "it": "Riprova",
+    "pt": "Tentar novamente",
+    "es": "Reintentar",
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer",
+    "tr": "Tekrar dene",
+    "de": "Erneut versuchen",
+    "uk": "Повторити",
+    "ca": "Reintentar"
   },
   "SIDEBAR$CONVERSATIONS": {
     "en": "Conversations",
