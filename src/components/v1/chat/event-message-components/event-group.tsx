@@ -7,6 +7,7 @@ import { isActionEvent, isObservationEvent } from "#/types/v1/type-guards";
 import { I18nKey } from "#/i18n/declaration";
 import { SuccessIndicator } from "../../../features/chat/success-indicator";
 import { getEventContent } from "../event-content-helpers/get-event-content";
+import { IsInEventGroupContext } from "../../../features/chat/is-in-event-group-context";
 
 interface EventGroupProps {
   /** The events represented by this group. Used to compute the summary. */
@@ -88,7 +89,9 @@ export function EventGroup({ events, children }: EventGroupProps) {
           className="mt-2 flex flex-col"
           data-testid="event-group-content"
         >
-          {children}
+          <IsInEventGroupContext.Provider value>
+            {children}
+          </IsInEventGroupContext.Provider>
         </div>
       )}
     </div>
