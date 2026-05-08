@@ -17,7 +17,7 @@ export function NewProjectButton({ disabled = false }: NewProjectButtonProps) {
   return (
     <StyledTooltip content={startNewProject} placement="right">
       <NavigationLink
-        to="/"
+        to="/conversations"
         data-testid="new-project-button"
         aria-label={startNewProject}
         tabIndex={disabled ? -1 : 0}

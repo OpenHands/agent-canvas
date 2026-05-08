@@ -22,7 +22,7 @@ export function ConnectToProviderMessage() {
       </div>
       <NavigationLink
         data-testid="navigate-to-settings-button"
-        to="/settings/integrations"
+        to="/integrations"
         className="self-start w-full"
       >
         <BrandButton

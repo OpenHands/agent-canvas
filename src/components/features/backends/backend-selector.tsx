@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
+import { Plus } from "lucide-react";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -9,6 +10,7 @@ import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
+import { AddBackendModal } from "./add-backend-modal";
 
 const VALUE_SEPARATOR = "::";
 
@@ -68,7 +70,12 @@ function buildOptions(
   return options;
 }
 
-export function BackendSelector() {
+interface BackendSelectorProps {
+  /** Render the menu above the trigger (e.g. when pinned to bottom of sidebar). */
+  openUpward?: boolean;
+}
+
+export function BackendSelector({ openUpward = false }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, bundledBackend, active, setActive } =
     useActiveBackendContext();
@@ -78,6 +85,7 @@ export function BackendSelector() {
     useSwitchCloudOrganization();
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
+  const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
 
   const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
@@ -135,11 +143,26 @@ export function BackendSelector() {
       });
   }, [active, cloudOrgs, currentUserIds, setActive, switchOrg]);
 
+  const addBackendFooter = (
+    <button
+      type="button"
+      data-testid="add-backend-menu-item"
+      onClick={() => setAddBackendModalOpen(true)}
+      className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+    >
+      <Plus width={16} height={16} className="text-white shrink-0" />
+      {t(I18nKey.BACKEND$ADD)}
+    </button>
+  );
+
   return (
+    <>
     <Dropdown
       testId="backend-selector"
       key={`${activeValue}-${activeOption?.label ?? ""}`}
       defaultValue={activeOption ?? { value: activeValue, label: bundledLabel }}
+      footer={addBackendFooter}
+      openUpward={openUpward}
       onChange={async (item) => {
         if (!item || item.value === activeValue) return;
         const { backendId, orgId } = parseOptionValue(item.value);
@@ -172,12 +195,16 @@ export function BackendSelector() {
         // The current conversation belongs to the previous backend
         // and is no longer reachable under the new one — redirect home
         // so the user lands on a coherent screen.
-        if (conversationMatch) navigate("/");
+        if (conversationMatch) navigate("/conversations");
       }}
       placeholder={bundledLabel}
       loading={someCloudLoading || isSwitching}
       options={options}
       className="bg-[#1F1F1F66] border-[#242424]"
     />
+    {addBackendModalOpen ? (
+      <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
+    ) : null}
+    </>
   );
 }

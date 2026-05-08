@@ -7,19 +7,22 @@ import {
 
 export default [
   layout("routes/root-layout.tsx", [
-    index("routes/home.tsx"),
+    index("routes/index-redirect.tsx"),
+    layout("routes/conversations-layout.tsx", [
+      route("conversations", "routes/home.tsx"),
+      route("conversations/:conversationId", "routes/conversation.tsx"),
+    ]),
     route("launch", "routes/launch.tsx"),
+    route("skills", "routes/skills-settings.tsx"),
+    route("integrations", "routes/git-settings.tsx"),
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("mcp", "routes/mcp-settings.tsx"),
-      route("skills", "routes/skills-settings.tsx"),
-      route("integrations", "routes/git-settings.tsx"),
       route("app", "routes/app-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),
-    route("conversations/:conversationId", "routes/conversation.tsx"),
     route("oauth/device/verify", "routes/device-verify.tsx"),
     route("automations", "routes/automations-list.tsx"),
     route("automations/:automationId", "routes/automation-detail.tsx"),

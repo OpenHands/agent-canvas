@@ -21,13 +21,19 @@ import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
 
 interface ConversationPanelProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
+
+const noop = () => {};
 
 export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
-  const ref = useClickOutsideElement<HTMLDivElement>(onClose);
+  // Click-outside is only relevant in the legacy drawer mode where an
+  // onClose handler is provided. When the panel is rendered inline (e.g.
+  // as the always-visible conversation list pane), clicking outside should
+  // not dismiss the list, so we pass a no-op callback in that case.
+  const ref = useClickOutsideElement<HTMLDivElement>(onClose ?? noop);
 
   const [confirmDeleteModalVisible, setConfirmDeleteModalVisible] =
     React.useState(false);
@@ -105,7 +111,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
         {
           onSuccess: () => {
             if (selectedConversationId === currentConversationId) {
-              navigate("/");
+              navigate("/conversations");
             }
           },
         },
@@ -130,7 +136,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           scrollContainerRef.current = node;
       }}
       data-testid="conversation-panel"
-      className="w-full md:w-[400px] h-full border border-[#525252] bg-[#25272D] rounded-lg overflow-y-auto absolute custom-scrollbar-always"
+      className="w-full h-full overflow-y-auto custom-scrollbar-always"
     >
       {isFetching && conversations.length === 0 && (
         <div className="space-y-2">
@@ -231,7 +237,7 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
       {confirmExitConversationModalVisible && (
         <ExitConversationModal
           onConfirm={() => {
-            onClose();
+            onClose?.();
           }}
           onClose={() => setConfirmExitConversationModalVisible(false)}
           onCancel={() => setConfirmExitConversationModalVisible(false)}

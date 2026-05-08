@@ -59,7 +59,7 @@ export const useUnifiedPauseConversation = () => {
       );
 
       if (currentConversationId === variables.conversationId) {
-        navigate("/");
+        navigate("/conversations");
       }
     },
   });

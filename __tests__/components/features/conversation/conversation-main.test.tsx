@@ -48,6 +48,25 @@ vi.mock(
   }),
 );
 
+// ConversationMain now renders the conversation name and tabs inline as the
+// pane headers; both reach into route/store state we don't set up here, so
+// stub them out for layout-stability tests.
+vi.mock(
+  "#/components/features/conversation/conversation-name-with-status",
+  () => ({
+    ConversationNameWithStatus: () => (
+      <div data-testid="conversation-name-with-status" />
+    ),
+  }),
+);
+
+vi.mock(
+  "#/components/features/conversation/conversation-tabs/conversation-tabs",
+  () => ({
+    ConversationTabs: () => <div data-testid="conversation-tabs" />,
+  }),
+);
+
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
 
 describe("ConversationMain - Layout Transition Stability", () => {

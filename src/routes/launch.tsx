@@ -164,7 +164,7 @@ export default function LaunchRoute() {
   };
 
   const handleGoHome = () => {
-    navigate("/");
+    navigate("/conversations");
   };
 
   const handleTryAgain = () => {

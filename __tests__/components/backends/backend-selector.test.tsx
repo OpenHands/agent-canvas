@@ -370,7 +370,7 @@ describe("BackendSelector", () => {
     }
     const RouterStub = createRoutesStub([
       { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/", Component: HomeRoute },
+      { path: "/conversations", Component: HomeRoute },
     ]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

@@ -19,6 +19,8 @@ interface DropdownProps {
   onChange?: (item: DropdownOption | null) => void;
   testId?: string;
   className?: string;
+  footer?: React.ReactNode;
+  openUpward?: boolean;
 }
 
 export function Dropdown({
@@ -32,6 +34,8 @@ export function Dropdown({
   onChange,
   testId,
   className,
+  footer,
+  openUpward = false,
 }: DropdownProps) {
   const [inputValue, setInputValue] = useState(defaultValue?.label ?? "");
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,6 +129,8 @@ export function Dropdown({
         emptyMessage={emptyMessage}
         getMenuProps={getMenuProps}
         getItemProps={getItemProps}
+        footer={footer}
+        openUpward={openUpward}
       />
     </div>
   );

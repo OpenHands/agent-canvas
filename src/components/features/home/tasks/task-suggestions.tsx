@@ -83,7 +83,7 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
               </Typography.Text>
 
               <NavigationLink
-                to="/settings/integrations"
+                to="/integrations"
                 className="w-fit hover:underline"
               >
                 <Typography.Text className="text-xs leading-4 text-[#FAFAFA] font-normal">

@@ -19,9 +19,7 @@ import { useIsAuthed } from "#/hooks/query/use-is-authed";
 import { ConversationSubscriptionsProvider } from "#/context/conversation-subscriptions-provider";
 
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
-import { ConversationNameWithStatus } from "#/components/features/conversation/conversation-name-with-status";
 
-import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
@@ -84,7 +82,7 @@ function AppContent() {
     // Handle conversation not found
     if (!conversation) {
       displayErrorToast(t(I18nKey.CONVERSATION$NOT_EXIST_OR_NO_PERMISSION));
-      navigate("/");
+      navigate("/conversations");
     }
   }, [conversation, isFetched, isAuthed, navigate, t]);
 
@@ -93,13 +91,8 @@ function AppContent() {
       <EventHandler>
         <div
           data-testid="app-route"
-          className="p-3 md:p-0 flex flex-col h-full gap-3"
+          className="flex flex-col h-full"
         >
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
-            <ConversationNameWithStatus />
-            <ConversationTabs />
-          </div>
-
           <ConversationMain />
         </div>
       </EventHandler>

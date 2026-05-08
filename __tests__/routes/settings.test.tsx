@@ -16,7 +16,7 @@ import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [
     { type: "item", item: OSS_NAV_ITEMS[0] },
-    { type: "item", item: OSS_NAV_ITEMS[6] },
+    { type: "item", item: OSS_NAV_ITEMS[4] },
   ],
 }));
 
@@ -82,20 +82,20 @@ describe("settings route", () => {
     expect(response.headers.get("Location")).toBe("/settings/mcp");
   });
 
-  it("redirects local-only settings paths to /settings when the active backend is cloud", async () => {
+  it("redirects /integrations to /conversations when the active backend is cloud", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    const getConfigSpy = vi.spyOn(OptionService, "getConfig");
 
-    const integrationsResponse = (await clientLoader({
-      request: new Request("http://localhost/settings/integrations"),
-      params: {},
-      context: {},
-    } as never)) as Response;
+    // Integrations is now a top-level route that owns its own cloud guard,
+    // not a sub-page of /settings.
+    const { clientLoader: integrationsLoader } = await import(
+      "#/routes/git-settings"
+    );
 
-    expect(integrationsResponse.status).toBe(302);
-    expect(integrationsResponse.headers.get("Location")).toBe("/settings");
-    expect(getConfigSpy).not.toHaveBeenCalled();
+    const response = integrationsLoader() as Response;
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/conversations");
   });
 
   it("renders the current OSS section title", () => {

@@ -3,7 +3,6 @@ import {
   useRouteError,
   isRouteErrorResponse,
   Outlet,
-  useLocation,
 } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
@@ -55,7 +54,6 @@ export function ErrorBoundary() {
 
 export default function MainApp() {
   const appTitle = useAppTitle();
-  const { pathname } = useLocation();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
@@ -96,7 +94,7 @@ export default function MainApp() {
         data-testid="root-layout"
         className={cn(
           "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-          pathname === "/" ? "p-0" : "p-0 md:p-3 md:pl-0",
+          "p-0 md:pr-3",
         )}
       >
         <title>{appTitle}</title>

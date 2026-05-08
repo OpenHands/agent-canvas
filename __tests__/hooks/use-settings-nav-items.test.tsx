@@ -113,12 +113,14 @@ describe("useSettingsNavItems", () => {
       .filter((item) => item.type === "item")
       .map((item) => (item.type === "item" ? item.item.to : null));
 
+    // Skills and Integrations are no longer rendered as settings sub-pages;
+    // they live as top-level routes in the sidebar instead.
     expect(paths).not.toContain("/settings/integrations");
+    expect(paths).not.toContain("/settings/skills");
     expect(paths).toContain("/settings");
     expect(paths).toContain("/settings/condenser");
     expect(paths).toContain("/settings/verification");
     expect(paths).toContain("/settings/mcp");
-    expect(paths).toContain("/settings/skills");
     expect(paths).toContain("/settings/secrets");
   });
 });

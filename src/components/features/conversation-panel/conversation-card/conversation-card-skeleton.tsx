@@ -4,7 +4,7 @@ export function ConversationCardSkeleton() {
   return (
     <div
       data-testid="conversation-card-skeleton"
-      className="relative h-auto w-full p-3.5 border-b border-neutral-600"
+      className="relative h-auto w-full px-3 py-2 border-b border-[#1f2228]"
     >
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2 w-full">
