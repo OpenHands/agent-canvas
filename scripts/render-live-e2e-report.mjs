@@ -62,6 +62,7 @@ function collectSpecs(suites, parents = []) {
           status: lastResult?.status ?? (spec.ok ? "passed" : "unknown"),
           durationMs: duration,
           retryCount: Math.max(0, results.length - 1),
+          attachments: collectAttachments(results),
           error: formatError(lastResult),
         });
       }
@@ -69,6 +70,18 @@ function collectSpecs(suites, parents = []) {
     specs.push(...collectSpecs(suite.suites, titles));
   }
   return specs;
+}
+
+function collectAttachments(results) {
+  return results.flatMap((result) =>
+    (result.attachments ?? [])
+      .filter((attachment) => attachment.path || attachment.name)
+      .map((attachment) => ({
+        name: attachment.name || "attachment",
+        contentType: attachment.contentType || "",
+        path: displayAttachmentPath(attachment.path || ""),
+      })),
+  );
 }
 
 function formatError(result) {
@@ -96,6 +109,21 @@ function escapeCell(value) {
   return sanitizeForComment(value)
     .replaceAll("|", "\\|")
     .replaceAll("\n", "<br>");
+}
+
+function escapeCodeCell(value) {
+  return escapeCell(value).replaceAll("`", "\\`");
+}
+
+function displayAttachmentPath(path) {
+  const normalizedPath = sanitizeForComment(path).replaceAll("\\", "/");
+  for (const anchor of ["test-results-live/", "playwright-report-live/"]) {
+    const index = normalizedPath.indexOf(anchor);
+    if (index >= 0) {
+      return normalizedPath.slice(index);
+    }
+  }
+  return normalizedPath;
 }
 
 function formatDuration(ms) {
@@ -180,11 +208,13 @@ function metadataLines(args) {
     lines.push(`- Commit: \`${sanitizeForComment(args.commit)}\``);
   }
   if (args.workflow_url) {
-    lines.push(`- Workflow run: [open run](${args.workflow_url})`);
+    lines.push(
+      `- Workflow run: [open run](${sanitizeForComment(args.workflow_url)})`,
+    );
   }
   if (args.artifact_url) {
     lines.push(
-      `- Artifacts: [Playwright report, videos, screenshots, traces](${args.artifact_url})`,
+      `- Artifacts: [Playwright report, videos, screenshots, traces](${sanitizeForComment(args.artifact_url)})`,
     );
   }
   if (args.timestamp) {
@@ -233,6 +263,116 @@ function failureDetails(specs) {
   return lines;
 }
 
+function attachmentRows(specs) {
+  return specs.flatMap((spec) =>
+    (spec.attachments ?? []).map((attachment) => ({
+      test: spec.title,
+      ...attachment,
+    })),
+  );
+}
+
+function isVideoAttachment(attachment) {
+  return (
+    attachment.contentType.startsWith("video/") ||
+    /\.(mp4|mov|webm)$/i.test(attachment.path)
+  );
+}
+
+function isImageAttachment(attachment) {
+  return (
+    attachment.contentType.startsWith("image/") ||
+    /\.(gif|jpe?g|png|svg)$/i.test(attachment.path)
+  );
+}
+
+function evidenceDetails(specs, args) {
+  const attachments = attachmentRows(specs);
+  const videos = attachments.filter(isVideoAttachment);
+  const images = attachments.filter(isImageAttachment);
+
+  if (
+    attachments.length === 0 &&
+    !args.artifact_url &&
+    !args.video_url &&
+    !args.screenshot_url
+  ) {
+    return [];
+  }
+
+  const lines = [
+    "",
+    "<details>",
+    "<summary>View Playwright video and artifacts</summary>",
+    "",
+  ];
+
+  if (args.video_url) {
+    lines.push(sanitizeForComment(args.video_url), "");
+  } else if (videos.length > 0) {
+    lines.push(`**Recorded video:** \`${videos[0].path}\``);
+    if (args.artifact_url) {
+      lines.push("");
+      lines.push(
+        "The Playwright video is inside the uploaded artifact. GitHub Actions artifacts are downloadable archives, so they are linked here instead of embedded inline.",
+      );
+    }
+    lines.push("");
+  }
+
+  if (args.screenshot_url) {
+    lines.push(
+      `![Live Agent response](${sanitizeForComment(args.screenshot_url)})`,
+      "",
+    );
+  } else if (images.length > 0) {
+    lines.push(`**Screenshot:** \`${images[0].path}\``, "");
+  }
+
+  if (args.artifact_url) {
+    lines.push(
+      `- Full artifact: [Playwright report, videos, screenshots, traces](${sanitizeForComment(args.artifact_url)})`,
+    );
+  }
+  lines.push(
+    "- HTML report path in artifact: `playwright-report-live/index.html`",
+  );
+  if (args.workflow_url) {
+    lines.push(
+      `- Workflow run: [open run](${sanitizeForComment(args.workflow_url)})`,
+    );
+  }
+  lines.push("");
+
+  if (attachments.length > 0) {
+    lines.push(
+      "| Test | Attachment | Type | Location |",
+      "|------|------------|------|----------|",
+    );
+    for (const attachment of attachments) {
+      lines.push(
+        `| ${escapeCell(attachment.test)} | ${escapeCell(
+          attachment.name,
+        )} | ${escapeCell(attachment.contentType || "--")} | \`${escapeCodeCell(
+          attachment.path || "--",
+        )}\` |`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (args.video_url) {
+    lines.push(
+      "<sub>Inline playback requires a GitHub-uploaded video URL or another raw video URL that GitHub markdown can render.</sub>",
+      "",
+    );
+  }
+
+  lines.push("</details>");
+  lines.push("");
+  return lines;
+}
+
 function buildReport(args) {
   const results = readJson(args.results);
   const status = inferOverallStatus(args.status, results?.stats);
@@ -276,6 +416,7 @@ function buildReport(args) {
   }
 
   lines.push(...testTable(summary.specs));
+  lines.push(...evidenceDetails(summary.specs, args));
   lines.push(...failureDetails(summary.specs));
 
   return lines.join("\n").trimEnd() + "\n";
