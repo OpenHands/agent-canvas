@@ -140,14 +140,32 @@ describe("groupEvents", () => {
     const events = [
       makeUserMessage("m1"),
       makeBashObservation("o1", "a1"),
+      makeUserMessage("m2"),
+    ];
+
+    // 1 < EVENT_GROUP_MIN_SIZE (2), so the lone observation stays a single.
+    const result = groupEvents(events);
+    expect(result.every((item) => item.kind === "single")).toBe(true);
+    expect(result).toHaveLength(3);
+  });
+
+  it("groups even a pair of consecutive actions", () => {
+    const events = [
+      makeUserMessage("m1"),
+      makeBashObservation("o1", "a1"),
       makeBashObservation("o2", "a2"),
       makeUserMessage("m2"),
     ];
 
-    // 2 < EVENT_GROUP_MIN_SIZE (3), so the pair stays as singles.
+    // 2 == EVENT_GROUP_MIN_SIZE (2), so the pair folds into a group.
     const result = groupEvents(events);
-    expect(result.every((item) => item.kind === "single")).toBe(true);
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({ kind: "single", index: 0 });
+    expect(result[1]).toMatchObject({ kind: "group", startIndex: 1 });
+    if (result[1].kind === "group") {
+      expect(result[1].events).toHaveLength(2);
+    }
+    expect(result[2]).toMatchObject({ kind: "single", index: 3 });
   });
 
   it("groups runs of >= EVENT_GROUP_MIN_SIZE events", () => {
@@ -269,11 +287,10 @@ describe("groupEvents", () => {
 
     const result = groupEvents(events);
 
-    // a1 and a2 fall short of the min group size, so they emit as singles;
-    // the thought item is hoisted out before a3, leaving a3 as a single too.
+    // a1 + a2 group together (>= min size of 2), then the thought is hoisted
+    // out before a3, leaving a3 as a single.
     expect(result.map((item) => item.kind)).toEqual([
-      "single",
-      "single",
+      "group",
       "thought",
       "single",
     ]);

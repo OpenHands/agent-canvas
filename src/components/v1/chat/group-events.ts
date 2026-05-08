@@ -7,9 +7,9 @@ import {
 import { getThoughtSourceAction } from "./event-thought-helpers";
 
 /** Minimum run-length before consecutive actions get folded into a single
- *  collapsible group. Pairs are left ungrouped so short interactions still
- *  render the way they did before. */
-export const EVENT_GROUP_MIN_SIZE = 3;
+ *  collapsible group. Even pairs are folded so the chat scroll stays compact
+ *  when the agent fires off back-to-back tool calls. */
+export const EVENT_GROUP_MIN_SIZE = 2;
 
 /**
  * Returns true if the given event is one of the action / observation cards
