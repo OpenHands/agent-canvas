@@ -46,11 +46,25 @@ const createTitleFromKey = (
   );
 };
 
+/**
+ * Detects the agent-server's default summary fallback, which has the shape
+ * `{tool_name}: {json-args}` (see `_extract_summary` in
+ * `openhands/sdk/agent/agent.py`). When the LLM omits a summary the server
+ * dumps the raw arguments JSON, which renders as a huge unreadable blob in
+ * the chat. Treat that case as "no summary" so the action-kind specific
+ * title (e.g. "Editing <path>", "Running <cmd>") is used instead.
+ */
+const isServerFallbackSummary = (summary: string): boolean =>
+  /^[a-z][a-z0-9_]*\s*:\s*[[{]/i.test(summary);
+
 const getSummaryTitleForActionEvent = (
   event: ActionEvent,
 ): React.ReactNode | null => {
   const summary = event.summary?.trim().replace(/\s+/g, " ") || "";
-  return summary || null;
+  if (!summary || isServerFallbackSummary(summary)) {
+    return null;
+  }
+  return summary;
 };
 
 // Action Event Processing
