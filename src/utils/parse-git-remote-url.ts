@@ -39,6 +39,24 @@ function normalizeAzureDevOpsPath(path: string): string {
   );
 }
 
+function buildParsedGitRemoteUrl(
+  url: string,
+  host: string | null,
+  rawPath: string,
+): ParsedGitRemoteUrl {
+  const path = stripGitSuffix(rawPath.replace(/^\/+/, ""));
+  const provider = detectProvider(host);
+  const repository =
+    provider === "azure_devops" ? normalizeAzureDevOpsPath(path) : path;
+
+  return {
+    url,
+    host,
+    repository: repository || null,
+    provider,
+  };
+}
+
 /**
  * Parse a git remote URL (HTTPS, SSH, or `git@host:path` shorthand) into its
  * host, repository (`owner/repo`), and best-effort provider.
@@ -56,33 +74,13 @@ export function parseGitRemoteUrl(
   const scpMatch = url.match(/^[^@\s]+@([^:\s]+):(.+)$/);
   if (scpMatch) {
     const host = scpMatch[1];
-    const path = stripGitSuffix(scpMatch[2].replace(/^\/+/, ""));
-    const provider = detectProvider(host);
-    const repository =
-      provider === "azure_devops" ? normalizeAzureDevOpsPath(path) : path;
-    return {
-      url,
-      host,
-      repository: repository || null,
-      provider,
-    };
+    return buildParsedGitRemoteUrl(url, host, scpMatch[2]);
   }
 
   // ssh://, https://, http://, git://
   try {
     const parsed = new URL(url);
-    const host = parsed.hostname || null;
-    const rawPath = parsed.pathname.replace(/^\/+/, "");
-    const path = stripGitSuffix(rawPath);
-    const provider = detectProvider(host);
-    const repository =
-      provider === "azure_devops" ? normalizeAzureDevOpsPath(path) : path;
-    return {
-      url,
-      host,
-      repository: repository || null,
-      provider,
-    };
+    return buildParsedGitRemoteUrl(url, parsed.hostname || null, parsed.pathname);
   } catch {
     return null;
   }
