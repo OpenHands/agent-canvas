@@ -6,6 +6,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to comment on when running manually.
+        required: false
+        default: ""
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -44,10 +49,17 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'live-e2e')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
     env:
       LIVE_E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LIVE_E2E_LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
       LIVE_E2E_LLM_MODEL: ${{ vars.LIVE_E2E_LLM_MODEL || 'litellm_proxy/claude-haiku-4-5-20251001' }}
+      LIVE_E2E_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
+      LIVE_E2E_REPORT_PATH: live-e2e-report.md
+      LIVE_E2E_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      LIVE_E2E_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Check out repository
@@ -58,6 +70,22 @@ jobs:
         with:
           node-version: 22.12.0
           cache: npm
+
+      - name: Create live E2E PR comment
+        if: env.LIVE_E2E_PR_NUMBER != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/render-live-e2e-report.mjs \
+            --status running \
+            --model "$LIVE_E2E_LLM_MODEL" \
+            --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
+            --commit "$LIVE_E2E_COMMIT_SHA" \
+            --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
+            --output "$LIVE_E2E_REPORT_PATH"
+          node scripts/upsert-pr-comment.mjs \
+            --issue-number "$LIVE_E2E_PR_NUMBER" \
+            --body-file "$LIVE_E2E_REPORT_PATH"
 
       - name: Install dependencies
         run: npm ci
@@ -73,14 +101,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run live Agent Server E2E
+        id: live_test
         if: env.LIVE_E2E_LLM_API_KEY != ''
-        run: npm run test:e2e:live
+        run: |
+          set +e
+          npm run test:e2e:live
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Skip live Agent Server E2E
         if: env.LIVE_E2E_LLM_API_KEY == ''
         run: echo "Skipping live Agent Server E2E because LLM_API_KEY is not configured."
 
       - name: Upload live E2E artifacts
+        id: upload_live_artifacts
         if: always() && env.LIVE_E2E_LLM_API_KEY != ''
         uses: actions/upload-artifact@v6
         with:
@@ -89,3 +124,59 @@ jobs:
           path: |
             playwright-report-live/
             test-results-live/
+
+      - name: Determine live E2E result
+        id: live_status
+        if: always()
+        run: |
+          if [ -z "$LIVE_E2E_LLM_API_KEY" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "reason=LLM_API_KEY is not configured." >> "$GITHUB_OUTPUT"
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          exit_code="${{ steps.live_test.outputs.exit_code }}"
+          if [ -z "$exit_code" ]; then
+            exit_code=1
+          fi
+
+          if [ "$exit_code" = "0" ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+          echo "reason=" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Render live E2E report
+        if: always()
+        env:
+          LIVE_E2E_ARTIFACT_URL: ${{ steps.upload_live_artifacts.outputs.artifact-url || '' }}
+          LIVE_E2E_STATUS: ${{ steps.live_status.outputs.status }}
+          LIVE_E2E_REASON: ${{ steps.live_status.outputs.reason }}
+        run: |
+          node scripts/render-live-e2e-report.mjs \
+            --status "$LIVE_E2E_STATUS" \
+            --reason "$LIVE_E2E_REASON" \
+            --results "test-results-live/results.json" \
+            --model "$LIVE_E2E_LLM_MODEL" \
+            --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
+            --artifact-url "$LIVE_E2E_ARTIFACT_URL" \
+            --commit "$LIVE_E2E_COMMIT_SHA" \
+            --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
+            --output "$LIVE_E2E_REPORT_PATH"
+          cat "$LIVE_E2E_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update live E2E PR comment
+        if: always() && env.LIVE_E2E_PR_NUMBER != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/upsert-pr-comment.mjs \
+            --issue-number "$LIVE_E2E_PR_NUMBER" \
+            --body-file "$LIVE_E2E_REPORT_PATH"
+
+      - name: Fail live E2E job when tests fail
+        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        run: exit "${{ steps.live_status.outputs.exit_code }}"

@@ -10,6 +10,7 @@ export default defineConfig({
   timeout: 180_000,
   reporter: [
     ["line"],
+    ["json", { outputFile: "test-results-live/results.json" }],
     ["html", { outputFolder: "playwright-report-live", open: "never" }],
   ],
   outputDir: "test-results-live",
