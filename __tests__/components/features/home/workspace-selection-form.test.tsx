@@ -101,6 +101,26 @@ describe("WorkspaceSelectionForm", () => {
     // Both workspaces are visible in the list
     expect(screen.getByTestId("workspace-item-repo1")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-item-repo2")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-item-repo1")).toHaveAttribute(
+      "title",
+      "repo1\n/Users/me/dev/repo1",
+    );
+    expect(screen.getByTestId("workspace-item-repo1")).toHaveTextContent(
+      "repo1",
+    );
+    expect(screen.getByTestId("workspace-item-repo1")).toHaveTextContent(
+      "HOME$LOCAL_FOLDER_TOOLTIP",
+    );
+    expect(screen.getByTestId("workspace-item-repo1")).toHaveTextContent(
+      "/Users/me/dev/repo1",
+    );
+    expect(
+      screen.getByTestId("workspace-item-repo1"),
+    ).not.toHaveTextContent("HOME$LOCAL_FOLDER_TOOLTIP ·");
+    expect(screen.getByText("/Users/me/dev/repo1")).toHaveAttribute(
+      "title",
+      "/Users/me/dev/repo1",
+    );
 
     // Click repo2 to launch
     await user.click(screen.getByTestId("workspace-item-repo2"));

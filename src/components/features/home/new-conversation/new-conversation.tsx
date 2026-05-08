@@ -10,7 +10,7 @@ export function NewConversation() {
   const { t } = useTranslation("openhands");
 
   return (
-    <Card className="flex-col p-5 gap-2.5 min-h-[286px] md:min-h-auto w-full">
+    <Card className="flex-col p-5 gap-2.5 min-h-[286px] md:min-h-auto w-full min-w-0 md:flex-1 md:basis-0">
       <CardTitle icon={<PlusIcon width={17} height={14} />}>
         {t(I18nKey.COMMON$START_FROM_SCRATCH)}
       </CardTitle>

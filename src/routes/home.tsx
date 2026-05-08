@@ -23,7 +23,7 @@ function HomeScreen() {
 
       <div className="pt-[25px] flex justify-center">
         <div
-          className="flex flex-col gap-5 px-6 sm:max-w-full sm:min-w-full md:flex-row lg:px-0 lg:max-w-[703px] lg:min-w-[703px]"
+          className="flex flex-col gap-5 px-6 sm:max-w-full sm:min-w-full md:flex-row lg:px-0 lg:max-w-[880px] lg:min-w-[880px]"
           data-testid="home-screen-new-conversation-section"
         >
           <RepoConnector onRepoSelection={(repo) => setSelectedRepo(repo)} />
@@ -33,7 +33,7 @@ function HomeScreen() {
 
       <div className="pt-4 flex sm:justify-start md:justify-center">
         <div
-          className="flex flex-col gap-5 px-6 md:flex-row min-w-full md:max-w-full lg:px-0 lg:max-w-[703px] lg:min-w-[703px]"
+          className="flex flex-col gap-5 px-6 md:flex-row min-w-full md:max-w-full lg:px-0 lg:max-w-[880px] lg:min-w-[880px]"
           data-testid="home-screen-recent-conversations-section"
         >
           <RecentConversations />

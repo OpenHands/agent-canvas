@@ -49,7 +49,7 @@ export function WorkspaceSelectionForm({
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col w-full max-w-[500px]">
       {workspaces.length === 0 ? (
         <p className="text-sm text-[#A3A3A3] py-4">
           {t(I18nKey.HOME$NO_WORKSPACES)}
@@ -77,7 +77,7 @@ export function WorkspaceSelectionForm({
                     onClick={() => handleLaunch(ws)}
                     disabled={isCreatingConversation || isLoadingSettings}
                     className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer disabled:cursor-not-allowed text-left"
-                    title={ws.path}
+                    title={`${ws.name}\n${ws.path}`}
                   >
                     <FolderIcon
                       width={18}
@@ -85,11 +85,20 @@ export function WorkspaceSelectionForm({
                       className="shrink-0 text-[#A3A3A3]"
                     />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm text-white truncate">
+                      <span
+                        className="text-sm text-white truncate"
+                        title={ws.name}
+                      >
                         {ws.name}
                       </span>
-                      <span className="text-xs text-[#71767F] truncate">
-                        {t(I18nKey.HOME$LOCAL_FOLDER_TOOLTIP)} · {ws.path}
+                      <span className="text-[11px] text-[#71767F]">
+                        {t(I18nKey.HOME$LOCAL_FOLDER_TOOLTIP)}
+                      </span>
+                      <span
+                        className="text-xs text-[#A3A3A3] truncate"
+                        title={ws.path}
+                      >
+                        {ws.path}
                       </span>
                     </div>
                   </button>

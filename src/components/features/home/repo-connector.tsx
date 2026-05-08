@@ -12,7 +12,7 @@ export function RepoConnector({ onRepoSelection }: RepoConnectorProps) {
   return (
     <section
       data-testid="repo-connector"
-      className="w-full flex flex-col gap-6 rounded-[12px] p-[20px] border border-[#727987] bg-[#26282D] min-h-[263.5px] relative"
+      className="w-full min-w-0 md:flex-1 md:basis-0 flex flex-col gap-6 rounded-[12px] p-[20px] border border-[#727987] bg-[#26282D] min-h-[263.5px] relative"
     >
       <LaunchTabs
         onRepoSelection={onRepoSelection}
