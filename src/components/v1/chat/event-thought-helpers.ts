@@ -36,8 +36,7 @@ export const getThoughtSourceAction = (
 
   if (isObservationEvent(event)) {
     const action = allEvents.find(
-      (e): e is ActionEvent =>
-        isActionEvent(e) && e.id === event.action_id,
+      (e): e is ActionEvent => isActionEvent(e) && e.id === event.action_id,
     );
     if (!action) return null;
     if (action.action.kind === "ThinkAction") return null;

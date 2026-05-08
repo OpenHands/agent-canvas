@@ -85,10 +85,7 @@ export function EventGroup({ events, children }: EventGroupProps) {
       </button>
 
       {expanded && (
-        <div
-          className="mt-2 flex flex-col"
-          data-testid="event-group-content"
-        >
+        <div className="mt-2 flex flex-col" data-testid="event-group-content">
           <IsInEventGroupContext.Provider value>
             {children}
           </IsInEventGroupContext.Provider>

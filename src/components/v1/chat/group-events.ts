@@ -21,7 +21,7 @@ export const EVENT_GROUP_MIN_SIZE = 2;
  */
 export const isGroupableEvent = (event: OpenHandsEvent): boolean => {
   if (isActionEvent(event)) {
-    const kind = event.action.kind;
+    const { kind } = event.action;
     if (kind === "FinishAction" || kind === "ThinkAction") {
       return false;
     }
