@@ -461,24 +461,6 @@ export function buildStartConversationRequest(
     const backend = getEffectiveLocalBackend();
     const headers = buildAuthHeaders(backend);
 
-    /* eslint-disable no-console */
-    console.log("[LookupSecret debug] customSecrets =", options.customSecrets);
-    console.log("[LookupSecret debug] backend =", backend);
-    console.log(
-      "[LookupSecret debug] backend.apiKey length =",
-      backend.apiKey?.length ?? 0,
-    );
-    console.log("[LookupSecret debug] buildAuthHeaders(backend) =", headers);
-    try {
-      const rawBackends = window.localStorage.getItem("openhands-backends");
-      const rawActive = window.localStorage.getItem("openhands-active-backend");
-      console.log("[LookupSecret debug] localStorage openhands-backends =", rawBackends);
-      console.log("[LookupSecret debug] localStorage openhands-active-backend =", rawActive);
-    } catch (e) {
-      console.log("[LookupSecret debug] localStorage read failed:", e);
-    }
-    /* eslint-enable no-console */
-
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {
       const lookupSecret: LookupSecret = {
@@ -491,21 +473,10 @@ export function buildStartConversationRequest(
         lookupSecret.headers = headers;
       }
 
-      // eslint-disable-next-line no-console
-      console.log(
-        `[LookupSecret debug] built ${secret.name} =`,
-        JSON.parse(JSON.stringify(lookupSecret)),
-      );
-
       secrets[secret.name] = lookupSecret;
     }
 
     payload.secrets = secrets;
-    // eslint-disable-next-line no-console
-    console.log(
-      "[LookupSecret debug] final payload.secrets =",
-      JSON.parse(JSON.stringify(secrets)),
-    );
   }
 
   return payload;
