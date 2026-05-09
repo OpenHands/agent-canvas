@@ -19,14 +19,10 @@ interface UseResolvedWorkspacesResult {
  * surface its immediate subdirectories as workspaces automatically.
  *
  * In environments where `/projects` doesn't exist (e.g. dockerless dev),
- * `searchSubdirs` simply errors and contributes no entries -- the implicit
- * parent stays silent rather than user-visible, which is safe.
- * In environments where `/projects` doesn't exist (e.g. dockerless dev),
  * the `searchSubdirs` call will fail and the implicit parent contributes
  * no entries. This is safe and intentional — the implicit parent stays
  * silent rather than user-visible.
-*/
-
+ */
 const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
 ];
@@ -50,10 +46,8 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
   // user-added `/projects` doesn't trigger a second query.
   const workspaceParents = useMemo(() => {
     const seen = new Set(storedParents.map((p) => p.path));
-  const workspaceParents = useMemo(() => {
-    const seen = new Set(storedParents.map((p) => p.path));
     // Filter out implicit parents that conflict with user-added ones (by path)
-    // so custom names/ids are preserved
+    // so custom names/ids are preserved.
     const extras = IMPLICIT_WORKSPACE_PARENTS.filter((p) => !seen.has(p.path));
     return extras.length === 0 ? storedParents : [...storedParents, ...extras];
   }, [storedParents]);

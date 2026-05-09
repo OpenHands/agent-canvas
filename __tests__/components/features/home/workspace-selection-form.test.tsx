@@ -226,6 +226,46 @@ describe("WorkspaceSelectionForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Implicit /projects parent surfaces workspaces automatically", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockImplementation(async (path: string) => {
+        if (path === "/projects") {
+          return {
+            items: [
+              { name: "agent-canvas", path: "/projects/agent-canvas" },
+              { name: "sdk", path: "/projects/sdk" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    const dropdownMenu = await screen.findByTestId("workspace-dropdown-menu");
+    await within(dropdownMenu).findByText("agent-canvas");
+    await within(dropdownMenu).findByText("sdk");
+
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
+  it("A stored /projects parent suppresses the implicit duplicate query", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockResolvedValue({ items: [], next_page_id: null });
+
+    renderForm([], [
+      { id: "custom-projects", name: "My Projects", path: "/projects" },
+    ]);
+
+    await waitFor(() => expect(searchSpy).toHaveBeenCalledTimes(1));
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
   it("Launch creates a v1 conversation with the selected workspace path as working_dir", async () => {
     const workspaces: LocalWorkspace[] = [
       { id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" },
