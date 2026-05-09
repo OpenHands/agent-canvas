@@ -44,11 +44,7 @@ export const createMockWebClientConfig = (
   posthog_client_key: "test-posthog-key",
   feature_flags: {
     hide_llm_settings: false,
-    enable_jira: false,
-    enable_jira_dc: false,
-    enable_linear: false,
     hide_users_page: false,
-    hide_integrations_page: false,
     ...overrides.feature_flags,
   },
   providers_configured: [],
@@ -312,7 +308,7 @@ export const resetTestHandlersMockSettings = () => {
   MOCK_USER_PREFERENCES.settings = structuredClone(MOCK_DEFAULT_USER_SETTINGS);
 };
 
-// Mock model data used by both V0 and V1 endpoints
+// Mock model data used by provider/model endpoints
 const MOCK_MODELS = [
   "anthropic/claude-3.5",
   "anthropic/claude-sonnet-4-20250514",
@@ -378,6 +374,12 @@ export const SETTINGS_HANDLERS = [
       uptime: 0,
       idle_time: 0,
       version: "1.18.1",
+      usable_tools: [
+        "terminal",
+        "file_editor",
+        "task_tracker",
+        "browser_tool_set",
+      ],
       agents: ["CodeActAgent"],
       default_agent: "CodeActAgent",
       models: MOCK_MODELS,
@@ -481,11 +483,7 @@ export const SETTINGS_HANDLERS = [
       posthog_client_key: "fake-posthog-client-key",
       feature_flags: {
         hide_llm_settings: false,
-        enable_jira: false,
-        enable_jira_dc: false,
-        enable_linear: false,
         hide_users_page: false,
-        hide_integrations_page: false,
       },
       providers_configured: [],
       maintenance_start_time: null,
@@ -651,7 +649,7 @@ export const SETTINGS_HANDLERS = [
       if ("agent_settings" in body || "conversation_settings" in body) {
         return HttpResponse.json(
           {
-            error: "Use *_diff nested settings payloads instead of legacy keys",
+            error: "Use *_diff nested settings payloads",
             keys: ["agent_settings", "conversation_settings"].filter(
               (key) => key in body,
             ),

@@ -6,7 +6,7 @@ import { HookEventItem } from "#/components/features/conversation-panel/hook-eve
 import { HooksEmptyState } from "#/components/features/conversation-panel/hooks-empty-state";
 import { HooksLoadingState } from "#/components/features/conversation-panel/hooks-loading-state";
 import { HooksModalHeader } from "#/components/features/conversation-panel/hooks-modal-header";
-import { HookEvent } from "#/api/conversation-service/v1-conversation-service.types";
+import { HookEvent } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 // Mock react-i18next
 vi.mock("react-i18next", async () => {

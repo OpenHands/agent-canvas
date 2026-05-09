@@ -2,8 +2,9 @@ import React from "react";
 import ArrowDown from "#/icons/angle-down-solid.svg?react";
 import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { SuccessIndicator } from "./success-indicator";
-import { ObservationResultStatus } from "./event-content-helpers/get-observation-result";
+import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
+import { IsInEventGroupContext } from "./is-in-event-group-context";
 
 interface GenericEventMessageProps {
   title: React.ReactNode;
@@ -25,6 +26,7 @@ export function GenericEventMessage({
   titleTrailing,
 }: GenericEventMessageProps) {
   const [showDetails, setShowDetails] = React.useState(initiallyExpanded);
+  const isInEventGroup = React.useContext(IsInEventGroupContext);
 
   const chevron = details ? (
     <button
@@ -50,11 +52,21 @@ export function GenericEventMessage({
   ) : null;
 
   return (
-    <div className="flex flex-col gap-2 border-l-2 pl-2 my-2 py-2 border-neutral-300 text-sm w-full">
+    <div
+      className={
+        isInEventGroup
+          ? "flex flex-col gap-2 my-2 py-2 text-sm w-full"
+          : "flex flex-col gap-2 border-l-2 pl-2 my-2 py-2 border-neutral-300 text-sm w-full"
+      }
+    >
       <div className="flex items-center justify-between font-bold text-neutral-300">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}
-          {title}
+          {/* Wrap the title in a span so any whitespace inside Trans-rendered
+              fragments (e.g. "Editing <path>...</path>") is preserved by
+              normal inline flow instead of being collapsed between
+              anonymous flex items. */}
+          <span>{title}</span>
           {chevronPosition === "after" && chevron}
         </div>
 

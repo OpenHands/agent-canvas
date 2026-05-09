@@ -8,6 +8,7 @@ import {
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
   saveAgentServerConfig,
+  shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
@@ -87,5 +88,23 @@ describe("agent server config", () => {
     });
     expect(getAgentServerBaseUrl()).toBe("https://saved-agent.example.com");
     expect(getAgentServerSessionApiKey()).toBe("saved-session-key");
+  });
+
+  it("does not load public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset", () => {
+    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
+
+    expect(shouldLoadPublicSkills()).toBe(false);
+  });
+
+  it("loads public skills only when VITE_LOAD_PUBLIC_SKILLS is explicitly 'true'", () => {
+    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "true");
+
+    expect(shouldLoadPublicSkills()).toBe(true);
+  });
+
+  it("does not load public skills for any non-'true' value of VITE_LOAD_PUBLIC_SKILLS", () => {
+    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
+
+    expect(shouldLoadPublicSkills()).toBe(false);
   });
 });

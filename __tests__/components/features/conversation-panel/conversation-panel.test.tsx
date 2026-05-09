@@ -1,13 +1,22 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub } from "react-router";
 import React from "react";
 import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
-import { V1ExecutionStatus } from "#/types/v1/core";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 // Mock the unified stop conversation hook
 const mockStopConversationMutate = vi.fn();
@@ -17,17 +26,20 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
   }),
 }));
 
-
-// Helper to create complete V1AppConversation mock data
-const createMockConversation = (overrides: Partial<V1AppConversation> = {}): V1AppConversation => ({
+// Helper to create complete AppConversation mock data
+// Default timestamps use "now" so conversations are considered recent and
+// rendered eagerly by the panel (which hides items older than ~1h by default).
+const createMockConversation = (
+  overrides: Partial<AppConversation> = {},
+): AppConversation => ({
   id: "test-id",
   title: "Test Conversation",
   selected_repository: null,
   git_provider: null,
   selected_branch: null,
-  updated_at: "2021-10-01T12:00:00Z",
-  created_at: "2021-10-01T12:00:00Z",
-  execution_status: V1ExecutionStatus.FINISHED,
+  updated_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  execution_status: ExecutionStatus.FINISHED,
   conversation_url: null,
   created_by_user_id: "user1",
   metrics: null,
@@ -61,7 +73,9 @@ describe("ConversationPanel", () => {
     },
   ]);
 
-  const renderConversationPanel = () => renderWithProviders(<RouterStub />);
+  const renderConversationPanel = (
+    options?: Parameters<typeof renderWithProviders>[1],
+  ) => renderWithProviders(<RouterStub />, options);
 
   beforeAll(() => {
     vi.mock("react-router", async (importOriginal) => ({
@@ -73,20 +87,27 @@ describe("ConversationPanel", () => {
     }));
   });
 
-  const mockConversations: V1AppConversation[] = [
-    createMockConversation({ id: "1", title: "Conversation 1", updated_at: "2021-10-01T12:00:00Z" }),
-    createMockConversation({ id: "2", title: "Conversation 2", updated_at: "2021-10-02T12:00:00Z" }),
-    createMockConversation({ id: "3", title: "Conversation 3", updated_at: "2021-10-03T12:00:00Z" }),
+  const mockConversations: AppConversation[] = [
+    createMockConversation({ id: "1", title: "Conversation 1" }),
+    createMockConversation({ id: "2", title: "Conversation 2" }),
+    createMockConversation({ id: "3", title: "Conversation 3" }),
   ];
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockStopConversationMutate.mockClear();
-    // Setup default mock for V1 searchConversations
-    vi.spyOn(V1ConversationService, "searchConversations").mockResolvedValue({
+    // Setup default mock for searchConversations
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
       items: [...mockConversations],
       next_page_id: null,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("should render the conversations", async () => {
@@ -100,7 +121,7 @@ describe("ConversationPanel", () => {
 
   it("should display an empty state when there are no conversations", async () => {
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -116,7 +137,7 @@ describe("ConversationPanel", () => {
 
   it("should handle an error when fetching conversations", async () => {
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockRejectedValue(
@@ -165,14 +186,14 @@ describe("ConversationPanel", () => {
 
   it("should delete a conversation", async () => {
     const user = userEvent.setup();
-    const mockData: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Conversation 1", updated_at: "2021-10-01T12:00:00Z" }),
-      createMockConversation({ id: "2", title: "Conversation 2", updated_at: "2021-10-02T12:00:00Z" }),
-      createMockConversation({ id: "3", title: "Conversation 3", updated_at: "2021-10-03T12:00:00Z" }),
+    const mockData: AppConversation[] = [
+      createMockConversation({ id: "1", title: "Conversation 1" }),
+      createMockConversation({ id: "2", title: "Conversation 2" }),
+      createMockConversation({ id: "3", title: "Conversation 3" }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockImplementation(async () => ({
@@ -181,7 +202,7 @@ describe("ConversationPanel", () => {
     }));
 
     const deleteConversationSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "deleteConversation",
     );
     deleteConversationSpy.mockImplementation(async (id: string) => {
@@ -228,7 +249,7 @@ describe("ConversationPanel", () => {
   it("should refetch data on rerenders", async () => {
     const user = userEvent.setup();
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -273,18 +294,103 @@ describe("ConversationPanel", () => {
     expect(newCards).toHaveLength(3);
   });
 
+  it("keeps invalid timestamps recent and only shows load more after expanding older conversations", async () => {
+    const now = Date.now();
+    const minutesAgo = (minutes: number) =>
+      new Date(now - minutes * 60 * 1000).toISOString();
+
+    const user = userEvent.setup();
+    const searchConversationsSpy = vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    );
+    searchConversationsSpy.mockReset();
+    searchConversationsSpy
+      .mockResolvedValueOnce({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent Conversation",
+            updated_at: minutesAgo(59),
+          }),
+          createMockConversation({
+            id: "invalid",
+            title: "Invalid Timestamp",
+            updated_at: "invalid-date",
+          }),
+          createMockConversation({
+            id: "missing",
+            title: "Missing Timestamp",
+            updated_at: undefined as unknown as string,
+          }),
+          createMockConversation({
+            id: "older",
+            title: "Older Conversation",
+            updated_at: minutesAgo(61),
+          }),
+        ],
+        next_page_id: "page-2",
+      })
+      .mockResolvedValueOnce({
+        items: [
+          createMockConversation({
+            id: "paged",
+            title: "Paged Conversation",
+            updated_at: minutesAgo(30),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+    renderConversationPanel();
+
+    expect(await screen.findByText("Recent Conversation")).toBeInTheDocument();
+    expect(screen.getByText("Invalid Timestamp")).toBeInTheDocument();
+    expect(screen.getByText("Missing Timestamp")).toBeInTheDocument();
+    expect(screen.queryByText("Older Conversation")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("older-conversations-summary"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("load-more-conversations"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("toggle-older-conversations"));
+
+    expect(await screen.findByText("Older Conversation")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("load-more-conversations"));
+
+    await waitFor(() => {
+      expect(searchConversationsSpy).toHaveBeenCalledWith(20, "page-2");
+    });
+    expect(await screen.findByText("Paged Conversation")).toBeInTheDocument();
+  });
+
   it("should cancel stopping a conversation", async () => {
     const user = userEvent.setup();
 
     // Create mock data with a RUNNING conversation
-    const mockRunningConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockRunningConversations: AppConversation[] = [
+      createMockConversation({
+        id: "1",
+        title: "Running Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "2",
+        title: "Starting Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "3",
+        title: "Stopped Conversation",
+        execution_status: ExecutionStatus.PAUSED,
+      }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -324,14 +430,26 @@ describe("ConversationPanel", () => {
   it("should stop a conversation", async () => {
     const user = userEvent.setup();
 
-    const mockData: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Conversation 1", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Conversation 2", execution_status: V1ExecutionStatus.FINISHED }),
-      createMockConversation({ id: "3", title: "Conversation 3", execution_status: V1ExecutionStatus.FINISHED }),
+    const mockData: AppConversation[] = [
+      createMockConversation({
+        id: "1",
+        title: "Conversation 1",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "2",
+        title: "Conversation 2",
+        execution_status: ExecutionStatus.FINISHED,
+      }),
+      createMockConversation({
+        id: "3",
+        title: "Conversation 3",
+        execution_status: ExecutionStatus.FINISHED,
+      }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockImplementation(async () => ({
@@ -372,14 +490,26 @@ describe("ConversationPanel", () => {
   it("should only show stop button for STARTING or RUNNING conversations", async () => {
     const user = userEvent.setup();
 
-    const mockMixedStatusConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockMixedStatusConversations: AppConversation[] = [
+      createMockConversation({
+        id: "1",
+        title: "Running Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "2",
+        title: "Starting Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "3",
+        title: "Stopped Conversation",
+        execution_status: ExecutionStatus.PAUSED,
+      }),
     ];
 
     const searchConversationsSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "searchConversations",
     );
     searchConversationsSpy.mockResolvedValue({
@@ -489,10 +619,12 @@ describe("ConversationPanel", () => {
 
     // Mock the updateConversationTitle API call
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -514,17 +646,22 @@ describe("ConversationPanel", () => {
     await user.tab();
 
     // Verify API call was made with correct parameters
-    expect(updateConversationTitleSpy).toHaveBeenCalledWith("1", "Updated Title");
+    expect(updateConversationTitleSpy).toHaveBeenCalledWith(
+      "1",
+      "Updated Title",
+    );
   });
 
   it("should save title when Enter key is pressed", async () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -544,17 +681,22 @@ describe("ConversationPanel", () => {
     await user.keyboard("{Enter}");
 
     // Verify API call was made
-    expect(updateConversationTitleSpy).toHaveBeenCalledWith("1", "Title Updated via Enter");
+    expect(updateConversationTitleSpy).toHaveBeenCalledWith(
+      "1",
+      "Title Updated via Enter",
+    );
   });
 
   it("should trim whitespace from title", async () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -574,17 +716,22 @@ describe("ConversationPanel", () => {
     await user.tab();
 
     // Verify API call was made with trimmed title
-    expect(updateConversationTitleSpy).toHaveBeenCalledWith("1", "Trimmed Title");
+    expect(updateConversationTitleSpy).toHaveBeenCalledWith(
+      "1",
+      "Trimmed Title",
+    );
   });
 
   it("should revert to original title when empty", async () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -610,11 +757,11 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
     updateConversationTitleSpy.mockRejectedValue(new Error("API Error"));
-      // Provide return type for mock
+    // Provide return type for mock
 
     renderConversationPanel();
 
@@ -634,7 +781,10 @@ describe("ConversationPanel", () => {
     await user.tab();
 
     // Verify API call was made
-    expect(updateConversationTitleSpy).toHaveBeenCalledWith("1", "Failed Update");
+    expect(updateConversationTitleSpy).toHaveBeenCalledWith(
+      "1",
+      "Failed Update",
+    );
 
     // Wait for error handling
     await waitFor(() => {
@@ -675,10 +825,12 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -704,10 +856,12 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     const updateConversationTitleSpy = vi.spyOn(
-      V1ConversationService,
+      AgentServerConversationService,
       "updateConversationTitle",
     );
-    updateConversationTitleSpy.mockResolvedValue(createMockConversation({ id: "1", title: "Updated Title" }));
+    updateConversationTitleSpy.mockResolvedValue(
+      createMockConversation({ id: "1", title: "Updated Title" }),
+    );
 
     renderConversationPanel();
 
@@ -727,7 +881,10 @@ describe("ConversationPanel", () => {
     await user.tab();
 
     // Verify API call was made with special characters
-    expect(updateConversationTitleSpy).toHaveBeenCalledWith("1", "Special @#$%^&*()_+ Characters");
+    expect(updateConversationTitleSpy).toHaveBeenCalledWith(
+      "1",
+      "Special @#$%^&*()_+ Characters",
+    );
   });
 
   it("should close delete modal when clicking backdrop", async () => {
@@ -762,13 +919,28 @@ describe("ConversationPanel", () => {
     const user = userEvent.setup();
 
     // Create mock data with a RUNNING conversation
-    const mockRunningConversations: V1AppConversation[] = [
-      createMockConversation({ id: "1", title: "Running Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "2", title: "Starting Conversation", execution_status: V1ExecutionStatus.RUNNING }),
-      createMockConversation({ id: "3", title: "Stopped Conversation", execution_status: V1ExecutionStatus.PAUSED }),
+    const mockRunningConversations: AppConversation[] = [
+      createMockConversation({
+        id: "1",
+        title: "Running Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "2",
+        title: "Starting Conversation",
+        execution_status: ExecutionStatus.RUNNING,
+      }),
+      createMockConversation({
+        id: "3",
+        title: "Stopped Conversation",
+        execution_status: ExecutionStatus.PAUSED,
+      }),
     ];
 
-    vi.spyOn(V1ConversationService, "searchConversations").mockResolvedValue({
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
       items: mockRunningConversations,
       next_page_id: null,
     });
@@ -797,5 +969,420 @@ describe("ConversationPanel", () => {
     expect(
       screen.queryByRole("button", { name: /confirm/i }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("older conversations cutoff", () => {
+    const recentIso = () => new Date().toISOString();
+    const olderIso = () =>
+      new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+    it("hides conversations older than 1h behind a summary line", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+          createMockConversation({
+            id: "old2",
+            title: "Old 2",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+
+      const cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(1);
+      expect(within(cards[0]).getByText("Recent")).toBeInTheDocument();
+
+      const summary = screen.getByTestId("older-conversations-summary");
+      expect(summary).toHaveTextContent("2");
+      expect(summary).toHaveTextContent("CONVERSATION$N_OLDER_CONVERSATIONS");
+      expect(
+        within(summary).getByTestId("toggle-older-conversations"),
+      ).toHaveTextContent("CONVERSATION$SHOW_ALL");
+      expect(
+        within(summary).getByTestId("delete-older-conversations"),
+      ).toHaveTextContent("CONVERSATION$DELETE_ALL");
+    });
+
+    it("does not render the summary when no conversations are older than 1h", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent1",
+            title: "Recent 1",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "recent2",
+            title: "Recent 2",
+            updated_at: recentIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+
+      await screen.findAllByTestId("conversation-card");
+      expect(
+        screen.queryByTestId("older-conversations-summary"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("toggles older conversations visibility via the show-all link", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+
+      let cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(1);
+
+      const toggle = screen.getByTestId("toggle-older-conversations");
+      expect(toggle).toHaveTextContent("CONVERSATION$SHOW_ALL");
+      await user.click(toggle);
+
+      cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(2);
+      expect(toggle).toHaveTextContent("CONVERSATION$HIDE");
+
+      await user.click(toggle);
+      cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(1);
+    });
+
+    it("delete-all confirms then deletes every older conversation", async () => {
+      const user = userEvent.setup();
+      const deleteSpy = vi
+        .spyOn(AgentServerConversationService, "deleteConversation")
+        .mockResolvedValue();
+
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+          createMockConversation({
+            id: "old2",
+            title: "Old 2",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+      await screen.findAllByTestId("conversation-card");
+
+      await user.click(screen.getByTestId("delete-older-conversations"));
+
+      const confirmButton = await screen.findByRole("button", {
+        name: /confirm/i,
+      });
+      expect(confirmButton).toBeInTheDocument();
+
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(deleteSpy).toHaveBeenCalledTimes(2);
+      });
+      expect(deleteSpy).toHaveBeenCalledWith("old1");
+      expect(deleteSpy).toHaveBeenCalledWith("old2");
+    });
+
+    it("shows an error toast and still navigates away when the active older conversation was deleted successfully", async () => {
+      const user = userEvent.setup();
+      const navigate = vi.fn();
+      const deleteSpy = vi
+        .spyOn(AgentServerConversationService, "deleteConversation")
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("delete failed"));
+
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+          createMockConversation({
+            id: "old2",
+            title: "Old 2",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel({
+        navigation: { conversationId: "old1", navigate },
+      });
+      await screen.findAllByTestId("conversation-card");
+
+      await user.click(screen.getByTestId("delete-older-conversations"));
+      await user.click(await screen.findByRole("button", { name: /confirm/i }));
+
+      await waitFor(() => {
+        expect(deleteSpy).toHaveBeenCalledTimes(2);
+      });
+      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
+      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "1 conversation could not be deleted.",
+      );
+      expect(navigate).toHaveBeenCalledWith("/conversations");
+    });
+
+    it("does not navigate away when the active older conversation fails to delete", async () => {
+      const user = userEvent.setup();
+      const navigate = vi.fn();
+      const deleteSpy = vi
+        .spyOn(AgentServerConversationService, "deleteConversation")
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("delete failed"));
+
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+          createMockConversation({
+            id: "old2",
+            title: "Old 2",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel({
+        navigation: { conversationId: "old2", navigate },
+      });
+      await screen.findAllByTestId("conversation-card");
+
+      await user.click(screen.getByTestId("delete-older-conversations"));
+      await user.click(await screen.findByRole("button", { name: /confirm/i }));
+
+      await waitFor(() => {
+        expect(deleteSpy).toHaveBeenCalledTimes(2);
+      });
+      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
+      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
+      expect(displayErrorToast).toHaveBeenCalledWith(
+        "1 conversation could not be deleted.",
+      );
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("active conversation highlight", () => {
+    it("marks the currently active conversation with data-active=true", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({ id: "1", title: "Conversation 1" }),
+          createMockConversation({ id: "2", title: "Conversation 2" }),
+          createMockConversation({ id: "3", title: "Conversation 3" }),
+        ],
+        next_page_id: null,
+      });
+
+      renderWithProviders(<RouterStub />, {
+        navigation: { conversationId: "2", currentPath: "/conversations/2" },
+      });
+
+      const cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(3);
+      expect(cards[0]).toHaveAttribute("data-active", "false");
+      expect(cards[1]).toHaveAttribute("data-active", "true");
+      expect(cards[2]).toHaveAttribute("data-active", "false");
+    });
+
+    it("renders no active card when no conversation is selected", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [createMockConversation({ id: "1", title: "Conversation 1" })],
+        next_page_id: null,
+      });
+
+      renderWithProviders(<RouterStub />, {
+        navigation: { conversationId: null, currentPath: "/" },
+      });
+
+      const cards = await screen.findAllByTestId("conversation-card");
+      expect(cards[0]).toHaveAttribute("data-active", "false");
+    });
+  });
+
+  describe("load-more link", () => {
+    const recentIso = () => new Date().toISOString();
+    const olderIso = () =>
+      new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+    it("shows a load-more link when there is a next page and no older conversations are hidden", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+        ],
+        next_page_id: "page-2",
+      });
+
+      renderConversationPanel();
+
+      await screen.findAllByTestId("conversation-card");
+      const loadMore = await screen.findByTestId("load-more-conversations");
+      expect(loadMore).toHaveTextContent("CONVERSATION$LOAD_MORE");
+    });
+
+    it("hides the load-more link while older conversations are hidden", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old1",
+            title: "Old 1",
+            updated_at: olderIso(),
+          }),
+        ],
+        next_page_id: "page-2",
+      });
+
+      renderConversationPanel();
+
+      await screen.findAllByTestId("conversation-card");
+      // Older conversations are present and collapsed → no load-more.
+      expect(
+        screen.queryByTestId("load-more-conversations"),
+      ).not.toBeInTheDocument();
+
+      // After expanding "show all", the link reappears.
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId("toggle-older-conversations"));
+      expect(
+        await screen.findByTestId("load-more-conversations"),
+      ).toBeInTheDocument();
+    });
+
+    it("fetches the next page when the load-more link is clicked", async () => {
+      const user = userEvent.setup();
+      const searchSpy = vi
+        .spyOn(AgentServerConversationService, "searchConversations")
+        .mockResolvedValueOnce({
+          items: [
+            createMockConversation({
+              id: "recent",
+              title: "Recent",
+              updated_at: recentIso(),
+            }),
+          ],
+          next_page_id: "page-2",
+        })
+        .mockResolvedValueOnce({
+          items: [
+            createMockConversation({
+              id: "page2-1",
+              title: "Page 2 Conversation",
+              updated_at: recentIso(),
+            }),
+          ],
+          next_page_id: null,
+        });
+
+      renderConversationPanel();
+
+      const loadMore = await screen.findByTestId("load-more-conversations");
+      await user.click(loadMore);
+
+      await waitFor(() => {
+        expect(searchSpy).toHaveBeenCalledTimes(2);
+      });
+
+      // After the second page resolves, the link disappears (no more pages).
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("load-more-conversations"),
+        ).not.toBeInTheDocument();
+      });
+    });
   });
 });

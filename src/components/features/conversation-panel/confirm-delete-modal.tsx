@@ -1,3 +1,4 @@
+import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import {
   BaseModalDescription,
@@ -12,31 +13,42 @@ interface ConfirmDeleteModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   conversationTitle?: string;
+  title?: string;
+  description?: React.ReactNode;
 }
 
 export function ConfirmDeleteModal({
   onConfirm,
   onCancel,
   conversationTitle,
+  title,
+  description,
 }: ConfirmDeleteModalProps) {
   const { t } = useTranslation("openhands");
 
-  const confirmationMessage = conversationTitle ? (
-    <Trans
-      ns="openhands"
-      i18nKey={I18nKey.CONVERSATION$DELETE_WARNING_WITH_TITLE}
-      values={{ title: conversationTitle }}
-      components={{ title: <span className="text-white" /> }}
-    />
-  ) : (
-    t(I18nKey.CONVERSATION$DELETE_WARNING)
-  );
+  let confirmationMessage: React.ReactNode;
+  if (description != null) {
+    confirmationMessage = description;
+  } else if (conversationTitle) {
+    confirmationMessage = (
+      <Trans
+        ns="openhands"
+        i18nKey={I18nKey.CONVERSATION$DELETE_WARNING_WITH_TITLE}
+        values={{ title: conversationTitle }}
+        components={{ title: <span className="text-white" /> }}
+      />
+    );
+  } else {
+    confirmationMessage = t(I18nKey.CONVERSATION$DELETE_WARNING);
+  }
 
   return (
     <ModalBackdrop onClose={onCancel}>
       <ModalBody className="items-start border border-tertiary">
         <div className="flex flex-col gap-2">
-          <BaseModalTitle title={t(I18nKey.CONVERSATION$CONFIRM_DELETE)} />
+          <BaseModalTitle
+            title={title ?? t(I18nKey.CONVERSATION$CONFIRM_DELETE)}
+          />
           <BaseModalDescription>{confirmationMessage}</BaseModalDescription>
         </div>
         <div

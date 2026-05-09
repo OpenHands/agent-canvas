@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import MainApp from "#/routes/root-layout";
+
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 // Hoisted mocks for useIsAuthed and useConfig to allow dynamic control in tests
@@ -21,11 +22,7 @@ vi.mock("#/hooks/query/use-config", () => ({
 
 const DEFAULT_FEATURE_FLAGS = {
   hide_llm_settings: false,
-  enable_jira: false,
-  enable_jira_dc: false,
-  enable_linear: false,
   hide_users_page: false,
-  hide_integrations_page: false,
 };
 
 const RouterStub = createRoutesStub([

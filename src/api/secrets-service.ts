@@ -50,20 +50,24 @@ async function withRetry<T>(
   maxRetries: number = 3,
   baseDelayMs: number = 500,
 ): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
+      // eslint-disable-next-line no-await-in-loop
       return await fn();
     } catch (error) {
-      lastError = error;
-      if (attempt < maxRetries - 1) {
-        // Exponential backoff: 500ms, 1000ms, 2000ms
-        const delay = baseDelayMs * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+      if (attempt >= maxRetries - 1) {
+        throw error;
       }
+
+      const delay = baseDelayMs * 2 ** attempt;
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, delay);
+      });
     }
   }
-  throw lastError;
+
+  throw new Error("Retry attempts exhausted");
 }
 
 /**
@@ -294,46 +298,25 @@ export class SecretsService {
     const storedProviders = readStoredGitProviders();
     const nextProviders: StoredGitProviderTokens = { ...storedProviders };
 
-    for (const [provider, value] of Object.entries(providers) as [
-      Provider,
-      ProviderToken,
-    ][]) {
+    const entries = Object.entries(providers) as [Provider, ProviderToken][];
+
+    for (const [provider, value] of entries) {
       const token = value.token.trim();
       const host = normalizeHost(value.host);
+      const nextToken = token || nextProviders[provider]?.token;
 
-      if (!token) {
-        // Just updating host for existing token - still need to update server
-        const existing = nextProviders[provider];
-        if (existing) {
-          // Re-store to server with updated host in description
-          // This ensures server metadata stays in sync with localStorage
-          const secretName = getGitProviderSecretName(provider);
-          await this.createSecret(
-            secretName,
-            existing.token,
-            `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
-          );
+      if (nextToken) {
+        const secretName = getGitProviderSecretName(provider);
+        // eslint-disable-next-line no-await-in-loop
+        await this.createSecret(
+          secretName,
+          nextToken,
+          `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
+        );
 
-          // Only update localStorage after server storage succeeds
-          nextProviders[provider] = {
-            token: existing.token,
-            host,
-          };
-        }
-        continue;
+        // Only update localStorage after server storage succeeds
+        nextProviders[provider] = { token: nextToken, host };
       }
-
-      // Store the token as a secret on the server for agent runtime use
-      // This MUST succeed - no fallback to localStorage-only
-      const secretName = getGitProviderSecretName(provider);
-      await this.createSecret(
-        secretName,
-        token,
-        `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
-      );
-
-      // Only update localStorage after server storage succeeds
-      nextProviders[provider] = { token, host };
     }
 
     // Update localStorage for frontend git API calls
@@ -347,18 +330,20 @@ export class SecretsService {
     const storedProviders = readStoredGitProviders();
 
     // Delete each provider's secret from the server
-    for (const provider of Object.keys(storedProviders) as Provider[]) {
-      const secretName = getGitProviderSecretName(provider);
-      try {
-        await this.deleteSecret(secretName);
-      } catch (error) {
-        // Log but continue - we still want to clear other providers
-        console.warn(
-          `Failed to delete git provider secret for ${provider}:`,
-          error,
-        );
-      }
-    }
+    await Promise.all(
+      (Object.keys(storedProviders) as Provider[]).map(async (provider) => {
+        const secretName = getGitProviderSecretName(provider);
+        try {
+          await this.deleteSecret(secretName);
+        } catch (error) {
+          // Log but continue - we still want to clear other providers
+          console.warn(
+            `Failed to delete git provider secret for ${provider}:`,
+            error,
+          );
+        }
+      }),
+    );
 
     // Clear localStorage
     writeStoredGitProviders({});

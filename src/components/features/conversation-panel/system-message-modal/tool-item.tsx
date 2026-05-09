@@ -1,6 +1,6 @@
 import { ToolParameters } from "./tool-parameters";
 import { ToggleButton } from "./toggle-button";
-import { ChatCompletionToolParam } from "#/types/v1/core";
+import { ChatCompletionToolParam } from "#/types/agent-server/core";
 import { MarkdownRenderer } from "../../markdown/markdown-renderer";
 
 interface FunctionData {
@@ -10,13 +10,13 @@ interface FunctionData {
 }
 
 interface ToolData {
-  // V0/OpenAI format
+  // OpenAI-compatible format
   type?: string;
   function?: FunctionData;
   name?: string;
   description?: string;
   parameters?: Record<string, unknown>;
-  // V1 format
+  // agent-server format
   title?: string;
   kind?: string;
   annotations?: {
@@ -36,31 +36,31 @@ export function ToolItem({ tool, index, isExpanded, onToggle }: ToolItemProps) {
   const toolData = tool as ToolData;
   const functionData = toolData.function || toolData;
 
-  // Extract tool name/title - support both V0 and V1 formats
+  // Extract tool name/title from supported tool schemas
   const name =
-    // V1 format: check for title field (root level or in annotations)
+    // agent-server format: check for title field (root level or in annotations)
     toolData.title ||
     toolData.annotations?.title ||
-    // V0 format: check for function.name or name
+    // OpenAI-compatible format: check for function.name or name
     functionData.name ||
     (toolData.type === "function" && toolData.function?.name) ||
     "";
 
-  // Extract description - support both V0 and V1 formats
+  // Extract description from supported tool schemas
   const description =
-    // V1 format: description at root level
+    // agent-server format: description at root level
     toolData.description ||
-    // V0 format: description in function object
+    // OpenAI-compatible format: description in function object
     functionData.description ||
     (toolData.type === "function" && toolData.function?.description) ||
     "";
 
-  // Extract parameters - support both V0 and V1 formats
+  // Extract parameters from supported tool schemas
   const parameters =
-    // V0 format: parameters in function object
+    // OpenAI-compatible format: parameters in function object
     functionData.parameters ||
     (toolData.type === "function" && toolData.function?.parameters) ||
-    // V1 format: parameters at root level (if present)
+    // agent-server format: parameters at root level (if present)
     toolData.parameters ||
     null;
 

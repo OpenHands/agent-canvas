@@ -294,8 +294,7 @@ export async function trackInstall(): Promise<void> {
 
   // Capture the install event
   posthog.capture("canvas_install", {
-    platform:
-      typeof navigator !== "undefined" ? navigator.platform : "unknown",
+    platform: typeof navigator !== "undefined" ? navigator.platform : "unknown",
     user_agent:
       typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
     referrer: typeof document !== "undefined" ? document.referrer : "",

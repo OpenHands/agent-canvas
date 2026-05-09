@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
 import { Provider } from "#/types/settings";
@@ -8,10 +8,9 @@ import { formatTimeDelta } from "#/utils/format-time-delta";
 import { I18nKey } from "#/i18n/declaration";
 import { ConversationStatusDot } from "./conversation-status-dot";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
-import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 interface RecentConversationProps {
-  conversation: V1AppConversation;
+  conversation: AppConversation;
 }
 
 export function RecentConversation({ conversation }: RecentConversationProps) {
@@ -68,16 +67,6 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {conversation.llm_model && (
-            <span
-              className="max-w-[120px] flex items-center gap-1 overflow-hidden"
-              title={conversation.llm_model}
-              data-testid="recent-conversation-llm-model"
-            >
-              <CircuitIcon width={12} height={12} className="shrink-0" />
-              <span className="truncate">{conversation.llm_model}</span>
-            </span>
-          )}
           {(conversation.created_at || conversation.updated_at) && (
             <span>
               {formatTimeDelta(

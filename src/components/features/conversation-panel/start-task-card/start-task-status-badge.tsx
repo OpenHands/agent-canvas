@@ -1,8 +1,8 @@
-import type { V1AppConversationStartTaskStatus } from "#/api/conversation-service/v1-conversation-service.types";
+import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { cn } from "#/utils/utils";
 
 interface StartTaskStatusBadgeProps {
-  taskStatus: V1AppConversationStartTaskStatus;
+  taskStatus: AppConversationStartTaskStatus;
 }
 
 export function StartTaskStatusBadge({

@@ -1,7 +1,8 @@
 import React from "react";
+import { redirect } from "react-router";
 import { useTranslation } from "react-i18next";
-import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { GitHubTokenInput } from "#/components/features/settings/git-settings/github-token-input";
 import { GitLabTokenInput } from "#/components/features/settings/git-settings/gitlab-token-input";
@@ -19,8 +20,15 @@ import { GitSettingInputsSkeleton } from "#/components/features/settings/git-set
 import { useAddGitProviders } from "#/hooks/mutation/use-add-git-providers";
 import { useDeleteGitProviders } from "#/hooks/mutation/use-delete-git-providers";
 import { useUserProviders } from "#/hooks/use-user-providers";
-import { ProjectManagementIntegration } from "#/components/features/settings/project-management/project-management-integration";
 import { Provider, ProviderToken } from "#/types/settings";
+
+// /integrations is a local-only page; cloud backends do not expose it.
+export const clientLoader = () => {
+  if (getActiveBackend().backend.kind === "cloud") {
+    return redirect("/conversations");
+  }
+  return null;
+};
 
 export function GitSettingsScreen() {
   const { t } = useTranslation("openhands");
@@ -31,7 +39,6 @@ export function GitSettingsScreen() {
 
   const { data: settings, isLoading } = useSettings();
   const { providers } = useUserProviders();
-  const { data: config } = useConfig();
 
   const [githubTokenInputHasValue, setGithubTokenInputHasValue] =
     React.useState(false);
@@ -181,11 +188,6 @@ export function GitSettingsScreen() {
     !azureDevOpsHostInputHasValue &&
     !forgejoHostInputHasValue;
 
-  const shouldRenderProjectManagementIntegrations =
-    config?.feature_flags?.enable_jira ||
-    config?.feature_flags?.enable_jira_dc ||
-    config?.feature_flags?.enable_linear;
-
   return (
     <form
       data-testid="git-settings-screen"
@@ -194,12 +196,6 @@ export function GitSettingsScreen() {
     >
       {!isLoading && (
         <div className="flex flex-col gap-4">
-          {shouldRenderProjectManagementIntegrations && (
-            <div className="mt-6">
-              <ProjectManagementIntegration />
-            </div>
-          )}
-
           <GitHubTokenInput
             name="github-token-input"
             isGitHubTokenSet={isGitHubTokenSet}
@@ -292,7 +288,7 @@ export function GitSettingsScreen() {
               !isForgejoTokenSet)
           }
         >
-          {t(I18nKey.GIT$DISCONNECT_TOKENS)}
+          {t("GIT$DISCONNECT_TOKENS")}
         </BrandButton>
         <BrandButton
           testId="submit-button"

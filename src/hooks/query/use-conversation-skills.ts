@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useConversationId } from "../use-conversation-id";
 import { useActiveConversation } from "./use-active-conversation";
 
@@ -15,7 +15,8 @@ export const useConversationSkills = () => {
       }
 
       // Check if V1 is enabled and use the appropriate API
-      const data = await V1ConversationService.getSkills(conversationId);
+      const data =
+        await AgentServerConversationService.getSkills(conversationId);
       return data.skills;
     },
     enabled: !!executionStatus,

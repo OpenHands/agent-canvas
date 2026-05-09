@@ -74,10 +74,19 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "bypass" });
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
 });
-afterEach(() => {
+afterEach(async () => {
   server.resetHandlers();
   // Cleanup the document body after each test
   cleanup();
+  // Drain any queued microtasks before jsdom is torn down between test files.
+  // Without this, async state updates queued during render (for example by
+  // HeroUI v2 components wrapped in framer-motion's LazyMotion) can resolve
+  // after `window` is gone and trigger spurious unhandled rejections in
+  // react-dom's `resolveUpdatePriority`. We use `Promise.resolve()` (a
+  // microtask) rather than `setTimeout(0)` so this stays compatible with
+  // tests that install fake timers.
+  await Promise.resolve();
+  await Promise.resolve();
 });
 afterAll(() => {
   server.close();

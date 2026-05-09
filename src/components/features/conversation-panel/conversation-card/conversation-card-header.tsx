@@ -1,4 +1,4 @@
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { ConversationCardTitle } from "./conversation-card-title";
 import { ConversationStatusDot } from "../../home/recent-conversations/conversation-status-dot";
 
@@ -6,7 +6,7 @@ interface ConversationCardHeaderProps {
   title: string;
   titleMode: "view" | "edit";
   onTitleSave: (title: string) => void;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
 }
 
 export function ConversationCardHeader({

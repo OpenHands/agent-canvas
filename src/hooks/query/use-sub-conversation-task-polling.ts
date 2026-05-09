@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 /**
  * Hook that polls V1 sub-conversation start tasks.
@@ -28,7 +28,7 @@ export const useSubConversationTaskPolling = (
     queryKey: ["sub-conversation-task", taskId],
     queryFn: async () => {
       if (!taskId) return null;
-      return V1ConversationService.getStartTask(taskId);
+      return AgentServerConversationService.getStartTask(taskId);
     },
     enabled: !!taskId && !!parentConversationId,
     refetchInterval: (query) => {

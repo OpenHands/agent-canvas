@@ -13,11 +13,11 @@ import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
 import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
-import { useV1ConversationStateStore } from "#/stores/v1-conversation-state-store";
+import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
 import {
-  isV1Event,
+  isAgentServerEvent,
   isAgentErrorEvent,
   isUserMessageEvent,
   isActionEvent,
@@ -31,18 +31,18 @@ import {
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
-} from "#/types/v1/type-guards";
-import { ConversationStateUpdateEventStats } from "#/types/v1/core/events/conversation-state-event";
+} from "#/types/agent-server/type-guards";
+import { ConversationStateUpdateEventStats } from "#/types/agent-server/core/events/conversation-state-event";
 import type {
   ConversationErrorEvent,
   ServerErrorEvent,
-} from "#/types/v1/core/events/conversation-state-event";
+} from "#/types/agent-server/core/events/conversation-state-event";
 import { handleActionEventCacheInvalidation } from "#/utils/cache-utils";
 import { buildWebSocketUrl } from "#/utils/websocket-url";
 import type {
-  V1AppConversation,
-  V1SendMessageRequest,
-} from "#/api/conversation-service/v1-conversation-service.types";
+  AppConversation,
+  SendMessageRequest,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
 import EventService from "#/api/event-service/event-service.api";
 import PendingMessageService from "#/api/pending-message-service/pending-message-service.api";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -53,7 +53,7 @@ import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
-export type V1_WebSocketConnectionState =
+export type WebSocketConnectionState =
   | "CONNECTING"
   | "OPEN"
   | "CLOSED"
@@ -64,8 +64,8 @@ interface SendMessageResult {
 }
 
 interface ConversationWebSocketContextType {
-  connectionState: V1_WebSocketConnectionState;
-  sendMessage: (message: V1SendMessageRequest) => Promise<SendMessageResult>;
+  connectionState: WebSocketConnectionState;
+  sendMessage: (message: SendMessageRequest) => Promise<SendMessageResult>;
   isLoadingHistory: boolean;
 }
 
@@ -85,14 +85,14 @@ export function ConversationWebSocketProvider({
   conversationId?: string;
   conversationUrl?: string | null;
   sessionApiKey?: string | null;
-  subConversations?: V1AppConversation[];
+  subConversations?: AppConversation[];
   subConversationIds?: string[];
 }) {
   // Separate connection state tracking for each WebSocket
   const [mainConnectionState, setMainConnectionState] =
-    useState<V1_WebSocketConnectionState>("CONNECTING");
+    useState<WebSocketConnectionState>("CONNECTING");
   const [planningConnectionState, setPlanningConnectionState] =
-    useState<V1_WebSocketConnectionState>("CONNECTING");
+    useState<WebSocketConnectionState>("CONNECTING");
 
   // Track if we've ever successfully connected for each connection
   // Don't show errors until after first successful connection
@@ -104,7 +104,7 @@ export function ConversationWebSocketProvider({
   const { addEvent } = useEventStore();
   const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
   const { removeOptimisticUserMessage } = useOptimisticUserMessageStore();
-  const { setExecutionStatus } = useV1ConversationStateStore();
+  const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
 
   // History loading state - separate per connection
@@ -204,7 +204,7 @@ export function ConversationWebSocketProvider({
   }, [subConversations]);
 
   // Merged connection state - reflects combined status of both connections
-  const connectionState = useMemo<V1_WebSocketConnectionState>(() => {
+  const connectionState = useMemo<WebSocketConnectionState>(() => {
     // If planning agent connection doesn't exist, use main connection state
     if (!planningAgentWsUrl) {
       return mainConnectionState;
@@ -354,7 +354,7 @@ export function ConversationWebSocketProvider({
         }
 
         // Use type guard to validate v1 event structure
-        if (isV1Event(event)) {
+        if (isAgentServerEvent(event)) {
           addEvent(event);
 
           // Handle displayable error events - show error banner
@@ -498,7 +498,7 @@ export function ConversationWebSocketProvider({
         }
 
         // Use type guard to validate v1 event structure
-        if (isV1Event(event)) {
+        if (isAgentServerEvent(event)) {
           // Mark this event as coming from the planning agent
           const eventWithPlanningFlag = {
             ...event,
@@ -794,7 +794,7 @@ export function ConversationWebSocketProvider({
   // V1 send message function via WebSocket
   // Falls back to REST API queue when WebSocket is not connected
   const sendMessage = useCallback(
-    async (message: V1SendMessageRequest): Promise<SendMessageResult> => {
+    async (message: SendMessageRequest): Promise<SendMessageResult> => {
       const currentMode = useConversationStore.getState().conversationMode;
       const currentSocket =
         currentMode === "plan" ? planningAgentSocket : mainSocket;

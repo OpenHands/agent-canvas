@@ -10,7 +10,7 @@ import {
 } from "#/utils/conversation-local-storage";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import type { Conversation } from "#/api/open-hands.types";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 // Mock dependencies
 vi.mock("#/stores/conversation-store");
@@ -37,7 +37,7 @@ function asMockReturnValue<T>(value: Partial<T>): T {
   return value as T;
 }
 
-function makeConversation(overrides?: Partial<V1AppConversation>): V1AppConversation {
+function makeConversation(overrides?: Partial<AppConversation>): AppConversation {
   return {
     id: "conv-123",
     title: "Test Conversation",
@@ -53,7 +53,7 @@ function makeConversation(overrides?: Partial<V1AppConversation>): V1AppConversa
     conversation_version: "V1",
     sub_conversation_ids: [],
     ...overrides,
-  } as V1AppConversation;
+  } as AppConversation;
 }
 
 describe("useHandlePlanClick", () => {
@@ -294,10 +294,10 @@ describe("useHandlePlanClick", () => {
 
       // Simulate successful conversation creation
       const onSuccessCallback = mockCreateConversation.mock.calls[0][1]
-        .onSuccess as (data: { v1_task_id?: string }) => void;
+        .onSuccess as (data: { task_id?: string }) => void;
 
       act(() => {
-        onSuccessCallback({ v1_task_id: taskId });
+        onSuccessCallback({ task_id: taskId });
       });
 
       expect(mockSetSubConversationTaskId).toHaveBeenCalledWith(taskId);
@@ -307,7 +307,7 @@ describe("useHandlePlanClick", () => {
       expect(displaySuccessToast).toHaveBeenCalled();
     });
 
-    it("does not persist subConversationTaskId when v1_task_id is missing", () => {
+    it("does not persist subConversationTaskId when task_id is missing", () => {
       const conversationId = "conv-123";
 
       vi.mocked(useActiveConversation).mockReturnValue(
@@ -328,7 +328,7 @@ describe("useHandlePlanClick", () => {
       });
 
       const onSuccessCallback = mockCreateConversation.mock.calls[0][1]
-        .onSuccess as (data: { v1_task_id?: string }) => void;
+        .onSuccess as (data: { task_id?: string }) => void;
 
       act(() => {
         onSuccessCallback({});

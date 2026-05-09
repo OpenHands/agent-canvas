@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
 
@@ -31,12 +31,12 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("V1ConversationService.downloadConversation cloud branch", () => {
+describe("AgentServerConversationService.downloadConversation cloud branch", () => {
   it("routes through /api/cloud-proxy to the SaaS download endpoint with responseType blob and returns the Blob", async () => {
     const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
     vi.mocked(axios.post).mockResolvedValue({ data: zipBlob });
 
-    const result = await V1ConversationService.downloadConversation("conv-abc");
+    const result = await AgentServerConversationService.downloadConversation("conv-abc");
 
     expect(axios.post).toHaveBeenCalledOnce();
     const [url, body, config] = vi.mocked(axios.post).mock.calls[0]!;

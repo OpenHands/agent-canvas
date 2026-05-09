@@ -9,7 +9,8 @@ import {
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
-  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_AUTOMATION_PACKAGE,
+  DEFAULT_AUTOMATION_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
@@ -20,17 +21,17 @@ const repoRoot = path.resolve(
 );
 
 describe("buildAutomationCommand", () => {
-  it("uses main branch by default", () => {
+  it("uses released PyPI version by default", () => {
     const cmd = buildAutomationCommand({});
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toContain("--from");
     expect(cmd.args).toContain(
-      `git+${DEFAULT_AUTOMATION_REPO}@${DEFAULT_AUTOMATION_GIT_REF}`,
+      `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
     );
     expect(cmd.args).toContain("uvicorn");
-    expect(cmd.args).toContain("automation.app:app");
-    expect(cmd.source).toBe(`git (${DEFAULT_AUTOMATION_GIT_REF})`);
+    expect(cmd.args).toContain("openhands.automation.app:app");
+    expect(cmd.source).toBe(`PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`);
   });
 
   it("uses custom git ref from OH_AUTOMATION_GIT_REF", () => {
@@ -46,14 +47,15 @@ describe("buildAutomationCommand", () => {
     expect(cmd.source).toBe("git (feat/my-feature)");
   });
 
-  it("uses custom repo from OH_AUTOMATION_REPO", () => {
+  it("uses custom repo with git ref", () => {
     const cmd = buildAutomationCommand({
       OH_AUTOMATION_REPO: "https://github.com/MyOrg/my-automation",
+      OH_AUTOMATION_GIT_REF: "main",
     });
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toContain(
-      `git+https://github.com/MyOrg/my-automation@${DEFAULT_AUTOMATION_GIT_REF}`,
+      "git+https://github.com/MyOrg/my-automation@main",
     );
   });
 
@@ -80,6 +82,32 @@ describe("buildAutomationCommand", () => {
       `git+${DEFAULT_AUTOMATION_REPO}@abc123def456`,
     );
     expect(cmd.source).toBe("git (abc123def456)");
+  });
+
+  it("uses specific PyPI version when OH_AUTOMATION_VERSION is set", () => {
+    const cmd = buildAutomationCommand({
+      OH_AUTOMATION_VERSION: "1.0.0",
+    });
+
+    expect(cmd.command).toBe("uvx");
+    expect(cmd.args).toContain(
+      `${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`,
+    );
+    expect(cmd.source).toBe("PyPI (1.0.0)");
+  });
+
+  it("git ref takes precedence over version", () => {
+    const cmd = buildAutomationCommand({
+      OH_AUTOMATION_GIT_REF: "main",
+      OH_AUTOMATION_VERSION: "1.0.0",
+    });
+
+    expect(cmd.command).toBe("uvx");
+    expect(cmd.args).toContain(
+      `git+${DEFAULT_AUTOMATION_REPO}@main`,
+    );
+    expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
+    expect(cmd.source).toBe("git (main)");
   });
 });
 
@@ -140,10 +168,11 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("uses default local API key", () => {
+  it("auto-generates random local API key by default", () => {
     const config = buildConfig({}, {});
 
-    expect(config.localApiKey).toBe("openhands-local-api-key");
+    // Default is a 64-char hex string (256-bit random key)
+    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("respects custom AUTOMATION_LOCAL_API_KEY from env", () => {
@@ -152,14 +181,15 @@ describe("buildConfig", () => {
     expect(config.localApiKey).toBe("my-custom-key");
   });
 
-  it("sets sessionApiKey to null by default", () => {
+  it("auto-generates random session API key by default", () => {
     const config = buildConfig({}, {});
 
-    expect(config.sessionApiKey).toBeNull();
+    // Default is a 64-char hex string (256-bit random key)
+    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reads sessionApiKey from OH_SESSION_API_KEY", () => {
-    const config = buildConfig({}, { OH_SESSION_API_KEY: "my-session-key" });
+  it("reads sessionApiKey from SESSION_API_KEY", () => {
+    const config = buildConfig({}, { SESSION_API_KEY: "my-session-key" });
 
     expect(config.sessionApiKey).toBe("my-session-key");
   });
@@ -170,19 +200,13 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("vite-session-key");
   });
 
-  it("OH_SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
+  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
     const config = buildConfig({}, {
-      OH_SESSION_API_KEY: "oh-key",
+      SESSION_API_KEY: "session-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
 
-    expect(config.sessionApiKey).toBe("oh-key");
-  });
-
-  it("reads sessionApiKey from SESSION_API_KEY (agent-server V0 env)", () => {
-    const config = buildConfig({}, { SESSION_API_KEY: "v0-session-key" });
-
-    expect(config.sessionApiKey).toBe("v0-session-key");
+    expect(config.sessionApiKey).toBe("session-key");
   });
 
   it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
@@ -204,7 +228,6 @@ describe("buildConfig", () => {
     const config = buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
-      OH_SESSION_API_KEY: "oh-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
 
@@ -219,8 +242,12 @@ describe("default constants", () => {
     );
   });
 
-  it("has expected default automation git ref", () => {
-    expect(DEFAULT_AUTOMATION_GIT_REF).toBe("main");
+  it("has expected default automation package", () => {
+    expect(DEFAULT_AUTOMATION_PACKAGE).toBe("openhands-automation");
+  });
+
+  it("has expected default automation version", () => {
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a1");
   });
 
   it("has expected default backend port", () => {

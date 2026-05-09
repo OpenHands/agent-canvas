@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Development Stack with Automation Service
  *
@@ -38,10 +37,10 @@
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
  */
 
-import { spawn, execSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
@@ -52,17 +51,25 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
+  generateRandomApiKey,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
-const DEFAULT_AUTOMATION_GIT_REF = "main";
+const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
+// Default automation version (released PyPI version)
+// Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-// Default local API key for automation backend auth (matches agent-server pattern)
-const DEFAULT_LOCAL_API_KEY = "openhands-local-api-key";
+
+// Auto-generate a random API key for this dev session.
+// This ensures services share the same key during a single invocation,
+// but each restart gets a fresh key for better security isolation.
+// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
+const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -148,15 +155,17 @@ USAGE:
 
 OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
-  --automation-ref <ref>      Git ref for automation (branch/tag/SHA, default: main)
+  --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
   --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
 ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
-  OH_AUTOMATION_GIT_REF       Alternative to --automation-ref
-  OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK
+  OH_AUTOMATION_GIT_REF       Git ref for automation (overrides default version)
+  OH_AUTOMATION_VERSION       Specific PyPI version for automation (default: ${DEFAULT_AUTOMATION_VERSION})
+  OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
+  OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
 
@@ -172,21 +181,42 @@ ACCESS POINTS:
 
 /**
  * Build the uvx command for running automation backend.
+ *
+ * Environment variables (highest precedence first):
+ * - OH_AUTOMATION_GIT_REF: Git commit SHA or branch name
+ * - OH_AUTOMATION_VERSION: Specific PyPI version (e.g., "1.0.0a1")
+ *
+ * If none are set, defaults to the released version specified by
+ * DEFAULT_AUTOMATION_VERSION. Set OH_AUTOMATION_GIT_REF to use a
+ * git branch or commit instead.
  */
 function buildAutomationCommand(env = process.env) {
-  const gitRef = env.OH_AUTOMATION_GIT_REF || DEFAULT_AUTOMATION_GIT_REF;
+  const gitRef = env.OH_AUTOMATION_GIT_REF;
+  const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
 
-  // Build git URL with ref
-  const gitUrl = `git+${repoUrl}@${gitRef}`;
+  const uvxArgs = [];
+  let source = "";
 
-  // Use --refresh to ensure latest commit is fetched for git refs
-  const args = ["--refresh", "--from", gitUrl, "uvicorn", "automation.app:app"];
+  if (gitRef) {
+    // Use git ref - refresh to ensure latest commit is fetched
+    const gitUrl = `git+${repoUrl}@${gitRef}`;
+    uvxArgs.push("--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app");
+    source = `git (${gitRef})`;
+  } else if (version) {
+    // Use specific PyPI version
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${version})`;
+  } else {
+    // Default to released PyPI version
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`, "uvicorn", "openhands.automation.app:app");
+    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
+  }
 
   return {
     command: "uvx",
-    args,
-    source: `git (${gitRef})`,
+    args: uvxArgs,
+    source,
   };
 }
 
@@ -208,13 +238,17 @@ function buildConfig(args, env = process.env) {
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
   
-  // Session API key for agent-server auth (optional)
-  // Check multiple env vars that the agent-server may use:
-  // - SESSION_API_KEY: Used by agent-server default config (V0)
-  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
-  // - OH_SESSION_API_KEY: Common alias
-  // - VITE_SESSION_API_KEY: Used by frontend config
-  const sessionApiKey = env.SESSION_API_KEY || env.OH_SESSION_API_KEYS_0 || env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
+  // Session API key for agent-server auth
+  // Build a preliminary safe config to get the auto-generated session key
+  // This ensures both agent-server and frontend use the same key
+  const stateDir = join(homedir(), ".openhands", "agent-canvas");
+  const safeConfig = buildSafeDevConfig(projectRoot, {
+    ...env,
+    OH_CANVAS_SAFE_STATE_DIR: stateDir,
+    OH_CANVAS_SAFE_BACKEND_PORT: backendPort.toString(),
+    OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
+  });
+  const sessionApiKey = safeConfig.sessionApiKey;
 
   return {
     // Ingress port (main entry point)
@@ -230,7 +264,7 @@ function buildConfig(args, env = process.env) {
     canvasPath: projectRoot,
 
     // Data directories (same as dev-safe.mjs)
-    stateDir: join(homedir(), ".openhands", "agent-canvas"),
+    stateDir,
 
     // Auth
     localApiKey,
@@ -245,12 +279,12 @@ function buildConfig(args, env = process.env) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function commandExists(cmd) {
-  try {
-    execSync(`command -v ${cmd}`, { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
+  const result =
+    process.platform === "win32"
+      ? spawnSync("where.exe", [cmd], { stdio: "pipe" })
+      : spawnSync("sh", ["-c", `command -v ${cmd}`], { stdio: "pipe" });
+
+  return result.status === 0;
 }
 
 function checkPrerequisites() {
@@ -498,8 +532,12 @@ function startVite(config) {
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
       VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
+      // Session API key for frontend to authenticate with agent-server
+      VITE_SESSION_API_KEY: config.sessionApiKey,
       // Automation API key for frontend to authenticate with automation backend
       VITE_AUTOMATION_API_KEY: config.localApiKey,
+      // Session API key for agent-server auth (when SESSION_API_KEY is set)
+      ...(config.sessionApiKey && { VITE_SESSION_API_KEY: config.sessionApiKey }),
     },
     color: c.magenta,
   });
@@ -679,8 +717,10 @@ async function main() {
 export {
   buildAutomationCommand,
   buildConfig,
+  generateRandomApiKey,
   DEFAULT_AUTOMATION_REPO,
-  DEFAULT_AUTOMATION_GIT_REF,
+  DEFAULT_AUTOMATION_PACKAGE,
+  DEFAULT_AUTOMATION_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 };
@@ -690,7 +730,8 @@ export {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Check if this module is the main entry point
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   main().catch((err) => {

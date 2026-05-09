@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { I18nKey } from "#/i18n/declaration";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -38,7 +38,7 @@ export const useUnifiedVSCodeUrl = () => {
       // Forward the conversation's owning host + session key so cloud
       // conversations hit their cloud sandbox rather than falling back
       // to the bundled local agent-server.
-      const response = await V1ConversationService.getVSCodeUrl(
+      const response = await AgentServerConversationService.getVSCodeUrl(
         conversationId,
         conversationUrl,
         sessionApiKey,

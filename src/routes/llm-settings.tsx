@@ -178,6 +178,7 @@ export function LlmSettingsScreen({
             >
               <ModelSelector
                 currentModel={modelValue || undefined}
+                currentBaseUrl={baseUrlValue || undefined}
                 onChange={(provider, model) => {
                   const nextModel = buildModelId(provider, model);
                   if (nextModel) {

@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
 
@@ -31,11 +31,11 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("V1ConversationService.deleteConversation cloud branch", () => {
+describe("AgentServerConversationService.deleteConversation cloud branch", () => {
   it("routes through /api/cloud-proxy to the SaaS DELETE app-conversations endpoint", async () => {
     vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
 
-    await V1ConversationService.deleteConversation("conv-abc");
+    await AgentServerConversationService.deleteConversation("conv-abc");
 
     expect(axios.post).toHaveBeenCalledOnce();
     const [url, body] = vi.mocked(axios.post).mock.calls[0]!;

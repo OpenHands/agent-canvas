@@ -19,11 +19,7 @@ export interface ModelsResponse {
 
 export interface WebClientFeatureFlags {
   hide_llm_settings: boolean;
-  enable_jira: boolean;
-  enable_jira_dc: boolean;
-  enable_linear: boolean;
   hide_users_page: boolean;
-  hide_integrations_page: boolean;
 }
 
 export interface WebClientConfig {

@@ -27,14 +27,14 @@ export function CreateInstructions({
     <>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {/* Option 1: Claude Code / Codex */}
-        <div className="rounded-lg border border-default bg-base-secondary p-4">
+        <div className="rounded-lg border border-border bg-surface-card p-4">
           <div className="flex items-center gap-2">
-            <TerminalIcon className="size-5 text-basic" />
+            <TerminalIcon className="size-5 text-content-muted" />
             <span className="text-sm font-medium text-content">
               {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_TITLE)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-basic">
+          <p className="mt-2 text-sm text-content-muted">
             <a
               href={PLUGIN_INSTALL_URL}
               target="_blank"
@@ -45,25 +45,25 @@ export function CreateInstructions({
             </a>{" "}
             {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_DESC)}
           </p>
-          <code className="mt-2 block rounded bg-base px-3 py-2 font-mono text-xs text-content">
+          <code className="mt-2 block rounded bg-surface-elevated px-3 py-2 font-mono text-xs text-content">
             {PLUGIN_COMMAND}
           </code>
         </div>
 
         {/* Option 2: OpenHands Cloud conversation */}
-        <div className="rounded-lg border border-default bg-base-secondary p-4">
+        <div className="rounded-lg border border-border bg-surface-card p-4">
           <div className="flex items-center gap-2">
-            <SparkleIcon className="size-5 text-basic" />
+            <SparkleIcon className="size-5 text-content-muted" />
             <span className="text-sm font-medium text-content">
               {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_TITLE)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-basic">
+          <p className="mt-2 text-sm text-content-muted">
             {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC)}
           </p>
           <a
             href={NEW_CONVERSATION_URL}
-            className="mt-2 inline-flex items-center gap-1 rounded-md bg-base px-3 py-2 text-xs font-medium text-content hover:bg-default transition-colors"
+            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-elevated px-3 py-2 text-xs font-medium text-content hover:bg-border transition-colors"
           >
             {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
             <span aria-hidden="true">→</span>
@@ -72,7 +72,7 @@ export function CreateInstructions({
       </div>
 
       {/* Documentation link */}
-      <p className="mt-4 text-center text-sm text-basic">
+      <p className="mt-4 text-center text-sm text-content-muted">
         <a
           href={DOCS_URL}
           target="_blank"
@@ -87,18 +87,18 @@ export function CreateInstructions({
 
   if (collapsible) {
     return (
-      <div className="w-full rounded-lg border border-default bg-base-secondary">
+      <div className="w-full rounded-lg border border-border bg-surface-card">
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           aria-expanded={isExpanded}
-          className="flex w-full items-center justify-between p-4 text-left hover:bg-base transition-colors rounded-lg"
+          className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-elevated transition-colors rounded-lg"
         >
           <span className="text-sm font-medium text-content">
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon
-            className={`size-5 text-basic transition-transform ${
+            className={`size-5 text-content-muted transition-transform ${
               isExpanded ? "rotate-180" : ""
             }`}
           />

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
-import { LocalWorkspace } from "#/types/workspace";
+import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 import {
   useHomeDirectory,
   useSearchSubdirs,
@@ -17,6 +17,7 @@ interface FolderBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (items: LocalWorkspace[]) => void;
+  onAddParent?: (items: LocalWorkspaceParent[]) => void;
 }
 
 interface SidebarEntry {
@@ -101,6 +102,7 @@ export function FolderBrowserModal({
   isOpen,
   onClose,
   onAdd,
+  onAddParent,
 }: FolderBrowserModalProps) {
   const { t } = useTranslation("openhands");
   const [currentPath, setCurrentPath] = useState<string | null>(null);
@@ -134,14 +136,33 @@ export function FolderBrowserModal({
   const subdirs = listing?.items ?? [];
   const parent = currentPath ? getParentPath(currentPath) : null;
 
-  const handleUseThisFolder = () => {
-    if (subdirs.length === 0) return;
-    const items: LocalWorkspace[] = subdirs.map((s) => ({
-      id: s.path,
-      name: s.name,
-      path: s.path,
-    }));
-    onAdd(items);
+  const getBasename = (path: string): string => {
+    const trimmed = path.replace(/\/+$/, "");
+    if (!trimmed) return "/";
+    const idx = trimmed.lastIndexOf("/");
+    return idx >= 0 ? trimmed.slice(idx + 1) || "/" : trimmed;
+  };
+
+  const handleAddDirectory = () => {
+    if (!currentPath) return;
+    const item: LocalWorkspace = {
+      id: currentPath,
+      name: getBasename(currentPath),
+      path: currentPath,
+    };
+    onAdd([item]);
+    onClose();
+  };
+
+  const handleAddAllSubdirectories = () => {
+    if (!currentPath || !onAddParent) return;
+    onAddParent([
+      {
+        id: currentPath,
+        name: getBasename(currentPath),
+        path: currentPath,
+      },
+    ]);
     onClose();
   };
 
@@ -259,7 +280,7 @@ export function FolderBrowserModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#727987]">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#727987]">
           <BrandButton
             type="button"
             variant="secondary"
@@ -268,14 +289,25 @@ export function FolderBrowserModal({
           >
             {t(I18nKey.HOME$CANCEL)}
           </BrandButton>
+          {onAddParent && (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              onClick={handleAddAllSubdirectories}
+              isDisabled={!currentPath || isLoading}
+              testId="folder-browser-add-all-subdirs"
+            >
+              {t(I18nKey.HOME$ADD_ALL_SUBDIRECTORIES)}
+            </BrandButton>
+          )}
           <BrandButton
             type="button"
             variant="primary"
-            onClick={handleUseThisFolder}
-            isDisabled={subdirs.length === 0}
+            onClick={handleAddDirectory}
+            isDisabled={!currentPath || isLoading}
             testId="folder-browser-use"
           >
-            {t(I18nKey.HOME$USE_THIS_FOLDER)}
+            {t(I18nKey.HOME$ADD_THIS_DIRECTORY)}
           </BrandButton>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { OpenHandsEvent } from "#/types/v1/core";
+import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
@@ -85,7 +85,7 @@ class EventService {
     }).count();
   }
 
-  static async searchEventsV1(
+  static async searchEvents(
     conversationId: string,
     limit = 100,
     conversationUrl?: string | null,

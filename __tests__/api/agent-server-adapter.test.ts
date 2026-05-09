@@ -1,25 +1,37 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildStartConversationRequest,
   getDefaultConversationTitle,
-  toV1AppConversation,
+  toAppConversation,
   type DirectConversationInfo,
 } from "#/api/agent-server-adapter";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 
-const { mockGetAgentServerWorkingDir } = vi.hoisted(() => ({
-  mockGetAgentServerWorkingDir: vi.fn(
-    () => "/workspace/project/agent-canvas",
-  ),
-}));
+const { mockGetAgentServerWorkingDir, mockIsAgentServerToolAvailable } =
+  vi.hoisted(() => ({
+    mockGetAgentServerWorkingDir: vi.fn(
+      () => "/workspace/project/agent-canvas",
+    ),
+    mockIsAgentServerToolAvailable: vi.fn(() => true),
+  }));
 
 vi.mock("#/api/agent-server-config", () => ({
   getAgentServerBaseUrl: vi.fn(() => "http://127.0.0.1:8000"),
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
   getConfiguredWorkerUrls: vi.fn(() => []),
+  shouldLoadPublicSkills: vi.fn(() => true),
 }));
+
+vi.mock("#/api/agent-server-compatibility", () => ({
+  isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
+}));
+
+beforeEach(() => {
+  mockIsAgentServerToolAvailable.mockReturnValue(true);
+});
+
 
 describe("buildStartConversationRequest", () => {
   it("uses nested settings as the source of truth and keeps SDK tool names", () => {
@@ -77,12 +89,41 @@ describe("buildStartConversationRequest", () => {
       { name: "task_tracker", params: {} },
       { name: "browser_tool_set", params: {} },
     ]);
+    expect(payload.agent.agent_context).toEqual({
+      load_public_skills: true,
+      load_user_skills: true,
+    });
     expect(payload.agent.agent).toBeUndefined();
     expect(payload.workspace.working_dir).toBe(
       "/workspace/project/agent-canvas",
     );
     expect(payload.max_iterations).toBe(123);
     expect(payload.initial_message.content[0]?.text).toBe("hello");
+  });
+
+
+  it("omits browser_tool_set when the server does not advertise browser support", () => {
+    mockIsAgentServerToolAvailable.mockReturnValue(false);
+
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        tools: Array<{ name: string; params: Record<string, unknown> }>;
+      };
+    };
+
+    expect(payload.agent.tools).toEqual([
+      { name: "terminal", params: {} },
+      { name: "file_editor", params: {} },
+      { name: "task_tracker", params: {} },
+    ]);
   });
 
   it("derives confirmation and security settings the same way as OpenHands", () => {
@@ -184,7 +225,7 @@ describe("getDefaultConversationTitle", () => {
   });
 });
 
-describe("toV1AppConversation", () => {
+describe("toAppConversation", () => {
   const baseInfo: DirectConversationInfo = {
     id: "372eb-1234-5678-9abc",
     created_at: "2026-01-01T00:00:00Z",
@@ -192,27 +233,27 @@ describe("toV1AppConversation", () => {
   };
 
   it("falls back to the default title when the backend returns null", () => {
-    const result = toV1AppConversation({ ...baseInfo, title: null });
+    const result = toAppConversation({ ...baseInfo, title: null });
     expect(result.title).toBe("Conversation 372eb");
   });
 
   it("falls back to the default title when the backend returns undefined", () => {
-    const result = toV1AppConversation({ ...baseInfo });
+    const result = toAppConversation({ ...baseInfo });
     expect(result.title).toBe("Conversation 372eb");
   });
 
   it("falls back to the default title when the backend returns an empty string", () => {
-    const result = toV1AppConversation({ ...baseInfo, title: "" });
+    const result = toAppConversation({ ...baseInfo, title: "" });
     expect(result.title).toBe("Conversation 372eb");
   });
 
   it("falls back to the default title when the backend returns whitespace only", () => {
-    const result = toV1AppConversation({ ...baseInfo, title: "   " });
+    const result = toAppConversation({ ...baseInfo, title: "   " });
     expect(result.title).toBe("Conversation 372eb");
   });
 
   it("preserves a backend-provided title when one is set", () => {
-    const result = toV1AppConversation({
+    const result = toAppConversation({
       ...baseInfo,
       title: "My real title",
     });

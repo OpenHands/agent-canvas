@@ -332,7 +332,7 @@ describe("LaunchRoute", () => {
 
       await user.click(screen.getByTestId("close-button"));
 
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations");
     });
 
     it("should show plugins section for plugins without parameters", () => {
@@ -533,7 +533,7 @@ describe("LaunchRoute", () => {
 
       await user.click(screen.getByTestId("go-home-button"));
 
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations");
     });
 
     it("should show creation failed error when API call fails", async () => {

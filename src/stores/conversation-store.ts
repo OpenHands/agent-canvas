@@ -97,7 +97,7 @@ const getInitialRightPanelState = (): boolean => {
     ? [`conversation-right-panel-shown-${conversationId}`]
     : [];
 
-  // Fallback to legacy global key for users who haven't switched tabs yet
+  // Fallback to global key for users who have not switched tabs yet
   keysToCheck.push("conversation-right-panel-shown");
 
   for (const key of keysToCheck) {

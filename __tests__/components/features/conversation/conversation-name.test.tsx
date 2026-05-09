@@ -12,7 +12,7 @@ import {
 import { renderWithProviders } from "test-utils";
 import { ConversationName } from "#/components/features/conversation/conversation-name";
 import { ConversationNameContextMenu } from "#/components/features/conversation/conversation-name-context-menu";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import type { Backend } from "#/api/backend-registry/types";
 import type { Conversation } from "#/api/open-hands.types";
 
@@ -327,7 +327,7 @@ describe("ConversationName", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should render the llm model when available", () => {
+  it("should not render the llm model in the title bar", () => {
     useActiveConversationMock.mockReturnValue({
       data: {
         conversation_id: "test-conversation-id",
@@ -335,33 +335,6 @@ describe("ConversationName", () => {
         status: "RUNNING",
         llm_model: "openai/gpt-4o",
       } as Conversation,
-    });
-
-    renderConversationNameWithRouter();
-
-    const model = screen.getByTestId("conversation-name-llm-model");
-    expect(model).toBeInTheDocument();
-    expect(model).toHaveTextContent("openai/gpt-4o");
-    expect(model).toHaveAttribute("title", "openai/gpt-4o");
-    expect(model.querySelector("svg")).toBeInTheDocument();
-
-    // Verify the model name is rendered in full (no truncation)
-    const textSpan = model.querySelector("span");
-    expect(textSpan).toBeInTheDocument();
-    expect(textSpan).toHaveTextContent("openai/gpt-4o");
-    expect(textSpan).not.toHaveClass("truncate");
-    expect(model).not.toHaveClass("max-w-[150px]");
-    expect(model).not.toHaveClass("overflow-hidden");
-    expect(model).toHaveClass("whitespace-nowrap");
-  });
-
-  it("should not render the llm model when not available", () => {
-    useActiveConversationMock.mockReturnValue({
-      data: {
-        conversation_id: "test-conversation-id",
-        title: "Test Conversation",
-        status: "RUNNING",
-      },
     });
 
     renderConversationNameWithRouter();
@@ -648,7 +621,7 @@ describe("ConversationName public sharing", () => {
       orgId: null,
     });
     updatePublicFlagSpy = vi
-      .spyOn(V1ConversationService, "updateConversationPublicFlag")
+      .spyOn(AgentServerConversationService, "updateConversationPublicFlag")
       .mockResolvedValue({ id: "test-conversation-id", public: true } as never);
   });
 

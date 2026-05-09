@@ -5,12 +5,12 @@ import { useAgentState } from "#/hooks/use-agent-state";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { getStatusColor, getStatusText } from "#/utils/utils";
 import { useErrorMessageStore } from "#/stores/error-message-store";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionErrored, isExecutionPaused } from "#/utils/status";
 
 export interface ServerStatusProps {
   className?: string;
-  executionStatus: V1ExecutionStatus | null;
+  executionStatus: ExecutionStatus | null;
   isPausing?: boolean;
 }
 

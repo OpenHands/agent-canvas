@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 interface UseReadConversationFileVariables {
   conversationId: string;
@@ -13,5 +13,8 @@ export const useReadConversationFile = () =>
       conversationId,
       filePath,
     }: UseReadConversationFileVariables): Promise<string> =>
-      V1ConversationService.readConversationFile(conversationId, filePath),
+      AgentServerConversationService.readConversationFile(
+        conversationId,
+        filePath,
+      ),
   });

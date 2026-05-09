@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
 
@@ -29,7 +29,7 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("V1ConversationService.updateConversationPublicFlag", () => {
+describe("AgentServerConversationService.updateConversationPublicFlag", () => {
   it("PATCHes /api/v1/app-conversations/{id} via cloud-proxy on a cloud backend", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
@@ -37,7 +37,7 @@ describe("V1ConversationService.updateConversationPublicFlag", () => {
       data: { id: "conv-abc", public: true },
     });
 
-    await V1ConversationService.updateConversationPublicFlag("conv-abc", true);
+    await AgentServerConversationService.updateConversationPublicFlag("conv-abc", true);
 
     expect(axios.post).toHaveBeenCalledOnce();
     const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
@@ -53,7 +53,7 @@ describe("V1ConversationService.updateConversationPublicFlag", () => {
   it("rejects without calling the proxy when the active backend is local", async () => {
     // Default state after reset is the bundled local backend.
     await expect(
-      V1ConversationService.updateConversationPublicFlag("conv-abc", true),
+      AgentServerConversationService.updateConversationPublicFlag("conv-abc", true),
     ).rejects.toThrow(/cloud backend/);
     expect(axios.post).not.toHaveBeenCalled();
   });

@@ -44,16 +44,21 @@ function limitItems<T>(items: T[], limit?: number): T[] {
 class ConfigService {
   static async searchModels(
     params: SearchModelsParams = {},
+    verifiedByProvider?: Record<string, string[]>,
   ): Promise<LLMModelPage> {
     const llmClient = createLlmMetadataClient();
-    const [models, verifiedByProvider] = await Promise.all([
+    const verifiedFetch =
+      verifiedByProvider !== undefined
+        ? Promise.resolve(verifiedByProvider)
+        : llmClient.getVerifiedModels();
+    const [models, verifiedMap] = await Promise.all([
       llmClient.getModels(),
-      llmClient.getVerifiedModels(),
+      verifiedFetch,
     ]);
 
     const provider = params.provider__eq ?? null;
     const verifiedNames = new Set(
-      provider ? (verifiedByProvider?.[provider] ?? []) : [],
+      provider ? (verifiedMap?.[provider] ?? []) : [],
     );
     const verifiedItems: LLMModel[] = [...verifiedNames].map((name) => ({
       provider,
@@ -89,15 +94,21 @@ class ConfigService {
 
   static async searchProviders(
     params: SearchProvidersParams = {},
+    verifiedByProvider?: Record<string, string[]>,
   ): Promise<ProviderPage> {
     const llmClient = createLlmMetadataClient();
-    const [providers, verifiedByProvider] = await Promise.all([
+    const verifiedFetch =
+      verifiedByProvider !== undefined
+        ? Promise.resolve(verifiedByProvider)
+        : llmClient.getVerifiedModels();
+    const [providers, verifiedMap] = await Promise.all([
       llmClient.getProviders(),
-      llmClient.getVerifiedModels(),
+      verifiedFetch,
     ]);
 
-    const verifiedProviders = new Set(Object.keys(verifiedByProvider ?? {}));
-    const providerItems: LLMProvider[] = (providers ?? []).map((name) => ({
+    const verifiedProviders = new Set(Object.keys(verifiedMap ?? {}));
+    const names = new Set<string>([...verifiedProviders, ...(providers ?? [])]);
+    const providerItems: LLMProvider[] = [...names].map((name) => ({
       name,
       verified: verifiedProviders.has(name),
     }));

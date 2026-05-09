@@ -19,8 +19,16 @@ export interface WorkspaceDropdownProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /**
+   * Whether to surface the "Manage Workspaces" entry in the sticky footer.
+   * Defaults to `workspaces.length > 0` when omitted; pass an explicit value
+   * if there are workspace parents (whose children may not have loaded yet)
+   * that should also count as "manageable".
+   */
+  showManage?: boolean;
   onChange: (workspace: LocalWorkspace | null) => void;
   onAddClick: () => void;
+  onManageClick: () => void;
 }
 
 export function WorkspaceDropdown({
@@ -29,8 +37,10 @@ export function WorkspaceDropdown({
   placeholder,
   className,
   disabled = false,
+  showManage,
   onChange,
   onAddClick,
+  onManageClick,
 }: WorkspaceDropdownProps) {
   const { t } = useTranslation("openhands");
   const [inputValue, setInputValue] = useState(value?.name ?? "");
@@ -114,25 +124,46 @@ export function WorkspaceDropdown({
 
   const stickyFooterItem = useMemo(
     () => (
-      <button
-        type="button"
-        data-testid="add-workspaces-button"
-        className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          closeMenu();
-          onAddClick();
-        }}
-      >
-        {t(I18nKey.HOME$ADD_WORKSPACES)}
-      </button>
+      <div className="flex flex-col">
+        <button
+          type="button"
+          data-testid="add-workspaces-button"
+          className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMenu();
+            onAddClick();
+          }}
+        >
+          {t(I18nKey.HOME$ADD_WORKSPACES)}
+        </button>
+        {(showManage ?? workspaces.length > 0) && (
+          <button
+            type="button"
+            data-testid="manage-workspaces-button"
+            className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              closeMenu();
+              onManageClick();
+            }}
+          >
+            {t(I18nKey.HOME$MANAGE_WORKSPACES)}
+          </button>
+        )}
+      </div>
     ),
-    [onAddClick, t, closeMenu],
+    [onAddClick, onManageClick, t, closeMenu, workspaces.length, showManage],
   );
 
   return (

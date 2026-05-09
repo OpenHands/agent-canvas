@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Typography } from "#/ui/typography";
-import { HookEvent } from "#/api/conversation-service/v1-conversation-service.types";
+import { HookEvent } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { HookMatcherContent } from "./hook-matcher-content";
 import { I18nKey } from "#/i18n/declaration";
 

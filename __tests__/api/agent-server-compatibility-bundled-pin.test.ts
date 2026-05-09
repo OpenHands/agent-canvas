@@ -5,7 +5,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import { ensureCompatibleAgentServer } from "#/api/agent-server-compatibility";
+import { loadAgentServerInfo } from "#/api/agent-server-compatibility";
 
 const getServerInfoMock = vi.fn();
 const createServerClientMock = vi.fn(() => ({
@@ -36,8 +36,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   getServerInfoMock.mockReset();
   createServerClientMock.mockClear();
-  // Return a future-compatible fake version so the check passes.
-  getServerInfoMock.mockResolvedValue({ version: "99.0.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.0.0" });
 });
 
 afterEach(() => {
@@ -45,12 +44,12 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("ensureCompatibleAgentServer", () => {
+describe("loadAgentServerInfo", () => {
   it("targets the bundled local backend even when the active backend is cloud", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
 
-    await ensureCompatibleAgentServer();
+    await loadAgentServerInfo();
 
     expect(createServerClientMock).toHaveBeenCalledOnce();
     const callArgs = createServerClientMock.mock.calls[0] as unknown as [

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { I18nKey } from "#/i18n/declaration";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -26,7 +26,7 @@ export const useNewConversationCommand = () => {
       // /new reuses the parent conversation's sandbox (matches OpenHands
       // SaaS behavior); it is NOT a sub-conversation, so parent_conversation_id
       // and agent_type stay undefined.
-      const startTask = await V1ConversationService.createConversation(
+      const startTask = await AgentServerConversationService.createConversation(
         undefined,
         undefined,
         undefined,

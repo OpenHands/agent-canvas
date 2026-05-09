@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "#/utils/utils";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionActive, isExecutionPaused } from "#/utils/status";
 import { ConversationCardContextMenu } from "./conversation-card-context-menu";
 import EllipsisIcon from "#/icons/ellipsis.svg?react";
@@ -13,7 +13,7 @@ interface ConversationCardActionsProps {
   onEdit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadViaVSCode?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  executionStatus?: V1ExecutionStatus | null;
+  executionStatus?: ExecutionStatus | null;
   conversationId?: string;
   showOptions?: boolean;
 }

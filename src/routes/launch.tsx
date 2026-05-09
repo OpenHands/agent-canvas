@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { PluginLaunchModal } from "#/components/features/launch/plugin-launch-modal";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -164,7 +164,7 @@ export default function LaunchRoute() {
   };
 
   const handleGoHome = () => {
-    navigate("/");
+    navigate("/conversations");
   };
 
   const handleTryAgain = () => {

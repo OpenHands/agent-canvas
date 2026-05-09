@@ -50,7 +50,7 @@ export const SECRETS_HANDLERS = [
       description?: string;
     } | null;
 
-    if (!body || !body.name || !body.value) {
+    if (!body?.name || !body?.value) {
       return HttpResponse.json(
         { detail: "name and value are required" },
         { status: 400 },
@@ -62,7 +62,10 @@ export const SECRETS_HANDLERS = [
       description: body.description,
     });
 
-    return HttpResponse.json({ name: body.name, description: body.description });
+    return HttpResponse.json({
+      name: body.name,
+      description: body.description,
+    });
   }),
 
   // DELETE /api/settings/secrets/:name - Delete a secret by name

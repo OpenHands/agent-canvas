@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { ToolItem } from "#/components/features/conversation-panel/system-message-modal/tool-item";
-import type { ChatCompletionToolParam } from "#/types/v1/core";
+import type { ChatCompletionToolParam } from "#/types/agent-server/core";
 
 describe("ToolItem", () => {
   const user = userEvent.setup();

@@ -59,14 +59,14 @@ export function AutomationCard({
       onKeyDown={(e) => {
         if (e.key === "Enter") handleCardClick();
       }}
-      className="cursor-pointer rounded-2xl border border-neutral-700 bg-neutral-800 p-5 transition-colors hover:border-neutral-600"
+      className="cursor-pointer rounded-2xl border border-border bg-surface-card p-5 transition-colors hover:border-border-hover"
     >
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-semibold text-white">
             {automation.name}
           </h3>
-          <p className="mt-1 line-clamp-2 text-sm text-neutral-400">
+          <p className="mt-1 line-clamp-2 text-sm text-content-muted">
             {automation.prompt}
           </p>
         </div>

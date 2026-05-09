@@ -10,6 +10,7 @@ import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
+import { EnvironmentSwitchOverlay } from "#/components/features/backends/environment-switch-overlay";
 import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
@@ -90,13 +91,20 @@ export default function MainApp() {
     );
   }
 
+  let rootLayoutPaddingClass = "p-0 md:p-3 md:pl-0";
+  if (pathname === "/" || pathname.startsWith("/automations")) {
+    rootLayoutPaddingClass = "p-0";
+  } else if (pathname.startsWith("/conversations")) {
+    rootLayoutPaddingClass = "p-0 md:pr-3";
+  }
+
   return (
     <ReactRouterNavigationProvider>
       <div
         data-testid="root-layout"
         className={cn(
           "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-          pathname === "/" ? "p-0" : "p-0 md:p-3 md:pl-0",
+          rootLayoutPaddingClass,
         )}
       >
         <title>{appTitle}</title>
@@ -131,6 +139,7 @@ export default function MainApp() {
           />
         )}
       </div>
+      <EnvironmentSwitchOverlay />
     </ReactRouterNavigationProvider>
   );
 }

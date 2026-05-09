@@ -164,7 +164,6 @@ export function InteractiveChatBox({
         isNewConversationPending={disabled}
         onSubmit={handleSubmit}
         onFilesPaste={handleUpload}
-        executionStatus={conversation?.execution_status || null}
       />
       <div className="mt-4">
         <GitControlBar onSuggestionsClick={handleSuggestionsClick} />

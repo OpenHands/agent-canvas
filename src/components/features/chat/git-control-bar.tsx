@@ -6,6 +6,7 @@ import { GitControlBarPullButton } from "./git-control-bar-pull-button";
 import { GitControlBarPushButton } from "./git-control-bar-push-button";
 import { GitControlBarPrButton } from "./git-control-bar-pr-button";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSendMessage } from "#/hooks/use-send-message";
@@ -33,6 +34,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
+  const { data: localGitInfo } = useLocalGitInfo();
   const webSocketStatus = useUnifiedWebSocketStatus();
   const webSocketStatusRef = useRef(webSocketStatus);
   useEffect(() => {
@@ -45,16 +47,28 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   }, [send]);
   const { mutate: updateRepository } = useUpdateConversationRepository();
 
-  // Priority: conversation data > task data
-  // This ensures we show repository info immediately from task, then transition to conversation data
-  const selectedRepository =
+  // Priority: conversation data > task data > locally-detected git info.
+  // The local fallback runs `git remote get-url origin` / `git rev-parse --abbrev-ref HEAD`
+  // in the conversation's working dir so local-workspace conversations can
+  // still display a repo and branch in the control bar.
+  const conversationRepository =
     conversation?.selected_repository || repositoryInfo?.selectedRepository;
-  const gitProvider = (conversation?.git_provider ||
-    repositoryInfo?.gitProvider) as Provider;
-  const selectedBranch =
+  const conversationProvider = (conversation?.git_provider ||
+    repositoryInfo?.gitProvider) as Provider | undefined;
+  const conversationBranch =
     conversation?.selected_branch || repositoryInfo?.selectedBranch;
 
-  const hasRepository = !!selectedRepository;
+  const selectedRepository =
+    conversationRepository || localGitInfo?.repository || undefined;
+  const gitProvider = (conversationProvider ||
+    localGitInfo?.provider) as Provider;
+  const selectedBranch =
+    conversationBranch || localGitInfo?.branch || undefined;
+
+  // Keep git actions (pull/push/PR) gated on the conversation actually being
+  // associated with a known git provider — local-only repos shouldn't enable
+  // those flows, so we only flip `hasRepository` for conversation/task data.
+  const hasRepository = !!conversationRepository;
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "OPEN";
@@ -124,7 +138,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
         <GitControlBarTooltipWrapper
           tooltipMessage={t(I18nKey.COMMON$GIT_TOOLS_DISABLED_CONTENT)}
           testId="git-control-bar-branch-button-tooltip"
-          shouldShowTooltip={!hasRepository}
+          shouldShowTooltip={!selectedBranch}
         >
           <GitControlBarBranchButton
             selectedBranch={selectedBranch}

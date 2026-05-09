@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
@@ -20,13 +20,11 @@ interface CreateConversationVariables {
   workingDir?: string;
 }
 
-// Response type for V1 conversations
 interface CreateConversationResponse {
   conversation_id: string;
   session_api_key: string | null;
   url: string | null;
-  v1_task_id?: string;
-  is_v1?: boolean;
+  task_id?: string;
 }
 
 export const useCreateConversation = () => {
@@ -48,21 +46,22 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
-      const conversation = await V1ConversationService.createConversation(
-        query,
-        conversationInstructions,
-        plugins,
-        repository
-          ? {
-              selected_repository: repository.name,
-              selected_branch: repository.branch ?? null,
-              git_provider: repository.gitProvider,
-            }
-          : null,
-        workingDir,
-        parentConversationId,
-        agentType,
-      );
+      const conversation =
+        await AgentServerConversationService.createConversation(
+          query,
+          conversationInstructions,
+          plugins,
+          repository
+            ? {
+                selected_repository: repository.name,
+                selected_branch: repository.branch ?? null,
+                git_provider: repository.gitProvider,
+              }
+            : null,
+          workingDir,
+          parentConversationId,
+          agentType,
+        );
 
       // OpenHands SaaS pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),
@@ -77,8 +76,7 @@ export const useCreateConversation = () => {
         conversation_id: conversationId,
         session_api_key: null,
         url: conversation.agent_server_url,
-        v1_task_id: conversation.id,
-        is_v1: true,
+        task_id: conversation.id,
       };
     },
     onSuccess: async (_, { repository }) => {
@@ -86,7 +84,11 @@ export const useCreateConversation = () => {
         hasRepository: !!repository,
       });
 
-      queryClient.removeQueries({
+      // Invalidate (rather than remove) so the existing paginated list stays
+      // rendered while a background refetch picks up the new conversation.
+      // `removeQueries` would wipe the cache and force the panel back to its
+      // initial loading state, dropping loaded pages and scroll position.
+      queryClient.invalidateQueries({
         queryKey: ["user", "conversations"],
       });
     },

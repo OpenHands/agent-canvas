@@ -6,7 +6,7 @@
  * to ALL connected clients across all tests, causing cross-test contamination
  * when tests run in parallel with Vitest v4.
  */
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import {
   describe,
   it,
@@ -203,26 +203,66 @@ describe("useWebSocket", () => {
   });
 
   it("should call onClose handler when WebSocket connection closes", async () => {
+    class MockWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+
+      readonly url: string;
+      readyState = MockWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.readyState = MockWebSocket.OPEN;
+          this.onopen?.(new Event("open"));
+        });
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = MockWebSocket.CLOSED;
+        this.onclose?.(
+          new CloseEvent("close", {
+            code: 1000,
+            reason: "Normal closure",
+            wasClean: true,
+          }),
+        );
+      }
+    }
+
+    const originalWebSocket = globalThis.WebSocket;
+    vi.stubGlobal("WebSocket", MockWebSocket);
+
     const onCloseSpy = vi.fn();
     const options = { onClose: onCloseSpy };
 
-    const { result, unmount } = renderHook(() =>
-      useWebSocket("ws://acme.com/ws", options),
-    );
+    try {
+      const { result, unmount } = renderHook(() =>
+        useWebSocket("ws://acme.com/ws", options),
+      );
 
-    await waitForConnection(result);
+      await waitForConnection(result);
 
-    onCloseSpy.mockClear();
+      act(() => {
+        result.current.disconnect();
+      });
 
-    // Closing the socket while the hook is still mounted is more reliable in CI
-    // than waiting for the close event to propagate during unmount cleanup.
-    result.current.disconnect();
+      await waitFor(() => {
+        expect(onCloseSpy).toHaveBeenCalledOnce();
+      });
 
-    await waitFor(() => {
-      expect(onCloseSpy).toHaveBeenCalledOnce();
-    });
-
-    unmount();
+      unmount();
+    } finally {
+      globalThis.WebSocket = originalWebSocket;
+    }
   });
 
   it.skip("should call onMessage handler when WebSocket receives a message", async () => {

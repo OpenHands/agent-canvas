@@ -13,10 +13,13 @@ import { HelpLink } from "#/ui/help-link";
 import { PRODUCT_URL } from "#/utils/constants";
 import { useSearchProviders } from "#/hooks/query/use-search-providers";
 import { useProviderModels } from "#/hooks/query/use-provider-models";
+import { useOpenhandsVerifiedModels } from "#/hooks/query/use-openhands-verified-models";
+import { normalizeDisplayModel } from "#/utils/normalize-display-model";
 
 interface ModelSelectorProps {
   isDisabled?: boolean;
   currentModel?: string;
+  currentBaseUrl?: string;
   onChange?: (provider: string | null, model: string | null) => void;
   onDefaultValuesChanged?: (
     provider: string | null,
@@ -29,6 +32,7 @@ interface ModelSelectorProps {
 export function ModelSelector({
   isDisabled,
   currentModel,
+  currentBaseUrl,
   onChange,
   onDefaultValuesChanged,
   wrapperClassName,
@@ -41,6 +45,7 @@ export function ModelSelector({
   const [selectedModel, setSelectedModel] = React.useState<string | null>(null);
 
   const { data: providers = [] } = useSearchProviders();
+  const { data: openhandsVerifiedModels } = useOpenhandsVerifiedModels();
   const {
     data: providerModels = [],
     isLoading: isLoadingModels,
@@ -66,15 +71,24 @@ export function ModelSelector({
   );
 
   React.useEffect(() => {
-    if (currentModel) {
-      const { provider, model } = extractModelAndProvider(currentModel);
+    // Wait for the openhands verified list before initializing — otherwise a
+    // persisted `litellm_proxy/<m>` model would first land as `litellm_proxy`
+    // and only later flip to `openhands`, triggering a redundant /api/llm/models
+    // fetch for the throwaway provider value.
+    if (currentModel && openhandsVerifiedModels !== undefined) {
+      const displayModel = normalizeDisplayModel(
+        currentModel,
+        currentBaseUrl,
+        openhandsVerifiedModels,
+      );
+      const { provider, model } = extractModelAndProvider(displayModel);
 
-      setLitellmId(currentModel);
+      setLitellmId(displayModel);
       setSelectedProvider(provider || null);
       setSelectedModel(model);
       onDefaultValuesChanged?.(provider || null, model);
     }
-  }, [currentModel]);
+  }, [currentModel, currentBaseUrl, openhandsVerifiedModels]);
 
   const handleChangeProvider = (provider: string) => {
     setSelectedProvider(provider);

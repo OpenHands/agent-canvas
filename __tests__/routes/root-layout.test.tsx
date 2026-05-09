@@ -39,7 +39,9 @@ vi.mock("#/components/features/sidebar/sidebar", () => ({
 }));
 
 vi.mock("#/components/features/analytics/analytics-consent-form-modal", () => ({
-  AnalyticsConsentFormModal: () => <div data-testid="analytics-consent-modal" />,
+  AnalyticsConsentFormModal: () => (
+    <div data-testid="analytics-consent-modal" />
+  ),
 }));
 
 vi.mock("#/components/features/alerts/alert-banner", () => ({
@@ -59,6 +61,18 @@ const RouterStub = createRoutesStub([
     children: [
       {
         path: "/",
+        Component: () => <div data-testid="outlet-content" />,
+      },
+      {
+        path: "/automations",
+        Component: () => <div data-testid="outlet-content" />,
+      },
+      {
+        path: "/automations/:id",
+        Component: () => <div data-testid="outlet-content" />,
+      },
+      {
+        path: "/settings",
         Component: () => <div data-testid="outlet-content" />,
       },
     ],
@@ -115,5 +129,32 @@ describe("root layout", () => {
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
     expect(screen.getByTestId("analytics-consent-modal")).toBeInTheDocument();
     expect(migrateUserConsentMock).toHaveBeenCalled();
+  });
+
+  it.each([["/automations"], ["/automations/abc-123"]])(
+    "drops the outer layout padding on %s so the page can render flush to the viewport edges",
+    (path) => {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <RouterStub initialEntries={[path]} />
+        </QueryClientProvider>,
+      );
+
+      const layout = screen.getByTestId("root-layout");
+      expect(layout.className).not.toMatch(/(^|\s)md:p-3(\s|$)/);
+      expect(layout.className).not.toMatch(/(^|\s)md:pl-0(\s|$)/);
+    },
+  );
+
+  it("keeps the outer layout padding on routes other than home and automations", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterStub initialEntries={["/settings"]} />
+      </QueryClientProvider>,
+    );
+
+    const layout = screen.getByTestId("root-layout");
+    expect(layout.className).toMatch(/(^|\s)md:p-3(\s|$)/);
+    expect(layout.className).toMatch(/(^|\s)md:pl-0(\s|$)/);
   });
 });

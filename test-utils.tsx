@@ -10,12 +10,12 @@ import {
   MessageEvent,
   ObservationEvent,
   PlanningFileEditorObservation,
-} from "#/types/v1/core";
+} from "#/types/agent-server/core";
 import {
   NavigationProvider,
   type NavigationContextValue,
 } from "#/context/navigation-context";
-import { SecurityRisk } from "#/types/v1/core";
+import { SecurityRisk } from "#/types/agent-server/core";
 
 export const useParamsMock = vi.fn(() => ({
   conversationId: "test-conversation-id",

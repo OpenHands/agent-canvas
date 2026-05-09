@@ -52,14 +52,14 @@ const RouterStub = createRoutesStub([
         path: "/settings",
       },
       {
-        Component: () => <div data-testid="git-settings" />,
-        path: "/settings/integrations",
+        Component: () => <div data-testid="mcp-settings" />,
+        path: "/settings/mcp",
       },
     ],
   },
 ]);
 
-render(<RouterStub initialEntries={["/settings/integrations"]} />);
+render(<RouterStub initialEntries={["/settings/mcp"]} />);
 ```
 
 > [!TIP]

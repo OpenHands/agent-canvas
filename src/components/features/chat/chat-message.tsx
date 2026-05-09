@@ -1,12 +1,12 @@
 import React from "react";
 import { cn } from "#/utils/utils";
 import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipboard-button";
-import { OpenHandsSourceType } from "#/types/core/base";
+import type { SourceType } from "#/types/agent-server/core/base/common";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
 interface ChatMessageProps {
-  type: OpenHandsSourceType;
+  type: SourceType;
   message: string;
   actions?: Array<{
     icon: React.ReactNode;

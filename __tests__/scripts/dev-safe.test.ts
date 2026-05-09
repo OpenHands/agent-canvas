@@ -42,35 +42,36 @@ describe("formatMissingUvxGuidance", () => {
 });
 
 describe("buildAgentServerCommand", () => {
-  it("uses main branch by default (until settings APIs are released)", () => {
+  it("uses released PyPI version by default with all packages pinned", () => {
     const cmd = buildAgentServerCommand({});
 
     expect(cmd.command).toBe("uvx");
-    // Currently defaults to main branch due to unreleased settings persistence APIs
+    // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-agent-server",
+      "openhands-agent-server==1.21.1",
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-tools",
+      "openhands-tools==1.21.1",
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@main#subdirectory=openhands-workspace",
+      "openhands-workspace==1.21.1",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("git (main, default)");
+    expect(cmd.source).toBe("PyPI (1.21.1, default)");
   });
 
-  it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set", () => {
+  it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
     const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_VERSION: "1.18.0" });
 
     expect(cmd.command).toBe("uvx");
     // Uses --from syntax because executable name (agent-server) differs from package name (openhands-agent-server)
+    // All SDK packages are pinned to the same version
     expect(cmd.args).toEqual([
       "--from",
       "openhands-agent-server==1.18.0",
       "--with",
-      "openhands-tools",
+      "openhands-tools==1.18.0",
       "--with",
-      "openhands-workspace",
+      "openhands-workspace==1.18.0",
       "agent-server",
     ]);
     expect(cmd.source).toBe("PyPI (1.18.0)");

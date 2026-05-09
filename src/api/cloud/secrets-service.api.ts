@@ -26,24 +26,26 @@ function getActiveCloudBackend(): Backend {
  */
 export async function fetchCloudSecrets(): Promise<CustomSecretWithoutValue[]> {
   const backend = getActiveCloudBackend();
-  const all: CustomSecretWithoutValue[] = [];
+
+  const secrets: CustomSecretWithoutValue[] = [];
   let pageId: string | null = null;
 
   do {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    const page: CloudSecretsPage = await callCloudProxy<CloudSecretsPage>({
+    // eslint-disable-next-line no-await-in-loop
+    const page = await callCloudProxy<CloudSecretsPage>({
       backend,
       method: "GET",
       path: `/api/v1/secrets/search?${query.toString()}`,
     });
 
-    all.push(...(page.items ?? []));
-    pageId = page.next_page_id ?? null;
+    secrets.push(...(page.items ?? []));
+    pageId = page.next_page_id;
   } while (pageId);
 
-  return all;
+  return secrets;
 }
 
 export async function createCloudSecret(

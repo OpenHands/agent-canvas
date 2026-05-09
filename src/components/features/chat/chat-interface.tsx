@@ -23,7 +23,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { ErrorMessageBanner } from "./error-message-banner";
-import { Messages as V1Messages } from "#/components/v1/chat";
+import { Messages } from "#/components/conversation-events/chat";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -53,12 +53,11 @@ export function ChatInterface() {
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
   const {
-    v0Events,
-    v1UiEvents,
-    v1FullEvents,
+    renderableEvents,
+    allConversationEvents,
     totalEvents,
     hasSubstantiveAgentActions,
-    v1UserEventsExist,
+    conversationUserEventsExist,
     userEventsExist,
   } = useFilteredEvents();
   const { setOptimisticUserMessage, getOptimisticUserMessage } =
@@ -121,13 +120,14 @@ export function ChatInterface() {
   // or once loading completes. This replaces the old transition-observation
   // pattern (useState + useEffect watching loading→loaded) which always showed
   // skeleton on remount because local state initialized to false.
-  const showV1Messages =
-    v1FullEvents.length > 0 || !conversationWebSocket?.isLoadingHistory;
+  const showConversationMessages =
+    allConversationEvents.length > 0 ||
+    !conversationWebSocket?.isLoadingHistory;
 
   const isReturningToConversation = !!conversationId;
   // Only show loading skeleton when genuinely loading AND no events in store yet.
   // If events exist (e.g., remount after data was already fetched), skip skeleton.
-  const isHistoryLoading = !showV1Messages;
+  const isHistoryLoading = !showConversationMessages;
   const isChatLoading = isHistoryLoading && !isTask;
 
   const handleSendMessage = async (
@@ -215,12 +215,7 @@ export function ChatInterface() {
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    v1UiEvents.length,
-    v0Events.length,
-    optimisticUserMessage,
-    scrollDomToBottom,
-  ]);
+  }, [renderableEvents.length, optimisticUserMessage, scrollDomToBottom]);
 
   // Create a ScrollProvider with the scroll hook values
   const scrollProviderValue = {
@@ -286,8 +281,11 @@ export function ChatInterface() {
             </div>
           )}
 
-          {showV1Messages && v1UserEventsExist && (
-            <V1Messages messages={v1UiEvents} allEvents={v1FullEvents} />
+          {showConversationMessages && conversationUserEventsExist && (
+            <Messages
+              messages={renderableEvents}
+              allEvents={allConversationEvents}
+            />
           )}
         </div>
 

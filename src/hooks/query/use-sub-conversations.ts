@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import V1ConversationService from "#/api/conversation-service/v1-conversation-service.api";
-import { V1AppConversation } from "#/api/conversation-service/v1-conversation-service.types";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 const FIVE_MINUTES = 1000 * 60 * 5;
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
@@ -23,13 +23,13 @@ export const useSubConversations = (
 ) => {
   const ids = subConversationIds || [];
 
-  return useQuery<(V1AppConversation | null)[]>({
+  return useQuery<(AppConversation | null)[]>({
     queryKey: ["v1", "sub-conversations", ids],
     queryFn: async () => {
       if (ids.length === 0) {
         return [];
       }
-      return V1ConversationService.batchGetAppConversations(ids);
+      return AgentServerConversationService.batchGetAppConversations(ids);
     },
     enabled: ids.length > 0,
     staleTime: FIVE_MINUTES,

@@ -1,13 +1,13 @@
 import type {
   GitChangeStatus,
-  V1GitChangeStatus,
+  AgentServerGitChangeStatus,
 } from "#/api/open-hands.types";
 
 type ClientGitChangeStatus = "added" | "modified" | "deleted" | "renamed";
 
-type SupportedGitStatus = V1GitChangeStatus | ClientGitChangeStatus;
+type SupportedGitStatus = AgentServerGitChangeStatus | ClientGitChangeStatus;
 
-export function mapAnyGitStatusToV0Status(
+export function mapAnyGitStatusToClientStatus(
   status: SupportedGitStatus,
 ): GitChangeStatus {
   switch (status) {
@@ -28,6 +28,8 @@ export function mapAnyGitStatusToV0Status(
   }
 }
 
-export function mapV1ToV0Status(v1Status: V1GitChangeStatus): GitChangeStatus {
-  return mapAnyGitStatusToV0Status(v1Status);
+export function mapAgentServerToClientGitStatus(
+  agentServerStatus: AgentServerGitChangeStatus,
+): GitChangeStatus {
+  return mapAnyGitStatusToClientStatus(agentServerStatus);
 }

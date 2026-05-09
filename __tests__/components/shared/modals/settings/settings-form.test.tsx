@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
@@ -11,14 +11,24 @@ describe("SettingsForm", () => {
   const onCloseMock = vi.fn();
   const saveSettingsSpy = vi.spyOn(SettingsService, "saveSettings");
 
+  // The persisted llm.model is "openhands/<m>"; ModelSelector splits it into
+  // provider ("openhands" → "OpenHands") and model name ("<m>") and feeds
+  // them into two autocompletes. extractSettings reconstructs llm.model
+  // from those two FormData entries on submit, so we wait for the model
+  // autocomplete to be populated before triggering submission — otherwise
+  // the spy would be called with model = undefined.
+  const expectedModel = getAgentSettingValue(
+    DEFAULT_SETTINGS,
+    "llm.model",
+  ) as string;
+  const expectedModelName = expectedModel.split("/").slice(1).join("/");
+
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock saveSettings to resolve immediately
     saveSettingsSpy.mockResolvedValue(true);
   });
 
   it("should save the user settings and close the modal when submitted outside a conversation route", async () => {
-    const user = userEvent.setup();
     renderWithProviders(
       <SettingsForm settings={DEFAULT_SETTINGS} onClose={onCloseMock} />,
       {
@@ -27,18 +37,23 @@ describe("SettingsForm", () => {
     );
 
     await waitFor(() => {
-      const llmProvider = screen.queryByLabelText(/LLM\$PROVIDER/i);
-      expect(llmProvider?.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.getByTestId("llm-model-input")).toHaveValue(
+        expectedModelName,
+      );
     });
 
-    await user.click(screen.getByTestId("save-settings-button"));
+    // The Autocomplete popover may be open at this point; click on the save
+    // button can be consumed by the outside-click handler. Submit the form
+    // element directly — the production onSubmit handler is what we're
+    // exercising here, not the click semantics.
+    fireEvent.submit(screen.getByTestId("settings-form"));
 
     await waitFor(() => {
       expect(saveSettingsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           agent_settings_diff: expect.objectContaining({
             llm: expect.objectContaining({
-              model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+              model: expectedModel,
             }),
           }),
         }),
@@ -62,17 +77,21 @@ describe("SettingsForm", () => {
     );
 
     await waitFor(() => {
-      const llmProvider = screen.queryByLabelText(/LLM\$PROVIDER/i);
-      expect(llmProvider?.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.getByTestId("llm-model-input")).toHaveValue(
+        expectedModelName,
+      );
     });
 
-    await user.click(screen.getByTestId("save-settings-button"));
+    fireEvent.submit(screen.getByTestId("settings-form"));
 
     expect(saveSettingsSpy).not.toHaveBeenCalled();
-    const confirmButton = screen.getByRole("button", {
+
+    // The confirm modal mounts after the form submit handler runs the
+    // conversation-route branch, so wait for it instead of using a sync
+    // getByRole.
+    const confirmButton = await screen.findByRole("button", {
       name: /BUTTON\$END_SESSION|end session/i,
     });
-    expect(confirmButton).toBeInTheDocument();
 
     await user.click(confirmButton);
 
@@ -81,7 +100,7 @@ describe("SettingsForm", () => {
         expect.objectContaining({
           agent_settings_diff: expect.objectContaining({
             llm: expect.objectContaining({
-              model: getAgentSettingValue(DEFAULT_SETTINGS, "llm.model"),
+              model: expectedModel,
             }),
           }),
         }),

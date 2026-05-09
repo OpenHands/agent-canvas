@@ -5,12 +5,10 @@ import {
   getAgentServerFormDefaults,
   saveAgentServerConfig,
 } from "#/api/agent-server-config";
-import { MINIMUM_SUPPORTED_AGENT_SERVER_VERSION } from "#/api/agent-server-compatibility";
 import { cn } from "#/utils/utils";
 import { BrandButton } from "./brand-button";
 import { SettingsInput } from "./settings-input";
 
-type AgentServerChecklistVariant = "connect" | "upgrade";
 type AgentServerConnectionFormVariant = "settings" | "onboarding";
 
 interface AgentServerConnectionFormProps {
@@ -18,11 +16,6 @@ interface AgentServerConnectionFormProps {
   formClassName?: string;
   variant?: AgentServerConnectionFormVariant;
   showSectionHeader?: boolean;
-}
-
-interface AgentServerChecklistProps {
-  className?: string;
-  variant?: AgentServerChecklistVariant;
 }
 
 export function AgentServerConnectionForm({
@@ -131,71 +124,5 @@ export function AgentServerConnectionForm({
         </BrandButton>
       </div>
     </form>
-  );
-}
-
-export function AgentServerChecklist({
-  className,
-  variant = "connect",
-}: AgentServerChecklistProps) {
-  const { t } = useTranslation("openhands");
-
-  const steps =
-    variant === "upgrade"
-      ? [
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_UPGRADE_TITLE", {
-              minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-            }),
-            description: t("SETTINGS$AGENT_SERVER_STEP_UPGRADE_DESCRIPTION", {
-              minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-            }),
-          },
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_URL_TITLE"),
-            description: t("SETTINGS$AGENT_SERVER_STEP_URL_DESCRIPTION"),
-          },
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_RECONNECT_TITLE"),
-            description: t("SETTINGS$AGENT_SERVER_STEP_RECONNECT_DESCRIPTION"),
-          },
-        ]
-      : [
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_START_TITLE", {
-              minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-            }),
-            description: t("SETTINGS$AGENT_SERVER_STEP_START_DESCRIPTION", {
-              minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-            }),
-          },
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_URL_TITLE"),
-            description: t("SETTINGS$AGENT_SERVER_STEP_URL_DESCRIPTION"),
-          },
-          {
-            title: t("SETTINGS$AGENT_SERVER_STEP_SAVE_TITLE"),
-            description: t("SETTINGS$AGENT_SERVER_STEP_SAVE_DESCRIPTION"),
-          },
-        ];
-
-  return (
-    <ol
-      data-testid="agent-server-checklist"
-      className={cn(
-        "list-decimal space-y-3 pl-5 text-sm text-gray-400 marker:text-gray-500",
-        className,
-      )}
-    >
-      {steps.map(({ title, description }, index) => (
-        <li key={title} className="pl-1">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500">
-            {t("SETTINGS$AGENT_SERVER_STEP_LABEL", { step: index + 1 })}
-          </p>
-          <p className="mt-1 font-semibold text-white">{title}</p>
-          <p className="mt-1 leading-6">{description}</p>
-        </li>
-      ))}
-    </ol>
   );
 }

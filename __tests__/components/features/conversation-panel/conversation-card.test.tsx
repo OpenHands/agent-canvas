@@ -15,7 +15,7 @@ import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCard } from "#/components/features/conversation-panel/conversation-card/conversation-card";
 import { clickOnEditButton } from "./utils";
 import { ConversationCardActions } from "#/components/features/conversation-panel/conversation-card/conversation-card-actions";
-import { V1ExecutionStatus } from "#/types/v1/core/base/common";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -37,6 +37,7 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$CREATED: "Created",
           CONVERSATION$AGO: "ago",
           CONVERSATION$UPDATED: "Updated",
+          COMMON$NO_REPOSITORY: "No repository",
         };
         return translations[key] || key;
       },
@@ -124,6 +125,52 @@ describe("ConversationCard", () => {
     );
 
     screen.getByTestId("conversation-card-selected-repository");
+  });
+
+  it("renders the workspace folder name when no repository is selected", () => {
+    renderWithProviders(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="/workspace/project/agent-canvas"
+      />,
+    );
+
+    expect(screen.getByText("agent-canvas")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("/workspace/project/agent-canvas"),
+    ).toBeInTheDocument();
+  });
+
+  it("handles Windows workspace paths and falls back when the path is empty", () => {
+    const { rerender } = renderWithProviders(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="C:\\Users\\me\\repo"
+      />,
+    );
+
+    expect(screen.getByText("repo")).toBeInTheDocument();
+
+    rerender(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="   "
+      />,
+    );
+
+    expect(screen.getByText("No repository")).toBeInTheDocument();
   });
 
   it("should toggle a context menu when clicking the ellipsis button", async () => {
@@ -442,31 +489,7 @@ describe("ConversationCard", () => {
     expect(screen.queryByTestId("ellipsis-button")).not.toBeInTheDocument();
   });
 
-  it("should render the llm model when provided", () => {
-    renderWithProviders(
-      <ConversationCard
-        onDelete={onDelete}
-        onChangeTitle={onChangeTitle}
-        title="Conversation 1"
-        selectedRepository={null}
-        lastUpdatedAt="2021-10-01T12:00:00Z"
-        llmModel="anthropic/claude-sonnet-4-20250514"
-      />,
-    );
-
-    const model = screen.getByTestId("conversation-card-llm-model");
-    expect(model).toBeInTheDocument();
-    expect(model).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-    expect(model).toHaveAttribute("title", "anthropic/claude-sonnet-4-20250514");
-    expect(model.querySelector("svg")).toBeInTheDocument();
-
-    // Verify truncation structure: text is wrapped in a span with truncate class
-    const textSpan = model.querySelector("span.truncate");
-    expect(textSpan).toBeInTheDocument();
-    expect(textSpan).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-  });
-
-  it("should not render the llm model when not provided", () => {
+  it("should not render the llm model in the conversation card", () => {
     renderWithProviders(
       <ConversationCard
         onDelete={onDelete}
@@ -482,14 +505,14 @@ describe("ConversationCard", () => {
     ).not.toBeInTheDocument();
   });
 
-  const statusTable: [V1ExecutionStatus, boolean][] = [
-    [V1ExecutionStatus.RUNNING, true],
-    [V1ExecutionStatus.IDLE, true],
-    [V1ExecutionStatus.FINISHED, true],
-    [V1ExecutionStatus.WAITING_FOR_CONFIRMATION, true],
-    [V1ExecutionStatus.ERROR, false],
-    [V1ExecutionStatus.STUCK, false],
-    [V1ExecutionStatus.PAUSED, false],
+  const statusTable: [ExecutionStatus, boolean][] = [
+    [ExecutionStatus.RUNNING, true],
+    [ExecutionStatus.IDLE, true],
+    [ExecutionStatus.FINISHED, true],
+    [ExecutionStatus.WAITING_FOR_CONFIRMATION, true],
+    [ExecutionStatus.ERROR, false],
+    [ExecutionStatus.STUCK, false],
+    [ExecutionStatus.PAUSED, false],
   ];
 
   it.each(statusTable)(
@@ -535,7 +558,7 @@ describe("ConversationCard", () => {
           contextMenuOpen={true}
           onContextMenuToggle={vi.fn()}
           onStop={vi.fn()}
-          executionStatus={V1ExecutionStatus.RUNNING}
+          executionStatus={ExecutionStatus.RUNNING}
         />,
       );
 
@@ -554,7 +577,7 @@ describe("ConversationCard", () => {
             contextMenuOpen={true}
             onContextMenuToggle={vi.fn()}
             onStop={vi.fn()}
-            executionStatus={V1ExecutionStatus.RUNNING}
+            executionStatus={ExecutionStatus.RUNNING}
           />
         </ActiveBackendProvider>,
       );

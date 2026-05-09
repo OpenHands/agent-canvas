@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
-import type { V1AppConversationStartTask } from "#/api/conversation-service/v1-conversation-service.types";
+import type { AppConversationStartTask } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { StartTaskCardHeader } from "./start-task-card-header";
 import { StartTaskCardFooter } from "./start-task-card-footer";
 
 interface StartTaskCardProps {
-  task: V1AppConversationStartTask;
+  task: AppConversationStartTask;
   onClick?: () => void;
 }
 

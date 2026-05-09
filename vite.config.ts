@@ -134,6 +134,10 @@ export default defineConfig(({ mode }) => {
         "react-icons/fa",
         "clsx",
         "tailwind-merge",
+        // CJS dependencies used by react-transition-group. Without pre-bundling,
+        // Vite can serve them directly to the browser before route hydration.
+        "prop-types",
+        "react-is",
         "@heroui/react",
         "lucide-react",
         "@microlink/react-json-view",

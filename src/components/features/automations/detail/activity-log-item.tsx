@@ -31,11 +31,11 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
   const content = (
     <>
       <div className="flex items-center gap-3">
-        <span className="text-sm text-neutral-200">
+        <span className="text-sm text-content">
           {formatRunTimestamp(run.started_at, i18n.language)}
         </span>
         {!hasConversation && (
-          <span className="text-xs text-neutral-500 italic">
+          <span className="text-xs text-content-muted italic">
             ({t(I18nKey.AUTOMATIONS$DETAIL$NO_CONVERSATION)})
           </span>
         )}
@@ -48,7 +48,7 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
     return (
       <a
         href={getConversationUrl(run.conversation_id)}
-        className="flex items-center justify-between px-5 py-3 transition-colors cursor-pointer hover:bg-neutral-700/50 focus:bg-neutral-700/50 focus:outline-none"
+        className="flex items-center justify-between px-5 py-3 transition-colors cursor-pointer hover:bg-surface-elevated focus:bg-surface-elevated focus:outline-none"
         aria-label={`View conversation for run at ${formatRunTimestamp(run.started_at, i18n.language)}`}
       >
         {content}
