@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
 import { AgentState } from "#/types/agent-state";
-import { browserTab } from "#/utils/browser-tab";
 import { useSettings } from "#/hooks/query/use-settings";
-import { AGENT_STATUS_MAP } from "#/utils/status";
 import notificationSound from "#/assets/notification.mp3";
 
 const NOTIFICATION_STATES: AgentState[] = [
@@ -13,16 +10,13 @@ const NOTIFICATION_STATES: AgentState[] = [
 ];
 
 /**
- * Hook that triggers browser tab flashing and notification sound
- * when the agent transitions into a state that requires user attention.
- *
- * - Flashes the browser tab title when the tab is not focused.
- * - Plays a notification sound if enabled in settings.
- * - Stops flashing when the user focuses the tab.
+ * Hook that plays a notification sound when the agent transitions into a
+ * state that requires user attention. The browser tab title itself is
+ * managed by `useAppTitle`, which prefixes the title with an emoji that
+ * reflects the current agent state.
  */
 export function useAgentNotification(curAgentState: AgentState) {
   const { data: settings } = useSettings();
-  const { t } = useTranslation("openhands");
   const audioRef = useRef<HTMLAudioElement | undefined>(undefined);
   const prevStateRef = useRef<AgentState | undefined>(undefined);
 
@@ -51,26 +45,5 @@ export function useAgentNotification(curAgentState: AgentState) {
         // Ignore autoplay errors (browsers may block autoplay)
       });
     }
-
-    if (typeof document !== "undefined" && !document.hasFocus()) {
-      const i18nKey = AGENT_STATUS_MAP[curAgentState];
-      const message = i18nKey ? t(i18nKey) : curAgentState;
-      browserTab.startNotification(message);
-    }
-  }, [curAgentState, isSoundEnabled, t]);
-
-  // Stop tab notification when window gains focus
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const handleFocus = () => {
-      browserTab.stopNotification();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      browserTab.stopNotification();
-    };
-  }, []);
+  }, [curAgentState, isSoundEnabled]);
 }
