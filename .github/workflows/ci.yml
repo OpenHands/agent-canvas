@@ -66,6 +66,9 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'live-e2e')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    concurrency:
+      group: live-e2e-media-${{ github.repository }}
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
@@ -161,10 +164,10 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          MEDIA_CLEANUP_PREFIX: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}-run-
+          MEDIA_BRANCH: live-e2e-artifacts
           MEDIA_KEEP_RUNS: 3
-          MEDIA_RELEASE_TAG: live-e2e-media
-          MEDIA_RUN_PREFIX: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}-run-${{ github.run_id }}
+          MEDIA_PR_DIR: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}
+          MEDIA_RUN_DIR: ${{ github.run_id }}
           SCREENSHOT_PATH: ${{ steps.live_media.outputs.screenshot_path || '' }}
           VIDEO_PATH: ${{ steps.live_media.outputs.video_path || '' }}
           VIDEO_PREVIEW_PATH: ${{ steps.live_video_preview.outputs.video_preview_path || '' }}
@@ -176,94 +179,66 @@ jobs:
             exit 0
           fi
 
-          if ! gh release view "$MEDIA_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$MEDIA_RELEASE_TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Live E2E media" \
-              --notes "Generated media for live Agent Canvas E2E PR reports." \
-              --prerelease \
-              --latest=false
+          media_url() {
+            printf 'https://raw.githubusercontent.com/%s/%s/%s/%s/%s\n' "$GITHUB_REPOSITORY" "$MEDIA_BRANCH" "$MEDIA_PR_DIR" "$MEDIA_RUN_DIR" "$1"
+          }
+
+          rm -rf .live-e2e-media-current .live-e2e-media-next .live-e2e-media-push
+          mkdir -p .live-e2e-media-current .live-e2e-media-next
+
+          if git ls-remote --exit-code --heads origin "$MEDIA_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$MEDIA_BRANCH"
+            git archive --format=tar FETCH_HEAD | tar -x -C .live-e2e-media-current
+            cp -a .live-e2e-media-current/. .live-e2e-media-next/
           fi
 
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.id')"
-          upload_url="$(
-            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.upload_url' |
-              sed 's/{?name,label}$//'
-          )"
-
-          media_url() {
-            printf 'https://github.com/%s/releases/download/%s/%s\n' "$GITHUB_REPOSITORY" "$MEDIA_RELEASE_TAG" "$1"
-          }
-
-          delete_asset_if_present() {
-            local asset_name="$1"
-            local asset_id
-
-            asset_id="$(
-              gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
-                --jq ".[] | select(.name == \"$asset_name\") | .id" |
-                head -n 1
-            )"
-
-            if [ -n "$asset_id" ]; then
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" >/dev/null
-            fi
-          }
-
-          upload_asset() {
-            local path="$1"
-            local asset_name="$2"
-            local content_type="$3"
-
-            delete_asset_if_present "$asset_name"
-            curl -fsSL \
-              -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: $content_type" \
-              --data-binary "@$path" \
-              "$upload_url?name=$asset_name" \
-              >/dev/null
-          }
-
-          mkdir -p live-e2e-media/upload
+          media_dir=".live-e2e-media-next/$MEDIA_PR_DIR/$MEDIA_RUN_DIR"
+          mkdir -p "$media_dir"
 
           if [ -n "$SCREENSHOT_PATH" ]; then
-            screenshot_asset="$MEDIA_RUN_PREFIX-live-agent-response.png"
-            cp "$SCREENSHOT_PATH" "live-e2e-media/upload/$screenshot_asset"
-            upload_asset "live-e2e-media/upload/$screenshot_asset" "$screenshot_asset" "image/png"
-            echo "screenshot_url=$(media_url "$screenshot_asset")" >> "$GITHUB_OUTPUT"
+            cp "$SCREENSHOT_PATH" "$media_dir/live-agent-response.png"
+            echo "screenshot_url=$(media_url "live-agent-response.png")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PREVIEW_PATH" ]; then
-            video_preview_asset="$MEDIA_RUN_PREFIX-live-agent-recording.gif"
-            cp "$VIDEO_PREVIEW_PATH" "live-e2e-media/upload/$video_preview_asset"
-            upload_asset "live-e2e-media/upload/$video_preview_asset" "$video_preview_asset" "image/gif"
-            echo "video_preview_url=$(media_url "$video_preview_asset")" >> "$GITHUB_OUTPUT"
+            cp "$VIDEO_PREVIEW_PATH" "$media_dir/live-agent-recording.gif"
+            echo "video_preview_url=$(media_url "live-agent-recording.gif")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PATH" ]; then
-            video_asset="$MEDIA_RUN_PREFIX-live-agent-recording.webm"
-            cp "$VIDEO_PATH" "live-e2e-media/upload/$video_asset"
-            upload_asset "live-e2e-media/upload/$video_asset" "$video_asset" "video/webm"
-            echo "video_url=$(media_url "$video_asset")" >> "$GITHUB_OUTPUT"
+            cp "$VIDEO_PATH" "$media_dir/live-agent-recording.webm"
+            echo "video_url=$(media_url "live-agent-recording.webm")" >> "$GITHUB_OUTPUT"
           fi
 
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[].name' > live-e2e-media-assets.txt
-
-          stale_runs="$(
-            sed -n "s/^${MEDIA_CLEANUP_PREFIX}\([0-9][0-9]*\)-live-agent-.*$/\1/p" live-e2e-media-assets.txt |
+          if [ -d ".live-e2e-media-next/$MEDIA_PR_DIR" ]; then
+            find ".live-e2e-media-next/$MEDIA_PR_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
               sort -nr |
-              uniq |
-              tail -n "+$((MEDIA_KEEP_RUNS + 1))"
-          )"
+              tail -n "+$((MEDIA_KEEP_RUNS + 1))" |
+              while IFS= read -r stale_run; do
+                [ -n "$stale_run" ] || continue
+                rm -rf ".live-e2e-media-next/$MEDIA_PR_DIR/$stale_run"
+              done
+          fi
 
-          if [ -n "$stale_runs" ]; then
-            while IFS= read -r stale_run; do
-              [ -n "$stale_run" ] || continue
-              while IFS= read -r asset_name; do
-                [ -n "$asset_name" ] || continue
-                gh release delete-asset "$MEDIA_RELEASE_TAG" "$asset_name" --repo "$GITHUB_REPOSITORY" -y || true
-              done < <(grep "^${MEDIA_CLEANUP_PREFIX}${stale_run}-" live-e2e-media-assets.txt || true)
-            done <<< "$stale_runs"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].number' > live-e2e-open-prs.txt
+          find .live-e2e-media-next -mindepth 1 -maxdepth 1 -type d -name 'pr-*' -printf '%f\n' |
+            while IFS= read -r pr_dir; do
+              pr_number="${pr_dir#pr-}"
+              [[ "$pr_number" =~ ^[0-9]+$ ]] || continue
+              if ! grep -qx "$pr_number" live-e2e-open-prs.txt; then
+                rm -rf ".live-e2e-media-next/$pr_dir"
+              fi
+            done
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git worktree add --detach .live-e2e-media-push
+          git -C .live-e2e-media-push checkout --orphan "$MEDIA_BRANCH"
+          git -C .live-e2e-media-push rm -rf . >/dev/null 2>&1 || true
+          cp -a .live-e2e-media-next/. .live-e2e-media-push/
+          touch .live-e2e-media-push/.nojekyll
+          git -C .live-e2e-media-push add -A
+          if ! git -C .live-e2e-media-push diff --cached --quiet; then
+            git -C .live-e2e-media-push commit -m "Publish live E2E media for run $GITHUB_RUN_ID"
+            git -C .live-e2e-media-push push origin HEAD:"$MEDIA_BRANCH" --force
           fi
 
       - name: Upload live E2E artifacts
