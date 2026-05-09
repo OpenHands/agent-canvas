@@ -8,13 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: PR number to comment on when running manually.
-        required: false
-        default: ""
+        description: PR number to run live QA against when running manually.
+        required: true
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: >-
+    ${{ github.event_name != 'pull_request' ||
+    !contains(github.event.pull_request.labels.*.name, 'live-e2e') }}
 
 permissions:
   contents: read
@@ -67,7 +68,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
-      group: live-e2e-media-${{ github.repository }}
+      group: live-e2e-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -80,20 +81,85 @@ jobs:
       LIVE_E2E_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
       LIVE_E2E_REPORT_PATH: live-e2e-report.md
       LIVE_E2E_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      LIVE_E2E_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      LIVE_E2E_PR_ARTIFACT_KEEP_RUNS: 3
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve live E2E PR context
+        id: pr_context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$LIVE_E2E_PR_NUMBER" ]; then
+            echo "::error::Live E2E QA must run against a PR. Provide workflow_dispatch.pr_number or add the live-e2e label to a PR."
+            exit 1
+          fi
+
+          pr_api="repos/$GITHUB_REPOSITORY/pulls/$LIVE_E2E_PR_NUMBER"
+          head_repo="$(gh api "$pr_api" --jq '.head.repo.full_name')"
+          head_ref="$(gh api "$pr_api" --jq '.head.ref')"
+          head_sha="$(gh api "$pr_api" --jq '.head.sha')"
+          base_repo="$(gh api "$pr_api" --jq '.base.repo.full_name')"
+
+          echo "has_pr=true" >> "$GITHUB_OUTPUT"
+          echo "head_repo=$head_repo" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          if [ "$head_repo" = "$base_repo" ]; then
+            echo "is_fork=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_fork=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out PR head
+        env:
+          PR_HEAD_REPO: ${{ steps.pr_context.outputs.head_repo }}
+          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          git remote remove pr-head >/dev/null 2>&1 || true
+          git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
+          git fetch --depth=2 pr-head "$PR_HEAD_SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Detect PR artifact-only commit
+        id: latest_commit
+        run: |
+          set -euo pipefail
+          changed_files="$(git diff-tree --no-commit-id --name-only -r --root HEAD)"
+
+          artifact_only=false
+          if [ -n "$changed_files" ]; then
+            artifact_only=true
+            while IFS= read -r changed_file; do
+              [ -n "$changed_file" ] || continue
+              case "$changed_file" in
+                .pr/*) ;;
+                *) artifact_only=false ;;
+              esac
+            done < <(printf '%s\n' "$changed_files")
+          fi
+
+          echo "pr_artifact_only=$artifact_only" >> "$GITHUB_OUTPUT"
+          if [ "$artifact_only" = "true" ]; then
+            echo "::notice::Skipping live E2E because the latest commit only changes .pr artifacts."
+          fi
 
       - name: Set up Node.js
+        if: steps.latest_commit.outputs.pr_artifact_only != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
           cache: npm
 
       - name: Create live E2E PR comment
-        if: env.LIVE_E2E_PR_NUMBER != ''
+        if: env.LIVE_E2E_PR_NUMBER != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -102,7 +168,7 @@ jobs:
             --status running \
             --model "$LIVE_E2E_LLM_MODEL" \
             --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
-            --commit "$LIVE_E2E_COMMIT_SHA" \
+            --commit "${{ steps.pr_context.outputs.head_sha }}" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           node scripts/upsert-pr-comment.mjs \
@@ -110,21 +176,22 @@ jobs:
             --body-file "$LIVE_E2E_REPORT_PATH"
 
       - name: Install dependencies
+        if: steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: npm ci
 
       - name: Install uv
-        if: env.LIVE_E2E_LLM_API_KEY != ''
+        if: env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install Playwright Chromium
-        if: env.LIVE_E2E_LLM_API_KEY != ''
+        if: env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: npx playwright install --with-deps chromium
 
       - name: Run live Agent Server E2E
         id: live_test
-        if: env.LIVE_E2E_LLM_API_KEY != ''
+        if: env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: |
           set +e
           npm run test:e2e:live
@@ -133,12 +200,12 @@ jobs:
           exit 0
 
       - name: Skip live Agent Server E2E
-        if: env.LIVE_E2E_LLM_API_KEY == ''
+        if: env.LIVE_E2E_LLM_API_KEY == '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: echo "Skipping live Agent Server E2E because LLM_API_KEY is not configured."
 
       - name: Extract live E2E media
         id: live_media
-        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        if: always() && env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: |
           node scripts/extract-live-e2e-media.mjs \
             --results "test-results-live/results.json" \
@@ -146,7 +213,7 @@ jobs:
 
       - name: Create live E2E video preview
         id: live_video_preview
-        if: always() && steps.live_media.outputs.video_path != ''
+        if: always() && steps.live_media.outputs.video_path != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
         run: |
           sudo apt-get update
@@ -160,14 +227,14 @@ jobs:
 
       - name: Publish live E2E media
         id: publish_live_media
-        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        if: always() && env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
-          MEDIA_BRANCH: live-e2e-artifacts
-          MEDIA_KEEP_RUNS: 3
-          MEDIA_PR_DIR: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}
+          MEDIA_KEEP_RUNS: ${{ env.LIVE_E2E_PR_ARTIFACT_KEEP_RUNS }}
           MEDIA_RUN_DIR: ${{ github.run_id }}
+          PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
+          PR_HEAD_IS_FORK: ${{ steps.pr_context.outputs.is_fork }}
+          PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
           SCREENSHOT_PATH: ${{ steps.live_media.outputs.screenshot_path || '' }}
           VIDEO_PATH: ${{ steps.live_media.outputs.video_path || '' }}
           VIDEO_PREVIEW_PATH: ${{ steps.live_video_preview.outputs.video_preview_path || '' }}
@@ -179,71 +246,68 @@ jobs:
             exit 0
           fi
 
-          media_url() {
-            printf 'https://raw.githubusercontent.com/%s/%s/%s/%s/%s\n' "$GITHUB_REPOSITORY" "$MEDIA_BRANCH" "$MEDIA_PR_DIR" "$MEDIA_RUN_DIR" "$1"
-          }
-
-          rm -rf .live-e2e-media-current .live-e2e-media-next .live-e2e-media-push
-          mkdir -p .live-e2e-media-current .live-e2e-media-next
-
-          if git ls-remote --exit-code --heads origin "$MEDIA_BRANCH" >/dev/null 2>&1; then
-            git fetch --depth=1 origin "$MEDIA_BRANCH"
-            git archive --format=tar FETCH_HEAD | tar -x -C .live-e2e-media-current
-            cp -a .live-e2e-media-current/. .live-e2e-media-next/
+          if [ "$PR_HEAD_IS_FORK" = "true" ]; then
+            echo "::notice::Skipping .pr media publishing for fork PRs."
+            exit 0
           fi
 
-          media_dir=".live-e2e-media-next/$MEDIA_PR_DIR/$MEDIA_RUN_DIR"
+          media_dir=".pr/live-e2e/$MEDIA_RUN_DIR"
           mkdir -p "$media_dir"
+          {
+            echo "# PR Artifacts"
+            echo
+            echo "This directory contains generated PR-only QA artifacts. The PR Artifacts workflow removes it after approval so these files do not enter the final squash merge."
+          } > .pr/README.md
 
           if [ -n "$SCREENSHOT_PATH" ]; then
             cp "$SCREENSHOT_PATH" "$media_dir/live-agent-response.png"
-            echo "screenshot_url=$(media_url "live-agent-response.png")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PREVIEW_PATH" ]; then
             cp "$VIDEO_PREVIEW_PATH" "$media_dir/live-agent-recording.gif"
-            echo "video_preview_url=$(media_url "live-agent-recording.gif")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PATH" ]; then
             cp "$VIDEO_PATH" "$media_dir/live-agent-recording.webm"
-            echo "video_url=$(media_url "live-agent-recording.webm")" >> "$GITHUB_OUTPUT"
           fi
 
-          if [ -d ".live-e2e-media-next/$MEDIA_PR_DIR" ]; then
-            find ".live-e2e-media-next/$MEDIA_PR_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
+          if [ -d ".pr/live-e2e" ]; then
+            find ".pr/live-e2e" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
               sort -nr |
               tail -n "+$((MEDIA_KEEP_RUNS + 1))" |
               while IFS= read -r stale_run; do
                 [ -n "$stale_run" ] || continue
-                rm -rf ".live-e2e-media-next/$MEDIA_PR_DIR/$stale_run"
+                rm -rf ".pr/live-e2e/$stale_run"
               done
           fi
 
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].number' > live-e2e-open-prs.txt
-          find .live-e2e-media-next -mindepth 1 -maxdepth 1 -type d -name 'pr-*' -printf '%f\n' |
-            while IFS= read -r pr_dir; do
-              pr_number="${pr_dir#pr-}"
-              [[ "$pr_number" =~ ^[0-9]+$ ]] || continue
-              if ! grep -qx "$pr_number" live-e2e-open-prs.txt; then
-                rm -rf ".live-e2e-media-next/$pr_dir"
-              fi
-            done
+          git config user.name "allhands-bot"
+          git config user.email "allhands-bot@users.noreply.github.com"
+          git add .pr
+          if git diff --cached --quiet; then
+            echo "No .pr media changes to publish."
+            exit 0
+          fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git worktree add --detach .live-e2e-media-push
-          git -C .live-e2e-media-push checkout --orphan "$MEDIA_BRANCH"
-          git -C .live-e2e-media-push rm -rf . >/dev/null 2>&1 || true
-          cp -a .live-e2e-media-next/. .live-e2e-media-push/
-          touch .live-e2e-media-push/.nojekyll
-          git -C .live-e2e-media-push add -A
-          if ! git -C .live-e2e-media-push diff --cached --quiet; then
-            git -C .live-e2e-media-push commit -m "Publish live E2E media for run $GITHUB_RUN_ID"
-            git -C .live-e2e-media-push push origin HEAD:"$MEDIA_BRANCH" --force
+          git commit -m "chore: Update PR QA artifacts"
+          git push "https://x-access-token:${PR_ARTIFACT_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$PR_HEAD_REF"
+
+          media_commit="$(git rev-parse HEAD)"
+          media_url() {
+            printf 'https://raw.githubusercontent.com/%s/%s/%s/%s\n' "$GITHUB_REPOSITORY" "$media_commit" "$media_dir" "$1"
+          }
+
+          if [ -f "$media_dir/live-agent-response.png" ]; then
+            echo "screenshot_url=$(media_url "live-agent-response.png")" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f "$media_dir/live-agent-recording.gif" ]; then
+            echo "video_preview_url=$(media_url "live-agent-recording.gif")" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f "$media_dir/live-agent-recording.webm" ]; then
+            echo "video_url=$(media_url "live-agent-recording.webm")" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload live E2E artifacts
         id: upload_live_artifacts
-        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        if: always() && env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         uses: actions/upload-artifact@v6
         with:
           name: live-agent-server-e2e
@@ -254,7 +318,7 @@ jobs:
 
       - name: Determine live E2E result
         id: live_status
-        if: always()
+        if: always() && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: |
           if [ -z "$LIVE_E2E_LLM_API_KEY" ]; then
             echo "status=skipped" >> "$GITHUB_OUTPUT"
@@ -277,7 +341,7 @@ jobs:
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
 
       - name: Render live E2E report
-        if: always()
+        if: always() && steps.latest_commit.outputs.pr_artifact_only != 'true'
         env:
           LIVE_E2E_ARTIFACT_URL: ${{ steps.upload_live_artifacts.outputs.artifact-url || '' }}
           LIVE_E2E_SCREENSHOT_URL: ${{ steps.publish_live_media.outputs.screenshot_url || '' }}
@@ -296,13 +360,13 @@ jobs:
             --screenshot-url "$LIVE_E2E_SCREENSHOT_URL" \
             --video-preview-url "$LIVE_E2E_VIDEO_PREVIEW_URL" \
             --video-url "$LIVE_E2E_VIDEO_URL" \
-            --commit "$LIVE_E2E_COMMIT_SHA" \
+            --commit "${{ steps.pr_context.outputs.head_sha }}" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           cat "$LIVE_E2E_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update live E2E PR comment
-        if: always() && env.LIVE_E2E_PR_NUMBER != ''
+        if: always() && env.LIVE_E2E_PR_NUMBER != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -311,5 +375,5 @@ jobs:
             --body-file "$LIVE_E2E_REPORT_PATH"
 
       - name: Fail live E2E job when tests fail
-        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        if: always() && env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: exit "${{ steps.live_status.outputs.exit_code }}"
