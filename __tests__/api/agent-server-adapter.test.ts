@@ -8,13 +8,23 @@ import {
 } from "#/api/agent-server-adapter";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 
-const { mockGetAgentServerWorkingDir, mockIsAgentServerToolAvailable } =
-  vi.hoisted(() => ({
-    mockGetAgentServerWorkingDir: vi.fn(
-      () => "/workspace/project/agent-canvas",
-    ),
-    mockIsAgentServerToolAvailable: vi.fn(() => true),
-  }));
+const {
+  mockGetAgentServerWorkingDir,
+  mockIsAgentServerToolAvailable,
+  mockGetEffectiveLocalBackend,
+} = vi.hoisted(() => ({
+  mockGetAgentServerWorkingDir: vi.fn(
+    () => "/workspace/project/agent-canvas",
+  ),
+  mockIsAgentServerToolAvailable: vi.fn(() => true),
+  mockGetEffectiveLocalBackend: vi.fn(() => ({
+    id: "default-local",
+    name: "Local backend",
+    host: "http://127.0.0.1:8000",
+    apiKey: "session-key",
+    kind: "local" as const,
+  })),
+}));
 
 vi.mock("#/api/agent-server-config", () => ({
   getAgentServerBaseUrl: vi.fn(() => "http://127.0.0.1:8000"),
@@ -28,10 +38,20 @@ vi.mock("#/api/agent-server-compatibility", () => ({
   isAgentServerToolAvailable: mockIsAgentServerToolAvailable,
 }));
 
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getEffectiveLocalBackend: mockGetEffectiveLocalBackend,
+}));
+
 beforeEach(() => {
   mockIsAgentServerToolAvailable.mockReturnValue(true);
+  mockGetEffectiveLocalBackend.mockReturnValue({
+    id: "default-local",
+    name: "Local backend",
+    host: "http://127.0.0.1:8000",
+    apiKey: "session-key",
+    kind: "local",
+  });
 });
-
 
 describe("buildStartConversationRequest", () => {
   it("uses nested settings as the source of truth and keeps SDK tool names", () => {
@@ -215,6 +235,48 @@ describe("buildStartConversationRequest", () => {
       content: [{ type: "text", text: "Follow the repo conventions." }],
     });
   });
+
+  it("serializes custom secrets as host-relative LookupSecret entries", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+      customSecrets: [
+        { name: "API_KEY", description: "Primary API key" },
+        { name: "folder/name", description: "Nested secret" },
+      ],
+    }) as {
+      secrets: Record<
+        string,
+        {
+          kind: string;
+          url: string;
+          description?: string;
+          headers?: Record<string, string>;
+        }
+      >;
+    };
+
+    expect(payload.secrets).toEqual({
+      API_KEY: {
+        kind: "LookupSecret",
+        url: "/api/settings/secrets/API_KEY",
+        description: "Primary API key",
+        headers: { "X-Session-API-Key": "session-key" },
+      },
+      "folder/name": {
+        kind: "LookupSecret",
+        url: "/api/settings/secrets/folder%2Fname",
+        description: "Nested secret",
+        headers: { "X-Session-API-Key": "session-key" },
+      },
+    });
+  });
+
 });
 
 describe("getDefaultConversationTitle", () => {
