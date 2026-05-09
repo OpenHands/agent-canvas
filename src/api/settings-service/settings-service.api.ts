@@ -57,21 +57,25 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
   baseDelayMs: number = 500,
-  attempt: number = 0,
 ): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (attempt >= maxRetries - 1) {
-      throw error;
-    }
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await fn();
+    } catch (error) {
+      if (attempt >= maxRetries - 1) {
+        throw error;
+      }
 
-    const delay = baseDelayMs * 2 ** attempt;
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, delay);
-    });
-    return withRetry(fn, maxRetries, baseDelayMs, attempt + 1);
+      const delay = baseDelayMs * 2 ** attempt;
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, delay);
+      });
+    }
   }
+
+  throw new Error("Retry attempts exhausted");
 }
 
 /**
