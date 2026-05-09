@@ -111,7 +111,7 @@ describe("root layout", () => {
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("renders the OSS layout and analytics modal when consent is missing", () => {
+  it("renders the OSS layout and analytics modal when consent is missing", async () => {
     useSettingsMock.mockReturnValue({
       data: {
         language: "en",
@@ -127,7 +127,11 @@ describe("root layout", () => {
 
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
-    expect(screen.getByTestId("analytics-consent-modal")).toBeInTheDocument();
+    // The consent modal is loaded via React.lazy() to keep it out of the root
+    // layout's eager graph, so it resolves on the next microtask.
+    expect(
+      await screen.findByTestId("analytics-consent-modal"),
+    ).toBeInTheDocument();
     expect(migrateUserConsentMock).toHaveBeenCalled();
   });
 

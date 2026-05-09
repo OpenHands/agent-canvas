@@ -23,14 +23,12 @@ import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { ChatMessage } from "../../features/chat/chat-message";
 import { PlanPreview } from "../../features/chat/plan-preview";
-import {
-  ErrorEventMessage,
-  UserAssistantEventMessage,
-  FinishEventMessage,
-  GenericEventMessageWrapper,
-  ThoughtEventMessage,
-  HookExecutionEventMessage,
-} from "./event-message-components";
+import { ErrorEventMessage } from "./event-message-components/error-event-message";
+import { UserAssistantEventMessage } from "./event-message-components/user-assistant-event-message";
+import { FinishEventMessage } from "./event-message-components/finish-event-message";
+import { GenericEventMessageWrapper } from "./event-message-components/generic-event-message-wrapper";
+import { ThoughtEventMessage } from "./event-message-components/thought-event-message";
+import { HookExecutionEventMessage } from "./event-message-components/hook-execution-event-message";
 import { createSkillReadyEvent } from "./event-content-helpers/create-skill-ready-event";
 import { shouldShowPlanPreview } from "./hooks/use-plan-preview-events";
 

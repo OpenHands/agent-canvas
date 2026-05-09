@@ -15,11 +15,18 @@ import {
   AgentServerUnavailableError,
   isAgentServerUnavailableError,
 } from "#/api/agent-server-compatibility";
-import { AgentServerConnectionForm } from "#/components/features/settings/agent-server-onboarding";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { AgentServerUIRoot } from "#/components/providers";
+
+// Only rendered on the onboarding screen when the agent server is unreachable;
+// keep it out of every page's eager graph.
+const AgentServerConnectionForm = React.lazy(() =>
+  import("#/components/features/settings/agent-server-onboarding").then(
+    (m) => ({ default: m.AgentServerConnectionForm }),
+  ),
+);
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -138,7 +145,9 @@ function AgentServerOnboardingLayout({
           </section>
 
           <aside className="lg:pt-6">
-            <AgentServerConnectionForm />
+            <React.Suspense fallback={null}>
+              <AgentServerConnectionForm />
+            </React.Suspense>
           </aside>
         </div>
       </div>

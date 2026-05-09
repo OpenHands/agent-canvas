@@ -11,11 +11,15 @@ import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
+// Import the trigger helpers from the lightweight store, not the overlay
+// component, so the eagerly-mounted sidebar/backend-selector graph does not
+// pull in the overlay's render code (the overlay is lazy-loaded from
+// `routes/root-layout.tsx`).
 import {
   dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
-} from "#/components/features/backends/environment-switch-overlay";
+} from "#/components/features/backends/environment-switch-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AddBackendModal } from "./add-backend-modal";

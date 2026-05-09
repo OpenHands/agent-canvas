@@ -6,17 +6,19 @@ import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
 import { ConversationTabTitle } from "../conversation-tab-title";
-import Terminal from "#/components/features/terminal/terminal";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
-// Lazy load all tab components
+// Lazy load all tab components, including the terminal — xterm + addon-fit +
+// xterm.css are large enough that we don't want them in the conversation
+// route's eager graph just because the terminal tab might be selected later.
 const EditorTab = lazy(() => import("#/routes/changes-tab"));
 const BrowserTab = lazy(() => import("#/routes/browser-tab"));
 const ServedTab = lazy(() => import("#/routes/served-tab"));
 const VSCodeTab = lazy(() => import("#/routes/vscode-tab"));
 const PlannerTab = lazy(() => import("#/routes/planner-tab"));
 const TaskListTab = lazy(() => import("#/routes/task-list-tab"));
+const Terminal = lazy(() => import("#/components/features/terminal/terminal"));
 
 const TAB_CONFIG = {
   tasklist: {

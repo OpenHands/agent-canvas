@@ -2,7 +2,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
-import { SettingsModal } from "#/components/shared/modals/settings/settings-modal";
 import { getErrorStatus, useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -13,6 +12,14 @@ import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SidebarConversationList } from "./sidebar-conversation-list";
+
+// The LLM settings modal is only mounted when the settings query 404s and
+// LLM settings aren't hidden — keep it out of the sidebar's eager graph.
+const SettingsModal = React.lazy(() =>
+  import("#/components/shared/modals/settings/settings-modal").then((m) => ({
+    default: m.SettingsModal,
+  })),
+);
 
 const SETTINGS_NAV_ICON_BY_PATH = new Map(
   OSS_NAV_ITEMS.map((item) => [item.to, item.icon] as const),
@@ -200,10 +207,12 @@ export function Sidebar() {
       </aside>
 
       {settingsModalIsOpen && (
-        <SettingsModal
-          settings={settings}
-          onClose={() => setSettingsModalIsOpen(false)}
-        />
+        <React.Suspense fallback={null}>
+          <SettingsModal
+            settings={settings}
+            onClose={() => setSettingsModalIsOpen(false)}
+          />
+        </React.Suspense>
       )}
     </>
   );

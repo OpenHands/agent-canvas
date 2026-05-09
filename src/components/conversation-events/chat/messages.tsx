@@ -5,7 +5,8 @@ import { ChatMessage } from "../../features/chat/chat-message";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { usePlanPreviewEvents } from "./hooks/use-plan-preview-events";
 import { groupEvents } from "./group-events";
-import { EventGroup, ThoughtEventMessage } from "./event-message-components";
+import { EventGroup } from "./event-message-components/event-group";
+import { ThoughtEventMessage } from "./event-message-components/thought-event-message";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";
 // import MemoryIcon from "#/icons/memory_icon.svg?react";

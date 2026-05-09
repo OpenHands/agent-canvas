@@ -23,7 +23,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { ErrorMessageBanner } from "./error-message-banner";
-import { Messages } from "#/components/conversation-events/chat";
+import { Messages } from "#/components/conversation-events/chat/messages";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";

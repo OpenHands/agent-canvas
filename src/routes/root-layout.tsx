@@ -10,16 +10,30 @@ import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
-import { EnvironmentSwitchOverlay } from "#/components/features/backends/environment-switch-overlay";
-import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { AlertBanner } from "#/components/features/alerts/alert-banner";
 import { cn } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
+
+// Lazy-load components that are only rendered conditionally — keeps them out
+// of the root layout's eager dev/prod graph (and out of every page's first
+// paint) until the relevant condition triggers.
+const EnvironmentSwitchOverlay = React.lazy(
+  () => import("#/components/features/backends/environment-switch-overlay"),
+);
+const AnalyticsConsentFormModal = React.lazy(() =>
+  import("#/components/features/analytics/analytics-consent-form-modal").then(
+    (m) => ({ default: m.AnalyticsConsentFormModal }),
+  ),
+);
+const AlertBanner = React.lazy(() =>
+  import("#/components/features/alerts/alert-banner").then((m) => ({
+    default: m.AlertBanner,
+  })),
+);
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -116,12 +130,14 @@ export default function MainApp() {
               (config.data.faulty_models &&
                 config.data.faulty_models.length > 0) ||
               config.data.error_message) && (
-              <AlertBanner
-                maintenanceStartTime={config.data.maintenance_start_time}
-                faultyModels={config.data.faulty_models}
-                errorMessage={config.data.error_message}
-                updatedAt={config.data.updated_at}
-              />
+              <React.Suspense fallback={null}>
+                <AlertBanner
+                  maintenanceStartTime={config.data.maintenance_start_time}
+                  faultyModels={config.data.faulty_models}
+                  errorMessage={config.data.error_message}
+                  updatedAt={config.data.updated_at}
+                />
+              </React.Suspense>
             )}
           <div
             id="root-outlet"
@@ -132,14 +148,18 @@ export default function MainApp() {
         </div>
 
         {consentFormIsOpen && (
-          <AnalyticsConsentFormModal
-            onClose={() => {
-              setConsentFormIsOpen(false);
-            }}
-          />
+          <React.Suspense fallback={null}>
+            <AnalyticsConsentFormModal
+              onClose={() => {
+                setConsentFormIsOpen(false);
+              }}
+            />
+          </React.Suspense>
         )}
       </div>
-      <EnvironmentSwitchOverlay />
+      <React.Suspense fallback={null}>
+        <EnvironmentSwitchOverlay />
+      </React.Suspense>
     </ReactRouterNavigationProvider>
   );
 }
