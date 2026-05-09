@@ -140,30 +140,37 @@ export function BackendSelector({
   // touching active state so queries refetch (via key change) only
   // once and against the correct org context.
   React.useEffect(() => {
-    if (active.backend.kind !== "cloud" || active.orgId) return;
-    const { backend } = active;
-    const entry = cloudOrgs[backend.id];
-    if (!entry || entry.orgs.length === 0) return;
-
     let cancelled = false;
-    const userId = currentUserIds[backend.id]?.userId ?? null;
-    const personal = userId
-      ? entry.orgs.find((o) => o.id === userId)
-      : undefined;
-    const target = personal ?? entry.orgs[0];
-    if (!target) return;
 
-    void switchOrg({ orgId: target.id, backend })
-      .then(() => {
-        if (!cancelled) {
-          setActive(backend.id, target.id);
+    if (active.backend.kind === "cloud" && !active.orgId) {
+      const { backend } = active;
+      const entry = cloudOrgs[backend.id];
+
+      if (entry && entry.orgs.length > 0) {
+        const userId = currentUserIds[backend.id]?.userId ?? null;
+        const personal = userId
+          ? entry.orgs.find((o) => o.id === userId)
+          : undefined;
+        const target = personal ?? entry.orgs[0];
+
+        if (target) {
+          const syncActiveOrg = async () => {
+            try {
+              await switchOrg({ orgId: target.id, backend });
+              if (!cancelled) {
+                setActive(backend.id, target.id);
+              }
+            } catch {
+              if (!cancelled) {
+                setActive(bundledBackend.id, null);
+              }
+            }
+          };
+
+          syncActiveOrg();
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setActive(bundledBackend.id, null);
-        }
-      });
+      }
+    }
 
     return () => {
       cancelled = true;
