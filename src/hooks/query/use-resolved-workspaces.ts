@@ -21,7 +21,10 @@ interface UseResolvedWorkspacesResult {
  * In environments where `/projects` doesn't exist (e.g. dockerless dev),
  * `searchSubdirs` simply errors and contributes no entries -- the implicit
  * parent stays silent rather than user-visible, which is safe.
- */
+ * In environments where `/projects` doesn't exist (e.g. dockerless dev),
+ * the `searchSubdirs` call will fail and the implicit parent contributes
+ * no entries. This is safe and intentional — the implicit parent stays
+ * silent rather than user-visible.
 const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
 ];
