@@ -1,11 +1,13 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import AgentServerGitService from "../../src/api/git-service/agent-server-git-service.api";
 
-const { mockGitChanges, mockGitDiff, mockCreateRemoteWorkspace } = vi.hoisted(() => ({
-  mockGitChanges: vi.fn(),
-  mockGitDiff: vi.fn(),
-  mockCreateRemoteWorkspace: vi.fn(),
-}));
+const { mockGitChanges, mockGitDiff, mockCreateRemoteWorkspace } = vi.hoisted(
+  () => ({
+    mockGitChanges: vi.fn(),
+    mockGitDiff: vi.fn(),
+    mockCreateRemoteWorkspace: vi.fn(),
+  }),
+);
 
 vi.mock("../../src/api/typescript-client", () => ({
   createRemoteWorkspace: mockCreateRemoteWorkspace,
@@ -48,7 +50,7 @@ describe("AgentServerGitService", () => {
         conversationUrl: "http://localhost:3000/api/conversations/123",
         sessionApiKey: "my-session-key",
       });
-      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project", { ref: "HEAD" });
+      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project");
     });
 
     test("preserves slashes in path when using workspace helper", async () => {
@@ -61,7 +63,7 @@ describe("AgentServerGitService", () => {
         pathWithSlashes,
       );
 
-      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes, { ref: "HEAD" });
+      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes);
     });
 
     test("maps V1 git statuses to V0 format", async () => {
@@ -89,7 +91,9 @@ describe("AgentServerGitService", () => {
 
   describe("getGitChangeDiff", () => {
     test("passes conversation URL and path to runtime workspace diff helper", async () => {
-      mockGitDiff.mockResolvedValue({ diff: "--- a/file.ts\n+++ b/file.ts\n..." });
+      mockGitDiff.mockResolvedValue({
+        diff: "--- a/file.ts\n+++ b/file.ts\n...",
+      });
 
       await AgentServerGitService.getGitChangeDiff(
         "http://localhost:3000/api/conversations/123",
@@ -101,7 +105,7 @@ describe("AgentServerGitService", () => {
         conversationUrl: "http://localhost:3000/api/conversations/123",
         sessionApiKey: "test-api-key",
       });
-      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts", { ref: "HEAD" });
+      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts");
     });
 
     test("preserves slashes in file path when using workspace helper", async () => {
@@ -114,7 +118,7 @@ describe("AgentServerGitService", () => {
         filePath,
       );
 
-      expect(mockGitDiff).toHaveBeenCalledWith(filePath, { ref: "HEAD" });
+      expect(mockGitDiff).toHaveBeenCalledWith(filePath);
     });
 
     test("returns the diff data from the response", async () => {

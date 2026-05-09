@@ -42,13 +42,11 @@ describe("useWebSocket", () => {
   afterEach(() => mswServer.resetHandlers());
   afterAll(() => mswServer.close());
 
-  const waitForConnection = async (
-    result: {
-      current: {
-        isConnected: boolean;
-      };
-    },
-  ) => {
+  const waitForConnection = async (result: {
+    current: {
+      isConnected: boolean;
+    };
+  }) => {
     await waitFor(
       () => {
         expect(result.current.isConnected).toBe(true);
@@ -163,23 +161,68 @@ describe("useWebSocket", () => {
   });
 
   it("should support query parameters in WebSocket URL", async () => {
+    class MockWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+
+      readonly url: string;
+      readyState = MockWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.readyState = MockWebSocket.OPEN;
+          this.onopen?.(new Event("open"));
+        });
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = MockWebSocket.CLOSED;
+        this.onclose?.(
+          new CloseEvent("close", {
+            code: 1000,
+            reason: "Normal closure",
+            wasClean: true,
+          }),
+        );
+      }
+    }
+
     const baseUrl = "ws://acme.com/ws";
     const queryParams = {
       token: "abc123",
       userId: "user456",
       version: "v1",
     };
+    const originalWebSocket = globalThis.WebSocket;
+    vi.stubGlobal("WebSocket", MockWebSocket);
 
-    const { result } = renderHook(() => useWebSocket(baseUrl, { queryParams }));
+    try {
+      const { result, unmount } = renderHook(() =>
+        useWebSocket(baseUrl, { queryParams }),
+      );
 
-    // Wait for connection to be established
-    await waitForConnection(result);
+      // Wait for connection to be established
+      await waitForConnection(result);
 
-    // Verify that the WebSocket was created with query parameters
-    expect(result.current.socket).toBeTruthy();
-    expect(result.current.socket!.url).toBe(
-      "ws://acme.com/ws?token=abc123&userId=user456&version=v1",
-    );
+      // Verify that the WebSocket was created with query parameters
+      expect(result.current.socket).toBeTruthy();
+      expect(result.current.socket!.url).toBe(
+        "ws://acme.com/ws?token=abc123&userId=user456&version=v1",
+      );
+
+      unmount();
+    } finally {
+      globalThis.WebSocket = originalWebSocket;
+    }
   });
 
   // Skipped: flaky in CI - see comment at top of file
