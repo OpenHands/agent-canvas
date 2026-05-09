@@ -154,6 +154,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: FE_PORT,
+      strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
       proxy: {

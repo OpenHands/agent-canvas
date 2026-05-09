@@ -1,3 +1,4 @@
+import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { homedir } from "node:os";
@@ -5,13 +6,16 @@ import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import {
   buildSafeDevConfig,
+  buildSafeDevConfigAsync,
   buildNpmScriptCommand,
   buildAgentServerCommand,
   formatMissingUvxGuidance,
   validateLocalAgentServerPath,
+  findFreePort,
+  findFreePorts,
 } from "../../scripts/dev-safe.mjs";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +24,177 @@ const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+
+describe("findFreePort", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    // Clean up any servers we created
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("returns preferred port when available", async () => {
+    // Port 9999 should be free (unlikely to be in use during tests)
+    const port = await findFreePort(9999, "127.0.0.1");
+    expect(port).toBe(9999);
+  });
+
+  it("falls back to OS-assigned port when preferred is busy", async () => {
+    // Create a server that holds a port
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get server address"));
+        }
+      });
+    });
+
+    // Now try to get that busy port
+    const allocatedPort = await findFreePort(busyPort, "127.0.0.1");
+
+    // Should get a different port since busyPort is taken
+    expect(allocatedPort).not.toBe(busyPort);
+    expect(typeof allocatedPort).toBe("number");
+    expect(allocatedPort).toBeGreaterThan(0);
+  });
+
+  it("returns OS-assigned port when preferredPort is 0", async () => {
+    const port = await findFreePort(0, "127.0.0.1");
+    expect(typeof port).toBe("number");
+    expect(port).toBeGreaterThan(0);
+  });
+});
+
+describe("findFreePorts", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("allocates all requested ports when all preferred are available", async () => {
+    // Use high ports unlikely to be in use
+    const result = await findFreePorts([
+      { name: "portA", preferred: 19891 },
+      { name: "portB", preferred: 19892 },
+    ]);
+
+    // Check ports are valid - they may be the preferred or fallbacks
+    expect(typeof result.portA).toBe("number");
+    expect(result.portA).toBeGreaterThan(0);
+    expect(typeof result.portB).toBe("number");
+    expect(result.portB).toBeGreaterThan(0);
+    // Ports should be different
+    expect(result.portA).not.toBe(result.portB);
+  });
+
+  it("returns unique ports for each name", async () => {
+    // Use preferred: 0 to get OS-assigned ports
+    const result = await findFreePorts([
+      { name: "port1", preferred: 0 },
+      { name: "port2", preferred: 0 },
+      { name: "port3", preferred: 0 },
+    ]);
+
+    const ports = [result.port1, result.port2, result.port3];
+    const uniquePorts = new Set(ports);
+
+    expect(uniquePorts.size).toBe(3);
+    for (const port of ports) {
+      expect(typeof port).toBe("number");
+      expect(port).toBeGreaterThan(0);
+    }
+  });
+
+  it("falls back when preferred port is busy", async () => {
+    // Create a server that holds a port
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get server address"));
+        }
+      });
+    });
+
+    const result = await findFreePorts([
+      { name: "busy", preferred: busyPort },
+      { name: "free", preferred: 19800 }, // high port unlikely to be busy
+    ]);
+
+    // "busy" should get a different port since it's taken
+    expect(result.busy).not.toBe(busyPort);
+    expect(typeof result.busy).toBe("number");
+    expect(result.busy).toBeGreaterThan(0);
+
+    // "free" should get the requested port if available
+    // (or a fallback if 19800 happens to be busy)
+    expect(typeof result.free).toBe("number");
+    expect(result.free).toBeGreaterThan(0);
+  });
+});
+
+describe("buildSafeDevConfigAsync", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("returns config with dynamically allocated ports", async () => {
+    const config = await buildSafeDevConfigAsync(repoRoot, {});
+
+    expect(typeof config.backendPort).toBe("number");
+    expect(config.backendPort).toBeGreaterThan(0);
+    expect(typeof config.vscodePort).toBe("number");
+    expect(config.vscodePort).toBeGreaterThan(0);
+    // Ports should be different
+    expect(config.backendPort).not.toBe(config.vscodePort);
+  });
+
+  it("falls back when preferred ports are busy", async () => {
+    // Block a specific high port we'll request
+    const busyPort = 19600;
+    const server = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      server.listen(busyPort, "127.0.0.1", () => {
+        servers.push(server);
+        resolve();
+      });
+      server.on("error", reject);
+    });
+
+    // Request the busy port via env var
+    const config = await buildSafeDevConfigAsync(repoRoot, {
+      OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
+    });
+
+    // Backend port should NOT be busyPort since it's taken
+    expect(config.backendPort).not.toBe(busyPort);
+    expect(typeof config.backendPort).toBe("number");
+    expect(config.backendPort).toBeGreaterThan(0);
+  });
+});
 
 describe("formatMissingUvxGuidance", () => {
   it("includes install, PATH, README, and fallback workflow hints", () => {
