@@ -91,6 +91,13 @@ export const useCreateConversation = () => {
       queryClient.invalidateQueries({
         queryKey: ["user", "conversations"],
       });
+      // The cloud SaaS path returns a start task (no app_conversation_id
+      // yet); the sidebar surfaces those via `useStartTasks` which doesn't
+      // poll, so invalidate it explicitly so the in-flight task shows up
+      // in the conversation list immediately.
+      queryClient.invalidateQueries({
+        queryKey: ["start-tasks"],
+      });
     },
   });
 };
