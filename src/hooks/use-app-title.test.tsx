@@ -87,9 +87,7 @@ describe("useAppTitle", () => {
       const { result } = renderAppTitleHook();
 
       await waitFor(() =>
-        expect(result.current).toBe(
-          `${emoji} My Conversation | OpenHands`,
-        ),
+        expect(result.current).toBe(`${emoji} My Conversation | OpenHands`),
       );
     },
   );
