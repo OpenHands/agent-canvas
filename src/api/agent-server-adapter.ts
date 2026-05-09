@@ -294,6 +294,10 @@ function createAgentFromSettings(agentSettings: SettingsRecord) {
   return {
     kind: "Agent",
     ...agentSettings,
+    agent_context: {
+      load_public_skills: shouldLoadPublicSkills(),
+      load_user_skills: true,
+    },
   };
 }
 
