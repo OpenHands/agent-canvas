@@ -74,14 +74,31 @@ export function NewConversationButton() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, browserOpen, manageOpen]);
 
-  const launch = (workingDir?: string) => {
+  const launch = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    workingDir?: string,
+  ) => {
     if (isCreating) return;
+    // Cmd-click on macOS / Ctrl-click on Windows+Linux opens the new
+    // conversation in a background tab. We open `about:blank` synchronously
+    // inside the click handler so popup blockers treat it as a user gesture,
+    // then redirect that window once the conversation has been created.
+    const openInNewTab = event.metaKey || event.ctrlKey;
+    const newTab = openInNewTab ? window.open("about:blank", "_blank") : null;
     createConversation(
       { workingDir },
       {
         onSuccess: (data) => {
+          const url = `/conversations/${data.conversation_id}`;
           setOpen(false);
-          navigate(`/conversations/${data.conversation_id}`);
+          if (newTab) {
+            newTab.location.href = url;
+          } else {
+            navigate(url);
+          }
+        },
+        onError: () => {
+          if (newTab) newTab.close();
         },
       },
     );
@@ -133,7 +150,7 @@ export function NewConversationButton() {
                 type="button"
                 disabled={isCreating}
                 data-testid="launch-no-workspace"
-                onClick={() => launch()}
+                onClick={(event) => launch(event)}
                 className={itemClass}
               >
                 <span className="italic text-[#A3A3A3]">
@@ -148,7 +165,7 @@ export function NewConversationButton() {
                   disabled={isCreating}
                   data-testid="launch-workspace"
                   data-workspace-path={w.path}
-                  onClick={() => launch(w.path)}
+                  onClick={(event) => launch(event, w.path)}
                   className={itemClass}
                 >
                   <RepoIcon width={14} height={14} className="shrink-0" />

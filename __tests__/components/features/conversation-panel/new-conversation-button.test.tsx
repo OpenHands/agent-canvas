@@ -141,9 +141,10 @@ describe("NewConversationButton", () => {
         path: "/workspace/project/repo1",
       },
     ]);
-    vi.spyOn(AgentServerConversationService, "createConversation").mockImplementation(
-      () => new Promise(() => {}),
-    );
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockImplementation(() => new Promise(() => {}));
 
     const user = userEvent.setup();
     renderWithProviders(<NewConversationButton />);
@@ -186,6 +187,75 @@ describe("NewConversationButton", () => {
     expect(screen.getByTestId("manage-workspaces-modal")).toBeInTheDocument();
     await user.click(document.body);
     expect(screen.getByTestId("new-conversation-popover")).toBeInTheDocument();
+  });
+
+  it("opens the conversation in a new tab when cmd/ctrl-clicking a workspace", async () => {
+    useWorkspacesStore.getState().addWorkspaces([
+      {
+        id: "/workspace/project/repo1",
+        name: "repo1",
+        path: "/workspace/project/repo1",
+      },
+    ]);
+    const navigate = vi.fn();
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockResolvedValue(makeStartTask("conv-cmd-1"));
+
+    const newTab = {
+      location: { href: "" },
+      close: vi.fn(),
+    } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(newTab);
+
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />, {
+      navigation: { navigate, currentPath: "/conversations" },
+    });
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("button", { name: "repo1" }));
+    await user.keyboard("{/Meta}");
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledWith("about:blank", "_blank");
+    });
+    await waitFor(() => {
+      expect(newTab.location.href).toBe("/conversations/conv-cmd-1");
+    });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("closes the pre-opened tab when conversation creation fails on cmd/ctrl-click", async () => {
+    useWorkspacesStore.getState().addWorkspaces([
+      {
+        id: "/workspace/project/repo1",
+        name: "repo1",
+        path: "/workspace/project/repo1",
+      },
+    ]);
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(new Error("create failed"));
+
+    const close = vi.fn();
+    const newTab = { location: { href: "" }, close } as unknown as Window;
+    vi.spyOn(window, "open").mockReturnValue(newTab);
+
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />);
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("button", { name: "repo1" }));
+    await user.keyboard("{/Meta}");
+
+    await waitFor(() => {
+      expect(close).toHaveBeenCalled();
+    });
   });
 
   it("keeps the popover open when conversation creation fails", async () => {
