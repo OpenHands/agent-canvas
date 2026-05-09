@@ -67,7 +67,8 @@ export function Sidebar() {
         aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
         className={cn(
           "h-[54px] p-3 md:p-0 md:h-[40px] md:h-auto flex flex-row md:flex-col gap-1 bg-base md:w-[75px] md:min-w-[75px] sm:pt-0 sm:px-2 md:pt-[14px] md:px-0",
-          currentPath === "/" && "md:pt-6.5 md:pb-3",
+          (currentPath === "/" || currentPath.startsWith("/automations")) &&
+            "md:pt-6.5 md:pb-3",
         )}
       >
         <nav className="flex flex-row md:flex-col items-center justify-between w-full h-auto md:w-auto md:h-full">
