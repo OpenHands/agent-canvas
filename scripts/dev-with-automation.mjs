@@ -658,23 +658,35 @@ function printBanner(config) {
   console.log("");
 }
 
-async function main() {
+async function main(options = {}) {
+  const {
+    bannerTitle = "Agent Canvas + Automation Development Stack",
+    startAgentServer: startAgentServerOverride,
+    extraPrereqs,
+  } = options;
+
   const args = parseArgs();
   const config = buildConfig(args);
 
   console.log("");
-  console.log(`${c.cyan}${c.bold}Agent Canvas + Automation Development Stack${c.reset}`);
+  console.log(`${c.cyan}${c.bold}${bannerTitle}${c.reset}`);
   console.log("");
 
   // Setup phase
+  // (uvx is still required even in docker mode because the automation
+  // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites();
+  if (typeof extraPrereqs === "function") {
+    extraPrereqs(config);
+  }
   ensureDirectories(config);
 
   // Start services phase
   logStep("2/2", "Starting services...");
 
   // 1. Start agent-server first (other services depend on it)
-  startAgentServer(config);
+  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+  agentServerStarter(config);
 
   // Wait for agent-server to be ready (60s timeout for slow systems)
   const agentServerReady = await waitForService(
@@ -718,6 +730,14 @@ export {
   buildAutomationCommand,
   buildConfig,
   generateRandomApiKey,
+  main,
+  spawnService,
+  commandExists,
+  logService,
+  logStep,
+  logSuccess,
+  logError,
+  c,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,

@@ -51,11 +51,11 @@
     "zustand": "5.0.12"
   },
   "scripts": {
-    "dev": "npm run dev:automation",
+    "dev:dangerously-dockerless": "npm run dev:automation",
     "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:extra-backend": "node --env-file-if-exists=.env scripts/dev-extra-backend.mjs",
     "dev:automation": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
-    "dev:docker": "docker run -v $PROJECT_PATH:/workspace/projects -v ~/.openhands:/home/openhands/.openhands -v ~/.claude:/home/openhands/.claude -v ~/.codex:/home/openhands/.codex -v ~/.ssh:/home/openhands/.ssh -p 8000:8000 -e OH_CONVERSATIONS_PATH=/home/openhands/.openhands/agent-canvas/conversations -e OH_PERSISTENCE_DIR=/home/openhands/.openhands ghcr.io/openhands/agent-server:d3f4851-python",
+    "dev:docker": "node --env-file-if-exists=.env scripts/dev-docker.mjs",
     "dev:static": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:minimal": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:frontend": "npm run make-i18n && cross-env VITE_MOCK_API=false react-router dev",
