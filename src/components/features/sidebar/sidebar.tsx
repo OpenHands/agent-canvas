@@ -115,6 +115,12 @@ export function Sidebar() {
             disabled={linkDisabled}
           />
           <SidebarNavLink
+            to="/mcp"
+            label={t(I18nKey.SIDEBAR$MCP)}
+            testId="sidebar-mcp-link"
+            disabled={linkDisabled}
+          />
+          <SidebarNavLink
             to="/integrations"
             label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
             testId="sidebar-integrations-link"

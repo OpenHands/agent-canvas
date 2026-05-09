@@ -11718,6 +11718,66 @@
   "SIDEBAR$INTEGRATIONS": {
     "en": "Integrations"
   },
+  "SIDEBAR$MCP": {
+    "en": "MCP"
+  },
+  "MCP$PAGE_DESCRIPTION": {
+    "en": "Add Model Context Protocol servers to expand what your agent can do. Click any server below to install it."
+  },
+  "MCP$INSTALLED_TITLE": {
+    "en": "Installed"
+  },
+  "MCP$INSTALLED_EMPTY_TITLE": {
+    "en": "No MCP servers installed yet."
+  },
+  "MCP$INSTALLED_EMPTY_HINT": {
+    "en": "Pick one from the marketplace below to get started."
+  },
+  "MCP$MARKETPLACE_TITLE": {
+    "en": "Marketplace"
+  },
+  "MCP$MARKETPLACE_DESCRIPTION": {
+    "en": "Well-known MCP servers, ready to install with a single click."
+  },
+  "MCP$INSTALLED_BADGE": {
+    "en": "Installed"
+  },
+  "MCP$INSTALL_BUTTON": {
+    "en": "Install"
+  },
+  "MCP$VIEW_DOCS": {
+    "en": "View documentation →"
+  },
+  "MCP$INSTALL_SUCCESS": {
+    "en": "MCP server saved."
+  },
+  "MCP$REMOVE_SUCCESS": {
+    "en": "MCP server removed."
+  },
+  "MCP$EDIT_SERVER_ARIA": {
+    "en": "Edit {{name}}"
+  },
+  "MCP$DELETE_SERVER_ARIA": {
+    "en": "Remove {{name}}"
+  },
+  "MCP$ERROR_FIELD_REQUIRED": {
+    "en": "This field is required."
+  },
+  "MCP$ADD_CUSTOM": {
+    "en": "Add custom server"
+  },
+  "MCP$ADD_CUSTOM_TITLE": {
+    "en": "Add custom MCP server"
+  },
+  "MCP$EDIT_CUSTOM_TITLE": {
+    "en": "Edit MCP server"
+  },
+  "MCP$COMMAND_LABEL": {
+    "en": "Command"
+  },
+  "MCP$TRANSPORT_BUILTIN": {
+    "en": "Built-in"
+  },
   "SIDEBAR$NEW_CONVERSATION": {
     "en": "New Conversation"
   },
