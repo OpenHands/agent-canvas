@@ -10,9 +10,7 @@
  *
  * Required environment variables:
  *   - PROJECT_PATH: Absolute host path to your projects. Mounted into the
- *     container at /projects so the agent can read/edit your code. The
- *     frontend always treats /projects as a "workspace parent", so the
- *     dropdown lists its immediate subdirectories as workspaces.
+ *     container at /workspace/projects so the agent can read/edit your code.
  *
  * Optional environment variables:
  *   - OH_AGENT_SERVER_GIT_REF: Git ref (branch/tag/SHA) of the agent-server
@@ -142,7 +140,7 @@ function startAgentServerDocker(config) {
     CONTAINER_NAME,
     "--init",
     "-v",
-    `${process.env.PROJECT_PATH}:/projects`,
+    `${process.env.PROJECT_PATH}:/workspace/projects`,
   ];
 
   // Optional credential / state mounts. Only mount when the host path
