@@ -25,20 +25,30 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 **Prerequisites**:
 - Node.js 22.12.x or later
 - `npm`
-- `uv` (for running the agent server via `uvx`)
+- Docker
 
-> [!WARNING]
-> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
-> Stay tuned for docker sandboxing instructions.
+Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
 
 ```sh
+export PROJECT_PATH=/path/to/your/projects
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-npm run dev
+npm run dev:docker
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
+
+### Running the agent server directly (advanced)
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
+
+If you'd rather run the agent server outside of Docker, you'll also need `uv` (for running the agent server via `uvx`), and can start the dev server with:
+
+```sh
+npm run dev
+```
 
 # Architecture
 
