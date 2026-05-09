@@ -65,7 +65,9 @@ describe("ProfilesService", () => {
 
       const result = await ProfilesService.getProfile("my-profile");
 
-      expect(openHands.get).toHaveBeenCalledWith("/api/profiles/my-profile");
+      expect(openHands.get).toHaveBeenCalledWith("/api/profiles/my-profile", {
+        headers: {},
+      });
       expect(result).toEqual(mockResponse);
     });
 
@@ -75,7 +77,25 @@ describe("ProfilesService", () => {
 
       await ProfilesService.getProfile("profile+name");
 
-      expect(openHands.get).toHaveBeenCalledWith("/api/profiles/profile%2Bname");
+      expect(openHands.get).toHaveBeenCalledWith("/api/profiles/profile%2Bname", {
+        headers: {},
+      });
+    });
+
+    it("passes X-Expose-Secrets header when exposeSecrets is set", async () => {
+      const mockResponse = {
+        name: "my-profile",
+        config: { model: "openai/gpt-4", api_key: "encrypted_..." },
+        api_key_set: true,
+      };
+
+      vi.mocked(openHands.get).mockResolvedValue({ data: mockResponse });
+
+      await ProfilesService.getProfile("my-profile", "encrypted");
+
+      expect(openHands.get).toHaveBeenCalledWith("/api/profiles/my-profile", {
+        headers: { "X-Expose-Secrets": "encrypted" },
+      });
     });
   });
 

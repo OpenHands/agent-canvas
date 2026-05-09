@@ -148,4 +148,28 @@ describe("SettingsService", () => {
       gitlab: null,
     });
   });
+
+  it("invalidateCache forces fresh fetch in getSettingsForConversation", async () => {
+    // This test verifies that invalidateCache clears the encrypted settings cache,
+    // which is critical for ensuring conversations use the active profile's LLM settings
+    // rather than stale cached settings.
+
+    const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
+
+    // First call - should fetch from API
+    await SettingsService.getSettingsForConversation();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith("encrypted");
+
+    // Second call - should use cache
+    await SettingsService.getSettingsForConversation();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // After invalidation - should fetch again
+    SettingsService.invalidateCache();
+    await SettingsService.getSettingsForConversation();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    fetchSpy.mockRestore();
+  });
 });
