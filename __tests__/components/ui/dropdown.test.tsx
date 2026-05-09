@@ -155,7 +155,7 @@ describe("Dropdown", () => {
       expect(selectedOption).toHaveAttribute("aria-selected", "true");
     });
 
-    it("should preserve selected value in input and show all options when reopening dropdown", async () => {
+    it("should clear the search input and show all options when reopening dropdown", async () => {
       const user = userEvent.setup();
       render(<Dropdown options={mockOptions} />);
 
@@ -167,7 +167,7 @@ describe("Dropdown", () => {
       await user.click(trigger);
 
       const input = screen.getByRole("combobox");
-      expect(input).toHaveValue("Option 1");
+      expect(input).toHaveValue("");
       expect(
         screen.getByRole("option", { name: "Option 1" }),
       ).toBeInTheDocument();

@@ -49,8 +49,7 @@ openHands.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // specific calls go through `callCloudProxy` (which uses axios directly)
   // and never hit this interceptor.
   const active = getActiveBackend().backend;
-  const backend =
-    active.kind === "cloud" ? getEffectiveLocalBackend() : active;
+  const backend = active.kind === "cloud" ? getEffectiveLocalBackend() : active;
 
   // Mutating the per-request config is the canonical axios interceptor pattern.
   // eslint-disable-next-line no-param-reassign

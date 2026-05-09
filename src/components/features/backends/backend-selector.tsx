@@ -105,12 +105,7 @@ export function BackendSelector({
 
   const options = React.useMemo(
     () =>
-      buildOptions(
-        backends,
-        personalWorkspaceLabel,
-        cloudOrgs,
-        currentUserIds,
-      ),
+      buildOptions(backends, personalWorkspaceLabel, cloudOrgs, currentUserIds),
     [backends, personalWorkspaceLabel, cloudOrgs, currentUserIds],
   );
 

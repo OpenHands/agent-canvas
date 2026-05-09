@@ -21,6 +21,15 @@ function isValidBackend(value: unknown): value is Backend {
   );
 }
 
+export function writeStoredBackends(backends: Backend[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify(backends));
+  } catch {
+    /* ignore quota / serialization errors */
+  }
+}
+
 export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
   try {
@@ -43,15 +52,6 @@ export function readStoredBackends(): Backend[] {
     return parsed.filter(isValidBackend);
   } catch {
     return [];
-  }
-}
-
-export function writeStoredBackends(backends: Backend[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify(backends));
-  } catch {
-    /* ignore quota / serialization errors */
   }
 }
 

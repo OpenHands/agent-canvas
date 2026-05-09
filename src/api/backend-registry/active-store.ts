@@ -5,11 +5,7 @@ import {
   writeStoredActiveBackend,
   writeStoredBackends,
 } from "./storage";
-import type {
-  Backend,
-  BackendSelection,
-  ResolvedActiveBackend,
-} from "./types";
+import type { Backend, BackendSelection, ResolvedActiveBackend } from "./types";
 
 type Listener = () => void;
 
