@@ -38,9 +38,7 @@ export function readStoredBackends(): Backend[] {
     // First install: the storage key has never been written. Seed the
     // registry with one default local backend derived from the env /
     // agent-server-config so the user has something to talk to out of
-    // the box. Persist the seed immediately so a subsequent removal
-    // doesn't get re-seeded — only a missing key triggers seeding,
-    // not an empty array.
+    // the box.
     if (raw === null) {
       const seeded = [makeDefaultLocalBackend()];
       writeStoredBackends(seeded);
@@ -49,7 +47,21 @@ export function readStoredBackends(): Backend[] {
 
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidBackend);
+    const valid = parsed.filter(isValidBackend);
+
+    // If the stored array is empty (or everything in it failed validation),
+    // re-seed with the default Local backend so the user always has a
+    // working entry pointing at VITE_SESSION_API_KEY. With the dev scripts
+    // persisting that key to ~/.openhands/agent-canvas/session-api-key.txt,
+    // re-seeding is safe — the seeded entry will keep working across
+    // restarts instead of going stale.
+    if (valid.length === 0) {
+      const seeded = [makeDefaultLocalBackend()];
+      writeStoredBackends(seeded);
+      return seeded;
+    }
+
+    return valid;
   } catch {
     return [];
   }

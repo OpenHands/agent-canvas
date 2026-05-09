@@ -42,6 +42,39 @@ describe("backend-registry storage", () => {
     expect(readStoredBackends()).toEqual([]);
   });
 
+  it("seeds the default Local backend when storage key is missing", () => {
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
+
+    const result = readStoredBackends();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: "default-local", kind: "local" });
+    // Persists the seed so a subsequent read returns the same entry.
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
+    expect(readStoredBackends()).toEqual(result);
+  });
+
+  it("re-seeds the default Local backend when storage holds an empty array", () => {
+    window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([]));
+
+    const result = readStoredBackends();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: "default-local", kind: "local" });
+  });
+
+  it("re-seeds the default Local backend when every stored entry is invalid", () => {
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([{ kind: "cloud" }, "not-an-object"]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: "default-local", kind: "local" });
+  });
+
   it("filters out backends with invalid shape", () => {
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,

@@ -16,8 +16,16 @@ import {
   validateLocalAgentServerPath,
   findFreePort,
   findFreePorts,
+  getOrCreatePersistedSessionApiKey,
+  resetPersistedSessionApiKeyCache,
 } from "../../scripts/dev-safe.mjs";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 
 const repoRoot = path.resolve(
@@ -153,16 +161,29 @@ describe("findFreePorts", () => {
 
 describe("buildSafeDevConfigAsync", () => {
   const servers: net.Server[] = [];
+  let keyTmp: string | null = null;
 
   afterEach(() => {
     for (const server of servers) {
       server.close();
     }
     servers.length = 0;
+    if (keyTmp) {
+      rmSync(keyTmp, { recursive: true, force: true });
+      keyTmp = null;
+    }
+    resetPersistedSessionApiKeyCache();
   });
 
+  function tempKeyPath(): string {
+    keyTmp = mkdtempSync(path.join(tmpdir(), "dev-safe-async-key-"));
+    return path.join(keyTmp, "session-api-key.txt");
+  }
+
   it("returns config with dynamically allocated ports", async () => {
-    const config = await buildSafeDevConfigAsync(repoRoot, {});
+    const config = await buildSafeDevConfigAsync(repoRoot, {
+      OH_SESSION_API_KEY_PATH: tempKeyPath(),
+    });
 
     expect(typeof config.backendPort).toBe("number");
     expect(config.backendPort).toBeGreaterThan(0);
@@ -187,6 +208,7 @@ describe("buildSafeDevConfigAsync", () => {
     // Request the busy port via env var
     const config = await buildSafeDevConfigAsync(repoRoot, {
       OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
+      OH_SESSION_API_KEY_PATH: tempKeyPath(),
     });
 
     // Backend port should NOT be busyPort since it's taken
@@ -390,10 +412,27 @@ describe("validateLocalAgentServerPath", () => {
 });
 
 describe("buildSafeDevConfig", () => {
+  let keyTmp: string | null = null;
+
+  afterEach(() => {
+    if (keyTmp) {
+      rmSync(keyTmp, { recursive: true, force: true });
+      keyTmp = null;
+    }
+    resetPersistedSessionApiKeyCache();
+  });
+
+  function tempKeyPath(): string {
+    keyTmp = mkdtempSync(path.join(tmpdir(), "dev-safe-key-"));
+    return path.join(keyTmp, "session-api-key.txt");
+  }
+
   it("builds isolated default paths and ports", () => {
     const cwd = "/workspace/project/agent-canvas";
 
-    const config = buildSafeDevConfig(cwd, {});
+    const config = buildSafeDevConfig(cwd, {
+      OH_SESSION_API_KEY_PATH: tempKeyPath(),
+    });
 
     expect(config.backendPort).toBe(18000);
     expect(config.vscodePort).toBe(18001);
@@ -423,6 +462,7 @@ describe("buildSafeDevConfig", () => {
       OH_CANVAS_SAFE_VSCODE_PORT: "19010",
       OH_CANVAS_SAFE_STATE_DIR: ".tmp/dev-safe",
       VITE_WORKING_DIR: "/workspace/custom-repo",
+      OH_SESSION_API_KEY_PATH: tempKeyPath(),
     });
 
     expect(config.backendPort).toBe(19000);
@@ -431,6 +471,105 @@ describe("buildSafeDevConfig", () => {
     expect(config.backendHost).toBe("127.0.0.1:19000");
     expect(config.stateDir).toBe(path.resolve(cwd, ".tmp", "dev-safe"));
     expect(config.workingDir).toBe("/workspace/custom-repo");
+  });
+
+  it("falls back to the persisted session key file when no env override is set", () => {
+    const keyPath = tempKeyPath();
+    const config = buildSafeDevConfig("/workspace/project/agent-canvas", {
+      OH_SESSION_API_KEY_PATH: keyPath,
+    });
+
+    // A fresh hex key was generated and persisted.
+    expect(config.sessionApiKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(readFileSync(keyPath, "utf8").trim()).toBe(config.sessionApiKey);
+  });
+
+  it("reuses the same key across config builds, simulating dev:docker / dev:dangerously-dockerless restarts", () => {
+    const keyPath = tempKeyPath();
+
+    const first = buildSafeDevConfig("/workspace/project/agent-canvas", {
+      OH_SESSION_API_KEY_PATH: keyPath,
+    });
+
+    // Simulate a fresh process by clearing the in-memory cache; the file
+    // on disk is what should make the key stable.
+    resetPersistedSessionApiKeyCache();
+
+    const second = buildSafeDevConfig("/workspace/project/agent-canvas", {
+      OH_SESSION_API_KEY_PATH: keyPath,
+    });
+
+    expect(second.sessionApiKey).toBe(first.sessionApiKey);
+  });
+
+  it("env-provided session keys take precedence over the persisted file", () => {
+    const keyPath = tempKeyPath();
+    // Pre-seed the file with one key.
+    mkdirSync(path.dirname(keyPath), { recursive: true });
+    writeFileSync(keyPath, "persisted-key-value\n");
+
+    const config = buildSafeDevConfig("/workspace/project/agent-canvas", {
+      SESSION_API_KEY: "env-key-wins",
+      OH_SESSION_API_KEY_PATH: keyPath,
+    });
+
+    expect(config.sessionApiKey).toBe("env-key-wins");
+    // The file is left untouched.
+    expect(readFileSync(keyPath, "utf8").trim()).toBe("persisted-key-value");
+  });
+});
+
+describe("getOrCreatePersistedSessionApiKey", () => {
+  let dir: string | null = null;
+
+  afterEach(() => {
+    if (dir) {
+      rmSync(dir, { recursive: true, force: true });
+      dir = null;
+    }
+    resetPersistedSessionApiKeyCache();
+  });
+
+  function tempPath(): string {
+    dir = mkdtempSync(path.join(tmpdir(), "session-key-"));
+    return path.join(dir, "nested", "session-api-key.txt");
+  }
+
+  it("creates the file (and parent dirs) with a hex key on first call", () => {
+    const filePath = tempPath();
+    const key = getOrCreatePersistedSessionApiKey(filePath);
+
+    expect(key).toMatch(/^[a-f0-9]{64}$/);
+    expect(readFileSync(filePath, "utf8").trim()).toBe(key);
+  });
+
+  it("returns the existing key on subsequent calls (after cache reset)", () => {
+    const filePath = tempPath();
+    const first = getOrCreatePersistedSessionApiKey(filePath);
+
+    resetPersistedSessionApiKeyCache();
+
+    const second = getOrCreatePersistedSessionApiKey(filePath);
+    expect(second).toBe(first);
+  });
+
+  it("trims surrounding whitespace from the persisted file", () => {
+    const filePath = tempPath();
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, "  abcdef1234  \n");
+
+    const key = getOrCreatePersistedSessionApiKey(filePath);
+    expect(key).toBe("abcdef1234");
+  });
+
+  it("regenerates and overwrites when the file is empty", () => {
+    const filePath = tempPath();
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, "   \n");
+
+    const key = getOrCreatePersistedSessionApiKey(filePath);
+    expect(key).toMatch(/^[a-f0-9]{64}$/);
+    expect(readFileSync(filePath, "utf8").trim()).toBe(key);
   });
 });
 
