@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Development Stack with Automation Service
  *
@@ -38,10 +37,10 @@
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
  */
 
-import { spawn, execSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
@@ -52,6 +51,8 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
+  generateRandomApiKey,
+  findFreePorts,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,8 +65,12 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-// Default local API key for automation backend auth (matches agent-server pattern)
-const DEFAULT_LOCAL_API_KEY = "openhands-local-api-key";
+
+// Auto-generate a random API key for this dev session.
+// This ensures services share the same key during a single invocation,
+// but each restart gets a fresh key for better security isolation.
+// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
+const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -216,7 +221,7 @@ function buildAutomationCommand(env = process.env) {
   };
 }
 
-function buildConfig(args, env = process.env) {
+async function buildConfig(args, env = process.env) {
   // Apply args to env for buildAutomationCommand
   if (args.automationGitRef) {
     env.OH_AUTOMATION_GIT_REF = args.automationGitRef;
@@ -225,38 +230,67 @@ function buildConfig(args, env = process.env) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
   }
 
-  const ingressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const backendPort = DEFAULT_BACKEND_PORT;
-  const automationPort = DEFAULT_AUTOMATION_PORT;
-  const vitePort = 3001;
-  const vscodePort = backendPort + 1000;
+  // Preferred ports (from env or defaults)
+  const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
+  const preferredBackendPort = DEFAULT_BACKEND_PORT;
+  const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
+  const preferredVitePort = 3001;
+
+  // Find available ports, preferring the defaults
+  logStep("ports", "Allocating ports...");
+  const ports = await findFreePorts([
+    { name: "ingress", preferred: preferredIngressPort },
+    { name: "backend", preferred: preferredBackendPort },
+    { name: "automation", preferred: preferredAutomationPort },
+    { name: "vite", preferred: preferredVitePort },
+  ]);
+
+  // Log any port changes
+  if (ports.ingress !== preferredIngressPort) {
+    logService("ports", `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`, c.yellow);
+  }
+  if (ports.backend !== preferredBackendPort) {
+    logService("ports", `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`, c.yellow);
+  }
+  if (ports.automation !== preferredAutomationPort) {
+    logService("ports", `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`, c.yellow);
+  }
+  if (ports.vite !== preferredVitePort) {
+    logService("ports", `Port ${preferredVitePort} busy, using ${ports.vite} for vite`, c.yellow);
+  }
+
+  const vscodePort = ports.backend + 1000;
 
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
   
-  // Session API key for agent-server auth (optional)
-  // Check multiple env vars that the agent-server may use:
-  // - SESSION_API_KEY: Used by agent-server default config (V0)
-  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
-  // - OH_SESSION_API_KEY: Common alias
-  // - VITE_SESSION_API_KEY: Used by frontend config
-  const sessionApiKey = env.SESSION_API_KEY || env.OH_SESSION_API_KEYS_0 || env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
+  // Session API key for agent-server auth
+  // Build a preliminary safe config to get the auto-generated session key
+  // This ensures both agent-server and frontend use the same key
+  const stateDir = join(homedir(), ".openhands", "agent-canvas");
+  const safeConfig = buildSafeDevConfig(projectRoot, {
+    ...env,
+    OH_CANVAS_SAFE_STATE_DIR: stateDir,
+    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
+    OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
+  });
+  const sessionApiKey = safeConfig.sessionApiKey;
 
   return {
     // Ingress port (main entry point)
-    ingressPort,
+    ingressPort: ports.ingress,
 
     // Service ports (internal)
-    agentServerPort: backendPort,
-    autoBackendPort: automationPort,
-    vitePort,
+    agentServerPort: ports.backend,
+    autoBackendPort: ports.automation,
+    vitePort: ports.vite,
     vscodePort,
 
     // Paths
     canvasPath: projectRoot,
 
     // Data directories (same as dev-safe.mjs)
-    stateDir: join(homedir(), ".openhands", "agent-canvas"),
+    stateDir,
 
     // Auth
     localApiKey,
@@ -271,12 +305,12 @@ function buildConfig(args, env = process.env) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function commandExists(cmd) {
-  try {
-    execSync(`command -v ${cmd}`, { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
+  const result =
+    process.platform === "win32"
+      ? spawnSync("where.exe", [cmd], { stdio: "pipe" })
+      : spawnSync("sh", ["-c", `command -v ${cmd}`], { stdio: "pipe" });
+
+  return result.status === 0;
 }
 
 function checkPrerequisites() {
@@ -524,8 +558,12 @@ function startVite(config) {
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
       VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
+      // Session API key for frontend to authenticate with agent-server
+      VITE_SESSION_API_KEY: config.sessionApiKey,
       // Automation API key for frontend to authenticate with automation backend
       VITE_AUTOMATION_API_KEY: config.localApiKey,
+      // Session API key for agent-server auth (when SESSION_API_KEY is set)
+      ...(config.sessionApiKey && { VITE_SESSION_API_KEY: config.sessionApiKey }),
     },
     color: c.magenta,
   });
@@ -646,23 +684,37 @@ function printBanner(config) {
   console.log("");
 }
 
-async function main() {
+async function main(options = {}) {
+  const {
+    bannerTitle = "Agent Canvas + Automation Development Stack",
+    startAgentServer: startAgentServerOverride,
+    extraPrereqs,
+  } = options;
+
   const args = parseArgs();
-  const config = buildConfig(args);
 
   console.log("");
-  console.log(`${c.cyan}${c.bold}Agent Canvas + Automation Development Stack${c.reset}`);
+  console.log(`${c.cyan}${c.bold}${bannerTitle}${c.reset}`);
   console.log("");
 
   // Setup phase
+  // (uvx is still required even in docker mode because the automation
+  // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites();
+  if (typeof extraPrereqs === "function") {
+    extraPrereqs(config);
+  }
+
+  // Build config with dynamic port allocation
+  const config = await buildConfig(args);
   ensureDirectories(config);
 
   // Start services phase
   logStep("2/2", "Starting services...");
 
   // 1. Start agent-server first (other services depend on it)
-  startAgentServer(config);
+  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+  agentServerStarter(config);
 
   // Wait for agent-server to be ready (60s timeout for slow systems)
   const agentServerReady = await waitForService(
@@ -705,6 +757,15 @@ async function main() {
 export {
   buildAutomationCommand,
   buildConfig,
+  generateRandomApiKey,
+  main,
+  spawnService,
+  commandExists,
+  logService,
+  logStep,
+  logSuccess,
+  logError,
+  c,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
@@ -717,7 +778,8 @@ export {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Check if this module is the main entry point
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   main().catch((err) => {

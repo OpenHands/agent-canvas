@@ -1,10 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import { TaskSuggestions } from "#/components/features/home/tasks/task-suggestions";
 import { SuggestionsService } from "#/api/suggestions-service/suggestions-service.api";
 import { MOCK_TASKS } from "#/mocks/task-suggestions-handlers";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
 
 // Mock the translation function
 vi.mock("react-i18next", async () => {
@@ -35,12 +42,24 @@ vi.mock("#/hooks/query/use-config", () => ({
   }),
 }));
 
-vi.mock("#/hooks/use-user-providers", () => ({
-  useUserProviders: () => ({
+const { useUserProvidersMock } = vi.hoisted(() => ({
+  useUserProvidersMock: vi.fn(() => ({
     providers: [{ id: "github", name: "GitHub" }],
     isLoading: false,
-  }),
+  })),
 }));
+
+vi.mock("#/hooks/use-user-providers", () => ({
+  useUserProviders: () => useUserProvidersMock(),
+}));
+
+const cloudBackend: Backend = {
+  id: "prod",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "k",
+  kind: "cloud",
+};
 
 const renderTaskSuggestions = () => {
   const RouterStub = createRoutesStub([
@@ -61,7 +80,7 @@ const renderTaskSuggestions = () => {
   return render(<RouterStub />, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={new QueryClient()}>
-        {children}
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
       </QueryClientProvider>
     ),
   });
@@ -73,8 +92,17 @@ describe("TaskSuggestions", () => {
     "getSuggestedTasks",
   );
 
+  beforeEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
   });
 
   it("should render the task suggestions section", () => {
@@ -82,10 +110,34 @@ describe("TaskSuggestions", () => {
     screen.getByTestId("task-suggestions");
   });
 
+  it("renders nothing when the active backend is local", () => {
+    setRegisteredBackends([]);
+    setActiveSelection(null);
+
+    renderTaskSuggestions();
+
+    expect(screen.queryByTestId("task-suggestions")).not.toBeInTheDocument();
+  });
+
   it("should render an empty message if there are no tasks", async () => {
     getSuggestedTasksSpy.mockResolvedValue([]);
     renderTaskSuggestions();
     await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
+  });
+
+  it("falls back to the generic empty message when no Git providers are connected and exposes no link to the removed Integrations page", async () => {
+    useUserProvidersMock.mockReturnValueOnce({
+      providers: [],
+      isLoading: false,
+    });
+    getSuggestedTasksSpy.mockResolvedValue([]);
+
+    renderTaskSuggestions();
+
+    await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
+    expect(
+      screen.queryByRole("link", { name: /integrations/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("should render the task groups with the correct titles", async () => {

@@ -1,9 +1,33 @@
 import { useTranslation } from "react-i18next";
+import { FaFolder } from "react-icons/fa6";
 import { I18nKey } from "#/i18n/declaration";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
+import { getPathBasename } from "#/utils/path-utils";
 
-export function NoRepository() {
+interface NoRepositoryProps {
+  workspaceWorkingDir?: string | null;
+}
+
+export function NoRepository({ workspaceWorkingDir }: NoRepositoryProps) {
   const { t } = useTranslation("openhands");
+
+  const folderName = workspaceWorkingDir
+    ? getPathBasename(workspaceWorkingDir).trim()
+    : "";
+
+  if (folderName) {
+    return (
+      <div
+        className="flex items-center gap-1 text-xs text-[#A3A3A3]"
+        title={workspaceWorkingDir ?? undefined}
+      >
+        <FaFolder size={12} className="text-[#A3A3A3]" />
+        <span className="whitespace-nowrap overflow-hidden text-ellipsis max-w-44">
+          {folderName}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1 text-xs text-[#A3A3A3]">

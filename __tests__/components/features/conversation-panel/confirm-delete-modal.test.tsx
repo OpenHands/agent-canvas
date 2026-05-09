@@ -27,4 +27,18 @@ describe("ConfirmDeleteModal", () => {
 
     expect(screen.getByText(/My Test Conversation/)).toBeInTheDocument();
   });
+
+  it("falls back to the default warning when description is null", () => {
+    renderWithProviders(
+      <ConfirmDeleteModal
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        description={null}
+      />,
+    );
+
+    expect(
+      screen.getByText("CONVERSATION$DELETE_WARNING"),
+    ).toBeInTheDocument();
+  });
 });

@@ -48,29 +48,11 @@ const renderRecentConversation = (conversation: AppConversation) =>
   renderWithProviders(<RecentConversation conversation={conversation} />);
 
 describe("RecentConversation - llm_model", () => {
-  it("should render the llm model when provided", () => {
+  it("should not render the llm model even when provided", () => {
     renderRecentConversation({
       ...baseConversation,
       llm_model: "anthropic/claude-sonnet-4-20250514",
     });
-
-    const model = screen.getByTestId("recent-conversation-llm-model");
-    expect(model).toBeInTheDocument();
-    expect(model).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-    expect(model).toHaveAttribute(
-      "title",
-      "anthropic/claude-sonnet-4-20250514",
-    );
-    expect(model.querySelector("svg")).toBeInTheDocument();
-
-    // Verify truncation structure: text is wrapped in a span with truncate class
-    const textSpan = model.querySelector("span.truncate");
-    expect(textSpan).toBeInTheDocument();
-    expect(textSpan).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-  });
-
-  it("should not render the llm model when not provided", () => {
-    renderRecentConversation(baseConversation);
 
     expect(
       screen.queryByTestId("recent-conversation-llm-model"),

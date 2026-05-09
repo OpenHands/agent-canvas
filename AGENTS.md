@@ -12,6 +12,7 @@
   - `VITE_WORKING_DIR` for the default workspace path sent when starting conversations.
   - `VITE_WORKER_URLS` as a comma-separated list of browser worker URLs if you want the Browser tab to probe exposed app hosts.
   - `VITE_ENABLE_BROWSER_TOOLS=false` to omit `BrowserToolSet` from new conversation payloads.
+  - `VITE_LOAD_PUBLIC_SKILLS=false` to disable loading public skills from the OpenHands extensions marketplace (https://github.com/OpenHands/extensions). Defaults to true.
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.
 - The UI keeps most OpenHands routes/layout intact, but hosted-only behavior (org, account management, integrations) has been removed via the fabricated OSS config because there is no separate app backend.
 - Verification command: `npm run typecheck && npm run build`.
@@ -32,6 +33,8 @@
 - Shared TypeScript-client adapters live in `src/api/typescript-client.ts`; prefer those helpers for agent-server-backed REST/workspace/event/VS Code calls before falling back to `open-hands-axios`.
 - Local verification/build gotchas:
   - `npm run typecheck` assumes generated translation types exist; run `npm run make-i18n` first if `src/i18n/declaration.ts` is missing.
+- Merge note: `main` removed the old project-management integration subcomponents/hooks and their related feature-flag/i18n surface. If a feature branch still keeps the top-level `/integrations` git-token page, retain `src/routes/git-settings.tsx` plus the git-provider token inputs/hooks, but do **not** blindly restore `src/components/features/settings/project-management/*` or the old integration mutation/query hooks unless the corresponding option types and i18n keys are also reintroduced.
+
 - The OSS cleanup removed hosted-only auth, org, account, onboarding, and invitation codepaths, routes, and tests. Keep `integrations`, `git-settings`, `secrets`, MCP settings, and other local/self-hosted flows intact when simplifying OSS behavior.
 - When merging main into this branch, keep the new agent-server compatibility bootstrap in `src/root.tsx`, but do not reintroduce hosted-only invitation cleanup or marketing CTA chrome in the OSS user menu; the OSS account menu should just render settings links plus Docs.
 
@@ -45,7 +48,7 @@
   - conversation browsing/loading: `/api/conversations/search`, `/api/conversations?ids=...`, `/api/conversations/:id`, `/api/conversations/:id/events/*`
   - runtime git panels: `/api/git/changes`, `/api/git/diff`
 - Static mock verification needs a build created with `VITE_MOCK_API=true` (use `npm run build:mock`); the client must start MSW whenever that flag is enabled, even in production/static builds, otherwise routes like `/settings` and the conversations pane fall through to the static server and crash on undefined `.filter`/`.map` assumptions.
-- Frontend compatibility guard: `OptionService.getConfig()` now uses `/server_info.version` to block unsupported agent-server versions before the app loads. Git history in `software-agent-sdk` shows `/api/settings/agent-schema` and `/api/settings/conversation-schema` first shipped in tag `v1.17.0`, so Agent Canvas currently treats `< 1.17.0` (or unknown/unparseable versions) as incompatible, `useConfig` stops retrying that case, and `src/root.tsx` renders a blocking unsupported-version notice on every route.
+- No frontend version guard: `OptionService.getConfig()` calls `loadAgentServerInfo()` which fetches `/server_info` only to (a) detect an unreachable agent server (renders the onboarding screen via `AgentServerUnavailableError`) and (b) cache `usable_tools` for tool gating. All advertised versions are accepted. The "manage backends" modal displays each local backend's `/server_info.version` in light text via the `BACKEND$VERSION_LABEL` translation key.
 - `/server_info` tool capability metadata from `software-agent-sdk` PR #3028 ended up shipping as `usable_tools` (not `available_tools`). Frontend browser-tool gating should key off `usable_tools`, and still default to allowing tools when the server does not advertise tool metadata.
 
 - Useful regression tests for mock mode live in `__tests__/api/option-service.test.ts`, `__tests__/api/mock-conversation-handlers.test.ts`, and `__tests__/api/mock-settings-handlers.test.ts`.
@@ -79,6 +82,10 @@
   2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
      The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
+- Backend/footer actions that launch modals from inside a dropdown or popover should intercept `onMouseDown` to keep the menu mounted, then perform the actual open on `onClick`. Current examples: `Add backend` / `Manage backends` in `src/components/features/backends/backend-selector.tsx`, plus the mirrored workspace-footer buttons in `src/components/features/conversation-panel/new-conversation-button.tsx`.
+- `BackendSelector`'s cloud-org switch paths should never rethrow from the dropdown `onChange` handler: unexpected non-Axios failures need a generic error toast instead of an unhandled promise rejection, and the malformed `(cloud backend, null org)` self-heal path should fall back to the bundled backend if `/switch` fails.
+- `NewConversationButton` should support keyboard dismissal (`Escape`) for its inline popover, while still keeping the popover open when its modal children (`FolderBrowserModal`, `ManageWorkspacesModal`) are active.
+
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
@@ -86,16 +93,22 @@
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
   - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.21.1")
-  - `OH_SECRET_KEY` — secret key for settings encryption; uses a default value for local dev, override for production
+  - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
+  - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.21.1` for agent-server SDK libraries
+- Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
+  - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
+  - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
+  - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
 - `npm run dev` now runs the full stack with automation by default (via `dev:automation`). Use `npm run dev:minimal` for agent-server + Vite only.
 - `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), Vite dev server, and ingress proxy. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → Vite dev server (:3001)
-  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a1`)
+  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a1`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
+  - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
 - `scripts/dev-safe.mjs` (now `npm run dev:minimal`) runs just agent-server + Vite without automation.
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
@@ -104,7 +117,7 @@
 - The repo should include a root `LICENSE` file to satisfy the incubator-program requirements.
 - OpenHands repo bootstrap files live under `.openhands/`:
   - `.openhands/setup.sh` installs `uv` (via `curl -LsSf https://astral.sh/uv/install.sh | sh`) if not present, installs frontend dependencies with `npm ci` when needed, creates `.env` from `.env.sample` if missing, appends `VITE_WORKING_DIR` for this repo when unset, and generates `src/i18n/declaration.ts` via `npm run make-i18n`.
-  - `.openhands/pre-commit.sh` mirrors the repo's local quality gate with `npm run lint && npm run test`.
+  - `.openhands/hooks.json` registers `.openhands/hooks/on_stop.sh` as a Stop hook so OpenHands runs the local quality gate (`npm run lint` and `npm test`) before finishing.
 - GitHub PR-review automation should stay aligned with the current OpenHands repo conventions: keep the review workflow at `.github/workflows/pr-review-by-openhands.yml`, keep the companion `.github/workflows/pr-review-evaluation.yml`, auto-run on newly opened non-draft PRs and `ready_for_review` events from established contributors, still support the `review-this` label / `openhands-agent` / `all-hands-bot` reviewer triggers, use the OpenHands app LLM proxy defaults, and use the dual-trigger pattern (`pull_request` for same-repo PRs, `pull_request_target` for forks) so workflow changes can self-verify without widening fork secret exposure.
 - The repo now includes `.agents/skills/custom-codereview-guide.md`, adapted from `OpenHands/software-agent-sdk`, to force PR reviews to always leave either an APPROVE or COMMENT review instead of silently finishing with no review object.
 
@@ -131,13 +144,15 @@
   - `src/components/conversation-events/chat/messages.tsx` is the only consumer; the grouping is transparent to upstream code. Coverage lives in `__tests__/components/conversation-events/chat/group-events.test.ts` (pure logic, including thought hoisting) and `__tests__/components/conversation-events/chat/event-message-components/event-group.test.tsx` (rendering/interaction).
 
 - Home page workspace UX (agent-server backend):
-  - `RepoConnector` no longer renders tab UI, but it still must branch on the active backend: local/bundled backends render `WorkspaceSelectionForm`, while cloud backends render the repo path (`RepositorySelectionForm` when git providers exist, otherwise `ConnectToProviderMessage`). Keep `src/routes/home.tsx` passing through the selected repo state so `TaskSuggestions` can still filter on cloud repo picks.
+  - `RepoConnector` no longer renders a tabbed launcher; it just renders `WorkspaceSelectionForm` because this build only ever talks to an agent-server backend (no cloud backend is wired up). The old `LaunchTabs` component was removed; if a cloud backend is ever supported again, branch on backend mode in `RepoConnector` and render `RepositorySelectionForm` for that path.
   - `FolderBrowserModal`'s "Use this folder" button adds **only the currently navigated directory** as a single workspace (named by its basename). It no longer iterates `subdirs` and adds each child as a separate workspace.
   - The `WorkspaceDropdown` sticky footer now exposes both "+ Add Workspace" (opens the folder browser) and "Manage Workspaces" (opens `ManageWorkspacesModal`, which lets users remove individual workspaces via `useWorkspacesStore.removeWorkspace`). The Manage button is hidden when there are no workspaces yet.
+  - The sidebar "+ New Conversation" trigger (`NewConversationButton` in `src/components/features/conversation-panel/`) opens a popover that is a **flat list**, not the home-screen combobox: a leading "No workspace" entry plus one entry per stored workspace, each clicking through to `useCreateConversation` immediately (no separate Launch button). It mirrors the dropdown footer actions/pattern (`+ Add Workspace`, `Manage Workspaces`) locally rather than embedding `WorkspaceDropdown` itself.
   - `useResolvedWorkspaces()` now returns `isLoading` / `isError` for parent-directory scans; `WorkspaceSelectionForm` should surface that state (status text and disabling the empty dropdown while parent results are still loading) instead of assuming the merged list is immediately ready.
   - `ManageWorkspacesModal` should require a confirmation step before removing either a saved workspace or a workspace parent; parent removals should mention the child-workspace impact, and tests should assert both the confirmation flow and that removing the selected workspace clears the launch selection.
   - In `useWorkspacesStore`, keep `clearWorkspaces()` scoped to literal workspaces only; use explicit helpers like `clearWorkspaceParents()` / `clearAll()` for broader resets so future callers do not accidentally wipe parent registrations.
 
+- Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

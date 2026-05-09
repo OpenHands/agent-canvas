@@ -1,6 +1,8 @@
 import { cn } from "#/utils/utils";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
+import { ConversationNameWithStatus } from "../conversation-name-with-status";
+import { ConversationTabs } from "../conversation-tabs/conversation-tabs";
 import { ResizeHandle } from "../../../ui/resize-handle";
 import { useResizablePanels } from "#/hooks/use-resizable-panels";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -33,7 +35,7 @@ export function ConversationMain() {
       className={cn(
         isMobile
           ? "relative flex-1 flex flex-col"
-          : "h-full flex flex-col overflow-hidden",
+          : "h-full flex flex-col overflow-hidden md:pt-3",
       )}
     >
       <div
@@ -48,13 +50,15 @@ export function ConversationMain() {
             : undefined
         }
       >
-        {/* Chat Panel - always mounted, styled differently for mobile/desktop */}
+        {/* Chat Panel - always mounted, styled differently for mobile/desktop.
+            Owns its own header (name + status) and gets bottom padding so the
+            chat input doesn't slam the floor. */}
         <div
           className={cn(
             "flex flex-col bg-base overflow-hidden",
             isMobile
               ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out",
+              : "transition-all duration-300 ease-in-out md:pb-3",
           )}
           style={
             !isMobile
@@ -65,9 +69,17 @@ export function ConversationMain() {
               : undefined
           }
         >
-          <ChatInterfaceWrapper
-            isRightPanelShown={!isMobile && isRightPanelShown}
-          />
+          <div
+            data-testid="chat-pane-header"
+            className="flex items-center min-h-9 mb-3 pt-2 lg:pt-0"
+          >
+            <ConversationNameWithStatus />
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ChatInterfaceWrapper
+              isRightPanelShown={!isMobile && isRightPanelShown}
+            />
+          </div>
         </div>
 
         {/* Resize Handle - only shown on desktop when right panel is visible */}
@@ -75,7 +87,9 @@ export function ConversationMain() {
           <ResizeHandle onMouseDown={handleMouseDown} />
         )}
 
-        {/* Tab Content Panel - always mounted, styled as bottom sheet (mobile) or side panel (desktop) */}
+        {/* Tab Content Panel - always mounted, styled as bottom sheet (mobile)
+            or side panel (desktop). Owns the tabs header and extends all the
+            way to the bottom of the viewport (no bottom padding). */}
         <div
           className={cn(
             "transition-all duration-300 ease-in-out overflow-hidden",
@@ -104,7 +118,15 @@ export function ConversationMain() {
                 : "flex flex-col flex-1 gap-3 min-w-max h-full",
             )}
           >
-            <ConversationTabContent />
+            <div
+              data-testid="tabs-pane-header"
+              className="flex items-center min-h-9"
+            >
+              <ConversationTabs />
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <ConversationTabContent />
+            </div>
           </div>
         </div>
       </div>

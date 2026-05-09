@@ -80,7 +80,7 @@ export default function SharedConversation() {
       <div className="border-b border-neutral-700 p-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-start gap-4">
           <Link
-            to="/"
+            to="/conversations"
             className="flex-shrink-0"
             aria-label={t(I18nKey.BRANDING$OPENHANDS_LOGO)}
           >

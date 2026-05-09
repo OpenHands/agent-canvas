@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Static-frontend Development Stack
  *
@@ -37,10 +36,10 @@
  *   - OH_SECRET_KEY: Session secret key
  */
 
-import { spawn, spawnSync, execSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
 
@@ -178,12 +177,12 @@ NOTES:
 // ═══════════════════════════════════════════════════════════════════════════
 
 function commandExists(cmd) {
-  try {
-    execSync(`command -v ${cmd}`, { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
+  const result =
+    process.platform === "win32"
+      ? spawnSync("where.exe", [cmd], { stdio: "pipe" })
+      : spawnSync("sh", ["-c", `command -v ${cmd}`], { stdio: "pipe" });
+
+  return result.status === 0;
 }
 
 function checkPrerequisites() {
@@ -566,7 +565,7 @@ function printBanner(config) {
 
 async function main() {
   const args = parseArgs();
-  const config = buildConfig(args);
+  const config = await buildConfig(args);
 
   console.log("");
   console.log(
@@ -653,7 +652,8 @@ export { buildFrontend, startStaticServer };
 // Main entry point (only when run directly, not when imported)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   main().catch((err) => {

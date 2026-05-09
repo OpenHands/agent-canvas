@@ -32,6 +32,7 @@ vi.mock("#/api/agent-server-config", () => ({
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
   getConfiguredWorkerUrls: vi.fn(() => []),
+  shouldLoadPublicSkills: vi.fn(() => true),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({

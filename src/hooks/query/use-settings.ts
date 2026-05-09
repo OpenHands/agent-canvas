@@ -116,8 +116,12 @@ const normalizeSettingsResponse = (settings: Partial<Settings>): Settings => {
 };
 
 export const getSettingsQueryFn = async (
-  _scope: SettingsScope = "personal",
+  scope: SettingsScope = "personal",
 ): Promise<Settings> => {
+  if (scope !== "personal") {
+    throw new Error(`Unsupported settings scope: ${scope}`);
+  }
+
   const settings = await SettingsService.getSettings();
   return normalizeSettingsResponse(settings);
 };

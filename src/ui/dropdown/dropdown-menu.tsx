@@ -1,4 +1,5 @@
 /* eslint-disable react/jsx-props-no-spreading */
+import React from "react";
 import { cn } from "#/utils/utils";
 import { DropdownOption } from "./types";
 
@@ -13,6 +14,8 @@ interface DropdownMenuProps {
     index: number;
     className?: string;
   }) => object;
+  footer?: React.ReactNode;
+  openUpward?: boolean;
 }
 
 export function DropdownMenu({
@@ -22,11 +25,14 @@ export function DropdownMenu({
   emptyMessage,
   getMenuProps,
   getItemProps,
+  footer,
+  openUpward = false,
 }: DropdownMenuProps) {
   return (
     <div
       className={cn(
-        "absolute z-10 w-full mt-1",
+        "absolute z-10 w-full",
+        openUpward ? "bottom-full mb-1" : "mt-1",
         "bg-[#1F1F1F] border border-[#242424] rounded-lg",
         "max-h-60 overflow-auto",
         !isOpen && "hidden",
@@ -58,6 +64,9 @@ export function DropdownMenu({
             </li>
           ))}
       </ul>
+      {isOpen && footer ? (
+        <div className="border-t border-[#242424] p-1">{footer}</div>
+      ) : null}
     </div>
   );
 }

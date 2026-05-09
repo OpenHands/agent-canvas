@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import ConfigService from "#/api/config-service/config-service.api";
 import type { LLMModel } from "#/api/config-service/config-service.types";
 import {
@@ -41,12 +41,11 @@ async function fetchPage(
   return page.items;
 }
 
-export const useProviderModels = (provider: string | null) => {
-  const queryClient = useQueryClient();
-  return useQuery({
+export const useProviderModels = (provider: string | null) =>
+  useQuery({
     queryKey: ["config", "models", provider],
-    queryFn: async () => {
-      const verifiedByProvider = await queryClient.fetchQuery({
+    queryFn: async ({ client }) => {
+      const verifiedByProvider = await client.fetchQuery({
         queryKey: VERIFIED_MODELS_QUERY_KEY,
         queryFn: fetchVerifiedModelsByProvider,
         staleTime: VERIFIED_MODELS_STALE_TIME,
@@ -57,4 +56,3 @@ export const useProviderModels = (provider: string | null) => {
     staleTime: VERIFIED_MODELS_STALE_TIME,
     gcTime: VERIFIED_MODELS_GC_TIME,
   });
-};

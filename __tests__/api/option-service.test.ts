@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
-  AgentServerIncompatibilityError,
   AgentServerUnavailableError,
   clearCachedAgentServerInfo,
   isAgentServerToolAvailable,
-  MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
 import { server } from "#/mocks/node";
@@ -15,25 +13,35 @@ describe("OptionService", () => {
     clearCachedAgentServerInfo();
   });
 
-
   it("returns config in mock mode without a live backend", async () => {
     const config = await OptionService.getConfig();
 
-    expect(config.feature_flags.hide_integrations_page).toBe(false);
+    expect(config.feature_flags.hide_llm_settings).toBe(false);
+    expect(config.feature_flags.hide_users_page).toBe(true);
     expect(config.updated_at).toBeTruthy();
   });
 
-  it("throws a compatibility error when the agent server version is below the supported minimum", async () => {
+  it("loads config regardless of agent server version", async () => {
     server.use(
       http.get("/server_info", () =>
-        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.16.1" }),
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
       ),
     );
 
-    await expect(OptionService.getConfig()).rejects.toMatchObject({
-      name: AgentServerIncompatibilityError.name,
-      serverVersion: "1.16.1",
-      message: expect.stringContaining(MINIMUM_SUPPORTED_AGENT_SERVER_VERSION),
+    await expect(OptionService.getConfig()).resolves.toMatchObject({
+      feature_flags: expect.objectContaining({ hide_llm_settings: false }),
+    });
+  });
+
+  it("loads config even when the server does not advertise a version", async () => {
+    server.use(
+      http.get("/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0 }),
+      ),
+    );
+
+    await expect(OptionService.getConfig()).resolves.toMatchObject({
+      feature_flags: expect.objectContaining({ hide_llm_settings: false }),
     });
   });
 
@@ -47,37 +55,13 @@ describe("OptionService", () => {
     });
   });
 
-  it("uses only server version metadata for compatibility checks", async () => {
-    server.use(
-      http.get("/server_info", () =>
-        HttpResponse.json({
-          uptime: 0,
-          idle_time: 0,
-          version: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-        }),
-      ),
-      http.get("/api/settings/agent-schema", () =>
-        HttpResponse.json({ error: "missing" }, { status: 404 }),
-      ),
-      http.get("/api/settings/conversation-schema", () =>
-        HttpResponse.json({ error: "missing" }, { status: 404 }),
-      ),
-    );
-
-    await expect(OptionService.getConfig()).resolves.toMatchObject({
-      feature_flags: expect.objectContaining({
-        hide_integrations_page: false,
-      }),
-    });
-  });
-
   it("caches usable_tools from server_info for later tool gating", async () => {
     server.use(
       http.get("/server_info", () =>
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
+          version: "1.21.1",
           usable_tools: ["terminal", "file_editor", "task_tracker"],
         }),
       ),
@@ -95,7 +79,7 @@ describe("OptionService", () => {
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
+          version: "1.21.1",
         }),
       ),
     );

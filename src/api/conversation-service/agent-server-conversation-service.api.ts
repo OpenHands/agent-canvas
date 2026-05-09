@@ -165,8 +165,11 @@ class AgentServerConversationService {
   }
 
   static async searchStartTasks(
-    _limit: number = 100,
+    limit: number = 100,
   ): Promise<AppConversationStartTask[]> {
+    if (limit < 0) {
+      return [];
+    }
     return [];
   }
 
@@ -197,7 +200,7 @@ class AgentServerConversationService {
       await this.resolveConversationWorkingDir(conversationId);
     // Local mode: the typescript-client targets the local agent-server
     // directly via the conversationUrl override.
-    const vscode_url = await createVSCodeClient({
+    const vscodeUrl = await createVSCodeClient({
       conversationUrl,
       sessionApiKey,
     }).getUrl({
@@ -206,7 +209,7 @@ class AgentServerConversationService {
       workspaceDir,
     });
 
-    return { vscode_url };
+    return { vscode_url: vscodeUrl };
   }
 
   static async resolveConversationWorkingDir(
@@ -360,7 +363,10 @@ class AgentServerConversationService {
     return loadSkillsForConversation(conversation);
   }
 
-  static async getHooks(_conversationId: string): Promise<GetHooksResponse> {
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
     return emptyHooksResponse();
   }
 

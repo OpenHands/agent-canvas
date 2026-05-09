@@ -18,3 +18,21 @@ export const stripWorkspacePrefix = (path: string): string => {
   const workspaceMatch = path.match(/^\/workspace\/[^/]+\/(.*)$/);
   return workspaceMatch ? workspaceMatch[1] : path;
 };
+
+/**
+ * Returns the basename (top-level folder/file name) from a path string,
+ * tolerating POSIX and Windows separators and trailing slashes.
+ */
+export const getPathBasename = (path: string): string => {
+  const trimmed = path.trim();
+  if (!trimmed) return "";
+
+  const normalized = trimmed.replace(/[\\/]+$/, "");
+  if (!normalized || /^[A-Za-z]:$/.test(normalized)) return "";
+
+  const idx = Math.max(
+    normalized.lastIndexOf("/"),
+    normalized.lastIndexOf("\\"),
+  );
+  return idx >= 0 ? normalized.slice(idx + 1) : normalized;
+};

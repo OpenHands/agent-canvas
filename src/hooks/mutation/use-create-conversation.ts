@@ -84,7 +84,11 @@ export const useCreateConversation = () => {
         hasRepository: !!repository,
       });
 
-      queryClient.removeQueries({
+      // Invalidate (rather than remove) so the existing paginated list stays
+      // rendered while a background refetch picks up the new conversation.
+      // `removeQueries` would wipe the cache and force the panel back to its
+      // initial loading state, dropping loaded pages and scroll position.
+      queryClient.invalidateQueries({
         queryKey: ["user", "conversations"],
       });
     },

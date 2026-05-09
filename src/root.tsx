@@ -12,11 +12,8 @@ import React from "react";
 import { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import {
-  AgentServerIncompatibilityError,
   AgentServerUnavailableError,
-  isAgentServerIncompatibilityError,
   isAgentServerUnavailableError,
-  MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 import { AgentServerConnectionForm } from "#/components/features/settings/agent-server-onboarding";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
@@ -51,12 +48,10 @@ function AgentServerStatusCard({
   title,
   message,
   details,
-  version,
 }: {
   title: string;
   message: string;
   details?: string | null;
-  version?: string | null;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -64,11 +59,6 @@ function AgentServerStatusCard({
     <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/10 p-4">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-2 text-sm leading-6 text-neutral-200">{message}</p>
-      {version ? (
-        <p className="mt-3 text-xs leading-5 text-neutral-400">
-          {t("SETTINGS$AGENT_SERVER_DETECTED_VERSION", { version })}
-        </p>
-      ) : null}
       {details ? (
         <p className="mt-3 text-xs leading-5 text-neutral-400">
           {t("SETTINGS$AGENT_SERVER_DETAILS_LABEL", { details })}
@@ -98,7 +88,6 @@ function AgentServerOnboardingLayout({
   statusTitle,
   statusMessage,
   statusDetails,
-  version,
 }: {
   testId: string;
   eyebrow: string;
@@ -107,7 +96,6 @@ function AgentServerOnboardingLayout({
   statusTitle: string;
   statusMessage: string;
   statusDetails?: string | null;
-  version?: string | null;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -133,7 +121,6 @@ function AgentServerOnboardingLayout({
               title={statusTitle}
               message={statusMessage}
               details={statusDetails}
-              version={version}
             />
 
             <p className="mt-6 max-w-3xl text-sm leading-6 text-gray-400">
@@ -159,49 +146,6 @@ function AgentServerOnboardingLayout({
   );
 }
 
-function UnsupportedAgentServerNotice({
-  error,
-}: {
-  error: AgentServerIncompatibilityError;
-}) {
-  const { t } = useTranslation("openhands");
-
-  return (
-    <AgentServerOnboardingLayout
-      testId="agent-server-upgrade-screen"
-      eyebrow={t("SETTINGS$AGENT_SERVER_UPGRADE_EYEBROW")}
-      title={t("SETTINGS$AGENT_SERVER_UPGRADE_TITLE")}
-      description={t("SETTINGS$AGENT_SERVER_UPGRADE_DESCRIPTION", {
-        minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-      })}
-      statusTitle={t("SETTINGS$AGENT_SERVER_UPGRADE_STATUS_TITLE")}
-      statusMessage={t("SETTINGS$AGENT_SERVER_UPGRADE_STATUS_MESSAGE", {
-        minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-      })}
-      version={error.serverVersion}
-    />
-  );
-}
-
-function UnknownAgentServerNotice() {
-  const { t } = useTranslation("openhands");
-
-  return (
-    <AgentServerOnboardingLayout
-      testId="agent-server-onboarding-screen"
-      eyebrow={t("SETTINGS$AGENT_SERVER_ONBOARDING_EYEBROW")}
-      title={t("SETTINGS$AGENT_SERVER_ONBOARDING_TITLE")}
-      description={t("SETTINGS$AGENT_SERVER_ONBOARDING_DESCRIPTION", {
-        minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-      })}
-      statusTitle={t("SETTINGS$AGENT_SERVER_UNKNOWN_VERSION_STATUS_TITLE")}
-      statusMessage={t("SETTINGS$AGENT_SERVER_UNKNOWN_VERSION_STATUS_MESSAGE", {
-        minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-      })}
-    />
-  );
-}
-
 function MissingAgentServerNotice({
   error,
 }: {
@@ -214,9 +158,7 @@ function MissingAgentServerNotice({
       testId="agent-server-onboarding-screen"
       eyebrow={t("SETTINGS$AGENT_SERVER_ONBOARDING_EYEBROW")}
       title={t("SETTINGS$AGENT_SERVER_ONBOARDING_TITLE")}
-      description={t("SETTINGS$AGENT_SERVER_ONBOARDING_DESCRIPTION", {
-        minimumVersion: MINIMUM_SUPPORTED_AGENT_SERVER_VERSION,
-      })}
+      description={t("SETTINGS$AGENT_SERVER_ONBOARDING_DESCRIPTION")}
       statusTitle={t("SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_TITLE")}
       statusMessage={t("SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_MESSAGE")}
       statusDetails={error.details}
@@ -238,14 +180,6 @@ export default function App() {
 
   if (isAgentServerUnavailableError(config.error)) {
     return <MissingAgentServerNotice error={config.error} />;
-  }
-
-  if (isAgentServerIncompatibilityError(config.error)) {
-    if (!config.error.serverVersion) {
-      return <UnknownAgentServerNotice />;
-    }
-
-    return <UnsupportedAgentServerNotice error={config.error} />;
   }
 
   return <Outlet />;

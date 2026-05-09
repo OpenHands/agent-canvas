@@ -1,6 +1,6 @@
 import React from "react";
 import { screen } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import {
@@ -9,6 +9,12 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
+
+const useActiveConversationMock = vi.fn<
+  () => {
+    data: { conversation_id: string; llm_model: string | null } | undefined;
+  }
+>(() => ({ data: undefined }));
 
 vi.mock("#/components/features/controls/agent-status", () => ({
   AgentStatus: () => <div data-testid="agent-status-stub" />,
@@ -22,7 +28,10 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
   ChangeAgentButton: () => <div data-testid="change-agent-button-stub" />,
 }));
 
-// Mock the underlying mutation service module that the pause/resume hooks call.
+vi.mock("#/hooks/query/use-active-conversation", () => ({
+  useActiveConversation: () => useActiveConversationMock(),
+}));
+
 vi.mock("#/hooks/mutation/conversation-mutation-utils", () => ({
   pauseConversation: vi.fn(),
   resumeConversation: vi.fn(),
@@ -42,35 +51,56 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
-describe("ChatInputActions Change Agent button visibility", () => {
+describe("ChatInputActions", () => {
   afterEach(() => {
     window.localStorage.clear();
     __resetActiveStoreForTests();
+    useActiveConversationMock.mockReset();
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+  });
+
+  it("renders the active conversation model when one is available", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(<ChatInputActions disabled={false} />);
+
+    expect(screen.getByTestId("chat-input-llm-model")).toHaveTextContent(
+      "gpt-4o",
+    );
+  });
+
+  it("omits the model label when the active conversation has no llm_model", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: null },
+    });
+
+    renderWithProviders(<ChatInputActions disabled={false} />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the Change Agent button on a local backend", () => {
-    // Arrange + Act — default active backend is the bundled local one.
     renderWithProviders(<ChatInputActions disabled={false} />);
 
-    // Assert
     expect(
       screen.queryByTestId("change-agent-button-stub"),
     ).not.toBeInTheDocument();
   });
 
   it("shows the Change Agent button on a cloud backend", () => {
-    // Arrange
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
 
-    // Act
     renderWithProviders(
       <ActiveBackendProvider>
         <ChatInputActions disabled={false} />
       </ActiveBackendProvider>,
     );
 
-    // Assert
     expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
   });
 });

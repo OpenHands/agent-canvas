@@ -22,11 +22,7 @@ vi.mock("#/hooks/query/use-config", () => ({
 
 const DEFAULT_FEATURE_FLAGS = {
   hide_llm_settings: false,
-  enable_jira: false,
-  enable_jira_dc: false,
-  enable_linear: false,
   hide_users_page: false,
-  hide_integrations_page: false,
 };
 
 const RouterStub = createRoutesStub([

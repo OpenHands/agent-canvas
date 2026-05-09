@@ -128,8 +128,8 @@ describe("SettingsService", () => {
     // Arrange: simulate post-save state. SecretsService.addGitProvider writes to
     // this localStorage key after the server PUT /api/settings/secrets succeeds.
     // The agent-server API never returns provider_tokens_set, so the GUI must
-    // derive it from local state for useUserProviders / git-settings to recognize
-    // the configured providers.
+    // derive it from local state for useUserProviders to recognize the
+    // configured providers.
     window.localStorage.setItem(
       "openhands-agent-server-git-provider-tokens",
       JSON.stringify({

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -14,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_BACKEND_PORT = 18000;
+const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
@@ -24,10 +26,24 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-workspace",
 ];
 // Default secret key for local development (DO NOT use in production)
+// This is kept static because it's used for encrypting/decrypting persisted settings
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default agent-server version (released PyPI version)
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AGENT_SERVER_VERSION = "1.21.1";
+
+/**
+ * Generate a cryptographically secure random API key.
+ * Returns a 64-character hex string (256-bit).
+ */
+export function generateRandomApiKey() {
+  return randomBytes(32).toString("hex");
+}
+
+// Auto-generate a random session API key for this dev session.
+// This ensures the agent-server API is authenticated even in local dev.
+// Set SESSION_API_KEY env var to use a consistent key across restarts.
+const DEFAULT_SESSION_API_KEY = generateRandomApiKey();
 
 function isEnoentError(error) {
   return Boolean(
@@ -37,6 +53,106 @@ function isEnoentError(error) {
       error.code === "ENOENT") ||
     /ENOENT/.test(String(error)),
   );
+}
+
+/**
+ * Find a free port, preferring the specified port if available.
+ *
+ * Tries the preferred port first; if it's busy, falls back to letting
+ * the OS assign any available port. This preserves predictable defaults
+ * while gracefully handling port conflicts.
+ *
+ * **Note on race conditions:** There is a small window between when this
+ * function checks port availability and when the calling service actually
+ * binds to the port. During this window, another process could theoretically
+ * grab the port. This is an accepted limitation of the "check-then-use"
+ * approach. Callers (like agent-server) should handle EADDRINUSE gracefully.
+ * For Vite, `strictPort: true` ensures a fast failure if this occurs.
+ *
+ * @param {number} preferredPort - The port to try first
+ * @param {string} host - The host to bind to (default: "127.0.0.1")
+ * @returns {Promise<number>} The actual port that was acquired
+ */
+export async function findFreePort(preferredPort, host = "127.0.0.1") {
+  // If preferredPort is 0, skip the check and go straight to OS assignment
+  if (preferredPort > 0) {
+    const preferredAvailable = await tryPort(preferredPort, host);
+    if (preferredAvailable) {
+      return preferredPort;
+    }
+  }
+
+  // Fall back to OS-assigned port
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, host, () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+/**
+ * Check if a port is available by attempting to bind to it.
+ *
+ * @param {number} port - The port to check
+ * @param {string} host - The host to bind to
+ * @returns {Promise<boolean>} True if the port is available
+ */
+function tryPort(port, host = "127.0.0.1") {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.listen(port, host, () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+/**
+ * Find multiple free ports at once, each preferring its specified default.
+ *
+ * Allocates ports sequentially to avoid race conditions between checks.
+ *
+ * @param {Array<{name: string, preferred: number}>} portConfigs - Port configurations
+ * @param {string} host - The host to bind to (default: "127.0.0.1")
+ * @returns {Promise<Record<string, number>>} Map of name to actual port
+ */
+export async function findFreePorts(portConfigs, host = "127.0.0.1") {
+  const result = {};
+  const usedPorts = new Set();
+
+  for (const { name, preferred } of portConfigs) {
+    // Try preferred if not already taken by a previous allocation
+    // Skip if preferred is 0 (means "any port") or already used
+    if (preferred > 0 && !usedPorts.has(preferred)) {
+      const available = await tryPort(preferred, host);
+      if (available) {
+        result[name] = preferred;
+        usedPorts.add(preferred);
+        continue;
+      }
+    }
+
+    // Fall back to OS-assigned port, retrying if we get a collision
+    let port;
+    let attempts = 0;
+    const maxAttempts = 100;
+    do {
+      port = await findFreePort(0, host);
+      if (++attempts > maxAttempts) {
+        throw new Error(
+          `Could not allocate unique port for "${name}" after ${maxAttempts} attempts`,
+        );
+      }
+    } while (usedPorts.has(port));
+
+    result[name] = port;
+    usedPorts.add(port);
+  }
+
+  return result;
 }
 
 export function formatMissingUvxGuidance(cwd = process.cwd()) {
@@ -171,6 +287,22 @@ function parsePort(value, fallback) {
   return parsed;
 }
 
+/**
+ * Build safe dev configuration (synchronous version).
+ *
+ * Uses the port values from environment variables or defaults WITHOUT checking
+ * port availability. Use this when:
+ * - You need synchronous config (e.g., for test setup, config inspection)
+ * - Ports are already known to be available (e.g., specified via env vars)
+ * - You're building config objects for downstream use, not starting services
+ *
+ * For scripts that actually start services (dev-safe.mjs main, dev-with-automation.mjs),
+ * use {@link buildSafeDevConfigAsync} instead to handle port conflicts gracefully.
+ *
+ * @param {string} cwd - Current working directory
+ * @param {Record<string, string | undefined>} env - Environment variables
+ * @returns {SafeDevConfig} Configuration object
+ */
 export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
   const backendPort = parsePort(
     env.OH_CANVAS_SAFE_BACKEND_PORT,
@@ -180,6 +312,85 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
     env.OH_CANVAS_SAFE_VSCODE_PORT,
     backendPort + 1,
   );
+
+  return buildConfigFromPorts({ backendPort, vscodePort }, cwd, env);
+}
+
+/**
+ * Build safe dev configuration with dynamic port allocation.
+ *
+ * Tries preferred ports first; if busy, finds available alternatives.
+ * This is the recommended entry point for scripts that start services.
+ *
+ * @param {string} cwd - Current working directory
+ * @param {Record<string, string | undefined>} env - Environment variables
+ * @returns {Promise<SafeDevConfig>} Configuration object with allocated ports
+ */
+export async function buildSafeDevConfigAsync(
+  cwd = process.cwd(),
+  env = process.env,
+) {
+  // Get preferred ports from env or defaults
+  const preferredBackendPort = parsePort(
+    env.OH_CANVAS_SAFE_BACKEND_PORT,
+    DEFAULT_BACKEND_PORT,
+  );
+  const preferredVscodePort = parsePort(
+    env.OH_CANVAS_SAFE_VSCODE_PORT,
+    preferredBackendPort + 1,
+  );
+
+  // Find available ports, preferring the defaults
+  const ports = await findFreePorts([
+    { name: "backend", preferred: preferredBackendPort },
+    { name: "vscode", preferred: preferredVscodePort },
+  ]);
+
+  // Log if we're using non-default ports
+  if (ports.backend !== preferredBackendPort) {
+    console.log(
+      `  ℹ Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
+    );
+  }
+  if (ports.vscode !== preferredVscodePort) {
+    console.log(
+      `  ℹ Port ${preferredVscodePort} busy, using ${ports.vscode} for vscode`,
+    );
+  }
+
+  return buildConfigFromPorts(
+    { backendPort: ports.backend, vscodePort: ports.vscode },
+    cwd,
+    env,
+  );
+}
+
+/**
+ * @typedef {object} SafeDevConfig
+ * @property {string} cwd
+ * @property {number} backendPort
+ * @property {number} vscodePort
+ * @property {string} stateDir
+ * @property {string} tmuxTmpDir
+ * @property {string} conversationsPath
+ * @property {string} workspacesPath
+ * @property {string} bashEventsDir
+ * @property {string} backendBaseUrl
+ * @property {string} backendHost
+ * @property {string} workingDir
+ * @property {string} secretKey
+ * @property {string} sessionApiKey
+ */
+
+/**
+ * Internal helper to build config from already-resolved ports.
+ * @param {{backendPort: number, vscodePort: number}} ports
+ * @param {string} cwd
+ * @param {Record<string, string | undefined>} env
+ * @returns {SafeDevConfig}
+ */
+function buildConfigFromPorts(ports, cwd, env) {
+  const { backendPort, vscodePort } = ports;
   const stateDir = path.resolve(
     cwd,
     env.OH_CANVAS_SAFE_STATE_DIR ||
@@ -189,6 +400,16 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
   const workspacesPath = path.join(stateDir, "workspaces");
   // Use provided secret key or default for local development
   const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
+  // Use provided session API key or auto-generated random key for this session
+  // Check multiple env vars that may be used:
+  // - SESSION_API_KEY: Common name
+  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
+  // - VITE_SESSION_API_KEY: Used by frontend config
+  const sessionApiKey =
+    env.SESSION_API_KEY ||
+    env.OH_SESSION_API_KEYS_0 ||
+    env.VITE_SESSION_API_KEY ||
+    DEFAULT_SESSION_API_KEY;
 
   return {
     cwd,
@@ -203,6 +424,7 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
     backendHost: `127.0.0.1:${backendPort}`,
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
     secretKey,
+    sessionApiKey,
   };
 }
 
@@ -222,6 +444,8 @@ export function buildAgentServerEnv(config) {
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),
     OH_SECRET_KEY: config.secretKey,
+    // Use OH_SESSION_API_KEYS_0 for agent-server V1 config format
+    OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 }
 
@@ -310,7 +534,11 @@ function spawnProcess(command, args, options) {
 }
 
 async function main() {
-  const config = buildSafeDevConfig();
+  console.log("Starting isolated agent-server + frontend dev stack...");
+  console.log("Allocating ports...");
+
+  // Use async config builder with dynamic port allocation
+  const config = await buildSafeDevConfigAsync();
 
   if (process.env.OH_AGENT_SERVER_LOCAL_PATH) {
     validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
@@ -332,13 +560,20 @@ async function main() {
     ? "custom (from OH_SECRET_KEY)"
     : "default (for local development)";
 
-  console.log("Starting isolated agent-server + frontend dev stack...");
+  const sessionKeySource =
+    process.env.SESSION_API_KEY ||
+    process.env.OH_SESSION_API_KEYS_0 ||
+    process.env.VITE_SESSION_API_KEY
+      ? "custom (from env)"
+      : "auto-generated (random)";
+
   console.log(`- agent-server: ${agentServerCmd.source}`);
   console.log(`- backend: ${config.backendBaseUrl}`);
   console.log(`- vscode port: ${config.vscodePort}`);
   console.log(`- working dir: ${config.workingDir}`);
   console.log(`- isolated state dir: ${config.stateDir}`);
   console.log(`- secret key: ${secretKeySource}`);
+  console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
 
   const backend = spawnProcess(
@@ -409,6 +644,8 @@ async function main() {
       VITE_BACKEND_HOST: config.backendHost,
       VITE_BACKEND_BASE_URL: config.backendBaseUrl,
       VITE_WORKING_DIR: config.workingDir,
+      // Pass session API key so frontend can authenticate with agent-server
+      VITE_SESSION_API_KEY: config.sessionApiKey,
     },
   });
 

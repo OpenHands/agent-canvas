@@ -1,9 +1,16 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAxiosError } from "test-utils";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
   ActiveBackendProvider,
@@ -21,12 +28,17 @@ import {
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
   switchCloudOrganization: vi.fn().mockResolvedValue(undefined),
   getCloudOrganizationMe: vi.fn(),
   getCurrentCloudApiKey: vi.fn(),
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displayErrorToast: vi.fn(),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -83,6 +95,7 @@ beforeEach(() => {
     orgId: null,
     isLegacyKey: true,
   });
+  vi.mocked(displayErrorToast).mockReset();
 });
 
 afterEach(() => {
@@ -371,7 +384,7 @@ describe("BackendSelector", () => {
     }
     const RouterStub = createRoutesStub([
       { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/", Component: HomeRoute },
+      { path: "/conversations", Component: HomeRoute },
     ]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -427,6 +440,261 @@ describe("BackendSelector", () => {
     );
   });
 
+  it("does not open backend modals on mouse down alone", async () => {
+    renderWithProviders(<BackendSelector />);
+
+    await openDropdown();
+
+    fireEvent.mouseDown(screen.getByTestId("add-backend-menu-item"));
+    expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("manage-backends-menu-item"));
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast, dismisses the overlay, and does not switch to the failing cloud backend", async () => {
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      createAxiosError(500, "Server Error", { message: "switch failed" }),
+    );
+
+    let productionId = "";
+    let activeLocalId = "";
+    renderWithProviders(
+      <>
+        <TestSeed
+          onMount={(ctx) => {
+            activeLocalId = ctx.addBackend({
+              name: "Active Local",
+              host: "http://localhost:9000",
+              apiKey: "local-key",
+              kind: "local",
+            }).id;
+            ctx.setActive(activeLocalId, null);
+            productionId = ctx.addBackend({
+              name: "Production",
+              host: "https://app.all-hands.dev",
+              apiKey: "bearer-key",
+              kind: "cloud",
+            }).id;
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>
+        <EnvironmentSwitchOverlay />
+      </>,
+    );
+
+    const initialSelection = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+
+    const user = await openDropdown();
+    await waitFor(() => {
+      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Production – Acme Inc"));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("switch failed");
+    });
+    expect(
+      screen.queryByTestId("environment-switch-overlay"),
+    ).not.toBeInTheDocument();
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(initialSelection?.backendId).toBe(activeLocalId);
+    expect(stored?.backendId).not.toBe(productionId);
+    expect(stored?.orgId ?? null).toBeNull();
+  });
+
+  it("shows a generic error toast instead of throwing on unexpected org switch errors", async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      new Error("unexpected failure"),
+    );
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    const user = await openDropdown();
+    await waitFor(() => {
+      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Production – Acme Inc"));
+
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("ERROR$GENERIC");
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Unexpected error during org switch:",
+      expect.any(Error),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("falls back to the bundled backend when malformed cloud self-heal fails", async () => {
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: "org-2", name: "Acme Inc" }],
+      currentOrgId: "org-2",
+    });
+    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
+      createAxiosError(500, "Server Error", { message: "switch failed" }),
+    );
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          const production = ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          });
+          ctx.setActive(production.id, null);
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-active-backend") ?? "null",
+      );
+      expect(stored?.backendId).toBe("__bundled__");
+      expect(stored?.orgId ?? null).toBeNull();
+    });
+  });
+
+  it("renders the backend footer actions and opens/closes the add modal", async () => {
+    renderWithProviders(<BackendSelector />);
+
+    const user = await openDropdown();
+    expect(screen.getByTestId("add-backend-menu-item")).toBeInTheDocument();
+    expect(screen.getByTestId("manage-backends-menu-item")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("add-backend-menu-item"));
+    expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("add-backend-cancel"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("opens the manage backends modal and removes a backend", async () => {
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByTestId("manage-backends-menu-item"));
+
+    expect(
+      await screen.findByTestId("manage-backends-modal"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("manage-backends-row-Local 1"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("manage-backends-remove-Local 1"));
+    expect(await screen.findByTestId("confirmation-modal")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("manage-backends-row-Local 1"),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem("openhands-backends") ?? "[]"),
+    ).toEqual([]);
+  });
+
+  it("falls back to the bundled backend when removing the active backend from manage backends", async () => {
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          const backend = ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+          ctx.setActive(backend.id);
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    let wrapper = screen.getByTestId("backend-selector");
+    let input = wrapper.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("Local 1");
+
+    const user = await openDropdown();
+    await user.click(screen.getByTestId("manage-backends-menu-item"));
+    await user.click(
+      await screen.findByTestId("manage-backends-remove-Local 1"),
+    );
+    await user.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("manage-backends-row-Local 1"),
+      ).not.toBeInTheDocument();
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(stored).toBeNull();
+
+    wrapper = screen.getByTestId("backend-selector");
+    input = wrapper.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("BACKEND$LOCAL_ROW");
+  });
+
   it("redirects to the automations list when switching backends from an automation detail route", async () => {
     function AutomationDetailRoute() {
       return (
@@ -465,9 +733,7 @@ describe("BackendSelector", () => {
     const user = await openDropdown();
     await user.click(screen.getByText("Local 1"));
 
-    expect(
-      await screen.findByTestId("automations-list"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
 
   it("does not redirect when switching backends from a non-conversation route", async () => {

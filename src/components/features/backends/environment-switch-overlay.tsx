@@ -43,6 +43,14 @@ export function triggerEnvironmentSwitch(target: string) {
   }, ENVIRONMENT_SWITCH_DURATION_MS);
 }
 
+export function dismissEnvironmentSwitch() {
+  if (hideTimeoutId) {
+    clearTimeout(hideTimeoutId);
+    hideTimeoutId = null;
+  }
+  setSnapshot({ visible: false, target: "" });
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {

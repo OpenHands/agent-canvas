@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Combined static file server + reverse proxy.
  *
@@ -32,6 +31,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, normalize, resolve } from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MIME types
@@ -408,7 +408,8 @@ export function startStaticServer(config) {
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   try {

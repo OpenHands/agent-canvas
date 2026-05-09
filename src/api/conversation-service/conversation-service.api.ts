@@ -11,6 +11,8 @@ import {
 } from "../typescript-client";
 import { AppConversation } from "./agent-server-conversation-service.types";
 
+const FILE_UPLOAD_CONCURRENCY = 5;
+
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
 
@@ -47,7 +49,7 @@ class ConversationService {
         ? (this.currentConversation?.workspace?.working_dir ??
           getAgentServerWorkingDir())
         : getAgentServerWorkingDir();
-    const vscode_url = await createVSCodeClient(
+    const vscodeUrl = await createVSCodeClient(
       this.getClientOverrides(),
     ).getUrl({
       baseUrl:
@@ -55,7 +57,7 @@ class ConversationService {
       workspaceDir,
     });
 
-    return { vscode_url };
+    return { vscode_url: vscodeUrl };
   }
 
   static async getTrajectory(
@@ -73,23 +75,41 @@ class ConversationService {
     _conversationId: string,
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
-    const uploaded_files: string[] = [];
-    const skipped_files: { name: string; reason: string }[] = [];
     const workspace = createRemoteWorkspace(this.getClientOverrides());
-
-    for (const file of files) {
+    const uploadFile = async (file: File) => {
       try {
         await workspace.fileUpload(file, `/workspace/${file.name}`);
-        uploaded_files.push(file.name);
+        return { uploadedFile: file.name, skippedFile: null };
       } catch (error) {
-        skipped_files.push({
-          name: file.name,
-          reason: error instanceof Error ? error.message : "Upload failed",
-        });
+        return {
+          uploadedFile: null,
+          skippedFile: {
+            name: file.name,
+            reason: error instanceof Error ? error.message : "Upload failed",
+          },
+        };
       }
+    };
+
+    const results: Awaited<ReturnType<typeof uploadFile>>[] = [];
+    for (
+      let index = 0;
+      index < files.length;
+      index += FILE_UPLOAD_CONCURRENCY
+    ) {
+      const batch = files.slice(index, index + FILE_UPLOAD_CONCURRENCY);
+      // eslint-disable-next-line no-await-in-loop
+      results.push(...(await Promise.all(batch.map(uploadFile))));
     }
 
-    return { uploaded_files, skipped_files };
+    return {
+      uploaded_files: results.flatMap((result) =>
+        result.uploadedFile ? [result.uploadedFile] : [],
+      ),
+      skipped_files: results.flatMap((result) =>
+        result.skippedFile ? [result.skippedFile] : [],
+      ),
+    };
   }
 }
 

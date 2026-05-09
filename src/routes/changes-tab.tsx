@@ -67,10 +67,10 @@ function GitChanges() {
   ]);
 
   return (
-    <main className="h-full overflow-y-scroll md:pr-1.5 flex flex-col items-stretch custom-scrollbar-always">
+    <main className="h-full w-full flex flex-col items-stretch">
       {!isSuccess || !gitChanges.length ? (
-        <div className="relative flex h-full w-full items-center">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
+        <div className="flex flex-col h-full w-full">
+          <div className="flex-1 flex items-center justify-center">
             {statusMessage && (
               <StatusMessage>
                 {statusMessage.map((msg) => (
@@ -82,25 +82,22 @@ function GitChanges() {
               <EmptyChangesMessage />
             )}
           </div>
-
-          <div className="absolute inset-x-0 bottom-0">
-            {!isError && gitChanges?.length === 0 && (
-              <div className="max-w-2xl mx-4 mb-4 text-m bg-tertiary p-4 text-left md:mx-auto">
-                <RandomTip />
-              </div>
-            )}
-          </div>
+          {!isError && isSuccess && gitChanges.length === 0 && (
+            <div className="w-full text-m bg-tertiary p-4 text-left">
+              <RandomTip />
+            </div>
+          )}
         </div>
       ) : (
-        gitChanges
-          .slice(0, 100)
-          .map((change) => (
+        <div className="h-full overflow-y-auto flex flex-col items-stretch custom-scrollbar-always">
+          {gitChanges.slice(0, 100).map((change) => (
             <FileDiffViewer
               key={change.path}
               path={change.path}
               type={change.status}
             />
-          ))
+          ))}
+        </div>
       )}
     </main>
   );

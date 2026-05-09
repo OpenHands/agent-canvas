@@ -1,6 +1,8 @@
 import React from "react";
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
+import { Plus, Settings } from "lucide-react";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -10,9 +12,14 @@ import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-or
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
 import {
+  dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-overlay";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { AddBackendModal } from "./add-backend-modal";
+import { ManageBackendsModal } from "./manage-backends-modal";
 
 const VALUE_SEPARATOR = "::";
 
@@ -72,7 +79,14 @@ function buildOptions(
   return options;
 }
 
-export function BackendSelector() {
+interface BackendSelectorProps {
+  /** Render the menu above the trigger (e.g. when pinned to bottom of sidebar). */
+  openUpward?: boolean;
+}
+
+export function BackendSelector({
+  openUpward = false,
+}: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, bundledBackend, active, setActive } =
     useActiveBackendContext();
@@ -83,6 +97,9 @@ export function BackendSelector() {
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
   const automationDetailMatch = useMatch("/automations/:automationId");
+  const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
+  const [manageBackendsModalOpen, setManageBackendsModalOpen] =
+    React.useState(false);
 
   const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
@@ -123,85 +140,152 @@ export function BackendSelector() {
   // touching active state so queries refetch (via key change) only
   // once and against the correct org context.
   React.useEffect(() => {
-    if (active.backend.kind !== "cloud" || active.orgId) return;
-    const { backend } = active;
-    const entry = cloudOrgs[backend.id];
-    if (!entry || entry.orgs.length === 0) return;
-    const userId = currentUserIds[backend.id]?.userId ?? null;
-    const personal = userId
-      ? entry.orgs.find((o) => o.id === userId)
-      : undefined;
-    const target = personal ?? entry.orgs[0];
-    if (!target) return;
-    switchOrg({ orgId: target.id, backend })
-      .then(() => setActive(backend.id, target.id))
-      .catch(() => {
-        // Error is surfaced by the mutation cache's global handler.
-      });
-  }, [active, cloudOrgs, currentUserIds, setActive, switchOrg]);
+    let cancelled = false;
+
+    if (active.backend.kind === "cloud" && !active.orgId) {
+      const { backend } = active;
+      const entry = cloudOrgs[backend.id];
+
+      if (entry && entry.orgs.length > 0) {
+        const userId = currentUserIds[backend.id]?.userId ?? null;
+        const personal = userId
+          ? entry.orgs.find((o) => o.id === userId)
+          : undefined;
+        const target = personal ?? entry.orgs[0];
+
+        if (target) {
+          const syncActiveOrg = async () => {
+            try {
+              await switchOrg({ orgId: target.id, backend });
+              if (!cancelled) {
+                setActive(backend.id, target.id);
+              }
+            } catch {
+              if (!cancelled) {
+                setActive(bundledBackend.id, null);
+              }
+            }
+          };
+
+          syncActiveOrg();
+        }
+      }
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    bundledBackend.id,
+    cloudOrgs,
+    currentUserIds,
+    setActive,
+    switchOrg,
+  ]);
+
+  const openAddBackendModal = React.useCallback(() => {
+    setAddBackendModalOpen(true);
+  }, []);
+
+  const openManageBackendsModal = React.useCallback(() => {
+    setManageBackendsModalOpen(true);
+  }, []);
+
+  const preventDropdownMenuClose = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
+  const addBackendFooter = (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        data-testid="add-backend-menu-item"
+        onMouseDown={preventDropdownMenuClose}
+        onClick={openAddBackendModal}
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+      >
+        <Plus width={16} height={16} className="text-white shrink-0" />
+        {t(I18nKey.BACKEND$ADD)}
+      </button>
+      <button
+        type="button"
+        data-testid="manage-backends-menu-item"
+        onMouseDown={preventDropdownMenuClose}
+        onClick={openManageBackendsModal}
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+      >
+        <Settings width={16} height={16} className="text-white shrink-0" />
+        {t(I18nKey.BACKEND$MANAGE)}
+      </button>
+    </div>
+  );
 
   return (
-    <Dropdown
-      testId="backend-selector"
-      key={`${activeValue}-${activeOption?.label ?? ""}`}
-      defaultValue={activeOption ?? { value: activeValue, label: bundledLabel }}
-      onChange={async (item) => {
-        if (!item || item.value === activeValue) return;
-        const { backendId, orgId } = parseOptionValue(item.value);
-        const target = backends.find((b) => b.id === backendId);
-
-        // Show the environment-switch overlay immediately so the user
-        // gets feedback before any /switch network call. The overlay
-        // auto-dismisses on its own 980ms timer regardless of whether
-        // the switch succeeds or fails.
-        triggerEnvironmentSwitch(item.label);
-
-        // Hold the active swap for ~400ms — placing it in the middle
-        // of the content-fade-to-black window so React Query refetches
-        // happen while the layout is invisible behind the overlay,
-        // rather than thrashing visibly before the fade.
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
-        });
-
-        // Cloud + org pick: fire `/switch` FIRST against the explicit
-        // target backend, then update the active selection after it
-        // resolves. This ensures the SaaS-side `current_org_id` is
-        // already in place before any of our backend-keyed queries
-        // refetch — they fire exactly once, with the correct context.
-        //
-        // We use `mutateAsync` + `await` (rather than `mutate(... ,
-        // { onSuccess })`) because per-call onSuccess callbacks were
-        // observed not to run reliably for this hook in practice; the
-        // promise-based shape is unambiguous.
-        if (orgId && target?.kind === "cloud") {
-          try {
-            await switchOrg({ orgId, backend: target });
-          } catch {
-            // Error is surfaced by the mutation cache's global handler.
-            return;
-          }
+    <>
+      <Dropdown
+        testId="backend-selector"
+        key={`${activeValue}-${activeOption?.label ?? ""}`}
+        defaultValue={
+          activeOption ?? { value: activeValue, label: bundledLabel }
         }
+        footer={addBackendFooter}
+        openUpward={openUpward}
+        onChange={async (item) => {
+          if (!item || item.value === activeValue) return;
+          const { backendId, orgId } = parseOptionValue(item.value);
+          const target =
+            backendId === bundledBackend.id
+              ? bundledBackend
+              : backends.find((b) => b.id === backendId);
+          if (!target) return;
 
-        // The current conversation/automation belongs to the previous
-        // backend and is no longer reachable under the new one — redirect
-        // BEFORE flipping the active selection so the route change and
-        // backend change land in the same render batch. Otherwise the
-        // detail page re-renders once with the new backend (its query
-        // key includes `active.backend.id`) and react-query fires a
-        // fetch for the previous backend's id against the new backend.
-        if (conversationMatch) navigate("/");
-        else if (automationDetailMatch) navigate("/automations");
+          triggerEnvironmentSwitch(item.label);
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
+          });
 
-        // Pure backend swap (local-↔-bundled or backend-only cloud
-        // selection without an org) skips `/switch` and updates active
-        // directly; cloud-with-org falls through here after `/switch`.
-        setActive(backendId, orgId);
-      }}
-      placeholder={bundledLabel}
-      loading={someCloudLoading || isSwitching}
-      options={options}
-      className="bg-[#1F1F1F66] border-[#242424]"
-    />
+          if (orgId && target.kind === "cloud") {
+            try {
+              await switchOrg({ orgId, backend: target });
+            } catch (error) {
+              dismissEnvironmentSwitch();
+
+              if (!axios.isAxiosError(error)) {
+                console.error("Unexpected error during org switch:", error);
+                displayErrorToast(t(I18nKey.ERROR$GENERIC));
+                return;
+              }
+
+              displayErrorToast(
+                retrieveAxiosErrorMessage(error) || t(I18nKey.ERROR$GENERIC),
+              );
+              return;
+            }
+          }
+
+          if (conversationMatch) navigate("/conversations");
+          else if (automationDetailMatch) navigate("/automations");
+
+          setActive(target.id, orgId);
+        }}
+        placeholder={bundledLabel}
+        loading={someCloudLoading || isSwitching}
+        options={options}
+        className="bg-[#1F1F1F66] border-[#242424]"
+      />
+      {addBackendModalOpen ? (
+        <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
+      ) : null}
+      {manageBackendsModalOpen ? (
+        <ManageBackendsModal
+          onClose={() => setManageBackendsModalOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }

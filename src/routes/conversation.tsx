@@ -16,11 +16,8 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
-
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
-import { ConversationNameWithStatus } from "#/components/features/conversation/conversation-name-with-status";
 
-import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
@@ -31,7 +28,6 @@ function AppContent() {
   const { conversationId } = useConversationId();
   const clearEvents = useEventStore((state) => state.clearEvents);
 
-  // Handle both task IDs (task-{uuid}) and regular conversation IDs
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
   const { data: conversation, isFetched } = useActiveConversation();
@@ -49,7 +45,6 @@ function AppContent() {
     (state) => state.removeErrorMessage,
   );
 
-  // 1. Cleanup Effect - runs when navigating to a different conversation
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
@@ -67,7 +62,6 @@ function AppContent() {
     clearEvents,
   ]);
 
-  // 2. Task Error Display Effect
   React.useEffect(() => {
     if (isTask && taskStatus === "ERROR") {
       displayErrorToast(
@@ -77,34 +71,22 @@ function AppContent() {
   }, [isTask, taskStatus, taskDetail, t]);
 
   React.useEffect(() => {
-    // Wait for data to be fetched
     if (!isFetched || !isAuthed) return;
 
-    // Handle conversation not found
     if (!conversation) {
       displayErrorToast(t(I18nKey.CONVERSATION$NOT_EXIST_OR_NO_PERMISSION));
-      navigate("/");
+      navigate("/conversations");
     }
   }, [conversation, isFetched, isAuthed, navigate, t]);
 
   const content = (
     <EventHandler>
-      <div
-        data-testid="app-route"
-        className="p-3 md:p-0 flex flex-col h-full gap-3"
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
-          <ConversationNameWithStatus />
-          <ConversationTabs />
-        </div>
-
+      <div data-testid="app-route" className="flex flex-col h-full">
         <ConversationMain />
       </div>
     </EventHandler>
   );
 
-  // Render WebSocket provider immediately to avoid mount/remount cycles
-  // The providers internally handle waiting for conversation data to be ready
   return (
     <WebSocketProviderWrapper conversationId={conversationId}>
       {content}

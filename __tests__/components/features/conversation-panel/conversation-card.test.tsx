@@ -37,6 +37,7 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$CREATED: "Created",
           CONVERSATION$AGO: "ago",
           CONVERSATION$UPDATED: "Updated",
+          COMMON$NO_REPOSITORY: "No repository",
         };
         return translations[key] || key;
       },
@@ -124,6 +125,52 @@ describe("ConversationCard", () => {
     );
 
     screen.getByTestId("conversation-card-selected-repository");
+  });
+
+  it("renders the workspace folder name when no repository is selected", () => {
+    renderWithProviders(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="/workspace/project/agent-canvas"
+      />,
+    );
+
+    expect(screen.getByText("agent-canvas")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("/workspace/project/agent-canvas"),
+    ).toBeInTheDocument();
+  });
+
+  it("handles Windows workspace paths and falls back when the path is empty", () => {
+    const { rerender } = renderWithProviders(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="C:\\Users\\me\\repo"
+      />,
+    );
+
+    expect(screen.getByText("repo")).toBeInTheDocument();
+
+    rerender(
+      <ConversationCard
+        onDelete={onDelete}
+        onChangeTitle={onChangeTitle}
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        workspaceWorkingDir="   "
+      />,
+    );
+
+    expect(screen.getByText("No repository")).toBeInTheDocument();
   });
 
   it("should toggle a context menu when clicking the ellipsis button", async () => {
@@ -442,31 +489,7 @@ describe("ConversationCard", () => {
     expect(screen.queryByTestId("ellipsis-button")).not.toBeInTheDocument();
   });
 
-  it("should render the llm model when provided", () => {
-    renderWithProviders(
-      <ConversationCard
-        onDelete={onDelete}
-        onChangeTitle={onChangeTitle}
-        title="Conversation 1"
-        selectedRepository={null}
-        lastUpdatedAt="2021-10-01T12:00:00Z"
-        llmModel="anthropic/claude-sonnet-4-20250514"
-      />,
-    );
-
-    const model = screen.getByTestId("conversation-card-llm-model");
-    expect(model).toBeInTheDocument();
-    expect(model).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-    expect(model).toHaveAttribute("title", "anthropic/claude-sonnet-4-20250514");
-    expect(model.querySelector("svg")).toBeInTheDocument();
-
-    // Verify truncation structure: text is wrapped in a span with truncate class
-    const textSpan = model.querySelector("span.truncate");
-    expect(textSpan).toBeInTheDocument();
-    expect(textSpan).toHaveTextContent("anthropic/claude-sonnet-4-20250514");
-  });
-
-  it("should not render the llm model when not provided", () => {
+  it("should not render the llm model in the conversation card", () => {
     renderWithProviders(
       <ConversationCard
         onDelete={onDelete}

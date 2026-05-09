@@ -7,14 +7,13 @@ import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionPaused } from "#/utils/status";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
-import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 interface ConversationCardFooterProps {
   selectedRepository: RepositorySelection | null;
   lastUpdatedAt: string;
   createdAt?: string;
   executionStatus?: ExecutionStatus | null;
-  llmModel?: string | null;
+  workspaceWorkingDir?: string | null;
 }
 
 export function ConversationCardFooter({
@@ -22,7 +21,7 @@ export function ConversationCardFooter({
   lastUpdatedAt,
   createdAt,
   executionStatus,
-  llmModel,
+  workspaceWorkingDir,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -31,26 +30,18 @@ export function ConversationCardFooter({
   return (
     <div
       className={cn(
-        "flex flex-row justify-between items-center mt-1",
+        // Left padding aligns the repo/workspace icon with the title text in
+        // the header (status dot 10px + gap-2 8px = 18px).
+        "flex flex-row justify-between items-center mt-1 pl-[18px]",
         isPaused && "opacity-60",
       )}
     >
       {selectedRepository?.selected_repository ? (
         <ConversationRepoLink selectedRepository={selectedRepository} />
       ) : (
-        <NoRepository />
+        <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
       )}
       <div className="flex items-center gap-2 flex-1 justify-end">
-        {llmModel && (
-          <span
-            className="text-xs text-[#A3A3A3] max-w-[120px] flex items-center gap-1 overflow-hidden"
-            title={llmModel}
-            data-testid="conversation-card-llm-model"
-          >
-            <CircuitIcon width={12} height={12} className="shrink-0" />
-            <span className="truncate">{llmModel}</span>
-          </span>
-        )}
         {(createdAt ?? lastUpdatedAt) && (
           <p className="text-xs text-[#A3A3A3] text-right">
             <time>

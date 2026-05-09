@@ -3,6 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetEnvironmentSwitchOverlayForTests,
+  dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_DURATION_MS,
   EnvironmentSwitchOverlay,
   triggerEnvironmentSwitch,
@@ -39,6 +40,25 @@ describe("EnvironmentSwitchOverlay", () => {
     });
 
     // Assert — overlay tears itself down without further user action
+    expect(
+      screen.queryByTestId("environment-switch-overlay"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides immediately when dismissed before the auto-hide timeout", () => {
+    render(<EnvironmentSwitchOverlay />);
+
+    act(() => {
+      triggerEnvironmentSwitch("Acme Cloud");
+    });
+    expect(
+      screen.getByTestId("environment-switch-overlay"),
+    ).toBeInTheDocument();
+
+    act(() => {
+      dismissEnvironmentSwitch();
+    });
+
     expect(
       screen.queryByTestId("environment-switch-overlay"),
     ).not.toBeInTheDocument();

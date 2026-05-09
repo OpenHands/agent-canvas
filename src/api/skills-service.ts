@@ -1,5 +1,8 @@
 import { SkillInfo } from "#/types/settings";
-import { getAgentServerWorkingDir } from "./agent-server-config";
+import {
+  getAgentServerWorkingDir,
+  shouldLoadPublicSkills,
+} from "./agent-server-config";
 import { getActiveBackend } from "./backend-registry/active-store";
 import { fetchCloudSkills } from "./cloud/skills-service.api";
 import { createSkillsClient } from "./typescript-client";
@@ -11,7 +14,7 @@ class SkillsService {
     }
 
     const response = await createSkillsClient().getSkills({
-      load_public: true,
+      load_public: shouldLoadPublicSkills(),
       load_user: true,
       load_project: true,
       load_org: false,

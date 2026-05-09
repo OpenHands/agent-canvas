@@ -50,7 +50,7 @@ export const SECRETS_HANDLERS = [
       description?: string;
     } | null;
 
-    if (!body?.name || !body.value) {
+    if (!body?.name || !body?.value) {
       return HttpResponse.json(
         { detail: "name and value are required" },
         { status: 400 },

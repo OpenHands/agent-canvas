@@ -1,4 +1,4 @@
-import { ensureCompatibleAgentServer } from "../agent-server-compatibility";
+import { loadAgentServerInfo } from "../agent-server-compatibility";
 import { createLlmMetadataClient } from "../typescript-client";
 import { ModelsResponse, WebClientConfig } from "./option.types";
 
@@ -31,17 +31,13 @@ class OptionService {
   }
 
   static async getConfig(): Promise<WebClientConfig> {
-    await ensureCompatibleAgentServer();
+    await loadAgentServerInfo();
 
     return {
       posthog_client_key: null,
       feature_flags: {
         hide_llm_settings: false,
-        enable_jira: false,
-        enable_jira_dc: false,
-        enable_linear: false,
         hide_users_page: true,
-        hide_integrations_page: false,
       },
       providers_configured: [],
       maintenance_start_time: null,

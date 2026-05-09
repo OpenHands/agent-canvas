@@ -91,13 +91,20 @@ export default function MainApp() {
     );
   }
 
+  let rootLayoutPaddingClass = "p-0 md:p-3 md:pl-0";
+  if (pathname === "/" || pathname.startsWith("/automations")) {
+    rootLayoutPaddingClass = "p-0";
+  } else if (pathname.startsWith("/conversations")) {
+    rootLayoutPaddingClass = "p-0 md:pr-3";
+  }
+
   return (
     <ReactRouterNavigationProvider>
       <div
         data-testid="root-layout"
         className={cn(
           "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-          pathname === "/" ? "p-0" : "p-0 md:p-3 md:pl-0",
+          rootLayoutPaddingClass,
         )}
       >
         <title>{appTitle}</title>

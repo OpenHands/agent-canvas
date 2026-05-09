@@ -54,21 +54,13 @@ export function isSettingsPageHidden(
   featureFlags: WebClientFeatureFlags | undefined,
 ): boolean {
   if (featureFlags?.hide_llm_settings && path === "/settings") return true;
-  if (
-    featureFlags?.hide_integrations_page &&
-    path === "/settings/integrations"
-  ) {
-    return true;
-  }
   return false;
 }
 
-// Settings sub-pages that only make sense against a local agent-server.
+// Top-level pages that only make sense against a local agent-server.
 // Hidden from navigation and blocked at the route loader when the active
 // backend is a cloud SaaS environment.
-export const LOCAL_ONLY_SETTINGS_PATHS = new Set<string>([
-  "/settings/integrations",
-]);
+export const LOCAL_ONLY_SETTINGS_PATHS = new Set<string>(["/integrations"]);
 
 export function isLocalOnlySettingsPath(path: string): boolean {
   return LOCAL_ONLY_SETTINGS_PATHS.has(path);
@@ -80,10 +72,6 @@ export function getFirstAvailablePath(
   const fallbackOrder = [
     { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/mcp", hidden: false },
-    {
-      path: "/settings/integrations",
-      hidden: !!featureFlags?.hide_integrations_page,
-    },
     { path: "/settings/app", hidden: false },
     { path: "/settings/secrets", hidden: false },
   ];

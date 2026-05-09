@@ -76,7 +76,7 @@ export function useConversationNameContextMenu({
         {
           onSuccess: () => {
             if (conversationId === currentConversationId) {
-              navigate("/");
+              navigate("/conversations");
             }
           },
         },

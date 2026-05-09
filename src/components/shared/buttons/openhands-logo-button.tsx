@@ -12,7 +12,7 @@ export function OpenHandsLogoButton() {
 
   return (
     <StyledTooltip content={tooltipText}>
-      <NavigationLink to="/" aria-label={ariaLabel}>
+      <NavigationLink to="/conversations" aria-label={ariaLabel}>
         <OpenHandsLogo width={46} height={30} />
       </NavigationLink>
     </StyledTooltip>
