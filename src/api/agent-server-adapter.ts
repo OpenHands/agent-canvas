@@ -7,6 +7,7 @@ import {
   shouldLoadPublicSkills,
 } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import { buildAuthHeaders } from "./backend-registry/auth";
 import {
   GetHooksResponse,
   GetSkillsResponse,
@@ -452,33 +453,59 @@ export function buildStartConversationRequest(
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
-  // Add custom secrets as LookupSecret entries
-  // The agent-server will fetch values at runtime from /api/settings/secrets/{name}
+  // Add custom secrets as LookupSecret entries.
+  // The agent-server fetches the value at runtime from
+  // `/api/settings/secrets/{name}` on its own host, so the URL stays
+  // host-relative; auth headers come from the active local backend.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const baseUrl = backend.host;
-    const sessionApiKey = backend.apiKey || null;
+    const headers = buildAuthHeaders(backend);
+
+    /* eslint-disable no-console */
+    console.log("[LookupSecret debug] customSecrets =", options.customSecrets);
+    console.log("[LookupSecret debug] backend =", backend);
+    console.log(
+      "[LookupSecret debug] backend.apiKey length =",
+      backend.apiKey?.length ?? 0,
+    );
+    console.log("[LookupSecret debug] buildAuthHeaders(backend) =", headers);
+    try {
+      const rawBackends = window.localStorage.getItem("openhands-backends");
+      const rawActive = window.localStorage.getItem("openhands-active-backend");
+      console.log("[LookupSecret debug] localStorage openhands-backends =", rawBackends);
+      console.log("[LookupSecret debug] localStorage openhands-active-backend =", rawActive);
+    } catch (e) {
+      console.log("[LookupSecret debug] localStorage read failed:", e);
+    }
+    /* eslint-enable no-console */
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {
       const lookupSecret: LookupSecret = {
         kind: "LookupSecret",
-        url: `${baseUrl}/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
         description: secret.description,
       };
 
-      // Include session API key header if configured (local agent-server only —
-      // cloud LookupSecrets aren't fetched by the local runtime).
-      if (sessionApiKey) {
-        lookupSecret.headers = {
-          "X-Session-API-Key": sessionApiKey,
-        };
+      if (Object.keys(headers).length > 0) {
+        lookupSecret.headers = headers;
       }
+
+      // eslint-disable-next-line no-console
+      console.log(
+        `[LookupSecret debug] built ${secret.name} =`,
+        JSON.parse(JSON.stringify(lookupSecret)),
+      );
 
       secrets[secret.name] = lookupSecret;
     }
 
     payload.secrets = secrets;
+    // eslint-disable-next-line no-console
+    console.log(
+      "[LookupSecret debug] final payload.secrets =",
+      JSON.parse(JSON.stringify(secrets)),
+    );
   }
 
   return payload;
