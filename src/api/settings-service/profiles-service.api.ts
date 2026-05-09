@@ -1,6 +1,6 @@
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
-import { createHttpClient } from "#/api/typescript-client";
+import { createSettingsClient } from "#/api/typescript-client";
 import { SettingsValue } from "#/types/settings";
 import SettingsService from "./settings-service.api";
 
@@ -91,12 +91,10 @@ class ProfilesService {
       return data;
     }
 
-    const { data } =
-      await createHttpClient().get<LlmProfileListResponse>("/api/profiles");
+    const data = await createSettingsClient().listProfiles();
     return {
       profiles: data.profiles,
-      active_profile:
-        data.active_profile ?? (await getCurrentProfileName(data.profiles)),
+      active_profile: await getCurrentProfileName(data.profiles),
     };
   }
 
@@ -104,16 +102,9 @@ class ProfilesService {
     name: string,
     exposeSecrets?: "encrypted" | "plaintext",
   ): Promise<LlmProfileDetailResponse> {
-    const headers: Record<string, string> = {};
-    if (exposeSecrets) {
-      headers["X-Expose-Secrets"] = exposeSecrets;
-    }
-
-    const { data } = await createHttpClient().get<LlmProfileDetailResponse>(
-      `/api/profiles/${encodeURIComponent(name)}`,
-      { headers },
-    );
-    return data;
+    return (await createSettingsClient().getProfile(name, {
+      exposeSecrets,
+    })) as LlmProfileDetailResponse;
   }
 
   static async saveProfile(
@@ -130,9 +121,11 @@ class ProfilesService {
       return;
     }
 
-    await createHttpClient().post(
-      `/api/profiles/${encodeURIComponent(name)}`,
-      await assertLocalProfileLlm(request),
+    await createSettingsClient().saveProfile(
+      name,
+      (await assertLocalProfileLlm(request)) as SaveLlmProfileRequest & {
+        llm: Record<string, unknown>;
+      },
     );
   }
 
@@ -146,9 +139,7 @@ class ProfilesService {
       return;
     }
 
-    await createHttpClient().delete(
-      `/api/profiles/${encodeURIComponent(name)}`,
-    );
+    await createSettingsClient().deleteProfile(name);
   }
 
   static async activateProfile(name: string): Promise<void> {
@@ -180,10 +171,7 @@ class ProfilesService {
       return;
     }
 
-    await createHttpClient().post(
-      `/api/profiles/${encodeURIComponent(name)}/rename`,
-      { new_name: newName },
-    );
+    await createSettingsClient().renameProfile(name, newName);
   }
 }
 

@@ -1,4 +1,5 @@
 import {
+  ConversationClient,
   LLMMetadataClient,
   ServerClient,
   SettingsClient,
@@ -91,6 +92,13 @@ export function createSettingsClient(
 ): SettingsClient {
   const { host, apiKey } = resolveClientOptions(overrides);
   return new SettingsClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createConversationClient(
+  overrides?: TypeScriptClientOverrides,
+): ConversationClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new ConversationClient({ host, ...(apiKey ? { apiKey } : {}) });
 }
 
 export function createSkillsClient(

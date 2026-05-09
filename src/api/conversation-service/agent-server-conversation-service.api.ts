@@ -32,6 +32,7 @@ import {
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
+  createConversationClient,
   createHttpClient,
   createRemoteWorkspace,
   createVSCodeClient,
@@ -302,10 +303,7 @@ class AgentServerConversationService {
       return;
     }
 
-    await createHttpClient().post(
-      `/api/conversations/${conversationId}/switch_profile`,
-      { profile_name: profileName },
-    );
+    await createConversationClient().switchProfile(conversationId, profileName);
   }
 
   static async updateConversationPublicFlag(
