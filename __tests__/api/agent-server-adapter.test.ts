@@ -177,6 +177,20 @@ describe("buildStartConversationRequest", () => {
     expect(payload.workspace.working_dir).toBe(workingDir);
   });
 
+  it("always requests a git worktree for new conversations", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as { worktree: boolean };
+
+    expect(payload.worktree).toBe(true);
+  });
+
   it("forwards supported conversation runtime fields from nested settings", () => {
     const payload = buildStartConversationRequest({
       settings: {

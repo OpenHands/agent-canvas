@@ -415,6 +415,7 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
+    worktree: true,
   };
 
   // Add secrets_encrypted flag if secrets are encrypted
