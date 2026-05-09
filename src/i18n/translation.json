@@ -22495,6 +22495,23 @@
     "uk": "Редагувати",
     "ca": "Editar"
   },
+  "BACKEND$EDIT_TITLE": {
+    "en": "Edit backend",
+    "ja": "バックエンドを編集",
+    "zh-CN": "编辑后端",
+    "zh-TW": "編輯後端",
+    "ko-KR": "백엔드 편집",
+    "no": "Rediger backend",
+    "it": "Modifica backend",
+    "pt": "Editar backend",
+    "es": "Editar backend",
+    "ar": "تعديل الخادم الخلفي",
+    "fr": "Modifier le backend",
+    "tr": "Backend'i düzenle",
+    "de": "Backend bearbeiten",
+    "uk": "Редагувати бекенд",
+    "ca": "Editar backend"
+  },
   "BACKEND$SAVE": {
     "en": "Save",
     "ja": "保存",
