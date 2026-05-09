@@ -57,8 +57,6 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     const extras = IMPLICIT_WORKSPACE_PARENTS.filter((p) => !seen.has(p.path));
     return extras.length === 0 ? storedParents : [...storedParents, ...extras];
   }, [storedParents]);
-    return extras.length === 0 ? storedParents : [...storedParents, ...extras];
-  }, [storedParents]);
 
   const parentQueries = useQueries({
     queries: workspaceParents.map((parent) => ({
