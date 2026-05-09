@@ -112,96 +112,99 @@ describe("buildAutomationCommand", () => {
 });
 
 describe("buildConfig", () => {
-  it("builds default config with correct ports", () => {
-    const config = buildConfig({}, {});
+  it("builds default config with correct ports", async () => {
+    const config = await buildConfig({}, {});
 
-    expect(config.ingressPort).toBe(8000);
-    expect(config.agentServerPort).toBe(DEFAULT_BACKEND_PORT);
-    expect(config.autoBackendPort).toBe(DEFAULT_AUTOMATION_PORT);
-    expect(config.vitePort).toBe(3001);
-    expect(config.vscodePort).toBe(DEFAULT_BACKEND_PORT + 1000);
+    // Ports should be allocated (either defaults if free, or alternatives)
+    expect(typeof config.ingressPort).toBe("number");
+    expect(typeof config.agentServerPort).toBe("number");
+    expect(typeof config.autoBackendPort).toBe("number");
+    expect(typeof config.vitePort).toBe("number");
+    expect(config.vscodePort).toBe(config.agentServerPort + 1000);
   });
 
-  it("respects port from args", () => {
-    const config = buildConfig({ port: 9000 }, {});
+  it("respects preferred port from args when available", async () => {
+    // Port 9000 should be free for testing
+    const config = await buildConfig({ port: 9000 }, {});
 
     expect(config.ingressPort).toBe(9000);
   });
 
-  it("respects PORT from env", () => {
-    const config = buildConfig({}, { PORT: "9001" });
+  it("respects preferred PORT from env when available", async () => {
+    // Port 9001 should be free for testing
+    const config = await buildConfig({}, { PORT: "9001" });
 
     expect(config.ingressPort).toBe(9001);
   });
 
-  it("args.port takes precedence over env.PORT", () => {
-    const config = buildConfig({ port: 9002 }, { PORT: "9999" });
+  it("args.port takes precedence over env.PORT", async () => {
+    const config = await buildConfig({ port: 9002 }, { PORT: "9999" });
 
     expect(config.ingressPort).toBe(9002);
   });
 
-  it("applies automationGitRef from args to env", () => {
+  it("applies automationGitRef from args to env", async () => {
     const env: Record<string, string> = {};
-    buildConfig({ automationGitRef: "my-branch" }, env);
+    await buildConfig({ automationGitRef: "my-branch" }, env);
 
     expect(env.OH_AUTOMATION_GIT_REF).toBe("my-branch");
   });
 
-  it("applies automationRepo from args to env", () => {
+  it("applies automationRepo from args to env", async () => {
     const env: Record<string, string> = {};
-    buildConfig({ automationRepo: "https://example.com/repo" }, env);
+    await buildConfig({ automationRepo: "https://example.com/repo" }, env);
 
     expect(env.OH_AUTOMATION_REPO).toBe("https://example.com/repo");
   });
 
-  it("uses correct state directory path", () => {
-    const config = buildConfig({}, {});
+  it("uses correct state directory path", async () => {
+    const config = await buildConfig({}, {});
 
     expect(config.stateDir).toBe(
       path.join(homedir(), ".openhands", "agent-canvas"),
     );
   });
 
-  it("passes verbose flag through", () => {
-    const config = buildConfig({ verbose: true }, {});
+  it("passes verbose flag through", async () => {
+    const config = await buildConfig({ verbose: true }, {});
 
     expect(config.verbose).toBe(true);
   });
 
-  it("auto-generates random local API key by default", () => {
-    const config = buildConfig({}, {});
+  it("auto-generates random local API key by default", async () => {
+    const config = await buildConfig({}, {});
 
     // Default is a 64-char hex string (256-bit random key)
     expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("respects custom AUTOMATION_LOCAL_API_KEY from env", () => {
-    const config = buildConfig({}, { AUTOMATION_LOCAL_API_KEY: "my-custom-key" });
+  it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
+    const config = await buildConfig({}, { AUTOMATION_LOCAL_API_KEY: "my-custom-key" });
 
     expect(config.localApiKey).toBe("my-custom-key");
   });
 
-  it("auto-generates random session API key by default", () => {
-    const config = buildConfig({}, {});
+  it("auto-generates random session API key by default", async () => {
+    const config = await buildConfig({}, {});
 
     // Default is a 64-char hex string (256-bit random key)
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reads sessionApiKey from SESSION_API_KEY", () => {
-    const config = buildConfig({}, { SESSION_API_KEY: "my-session-key" });
+  it("reads sessionApiKey from SESSION_API_KEY", async () => {
+    const config = await buildConfig({}, { SESSION_API_KEY: "my-session-key" });
 
     expect(config.sessionApiKey).toBe("my-session-key");
   });
 
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", () => {
-    const config = buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
+  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
+    const config = await buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
 
     expect(config.sessionApiKey).toBe("vite-session-key");
   });
 
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "session-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
@@ -209,14 +212,14 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("session-key");
   });
 
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
-    const config = buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
+  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
+    const config = await buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
 
     expect(config.sessionApiKey).toBe("v1-session-key");
   });
 
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
     });
@@ -224,8 +227,8 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("v0-key");
   });
 
-  it("SESSION_API_KEY takes precedence over all other session key env vars", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
       VITE_SESSION_API_KEY: "vite-key",
