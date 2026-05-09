@@ -159,7 +159,6 @@ class GitService {
       );
     const changes = await createRemoteWorkspace({ workingDir }).gitChanges(
       workingDir,
-      { ref: "HEAD" },
     );
 
     return changes.map((change) => ({
@@ -176,7 +175,7 @@ class GitService {
     _conversationId: string,
     path: string,
   ): Promise<GitChangeDiff> {
-    const diff = await createRemoteWorkspace().gitDiff(path, { ref: "HEAD" });
+    const diff = await createRemoteWorkspace().gitDiff(path);
 
     return {
       modified: diff.modified ?? "",

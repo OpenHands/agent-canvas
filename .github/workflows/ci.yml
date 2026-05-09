@@ -185,8 +185,45 @@ jobs:
               --latest=false
           fi
 
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.id')"
+          upload_url="$(
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.upload_url' |
+              sed 's/{?name,label}$//'
+          )"
+
           media_url() {
             printf 'https://github.com/%s/releases/download/%s/%s\n' "$GITHUB_REPOSITORY" "$MEDIA_RELEASE_TAG" "$1"
+          }
+
+          delete_asset_if_present() {
+            local asset_name="$1"
+            local asset_id
+
+            asset_id="$(
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+                --jq ".[] | select(.name == \"$asset_name\") | .id" |
+                head -n 1
+            )"
+
+            if [ -n "$asset_id" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" >/dev/null
+            fi
+          }
+
+          upload_asset() {
+            local path="$1"
+            local asset_name="$2"
+            local content_type="$3"
+
+            delete_asset_if_present "$asset_name"
+            curl -fsSL \
+              -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: $content_type" \
+              --data-binary "@$path" \
+              "$upload_url?name=$asset_name" \
+              >/dev/null
           }
 
           mkdir -p live-e2e-media/upload
@@ -194,23 +231,22 @@ jobs:
           if [ -n "$SCREENSHOT_PATH" ]; then
             screenshot_asset="$MEDIA_RUN_PREFIX-live-agent-response.png"
             cp "$SCREENSHOT_PATH" "live-e2e-media/upload/$screenshot_asset"
-            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$screenshot_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            upload_asset "live-e2e-media/upload/$screenshot_asset" "$screenshot_asset" "image/png"
             echo "screenshot_url=$(media_url "$screenshot_asset")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PREVIEW_PATH" ]; then
             video_preview_asset="$MEDIA_RUN_PREFIX-live-agent-recording.gif"
             cp "$VIDEO_PREVIEW_PATH" "live-e2e-media/upload/$video_preview_asset"
-            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$video_preview_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            upload_asset "live-e2e-media/upload/$video_preview_asset" "$video_preview_asset" "image/gif"
             echo "video_preview_url=$(media_url "$video_preview_asset")" >> "$GITHUB_OUTPUT"
           fi
           if [ -n "$VIDEO_PATH" ]; then
             video_asset="$MEDIA_RUN_PREFIX-live-agent-recording.webm"
             cp "$VIDEO_PATH" "live-e2e-media/upload/$video_asset"
-            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$video_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            upload_asset "live-e2e-media/upload/$video_asset" "$video_asset" "video/webm"
             echo "video_url=$(media_url "$video_asset")" >> "$GITHUB_OUTPUT"
           fi
 
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.id')"
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[].name' > live-e2e-media-assets.txt
 
           stale_runs="$(

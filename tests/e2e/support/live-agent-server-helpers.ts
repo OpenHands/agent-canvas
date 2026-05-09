@@ -32,6 +32,13 @@ const llmModel =
     : openAIKey?.trim()
       ? "openai/gpt-4o-mini"
       : "anthropic/claude-haiku-4-5-20251001");
+const sessionApiKey =
+  firstNonEmpty(
+    process.env.LIVE_E2E_SESSION_API_KEY,
+    process.env.SESSION_API_KEY,
+    process.env.OH_SESSION_API_KEYS_0,
+    process.env.VITE_SESSION_API_KEY,
+  ) || "live-e2e-session-key";
 
 export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
@@ -50,6 +57,9 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
   }
 
   const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": sessionApiKey,
+    },
     data: {
       agent_settings_diff: {
         llm: llmSettings,

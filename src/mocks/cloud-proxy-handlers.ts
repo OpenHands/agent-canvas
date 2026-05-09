@@ -1,8 +1,8 @@
 import { http, HttpResponse } from "msw";
 import type {
-  V1AppConversation,
-  V1AppConversationStartTask,
-} from "#/api/conversation-service/v1-conversation-service.types";
+  AppConversation as V1AppConversation,
+  AppConversationStartTask as V1AppConversationStartTask,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 import type { SettingsValue } from "#/types/settings";
 import {
@@ -50,7 +50,7 @@ type CloudSettings = {
   disabled_skills: string[];
 };
 
-let cloudSettings: CloudSettings = {
+const cloudSettings: CloudSettings = {
   llm_model: "openhands/claude-sonnet-4-5-20250929",
   llm_base_url: "https://llm-proxy.app.all-hands.dev",
   llm_api_key: null,

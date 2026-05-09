@@ -71,7 +71,7 @@ class AgentServerGitService {
     const changes = await createRemoteWorkspace({
       conversationUrl,
       sessionApiKey,
-    }).gitChanges(path, { ref: "HEAD" });
+    }).gitChanges(path);
 
     if (!Array.isArray(changes)) {
       throw new Error(
@@ -117,7 +117,7 @@ class AgentServerGitService {
     const diff = (await createRemoteWorkspace({
       conversationUrl,
       sessionApiKey,
-    }).gitDiff(path, { ref: "HEAD" })) as GitChangeDiff & { diff?: string };
+    }).gitDiff(path)) as GitChangeDiff & { diff?: string };
 
     return {
       modified: diff.modified ?? "",
