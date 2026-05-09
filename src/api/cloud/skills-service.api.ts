@@ -28,25 +28,23 @@ function getActiveCloudBackend(): Backend {
 export async function fetchCloudSkills(): Promise<SkillInfo[]> {
   const backend = getActiveCloudBackend();
 
-  const fetchPage = async (
-    pageId: string | null = null,
-  ): Promise<SkillInfo[]> => {
+  const skills: SkillInfo[] = [];
+  let pageId: string | null = null;
+
+  do {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
+    // eslint-disable-next-line no-await-in-loop
     const page = await callCloudProxy<CloudSkillsPage>({
       backend,
       method: "GET",
       path: `/api/v1/skills/search?${query.toString()}`,
     });
 
-    const items = page.items ?? [];
-    if (!page.next_page_id) {
-      return items;
-    }
+    skills.push(...(page.items ?? []));
+    pageId = page.next_page_id;
+  } while (pageId);
 
-    return [...items, ...(await fetchPage(page.next_page_id))];
-  };
-
-  return fetchPage();
+  return skills;
 }

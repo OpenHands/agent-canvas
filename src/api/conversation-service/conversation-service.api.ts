@@ -11,6 +11,8 @@ import {
 } from "../typescript-client";
 import { AppConversation } from "./agent-server-conversation-service.types";
 
+const FILE_UPLOAD_CONCURRENCY = 5;
+
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
 
@@ -74,22 +76,31 @@ class ConversationService {
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
     const workspace = createRemoteWorkspace(this.getClientOverrides());
-    const results = await Promise.all(
-      files.map(async (file) => {
-        try {
-          await workspace.fileUpload(file, `/workspace/${file.name}`);
-          return { uploadedFile: file.name, skippedFile: null };
-        } catch (error) {
-          return {
-            uploadedFile: null,
-            skippedFile: {
-              name: file.name,
-              reason: error instanceof Error ? error.message : "Upload failed",
-            },
-          };
-        }
-      }),
-    );
+    const uploadFile = async (file: File) => {
+      try {
+        await workspace.fileUpload(file, `/workspace/${file.name}`);
+        return { uploadedFile: file.name, skippedFile: null };
+      } catch (error) {
+        return {
+          uploadedFile: null,
+          skippedFile: {
+            name: file.name,
+            reason: error instanceof Error ? error.message : "Upload failed",
+          },
+        };
+      }
+    };
+
+    const results: Awaited<ReturnType<typeof uploadFile>>[] = [];
+    for (
+      let index = 0;
+      index < files.length;
+      index += FILE_UPLOAD_CONCURRENCY
+    ) {
+      const batch = files.slice(index, index + FILE_UPLOAD_CONCURRENCY);
+      // eslint-disable-next-line no-await-in-loop
+      results.push(...(await Promise.all(batch.map(uploadFile))));
+    }
 
     return {
       uploaded_files: results.flatMap((result) =>
