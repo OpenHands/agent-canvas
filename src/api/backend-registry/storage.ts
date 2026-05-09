@@ -1,3 +1,4 @@
+import { makeDefaultLocalBackend } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -24,7 +25,19 @@ export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
-    if (!raw) return [];
+
+    // First install: the storage key has never been written. Seed the
+    // registry with one default local backend derived from the env /
+    // agent-server-config so the user has something to talk to out of
+    // the box. Persist the seed immediately so a subsequent removal
+    // doesn't get re-seeded — only a missing key triggers seeding,
+    // not an empty array.
+    if (raw === null) {
+      const seeded = [makeDefaultLocalBackend()];
+      writeStoredBackends(seeded);
+      return seeded;
+    }
+
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isValidBackend);

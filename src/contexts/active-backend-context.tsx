@@ -7,17 +7,15 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import { getBundledBackend } from "#/api/backend-registry/bundled";
+import { makeDefaultLocalBackend } from "#/api/backend-registry/default-backend";
 import {
   type Backend,
   type BackendSelection,
   type ResolvedActiveBackend,
-  BUNDLED_BACKEND_ID,
 } from "#/api/backend-registry/types";
 
 interface ActiveBackendContextValue {
   backends: Backend[];
-  bundledBackend: Backend;
   active: ResolvedActiveBackend;
   setActive: (backendId: string, orgId?: string | null) => void;
   addBackend: (backend: Omit<Backend, "id">) => Backend;
@@ -51,8 +49,7 @@ export function ActiveBackendProvider({
 
   const setActive = React.useCallback(
     (backendId: string, orgId?: string | null) => {
-      const prevBackendId =
-        getActiveSelection()?.backendId ?? BUNDLED_BACKEND_ID;
+      const prevBackendId = getActiveSelection()?.backendId ?? null;
       const prevOrgId = getActiveSelection()?.orgId ?? null;
       const nextOrgId = orgId ?? null;
 
@@ -93,19 +90,17 @@ export function ActiveBackendProvider({
   );
 
   const removeBackend = React.useCallback((id: string) => {
-    if (id === BUNDLED_BACKEND_ID) return;
     const list = getRegisteredBackends().filter((b) => b.id !== id);
     setRegisteredBackends(list);
     // If the active selection pointed at this backend, the active
-    // store falls back to bundled; consumer hooks re-key by the new
-    // active backend identity and refetch automatically. No blanket
-    // invalidate needed.
+    // store falls back to the first remaining local backend (or the
+    // env-derived default if no locals exist); consumer hooks re-key
+    // by the new active backend identity and refetch automatically.
   }, []);
 
   const value = React.useMemo<ActiveBackendContextValue>(
     () => ({
       backends: snapshot.backends,
-      bundledBackend: getBundledBackend(),
       active: snapshot.active,
       setActive,
       addBackend,
@@ -135,11 +130,10 @@ export function useActiveBackendContext(): ActiveBackendContextValue {
 /**
  * Read the resolved active backend.
  *
- * Falls back to the bundled local backend when called outside an
- * `<ActiveBackendProvider>` (e.g. from a unit test that mounts a
- * narrow component without the full provider stack). The bundled
- * backend is a pure function of env vars + window.location, so this
- * fallback is identical to what an empty active selection resolves to.
+ * Falls back to a synthesized env-derived local backend when called
+ * outside an `<ActiveBackendProvider>` (e.g. from a unit test that
+ * mounts a narrow component without the full provider stack). That
+ * synthesized backend is identical to the seed used on first install.
  *
  * Components that need to mutate state (`setActive`, `addBackend`,
  * etc.) must use `useActiveBackendContext()` directly — that throws if
@@ -148,5 +142,5 @@ export function useActiveBackendContext(): ActiveBackendContextValue {
 export function useActiveBackend(): ResolvedActiveBackend {
   const ctx = React.useContext(ActiveBackendContext);
   if (ctx) return ctx.active;
-  return { backend: getBundledBackend(), orgId: null };
+  return { backend: makeDefaultLocalBackend(), orgId: null };
 }

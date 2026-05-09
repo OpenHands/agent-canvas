@@ -74,6 +74,11 @@ export function Dropdown({
       selectedItem: currentSelectedItem,
     }) => {
       if (newIsOpen) {
+        // Clear the input on open so the user sees an empty search box
+        // (with the placeholder reminding them of the current value)
+        // and the full options list. Otherwise the active label would
+        // appear both in the trigger AND as the highlighted menu row.
+        setInputValue("");
         setSearchTerm("");
       } else {
         setInputValue(currentSelectedItem?.label ?? "");

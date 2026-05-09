@@ -105,11 +105,11 @@ afterEach(() => {
 });
 
 describe("BackendSelector", () => {
-  it("uses the bundled Local label by default", () => {
+  it("shows the seeded default Local backend's name by default", () => {
     renderWithProviders(<BackendSelector />);
     const wrapper = screen.getByTestId("backend-selector");
     const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("BACKEND$LOCAL_ROW");
+    expect(input.value).toBe("Local");
   });
 
   it("lists all registered backends in the dropdown", async () => {
@@ -136,7 +136,9 @@ describe("BackendSelector", () => {
 
     await openDropdown();
 
-    expect(screen.getByText("BACKEND$LOCAL_ROW")).toBeInTheDocument();
+    // The seeded default ("Local") is rendered as a normal row alongside
+    // the user-added backends.
+    expect(screen.getByText("Local")).toBeInTheDocument();
     expect(screen.getByText("Local 1")).toBeInTheDocument();
     expect(screen.getByText("Production")).toBeInTheDocument();
   });
@@ -560,7 +562,7 @@ describe("BackendSelector", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("falls back to the bundled backend when malformed cloud self-heal fails", async () => {
+  it("falls back to the first registered local backend when malformed cloud self-heal fails", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [{ id: "org-2", name: "Acme Inc" }],
       currentOrgId: "org-2",
@@ -589,7 +591,8 @@ describe("BackendSelector", () => {
       const stored = JSON.parse(
         window.localStorage.getItem("openhands-active-backend") ?? "null",
       );
-      expect(stored?.backendId).toBe("__bundled__");
+      // The seeded default-local backend is the first registered local.
+      expect(stored?.backendId).toBe("default-local");
       expect(stored?.orgId ?? null).toBeNull();
     });
   });
@@ -608,6 +611,23 @@ describe("BackendSelector", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
     });
+  });
+
+  it("includes the seeded default Local backend in the manage backends modal as a removable entry", async () => {
+    renderWithProviders(<BackendSelector />);
+
+    const user = await openDropdown();
+    await user.click(screen.getByTestId("manage-backends-menu-item"));
+
+    expect(
+      await screen.findByTestId("manage-backends-modal"),
+    ).toBeInTheDocument();
+    // The default backend is just a regular registered entry — same row
+    // shape and a remove button identical to any other backend.
+    expect(screen.getByTestId("manage-backends-row-Local")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("manage-backends-remove-Local"),
+    ).toBeInTheDocument();
   });
 
   it("opens the manage backends modal and removes a backend", async () => {
@@ -646,12 +666,14 @@ describe("BackendSelector", () => {
         screen.queryByTestId("manage-backends-row-Local 1"),
       ).not.toBeInTheDocument();
     });
-    expect(
-      JSON.parse(window.localStorage.getItem("openhands-backends") ?? "[]"),
-    ).toEqual([]);
+    // The seeded default ("Local") survives removing only "Local 1".
+    const remaining = JSON.parse(
+      window.localStorage.getItem("openhands-backends") ?? "[]",
+    );
+    expect(remaining.map((b: { name: string }) => b.name)).toEqual(["Local"]);
   });
 
-  it("falls back to the bundled backend when removing the active backend from manage backends", async () => {
+  it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
@@ -685,6 +707,8 @@ describe("BackendSelector", () => {
       ).not.toBeInTheDocument();
     });
 
+    // The active selection is cleared because its target was removed;
+    // the active store then falls back to the seeded default backend.
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-active-backend") ?? "null",
     );
@@ -692,7 +716,7 @@ describe("BackendSelector", () => {
 
     wrapper = screen.getByTestId("backend-selector");
     input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("BACKEND$LOCAL_ROW");
+    expect(input.value).toBe("Local");
   });
 
   it("redirects to the automations list when switching backends from an automation detail route", async () => {

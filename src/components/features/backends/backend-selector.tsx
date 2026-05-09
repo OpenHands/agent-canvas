@@ -36,16 +36,12 @@ function parseOptionValue(value: string): {
 }
 
 function buildOptions(
-  bundled: Backend,
   registered: Backend[],
-  bundledLabel: string,
   personalWorkspaceLabel: string,
   cloudOrgs: ReturnType<typeof useAllCloudOrganizations>,
   currentUserIds: ReturnType<typeof useCloudCurrentUserId>,
 ): DropdownOption[] {
-  const options: DropdownOption[] = [
-    { value: makeOptionValue(bundled.id, null), label: bundledLabel },
-  ];
+  const options: DropdownOption[] = [];
 
   const locals = registered.filter((b) => b.kind === "local");
   const clouds = registered.filter((b) => b.kind === "cloud");
@@ -88,8 +84,7 @@ export function BackendSelector({
   openUpward = false,
 }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
-  const { backends, bundledBackend, active, setActive } =
-    useActiveBackendContext();
+  const { backends, active, setActive } = useActiveBackendContext();
   const cloudOrgs = useAllCloudOrganizations();
   const currentUserIds = useCloudCurrentUserId();
   const { mutateAsync: switchOrg, isPending: isSwitching } =
@@ -101,27 +96,22 @@ export function BackendSelector({
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
 
-  const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
+
+  const firstLocalBackendId = React.useMemo(
+    () => backends.find((b) => b.kind === "local")?.id ?? null,
+    [backends],
+  );
 
   const options = React.useMemo(
     () =>
       buildOptions(
-        bundledBackend,
         backends,
-        bundledLabel,
         personalWorkspaceLabel,
         cloudOrgs,
         currentUserIds,
       ),
-    [
-      bundledBackend,
-      backends,
-      bundledLabel,
-      personalWorkspaceLabel,
-      cloudOrgs,
-      currentUserIds,
-    ],
+    [backends, personalWorkspaceLabel, cloudOrgs, currentUserIds],
   );
 
   const activeValue = makeOptionValue(active.backend.id, active.orgId);
@@ -161,8 +151,8 @@ export function BackendSelector({
                 setActive(backend.id, target.id);
               }
             } catch {
-              if (!cancelled) {
-                setActive(bundledBackend.id, null);
+              if (!cancelled && firstLocalBackendId) {
+                setActive(firstLocalBackendId, null);
               }
             }
           };
@@ -177,7 +167,7 @@ export function BackendSelector({
     };
   }, [
     active,
-    bundledBackend.id,
+    firstLocalBackendId,
     cloudOrgs,
     currentUserIds,
     setActive,
@@ -231,17 +221,14 @@ export function BackendSelector({
         testId="backend-selector"
         key={`${activeValue}-${activeOption?.label ?? ""}`}
         defaultValue={
-          activeOption ?? { value: activeValue, label: bundledLabel }
+          activeOption ?? { value: activeValue, label: active.backend.name }
         }
         footer={addBackendFooter}
         openUpward={openUpward}
         onChange={async (item) => {
           if (!item || item.value === activeValue) return;
           const { backendId, orgId } = parseOptionValue(item.value);
-          const target =
-            backendId === bundledBackend.id
-              ? bundledBackend
-              : backends.find((b) => b.id === backendId);
+          const target = backends.find((b) => b.id === backendId);
           if (!target) return;
 
           triggerEnvironmentSwitch(item.label);
@@ -273,7 +260,7 @@ export function BackendSelector({
 
           setActive(target.id, orgId);
         }}
-        placeholder={bundledLabel}
+        placeholder={active.backend.name}
         loading={someCloudLoading || isSwitching}
         options={options}
         className="bg-[#1F1F1F66] border-[#242424]"

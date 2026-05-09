@@ -3,9 +3,11 @@ import axios, {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
-import { getActiveBackend } from "./backend-registry/active-store";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+} from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
-import { getBundledBackend } from "./backend-registry/bundled";
 
 function serializeParams(
   params: Record<string, unknown> | URLSearchParams,
@@ -43,11 +45,12 @@ export const openHands = axios.create({
 openHands.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // The default openHands axios speaks the *local agent-server's* protocol
   // (X-Session-API-Key auth, /api/* paths). When the active backend is
-  // cloud, fall back to the bundled local agent-server — cloud-specific
-  // calls go through `callCloudProxy` (which uses axios directly) and
-  // never hit this interceptor.
+  // cloud, fall back to the first registered local backend — cloud-
+  // specific calls go through `callCloudProxy` (which uses axios directly)
+  // and never hit this interceptor.
   const active = getActiveBackend().backend;
-  const backend = active.kind === "cloud" ? getBundledBackend() : active;
+  const backend =
+    active.kind === "cloud" ? getEffectiveLocalBackend() : active;
 
   // Mutating the per-request config is the canonical axios interceptor pattern.
   // eslint-disable-next-line no-param-reassign

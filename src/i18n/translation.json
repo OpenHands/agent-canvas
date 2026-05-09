@@ -22410,23 +22410,6 @@
     "uk": "Хмара",
     "ca": "Núvol"
   },
-  "BACKEND$LOCAL_ROW": {
-    "en": "Local",
-    "ja": "ローカル",
-    "zh-CN": "本地",
-    "zh-TW": "本機",
-    "ko-KR": "로컬",
-    "no": "Lokal",
-    "it": "Locale",
-    "pt": "Local",
-    "es": "Local",
-    "ar": "محلي",
-    "fr": "Local",
-    "tr": "Yerel",
-    "de": "Lokal",
-    "uk": "Локальний",
-    "ca": "Local"
-  },
   "BACKEND$VERSION_LABEL": {
     "en": "v{{version}}",
     "ja": "v{{version}}",
