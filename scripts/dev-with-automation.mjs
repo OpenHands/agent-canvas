@@ -51,6 +51,7 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
+  generateRandomApiKey,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -63,8 +64,12 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-// Default local API key for automation backend auth (matches agent-server pattern)
-const DEFAULT_LOCAL_API_KEY = "openhands-local-api-key";
+
+// Auto-generate a random API key for this dev session.
+// This ensures services share the same key during a single invocation,
+// but each restart gets a fresh key for better security isolation.
+// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
+const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -233,13 +238,17 @@ function buildConfig(args, env = process.env) {
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
   
-  // Session API key for agent-server auth (optional)
-  // Check multiple env vars that the agent-server may use:
-  // - SESSION_API_KEY: Used by agent-server default config (V0)
-  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
-  // - OH_SESSION_API_KEY: Common alias
-  // - VITE_SESSION_API_KEY: Used by frontend config
-  const sessionApiKey = env.SESSION_API_KEY || env.OH_SESSION_API_KEYS_0 || env.OH_SESSION_API_KEY || env.VITE_SESSION_API_KEY || null;
+  // Session API key for agent-server auth
+  // Build a preliminary safe config to get the auto-generated session key
+  // This ensures both agent-server and frontend use the same key
+  const stateDir = join(homedir(), ".openhands", "agent-canvas");
+  const safeConfig = buildSafeDevConfig(projectRoot, {
+    ...env,
+    OH_CANVAS_SAFE_STATE_DIR: stateDir,
+    OH_CANVAS_SAFE_BACKEND_PORT: backendPort.toString(),
+    OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
+  });
+  const sessionApiKey = safeConfig.sessionApiKey;
 
   return {
     // Ingress port (main entry point)
@@ -255,7 +264,7 @@ function buildConfig(args, env = process.env) {
     canvasPath: projectRoot,
 
     // Data directories (same as dev-safe.mjs)
-    stateDir: join(homedir(), ".openhands", "agent-canvas"),
+    stateDir,
 
     // Auth
     localApiKey,
@@ -523,6 +532,8 @@ function startVite(config) {
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
       VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
+      // Session API key for frontend to authenticate with agent-server
+      VITE_SESSION_API_KEY: config.sessionApiKey,
       // Automation API key for frontend to authenticate with automation backend
       VITE_AUTOMATION_API_KEY: config.localApiKey,
     },
@@ -704,6 +715,7 @@ async function main() {
 export {
   buildAutomationCommand,
   buildConfig,
+  generateRandomApiKey,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
