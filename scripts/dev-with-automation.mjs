@@ -1,7 +1,7 @@
 /**
  * Development Stack with Automation Service
  *
- * Extends agent-canvas's dev-safe.mjs to additionally run the OpenHands Automation
+ * Extends agent-canvas's dev-server.mjs to additionally run the OpenHands Automation
  * backend via uvx. No cloning required - runs directly from git reference.
  *
  * Uses a standalone ingress proxy to route traffic to multiple backends.
@@ -52,7 +52,7 @@ import {
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
   generateRandomApiKey,
-} from "./dev-safe.mjs";
+} from "./dev-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");

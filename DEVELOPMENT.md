@@ -10,9 +10,21 @@ The default development command is:
 npm run dev
 ```
 
-This is an alias for `npm run dev:safe`.
+This is an alias for `npm run dev:full`, which runs all three services: agent-server, automation backend, and canvas frontend.
 
-It uses `uvx` to run a temporary `agent-server` installation for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
+It uses `uvx` to run temporary `agent-server` and `automation` installations, routes traffic through an ingress proxy, and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
+
+### Development Scripts Quick Reference
+
+| Script | Services | Description |
+|--------|----------|-------------|
+| `npm run dev` | All | Full stack (agent-server + automation + canvas) — **default** |
+| `npm run dev:full` | All | Same as `dev` (explicit full stack) |
+| `npm run dev:server` | Agent-server + Canvas | Without automation backend |
+| `npm run dev:canvas` | Canvas only | Frontend only (assumes backend running elsewhere) |
+| `npm run dev:mock` | Canvas (mocked) | Frontend with MSW mock APIs |
+| `npm run dev:extra-backend` | Agent-server only | Additional standalone backend on `:18002` |
+| `npm run dev:static` | All | Full stack with production build instead of Vite |
 
 ### Environment Variables
 
@@ -22,12 +34,12 @@ It uses `uvx` to run a temporary `agent-server` installation for this checkout o
 | `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
 | `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
 
-### Alternative: Minimal Mode (without Automation)
+### Alternative: Server Mode (without Automation)
 
 To run without the automation service:
 
 ```sh
-npm run dev:minimal
+npm run dev:server
 ```
 
 This runs only agent-server + Vite (no automation backend or ingress).
@@ -101,7 +113,7 @@ npm run start
 Useful targeted verification for the isolated dev launcher:
 
 ```sh
-npm run test -- __tests__/api/agent-server-config.test.ts __tests__/scripts/dev-safe.test.ts
+npm run test -- __tests__/api/agent-server-config.test.ts __tests__/scripts/dev-server.test.ts
 ```
 
 ## CSS isolation and host-app customization

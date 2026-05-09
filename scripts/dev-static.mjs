@@ -51,7 +51,7 @@ import {
   formatMissingUvxGuidance,
   isPortBusy,
   releaseStaleConversationLeases,
-} from "./dev-safe.mjs";
+} from "./dev-server.mjs";
 import {
   buildAutomationCommand,
   buildConfig,

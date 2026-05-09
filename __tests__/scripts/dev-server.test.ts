@@ -12,7 +12,7 @@ import {
   buildAgentServerCommand,
   formatMissingUvxGuidance,
   validateLocalAgentServerPath,
-} from "../../scripts/dev-safe.mjs";
+} from "../../scripts/dev-server.mjs";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -311,11 +311,11 @@ describe("buildNpmScriptCommand", () => {
   });
 });
 
-describe("dev-safe CLI startup", () => {
+describe("dev-server CLI startup", () => {
   it("exits promptly when uvx is missing", async () => {
     // Skip this test if uvx is globally installed via /usr/local/bin symlink
     // that may still be accessible even with a stripped PATH
-    const child = spawn(process.execPath, ["scripts/dev-safe.mjs"], {
+    const child = spawn(process.execPath, ["scripts/dev-server.mjs"], {
       cwd: repoRoot,
       env: {
         // Use empty PATH to ensure uvx is not found

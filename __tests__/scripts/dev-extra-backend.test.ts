@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildExtraBackendConfig } from "../../scripts/dev-extra-backend.mjs";
-import { buildSafeDevConfig } from "../../scripts/dev-safe.mjs";
+import { buildSafeDevConfig } from "../../scripts/dev-server.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

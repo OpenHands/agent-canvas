@@ -82,20 +82,27 @@
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
-- Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
-- `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
+- Keep README user-focused and move contributor/developer-specific workflows (`dev:server`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
+- Development script naming convention:
+  - `npm run dev` / `npm run dev:full` — Full stack (agent-server + automation + canvas) — **default**
+  - `npm run dev:server` — Agent-server + Canvas only (no automation backend)
+  - `npm run dev:canvas` — Canvas frontend only (assumes backend running elsewhere)
+  - `npm run dev:mock` — Canvas with MSW mock APIs
+  - `npm run dev:extra-backend` — Additional standalone agent-server on `:18002`
+  - Legacy aliases (`dev:safe`, `dev:minimal`, `dev:frontend`, `dev:automation`) are kept for backward compatibility but should be considered deprecated
+- `scripts/dev-server.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
   - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.21.1")
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.21.1` for agent-server SDK libraries
-- Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
+- Security: Both `scripts/dev-server.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
   - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
-- `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
-- `npm run dev` now runs the full stack with automation by default (via `dev:automation`). Use `npm run dev:minimal` for agent-server + Vite only.
+- `scripts/dev-server.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
+- `npm run dev` now runs the full stack with automation by default (via `dev:full`). Use `npm run dev:server` for agent-server + Vite only.
 - `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), Vite dev server, and ingress proxy. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
@@ -104,7 +111,7 @@
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
-- `scripts/dev-safe.mjs` (now `npm run dev:minimal`) runs just agent-server + Vite without automation.
+- `scripts/dev-server.mjs` (via `npm run dev:server`) runs just agent-server + Vite without automation.
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
 - Vercel deployment note: React Router builds for this repo must keep `build/client` intact on actual Vercel builds and include `presets: [vercelPreset()]` from `@vercel/react-router/vite`; flattening `build/client` during a Vercel build produces deployments with empty outputs (`routes: null`, no static files) and a production 404.
 

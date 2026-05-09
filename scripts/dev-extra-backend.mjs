@@ -11,7 +11,7 @@ import {
   buildSafeDevConfig,
   formatMissingUvxGuidance,
   validateLocalAgentServerPath,
-} from "./dev-safe.mjs";
+} from "./dev-server.mjs";
 
 const DEFAULT_EXTRA_BACKEND_PORT = 18002;
 const DEFAULT_EXTRA_VSCODE_PORT = 18003;
