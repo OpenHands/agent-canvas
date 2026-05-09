@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useSharedConversation } from "#/hooks/query/use-shared-conversation";
 import { useSharedConversationEvents } from "#/hooks/query/use-shared-conversation-events";
-import { Messages as Messages } from "#/components/conversation-events/chat";
+import { Messages } from "#/components/conversation-events/chat";
 import { shouldRenderEvent } from "#/components/conversation-events/chat/event-content-helpers/should-render-event";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
@@ -118,7 +118,10 @@ export default function SharedConversation() {
       >
         <div className="max-w-4xl mx-auto p-4 border border-neutral-700 rounded">
           {renderableEvents.length > 0 ? (
-            <Messages messages={renderableEvents} allEvents={conversationEvents} />
+            <Messages
+              messages={renderableEvents}
+              allEvents={conversationEvents}
+            />
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-neutral-400 py-8">

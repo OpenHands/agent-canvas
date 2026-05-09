@@ -13,9 +13,10 @@ const fetchConversationData = async (
   sessionApiKey: string | null;
   sandboxId: string | null;
 }> => {
-  const conversations = await AgentServerConversationService.batchGetAppConversations([
-    conversationId,
-  ]);
+  const conversations =
+    await AgentServerConversationService.batchGetAppConversations([
+      conversationId,
+    ]);
 
   const appConversation = conversations[0];
   if (!appConversation) {

@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import ArrowDown from "#/icons/angle-down-solid.svg?react";
 import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { OpenHandsEvent, ActionEvent } from "#/types/agent-server/core";
-import { isActionEvent, isObservationEvent } from "#/types/agent-server/type-guards";
+import {
+  isActionEvent,
+  isObservationEvent,
+} from "#/types/agent-server/type-guards";
 import { I18nKey } from "#/i18n/declaration";
 import { SuccessIndicator } from "../../../features/chat/success-indicator";
 import { getEventContent } from "../event-content-helpers/get-event-content";

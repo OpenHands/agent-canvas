@@ -28,9 +28,7 @@ export function isExecutionPaused(
 export function isExecutionErrored(
   status: ExecutionStatus | null | undefined,
 ): boolean {
-  return (
-    status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK
-  );
+  return status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK;
 }
 
 export enum IndicatorColor {

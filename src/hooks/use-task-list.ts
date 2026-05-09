@@ -11,7 +11,9 @@ export interface TaskListItem {
   notes?: string;
 }
 
-function getTaskListFromEvent(event: ReturnType<typeof useEventStore.getState>["events"][number]): TaskListItem[] | null {
+function getTaskListFromEvent(
+  event: ReturnType<typeof useEventStore.getState>["events"][number],
+): TaskListItem[] | null {
   if (
     isObservationEvent(event) &&
     event.observation.kind === "TaskTrackerObservation"

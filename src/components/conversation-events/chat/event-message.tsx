@@ -1,6 +1,13 @@
 import React from "react";
-import { OpenHandsEvent, MessageEvent, ActionEvent } from "#/types/agent-server/core";
-import { FinishAction, ThinkAction } from "#/types/agent-server/core/base/action";
+import {
+  OpenHandsEvent,
+  MessageEvent,
+  ActionEvent,
+} from "#/types/agent-server/core";
+import {
+  FinishAction,
+  ThinkAction,
+} from "#/types/agent-server/core/base/action";
 import {
   isActionEvent,
   isObservationEvent,

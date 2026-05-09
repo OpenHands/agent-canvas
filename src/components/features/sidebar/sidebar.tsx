@@ -87,9 +87,7 @@ export function Sidebar() {
               }
               disabled={settings?.email_verified === false}
             />
-            <AutomationsButton
-              disabled={settings?.email_verified === false}
-            />
+            <AutomationsButton disabled={settings?.email_verified === false} />
           </div>
 
           <div className="flex flex-row md:flex-col md:items-center gap-[26px]">

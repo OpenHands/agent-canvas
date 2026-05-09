@@ -1,6 +1,6 @@
+import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
-import { v4 as uuidv4 } from "uuid";
 import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
@@ -106,7 +106,6 @@ class AgentServerConversationService {
       return createCloudAppConversation(request);
     }
 
-
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
     const workingDir =
@@ -166,8 +165,11 @@ class AgentServerConversationService {
   }
 
   static async searchStartTasks(
-    _limit: number = 100,
+    limit: number = 100,
   ): Promise<AppConversationStartTask[]> {
+    if (limit < 0) {
+      return [];
+    }
     return [];
   }
 
@@ -198,7 +200,7 @@ class AgentServerConversationService {
       await this.resolveConversationWorkingDir(conversationId);
     // Local mode: the typescript-client targets the local agent-server
     // directly via the conversationUrl override.
-    const vscode_url = await createVSCodeClient({
+    const vscodeUrl = await createVSCodeClient({
       conversationUrl,
       sessionApiKey,
     }).getUrl({
@@ -207,7 +209,7 @@ class AgentServerConversationService {
       workspaceDir,
     });
 
-    return { vscode_url };
+    return { vscode_url: vscodeUrl };
   }
 
   static async resolveConversationWorkingDir(
@@ -269,9 +271,7 @@ class AgentServerConversationService {
       (DirectConversationInfo | null)[]
     >("/api/conversations", { params: { ids } });
 
-    return response.data.map((item) =>
-      item ? toAppConversation(item) : null,
-    );
+    return response.data.map((item) => (item ? toAppConversation(item) : null));
   }
 
   static async uploadFile(
@@ -363,7 +363,10 @@ class AgentServerConversationService {
     return loadSkillsForConversation(conversation);
   }
 
-  static async getHooks(_conversationId: string): Promise<GetHooksResponse> {
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
     return emptyHooksResponse();
   }
 
@@ -430,8 +433,7 @@ class AgentServerConversationService {
       created_at: data.created_at,
       updated_at: data.updated_at,
       status:
-        (data.execution_status as RuntimeConversationInfo["status"]) ??
-        "idle",
+        (data.execution_status as RuntimeConversationInfo["status"]) ?? "idle",
       stats: data.stats ?? { usage_to_metrics: {} },
     };
   }

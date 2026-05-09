@@ -4,14 +4,17 @@ import { getEventContent } from "../event-content-helpers/get-event-content";
 import {
   getACPToolCallResult,
   getObservationResult,
+  ObservationResultStatus,
 } from "../event-content-helpers/get-observation-result";
-import { isACPToolCallEvent, isObservationEvent } from "#/types/agent-server/type-guards";
+import {
+  isACPToolCallEvent,
+  isObservationEvent,
+} from "#/types/agent-server/type-guards";
 import {
   SkillReadyEvent,
   isSkillReadyEvent,
 } from "../event-content-helpers/create-skill-ready-event";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
-import { ObservationResultStatus } from "../event-content-helpers/get-observation-result";
 import { SkillReadyContentList } from "./skill-ready-content-list";
 
 interface GenericEventMessageWrapperProps {

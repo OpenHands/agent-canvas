@@ -14,23 +14,28 @@ export function RepoConnector({ onRepoSelection }: RepoConnectorProps) {
   const { isLoadingSettings, providers } = useUserProviders();
   const isCloud = useActiveBackend().backend.kind === "cloud";
 
+  let content = (
+    <WorkspaceSelectionForm isLoadingSettings={isLoadingSettings} />
+  );
+
+  if (isCloud) {
+    content =
+      providers.length > 0 ? (
+        <RepositorySelectionForm
+          onRepoSelection={onRepoSelection}
+          isLoadingSettings={isLoadingSettings}
+        />
+      ) : (
+        <ConnectToProviderMessage />
+      );
+  }
+
   return (
     <section
       data-testid="repo-connector"
       className="w-full flex flex-col gap-6 rounded-[12px] p-[20px] border border-[#727987] bg-[#26282D] min-h-[263.5px] relative"
     >
-      {isCloud ? (
-        providers.length > 0 ? (
-          <RepositorySelectionForm
-            onRepoSelection={onRepoSelection}
-            isLoadingSettings={isLoadingSettings}
-          />
-        ) : (
-          <ConnectToProviderMessage />
-        )
-      ) : (
-        <WorkspaceSelectionForm isLoadingSettings={isLoadingSettings} />
-      )}
+      {content}
     </section>
   );
 }

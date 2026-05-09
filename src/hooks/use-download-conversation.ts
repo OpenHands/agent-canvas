@@ -15,7 +15,9 @@ export const useDownloadConversation = () => {
     mutationFn: async (conversationId: string) => {
       posthog.capture("download_trajectory_button_clicked");
       const blob =
-        await AgentServerConversationService.downloadConversation(conversationId);
+        await AgentServerConversationService.downloadConversation(
+          conversationId,
+        );
       downloadBlob(blob, `conversation_${conversationId}.zip`);
     },
     onError: () => {

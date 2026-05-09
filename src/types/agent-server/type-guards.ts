@@ -25,7 +25,6 @@ import { HookExecutionEvent } from "./core/events/hook-execution-event";
 import { ACPToolCallEvent } from "./core/events/acp-tool-call-event";
 import { SystemPromptEvent } from "./core/events/system-event";
 
-
 /**
  * Type guard to check if an unknown value is a valid BaseEvent
  * @param value - The value to check
@@ -234,8 +233,6 @@ export const isACPToolCallEvent = (
  * Type guard to check if an event is an agent-server OpenHandsEvent.
  * Uses isBaseEvent to validate the complete event structure.
  */
-export function isAgentServerEvent(
-  event: unknown,
-): event is OpenHandsEvent {
+export function isAgentServerEvent(event: unknown): event is OpenHandsEvent {
   return isBaseEvent(event);
 }

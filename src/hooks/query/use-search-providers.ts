@@ -10,8 +10,9 @@ import {
 
 export const useSearchProviders = () => {
   const queryClient = useQueryClient();
+
   return useQuery({
-    queryKey: ["config", "providers"],
+    queryKey: ["config", "providers", queryClient],
     queryFn: async (): Promise<LLMProvider[]> => {
       const verifiedByProvider = await queryClient.fetchQuery({
         queryKey: VERIFIED_MODELS_QUERY_KEY,

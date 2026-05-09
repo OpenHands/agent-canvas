@@ -23,7 +23,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { ErrorMessageBanner } from "./error-message-banner";
-import { Messages as Messages } from "#/components/conversation-events/chat";
+import { Messages } from "#/components/conversation-events/chat";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -121,7 +121,8 @@ export function ChatInterface() {
   // pattern (useState + useEffect watching loading→loaded) which always showed
   // skeleton on remount because local state initialized to false.
   const showConversationMessages =
-    allConversationEvents.length > 0 || !conversationWebSocket?.isLoadingHistory;
+    allConversationEvents.length > 0 ||
+    !conversationWebSocket?.isLoadingHistory;
 
   const isReturningToConversation = !!conversationId;
   // Only show loading skeleton when genuinely loading AND no events in store yet.
@@ -281,7 +282,10 @@ export function ChatInterface() {
           )}
 
           {showConversationMessages && conversationUserEventsExist && (
-            <Messages messages={renderableEvents} allEvents={allConversationEvents} />
+            <Messages
+              messages={renderableEvents}
+              allEvents={allConversationEvents}
+            />
           )}
         </div>
 

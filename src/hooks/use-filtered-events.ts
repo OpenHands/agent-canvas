@@ -39,8 +39,9 @@ export function useFilteredEvents() {
     [allConversationEvents],
   );
 
-  const conversationUserEventsExist =
-    hasAgentServerUserEvent(allConversationEvents);
+  const conversationUserEventsExist = hasAgentServerUserEvent(
+    allConversationEvents,
+  );
 
   return {
     storeEvents,

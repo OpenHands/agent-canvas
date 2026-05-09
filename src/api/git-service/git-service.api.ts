@@ -154,7 +154,9 @@ class GitService {
 
   static async getGitChanges(conversationId: string): Promise<GitChange[]> {
     const workingDir =
-      await AgentServerConversationService.resolveConversationWorkingDir(conversationId);
+      await AgentServerConversationService.resolveConversationWorkingDir(
+        conversationId,
+      );
     const changes = await createRemoteWorkspace({ workingDir }).gitChanges(
       workingDir,
       { ref: "HEAD" },

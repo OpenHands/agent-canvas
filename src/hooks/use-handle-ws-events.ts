@@ -4,7 +4,10 @@ import { AgentState } from "#/types/agent-state";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useEventStore } from "#/stores/use-event-store";
 import { useSendMessage } from "#/hooks/use-send-message";
-import { isAgentErrorEvent, isAgentServerEvent } from "#/types/agent-server/type-guards";
+import {
+  isAgentErrorEvent,
+  isAgentServerEvent,
+} from "#/types/agent-server/type-guards";
 
 interface ServerError {
   error: boolean | string;

@@ -15,7 +15,8 @@ export const useConversationSkills = () => {
       }
 
       // Check if V1 is enabled and use the appropriate API
-      const data = await AgentServerConversationService.getSkills(conversationId);
+      const data =
+        await AgentServerConversationService.getSkills(conversationId);
       return data.skills;
     },
     enabled: !!executionStatus,

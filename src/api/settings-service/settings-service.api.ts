@@ -57,21 +57,21 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
   baseDelayMs: number = 500,
+  attempt: number = 0,
 ): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      if (attempt < maxRetries - 1) {
-        // Exponential backoff: 500ms, 1000ms, 2000ms
-        const delay = baseDelayMs * 2 ** attempt;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
+  try {
+    return await fn();
+  } catch (error) {
+    if (attempt >= maxRetries - 1) {
+      throw error;
     }
+
+    const delay = baseDelayMs * 2 ** attempt;
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, delay);
+    });
+    return withRetry(fn, maxRetries, baseDelayMs, attempt + 1);
   }
-  throw lastError;
 }
 
 /**
@@ -359,8 +359,8 @@ class SettingsService {
       // The local agent-server PATCH /api/settings rejects unknown fields and
       // requires at least one of the two diff fields. Strip disabled_skills
       // and skip the request entirely if nothing else was changed.
-      const { disabled_skills: _droppedDisabledSkills, ...localPayload } =
-        payload;
+      const localPayload = { ...payload };
+      delete localPayload.disabled_skills;
       if (
         !localPayload.agent_settings_diff &&
         !localPayload.conversation_settings_diff

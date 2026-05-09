@@ -26,9 +26,8 @@ export const useUserConversation = (
       if (!cid) return null;
 
       // Use the V1 batch API endpoint to get a single conversation
-      const results = await AgentServerConversationService.batchGetAppConversations([
-        cid,
-      ]);
+      const results =
+        await AgentServerConversationService.batchGetAppConversations([cid]);
       return results[0] ?? null;
     },
     enabled: !!cid && !cid.startsWith("task-"),

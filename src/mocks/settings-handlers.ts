@@ -504,7 +504,9 @@ export const SETTINGS_HANDLERS = [
     const exposeSecrets = request.headers.get("X-Expose-Secrets");
 
     // Build agent_settings, handling secrets based on header
-    const agentSettings = structuredClone(settings.agent_settings ?? {}) as Record<string, unknown>;
+    const agentSettings = structuredClone(
+      settings.agent_settings ?? {},
+    ) as Record<string, unknown>;
     const llm = agentSettings.llm as Record<string, unknown> | undefined;
     if (llm?.api_key) {
       if (exposeSecrets === "encrypted") {
@@ -518,8 +520,16 @@ export const SETTINGS_HANDLERS = [
       }
     }
 
-    const llmApiKeySet = !!settings.llm_api_key_set || !!(settings.agent_settings as Record<string, unknown> | undefined)?.llm &&
-      !!(((settings.agent_settings as Record<string, unknown>).llm as Record<string, unknown>)?.api_key);
+    const llmApiKeySet =
+      !!settings.llm_api_key_set ||
+      (!!(settings.agent_settings as Record<string, unknown> | undefined)
+        ?.llm &&
+        !!(
+          (settings.agent_settings as Record<string, unknown>).llm as Record<
+            string,
+            unknown
+          >
+        )?.api_key);
 
     return HttpResponse.json({
       agent_settings: agentSettings,
@@ -542,12 +552,17 @@ export const SETTINGS_HANDLERS = [
 
     if (!body.agent_settings_diff && !body.conversation_settings_diff) {
       return HttpResponse.json(
-        { error: "At least one of agent_settings_diff or conversation_settings_diff must be provided" },
-        { status: 400 }
+        {
+          error:
+            "At least one of agent_settings_diff or conversation_settings_diff must be provided",
+        },
+        { status: 400 },
       );
     }
 
-    const current = MOCK_USER_PREFERENCES.settings || structuredClone(MOCK_DEFAULT_USER_SETTINGS);
+    const current =
+      MOCK_USER_PREFERENCES.settings ||
+      structuredClone(MOCK_DEFAULT_USER_SETTINGS);
     const nextSettings: Settings = { ...current };
 
     if (body.agent_settings_diff) {
@@ -559,7 +574,11 @@ export const SETTINGS_HANDLERS = [
 
       // Sync llm_api_key_set
       const llm = merged.llm as Record<string, unknown> | undefined;
-      if (llm?.api_key && typeof llm.api_key === "string" && llm.api_key.trim().length > 0) {
+      if (
+        llm?.api_key &&
+        typeof llm.api_key === "string" &&
+        llm.api_key.trim().length > 0
+      ) {
         nextSettings.llm_api_key_set = true;
       }
     }

@@ -92,7 +92,11 @@ export interface ResultSet<T> {
  */
 export type GitChangeStatus = "M" | "A" | "D" | "R" | "U";
 
-export type AgentServerGitChangeStatus = "MOVED" | "ADDED" | "DELETED" | "UPDATED";
+export type AgentServerGitChangeStatus =
+  | "MOVED"
+  | "ADDED"
+  | "DELETED"
+  | "UPDATED";
 
 export interface GitChange {
   status: GitChangeStatus;

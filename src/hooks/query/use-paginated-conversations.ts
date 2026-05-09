@@ -30,8 +30,7 @@ export const usePaginatedConversations = (limit: number = 20) => {
       return result;
     },
     enabled: !!userIsAuthenticated,
-    getNextPageParam: (lastPage: AppConversationPage) =>
-      lastPage.next_page_id,
+    getNextPageParam: (lastPage: AppConversationPage) => lastPage.next_page_id,
     initialPageParam: undefined as string | undefined,
   });
 };

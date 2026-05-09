@@ -1,5 +1,8 @@
 import { ActionEvent, OpenHandsEvent } from "#/types/agent-server/core";
-import { isActionEvent, isObservationEvent } from "#/types/agent-server/type-guards";
+import {
+  isActionEvent,
+  isObservationEvent,
+} from "#/types/agent-server/type-guards";
 
 /**
  * Returns the displayable thought text of an `ActionEvent`, or an empty

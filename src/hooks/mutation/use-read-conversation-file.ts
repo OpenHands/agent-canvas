@@ -13,5 +13,8 @@ export const useReadConversationFile = () =>
       conversationId,
       filePath,
     }: UseReadConversationFileVariables): Promise<string> =>
-      AgentServerConversationService.readConversationFile(conversationId, filePath),
+      AgentServerConversationService.readConversationFile(
+        conversationId,
+        filePath,
+      ),
   });

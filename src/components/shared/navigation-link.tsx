@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-props-no-spreading */
 import React from "react";
 import {
   useNavigation,
@@ -92,3 +93,5 @@ export const NavigationLink = React.forwardRef<
     );
   },
 );
+
+NavigationLink.displayName = "NavigationLink";

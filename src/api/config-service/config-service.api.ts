@@ -107,10 +107,7 @@ class ConfigService {
     ]);
 
     const verifiedProviders = new Set(Object.keys(verifiedMap ?? {}));
-    const names = new Set<string>([
-      ...verifiedProviders,
-      ...(providers ?? []),
-    ]);
+    const names = new Set<string>([...verifiedProviders, ...(providers ?? [])]);
     const providerItems: LLMProvider[] = [...names].map((name) => ({
       name,
       verified: verifiedProviders.has(name),

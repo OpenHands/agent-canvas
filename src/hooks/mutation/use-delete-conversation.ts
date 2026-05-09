@@ -7,7 +7,9 @@ export const useDeleteConversation = () => {
 
   return useMutation({
     mutationFn: (variables: { conversationId: string }) =>
-      AgentServerConversationService.deleteConversation(variables.conversationId),
+      AgentServerConversationService.deleteConversation(
+        variables.conversationId,
+      ),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["user", "conversations"] });
       const previousConversations = queryClient.getQueryData([

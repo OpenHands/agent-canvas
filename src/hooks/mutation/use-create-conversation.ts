@@ -46,21 +46,22 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
-      const conversation = await AgentServerConversationService.createConversation(
-        query,
-        conversationInstructions,
-        plugins,
-        repository
-          ? {
-              selected_repository: repository.name,
-              selected_branch: repository.branch ?? null,
-              git_provider: repository.gitProvider,
-            }
-          : null,
-        workingDir,
-        parentConversationId,
-        agentType,
-      );
+      const conversation =
+        await AgentServerConversationService.createConversation(
+          query,
+          conversationInstructions,
+          plugins,
+          repository
+            ? {
+                selected_repository: repository.name,
+                selected_branch: repository.branch ?? null,
+                git_provider: repository.gitProvider,
+              }
+            : null,
+          workingDir,
+          parentConversationId,
+          agentType,
+        );
 
       // OpenHands SaaS pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

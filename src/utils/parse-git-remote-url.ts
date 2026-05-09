@@ -80,7 +80,11 @@ export function parseGitRemoteUrl(
   // ssh://, https://, http://, git://
   try {
     const parsed = new URL(url);
-    return buildParsedGitRemoteUrl(url, parsed.hostname || null, parsed.pathname);
+    return buildParsedGitRemoteUrl(
+      url,
+      parsed.hostname || null,
+      parsed.pathname,
+    );
   } catch {
     return null;
   }

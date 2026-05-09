@@ -17,7 +17,8 @@ export interface AgentServerInfo extends BaseServerInfo {
 
 let cachedAgentServerInfo: AgentServerInfo | null = null;
 
-const getServerVersion = (serverInfo: AgentServerInfo): string => serverInfo.version;
+const getServerVersion = (serverInfo: AgentServerInfo): string =>
+  serverInfo.version;
 
 const getAdvertisedTools = (serverInfo: AgentServerInfo | null) => {
   if (Array.isArray(serverInfo?.usable_tools)) {

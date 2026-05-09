@@ -54,6 +54,7 @@ export function TelemetryConsentBanner({
       return () => clearTimeout(timer);
     }
     setIsReady(false);
+    return undefined;
   }, [ready, showConsentPrompt]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {

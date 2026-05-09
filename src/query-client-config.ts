@@ -14,9 +14,7 @@ const handle401Error = (error: AxiosError, client: QueryClient) => {
 const shownErrors = new Set<string>();
 
 export const createAgentServerQueryClient = () => {
-  let client: QueryClient;
-
-  client = new QueryClient({
+  const client = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
         const isAuthQuery =

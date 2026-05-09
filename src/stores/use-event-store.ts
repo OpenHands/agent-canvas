@@ -108,6 +108,7 @@ if (
   typeof import.meta !== "undefined" &&
   (import.meta as { env?: { DEV?: boolean } }).env?.DEV
 ) {
-  (window as unknown as { __OH_EVENT_STORE__?: typeof useEventStore }).__OH_EVENT_STORE__ =
-    useEventStore;
+  (
+    window as unknown as { __OH_EVENT_STORE__?: typeof useEventStore }
+  ).__OH_EVENT_STORE__ = useEventStore;
 }

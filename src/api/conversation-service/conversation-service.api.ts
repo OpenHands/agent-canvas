@@ -47,7 +47,7 @@ class ConversationService {
         ? (this.currentConversation?.workspace?.working_dir ??
           getAgentServerWorkingDir())
         : getAgentServerWorkingDir();
-    const vscode_url = await createVSCodeClient(
+    const vscodeUrl = await createVSCodeClient(
       this.getClientOverrides(),
     ).getUrl({
       baseUrl:
@@ -55,7 +55,7 @@ class ConversationService {
       workspaceDir,
     });
 
-    return { vscode_url };
+    return { vscode_url: vscodeUrl };
   }
 
   static async getTrajectory(
@@ -73,23 +73,32 @@ class ConversationService {
     _conversationId: string,
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
-    const uploaded_files: string[] = [];
-    const skipped_files: { name: string; reason: string }[] = [];
     const workspace = createRemoteWorkspace(this.getClientOverrides());
+    const results = await Promise.all(
+      files.map(async (file) => {
+        try {
+          await workspace.fileUpload(file, `/workspace/${file.name}`);
+          return { uploadedFile: file.name, skippedFile: null };
+        } catch (error) {
+          return {
+            uploadedFile: null,
+            skippedFile: {
+              name: file.name,
+              reason: error instanceof Error ? error.message : "Upload failed",
+            },
+          };
+        }
+      }),
+    );
 
-    for (const file of files) {
-      try {
-        await workspace.fileUpload(file, `/workspace/${file.name}`);
-        uploaded_files.push(file.name);
-      } catch (error) {
-        skipped_files.push({
-          name: file.name,
-          reason: error instanceof Error ? error.message : "Upload failed",
-        });
-      }
-    }
-
-    return { uploaded_files, skipped_files };
+    return {
+      uploaded_files: results.flatMap((result) =>
+        result.uploadedFile ? [result.uploadedFile] : [],
+      ),
+      skipped_files: results.flatMap((result) =>
+        result.skippedFile ? [result.skippedFile] : [],
+      ),
+    };
   }
 }
 

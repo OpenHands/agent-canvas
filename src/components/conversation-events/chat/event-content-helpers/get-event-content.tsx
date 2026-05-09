@@ -1,6 +1,10 @@
 import { Trans } from "react-i18next";
 import React from "react";
-import { OpenHandsEvent, ObservationEvent, ActionEvent } from "#/types/agent-server/core";
+import {
+  OpenHandsEvent,
+  ObservationEvent,
+  ActionEvent,
+} from "#/types/agent-server/core";
 import {
   isActionEvent,
   isObservationEvent,

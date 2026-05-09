@@ -43,8 +43,9 @@ async function fetchPage(
 
 export const useProviderModels = (provider: string | null) => {
   const queryClient = useQueryClient();
+
   return useQuery({
-    queryKey: ["config", "models", provider],
+    queryKey: ["config", "models", provider, queryClient],
     queryFn: async () => {
       const verifiedByProvider = await queryClient.fetchQuery({
         queryKey: VERIFIED_MODELS_QUERY_KEY,
