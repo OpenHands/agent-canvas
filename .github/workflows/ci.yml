@@ -164,14 +164,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          node scripts/render-live-e2e-report.mjs \
+          node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status running \
             --model "$LIVE_E2E_LLM_MODEL" \
             --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
             --commit "${{ steps.pr_context.outputs.head_sha }}" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
-          node scripts/upsert-pr-comment.mjs \
+          node tests/e2e/live/scripts/upsert-pr-comment.mjs \
             --issue-number "$LIVE_E2E_PR_NUMBER" \
             --body-file "$LIVE_E2E_REPORT_PATH"
 
@@ -207,7 +207,7 @@ jobs:
         id: live_media
         if: always() && env.LIVE_E2E_LLM_API_KEY != '' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         run: |
-          node scripts/extract-live-e2e-media.mjs \
+          node tests/e2e/live/scripts/extract-live-e2e-media.mjs \
             --results "test-results-live/results.json" \
             --output-dir "live-e2e-media"
 
@@ -350,7 +350,7 @@ jobs:
           LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.publish_live_media.outputs.video_preview_url || '' }}
           LIVE_E2E_VIDEO_URL: ${{ steps.publish_live_media.outputs.video_url || '' }}
         run: |
-          node scripts/render-live-e2e-report.mjs \
+          node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status "$LIVE_E2E_STATUS" \
             --reason "$LIVE_E2E_REASON" \
             --results "test-results-live/results.json" \
@@ -370,7 +370,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          node scripts/upsert-pr-comment.mjs \
+          node tests/e2e/live/scripts/upsert-pr-comment.mjs \
             --issue-number "$LIVE_E2E_PR_NUMBER" \
             --body-file "$LIVE_E2E_REPORT_PATH"
 
