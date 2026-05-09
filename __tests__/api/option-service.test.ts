@@ -20,6 +20,7 @@ describe("OptionService", () => {
     const config = await OptionService.getConfig();
 
     expect(config.feature_flags.hide_llm_settings).toBe(false);
+    expect(config.feature_flags.hide_users_page).toBe(true);
     expect(config.updated_at).toBeTruthy();
   });
 

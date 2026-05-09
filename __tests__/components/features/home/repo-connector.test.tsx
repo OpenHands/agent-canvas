@@ -74,7 +74,7 @@ describe("RepoConnector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("still shows the repository launcher for cloud backends without providers", () => {
+  it("does not render the repository launcher for cloud backends without providers", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     mockUseUserProviders.mockReturnValue({
@@ -84,7 +84,7 @@ describe("RepoConnector", () => {
 
     renderRepoConnector();
 
-    expect(screen.getByTestId("stub-repo-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("stub-repo-form")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("stub-workspace-form"),
     ).not.toBeInTheDocument();
