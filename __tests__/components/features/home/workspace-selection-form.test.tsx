@@ -85,6 +85,14 @@ describe("WorkspaceSelectionForm", () => {
     vi.restoreAllMocks();
     mockUseIsCreatingConversation.mockReturnValue(false);
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
+    // `useResolvedWorkspaces` always queries an implicit `/projects` parent
+    // (the dev:docker mount point). Default it to empty so tests that don't
+    // care about it don't hit a real network call. Tests that need specific
+    // behavior can replace this with their own spy.
+    vi.spyOn(FilesService, "searchSubdirs").mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
@@ -341,14 +349,22 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Removing a workspace parent stops listing its children", async () => {
+    // Scope the mock to the user-added parent so the implicit `/projects`
+    // parent (always queried by `useResolvedWorkspaces`) doesn't also get
+    // these entries.
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
-      .mockResolvedValue({
-        items: [
-          { name: "repoA", path: "/Users/me/dev/repoA" },
-          { name: "repoB", path: "/Users/me/dev/repoB" },
-        ],
-        next_page_id: null,
+      .mockImplementation(async (path: string) => {
+        if (path === "/Users/me/dev") {
+          return {
+            items: [
+              { name: "repoA", path: "/Users/me/dev/repoA" },
+              { name: "repoB", path: "/Users/me/dev/repoB" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
       });
 
     renderForm(

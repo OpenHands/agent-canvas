@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 
 import FilesService from "#/api/files-service/files-service.api";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
-import { LocalWorkspace } from "#/types/workspace";
+import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
 interface UseResolvedWorkspacesResult {
   workspaces: LocalWorkspace[];
@@ -12,17 +12,51 @@ interface UseResolvedWorkspacesResult {
 }
 
 /**
+ * Implicit workspace parents that are always considered when resolving
+ * workspaces. The `dev:docker` script mounts the host's PROJECT_PATH at
+ * `/projects` inside the agent-server container, so this directory is
+ * effectively the user's projects root in the dockerized dev stack. We
+ * surface its immediate subdirectories as workspaces automatically.
+ *
+ * In environments where `/projects` doesn't exist (e.g. dockerless dev),
+ * `searchSubdirs` simply errors and contributes no entries -- the implicit
+ * parent stays silent rather than user-visible, which is safe.
+ * In environments where `/projects` doesn't exist (e.g. dockerless dev),
+ * the `searchSubdirs` call will fail and the implicit parent contributes
+ * no entries. This is safe and intentional — the implicit parent stays
+ * silent rather than user-visible.
+const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
+  { id: "implicit:/projects", name: "/projects", path: "/projects" },
+];
+
+/**
  * Returns the merged list of workspaces to display:
- *   - workspaces explicitly added by the user (from the persisted store), and
+ *   - workspaces explicitly added by the user (from the persisted store),
  *   - the immediate subdirectories of every saved "workspace parent",
- *     fetched dynamically.
+ *     fetched dynamically, and
+ *   - the immediate subdirectories of any implicit, built-in parents
+ *     (currently just `/projects`, the dockerized dev mount point).
  *
  * Static workspaces always take precedence over a dynamic child with the
  * same path so that user-selected names/ids are preserved.
  */
 export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
   const workspaces = useWorkspacesStore((s) => s.workspaces);
-  const workspaceParents = useWorkspacesStore((s) => s.workspaceParents);
+  const storedParents = useWorkspacesStore((s) => s.workspaceParents);
+
+  // Merge stored parents with the implicit ones, deduping on path so a
+  // user-added `/projects` doesn't trigger a second query.
+  const workspaceParents = useMemo(() => {
+    const seen = new Set(storedParents.map((p) => p.path));
+  const workspaceParents = useMemo(() => {
+    const seen = new Set(storedParents.map((p) => p.path));
+    // Filter out implicit parents that conflict with user-added ones (by path)
+    // so custom names/ids are preserved
+    const extras = IMPLICIT_WORKSPACE_PARENTS.filter((p) => !seen.has(p.path));
+    return extras.length === 0 ? storedParents : [...storedParents, ...extras];
+  }, [storedParents]);
+    return extras.length === 0 ? storedParents : [...storedParents, ...extras];
+  }, [storedParents]);
 
   const parentQueries = useQueries({
     queries: workspaceParents.map((parent) => ({
