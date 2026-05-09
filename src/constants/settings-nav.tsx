@@ -5,7 +5,6 @@ import MemoryIcon from "#/icons/memory_icon.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
-import PuzzlePieceIcon from "#/icons/u-puzzle-piece.svg?react";
 
 export interface SettingsNavItem {
   icon: React.ReactElement;
@@ -38,11 +37,6 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <LightbulbIcon width={22} height={22} />,
     to: "/settings/skills",
     text: "SETTINGS$NAV_SKILLS",
-  },
-  {
-    icon: <PuzzlePieceIcon width={22} height={22} />,
-    to: "/settings/integrations",
-    text: "SETTINGS$NAV_INTEGRATIONS",
   },
   {
     icon: <SettingsGearIcon width={22} height={22} />,

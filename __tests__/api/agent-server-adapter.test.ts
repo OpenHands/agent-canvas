@@ -21,6 +21,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
   getConfiguredWorkerUrls: vi.fn(() => []),
+  shouldLoadPublicSkills: vi.fn(() => true),
 }));
 
 vi.mock("#/api/agent-server-compatibility", () => ({
@@ -88,6 +89,10 @@ describe("buildStartConversationRequest", () => {
       { name: "task_tracker", params: {} },
       { name: "browser_tool_set", params: {} },
     ]);
+    expect(payload.agent.agent_context).toEqual({
+      load_public_skills: true,
+      load_user_skills: true,
+    });
     expect(payload.agent.agent).toBeUndefined();
     expect(payload.workspace.working_dir).toBe(
       "/workspace/project/agent-canvas",

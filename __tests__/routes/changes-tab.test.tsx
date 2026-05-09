@@ -67,4 +67,45 @@ describe("Changes Tab", () => {
       screen.queryByText("DIFF_VIEWER$NO_CHANGES"),
     ).not.toBeInTheDocument();
   });
+
+  it("should render the Protip alongside the empty state when there are no changes", () => {
+    vi.mocked(useUnifiedGetGitChanges).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isFetching: false,
+      isSuccess: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    vi.mocked(useAgentState).mockReturnValue({
+      curAgentState: AgentState.RUNNING,
+    });
+
+    render(<GitChanges />, { wrapper });
+
+    expect(screen.getByText("TIPS$PROTIP:")).toBeInTheDocument();
+  });
+
+  it("should hide the Protip when the git changes request errors", () => {
+    vi.mocked(useUnifiedGetGitChanges).mockReturnValue({
+      data: [],
+      isLoading: false,
+      isFetching: false,
+      isSuccess: false,
+      isError: true,
+      error: { message: "fatal: not a git repository" } as unknown as Error,
+      refetch: vi.fn(),
+    });
+    vi.mocked(useAgentState).mockReturnValue({
+      curAgentState: AgentState.RUNNING,
+    });
+
+    render(<GitChanges />, { wrapper });
+
+    expect(screen.queryByText("TIPS$PROTIP:")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("DIFF_VIEWER$NOT_A_GIT_REPO"),
+    ).toBeInTheDocument();
+  });
 });

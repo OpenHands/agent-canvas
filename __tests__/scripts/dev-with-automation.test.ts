@@ -168,10 +168,11 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("uses default local API key", () => {
+  it("auto-generates random local API key by default", () => {
     const config = buildConfig({}, {});
 
-    expect(config.localApiKey).toBe("openhands-local-api-key");
+    // Default is a 64-char hex string (256-bit random key)
+    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("respects custom AUTOMATION_LOCAL_API_KEY from env", () => {
@@ -180,14 +181,15 @@ describe("buildConfig", () => {
     expect(config.localApiKey).toBe("my-custom-key");
   });
 
-  it("sets sessionApiKey to null by default", () => {
+  it("auto-generates random session API key by default", () => {
     const config = buildConfig({}, {});
 
-    expect(config.sessionApiKey).toBeNull();
+    // Default is a 64-char hex string (256-bit random key)
+    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reads sessionApiKey from OH_SESSION_API_KEY", () => {
-    const config = buildConfig({}, { OH_SESSION_API_KEY: "my-session-key" });
+  it("reads sessionApiKey from SESSION_API_KEY", () => {
+    const config = buildConfig({}, { SESSION_API_KEY: "my-session-key" });
 
     expect(config.sessionApiKey).toBe("my-session-key");
   });
@@ -198,19 +200,13 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("vite-session-key");
   });
 
-  it("OH_SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
+  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
     const config = buildConfig({}, {
-      OH_SESSION_API_KEY: "oh-key",
+      SESSION_API_KEY: "session-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
 
-    expect(config.sessionApiKey).toBe("oh-key");
-  });
-
-  it("reads sessionApiKey from SESSION_API_KEY (agent-server V0 env)", () => {
-    const config = buildConfig({}, { SESSION_API_KEY: "v0-session-key" });
-
-    expect(config.sessionApiKey).toBe("v0-session-key");
+    expect(config.sessionApiKey).toBe("session-key");
   });
 
   it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
@@ -232,7 +228,6 @@ describe("buildConfig", () => {
     const config = buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
-      OH_SESSION_API_KEY: "oh-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
 

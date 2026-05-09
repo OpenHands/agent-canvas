@@ -34,7 +34,6 @@ describe("library public entrypoints", () => {
     expect(filesApi.FileExplorer).toBeTypeOf("function");
     expect(settingsApi.SettingsPanel).toBeTypeOf("function");
     expect(settingsApi.AppSettings).toBeTypeOf("function");
-    expect(settingsApi.GitSettings).toBeTypeOf("function");
     expect(settingsApi.LLMSettings).toBeTypeOf("function");
     expect(settingsApi.MCPSettings).toBeTypeOf("function");
     expect(settingsApi.SecretsSettings).toBeTypeOf("function");

@@ -24,10 +24,6 @@ vi.mock("#/components/features/home/workspace-selection-form", () => ({
   WorkspaceSelectionForm: () => <div data-testid="stub-workspace-form" />,
 }));
 
-vi.mock("#/components/features/home/connect-to-provider-message", () => ({
-  ConnectToProviderMessage: () => <div data-testid="stub-connect-message" />,
-}));
-
 const cloudBackend: Backend = {
   id: "prod",
   name: "Production",
@@ -78,7 +74,7 @@ describe("RepoConnector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the connect-provider message for cloud backends without providers", () => {
+  it("does not render the repository launcher for cloud backends without providers", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     mockUseUserProviders.mockReturnValue({
@@ -88,7 +84,6 @@ describe("RepoConnector", () => {
 
     renderRepoConnector();
 
-    expect(screen.getByTestId("stub-connect-message")).toBeInTheDocument();
     expect(screen.queryByTestId("stub-repo-form")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("stub-workspace-form"),

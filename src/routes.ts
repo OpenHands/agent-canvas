@@ -15,7 +15,6 @@ export default [
       route("verification", "routes/verification-settings.tsx"),
       route("mcp", "routes/mcp-settings.tsx"),
       route("skills", "routes/skills-settings.tsx"),
-      route("integrations", "routes/git-settings.tsx"),
       route("app", "routes/app-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),

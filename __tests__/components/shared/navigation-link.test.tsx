@@ -20,7 +20,7 @@ function renderNavigationLink(
 
   const result = render(
     <NavigationProvider value={value}>
-      <NavigationLink to="/settings/integrations">Integrations</NavigationLink>
+      <NavigationLink to="/settings/mcp">MCP</NavigationLink>
     </NavigationProvider>,
   );
 
@@ -32,13 +32,13 @@ function renderNavigationLink(
 
 describe("NavigationLink", () => {
   it("renders the destination href and active state from navigation context", () => {
-    renderNavigationLink("/settings/integrations");
+    renderNavigationLink("/settings/mcp");
 
-    expect(screen.getByRole("link", { name: "Integrations" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "MCP" })).toHaveAttribute(
       "href",
-      "/settings/integrations",
+      "/settings/mcp",
     );
-    expect(screen.getByRole("link", { name: "Integrations" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "MCP" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -46,11 +46,11 @@ describe("NavigationLink", () => {
 
   it("uses the injected navigate callback on click", () => {
     const { navigate } = renderNavigationLink();
-    const link = screen.getByRole("link", { name: "Integrations" });
+    const link = screen.getByRole("link", { name: "MCP" });
 
     fireEvent.click(link);
 
-    expect(navigate).toHaveBeenCalledWith("/settings/integrations", {
+    expect(navigate).toHaveBeenCalledWith("/settings/mcp", {
       replace: false,
     });
   });

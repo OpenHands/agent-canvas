@@ -177,3 +177,13 @@ export function getAgentServerHeaders(): Record<string, string> {
   const sessionApiKey = getAgentServerSessionApiKey();
   return sessionApiKey ? { "X-Session-API-Key": sessionApiKey } : {};
 }
+
+/**
+ * Returns whether public skills from the OpenHands extensions marketplace
+ * (https://github.com/OpenHands/extensions) should be loaded.
+ *
+ * Defaults to true. Set VITE_LOAD_PUBLIC_SKILLS=false to disable.
+ */
+export function shouldLoadPublicSkills(): boolean {
+  return import.meta.env.VITE_LOAD_PUBLIC_SKILLS !== "false";
+}

@@ -2,7 +2,10 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import { getAgentServerWorkingDir } from "./agent-server-config";
+import {
+  getAgentServerWorkingDir,
+  shouldLoadPublicSkills,
+} from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import {
   GetHooksResponse,
@@ -291,6 +294,10 @@ function createAgentFromSettings(agentSettings: SettingsRecord) {
   return {
     kind: "Agent",
     ...agentSettings,
+    agent_context: {
+      load_public_skills: shouldLoadPublicSkills(),
+      load_user_skills: true,
+    },
   };
 }
 
@@ -533,7 +540,7 @@ export async function loadSkillsForConversation(
     conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
 
   const response = await createSkillsClient().getSkills({
-    load_public: true,
+    load_public: shouldLoadPublicSkills(),
     load_user: true,
     load_project: true,
     load_org: false,

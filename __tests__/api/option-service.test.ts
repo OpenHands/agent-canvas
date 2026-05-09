@@ -19,7 +19,8 @@ describe("OptionService", () => {
   it("returns config in mock mode without a live backend", async () => {
     const config = await OptionService.getConfig();
 
-    expect(config.feature_flags.hide_integrations_page).toBe(false);
+    expect(config.feature_flags.hide_llm_settings).toBe(false);
+    expect(config.feature_flags.hide_users_page).toBe(true);
     expect(config.updated_at).toBeTruthy();
   });
 
@@ -66,7 +67,7 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).resolves.toMatchObject({
       feature_flags: expect.objectContaining({
-        hide_integrations_page: false,
+        hide_llm_settings: false,
       }),
     });
   });

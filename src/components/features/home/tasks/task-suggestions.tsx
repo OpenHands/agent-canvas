@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TaskGroup } from "./task-group";
-import { NavigationLink } from "#/components/shared/navigation-link";
 import { useSuggestedTasks } from "#/hooks/query/use-suggested-tasks";
 import { TaskSuggestionsSkeleton } from "./task-suggestions-skeleton";
 import { cn, getDisplayedTaskGroups, getTotalTaskCount } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { GitRepository } from "#/types/git";
-import { useUserProviders } from "#/hooks/use-user-providers";
 import { Typography } from "#/ui/typography";
 
 interface TaskSuggestionsProps {
@@ -19,9 +17,6 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { data: tasks, isLoading } = useSuggestedTasks();
-  const { providers } = useUserProviders();
-
-  const hasNoProviders = providers.length === 0;
 
   const suggestedTasks = filterFor
     ? tasks?.filter(
@@ -70,32 +65,11 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
             <TaskSuggestionsSkeleton />
           </div>
         )}
-        {!hasSuggestedTasks &&
-          !isLoading &&
-          (hasNoProviders ? (
-            <div className="px-[14px] flex flex-col gap-3 pb-6 sm:pb-8">
-              <Typography.Text className="text-xs leading-4 text-white font-medium">
-                {t(I18nKey.TASKS$NO_GIT_PROVIDERS_TITLE)}
-              </Typography.Text>
-
-              <Typography.Text className="text-xs leading-4 text-[#C9C9C9] font-normal">
-                {t(I18nKey.TASKS$NO_GIT_PROVIDERS_DESCRIPTION)}
-              </Typography.Text>
-
-              <NavigationLink
-                to="/settings/integrations"
-                className="w-fit hover:underline"
-              >
-                <Typography.Text className="text-xs leading-4 text-[#FAFAFA] font-normal">
-                  {t(I18nKey.TASKS$NO_GIT_PROVIDERS_CTA)}
-                </Typography.Text>
-              </NavigationLink>
-            </div>
-          ) : (
-            <Typography.Text className="text-xs leading-4 text-white font-medium px-[14px]">
-              {t(I18nKey.TASKS$NO_TASKS_AVAILABLE)}
-            </Typography.Text>
-          ))}
+        {!hasSuggestedTasks && !isLoading && (
+          <Typography.Text className="text-xs leading-4 text-white font-medium px-[14px]">
+            {t(I18nKey.TASKS$NO_TASKS_AVAILABLE)}
+          </Typography.Text>
+        )}
 
         {!isLoading &&
           displayedTaskGroups &&

@@ -44,11 +44,7 @@ export const createMockWebClientConfig = (
   posthog_client_key: "test-posthog-key",
   feature_flags: {
     hide_llm_settings: false,
-    enable_jira: false,
-    enable_jira_dc: false,
-    enable_linear: false,
     hide_users_page: false,
-    hide_integrations_page: false,
     ...overrides.feature_flags,
   },
   providers_configured: [],
@@ -578,11 +574,7 @@ export const SETTINGS_HANDLERS = [
       posthog_client_key: "fake-posthog-client-key",
       feature_flags: {
         hide_llm_settings: false,
-        enable_jira: false,
-        enable_jira_dc: false,
-        enable_linear: false,
         hide_users_page: false,
-        hide_integrations_page: false,
       },
       providers_configured: [],
       maintenance_start_time: null,

@@ -35,11 +35,15 @@ vi.mock("#/hooks/query/use-config", () => ({
   }),
 }));
 
-vi.mock("#/hooks/use-user-providers", () => ({
-  useUserProviders: () => ({
+const { useUserProvidersMock } = vi.hoisted(() => ({
+  useUserProvidersMock: vi.fn(() => ({
     providers: [{ id: "github", name: "GitHub" }],
     isLoading: false,
-  }),
+  })),
+}));
+
+vi.mock("#/hooks/use-user-providers", () => ({
+  useUserProviders: () => useUserProvidersMock(),
 }));
 
 const renderTaskSuggestions = () => {
@@ -86,6 +90,21 @@ describe("TaskSuggestions", () => {
     getSuggestedTasksSpy.mockResolvedValue([]);
     renderTaskSuggestions();
     await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
+  });
+
+  it("falls back to the generic empty message when no Git providers are connected and exposes no link to the removed Integrations page", async () => {
+    useUserProvidersMock.mockReturnValueOnce({
+      providers: [],
+      isLoading: false,
+    });
+    getSuggestedTasksSpy.mockResolvedValue([]);
+
+    renderTaskSuggestions();
+
+    await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
+    expect(
+      screen.queryByRole("link", { name: /integrations/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("should render the task groups with the correct titles", async () => {

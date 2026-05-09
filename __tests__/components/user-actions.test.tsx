@@ -10,7 +10,7 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [
     { type: "item", item: OSS_NAV_ITEMS[0] },
-    { type: "item", item: OSS_NAV_ITEMS[6] },
+    { type: "item", item: OSS_NAV_ITEMS[5] },
   ],
 }));
 
