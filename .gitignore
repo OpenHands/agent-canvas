@@ -11,6 +11,7 @@ build/
 /test-results-live/
 /playwright-report/
 /playwright-report-live/
+/live-e2e-media/
 /blob-report/
 /playwright/.cache/
 .react-router/

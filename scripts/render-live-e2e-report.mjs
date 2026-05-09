@@ -295,6 +295,7 @@ function evidenceDetails(specs, args) {
     attachments.length === 0 &&
     !args.artifact_url &&
     !args.video_url &&
+    !args.video_preview_url &&
     !args.screenshot_url
   ) {
     return [];
@@ -307,7 +308,20 @@ function evidenceDetails(specs, args) {
     "",
   ];
 
-  if (args.video_url) {
+  if (args.video_preview_url) {
+    lines.push(
+      "**Recorded video:**",
+      "",
+      `![Live Agent E2E recording](${sanitizeForComment(args.video_preview_url)})`,
+      "",
+    );
+    if (args.video_url) {
+      lines.push(
+        `[Open full WebM recording](${sanitizeForComment(args.video_url)})`,
+        "",
+      );
+    }
+  } else if (args.video_url) {
     lines.push(sanitizeForComment(args.video_url), "");
   } else if (videos.length > 0) {
     lines.push(`**Recorded video:** \`${videos[0].path}\``);
@@ -344,7 +358,12 @@ function evidenceDetails(specs, args) {
   }
   lines.push("");
 
-  if (attachments.length > 0) {
+  if (
+    attachments.length > 0 &&
+    !args.video_url &&
+    !args.video_preview_url &&
+    !args.screenshot_url
+  ) {
     lines.push(
       "| Test | Attachment | Type | Location |",
       "|------|------------|------|----------|",
@@ -359,13 +378,6 @@ function evidenceDetails(specs, args) {
       );
     }
     lines.push("");
-  }
-
-  if (args.video_url) {
-    lines.push(
-      "<sub>Inline playback requires a GitHub-uploaded video URL or another raw video URL that GitHub markdown can render.</sub>",
-      "",
-    );
   }
 
   lines.push("</details>");

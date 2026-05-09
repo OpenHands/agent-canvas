@@ -116,6 +116,55 @@ jobs:
         if: env.LIVE_E2E_LLM_API_KEY == ''
         run: echo "Skipping live Agent Server E2E because LLM_API_KEY is not configured."
 
+      - name: Extract live E2E media
+        id: live_media
+        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        run: |
+          node scripts/extract-live-e2e-media.mjs \
+            --results "test-results-live/results.json" \
+            --output-dir "live-e2e-media"
+
+      - name: Create live E2E video preview
+        id: live_video_preview
+        if: always() && steps.live_media.outputs.video_path != ''
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -y \
+            -i "${{ steps.live_media.outputs.video_path }}" \
+            -vf "fps=4,scale=960:-1:flags=lanczos" \
+            -loop 0 \
+            live-e2e-media/live-agent-recording.gif
+          echo "video_preview_path=live-e2e-media/live-agent-recording.gif" >> "$GITHUB_OUTPUT"
+
+      - name: Upload live E2E screenshot
+        id: upload_live_screenshot
+        if: always() && steps.live_media.outputs.screenshot_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          if-no-files-found: error
+          archive: false
+          path: ${{ steps.live_media.outputs.screenshot_path }}
+
+      - name: Upload live E2E video preview
+        id: upload_live_video_preview
+        if: always() && steps.live_video_preview.outputs.video_preview_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          if-no-files-found: error
+          archive: false
+          path: ${{ steps.live_video_preview.outputs.video_preview_path }}
+
+      - name: Upload live E2E video
+        id: upload_live_video
+        if: always() && steps.live_media.outputs.video_path != ''
+        uses: actions/upload-artifact@v7
+        with:
+          if-no-files-found: error
+          archive: false
+          path: ${{ steps.live_media.outputs.video_path }}
+
       - name: Upload live E2E artifacts
         id: upload_live_artifacts
         if: always() && env.LIVE_E2E_LLM_API_KEY != ''
@@ -155,8 +204,11 @@ jobs:
         if: always()
         env:
           LIVE_E2E_ARTIFACT_URL: ${{ steps.upload_live_artifacts.outputs.artifact-url || '' }}
+          LIVE_E2E_SCREENSHOT_URL: ${{ steps.upload_live_screenshot.outputs.artifact-url || '' }}
           LIVE_E2E_STATUS: ${{ steps.live_status.outputs.status }}
           LIVE_E2E_REASON: ${{ steps.live_status.outputs.reason }}
+          LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.upload_live_video_preview.outputs.artifact-url || '' }}
+          LIVE_E2E_VIDEO_URL: ${{ steps.upload_live_video.outputs.artifact-url || '' }}
         run: |
           node scripts/render-live-e2e-report.mjs \
             --status "$LIVE_E2E_STATUS" \
@@ -165,6 +217,9 @@ jobs:
             --model "$LIVE_E2E_LLM_MODEL" \
             --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
             --artifact-url "$LIVE_E2E_ARTIFACT_URL" \
+            --screenshot-url "$LIVE_E2E_SCREENSHOT_URL" \
+            --video-preview-url "$LIVE_E2E_VIDEO_PREVIEW_URL" \
+            --video-url "$LIVE_E2E_VIDEO_URL" \
             --commit "$LIVE_E2E_COMMIT_SHA" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
