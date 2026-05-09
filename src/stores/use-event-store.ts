@@ -52,43 +52,69 @@ export interface EventState {
   eventIds: Set<string | number>;
   uiEvents: OHEvent[];
   addEvent: (event: OHEvent) => void;
+  /**
+   * Bulk-insert events. Used for the initial REST history load and for
+   * "scroll up to load older" pagination. Newly-added events are de-duped
+   * against the existing store and the combined list is re-sorted by
+   * timestamp so older pages drop into the correct position.
+   */
+  addEvents: (events: OHEvent[]) => void;
   clearEvents: () => void;
 }
+
+const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
+  // Deduplicate: skip if event with same id already exists (O(1) lookup)
+  const eventId = getEventId(event);
+  if (eventId !== undefined && state.eventIds.has(eventId)) {
+    return state;
+  }
+
+  // Add event and sort if needed to maintain chronological order
+  let newEvents = [...state.events, event];
+  if (needsSorting(state.events, event)) {
+    newEvents = newEvents.sort(compareEventsByTimestamp);
+  }
+
+  const newEventIds =
+    eventId !== undefined
+      ? new Set(state.eventIds).add(eventId)
+      : state.eventIds;
+
+  // Process UI events and sort if needed
+  let newUiEvents = handleEventForUI(event, state.uiEvents);
+
+  if (needsSorting(state.uiEvents, event)) {
+    newUiEvents = newUiEvents.sort(compareEventsByTimestamp);
+  }
+
+  return {
+    ...state,
+    events: newEvents,
+    eventIds: newEventIds,
+    uiEvents: newUiEvents,
+  };
+};
 
 export const useEventStore = create<EventState>()((set) => ({
   events: [],
   eventIds: new Set(),
   uiEvents: [],
-  addEvent: (event: OHEvent) =>
+  addEvent: (event: OHEvent) => set((state) => applyAddEvent(state, event)),
+  addEvents: (incoming: OHEvent[]) =>
     set((state) => {
-      // Deduplicate: skip if event with same id already exists (O(1) lookup)
-      const eventId = getEventId(event);
-      if (eventId !== undefined && state.eventIds.has(eventId)) {
-        return state;
+      if (incoming.length === 0) return state;
+      // Reduce so dedup + UI-event handling stay consistent with addEvent.
+      // Sort once at the end to amortize the cost of inserting an older page.
+      let next = state;
+      for (const event of incoming) {
+        next = applyAddEvent(next, event);
       }
-
-      // Add event and sort if needed to maintain chronological order
-      let newEvents = [...state.events, event];
-      if (needsSorting(state.events, event)) {
-        newEvents = newEvents.sort(compareEventsByTimestamp);
-      }
-
-      const newEventIds =
-        eventId !== undefined
-          ? new Set(state.eventIds).add(eventId)
-          : state.eventIds;
-
-      // Process UI events and sort if needed
-      let newUiEvents = handleEventForUI(event, state.uiEvents);
-
-      if (needsSorting(state.uiEvents, event)) {
-        newUiEvents = newUiEvents.sort(compareEventsByTimestamp);
-      }
-
+      const sortedEvents = [...next.events].sort(compareEventsByTimestamp);
+      const sortedUiEvents = [...next.uiEvents].sort(compareEventsByTimestamp);
       return {
-        events: newEvents,
-        eventIds: newEventIds,
-        uiEvents: newUiEvents,
+        ...next,
+        events: sortedEvents,
+        uiEvents: sortedUiEvents,
       };
     }),
   clearEvents: () =>

@@ -6,6 +6,8 @@ import { createHttpClient, createRemoteEventsList } from "../typescript-client";
 import type {
   ConfirmationResponseRequest,
   ConfirmationResponseResponse,
+  EventSearchOptions,
+  EventSearchPage,
 } from "./event-service.types";
 
 /**
@@ -85,25 +87,40 @@ class EventService {
     }).count();
   }
 
+  /**
+   * Search events for a conversation. Returns the raw page so callers can
+   * paginate (via `next_page_id`) and so REST-driven history loading can
+   * tell when there are no more older events to load.
+   */
   static async searchEvents(
     conversationId: string,
-    limit = 100,
     conversationUrl?: string | null,
     sessionApiKey?: string | null,
-  ) {
+    options: EventSearchOptions = {},
+  ): Promise<EventSearchPage<OpenHandsEvent>> {
     const active = getActiveBackend().backend;
+    const limit = options.limit ?? 100;
 
     if (active.kind === "cloud") {
       // Event *history* lives on the SaaS App API, not the runtime
       // sandbox. Path is singular `conversation` and v1-prefixed.
       const params = new URLSearchParams();
       params.set("limit", String(limit));
-      const data = await callCloudProxy<{ items?: OpenHandsEvent[] }>({
+      if (options.pageId) params.set("page_id", options.pageId);
+      if (options.sortOrder) params.set("sort_order", options.sortOrder);
+      if (options.timestampGte)
+        params.set("timestamp__gte", options.timestampGte);
+      if (options.timestampLt) params.set("timestamp__lt", options.timestampLt);
+
+      const data = await callCloudProxy<EventSearchPage<OpenHandsEvent>>({
         backend: active,
         method: "GET",
         path: `/api/v1/conversation/${conversationId}/events/search?${params.toString()}`,
       });
-      return data?.items ?? [];
+      return {
+        items: data?.items ?? [],
+        next_page_id: data?.next_page_id ?? null,
+      };
     }
 
     const page = await createRemoteEventsList(conversationId, {
@@ -111,9 +128,16 @@ class EventService {
       sessionApiKey,
     }).search({
       limit,
+      ...(options.pageId ? { page_id: options.pageId } : {}),
+      ...(options.sortOrder ? { sort_order: options.sortOrder } : {}),
+      ...(options.timestampGte ? { timestamp__gte: options.timestampGte } : {}),
+      ...(options.timestampLt ? { timestamp__lt: options.timestampLt } : {}),
     });
 
-    return (page.items ?? []) as OpenHandsEvent[];
+    return {
+      items: (page.items ?? []) as OpenHandsEvent[],
+      next_page_id: page.next_page_id ?? null,
+    };
   }
 }
 

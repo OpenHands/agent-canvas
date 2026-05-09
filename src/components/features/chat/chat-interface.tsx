@@ -8,6 +8,7 @@ import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
+import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import { TypingIndicator } from "./typing-indicator";
 import { ChatSuggestions } from "./chat-suggestions";
 import { ScrollProvider } from "#/context/scroll-context";
@@ -114,6 +115,44 @@ export function ChatInterface() {
   const { conversationId } = useOptionalConversationId();
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
 
+  // Lazy "scroll up to load older events" backfill. Initial REST fetch only
+  // returns the most recent page; this hook paginates older events into the
+  // store on demand so the chat doesn't load (potentially) thousands of
+  // events on first render.
+  const {
+    isLoading: isLoadingOlderEvents,
+    hasMore: hasMoreOlderEvents,
+    loadOlder,
+  } = useLoadOlderEvents(conversationId);
+
+  // Trigger `loadOlder` when the user scrolls near the top, and preserve the
+  // visual scroll position once the older page is merged in (otherwise
+  // prepending events would jump the chat far down).
+  const SCROLL_TOP_THRESHOLD_PX = 80;
+  const preserveScrollPosition = React.useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const handleScrollForPagination = React.useCallback(
+    (target: HTMLElement) => {
+      if (
+        target.scrollTop <= SCROLL_TOP_THRESHOLD_PX &&
+        !isLoadingOlderEvents &&
+        hasMoreOlderEvents
+      ) {
+        preserveScrollPosition.current = {
+          scrollHeight: target.scrollHeight,
+          scrollTop: target.scrollTop,
+        };
+        // Fire-and-forget: errors surface via the existing error banner.
+        loadOlder().catch(() => {
+          /* error already surfaced via global toast / banner */
+        });
+      }
+    },
+    [isLoadingOlderEvents, hasMoreOlderEvents, loadOlder],
+  );
+
   const optimisticUserMessage = getOptimisticUserMessage();
 
   // Show V1 messages immediately if events exist in store (e.g., remount),
@@ -207,8 +246,25 @@ export function ChatInterface() {
     setMessageToSend("");
   };
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive — but only if the user is
+  // already pinned to the bottom. Scrolling up to load older events also
+  // grows `renderableEvents`, and we don't want to yank the user back to the
+  // bottom in that case.
   React.useEffect(() => {
+    // If a "load older" was just triggered, restore the scroll position so
+    // the conversation appears to extend upward instead of jumping.
+    if (preserveScrollPosition.current && scrollRef.current) {
+      const { scrollHeight: prevHeight, scrollTop: prevTop } =
+        preserveScrollPosition.current;
+      const dom = scrollRef.current;
+      const delta = dom.scrollHeight - prevHeight;
+      if (delta > 0) {
+        dom.scrollTop = prevTop + delta;
+      }
+      preserveScrollPosition.current = null;
+      return;
+    }
+
     if (autoScroll) {
       scrollDomToBottom();
     }
@@ -268,7 +324,10 @@ export function ChatInterface() {
 
         <div
           ref={scrollRef}
-          onScroll={(e) => onChatBodyScroll(e.currentTarget)}
+          onScroll={(e) => {
+            onChatBodyScroll(e.currentTarget);
+            handleScrollForPagination(e.currentTarget);
+          }}
           className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2"
         >
           {isChatLoading && isReturningToConversation && (
@@ -277,6 +336,15 @@ export function ChatInterface() {
 
           {isChatLoading && !isReturningToConversation && (
             <div className="flex justify-center" data-testid="loading-spinner">
+              <LoadingSpinner size="small" />
+            </div>
+          )}
+
+          {isLoadingOlderEvents && (
+            <div
+              className="flex justify-center py-2"
+              data-testid="loading-older-events"
+            >
               <LoadingSpinner size="small" />
             </div>
           )}
