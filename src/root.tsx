@@ -10,12 +10,8 @@ import "./tailwind.css";
 import "./index.css";
 import React from "react";
 import { Toaster } from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import {
-  AgentServerUnavailableError,
-  isAgentServerUnavailableError,
-} from "#/api/agent-server-compatibility";
-import { AgentServerConnectionForm } from "#/components/features/settings/agent-server-onboarding";
+import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
@@ -44,30 +40,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AgentServerStatusCard({
-  title,
-  message,
-  details,
-}: {
-  title: string;
-  message: string;
-  details?: string | null;
-}) {
-  const { t } = useTranslation("openhands");
-
-  return (
-    <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/10 p-4">
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-neutral-200">{message}</p>
-      {details ? (
-        <p className="mt-3 text-xs leading-5 text-neutral-400">
-          {t("SETTINGS$AGENT_SERVER_DETAILS_LABEL", { details })}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function AgentServerBootstrapLoading() {
   return (
     <main className="min-h-screen bg-base px-6 py-10 text-white">
@@ -80,89 +52,29 @@ function AgentServerBootstrapLoading() {
   );
 }
 
-function AgentServerOnboardingLayout({
-  testId,
-  eyebrow,
-  title,
-  description,
-  statusTitle,
-  statusMessage,
-  statusDetails,
-}: {
-  testId: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-  statusTitle: string;
-  statusMessage: string;
-  statusDetails?: string | null;
-}) {
-  const { t } = useTranslation("openhands");
+/**
+ * When the active backend is unreachable, the rest of the app cannot
+ * render (most queries chain off of `/server_info`). Instead of the
+ * old full-screen onboarding error, drop a minimal placeholder behind
+ * the Manage Backends modal so the user can edit, add, or pick another
+ * backend right away. Closing the modal just reopens it — the only way
+ * out is a successful reconnection (the modal triggers a refetch via
+ * its health probe and the user can reload).
+ */
+function MissingAgentServerScreen() {
+  // Provide a no-op `onClose` so the user can't dismiss the modal into
+  // a broken empty state. Editing/adding a backend reseeds the registry
+  // and the next config refetch (via React Query's natural retry on
+  // mount or a manual reload) recovers the app.
+  const noop = React.useCallback(() => {}, []);
 
   return (
-    <main className="min-h-screen bg-base px-6 py-10 text-white">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center">
-        <div
-          data-testid={testId}
-          className="grid w-full gap-8 lg:grid-cols-[1.15fr,0.85fr]"
-        >
-          <section className="rounded-3xl border border-white/10 bg-neutral-900/80 p-8 shadow-2xl">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-primary">
-              {eyebrow}
-            </p>
-            <h1 className="mt-4 text-4xl font-semibold leading-tight text-white">
-              {title}
-            </h1>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-neutral-200">
-              {description}
-            </p>
-
-            <AgentServerStatusCard
-              title={statusTitle}
-              message={statusMessage}
-              details={statusDetails}
-            />
-
-            <p className="mt-6 max-w-3xl text-sm leading-6 text-gray-400">
-              {t("SETTINGS$AGENT_SERVER_SETUP_GUIDE_HINT")}{" "}
-              <a
-                href="https://github.com/OpenHands/agent-canvas"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="underline underline-offset-2 transition-colors hover:text-white"
-              >
-                {t("SETTINGS$AGENT_SERVER_SETUP_GUIDE_LINK")}
-              </a>
-              .
-            </p>
-          </section>
-
-          <aside className="lg:pt-6">
-            <AgentServerConnectionForm />
-          </aside>
-        </div>
-      </div>
+    <main
+      data-testid="agent-server-onboarding-screen"
+      className="min-h-screen bg-base"
+    >
+      <ManageBackendsModal onClose={noop} />
     </main>
-  );
-}
-
-function MissingAgentServerNotice({
-  error,
-}: {
-  error: AgentServerUnavailableError;
-}) {
-  const { t } = useTranslation("openhands");
-
-  return (
-    <AgentServerOnboardingLayout
-      testId="agent-server-onboarding-screen"
-      eyebrow={t("SETTINGS$AGENT_SERVER_ONBOARDING_EYEBROW")}
-      title={t("SETTINGS$AGENT_SERVER_ONBOARDING_TITLE")}
-      description={t("SETTINGS$AGENT_SERVER_ONBOARDING_DESCRIPTION")}
-      statusTitle={t("SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_TITLE")}
-      statusMessage={t("SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_MESSAGE")}
-      statusDetails={error.details}
-    />
   );
 }
 
@@ -179,7 +91,7 @@ export default function App() {
   }
 
   if (isAgentServerUnavailableError(config.error)) {
-    return <MissingAgentServerNotice error={config.error} />;
+    return <MissingAgentServerScreen />;
   }
 
   return <Outlet />;

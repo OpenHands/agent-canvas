@@ -85,6 +85,14 @@ describe("WorkspaceSelectionForm", () => {
     vi.restoreAllMocks();
     mockUseIsCreatingConversation.mockReturnValue(false);
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
+    // `useResolvedWorkspaces` always queries an implicit `/projects` parent
+    // (the dev:docker mount point). Default it to empty so tests that don't
+    // care about it don't hit a real network call. Tests that need specific
+    // behavior can replace this with their own spy.
+    vi.spyOn(FilesService, "searchSubdirs").mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
@@ -218,6 +226,46 @@ describe("WorkspaceSelectionForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Implicit /projects parent surfaces workspaces automatically", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockImplementation(async (path: string) => {
+        if (path === "/projects") {
+          return {
+            items: [
+              { name: "agent-canvas", path: "/projects/agent-canvas" },
+              { name: "sdk", path: "/projects/sdk" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    const dropdownMenu = await screen.findByTestId("workspace-dropdown-menu");
+    await within(dropdownMenu).findByText("agent-canvas");
+    await within(dropdownMenu).findByText("sdk");
+
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
+  it("A stored /projects parent suppresses the implicit duplicate query", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockResolvedValue({ items: [], next_page_id: null });
+
+    renderForm([], [
+      { id: "custom-projects", name: "My Projects", path: "/projects" },
+    ]);
+
+    await waitFor(() => expect(searchSpy).toHaveBeenCalledTimes(1));
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
   it("Launch creates a v1 conversation with the selected workspace path as working_dir", async () => {
     const workspaces: LocalWorkspace[] = [
       { id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" },
@@ -341,14 +389,22 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Removing a workspace parent stops listing its children", async () => {
+    // Scope the mock to the user-added parent so the implicit `/projects`
+    // parent (always queried by `useResolvedWorkspaces`) doesn't also get
+    // these entries.
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
-      .mockResolvedValue({
-        items: [
-          { name: "repoA", path: "/Users/me/dev/repoA" },
-          { name: "repoB", path: "/Users/me/dev/repoB" },
-        ],
-        next_page_id: null,
+      .mockImplementation(async (path: string) => {
+        if (path === "/Users/me/dev") {
+          return {
+            items: [
+              { name: "repoA", path: "/Users/me/dev/repoA" },
+              { name: "repoB", path: "/Users/me/dev/repoB" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
       });
 
     renderForm(
