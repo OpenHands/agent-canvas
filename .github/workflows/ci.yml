@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     env:
@@ -155,32 +155,80 @@ jobs:
             live-e2e-media/live-agent-recording.gif
           echo "video_preview_path=live-e2e-media/live-agent-recording.gif" >> "$GITHUB_OUTPUT"
 
-      - name: Upload live E2E screenshot
-        id: upload_live_screenshot
-        if: always() && steps.live_media.outputs.screenshot_path != ''
-        uses: actions/upload-artifact@v7
-        with:
-          if-no-files-found: error
-          archive: false
-          path: ${{ steps.live_media.outputs.screenshot_path }}
+      - name: Publish live E2E media
+        id: publish_live_media
+        if: always() && env.LIVE_E2E_LLM_API_KEY != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MEDIA_CLEANUP_PREFIX: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}-run-
+          MEDIA_KEEP_RUNS: 3
+          MEDIA_RELEASE_TAG: live-e2e-media
+          MEDIA_RUN_PREFIX: pr-${{ env.LIVE_E2E_PR_NUMBER || 'manual' }}-run-${{ github.run_id }}
+          SCREENSHOT_PATH: ${{ steps.live_media.outputs.screenshot_path || '' }}
+          VIDEO_PATH: ${{ steps.live_media.outputs.video_path || '' }}
+          VIDEO_PREVIEW_PATH: ${{ steps.live_video_preview.outputs.video_preview_path || '' }}
+        run: |
+          set -euo pipefail
 
-      - name: Upload live E2E video preview
-        id: upload_live_video_preview
-        if: always() && steps.live_video_preview.outputs.video_preview_path != ''
-        uses: actions/upload-artifact@v7
-        with:
-          if-no-files-found: error
-          archive: false
-          path: ${{ steps.live_video_preview.outputs.video_preview_path }}
+          if [ -z "$SCREENSHOT_PATH" ] && [ -z "$VIDEO_PREVIEW_PATH" ] && [ -z "$VIDEO_PATH" ]; then
+            echo "No live E2E media was produced."
+            exit 0
+          fi
 
-      - name: Upload live E2E video
-        id: upload_live_video
-        if: always() && steps.live_media.outputs.video_path != ''
-        uses: actions/upload-artifact@v7
-        with:
-          if-no-files-found: error
-          archive: false
-          path: ${{ steps.live_media.outputs.video_path }}
+          if ! gh release view "$MEDIA_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$MEDIA_RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Live E2E media" \
+              --notes "Generated media for live Agent Canvas E2E PR reports." \
+              --prerelease \
+              --latest=false
+          fi
+
+          media_url() {
+            printf 'https://github.com/%s/releases/download/%s/%s\n' "$GITHUB_REPOSITORY" "$MEDIA_RELEASE_TAG" "$1"
+          }
+
+          mkdir -p live-e2e-media/upload
+
+          if [ -n "$SCREENSHOT_PATH" ]; then
+            screenshot_asset="$MEDIA_RUN_PREFIX-live-agent-response.png"
+            cp "$SCREENSHOT_PATH" "live-e2e-media/upload/$screenshot_asset"
+            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$screenshot_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            echo "screenshot_url=$(media_url "$screenshot_asset")" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$VIDEO_PREVIEW_PATH" ]; then
+            video_preview_asset="$MEDIA_RUN_PREFIX-live-agent-recording.gif"
+            cp "$VIDEO_PREVIEW_PATH" "live-e2e-media/upload/$video_preview_asset"
+            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$video_preview_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            echo "video_preview_url=$(media_url "$video_preview_asset")" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$VIDEO_PATH" ]; then
+            video_asset="$MEDIA_RUN_PREFIX-live-agent-recording.webm"
+            cp "$VIDEO_PATH" "live-e2e-media/upload/$video_asset"
+            gh release upload "$MEDIA_RELEASE_TAG" "live-e2e-media/upload/$video_asset" --repo "$GITHUB_REPOSITORY" --clobber
+            echo "video_url=$(media_url "$video_asset")" >> "$GITHUB_OUTPUT"
+          fi
+
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$MEDIA_RELEASE_TAG" --jq '.id')"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[].name' > live-e2e-media-assets.txt
+
+          stale_runs="$(
+            sed -n "s/^${MEDIA_CLEANUP_PREFIX}\([0-9][0-9]*\)-live-agent-.*$/\1/p" live-e2e-media-assets.txt |
+              sort -nr |
+              uniq |
+              tail -n "+$((MEDIA_KEEP_RUNS + 1))"
+          )"
+
+          if [ -n "$stale_runs" ]; then
+            while IFS= read -r stale_run; do
+              [ -n "$stale_run" ] || continue
+              while IFS= read -r asset_name; do
+                [ -n "$asset_name" ] || continue
+                gh release delete-asset "$MEDIA_RELEASE_TAG" "$asset_name" --repo "$GITHUB_REPOSITORY" -y || true
+              done < <(grep "^${MEDIA_CLEANUP_PREFIX}${stale_run}-" live-e2e-media-assets.txt || true)
+            done <<< "$stale_runs"
+          fi
 
       - name: Upload live E2E artifacts
         id: upload_live_artifacts
@@ -221,11 +269,11 @@ jobs:
         if: always()
         env:
           LIVE_E2E_ARTIFACT_URL: ${{ steps.upload_live_artifacts.outputs.artifact-url || '' }}
-          LIVE_E2E_SCREENSHOT_URL: ${{ steps.upload_live_screenshot.outputs.artifact-url || '' }}
+          LIVE_E2E_SCREENSHOT_URL: ${{ steps.publish_live_media.outputs.screenshot_url || '' }}
           LIVE_E2E_STATUS: ${{ steps.live_status.outputs.status }}
           LIVE_E2E_REASON: ${{ steps.live_status.outputs.reason }}
-          LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.upload_live_video_preview.outputs.artifact-url || '' }}
-          LIVE_E2E_VIDEO_URL: ${{ steps.upload_live_video.outputs.artifact-url || '' }}
+          LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.publish_live_media.outputs.video_preview_url || '' }}
+          LIVE_E2E_VIDEO_URL: ${{ steps.publish_live_media.outputs.video_url || '' }}
         run: |
           node scripts/render-live-e2e-report.mjs \
             --status "$LIVE_E2E_STATUS" \
