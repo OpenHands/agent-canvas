@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
 import DocumentIcon from "#/icons/document.svg?react";
@@ -8,7 +7,6 @@ import VSCodeIcon from "#/icons/vscode.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
-import RefreshIcon from "#/icons/u-refresh.svg?react";
 import { cn } from "#/utils/utils";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { ConversationTabNav } from "./conversation-tab-nav";
@@ -21,7 +19,6 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -40,19 +37,6 @@ export function ConversationTabs() {
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
 
-  const queryClient = useQueryClient();
-  const { refetch: refetchGitChanges, isFetching: isFetchingGitChanges } =
-    useUnifiedGetGitChanges();
-
-  // Refreshes the entire Files tab: git changes (diff view) plus the
-  // workspace file list and any cached file contents (file viewer mode).
-  // We invalidate by key prefix so every variant of the query — across
-  // conversations, working dirs, etc. — gets a chance to refetch.
-  const refreshFilesTab = () => {
-    refetchGitChanges();
-    queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
-    queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
-  };
   const { handleBuildPlanClick } = useHandleBuildPlanClick();
   const { curAgentState } = useAgentState();
 
@@ -91,16 +75,9 @@ export function ConversationTabs() {
 
   const { t } = useTranslation("openhands");
 
+  // `files` is intentionally the leftmost tab — it's the primary entry
+  // point for inspecting agent output (workspace files + git diff).
   const tabs = [
-    {
-      tabValue: "planner",
-      isActive: isTabActive("planner"),
-      icon: LessonPlanIcon,
-      onClick: () => selectTab("planner"),
-      tooltipContent: t(I18nKey.COMMON$PLANNER),
-      tooltipAriaLabel: t(I18nKey.COMMON$PLANNER),
-      label: t(I18nKey.COMMON$PLANNER),
-    },
     {
       tabValue: "files",
       isActive: isTabActive("files"),
@@ -109,6 +86,15 @@ export function ConversationTabs() {
       tooltipContent: t(I18nKey.COMMON$FILES),
       tooltipAriaLabel: t(I18nKey.COMMON$FILES),
       label: t(I18nKey.COMMON$FILES),
+    },
+    {
+      tabValue: "planner",
+      isActive: isTabActive("planner"),
+      icon: LessonPlanIcon,
+      onClick: () => selectTab("planner"),
+      tooltipContent: t(I18nKey.COMMON$PLANNER),
+      tooltipAriaLabel: t(I18nKey.COMMON$PLANNER),
+      label: t(I18nKey.COMMON$PLANNER),
     },
     {
       tabValue: "vscode",
@@ -141,7 +127,8 @@ export function ConversationTabs() {
   ];
 
   if (hasTaskList) {
-    tabs.unshift({
+    // Insert after `files` so the leftmost slot stays Files.
+    tabs.splice(1, 0, {
       tabValue: "tasklist",
       isActive: isTabActive("tasklist"),
       icon: DoubleCheckIcon,
@@ -200,22 +187,6 @@ export function ConversationTabs() {
             />
           </ChatActionTooltip>
         ),
-      )}
-      {isTabActive("files") && (
-        <button
-          type="button"
-          className="flex w-[26px] py-1 justify-center items-center gap-[10px] rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={refreshFilesTab}
-          disabled={isFetchingGitChanges}
-          aria-label={t(I18nKey.COMMON$FILES)}
-        >
-          <RefreshIcon
-            width={12.75}
-            height={15}
-            color="#ffffff"
-            className={isFetchingGitChanges ? "animate-spin" : ""}
-          />
-        </button>
       )}
       {isTabActive("planner") && (
         <button

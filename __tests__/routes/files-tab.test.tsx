@@ -5,10 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router";
 
+import FilesTab from "#/routes/files-tab";
+
 // Mocks must be declared before the SUT is imported.
 const useIsGitRepoMock = vi.fn();
 const useWorkspaceFilesMock = vi.fn();
 const useWorkspaceFileContentMock = vi.fn();
+const refetchGitChangesMock = vi.fn();
 
 vi.mock("#/hooks/use-is-git-repo", () => ({
   useIsGitRepo: () => useIsGitRepoMock(),
@@ -23,11 +26,16 @@ vi.mock("#/hooks/query/use-workspace-file-content", () => ({
     useWorkspaceFileContentMock(path),
 }));
 
+vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
+  useUnifiedGetGitChanges: () => ({
+    refetch: refetchGitChangesMock,
+    isFetching: false,
+  }),
+}));
+
 vi.mock("#/routes/changes-tab", () => ({
   default: () => <div data-testid="changes-tab-content">Diff View</div>,
 }));
-
-import FilesTab from "#/routes/files-tab";
 
 function renderTab() {
   const client = new QueryClient({
@@ -47,6 +55,7 @@ describe("FilesTab", () => {
     useIsGitRepoMock.mockReset();
     useWorkspaceFilesMock.mockReset();
     useWorkspaceFileContentMock.mockReset();
+    refetchGitChangesMock.mockReset();
 
     useWorkspaceFilesMock.mockReturnValue({
       data: ["index.html", "src/main.ts", "README.md"],
@@ -55,10 +64,10 @@ describe("FilesTab", () => {
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "index.html",
-        absolutePath: "/work/index.html",
         kind: "text",
         text: "<!doctype html><html><body>hello</body></html>",
-        blobUrl: null,
+        staticUrl:
+          "http://localhost:3000/api/conversations/c1/workspace/index.html",
         mimeType: "text/html",
       },
       isLoading: false,
@@ -84,7 +93,8 @@ describe("FilesTab", () => {
     renderTab();
 
     expect(screen.queryByTestId("changes-tab-content")).not.toBeInTheDocument();
-    expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
+    // Tree is collapsed by default — user expands via the caret.
+    expect(screen.queryByTestId("files-tab-tree")).not.toBeInTheDocument();
     expect(
       screen.getByTestId("files-tab-content-mode-toggle"),
     ).toBeInTheDocument();
@@ -99,14 +109,17 @@ describe("FilesTab", () => {
     expect(screen.getByTestId("changes-tab-content")).toBeInTheDocument();
 
     // Click the "Files" segment of the diff-view toggle.
-    await user.click(
-      screen.getByTestId("files-tab-diff-toggle-option-off"),
-    );
+    await user.click(screen.getByTestId("files-tab-diff-toggle-option-off"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("changes-tab-content")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("changes-tab-content"),
+      ).not.toBeInTheDocument();
     });
-    expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
+    // Quick-row toggle exists and the file-viewer area is shown.
+    expect(
+      screen.getByTestId("file-quick-row-tree-toggle"),
+    ).toBeInTheDocument();
   });
 
   it("auto-selects the highest-priority file on first render", () => {
@@ -123,10 +136,10 @@ describe("FilesTab", () => {
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "logo.png",
-        absolutePath: "/work/logo.png",
         kind: "binary",
         text: null,
-        blobUrl: "blob:fake",
+        staticUrl:
+          "http://localhost:3000/api/conversations/c1/workspace/logo.png",
         mimeType: "application/octet-stream",
       },
       isLoading: false,
@@ -155,20 +168,20 @@ describe("FilesTab", () => {
     expect(pill).toHaveTextContent("src/main.ts");
   });
 
-  it("toggles the left-hand file tree visibility via the caret", async () => {
+  it("collapses the file tree by default and expands it via the caret", async () => {
     useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
     const user = userEvent.setup();
 
     renderTab();
 
-    // Visible by default.
-    expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("file-quick-row-tree-toggle"));
+    // Hidden by default.
     expect(screen.queryByTestId("files-tab-tree")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("file-quick-row-tree-toggle"));
     expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("file-quick-row-tree-toggle"));
+    expect(screen.queryByTestId("files-tab-tree")).not.toBeInTheDocument();
   });
 
   it("renders markdown content via MarkdownRenderer in rich mode", async () => {
@@ -182,10 +195,10 @@ describe("FilesTab", () => {
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "README.md",
-        absolutePath: "/work/README.md",
         kind: "text",
         text: "# Hello\n\nSome **bold** text",
-        blobUrl: null,
+        staticUrl:
+          "http://localhost:3000/api/conversations/c1/workspace/README.md",
         mimeType: "text/markdown",
       },
       isLoading: false,
@@ -205,10 +218,40 @@ describe("FilesTab", () => {
       screen.getByRole("heading", { level: 1, name: "Hello" }),
     ).toBeInTheDocument();
     expect(screen.getByText("bold").tagName.toLowerCase()).toBe("strong");
-    // Markdown rendering uses MarkdownRenderer, not a sandboxed iframe.
+    // Markdown rendering uses MarkdownRenderer, not an iframe.
     expect(
       screen.queryByTestId("file-content-viewer-iframe"),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the static workspace URL as the iframe src for HTML files", async () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useWorkspaceFilesMock.mockReturnValue({
+      data: ["index.html"],
+      isLoading: false,
+    });
+    const staticUrl =
+      "http://localhost:3000/api/conversations/abc/workspace/index.html";
+    useWorkspaceFileContentMock.mockReturnValue({
+      data: {
+        path: "index.html",
+        kind: "text",
+        text: "<!doctype html><body>hi</body>",
+        staticUrl,
+        mimeType: "text/html",
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    renderTab();
+
+    const iframe = await screen.findByTestId("file-content-viewer-iframe");
+    expect(iframe).toBeInTheDocument();
+    expect(iframe).toHaveAttribute("src", staticUrl);
+    // The iframe must not be sandboxed away from itself — relative asset
+    // refs in the served HTML rely on the same-origin static fileserver.
+    expect(iframe).not.toHaveAttribute("sandbox");
   });
 
   it("switches between rich and plain content modes", async () => {
@@ -216,10 +259,10 @@ describe("FilesTab", () => {
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "src/main.ts",
-        absolutePath: "/work/src/main.ts",
         kind: "text",
         text: "console.log('hi');",
-        blobUrl: null,
+        staticUrl:
+          "http://localhost:3000/api/conversations/c1/workspace/src/main.ts",
         mimeType: "text/plain",
       },
       isLoading: false,
@@ -232,8 +275,18 @@ describe("FilesTab", () => {
     await user.click(
       screen.getByTestId("files-tab-content-mode-toggle-option-plain"),
     );
-    expect(
-      screen.getByTestId("file-content-viewer-plain"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("file-content-viewer-plain")).toBeInTheDocument();
+  });
+
+  it("shows the refresh button inside the files-tab toolbar and triggers a refetch", async () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    const user = userEvent.setup();
+
+    renderTab();
+
+    const refresh = screen.getByTestId("files-tab-refresh");
+    expect(refresh).toBeInTheDocument();
+    await user.click(refresh);
+    expect(refetchGitChangesMock).toHaveBeenCalledTimes(1);
   });
 });

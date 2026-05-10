@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { createRemoteWorkspace } from "#/api/typescript-client";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import { buildWorkspaceFileUrl } from "#/utils/workspace-file-url";
 
 // Magic-number sniff for common binary formats we can render via iframe.
 const IMAGE_EXTENSIONS = new Set([
@@ -23,12 +23,16 @@ export type WorkspaceFileKind = "text" | "image" | "pdf" | "binary";
 
 export interface WorkspaceFileContent {
   path: string;
-  absolutePath: string;
   kind: WorkspaceFileKind;
   /** Decoded text contents — only populated when kind === "text". */
   text: string | null;
-  /** Object URL pointing at the file blob — populated for non-text kinds. */
-  blobUrl: string | null;
+  /**
+   * URL pointing at the file on the agent server's static workspace
+   * fileserver (the `/api/conversations/{id}/workspace/...` route added in
+   * software-agent-sdk PR #3192). Suitable to use as an `<iframe src>` or
+   * `<img src>` against unauthenticated agent servers. Always populated.
+   */
+  staticUrl: string;
   /** MIME type guessed from the file extension. */
   mimeType: string;
 }
@@ -98,15 +102,15 @@ function isLikelyBinary(buffer: ArrayBuffer): boolean {
   return false;
 }
 
-function joinPath(workingDir: string, relPath: string): string {
-  const trimmedDir = workingDir.replace(/\/+$/, "");
-  const trimmedPath = relPath.replace(/^\/+/, "");
-  return trimmedPath ? `${trimmedDir}/${trimmedPath}` : trimmedDir;
-}
-
 /**
- * Reads a single file out of the active conversation's workspace and
- * classifies it as text/image/pdf/binary so the UI can pick a renderer.
+ * Reads a single file out of the active conversation's workspace via the
+ * agent server's static workspace fileserver and classifies it as
+ * text/image/pdf/binary so the UI can pick a renderer.
+ *
+ * Image and PDF kinds are rendered directly from `staticUrl` (no fetch
+ * here). Text/binary classification still requires reading the body so
+ * we can run a NUL-byte sniff and decode UTF-8 for the plain/markdown
+ * renderers.
  *
  * Pass a falsy `relativePath` to disable the query (e.g. when no file is
  * selected yet).
@@ -118,7 +122,6 @@ export function useWorkspaceFileContent(relativePath: string | null) {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
-  const workingDir = conversation?.workspace?.working_dir?.trim();
 
   return useQuery<WorkspaceFileContent>({
     queryKey: [
@@ -126,64 +129,64 @@ export function useWorkspaceFileContent(relativePath: string | null) {
       conversationId,
       conversationUrl,
       sessionApiKey,
-      workingDir,
       relativePath,
     ],
     queryFn: async () => {
       if (!relativePath) throw new Error("No path");
-      if (!workingDir) throw new Error("No working dir");
 
-      const absolutePath = joinPath(workingDir, relativePath);
-      const workspace = createRemoteWorkspace({
+      const staticUrl = buildWorkspaceFileUrl({
         conversationUrl,
-        sessionApiKey,
+        conversationId,
+        relativePath,
       });
+      if (!staticUrl) throw new Error("No conversation URL");
 
       const kind = classifyKind(relativePath);
       const mimeType = guessMimeType(relativePath);
 
-      // Always materialise the response as an ArrayBuffer so we can run
-      // the same NUL-byte heuristic on text-classified files.
-      const blob = await workspace.downloadAsBlob(absolutePath);
-      const buffer = await blob.arrayBuffer();
-
-      if (kind === "text") {
-        if (isLikelyBinary(buffer)) {
-          const binaryBlob = new Blob([buffer], {
-            type: "application/octet-stream",
-          });
-          return {
-            path: relativePath,
-            absolutePath,
-            kind: "binary",
-            text: null,
-            blobUrl: URL.createObjectURL(binaryBlob),
-            mimeType: "application/octet-stream",
-          };
-        }
-        const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      // Image / PDF: don't fetch the bytes — the consumer renders them
+      // directly via `staticUrl` in an iframe or <img>.
+      if (kind !== "text") {
         return {
           path: relativePath,
-          absolutePath,
-          kind: "text",
-          text,
-          blobUrl: null,
+          kind,
+          text: null,
+          staticUrl,
           mimeType,
         };
       }
 
-      const typedBlob = new Blob([buffer], { type: mimeType });
+      const response = await fetch(staticUrl, {
+        headers: sessionApiKey
+          ? { "X-Session-API-Key": sessionApiKey }
+          : undefined,
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to read ${relativePath}: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      if (isLikelyBinary(buffer)) {
+        return {
+          path: relativePath,
+          kind: "binary",
+          text: null,
+          staticUrl,
+          mimeType: "application/octet-stream",
+        };
+      }
+
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
       return {
         path: relativePath,
-        absolutePath,
-        kind,
-        text: null,
-        blobUrl: URL.createObjectURL(typedBlob),
+        kind: "text",
+        text,
+        staticUrl,
         mimeType,
       };
     },
     enabled:
-      runtimeIsReady && !!conversationId && !!workingDir && !!relativePath,
+      runtimeIsReady && !!conversationId && !!conversationUrl && !!relativePath,
     retry: false,
     staleTime: 1000 * 5,
     gcTime: 1000 * 60,

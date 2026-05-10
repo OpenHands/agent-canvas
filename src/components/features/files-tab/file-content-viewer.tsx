@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { I18nKey } from "#/i18n/declaration";
@@ -20,30 +19,15 @@ function getExtension(path: string): string {
 }
 
 /**
- * Renders the contents of a single workspace file. In `rich` mode we let the
- * browser render HTML/markdown/images/PDFs through a sandboxed iframe; in
- * `plain` mode we always show the raw bytes as text (or a fallback message
- * for binaries).
+ * Renders the contents of a single workspace file. In `rich` mode we point
+ * an iframe / <img> straight at the agent server's static workspace
+ * fileserver for HTML / SVG / images / PDFs, so relative asset references
+ * load naturally. In `plain` mode we always show the raw bytes as text (or
+ * a fallback message for binaries).
  */
 export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   const { t } = useTranslation("openhands");
   const query = useWorkspaceFileContent(path);
-  const lastBlobUrl = useRef<string | null>(null);
-
-  // Release object URLs when the underlying data changes / the component
-  // unmounts so we don't leak.
-  useEffect(() => {
-    const url = query.data?.blobUrl ?? null;
-    if (lastBlobUrl.current && lastBlobUrl.current !== url) {
-      URL.revokeObjectURL(lastBlobUrl.current);
-    }
-    lastBlobUrl.current = url;
-    return () => {
-      if (lastBlobUrl.current && lastBlobUrl.current !== url) {
-        URL.revokeObjectURL(lastBlobUrl.current);
-      }
-    };
-  }, [query.data?.blobUrl]);
 
   if (query.isLoading) {
     return (
@@ -65,7 +49,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     );
   }
 
-  const { kind, text, blobUrl, mimeType } = query.data;
+  const { kind, text, staticUrl, mimeType } = query.data;
 
   // ----- Plain mode: always raw text, or a fallback for binary. -----
   if (viewMode === "plain") {
@@ -89,15 +73,15 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     );
   }
 
-  // ----- Rich mode: render HTML, markdown, images, PDFs in an iframe. -----
-  if (kind === "image" && blobUrl) {
+  // ----- Rich mode: render HTML, markdown, images, PDFs from staticUrl. ----
+  if (kind === "image") {
     return (
       <div
         className="flex h-full w-full items-center justify-center bg-[#1F2125] p-4"
         data-testid="file-content-viewer-image"
       >
         <img
-          src={blobUrl}
+          src={staticUrl}
           alt={path}
           className="max-h-full max-w-full object-contain"
         />
@@ -105,12 +89,11 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     );
   }
 
-  if (kind === "pdf" && blobUrl) {
+  if (kind === "pdf") {
     return (
       <iframe
         title={path}
-        src={blobUrl}
-        sandbox=""
+        src={staticUrl}
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />
@@ -130,16 +113,12 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   // Text-like content.
   if (mimeType === "text/html" || HTML_LIKE_EXTS.has(getExtension(path))) {
-    const htmlBlob = new Blob([text ?? ""], { type: "text/html" });
-    const htmlUrl = URL.createObjectURL(htmlBlob);
     return (
       <iframe
         title={path}
-        src={htmlUrl}
-        sandbox=""
+        src={staticUrl}
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
-        onLoad={() => URL.revokeObjectURL(htmlUrl)}
       />
     );
   }

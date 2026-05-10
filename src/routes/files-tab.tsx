@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
 import { useIsGitRepo } from "#/hooks/use-is-git-repo";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
+import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { sortFilesByPriority } from "#/utils/file-priority";
 import { FileQuickRow } from "#/components/features/files-tab/file-quick-row";
 import { FileTreeView } from "#/components/features/files-tab/file-tree-view";
 import { FileContentViewer } from "#/components/features/files-tab/file-content-viewer";
 import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import type { ViewMode } from "#/components/features/files-tab/view-mode";
+import RefreshIcon from "#/icons/u-refresh.svg?react";
 import GitChanges from "./changes-tab";
 
 function FilesTab() {
@@ -32,7 +35,9 @@ function FilesTab() {
   const diffViewEnabled = diffViewOverride ?? isGitRepo;
 
   const [contentViewMode, setContentViewMode] = useState<ViewMode>("rich");
-  const [isTreeVisible, setIsTreeVisible] = useState(true);
+  // Collapsed by default — the quick-access pill row at the top is usually
+  // enough; the user can expand the tree on demand.
+  const [isTreeVisible, setIsTreeVisible] = useState(false);
 
   const filesQuery = useWorkspaceFiles();
   const paths = useMemo(() => filesQuery.data ?? [], [filesQuery.data]);
@@ -47,13 +52,27 @@ function FilesTab() {
     if (first) setSelectedPath(first);
   }, [paths, selectedPath]);
 
+  // Refresh button: covers the diff view (git changes) and the file viewer
+  // (workspace listing + cached file contents). Lives in this toolbar — not
+  // in the outer ConversationTabs bar — so it sits with the other
+  // files-tab-local controls.
+  const queryClient = useQueryClient();
+  const { refetch: refetchGitChanges, isFetching: isFetchingGitChanges } =
+    useUnifiedGetGitChanges();
+  const refreshFiles = () => {
+    refetchGitChanges();
+    queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
+    queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
+  };
+
   return (
     <main
       className="h-full w-full flex flex-col items-stretch"
       data-testid="files-tab"
     >
-      {/* Top toolbar: diff toggle + (in non-diff mode) rich/plain toggle. */}
-      <div className="flex items-center justify-between gap-3 px-3 py-1.5 border-b border-[#3A3D44]">
+      {/* Top toolbar: diff/files + rich/plain toggles (left-aligned) plus
+          the refresh button on the right. */}
+      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#3A3D44]">
         <SegmentedToggle<"on" | "off">
           ariaLabel={t(I18nKey.FILES$DIFF_VIEW)}
           testId="files-tab-diff-toggle"
@@ -77,6 +96,22 @@ function FilesTab() {
             onChange={setContentViewMode}
           />
         )}
+
+        <button
+          type="button"
+          onClick={refreshFiles}
+          disabled={isFetchingGitChanges}
+          aria-label={t(I18nKey.COMMON$FILES)}
+          data-testid="files-tab-refresh"
+          className="ml-auto flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RefreshIcon
+            width={12.75}
+            height={15}
+            color="#ffffff"
+            className={isFetchingGitChanges ? "animate-spin" : ""}
+          />
+        </button>
       </div>
 
       {diffViewEnabled ? (

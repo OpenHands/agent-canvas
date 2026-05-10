@@ -53,15 +53,16 @@ vi.mock("#/hooks/use-agent-state", () => ({
   useAgentState: () => ({ curAgentState: mockCurAgentState }),
 }));
 
-const createWrapper = (conversationId: string) => {
-  return ({ children }: { children: React.ReactNode }) => (
-    <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>
-      <QueryClientProvider client={new QueryClient()}>
-        <ActiveBackendProvider>{children}</ActiveBackendProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
-};
+const createWrapper = (conversationId: string) =>
+  function ({ children }: { children: React.ReactNode }) {
+    return (
+      <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveBackendProvider>{children}</ActiveBackendProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
 
 const seedConversationState = (
   conversationId: string,
@@ -253,25 +254,59 @@ describe("ConversationTabs localStorage behavior", () => {
       mockConversationId = REAL_CONVERSATION_ID;
     });
 
-    it("shows the refresh button for the active files tab and refetches changes", async () => {
-      const user = userEvent.setup();
+    it("no longer renders the refresh button in the top tab bar (it now lives inside the Files tab toolbar)", () => {
       setActiveTabState("files");
 
       render(<ConversationTabs />, {
         wrapper: createWrapper(REAL_CONVERSATION_ID),
       });
 
-      const refreshButton = document.querySelector(
-        'button[aria-label="COMMON$FILES"]',
+      // The old conversation-tabs refresh button used aria-label "COMMON$FILES"
+      // on a top-bar <button>. Our `conversation-tab-files` button uses a
+      // different DOM shape, so any <button> matching that aria-label here
+      // would be the legacy refresh button.
+      const buttons = Array.from(
+        document.querySelectorAll('button[aria-label="COMMON$FILES"]'),
       );
-      expect(refreshButton).toBeInTheDocument();
-      if (!refreshButton) {
-        throw new Error("Expected refresh button to be rendered");
-      }
+      // The only remaining match should be the tab nav itself (a button with
+      // data-testid conversation-tab-files), if anything. There must be no
+      // standalone refresh button.
+      const refreshButtons = buttons.filter(
+        (b) => b.getAttribute("data-testid") !== "conversation-tab-files",
+      );
+      expect(refreshButtons).toHaveLength(0);
+    });
 
-      await user.click(refreshButton);
+    it("places the Files tab leftmost in the tab bar", () => {
+      setActiveTabState("files");
 
-      expect(mockRefetchGitChanges).toHaveBeenCalledTimes(1);
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      const tabs = Array.from(
+        document.querySelectorAll('[data-testid^="conversation-tab-"]'),
+      );
+      const testIds = tabs.map((t) => t.getAttribute("data-testid"));
+      // Files must be the first tab rendered in the bar.
+      expect(testIds[0]).toBe("conversation-tab-files");
+    });
+
+    it("keeps Files leftmost even when the task list tab is present", () => {
+      setActiveTabState("files");
+      mockHasTaskList = true;
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      const tabs = Array.from(
+        document.querySelectorAll('[data-testid^="conversation-tab-"]'),
+      );
+      const testIds = tabs.map((t) => t.getAttribute("data-testid"));
+      expect(testIds[0]).toBe("conversation-tab-files");
+      // Task list should still be visible, just not first.
+      expect(testIds).toContain("conversation-tab-tasklist");
     });
 
     it("does not show the build button when the planner tab is inactive", () => {
@@ -391,9 +426,7 @@ describe("ConversationTabs localStorage behavior", () => {
       });
 
       // Assert
-      expect(
-        screen.getByTestId("conversation-tab-vscode"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("conversation-tab-vscode")).toBeInTheDocument();
     });
   });
 
