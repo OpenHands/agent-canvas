@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
 import { useIsGitRepo } from "#/hooks/use-is-git-repo";
+import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { sortFilesByPriority } from "#/utils/file-priority";
 import { FileQuickRow } from "#/components/features/files-tab/file-quick-row";
 import { FileTreeView } from "#/components/features/files-tab/file-tree-view";
@@ -14,6 +15,9 @@ import GitChanges from "./changes-tab";
 
 function FilesTab() {
   const { t } = useTranslation("openhands");
+
+  // Keep the list / content / diff caches fresh as the agent writes files.
+  useAutoRefreshFilesOnEdit();
 
   const { isGitRepo } = useIsGitRepo();
 

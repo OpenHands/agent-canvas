@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
 import DocumentIcon from "#/icons/document.svg?react";
@@ -39,8 +40,19 @@ export function ConversationTabs() {
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
 
+  const queryClient = useQueryClient();
   const { refetch: refetchGitChanges, isFetching: isFetchingGitChanges } =
     useUnifiedGetGitChanges();
+
+  // Refreshes the entire Files tab: git changes (diff view) plus the
+  // workspace file list and any cached file contents (file viewer mode).
+  // We invalidate by key prefix so every variant of the query — across
+  // conversations, working dirs, etc. — gets a chance to refetch.
+  const refreshFilesTab = () => {
+    refetchGitChanges();
+    queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
+    queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
+  };
   const { handleBuildPlanClick } = useHandleBuildPlanClick();
   const { curAgentState } = useAgentState();
 
@@ -193,7 +205,7 @@ export function ConversationTabs() {
         <button
           type="button"
           className="flex w-[26px] py-1 justify-center items-center gap-[10px] rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={() => refetchGitChanges()}
+          onClick={refreshFilesTab}
           disabled={isFetchingGitChanges}
           aria-label={t(I18nKey.COMMON$FILES)}
         >
