@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
-import { buildWorkspaceFileUrl } from "#/utils/workspace-file-url";
+import {
+  joinWorkspaceUrl,
+  useWorkspaceSession,
+} from "#/hooks/query/use-workspace-session";
 
 // Magic-number sniff for common binary formats we can render via iframe.
 const IMAGE_EXTENSIONS = new Set([
@@ -118,34 +121,34 @@ function isLikelyBinary(buffer: ArrayBuffer): boolean {
 export function useWorkspaceFileContent(relativePath: string | null) {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const { data: workspaceSession } = useWorkspaceSession();
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
-  const sessionApiKey = conversation?.session_api_key;
+  const baseUrl = workspaceSession?.baseUrl;
 
   return useQuery<WorkspaceFileContent>({
     queryKey: [
       "workspace-file-content",
       conversationId,
       conversationUrl,
-      sessionApiKey,
+      baseUrl,
       relativePath,
     ],
     queryFn: async () => {
       if (!relativePath) throw new Error("No path");
+      if (!baseUrl) throw new Error("No workspace session");
 
-      const staticUrl = buildWorkspaceFileUrl({
-        conversationUrl,
-        conversationId,
-        relativePath,
-      });
-      if (!staticUrl) throw new Error("No conversation URL");
-
+      const staticUrl = joinWorkspaceUrl(baseUrl, relativePath);
       const kind = classifyKind(relativePath);
       const mimeType = guessMimeType(relativePath);
 
       // Image / PDF: don't fetch the bytes — the consumer renders them
-      // directly via `staticUrl` in an iframe or <img>.
+      // directly via `staticUrl` in an iframe or <img>. The browser
+      // will attach the `oh_workspace_session_key` cookie minted by
+      // `useWorkspaceSession` so the request authenticates without us
+      // having to set any headers (which a top-level <iframe src> can't
+      // do anyway).
       if (kind !== "text") {
         return {
           path: relativePath,
@@ -156,10 +159,12 @@ export function useWorkspaceFileContent(relativePath: string | null) {
         };
       }
 
+      // For our own fetch we also rely on the workspace-session cookie
+      // (it travels because we opt in to credentialed requests). This
+      // replaces the previous `X-Session-API-Key` header: same auth
+      // path the iframe/img uses, no CORS preflight for a custom header.
       const response = await fetch(staticUrl, {
-        headers: sessionApiKey
-          ? { "X-Session-API-Key": sessionApiKey }
-          : undefined,
+        credentials: "include",
       });
       if (!response.ok) {
         throw new Error(`Failed to read ${relativePath}: ${response.status}`);
@@ -185,8 +190,11 @@ export function useWorkspaceFileContent(relativePath: string | null) {
         mimeType,
       };
     },
-    enabled:
-      runtimeIsReady && !!conversationId && !!conversationUrl && !!relativePath,
+    // Gate on `baseUrl`: until `useWorkspaceSession` has minted the
+    // workspace cookie, we cannot fetch `staticUrl` (would 401) and
+    // we'd hand `<iframe src>` a URL that doesn't authenticate. Once
+    // the session resolves the query unblocks automatically.
+    enabled: runtimeIsReady && !!baseUrl && !!relativePath,
     retry: false,
     staleTime: 1000 * 5,
     gcTime: 1000 * 60,

@@ -8,6 +8,9 @@ import {
 import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
+// RemoteConversation + Agent aren't exposed via the typescript-client's
+// `./exports` sub-paths; they're only re-exported from the package root.
+import { Agent, RemoteConversation } from "@openhands/typescript-client";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   getActiveBackend,
@@ -136,4 +139,27 @@ export function createRemoteWorkspace(
     workingDir,
     ...(apiKey ? { apiKey } : {}),
   });
+}
+
+/**
+ * Build a {@link RemoteConversation} bound to an existing conversation id.
+ *
+ * The conversation surfaces methods that need conversation-scoped HTTP
+ * routes — currently only `startWorkspaceSession()` from agent-canvas's
+ * perspective. The `agent` argument on `RemoteConversation` is required by
+ * the constructor but only consulted by `start()`-side APIs; for read-only
+ * / utility calls like `startWorkspaceSession` we pass a minimal stub. We
+ * intentionally do NOT expose this factory beyond callers that have a real
+ * conversation id and a real use for it, so the placeholder agent stays
+ * an implementation detail.
+ */
+export function createRemoteConversation(
+  conversationId: string,
+  overrides?: TypeScriptClientOverrides,
+): RemoteConversation {
+  const workspace = createRemoteWorkspace(overrides);
+  const agent = new Agent({
+    llm: { model: "placeholder", service_id: "placeholder" },
+  });
+  return new RemoteConversation(agent, workspace, { conversationId });
 }
