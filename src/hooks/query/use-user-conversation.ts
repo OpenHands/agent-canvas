@@ -31,13 +31,7 @@ export const useUserConversation = (
     // shared cid key, which then makes the conversation route toast
     // "conversation not available or no permission" until the user
     // hard-refreshes the page. Mirrors `usePaginatedConversations`.
-    queryKey: [
-      "user",
-      "conversation",
-      cid,
-      active.backend.id,
-      active.orgId,
-    ],
+    queryKey: ["user", "conversation", cid, active.backend.id, active.orgId],
     queryFn: async () => {
       if (!cid) return null;
 

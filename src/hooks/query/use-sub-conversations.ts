@@ -31,13 +31,7 @@ export const useSubConversations = (
     // `null` result captured while the cloud backend was active can
     // bleed through to the next local visit. Same invariant as
     // `useUserConversation` and `usePaginatedConversations`.
-    queryKey: [
-      "v1",
-      "sub-conversations",
-      ids,
-      active.backend.id,
-      active.orgId,
-    ],
+    queryKey: ["v1", "sub-conversations", ids, active.backend.id, active.orgId],
     queryFn: async () => {
       if (ids.length === 0) {
         return [];
