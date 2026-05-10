@@ -1,4 +1,6 @@
 import { createServer, type Server } from "node:http";
+import { connect as netConnect, type Socket } from "node:net";
+import type { Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
@@ -301,5 +303,149 @@ describe("ingress route matching", () => {
   it("returns 503 for unmatched routes with no default", async () => {
     const response = await fetch(`http://localhost:${ingressPort}/unknown`);
     expect(response.status).toBe(503);
+  });
+});
+
+describe("ingress socket-error resilience", () => {
+  // Regression coverage for crashes like:
+  //   Error: read ECONNRESET ... Emitted 'error' event on Socket instance
+  // which previously took down the whole ingress process when a WebSocket's
+  // underlying TCP socket reset.
+  let upstream: Server;
+  let upstreamSockets: Duplex[];
+  let ingressProcess: ChildProcess;
+  let ingressStderr: string;
+  const upstreamPort = 29111;
+  const ingressPort = 29110;
+
+  beforeAll(async () => {
+    upstreamSockets = [];
+
+    upstream = createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("ok");
+    });
+
+    // Accept WebSocket upgrades, immediately RST the upstream socket on the
+    // next tick. This reproduces the production crash without requiring a
+    // real WebSocket handshake handler.
+    upstream.on("upgrade", (_req, socket) => {
+      upstreamSockets.push(socket);
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\n" +
+          "Upgrade: websocket\r\n" +
+          "Connection: Upgrade\r\n\r\n",
+      );
+      // Force a TCP RST instead of a clean FIN to mirror ECONNRESET.
+      setImmediate(() => {
+        const s = socket as Duplex & { resetAndDestroy?: () => void };
+        if (typeof s.resetAndDestroy === "function") {
+          s.resetAndDestroy();
+        } else {
+          s.destroy(
+            Object.assign(new Error("forced reset"), { code: "ECONNRESET" }),
+          );
+        }
+      });
+    });
+
+    await new Promise<void>((resolve) => upstream.listen(upstreamPort, resolve));
+
+    ingressStderr = "";
+    ingressProcess = spawn(
+      process.execPath,
+      [
+        ingressScript,
+        "--port",
+        ingressPort.toString(),
+        "--default",
+        `http://localhost:${upstreamPort}`,
+      ],
+      {
+        cwd: repoRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    ingressProcess.stderr?.on("data", (chunk) => {
+      ingressStderr += chunk.toString();
+    });
+
+    await delay(800);
+  });
+
+  afterAll(async () => {
+    ingressProcess?.kill("SIGTERM");
+    for (const s of upstreamSockets) {
+      try {
+        s.destroy();
+      } catch {
+        // ignore
+      }
+    }
+    await new Promise<void>((resolve) => upstream?.close(() => resolve()));
+  });
+
+  function openWebSocketHandshake(port: number): Promise<Socket> {
+    return new Promise((resolve, reject) => {
+      const sock = netConnect({ host: "127.0.0.1", port }, () => {
+        sock.write(
+          "GET /sockets/events/test HTTP/1.1\r\n" +
+            `Host: 127.0.0.1:${port}\r\n` +
+            "Upgrade: websocket\r\n" +
+            "Connection: Upgrade\r\n" +
+            "Sec-WebSocket-Version: 13\r\n" +
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n",
+        );
+        resolve(sock);
+      });
+      // The upstream RST will surface here as ECONNRESET; we just want the
+      // handshake to be initiated, so swallow any error after that.
+      sock.on("error", () => {});
+      sock.once("error", reject);
+    });
+  }
+
+  it("survives upstream WebSocket ECONNRESET without crashing", async () => {
+    // Trigger the bug repeatedly to make sure no path crashes the proxy.
+    for (let i = 0; i < 5; i++) {
+      const client = await openWebSocketHandshake(ingressPort);
+      // Wait long enough for the upstream RST to propagate through the proxy.
+      await delay(150);
+      client.destroy();
+      await delay(50);
+    }
+
+    // Process must still be alive.
+    expect(ingressProcess.exitCode).toBeNull();
+    expect(ingressProcess.signalCode).toBeNull();
+
+    // And it must still be serving HTTP traffic.
+    const response = await fetch(`http://localhost:${ingressPort}/health`);
+    expect(response.status).toBe(200);
+
+    // The unhandled-error crash signature must not appear in stderr.
+    expect(ingressStderr).not.toContain("Unhandled 'error' event");
+    expect(ingressStderr).not.toMatch(/throw er;/);
+  });
+
+  it("survives client aborting an in-flight HTTP request", async () => {
+    // Open and abruptly destroy a TCP connection mid-request to make sure
+    // req/res 'error' events on the client side are handled.
+    const client = netConnect({ host: "127.0.0.1", port: ingressPort }, () => {
+      client.write(
+        "GET /something HTTP/1.1\r\n" +
+          `Host: 127.0.0.1:${ingressPort}\r\n` +
+          "Connection: close\r\n\r\n",
+      );
+      // Reset before the upstream finishes responding.
+      setImmediate(() => client.destroy());
+    });
+    client.on("error", () => {});
+
+    await delay(200);
+
+    expect(ingressProcess.exitCode).toBeNull();
+    expect(ingressProcess.signalCode).toBeNull();
+    expect(ingressStderr).not.toContain("Unhandled 'error' event");
   });
 });
