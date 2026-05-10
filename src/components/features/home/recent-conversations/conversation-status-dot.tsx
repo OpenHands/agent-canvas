@@ -4,6 +4,13 @@ import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 interface ConversationStatusDotProps {
   executionStatus: ExecutionStatus | null | undefined;
+  /**
+   * Wrap the dot in a tooltip showing the human-readable status label.
+   * Disable this when the dot is already nested inside a larger tooltip
+   * (e.g. the collapsed-sidebar conversation preview) so the smaller
+   * tooltip doesn't intercept the hover.
+   */
+  showTooltip?: boolean;
 }
 
 type Visual = "check" | "working" | "paused" | "error" | "unknown";
@@ -101,12 +108,21 @@ function renderIndicator(visual: Visual) {
 
 export function ConversationStatusDot({
   executionStatus,
+  showTooltip = true,
 }: ConversationStatusDotProps) {
   const { t } = useTranslation("openhands");
 
   const visual = visualFor(executionStatus);
   const label = t(labelKeyFor(visual));
   const indicator = renderIndicator(visual);
+
+  const dot = (
+    <div className="w-2.5 h-2.5 flex items-center justify-center shrink-0">
+      {indicator}
+    </div>
+  );
+
+  if (!showTooltip) return dot;
 
   return (
     <StyledTooltip
@@ -115,9 +131,7 @@ export function ConversationStatusDot({
       showArrow
       tooltipClassName="bg-[#1a1a1a] text-white text-xs shadow-lg"
     >
-      <div className="w-2.5 h-2.5 flex items-center justify-center shrink-0">
-        {indicator}
-      </div>
+      {dot}
     </StyledTooltip>
   );
 }

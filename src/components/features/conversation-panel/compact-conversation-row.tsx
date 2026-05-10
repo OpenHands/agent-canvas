@@ -40,7 +40,10 @@ export function CompactConversationRow({
   const preview = (
     <div className="w-[260px] p-3">
       <div className="flex items-center gap-2 mb-1">
-        <ConversationStatusDot executionStatus={executionStatus} />
+        <ConversationStatusDot
+          executionStatus={executionStatus}
+          showTooltip={false}
+        />
         <span className="text-sm font-medium text-white truncate" title={title}>
           {title || "(untitled)"}
         </span>
@@ -77,7 +80,10 @@ export function CompactConversationRow({
           )
         }
       >
-        <ConversationStatusDot executionStatus={executionStatus} />
+        <ConversationStatusDot
+          executionStatus={executionStatus}
+          showTooltip={false}
+        />
       </NavigationLink>
     </Tooltip>
   );

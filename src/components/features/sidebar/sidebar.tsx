@@ -15,7 +15,7 @@ import { SidebarConversationList } from "./sidebar-conversation-list";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import BlockDrawerLeftIcon from "#/icons/block-drawer-left.svg?react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
@@ -178,14 +178,11 @@ export function Sidebar() {
                 collapsed ? "ml-0" : "ml-auto",
               )}
             >
-              <BlockDrawerLeftIcon
-                width={18}
-                height={18}
-                className={cn(
-                  "transition-transform duration-200",
-                  collapsed && "rotate-180",
-                )}
-              />
+              {collapsed ? (
+                <ChevronRight width={18} height={18} />
+              ) : (
+                <ChevronLeft width={18} height={18} />
+              )}
             </button>
           </StyledTooltip>
         </div>
