@@ -4,7 +4,6 @@ import {
   FileClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -30,7 +29,6 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
-  downloadTextFile,
   emptyHooksResponse,
   getDefaultConversationTitle,
   loadSkillsForConversation,
@@ -224,46 +222,6 @@ class AgentServerConversationService {
     return conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
   }
 
-  static async pauseConversation(
-    conversationId: string,
-    conversationUrl: string | null | undefined,
-    sessionApiKey?: string | null,
-  ): Promise<{ success: boolean }> {
-    return new ConversationClient(
-      getAgentServerClientOptions({
-        conversationUrl,
-        sessionApiKey,
-      }),
-    ).pauseConversation(conversationId);
-  }
-
-  static async askAgent(
-    conversationId: string,
-    conversationUrl: string | null | undefined,
-    question: string,
-    sessionApiKey?: string | null,
-  ): Promise<{ response: string }> {
-    return new ConversationClient(
-      getAgentServerClientOptions({
-        conversationUrl,
-        sessionApiKey,
-      }),
-    ).askAgent(conversationId, question);
-  }
-
-  static async resumeConversation(
-    conversationId: string,
-    conversationUrl: string | null | undefined,
-    sessionApiKey?: string | null,
-  ): Promise<{ success: boolean }> {
-    return new ConversationClient(
-      getAgentServerClientOptions({
-        conversationUrl,
-        sessionApiKey,
-      }),
-    ).runConversation(conversationId);
-  }
-
   static async batchGetAppConversations(
     ids: string[],
   ): Promise<(AppConversation | null)[]> {
@@ -278,18 +236,6 @@ class AgentServerConversationService {
     ).getConversations<DirectConversationInfo>(ids);
 
     return data.map((item) => (item ? toAppConversation(item) : null));
-  }
-
-  static async uploadFile(
-    _conversationUrl: string | null | undefined,
-    sessionApiKey: string | null | undefined,
-    file: File,
-    path?: string,
-  ): Promise<void> {
-    const uploadPath = path || `/workspace/${file.name}`;
-    await new RemoteWorkspace(
-      getAgentServerClientOptions({ sessionApiKey }),
-    ).fileUpload(file, uploadPath);
   }
 
   static async getConversationConfig(
@@ -341,12 +287,10 @@ class AgentServerConversationService {
       );
     }
 
-    if (filePath) {
-      return downloadTextFile(filePath);
-    }
-
-    const workingDir = await this.resolveConversationWorkingDir(conversationId);
-    return downloadTextFile(`${workingDir}/.agents_tmp/PLAN.md`);
+    const path =
+      filePath ??
+      `${await this.resolveConversationWorkingDir(conversationId)}/.agents_tmp/PLAN.md`;
+    return new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
   }
 
   static async downloadConversation(conversationId: string): Promise<Blob> {

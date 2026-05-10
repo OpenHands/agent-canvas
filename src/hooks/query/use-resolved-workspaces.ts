@@ -28,8 +28,6 @@ const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
 ];
 
-const getFileClient = () => new FileClient(getAgentServerClientOptions());
-
 /**
  * Returns the merged list of workspaces to display:
  *   - workspaces explicitly added by the user (from the persisted store),
@@ -58,7 +56,10 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
   const parentQueries = useQueries({
     queries: workspaceParents.map((parent) => ({
       queryKey: ["file", "search_subdirs", parent.path],
-      queryFn: () => getFileClient().searchSubdirectories(parent.path),
+      queryFn: () =>
+        new FileClient(getAgentServerClientOptions()).searchSubdirectories(
+          parent.path,
+        ),
       retry: false,
       meta: { disableToast: true },
     })),

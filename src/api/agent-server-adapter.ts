@@ -1,4 +1,4 @@
-import { FileClient, SkillsClient } from "@openhands/typescript-client/clients";
+import { SkillsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -519,10 +519,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
     secretsEncrypted,
     customSecrets,
   });
-}
-
-export async function downloadTextFile(path: string): Promise<string> {
-  return new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
 }
 
 export async function loadSkillsForConversation(

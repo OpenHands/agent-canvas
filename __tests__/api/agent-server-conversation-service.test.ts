@@ -3,7 +3,6 @@ import {
   FileClient,
   SettingsClient,
 } from "@openhands/typescript-client/clients";
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import axios from "axios";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -20,7 +19,6 @@ const {
   mockHttpGet,
   mockHttpPost,
   mockHttpDelete,
-  mockFileUpload,
   mockConversationClient,
   mockFileClient,
   mockSettingsClient,
@@ -30,7 +28,6 @@ const {
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
   mockHttpDelete: vi.fn(),
-  mockFileUpload: vi.fn(),
   mockConversationClient: vi.fn(),
   mockFileClient: vi.fn(),
   mockSettingsClient: vi.fn(),
@@ -59,12 +56,6 @@ vi.mock("@openhands/typescript-client/clients", async () => {
   };
 });
 
-vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
-  RemoteWorkspace: vi.fn(function RemoteWorkspaceMock() {
-    return { fileUpload: mockFileUpload };
-  }),
-}));
-
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
   getAgentServerBaseUrl: vi.fn(() => "http://localhost:54928"),
@@ -90,9 +81,6 @@ describe("AgentServerConversationService", () => {
     mockHttpGet.mockReset();
     mockHttpPost.mockReset();
     mockHttpDelete.mockReset();
-    mockFileUpload.mockReset();
-
-    vi.mocked(RemoteWorkspace).mockClear();
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
     vi.mocked(SettingsClient).mockClear();
@@ -349,60 +337,6 @@ describe("AgentServerConversationService", () => {
       expect(upstream.method).toBe("GET");
       expect(upstream.path).toBe(
         "/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md",
-      );
-    });
-  });
-
-  describe("uploadFile", () => {
-    it("uses query params for file upload path", async () => {
-      const file = new File(["test content"], "test.txt", {
-        type: "text/plain",
-      });
-      const uploadPath = "/workspace/custom/path.txt";
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "test-api-key",
-        file,
-        uploadPath,
-      );
-
-      expect(RemoteWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({ apiKey: "test-api-key" }),
-      );
-      expect(mockFileUpload).toHaveBeenCalledWith(file, uploadPath);
-    });
-
-    it("uses default workspace path when no path provided", async () => {
-      const file = new File(["test content"], "myfile.txt", {
-        type: "text/plain",
-      });
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "test-api-key",
-        file,
-      );
-
-      expect(mockFileUpload).toHaveBeenCalledWith(
-        file,
-        "/workspace/myfile.txt",
-      );
-    });
-
-    it("passes through the selected session key for uploads", async () => {
-      const file = new File(["test content"], "test.txt", {
-        type: "text/plain",
-      });
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "my-session-key",
-        file,
-      );
-
-      expect(RemoteWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({ apiKey: "my-session-key" }),
       );
     });
   });
