@@ -114,6 +114,12 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
         mcp_tool_name: event.tool_name,
       };
       break;
+    case "InvokeSkillAction":
+      actionKey = "ACTION_MESSAGE$INVOKE_SKILL";
+      actionValues = {
+        name: event.action.name,
+      };
+      break;
     case "ThinkAction":
       actionKey = "ACTION_MESSAGE$THINK";
       break;
@@ -211,6 +217,12 @@ const getObservationEventTitle = (
       observationKey = "OBSERVATION_MESSAGE$MCP";
       observationValues = {
         mcp_tool_name: event.observation.tool_name,
+      };
+      break;
+    case "InvokeSkillObservation":
+      observationKey = "OBSERVATION_MESSAGE$INVOKE_SKILL";
+      observationValues = {
+        name: event.observation.skill_name,
       };
       break;
     case "BrowserObservation":

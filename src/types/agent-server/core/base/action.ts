@@ -270,6 +270,13 @@ export interface GrepAction extends ActionBase<"GrepAction"> {
   include: string | null;
 }
 
+export interface InvokeSkillAction extends ActionBase<"InvokeSkillAction"> {
+  /**
+   * Name of the loaded skill to invoke.
+   */
+  name: string;
+}
+
 export type Action =
   | MCPToolAction
   | FinishAction
@@ -291,4 +298,5 @@ export type Action =
   | BrowserSwitchTabAction
   | BrowserCloseTabAction
   | GlobAction
-  | GrepAction;
+  | GrepAction
+  | InvokeSkillAction;
