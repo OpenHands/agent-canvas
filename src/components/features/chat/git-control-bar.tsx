@@ -30,7 +30,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
   const { addRecentRepository } = useHomeStore();
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
@@ -112,7 +114,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             repository.git_provider.charAt(0).toUpperCase() +
             repository.git_provider.slice(1);
           const clonePrompt = `Clone ${repository.full_name} from ${providerName} and checkout branch ${branch.name}.`;
-          setOptimisticUserMessage(clonePrompt);
+          enqueuePendingMessage({ text: clonePrompt });
           sendRef.current({
             action: "message",
             args: {

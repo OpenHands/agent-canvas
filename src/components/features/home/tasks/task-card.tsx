@@ -21,14 +21,16 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task }: TaskCardProps) {
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
   const handleLaunchConversation = () => {
-    setOptimisticUserMessage(t("TASK$ADDRESSING_TASK"));
+    enqueuePendingMessage({ text: t("TASK$ADDRESSING_TASK") });
 
     return createConversation(
       {

@@ -13,7 +13,12 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 export const useHandleBuildPlanClick = () => {
   const { setConversationMode } = useConversationStore();
   const { send } = useSendMessage();
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
+  const markPendingMessageError = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageError,
+  );
 
   const handleBuildPlanClick = useCallback(
     (event?: React.MouseEvent<HTMLButtonElement> | KeyboardEvent) => {
@@ -26,12 +31,19 @@ export const useHandleBuildPlanClick = () => {
       // Create the build prompt to execute the plan
       const buildPrompt = `Execute the plan based on the .agents_tmp/PLAN.md file.`;
 
-      // Send the message to the code agent
+      // Show the prompt as a pending message and send it to the code agent.
       const timestamp = new Date().toISOString();
-      send(createChatMessage(buildPrompt, [], [], timestamp));
-      setOptimisticUserMessage(buildPrompt);
+      const pendingId = enqueuePendingMessage({
+        text: buildPrompt,
+        timestamp,
+      });
+      send(createChatMessage(buildPrompt, [], [], timestamp)).catch((error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to send message";
+        markPendingMessageError(pendingId, errorMessage);
+      });
     },
-    [setConversationMode, send, setOptimisticUserMessage],
+    [setConversationMode, send, enqueuePendingMessage, markPendingMessageError],
   );
 
   return { handleBuildPlanClick };
