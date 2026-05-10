@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { useConversationStore } from "#/stores/conversation-store";
+import { AgentState } from "#/types/agent-state";
 
 const TASK_CONVERSATION_ID = "task-ec03fb2ab8604517b24af632b058c2fd";
 const REAL_CONVERSATION_ID = "conv-abc123";
@@ -23,22 +24,26 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
+const mockRefetchGitChanges = vi.fn();
+let mockIsFetchingGitChanges = false;
 vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
   useUnifiedGetGitChanges: () => ({
-    refetch: vi.fn(),
-    isFetching: false,
+    refetch: mockRefetchGitChanges,
+    isFetching: mockIsFetchingGitChanges,
     data: [],
   }),
 }));
 
+const mockHandleBuildPlanClick = vi.fn();
 vi.mock("#/hooks/use-handle-build-plan-click", () => ({
   useHandleBuildPlanClick: () => ({
-    handleBuildPlanClick: vi.fn(),
+    handleBuildPlanClick: mockHandleBuildPlanClick,
   }),
 }));
 
+let mockCurAgentState = AgentState.AWAITING_USER_INPUT;
 vi.mock("#/hooks/use-agent-state", () => ({
-  useAgentState: () => ({ curAgentState: "AWAITING_USER_INPUT" }),
+  useAgentState: () => ({ curAgentState: mockCurAgentState }),
 }));
 
 const createWrapper = (conversationId: string) => {
@@ -51,16 +56,51 @@ const createWrapper = (conversationId: string) => {
   );
 };
 
+const seedConversationState = (
+  conversationId: string,
+  overrides: Record<string, unknown> = {},
+) => {
+  localStorage.setItem(
+    `conversation-state-${conversationId}`,
+    JSON.stringify({
+      selectedTab: "editor",
+      rightPanelShown: true,
+      unpinnedTabs: [],
+      conversationMode: "code",
+      subConversationTaskId: null,
+      draftMessage: null,
+      ...overrides,
+    }),
+  );
+};
+
+const setActiveTabState = (tab: "editor" | "planner") => {
+  seedConversationState(REAL_CONVERSATION_ID, {
+    selectedTab: tab,
+    rightPanelShown: true,
+  });
+  useConversationStore.setState({
+    selectedTab: tab,
+    isRightPanelShown: true,
+    hasRightPanelToggled: true,
+  });
+};
+
 describe("ConversationTabs localStorage behavior", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.resetAllMocks();
+    mockRefetchGitChanges.mockReset();
+    mockHandleBuildPlanClick.mockReset();
     mockConversationId = TASK_CONVERSATION_ID;
     mockHasTaskList = false;
+    mockIsFetchingGitChanges = false;
+    mockCurAgentState = AgentState.AWAITING_USER_INPUT;
     useConversationStore.setState({
       selectedTab: null,
       isRightPanelShown: false,
       hasRightPanelToggled: false,
+      planContent: null,
     });
   });
 
@@ -190,6 +230,108 @@ describe("ConversationTabs localStorage behavior", () => {
       expect(storedState.selectedTab).toBe("browser");
     });
   });
+
+  describe("tab action buttons", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("shows the refresh button for the active editor tab and refetches changes", async () => {
+      const user = userEvent.setup();
+      setActiveTabState("editor");
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      const refreshButton = document.querySelector(
+        'button[aria-label="COMMON$CHANGES"]',
+      );
+      expect(refreshButton).toBeInTheDocument();
+      if (!refreshButton) {
+        throw new Error("Expected refresh button to be rendered");
+      }
+
+      await user.click(refreshButton);
+
+      expect(mockRefetchGitChanges).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not show the build button when the planner tab is inactive", () => {
+      setActiveTabState("editor");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.queryByTestId("planner-tab-build-button"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the build button when the planner tab is active", async () => {
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeInTheDocument();
+    });
+
+    it("disables the build button when there is no plan content", async () => {
+      setActiveTabState("planner");
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeDisabled();
+    });
+
+    it("disables the build button when the agent is running", async () => {
+      mockCurAgentState = AgentState.RUNNING;
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeDisabled();
+    });
+
+    it("calls the build handler when the build button is clicked", async () => {
+      const user = userEvent.setup();
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      await user.click(await screen.findByTestId("planner-tab-build-button"));
+
+      expect(mockHandleBuildPlanClick).toHaveBeenCalledTimes(1);
+    });
+  });
+
 
   describe("tasklist tab", () => {
     beforeEach(() => {
