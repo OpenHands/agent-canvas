@@ -10,9 +10,19 @@ import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import RepoIcon from "#/icons/repo.svg?react";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
 import { ManageWorkspacesModal } from "#/components/features/home/workspace-dropdown/manage-workspaces-modal";
+
+interface NewConversationButtonProps {
+  /**
+   * Render the trigger as a "+" icon-only button (used by the collapsed
+   * sidebar). The popover content is the same in both modes; only the
+   * trigger pill collapses.
+   */
+  compact?: boolean;
+}
 
 /**
  * "+ New Conversation" trigger that opens an inline popover on top of the
@@ -21,7 +31,9 @@ import { ManageWorkspacesModal } from "#/components/features/home/workspace-drop
  * clicked. The sticky footer still exposes "+ Add Workspace" / "Manage
  * Workspaces" entries.
  */
-export function NewConversationButton() {
+export function NewConversationButton({
+  compact = false,
+}: NewConversationButtonProps = {}) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
@@ -101,30 +113,51 @@ export function NewConversationButton() {
     [],
   );
 
+  const newConversationLabel = t(I18nKey.SIDEBAR$NEW_CONVERSATION);
+
+  const triggerButton = (
+    <button
+      type="button"
+      data-testid="new-conversation-button"
+      onClick={() => setOpen((o) => !o)}
+      aria-expanded={open}
+      aria-label={compact ? newConversationLabel : undefined}
+      className={cn(
+        "flex items-center rounded-md cursor-pointer transition-colors",
+        "text-sm font-medium text-white bg-[#1f1f1f99] hover:bg-[#2a2a2a]",
+        "border border-[#525252]",
+        compact
+          ? "justify-center w-10 h-10 p-0 mx-auto"
+          : "gap-1.5 w-full px-3 py-2",
+      )}
+    >
+      <Plus width={16} height={16} className="shrink-0" />
+      {!compact && newConversationLabel}
+    </button>
+  );
+
   return (
     <div className="relative" ref={popoverRef}>
-      <button
-        type="button"
-        data-testid="new-conversation-button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className={cn(
-          "flex items-center gap-1.5 w-full px-3 py-2 rounded-md",
-          "text-sm font-medium text-white bg-[#1f1f1f99] hover:bg-[#2a2a2a]",
-          "border border-[#525252] cursor-pointer transition-colors",
-        )}
-      >
-        <Plus width={16} height={16} className="shrink-0" />
-        {t(I18nKey.SIDEBAR$NEW_CONVERSATION)}
-      </button>
+      {compact ? (
+        <StyledTooltip content={newConversationLabel} placement="right">
+          {triggerButton}
+        </StyledTooltip>
+      ) : (
+        triggerButton
+      )}
 
       {open && (
         <div
           data-testid="new-conversation-popover"
           className={cn(
-            "absolute z-30 left-0 right-0 top-full mt-2 p-1",
+            "absolute z-30 top-full mt-2 p-1",
             "bg-[#26282D] border border-[#727987] rounded-lg shadow-xl",
             "flex flex-col",
+            // In compact (collapsed) mode the trigger is only ~40px wide, so
+            // anchor the popover to the left edge and give it an explicit
+            // width so it overflows the rail to the right. In expanded mode
+            // it stretches to match the trigger pill's width.
+            compact ? "left-0 w-[260px]" : "left-0 right-0",
           )}
         >
           <ul className="flex flex-col max-h-[40vh] sm:max-h-[280px] overflow-y-auto">
