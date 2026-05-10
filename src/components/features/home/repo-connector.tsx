@@ -1,21 +1,27 @@
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useUserProviders } from "#/hooks/use-user-providers";
 
+import { RepositorySelectionForm } from "./repo-selection-form";
 import { WorkspaceSelectionForm } from "./workspace-selection-form";
 
 export function RepoConnector() {
   const { isLoadingSettings } = useUserProviders();
+  const isCloud = useActiveBackend().backend.kind === "cloud";
 
-  // Agent-canvas talks directly to an `agent_server` backend (there is no
-  // hosted/cloud backend in this build), so the home screen always shows the
-  // local-workspace launcher rather than a git repository picker. If/when a
-  // cloud backend is supported, this component should branch on the backend
-  // mode and render <RepositorySelectionForm /> instead.
+  // Local (agent-server) backends operate on folders on the host machine, so
+  // the launcher shows the workspace picker. Cloud backends run conversations
+  // against remote git repositories, so the launcher shows the git provider /
+  // repo / branch dropdowns instead.
   return (
     <section
       data-testid="repo-connector"
       className="w-full flex flex-col gap-6 rounded-[12px] p-[20px] border border-[#727987] bg-[#26282D] min-h-[263.5px] relative"
     >
-      <WorkspaceSelectionForm isLoadingSettings={isLoadingSettings} />
+      {isCloud ? (
+        <RepositorySelectionForm isLoadingSettings={isLoadingSettings} />
+      ) : (
+        <WorkspaceSelectionForm isLoadingSettings={isLoadingSettings} />
+      )}
     </section>
   );
 }
