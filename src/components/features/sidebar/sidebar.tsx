@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
 import { getErrorStatus, useSettings } from "#/hooks/query/use-settings";
@@ -15,7 +16,6 @@ import { SidebarConversationList } from "./sidebar-conversation-list";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
