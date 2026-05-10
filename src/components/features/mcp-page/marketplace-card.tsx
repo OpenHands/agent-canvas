@@ -49,11 +49,14 @@ export function MarketplaceCard({
           aria-hidden="true"
           className={cn(
             "shrink-0 inline-flex items-center justify-center",
-            "h-10 w-10 rounded-lg text-xl",
+            "h-10 w-10 rounded-lg",
           )}
-          style={{ backgroundColor: entry.iconBg }}
+          style={{
+            backgroundColor: entry.iconBg,
+            color: entry.iconColor ?? "#FFFFFF",
+          }}
         >
-          {entry.icon}
+          {entry.logo}
         </span>
         <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-2">

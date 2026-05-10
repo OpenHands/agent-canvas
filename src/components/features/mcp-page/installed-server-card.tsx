@@ -1,4 +1,5 @@
 import { FaPencil, FaTrash } from "react-icons/fa6";
+import { Puzzle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { MCPServerConfig } from "#/types/mcp-server";
@@ -86,12 +87,13 @@ export function InstalledServerCard({
     >
       <span
         aria-hidden="true"
-        className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg text-xl"
+        className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
         style={{
           backgroundColor: catalog?.iconBg ?? "#3F4452",
+          color: catalog?.iconColor ?? "#FFFFFF",
         }}
       >
-        {catalog?.icon ?? "🧩"}
+        {catalog?.logo ?? <Puzzle className="h-5 w-5" strokeWidth={2.25} />}
       </span>
 
       <div className="flex flex-col min-w-0 flex-1 gap-0.5">

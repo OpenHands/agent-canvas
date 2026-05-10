@@ -320,10 +320,13 @@ export function InstallServerModal({
         <div className="flex items-start gap-3">
           <span
             aria-hidden="true"
-            className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg text-xl"
-            style={{ backgroundColor: entry.iconBg }}
+            className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
+            style={{
+              backgroundColor: entry.iconBg,
+              color: entry.iconColor ?? "#FFFFFF",
+            }}
           >
-            {entry.icon}
+            {entry.logo}
           </span>
           <div className="flex flex-col flex-1">
             <h2 className="text-lg font-semibold">{entry.name}</h2>

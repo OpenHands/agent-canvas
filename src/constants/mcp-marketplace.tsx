@@ -8,6 +8,19 @@
 // "all", but a small subset that only makes sense against a local
 // runtime (filesystem, host postgres) is gated to "local".
 
+import type { ReactNode } from "react";
+import { Folder, Search } from "lucide-react";
+import {
+  SiAtlassian,
+  SiBrave,
+  SiGithub,
+  SiLinear,
+  SiNotion,
+  SiPostgresql,
+  SiSentry,
+  SiSlack,
+} from "react-icons/si";
+
 export type MarketplaceFieldType = "text" | "password";
 
 export interface MarketplaceField {
@@ -60,16 +73,28 @@ export interface MarketplaceEntry {
   description: string;
   /** URL pointing at upstream docs/setup instructions. */
   docsUrl?: string;
-  /** Single emoji rendered as a fallback icon. */
-  icon: string;
+  /**
+   * Brand-correct logo rendered inside the icon tile. Sized to fit the
+   * 40×40 tile (we render at h-5/w-5 inside it). Use `currentColor`
+   * where possible so the parent's `iconColor` controls the fill.
+   */
+  logo: ReactNode;
   /** Background color for the icon tile. */
   iconBg: string;
+  /**
+   * Foreground color for the logo when the icon supports `currentColor`.
+   * Defaults to white; pages on light brand colors (e.g. Notion) override
+   * this to keep contrast.
+   */
+  iconColor?: string;
   /** "all" by default; "local" hides the entry on cloud backends. */
   availability?: "all" | "local";
   /** Short helpful prose shown in the install modal under the title. */
   installHint?: string;
   template: MarketplaceTemplate;
 }
+
+const LOGO_CLASS = "h-5 w-5";
 
 export const MCP_MARKETPLACE: MarketplaceEntry[] = [
   {
@@ -79,7 +104,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Read channels, post messages, and search workspace history from your agent.",
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
-    icon: "💬",
+    logo: <SiSlack className={LOGO_CLASS} />,
     iconBg: "#4A154B",
     installHint:
       "Create a Slack app with the required scopes, then paste its bot token below.",
@@ -114,7 +139,9 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description:
       "Production-grade web search optimized for LLM agents. Free tier available.",
     docsUrl: "https://tavily.com/",
-    icon: "🔎",
+    // Tavily isn't in the simple-icons set; use a search glyph on
+    // their brand blue tile so the marketplace stays icon-consistent.
+    logo: <Search className={LOGO_CLASS} strokeWidth={2.5} />,
     iconBg: "#2563EB",
     installHint:
       "Paste your Tavily API key. OpenHands wires up the Tavily MCP server automatically.",
@@ -127,7 +154,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Search code, manage issues and pull requests, and inspect repos via the GitHub API.",
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
-    icon: "🐙",
+    logo: <SiGithub className={LOGO_CLASS} />,
     iconBg: "#24292F",
     template: {
       kind: "stdio",
@@ -151,7 +178,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description:
       "Browse and update Linear issues, cycles, and projects from the agent.",
     docsUrl: "https://linear.app/changelog/2025-05-01-mcp",
-    icon: "📐",
+    logo: <SiLinear className={LOGO_CLASS} />,
     iconBg: "#5E6AD2",
     installHint:
       "Linear's hosted MCP server uses your Linear OAuth login — no key required.",
@@ -167,8 +194,9 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description:
       "Read and edit Notion pages, databases, and blocks via Notion's MCP server.",
     docsUrl: "https://developers.notion.com/docs/mcp",
-    icon: "📓",
+    logo: <SiNotion className={LOGO_CLASS} />,
     iconBg: "#FFFFFF",
+    iconColor: "#000000",
     template: {
       kind: "stdio",
       serverName: "notion",
@@ -191,7 +219,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description:
       "Triage issues, inspect events, and run Seer fixes against your Sentry org.",
     docsUrl: "https://docs.sentry.io/product/sentry-mcp/",
-    icon: "🛰️",
+    logo: <SiSentry className={LOGO_CLASS} />,
     iconBg: "#362D59",
     template: {
       kind: "shttp",
@@ -205,7 +233,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description:
       "Search Jira issues and Confluence pages via Atlassian's hosted MCP server.",
     docsUrl: "https://www.atlassian.com/platform/remote-mcp-server",
-    icon: "🪐",
+    logo: <SiAtlassian className={LOGO_CLASS} />,
     iconBg: "#0052CC",
     template: {
       kind: "sse",
@@ -220,7 +248,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Privacy-first web and local search using the Brave Search API.",
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
-    icon: "🦁",
+    logo: <SiBrave className={LOGO_CLASS} />,
     iconBg: "#FB542B",
     template: {
       kind: "stdio",
@@ -244,7 +272,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Read-only SQL queries and schema introspection against any Postgres database.",
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
-    icon: "🐘",
+    logo: <SiPostgresql className={LOGO_CLASS} />,
     iconBg: "#336791",
     availability: "local",
     template: {
@@ -271,7 +299,9 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Give the agent secure, scoped filesystem access outside the workspace.",
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-    icon: "📁",
+    // No "filesystem" brand exists; use a folder glyph on a neutral
+    // slate tile.
+    logo: <Folder className={LOGO_CLASS} strokeWidth={2.25} />,
     iconBg: "#525B6F",
     availability: "local",
     installHint:
