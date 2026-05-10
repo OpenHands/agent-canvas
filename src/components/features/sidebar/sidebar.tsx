@@ -147,9 +147,9 @@ export function Sidebar() {
           // the collapsed state on md+ screens.
           "h-[54px] md:h-full",
           collapsed
-            ? "md:w-[80px] md:min-w-[80px]"
+            ? "md:w-[64px] md:min-w-[64px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-1.5 md:pt-4" : "px-3 py-2 md:px-3 md:pt-4",
+          collapsed ? "md:px-2 md:pt-4" : "px-3 py-2 md:px-3 md:pt-4",
           "flex-row md:flex-col",
           currentPath === "/" && "md:pt-6.5 md:pb-3",
         )}
@@ -157,10 +157,10 @@ export function Sidebar() {
         <div
           className={cn(
             "flex items-center gap-2 md:py-1",
-            // Collapsed: keep logo + chevron in the same row so the chevron
-            // sits immediately to the right of the logo. Expanded: chevron
-            // is right-aligned via ml-auto further down.
-            collapsed ? "md:flex-row md:gap-1 md:px-0" : "md:pl-2 md:pr-0",
+            // Collapsed: stack the chevron beneath the logo so the 64px rail
+            // doesn't need to grow to fit two controls in a row. Expanded:
+            // chevron is right-aligned via ml-auto further down.
+            collapsed ? "md:flex-col md:gap-2 md:px-0" : "md:pl-2 md:pr-0",
           )}
         >
           <OpenHandsLogoButton />
@@ -175,18 +175,18 @@ export function Sidebar() {
             onClick={() => setCollapsed((prev) => !prev)}
             className={cn(
               "hidden md:inline-flex items-center justify-center shrink-0",
-              "rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+              "w-7 h-7 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
               "transition-colors cursor-pointer",
               collapsed
-                ? "w-5 h-5"
+                ? "mx-auto"
                 : // ml-auto right-aligns inside the header row; -mr-2 pulls
                   // past the header's own pr-0 + most of the aside's pr-3 so
                   // the caret sits flush against the right edge of the rail.
-                  "w-7 h-7 ml-auto md:-mr-2",
+                  "ml-auto md:-mr-2",
             )}
           >
             {collapsed ? (
-              <ChevronRight width={14} height={14} />
+              <ChevronRight width={18} height={18} />
             ) : (
               <ChevronLeft width={18} height={18} />
             )}
