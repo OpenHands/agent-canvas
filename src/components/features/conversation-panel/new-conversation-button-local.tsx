@@ -138,7 +138,10 @@ export function LocalNewConversationButton({
   );
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div
+      className={cn("relative", compact && "flex justify-center")}
+      ref={popoverRef}
+    >
       {compact ? (
         <StyledTooltip content={newConversationLabel} placement="right">
           {triggerButton}

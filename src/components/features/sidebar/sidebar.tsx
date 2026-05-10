@@ -15,7 +15,6 @@ import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SidebarConversationList } from "./sidebar-conversation-list";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
@@ -148,9 +147,9 @@ export function Sidebar() {
           // the collapsed state on md+ screens.
           "h-[54px] md:h-full",
           collapsed
-            ? "md:w-[64px] md:min-w-[64px]"
+            ? "md:w-[80px] md:min-w-[80px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-2 md:pt-4" : "px-3 py-2 md:px-3 md:pt-4",
+          collapsed ? "md:px-1.5 md:pt-4" : "px-3 py-2 md:px-3 md:pt-4",
           "flex-row md:flex-col",
           currentPath === "/" && "md:pt-6.5 md:pb-3",
         )}
@@ -158,33 +157,40 @@ export function Sidebar() {
         <div
           className={cn(
             "flex items-center gap-2 md:py-1",
-            collapsed ? "md:flex-col md:gap-3 md:px-0" : "md:px-2",
+            // Collapsed: keep logo + chevron in the same row so the chevron
+            // sits immediately to the right of the logo. Expanded: chevron
+            // is right-aligned via ml-auto further down.
+            collapsed ? "md:flex-row md:gap-1 md:px-0" : "md:pl-2 md:pr-0",
           )}
         >
           <OpenHandsLogoButton />
           {/* Desktop-only collapse toggle. Hidden on mobile (the sidebar
-              there is the top bar and doesn't collapse). */}
-          <StyledTooltip content={collapseToggleLabel} placement="right">
-            <button
-              type="button"
-              data-testid="sidebar-collapse-toggle"
-              aria-pressed={collapsed}
-              aria-label={collapseToggleLabel}
-              onClick={() => setCollapsed((prev) => !prev)}
-              className={cn(
-                "hidden md:inline-flex items-center justify-center",
-                "w-7 h-7 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
-                "transition-colors cursor-pointer",
-                collapsed ? "ml-0" : "ml-auto",
-              )}
-            >
-              {collapsed ? (
-                <ChevronRight width={18} height={18} />
-              ) : (
-                <ChevronLeft width={18} height={18} />
-              )}
-            </button>
-          </StyledTooltip>
+              there is the top bar and doesn't collapse). No tooltip — the
+              chevron direction already conveys what the button does. */}
+          <button
+            type="button"
+            data-testid="sidebar-collapse-toggle"
+            aria-pressed={collapsed}
+            aria-label={collapseToggleLabel}
+            onClick={() => setCollapsed((prev) => !prev)}
+            className={cn(
+              "hidden md:inline-flex items-center justify-center shrink-0",
+              "rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+              "transition-colors cursor-pointer",
+              collapsed
+                ? "w-5 h-5"
+                : // ml-auto right-aligns inside the header row; -mr-2 pulls
+                  // past the header's own pr-0 + most of the aside's pr-3 so
+                  // the caret sits flush against the right edge of the rail.
+                  "w-7 h-7 ml-auto md:-mr-2",
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight width={14} height={14} />
+            ) : (
+              <ChevronLeft width={18} height={18} />
+            )}
+          </button>
         </div>
 
         {/* Hide the backend selector when collapsed — it is a wide dropdown
@@ -213,20 +219,20 @@ export function Sidebar() {
             icon={<MessageIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
           <SidebarNavLink
-            to="/automations"
-            label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
-            testId="sidebar-automations-link"
-            disabled={linkDisabled}
-            collapsed={collapsed}
-            icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
-          />
-          <SidebarNavLink
             to="/skills"
             label={t(I18nKey.SIDEBAR$SKILLS)}
             testId="sidebar-skills-link"
             disabled={linkDisabled}
             collapsed={collapsed}
             icon={<SparkleIcon width={ICON_SIZE} height={ICON_SIZE} />}
+          />
+          <SidebarNavLink
+            to="/automations"
+            label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
+            testId="sidebar-automations-link"
+            disabled={linkDisabled}
+            collapsed={collapsed}
+            icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
           {/*
             Integrations tab is currently hidden because it isn't working yet.

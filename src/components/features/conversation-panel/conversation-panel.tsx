@@ -122,7 +122,9 @@ export function ConversationPanel({
   // pagination, which previously caused the panel to feel like it had stray
   // scrollable space at the bottom.
   const olderHidden = olderConversations.length > 0 && !showOlderConversations;
-  const showLoadMore = !!hasNextPage && !olderHidden;
+  // Compact mode also hides "Load more" — paginating into archived
+  // conversations contradicts the "active only" intent of the icon rail.
+  const showLoadMore = !!hasNextPage && !olderHidden && !compact;
 
   const handleDeleteProject = React.useCallback(
     (conversationId: string, title: string) => {
@@ -356,7 +358,11 @@ export function ConversationPanel({
           </div>
         )}
 
-        {(compact || showOlderConversations) &&
+        {/* Older conversations only render when explicitly expanded via
+            "Show all". Compact mode mirrors expanded's default — recent
+            only — so the icon rail isn't packed with archive cruft. */}
+        {!compact &&
+          showOlderConversations &&
           olderConversations.map(renderConversationCard)}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist
