@@ -14,7 +14,7 @@ This guide walks through running Agent Canvas on a virtual machine (VM) so you
 ## Quickstart
 1. **Provision a machine**: this could be a VM on AWS or DigitalOcean, or hardware like a dedicated Mac Mini
 2. **Secure the machine**: make sure it's not exposed to the public internet
-3. **Run the server**: Clone this repo and run `npm run dev:dangerously-dockerless`
+3. **Run the server**: clone this repo and run `npm run dev:dangerously-dockerless`
 4. **Get a domain**: (Optional) point a domain at your machine and set up nginx+letsencrypt
 5. **Connect locally**: (Optional) point your local Agent Canvas to the VM by adding a backend
 
