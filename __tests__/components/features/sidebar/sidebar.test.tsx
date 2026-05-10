@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
 import {
   NavigationProvider,
@@ -97,6 +97,14 @@ function renderSidebar(currentPath: string) {
 }
 
 describe("Sidebar", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
   it.each([["/conversations"], ["/automations"], ["/automations/abc-123"], ["/settings"]])(
     "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
     (currentPath) => {
@@ -116,5 +124,45 @@ describe("Sidebar", () => {
 
     const settingsToggle = screen.getByTestId("sidebar-settings-toggle");
     expect(settingsToggle.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+  });
+
+  it("toggles between expanded and collapsed states and persists the choice", () => {
+    const { unmount } = renderSidebar("/conversations");
+
+    const sidebar = screen.getByRole("navigation").parentElement;
+    expect(sidebar?.dataset.collapsed).toBe("false");
+    // Settings inline toggle is rendered in expanded mode only.
+    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
+
+    const toggle = screen.getByTestId("sidebar-collapse-toggle");
+    fireEvent.click(toggle);
+
+    expect(sidebar?.dataset.collapsed).toBe("true");
+    // Inline settings submenu toggle disappears in the collapsed rail; the
+    // single Settings link remains as the icon entry point.
+    expect(
+      screen.queryByTestId("sidebar-settings-toggle"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-settings-link")).toBeInTheDocument();
+
+    // The choice survives a remount via localStorage.
+    unmount();
+    renderSidebar("/conversations");
+    const remountedSidebar = screen.getByRole("navigation").parentElement;
+    expect(remountedSidebar?.dataset.collapsed).toBe("true");
+  });
+
+  it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {
+    renderSidebar("/conversations");
+
+    for (const testId of [
+      "sidebar-conversations-link",
+      "sidebar-automations-link",
+      "sidebar-skills-link",
+      "sidebar-settings-toggle",
+    ]) {
+      const link = screen.getByTestId(testId);
+      expect(link.querySelector("svg")).not.toBeNull();
+    }
   });
 });

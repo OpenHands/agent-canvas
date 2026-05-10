@@ -10692,6 +10692,12 @@
     "uk": "Навігація бічної панелі",
     "ca": "Navegació de la barra lateral"
   },
+  "SIDEBAR$COLLAPSE": {
+    "en": "Collapse sidebar"
+  },
+  "SIDEBAR$EXPAND": {
+    "en": "Expand sidebar"
+  },
   "FEEDBACK$PUBLIC_LABEL": {
     "en": "Public",
     "zh-CN": "公开",

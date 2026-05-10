@@ -3,11 +3,15 @@ import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { useConversationHistory } from "#/hooks/query/use-conversation-history";
+import {
+  INITIAL_HISTORY_PAGE_SIZE,
+  useConversationHistory,
+} from "#/hooks/query/use-conversation-history";
 import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import type { Conversation } from "#/api/open-hands.types";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
+import type { EventSearchPage } from "#/api/event-service/event-service.types";
 
 function makeConversation(version: "V0" | "V1"): Conversation {
   return {
@@ -26,10 +30,15 @@ function makeConversation(version: "V0" | "V1"): Conversation {
   };
 }
 
-function makeEvent(): OpenHandsEvent {
-  return {
-    id: "evt-1",
-  } as OpenHandsEvent;
+function makeEvent(id = "evt-1", timestamp = "2024-01-01T00:00:00Z") {
+  return { id, timestamp } as unknown as OpenHandsEvent;
+}
+
+function makePage(
+  items: OpenHandsEvent[] = [],
+  nextPageId: string | null = null,
+): EventSearchPage<OpenHandsEvent> {
+  return { items, next_page_id: nextPageId };
 }
 
 // --------------------
@@ -44,7 +53,13 @@ vi.mock("#/api/open-hands-axios", () => ({
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -60,7 +75,7 @@ describe("useConversationHistory", () => {
     vi.clearAllMocks();
   });
 
-  it("calls V1 REST endpoint for V1 conversations", async () => {
+  it("requests the most recent INITIAL_HISTORY_PAGE_SIZE events sorted desc", async () => {
     const v1SearchEventsSpy = vi.spyOn(EventService, "searchEvents");
 
     vi.mocked(useUserConversation).mockReturnValue({
@@ -72,7 +87,7 @@ describe("useConversationHistory", () => {
       refetch: vi.fn(),
     } as any);
 
-    v1SearchEventsSpy.mockResolvedValue([makeEvent()]);
+    v1SearchEventsSpy.mockResolvedValue(makePage([makeEvent()]));
 
     const { result } = renderHook(() => useConversationHistory("conv-123"), {
       wrapper,
@@ -82,17 +97,117 @@ describe("useConversationHistory", () => {
       expect(result.current.data).toBeDefined();
     });
 
-    // searchEvents now accepts (conversationId, limit, conversationUrl,
-    // sessionApiKey). The latter two are forwarded so cloud-mode calls
-    // can target the correct host. In this test fixture they're null
-    // (no conversation_url / session_api_key on the mocked conversation).
+    // Signature: (conversationId, conversationUrl, sessionApiKey, options).
+    // Initial load only fetches the tail (TIMESTAMP_DESC + page-size limit)
+    // so the user sees the most recent 50 events first.
     expect(EventService.searchEvents).toHaveBeenCalledWith(
       "conv-123",
-      100,
       null,
       null,
+      {
+        limit: INITIAL_HISTORY_PAGE_SIZE,
+        sortOrder: "TIMESTAMP_DESC",
+      },
     );
   });
+
+  it("returns events in chronological order even though the server returns desc", async () => {
+    vi.mocked(useUserConversation).mockReturnValue({
+      data: makeConversation("V1"),
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const newest = makeEvent("evt-newest", "2024-02-01T00:00:00Z");
+    const middle = makeEvent("evt-middle", "2024-01-15T00:00:00Z");
+    const oldest = makeEvent("evt-oldest", "2024-01-01T00:00:00Z");
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue(
+      makePage([newest, middle, oldest], "page-2"),
+    );
+
+    const { result } = renderHook(() => useConversationHistory("conv-order"), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    expect(result.current.data?.events.map((e: any) => e.id)).toEqual([
+      "evt-oldest",
+      "evt-middle",
+      "evt-newest",
+    ]);
+    expect(result.current.data?.hasMore).toBe(true);
+    expect(result.current.data?.nextPageId).toBe("page-2");
+  });
+
+  it("treats a full initial page without next_page_id as having more history", async () => {
+    vi.mocked(useUserConversation).mockReturnValue({
+      data: makeConversation("V1"),
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue(
+      makePage(
+        Array.from({ length: INITIAL_HISTORY_PAGE_SIZE }, (_, index) =>
+          makeEvent(`evt-${index}`, new Date(2024, 0, index + 1).toISOString()),
+        ),
+        null,
+      ),
+    );
+
+    const { result } = renderHook(
+      () => useConversationHistory("conv-full-page"),
+      {
+        wrapper,
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    expect(result.current.data?.hasMore).toBe(true);
+  });
+
+  it("throws a descriptive error when searchEvents returns malformed items", async () => {
+    vi.mocked(useUserConversation).mockReturnValue({
+      data: makeConversation("V1"),
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue({
+      items: { bad: true },
+      next_page_id: null,
+    } as unknown as EventSearchPage<OpenHandsEvent>);
+
+    const { result } = renderHook(
+      () => useConversationHistory("conv-malformed"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeInstanceOf(Error);
+    });
+
+    expect((result.current.error as Error).message).toBe(
+      "Invalid conversation history response: expected page.items to be an array.",
+    );
+  });
+
 });
 
 describe("useConversationHistory cache key stability", () => {
@@ -126,7 +241,7 @@ describe("useConversationHistory cache key stability", () => {
 
   it("does not refetch when conversation object changes but version stays the same", async () => {
     const v1Spy = vi.spyOn(EventService, "searchEvents");
-    v1Spy.mockResolvedValue([makeEvent()]);
+    v1Spy.mockResolvedValue(makePage([makeEvent()]));
 
     const conv1 = makeConversation("V1");
     vi.mocked(useUserConversation).mockReturnValue({
@@ -183,7 +298,7 @@ describe("useConversationHistory cache key stability", () => {
 
   it("treats cached history as never stale (staleTime is Infinity)", async () => {
     const v1Spy = vi.spyOn(EventService, "searchEvents");
-    v1Spy.mockResolvedValue([makeEvent()]);
+    v1Spy.mockResolvedValue(makePage([makeEvent()]));
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: makeConversation("V1"),
@@ -215,7 +330,7 @@ describe("useConversationHistory cache key stability", () => {
 
   it("has gcTime of at least 30 minutes for navigation resilience", async () => {
     const v1Spy = vi.spyOn(EventService, "searchEvents");
-    v1Spy.mockResolvedValue([makeEvent()]);
+    v1Spy.mockResolvedValue(makePage([makeEvent()]));
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: makeConversation("V1"),

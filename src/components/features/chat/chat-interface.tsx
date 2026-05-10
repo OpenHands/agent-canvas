@@ -8,6 +8,7 @@ import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
+import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import { TypingIndicator } from "./typing-indicator";
 import { ChatSuggestions } from "./chat-suggestions";
 import { ScrollProvider } from "#/context/scroll-context";
@@ -48,7 +49,8 @@ function getEntryPoint(
 export function ChatInterface() {
   const posthog = usePostHog();
   const { setMessageToSend } = useConversationStore();
-  const { errorMessage, removeErrorMessage } = useErrorMessageStore();
+  const { errorMessage, removeErrorMessage, setErrorMessage } =
+    useErrorMessageStore();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
@@ -57,7 +59,6 @@ export function ChatInterface() {
     allConversationEvents,
     totalEvents,
     hasSubstantiveAgentActions,
-    conversationUserEventsExist,
     userEventsExist,
   } = useFilteredEvents();
   const { setOptimisticUserMessage, getOptimisticUserMessage } =
@@ -113,6 +114,69 @@ export function ChatInterface() {
   const { selectedRepository, replayJson } = useInitialQueryStore();
   const { conversationId } = useOptionalConversationId();
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
+
+  // Lazy "scroll up to load older events" backfill. Initial REST fetch only
+  // returns the most recent page; this hook paginates older events into the
+  // store on demand so the chat doesn't load (potentially) thousands of
+  // events on first render.
+  const {
+    isLoading: isLoadingOlderEvents,
+    hasMore: hasMoreOlderEvents,
+    loadOlder,
+  } = useLoadOlderEvents(conversationId);
+
+  // Trigger `loadOlder` and preserve the visual scroll position once the
+  // older page is merged in (otherwise prepending events would jump the
+  // chat far down). We fire from three places to cover the cases the
+  // browser's scroll event misses:
+  //
+  //   - `onScroll`: normal "user scrolled near the top" path.
+  //   - `onWheel`:  user is already pinned at scrollTop=0 and tries to
+  //                 wheel further up — no scroll event fires past 0.
+  //   - effect:     content is shorter than the viewport (no scrollbar
+  //                 at all), so the user has nothing to scroll. Re-runs
+  //                 as more pages arrive until there's overflow or the
+  //                 server runs out of older events.
+  const SCROLL_TOP_THRESHOLD_PX = 80;
+  const preserveScrollPosition = React.useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const maybeLoadOlder = React.useCallback(
+    (target: HTMLElement) => {
+      if (isLoadingOlderEvents || !hasMoreOlderEvents) return;
+
+      const atTop = target.scrollTop <= SCROLL_TOP_THRESHOLD_PX;
+      const noOverflow =
+        target.scrollHeight <= target.clientHeight + SCROLL_TOP_THRESHOLD_PX;
+      if (!atTop && !noOverflow) return;
+
+      preserveScrollPosition.current = {
+        scrollHeight: target.scrollHeight,
+        scrollTop: target.scrollTop,
+      };
+      loadOlder().catch((error) => {
+        preserveScrollPosition.current = null;
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : t(I18nKey.ERROR$GENERIC);
+        setErrorMessage(message);
+      });
+    },
+    [hasMoreOlderEvents, isLoadingOlderEvents, loadOlder, setErrorMessage, t],
+  );
+
+  const handleWheelForPagination = React.useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      // Browsers don't dispatch a scroll event when scrollTop is already
+      // 0 and the user wheels upward, so onScroll alone misses this case.
+      if (e.deltaY < 0 && e.currentTarget.scrollTop <= 0) {
+        maybeLoadOlder(e.currentTarget);
+      }
+    },
+    [maybeLoadOlder],
+  );
 
   const optimisticUserMessage = getOptimisticUserMessage();
 
@@ -207,8 +271,25 @@ export function ChatInterface() {
     setMessageToSend("");
   };
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive — but only if the user is
+  // already pinned to the bottom. Scrolling up to load older events also
+  // grows `renderableEvents`, and we don't want to yank the user back to the
+  // bottom in that case.
   React.useEffect(() => {
+    // If a "load older" was just triggered, restore the scroll position so
+    // the conversation appears to extend upward instead of jumping.
+    if (preserveScrollPosition.current && scrollRef.current) {
+      const { scrollHeight: prevHeight, scrollTop: prevTop } =
+        preserveScrollPosition.current;
+      const dom = scrollRef.current;
+      const delta = dom.scrollHeight - prevHeight;
+      if (delta > 0) {
+        dom.scrollTop = prevTop + delta;
+      }
+      preserveScrollPosition.current = null;
+      return;
+    }
+
     if (autoScroll) {
       scrollDomToBottom();
     }
@@ -216,6 +297,26 @@ export function ChatInterface() {
     // to scroll when message content changes, not when autoScroll state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderableEvents.length, optimisticUserMessage, scrollDomToBottom]);
+
+  // Auto-load older events when the chat content doesn't overflow the
+  // scroll area (no scrollbar to drag, no wheel events past 0). We
+  // re-run only when the rendered list grows or `hasMore` flips, NOT
+  // when `maybeLoadOlder` re-creates: the underlying hook's `loadOlder`
+  // ref changes whenever its internal `isLoading` toggles, so depending
+  // on `maybeLoadOlder` would re-fire the effect on every failed page
+  // and tight-loop until the server recovered. Driving off
+  // `renderableEvents.length` instead means a successful page (events
+  // grow) chains the next request, while a failed page (events
+  // unchanged) waits for the user to retry.
+  const maybeLoadOlderRef = React.useRef(maybeLoadOlder);
+  React.useEffect(() => {
+    maybeLoadOlderRef.current = maybeLoadOlder;
+  });
+  React.useEffect(() => {
+    const target = scrollRef.current;
+    if (!target) return;
+    maybeLoadOlderRef.current(target);
+  }, [renderableEvents.length, hasMoreOlderEvents]);
 
   // Create a ScrollProvider with the scroll hook values
   const scrollProviderValue = {
@@ -268,7 +369,11 @@ export function ChatInterface() {
 
         <div
           ref={scrollRef}
-          onScroll={(e) => onChatBodyScroll(e.currentTarget)}
+          onScroll={(e) => {
+            onChatBodyScroll(e.currentTarget);
+            maybeLoadOlder(e.currentTarget);
+          }}
+          onWheel={handleWheelForPagination}
           className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2"
         >
           {isChatLoading && isReturningToConversation && (
@@ -281,7 +386,27 @@ export function ChatInterface() {
             </div>
           )}
 
-          {showConversationMessages && conversationUserEventsExist && (
+          {isLoadingOlderEvents && (
+            <div
+              className="flex justify-center py-2"
+              data-testid="loading-older-events"
+            >
+              <LoadingSpinner size="small" />
+            </div>
+          )}
+
+          {/*
+           * Render whenever there's anything to display. Previously this
+           * was gated on `conversationUserEventsExist`, but with the lazy
+           * "50 most recent" REST fetch the initial window may not include
+           * any `source: "user"` events (long agent runs between user
+           * turns). That left the chat blank, leaving the user nothing to
+           * scroll — which is why "scroll up to load older" appeared
+           * broken. The empty-state ChatSuggestions block above still
+           * keeps its own gate (`!userEventsExist && !hasSubstantiveAgentActions`)
+           * so brand-new conversations show suggestions, not an empty chat.
+           */}
+          {showConversationMessages && renderableEvents.length > 0 && (
             <Messages
               messages={renderableEvents}
               allEvents={allConversationEvents}

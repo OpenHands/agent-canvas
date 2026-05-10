@@ -154,6 +154,19 @@ function parseBackendUrl(backendUrl) {
 // Proxy
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Errors that are normal during connection teardown and should not be logged
+// at error level (clients/upstreams routinely reset long-lived connections).
+const BENIGN_SOCKET_ERRORS = new Set([
+  "ECONNRESET",
+  "EPIPE",
+  "ECONNABORTED",
+  "ERR_STREAM_PREMATURE_CLOSE",
+]);
+
+function isBenignSocketError(err) {
+  return Boolean(err && BENIGN_SOCKET_ERRORS.has(err.code));
+}
+
 function proxyRequest(req, res, backendUrl) {
   const backend = parseBackendUrl(backendUrl);
 
@@ -169,16 +182,50 @@ function proxyRequest(req, res, backendUrl) {
   };
 
   const proxyReq = httpRequest(options, (proxyRes) => {
+    proxyRes.on("error", (err) => {
+      if (!isBenignSocketError(err)) {
+        console.error(`Upstream response error for ${req.url}:`, err.message);
+      }
+      if (!res.headersSent) {
+        res.writeHead(502);
+        res.end(`Bad Gateway: ${err.message}`);
+      } else {
+        res.destroy();
+      }
+    });
+
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
   });
 
   proxyReq.on("error", (err) => {
-    console.error(`Proxy error for ${req.url}:`, err.message);
+    if (!isBenignSocketError(err)) {
+      console.error(`Proxy error for ${req.url}:`, err.message);
+    }
     if (!res.headersSent) {
       res.writeHead(502);
       res.end(`Bad Gateway: ${err.message}`);
+    } else {
+      res.destroy();
     }
+  });
+
+  // If the client disconnects mid-request, abort the upstream call so we
+  // don't leak connections or emit unhandled 'error' events.
+  req.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`Client request error for ${req.url}:`, err.message);
+    }
+    proxyReq.destroy();
+  });
+
+  // The outbound HTTP response object can also emit 'error' (e.g. EPIPE if
+  // the client socket is gone). Without a listener Node would crash.
+  res.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`Client response error for ${req.url}:`, err.message);
+    }
+    proxyReq.destroy();
   });
 
   req.pipe(proxyReq, { end: true });
@@ -200,7 +247,36 @@ function proxyWebSocket(req, socket, head, backendUrl) {
 
   const proxyReq = httpRequest(options);
 
+  // Always attach an 'error' handler to the client socket immediately. The
+  // client can drop the connection before the upstream upgrade completes
+  // (e.g. during a slow DNS / connect), and an unhandled 'error' on the raw
+  // TCP socket would crash the entire ingress process.
+  socket.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`WebSocket client socket error for ${req.url}:`, err.message);
+    }
+    proxyReq.destroy();
+  });
+
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    // Once the upgrade is established, errors on either raw TCP socket must
+    // be handled or Node will throw. ECONNRESET / EPIPE on long-lived
+    // WebSocket connections is routine (browser tab closed, NAT timeout,
+    // mobile network handoff, …) and should never crash the proxy.
+    const teardown = (label) => (err) => {
+      if (err && !isBenignSocketError(err)) {
+        console.error(`WebSocket ${label} error for ${req.url}:`, err.message);
+      }
+      socket.destroy();
+      proxySocket.destroy();
+    };
+    proxySocket.on("error", teardown("upstream socket"));
+    // Note: socket already has an 'error' listener from above; add a second
+    // one that also destroys proxySocket so we don't leak the upstream half.
+    socket.on("error", () => proxySocket.destroy());
+    socket.on("close", () => proxySocket.destroy());
+    proxySocket.on("close", () => socket.destroy());
+
     socket.write(
       `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
     );
@@ -218,7 +294,9 @@ function proxyWebSocket(req, socket, head, backendUrl) {
   });
 
   proxyReq.on("error", (err) => {
-    console.error(`WebSocket proxy error for ${req.url}:`, err.message);
+    if (!isBenignSocketError(err)) {
+      console.error(`WebSocket proxy error for ${req.url}:`, err.message);
+    }
     socket.destroy();
   });
 
@@ -254,6 +332,19 @@ function startIngress(config) {
     }
 
     proxyWebSocket(req, socket, head, backend);
+  });
+
+  // Built-in protection against malformed client requests that can otherwise
+  // bubble up as unhandled errors on the underlying TCP socket.
+  server.on("clientError", (err, socket) => {
+    if (!isBenignSocketError(err)) {
+      console.error("Client error:", err.message);
+    }
+    if (socket.writable) {
+      socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+    } else {
+      socket.destroy();
+    }
   });
 
   server.listen(config.port, () => {
@@ -300,6 +391,17 @@ if (Object.keys(config.routes).length === 0 && !config.defaultBackend) {
 }
 
 startIngress(config);
+
+// Last-resort safety net: a benign socket reset on a stream we forgot to wire
+// up should never crash the proxy. Anything else is re-thrown so real bugs
+// stay visible.
+process.on("uncaughtException", (err) => {
+  if (isBenignSocketError(err)) {
+    console.warn(`Ignoring socket reset: ${err.code} ${err.message}`);
+    return;
+  }
+  throw err;
+});
 
 // Handle graceful shutdown
 process.on("SIGINT", () => {
