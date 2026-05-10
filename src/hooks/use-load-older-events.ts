@@ -80,6 +80,12 @@ export const useLoadOlderEvents = (
         },
       );
 
+      if (!Array.isArray(page.items)) {
+        throw new Error(
+          "Invalid older-events response: expected page.items to be an array.",
+        );
+      }
+
       const older = [...page.items].reverse();
       if (older.length > 0) {
         addEvents(older);

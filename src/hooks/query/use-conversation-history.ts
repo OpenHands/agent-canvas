@@ -55,11 +55,18 @@ export const useConversationHistory = (conversationId?: string) => {
         },
       );
 
+      if (!Array.isArray(page.items)) {
+        throw new Error(
+          "Invalid conversation history response: expected page.items to be an array.",
+        );
+      }
+
       // Reverse so callers can append in chronological order.
       const events = [...page.items].reverse();
       return {
         events,
-        hasMore: !!page.next_page_id,
+        hasMore:
+          !!page.next_page_id || page.items.length >= INITIAL_HISTORY_PAGE_SIZE,
         nextPageId: page.next_page_id ?? null,
       };
     },

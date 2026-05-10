@@ -252,6 +252,40 @@ describe("useLoadOlderEvents", () => {
     expect(result.current.hasMore).toBe(true);
   });
 
+  it("throws a descriptive error when searchEvents returns malformed items", async () => {
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeEvent("evt-recent", "2024-06-01T00:00:00Z"));
+    });
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue({
+      items: { bad: true },
+      next_page_id: null,
+    } as unknown as EventSearchPage<OpenHandsEvent>);
+
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    let thrown: unknown;
+    await act(async () => {
+      try {
+        await result.current.loadOlder();
+      } catch (error) {
+        thrown = error;
+      }
+    });
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe(
+      "Invalid older-events response: expected page.items to be an array.",
+    );
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasMore).toBe(true);
+  });
+
+
 
 
   it("stops paginating and throws when the oldest loaded event is missing a timestamp", async () => {

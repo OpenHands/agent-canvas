@@ -53,7 +53,13 @@ vi.mock("#/api/open-hands-axios", () => ({
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -139,6 +145,69 @@ describe("useConversationHistory", () => {
     expect(result.current.data?.hasMore).toBe(true);
     expect(result.current.data?.nextPageId).toBe("page-2");
   });
+
+  it("treats a full initial page without next_page_id as having more history", async () => {
+    vi.mocked(useUserConversation).mockReturnValue({
+      data: makeConversation("V1"),
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue(
+      makePage(
+        Array.from({ length: INITIAL_HISTORY_PAGE_SIZE }, (_, index) =>
+          makeEvent(`evt-${index}`, new Date(2024, 0, index + 1).toISOString()),
+        ),
+        null,
+      ),
+    );
+
+    const { result } = renderHook(
+      () => useConversationHistory("conv-full-page"),
+      {
+        wrapper,
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    expect(result.current.data?.hasMore).toBe(true);
+  });
+
+  it("throws a descriptive error when searchEvents returns malformed items", async () => {
+    vi.mocked(useUserConversation).mockReturnValue({
+      data: makeConversation("V1"),
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue({
+      items: { bad: true },
+      next_page_id: null,
+    } as unknown as EventSearchPage<OpenHandsEvent>);
+
+    const { result } = renderHook(
+      () => useConversationHistory("conv-malformed"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.error).toBeInstanceOf(Error);
+    });
+
+    expect((result.current.error as Error).message).toBe(
+      "Invalid conversation history response: expected page.items to be an array.",
+    );
+  });
+
 });
 
 describe("useConversationHistory cache key stability", () => {

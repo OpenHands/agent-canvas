@@ -53,6 +53,8 @@
 - Shared `Dropdown` open behavior: when the menu opens, it clears the input/search text so callers can show the current selection via `placeholder` while still rendering the full option list. Generic dropdown tests should not expect the selected label to remain in the input after reopening unless the parent explicitly controls that display.
 - `useLoadOlderEvents` needs ref-based `isLoading` / `hasMore` guards in addition to React state because `ChatInterface` can trigger pagination from `onScroll`, `onWheel`, and the no-overflow effect in the same tick; closure-based state alone allows duplicate page requests.
 - `ChatInterface` continuity tests should assert that conversation messages render without the full `chat-messages-skeleton`, not that `data-testid="loading-spinner"` is absent: the lazy older-events indicator reuses the shared `LoadingSpinner` component and legitimately renders that inner test id while history backfill is running.
+- `useConversationHistory` now mirrors the older-events pagination fallback when the first page is exactly `INITIAL_HISTORY_PAGE_SIZE`: treat `next_page_id` **or** a full page as `hasMore`, so older agent-server variants that omit `next_page_id` still allow one more backfill request. The hook and `useLoadOlderEvents` also defensively reject mocked/malformed `page.items` responses before reversing them.
+
 
 - `/server_info` tool capability metadata from `software-agent-sdk` PR #3028 ended up shipping as `usable_tools` (not `available_tools`). Frontend browser-tool gating should key off `usable_tools`, and still default to allowing tools when the server does not advertise tool metadata.
 
