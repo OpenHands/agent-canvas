@@ -142,7 +142,7 @@ export function Sidebar() {
                 "flex items-center justify-between w-full text-sm leading-5 px-3 py-2 rounded-md transition-colors cursor-pointer",
                 isSettingsActive
                   ? "bg-[#1f1f1f99] text-white font-medium"
-                  : "text-[#B1B9D3] hover:text-white hover:bg-[#1f1f1f99]",
+                  : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
               )}
             >
               <span>{t(I18nKey.SIDEBAR$SETTINGS)}</span>

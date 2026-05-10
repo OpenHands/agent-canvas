@@ -556,7 +556,7 @@ function startVite(config) {
       // Point Vite at the ingress (so client-side fetches work)
       VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
+      VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
       // Session API key for frontend to authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,
@@ -689,6 +689,7 @@ async function main(options = {}) {
     bannerTitle = "Agent Canvas + Automation Development Stack",
     startAgentServer: startAgentServerOverride,
     extraPrereqs,
+    viteWorkingDir,
   } = options;
 
   const args = parseArgs();
@@ -704,6 +705,7 @@ async function main(options = {}) {
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
+  if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);

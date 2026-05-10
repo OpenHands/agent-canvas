@@ -57,6 +57,15 @@ const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 // decryptable across docker / non-docker runs.
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 
+// Path inside the container where the agent-server stores per-conversation
+// workspace directories. Mirrors dev-with-automation.mjs's host-side
+// `${stateDir}/workspaces`, but rooted under the container's persistence
+// dir (which is `~/.openhands` on the host, mounted in below). The frontend
+// receives this via VITE_WORKING_DIR so the working_dir it sends to the
+// agent-server is one the container can actually mkdir.
+const CONTAINER_WORKSPACES_DIR =
+  "/home/openhands/.openhands/agent-canvas/workspaces";
+
 /**
  * Resolve the docker image to use based on environment.
  *
@@ -197,6 +206,7 @@ if (isMainModule) {
     bannerTitle: "Agent Canvas + Automation Development Stack (Docker)",
     extraPrereqs: checkDockerPrereqs,
     startAgentServer: startAgentServerDocker,
+    viteWorkingDir: CONTAINER_WORKSPACES_DIR,
   }).catch((err) => {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {
@@ -209,6 +219,7 @@ if (isMainModule) {
 export {
   AGENT_SERVER_REPO,
   CONTAINER_NAME,
+  CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
   resolveAgentServerImage,

@@ -72,6 +72,14 @@ const RouterStub = createRoutesStub([
         Component: () => <div data-testid="outlet-content" />,
       },
       {
+        path: "/conversations",
+        Component: () => <div data-testid="outlet-content" />,
+      },
+      {
+        path: "/conversations/:id",
+        Component: () => <div data-testid="outlet-content" />,
+      },
+      {
         path: "/settings",
         Component: () => <div data-testid="outlet-content" />,
       },
@@ -135,7 +143,12 @@ describe("root layout", () => {
     expect(migrateUserConsentMock).toHaveBeenCalled();
   });
 
-  it.each([["/automations"], ["/automations/abc-123"]])(
+  it.each([
+    ["/automations"],
+    ["/automations/abc-123"],
+    ["/conversations"],
+    ["/conversations/abc-123"],
+  ])(
     "drops the outer layout padding on %s so the page can render flush to the viewport edges",
     (path) => {
       render(
@@ -147,6 +160,7 @@ describe("root layout", () => {
       const layout = screen.getByTestId("root-layout");
       expect(layout.className).not.toMatch(/(^|\s)md:p-3(\s|$)/);
       expect(layout.className).not.toMatch(/(^|\s)md:pl-0(\s|$)/);
+      expect(layout.className).not.toMatch(/(^|\s)md:pr-3(\s|$)/);
     },
   );
 

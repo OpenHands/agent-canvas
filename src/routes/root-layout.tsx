@@ -106,10 +106,12 @@ export default function MainApp() {
   }
 
   let rootLayoutPaddingClass = "p-0 md:p-3 md:pl-0";
-  if (pathname === "/" || pathname.startsWith("/automations")) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/automations") ||
+    pathname.startsWith("/conversations")
+  ) {
     rootLayoutPaddingClass = "p-0";
-  } else if (pathname.startsWith("/conversations")) {
-    rootLayoutPaddingClass = "p-0 md:pr-3";
   }
 
   return (

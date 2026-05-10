@@ -115,4 +115,14 @@ describe("Sidebar", () => {
     expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
     expect(sidebar?.className).not.toMatch(/(^|\s)md:pb-3(\s|$)/);
   });
+
+  it("renders sidebar nav links and the settings toggle with the default text color shared by the settings page nav (text-[#8C8C8C])", () => {
+    renderSidebar("/skills");
+
+    const conversationsLink = screen.getByTestId("sidebar-conversations-link");
+    expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+
+    const settingsToggle = screen.getByTestId("sidebar-settings-toggle");
+    expect(settingsToggle.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+  });
 });
