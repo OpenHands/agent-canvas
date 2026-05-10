@@ -41,9 +41,26 @@ function makeWrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
+  const Wrapper = function WorkspaceSessionTestWrapper({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  };
+  return Wrapper;
+}
+
+// Yields back to the event loop a few microtasks deep so react-query has a
+// chance to schedule (and, in the negative-path tests, to NOT schedule) the
+// query. ESLint forbids returning the timer id from `new Promise(...)`, so
+// we wrap setTimeout in a void callback.
+function flushScheduler(ms = 10): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 beforeEach(() => {
@@ -104,7 +121,7 @@ describe("useWorkspaceSession", () => {
     });
 
     // Give react-query a tick to schedule (it shouldn't).
-    await new Promise((r) => setTimeout(r, 10));
+    await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
     expect(result.current.data).toBeNull();
   });
@@ -114,7 +131,7 @@ describe("useWorkspaceSession", () => {
 
     renderHook(() => useWorkspaceSession(), { wrapper: makeWrapper() });
 
-    await new Promise((r) => setTimeout(r, 10));
+    await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
   });
 

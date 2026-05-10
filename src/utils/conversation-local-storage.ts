@@ -44,7 +44,9 @@ const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
   "tasklist",
 ]);
 
-function sanitizeStoredState(stored: Partial<ConversationState>): Partial<ConversationState> {
+function sanitizeStoredState(
+  stored: Partial<ConversationState>,
+): Partial<ConversationState> {
   // Drop selectedTab values that no longer correspond to a real tab (e.g.
   // "editor" or "served" persisted before the Files tab refactor) so the
   // default fallback is applied instead.
@@ -52,7 +54,8 @@ function sanitizeStoredState(stored: Partial<ConversationState>): Partial<Conver
     stored.selectedTab != null &&
     !VALID_CONVERSATION_TABS.has(stored.selectedTab as ConversationTab)
   ) {
-    const { selectedTab: _drop, ...rest } = stored;
+    const rest = { ...stored };
+    delete rest.selectedTab;
     return rest;
   }
   return stored;
