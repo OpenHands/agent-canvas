@@ -63,14 +63,15 @@ const initialState: OptimisticUserMessageState = {
   pendingMessages: [],
 };
 
-let pendingIdCounter = 0;
-const generatePendingId = (): string => {
-  pendingIdCounter += 1;
-  return `pending-${Date.now()}-${pendingIdCounter}`;
-};
+// Use a timestamp + random suffix instead of a module-level counter so ids
+// stay unique across test resets and don't accumulate state between runs.
+// `crypto.randomUUID` would be ideal but isn't available in older test
+// environments, so a base36 random suffix is a safe lowest-common-denominator.
+const generatePendingId = (): string =>
+  `pending-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
-  (set, get) => ({
+  (set) => ({
     ...initialState,
 
     enqueuePendingMessage: (payload) => {
@@ -116,18 +117,29 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       })),
 
     consumeOldestSendingMessage: (conversationId) => {
-      const oldest = get().pendingMessages.find(
-        (message) =>
-          message.status === "sending" &&
-          message.conversationId === conversationId,
-      );
-      if (!oldest) return null;
-      set((state) => ({
-        pendingMessages: state.pendingMessages.filter(
-          (message) => message.id !== oldest.id,
-        ),
-      }));
-      return oldest;
+      // Atomic find + remove in a single `set` so we can't race against
+      // another action mutating the queue between the read and the write.
+      // The WebSocket transport for a given conversation is sequential, so
+      // FIFO consumption matches the order in which the server echoes user
+      // messages back; scoping by `conversationId` keeps cross-conversation
+      // echoes from popping the wrong bubble.
+      let consumed: PendingUserMessage | null = null;
+      set((state) => {
+        const idx = state.pendingMessages.findIndex(
+          (message) =>
+            message.status === "sending" &&
+            message.conversationId === conversationId,
+        );
+        if (idx === -1) return state;
+        consumed = state.pendingMessages[idx];
+        return {
+          pendingMessages: [
+            ...state.pendingMessages.slice(0, idx),
+            ...state.pendingMessages.slice(idx + 1),
+          ],
+        };
+      });
+      return consumed;
     },
 
     clearPendingMessages: () => set(() => ({ ...initialState })),

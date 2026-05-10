@@ -124,6 +124,8 @@ export function ChatMessage({
 
       {pendingStatus === "sending" && (
         <span
+          role="status"
+          aria-live="polite"
           data-testid="chat-message-sending"
           className="self-end text-xs italic text-content-muted"
         >
@@ -133,6 +135,7 @@ export function ChatMessage({
 
       {pendingStatus === "error" && (
         <span
+          role="alert"
           data-testid="chat-message-error"
           className="self-end text-xs text-status-fail-text"
         >

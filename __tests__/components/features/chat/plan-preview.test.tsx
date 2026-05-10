@@ -56,6 +56,7 @@ vi.mock("#/services/chat-service", () => ({
 
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 
 describe("PlanPreview", () => {
