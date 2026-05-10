@@ -1,5 +1,5 @@
 export * from "./types";
 export * from "./storage";
-export * from "./bundled";
+export * from "./default-backend";
 export * from "./active-store";
 export * from "./auth";

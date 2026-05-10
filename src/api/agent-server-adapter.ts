@@ -7,6 +7,7 @@ import {
   shouldLoadPublicSkills,
 } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import { buildAuthHeaders } from "./backend-registry/auth";
 import {
   GetHooksResponse,
   GetSkillsResponse,
@@ -415,6 +416,7 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
+    worktree: true,
   };
 
   // Add secrets_encrypted flag if secrets are encrypted
@@ -452,27 +454,24 @@ export function buildStartConversationRequest(
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
-  // Add custom secrets as LookupSecret entries
-  // The agent-server will fetch values at runtime from /api/settings/secrets/{name}
+  // Add custom secrets as LookupSecret entries.
+  // The agent-server fetches the value at runtime from
+  // `/api/settings/secrets/{name}` on its own host, so the URL stays
+  // host-relative; auth headers come from the active local backend.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const baseUrl = backend.host;
-    const sessionApiKey = backend.apiKey || null;
+    const headers = buildAuthHeaders(backend);
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {
       const lookupSecret: LookupSecret = {
         kind: "LookupSecret",
-        url: `${baseUrl}/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
         description: secret.description,
       };
 
-      // Include session API key header if configured (local agent-server only —
-      // cloud LookupSecrets aren't fetched by the local runtime).
-      if (sessionApiKey) {
-        lookupSecret.headers = {
-          "X-Session-API-Key": sessionApiKey,
-        };
+      if (Object.keys(headers).length > 0) {
+        lookupSecret.headers = headers;
       }
 
       secrets[secret.name] = lookupSecret;

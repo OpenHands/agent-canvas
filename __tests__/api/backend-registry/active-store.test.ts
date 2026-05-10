@@ -6,7 +6,7 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import { BUNDLED_BACKEND_ID } from "#/api/backend-registry/types";
+import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
 
 beforeEach(() => {
@@ -28,10 +28,18 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const localBackend: Backend = {
+  id: "local-1",
+  name: "Local 1",
+  host: "http://localhost:9000",
+  apiKey: "k",
+  kind: "local",
+};
+
 describe("active-store", () => {
-  it("falls back to the bundled backend when nothing is selected", () => {
+  it("seeds the registry with a default local backend on first read and uses it as the active backend", () => {
     const { backend, orgId } = getActiveBackend();
-    expect(backend.id).toBe(BUNDLED_BACKEND_ID);
+    expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
     expect(backend.kind).toBe("local");
     expect(orgId).toBeNull();
   });
@@ -45,12 +53,22 @@ describe("active-store", () => {
     expect(orgId).toBe("org-2");
   });
 
-  it("falls back to bundled when the active backend was removed", () => {
-    setRegisteredBackends([cloudBackend]);
+  it("falls back to the first local backend when the active selection points at a removed entry", () => {
+    setRegisteredBackends([cloudBackend, localBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: null });
-    setRegisteredBackends([]);
+    setRegisteredBackends([localBackend]);
 
-    expect(getActiveBackend().backend.id).toBe(BUNDLED_BACKEND_ID);
+    expect(getActiveBackend().backend).toEqual(localBackend);
+    expect(getActiveBackend().orgId).toBeNull();
+  });
+
+  it("falls back to a synthetic env-derived backend when the registry has no local entry", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection(null);
+
+    const { backend } = getActiveBackend();
+    expect(backend.kind).toBe("local");
+    expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
   });
 
   it("notifies subscribers when selection changes", () => {

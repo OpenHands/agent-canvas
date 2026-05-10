@@ -121,12 +121,17 @@ export function Sidebar() {
             testId="sidebar-skills-link"
             disabled={linkDisabled}
           />
-          <SidebarNavLink
+          {/*
+            Integrations tab is currently hidden because it isn't working yet.
+            The underlying route and logic are still wired up — devs are
+            welcome to uncomment this block and experiment.
+          */}
+          {/* <SidebarNavLink
             to="/integrations"
             label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
             testId="sidebar-integrations-link"
             disabled={linkDisabled}
-          />
+          /> */}
           <div className="hidden md:flex flex-col gap-0.5">
             <button
               type="button"

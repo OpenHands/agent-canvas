@@ -701,13 +701,13 @@ async function main(options = {}) {
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites();
-  if (typeof extraPrereqs === "function") {
-    extraPrereqs(config);
-  }
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   ensureDirectories(config);
+  if (typeof extraPrereqs === "function") {
+    extraPrereqs(config);
+  }
 
   // Start services phase
   logStep("2/2", "Starting services...");

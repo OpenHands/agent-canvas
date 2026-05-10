@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
-import { BUNDLED_BACKEND_ID } from "#/api/backend-registry/types";
+import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   ActiveBackendProvider,
   useActiveBackendContext,
@@ -31,16 +31,20 @@ afterEach(() => {
 });
 
 describe("ActiveBackendProvider", () => {
-  it("exposes the bundled backend by default", () => {
+  it("seeds the default local backend on first read and treats it as active", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
 
-    expect(result.current.active.backend.id).toBe(BUNDLED_BACKEND_ID);
-    expect(result.current.backends).toEqual([]);
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.backends).toHaveLength(1);
+    expect(result.current.backends[0]).toMatchObject({
+      id: DEFAULT_LOCAL_BACKEND_ID,
+      kind: "local",
+    });
   });
 
-  it("addBackend persists and exposes the new backend", () => {
+  it("addBackend persists and exposes the new backend alongside the seeded default", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
@@ -54,8 +58,11 @@ describe("ActiveBackendProvider", () => {
       });
     });
 
-    expect(result.current.backends).toHaveLength(1);
-    expect(result.current.backends[0]).toMatchObject({
+    // Seed entry plus the new one.
+    expect(result.current.backends).toHaveLength(2);
+    expect(
+      result.current.backends.find((b) => b.name === "Production"),
+    ).toMatchObject({
       name: "Production",
       kind: "cloud",
     });
@@ -92,7 +99,7 @@ describe("ActiveBackendProvider", () => {
     expect(queryClient.getQueryData(["dummy"])).toEqual({ value: 1 });
   });
 
-  it("removeBackend falls back to bundled if the active was removed", () => {
+  it("removeBackend falls back to the seeded default when the active backend is removed", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
@@ -115,8 +122,28 @@ describe("ActiveBackendProvider", () => {
     act(() => {
       result.current.removeBackend(id);
     });
-    expect(result.current.active.backend.id).toBe(BUNDLED_BACKEND_ID);
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.backends).toHaveLength(1);
+    expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+  });
+
+  it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    expect(result.current.backends).toHaveLength(1);
+
+    act(() => {
+      result.current.removeBackend(DEFAULT_LOCAL_BACKEND_ID);
+    });
+
     expect(result.current.backends).toEqual([]);
+    // No registered backend remains, so the active store synthesizes
+    // an env-derived local backend (with the well-known default id) so
+    // synchronous call sites never have to handle a null backend.
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.active.backend.kind).toBe("local");
   });
 
   it("throws if used outside the provider", () => {

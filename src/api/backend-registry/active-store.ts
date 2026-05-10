@@ -1,16 +1,11 @@
-import { getBundledBackend } from "./bundled";
+import { makeDefaultLocalBackend } from "./default-backend";
 import {
   readStoredActiveBackend,
   readStoredBackends,
   writeStoredActiveBackend,
   writeStoredBackends,
 } from "./storage";
-import {
-  BUNDLED_BACKEND_ID,
-  type Backend,
-  type BackendSelection,
-  type ResolvedActiveBackend,
-} from "./types";
+import type { Backend, BackendSelection, ResolvedActiveBackend } from "./types";
 
 type Listener = () => void;
 
@@ -20,25 +15,40 @@ interface Snapshot {
   active: ResolvedActiveBackend;
 }
 
+/**
+ * Pick the local backend the GUI should talk to for local-protocol calls
+ * (settings, conversations, secrets, …). Prefers the user's first
+ * registered local backend. As a last resort — when the registry has no
+ * local entry at all — synthesize one from env/agent-server-config so
+ * synchronous call sites never have to handle a `null` backend; the
+ * synthesized entry is never persisted.
+ */
+function pickLocalBackend(backends: Backend[]): Backend {
+  const firstLocal = backends.find((b) => b.kind === "local");
+  return firstLocal ?? makeDefaultLocalBackend();
+}
+
 function computeSnapshot(
   backends: Backend[],
   selection: BackendSelection | null,
 ): Snapshot {
-  const bundled = getBundledBackend();
-
-  let activeBackend: Backend = bundled;
+  let activeBackend: Backend | null = null;
   let activeOrgId: string | null = null;
 
   if (selection) {
-    activeOrgId = selection.orgId ?? null;
-    if (selection.backendId !== BUNDLED_BACKEND_ID) {
-      const found = backends.find((b) => b.id === selection.backendId);
-      if (found) {
-        activeBackend = found;
-      } else {
-        activeOrgId = null; // selection points at a removed backend
-      }
+    const found = backends.find((b) => b.id === selection.backendId);
+    if (found) {
+      activeBackend = found;
+      activeOrgId = selection.orgId ?? null;
     }
+    // If the selection points at a removed backend, fall through to
+    // the unselected case below; we also drop the orgId since it only
+    // makes sense in the context of a specific cloud backend.
+  }
+
+  if (!activeBackend) {
+    activeBackend = pickLocalBackend(backends);
+    activeOrgId = null;
   }
 
   return {
@@ -69,13 +79,14 @@ export function getActiveBackend(): ResolvedActiveBackend {
  * Most of the GUI's services (settings reads/writes, conversation CRUD,
  * skills/MCP/secrets, etc.) speak the local agent-server's protocol —
  * they would fail against a cloud SaaS host. When the user has chosen a
- * cloud backend as active, those calls fall back to the bundled local
- * agent-server. Cloud-only call sites import `getActiveBackend` directly.
+ * cloud backend as active, those calls fall back to the first registered
+ * local backend (or the env-derived default if none exists). Cloud-only
+ * call sites import `getActiveBackend` directly.
  */
 export function getEffectiveLocalBackend(): Backend {
   const active = snapshot.active.backend;
-  if (active.kind === "cloud") return getBundledBackend();
-  return active;
+  if (active.kind === "local") return active;
+  return pickLocalBackend(snapshot.backends);
 }
 
 export function getRegisteredBackends(): Backend[] {
@@ -102,7 +113,6 @@ export function setRegisteredBackends(backends: Backend[]): void {
   let nextSelection = snapshot.selection;
   if (
     nextSelection &&
-    nextSelection.backendId !== BUNDLED_BACKEND_ID &&
     !backends.some((b) => b.id === nextSelection!.backendId)
   ) {
     nextSelection = null;

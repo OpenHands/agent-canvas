@@ -4,8 +4,10 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   statSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
 import net from "node:net";
 import { homedir } from "node:os";
@@ -40,10 +42,81 @@ export function generateRandomApiKey() {
   return randomBytes(32).toString("hex");
 }
 
-// Auto-generate a random session API key for this dev session.
-// This ensures the agent-server API is authenticated even in local dev.
-// Set SESSION_API_KEY env var to use a consistent key across restarts.
-const DEFAULT_SESSION_API_KEY = generateRandomApiKey();
+// Where the auto-generated default session API key is persisted so it stays
+// stable across `npm run dev` / `npm run dev:dangerously-dockerless` /
+// `npm run dev:docker` restarts. Keeping the key stable means the value
+// baked into the frontend (VITE_SESSION_API_KEY) and the persisted
+// backend-registry entry (`openhands-backends` localStorage) stay in sync
+// without users needing to set anything in `.env`.
+//
+// To rotate the key, delete this file. To pin a key explicitly, export
+// SESSION_API_KEY (or OH_SESSION_API_KEYS_0 / VITE_SESSION_API_KEY) -- those
+// take precedence over the persisted file.
+export const DEFAULT_SESSION_API_KEY_PATH = path.join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "session-api-key.txt",
+);
+
+// Cache so repeated lookups within a single process return the same key,
+// keyed by file path so tests can use temp paths in isolation.
+const persistedSessionApiKeyCache = new Map();
+
+/**
+ * Load the persisted default session API key, generating + persisting one if
+ * the file doesn't exist yet.
+ *
+ * Best-effort: if the file can't be written (e.g. read-only home dir), we
+ * fall back to an in-memory key for this process so dev still works -- the
+ * key just won't survive a restart.
+ *
+ * @param {string} filePath - Where to read/write the key.
+ * @returns {string} The (hex) session API key.
+ */
+export function getOrCreatePersistedSessionApiKey(
+  filePath = DEFAULT_SESSION_API_KEY_PATH,
+) {
+  const cached = persistedSessionApiKeyCache.get(filePath);
+  if (cached) return cached;
+
+  // Try to read an existing key.
+  try {
+    const existing = readFileSync(filePath, "utf8").trim();
+    if (existing) {
+      persistedSessionApiKeyCache.set(filePath, existing);
+      return existing;
+    }
+    // File exists but is empty -- treat as if missing and regenerate.
+  } catch (error) {
+    if (!isEnoentError(error)) {
+      console.warn(
+        `Could not read persisted session API key from ${filePath}: ${error.message}. Regenerating.`,
+      );
+    }
+  }
+
+  // Generate and persist a new key.
+  const newKey = generateRandomApiKey();
+  try {
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, `${newKey}\n`, { mode: 0o600 });
+  } catch (error) {
+    console.warn(
+      `Could not persist session API key to ${filePath}: ${error.message}. Falling back to in-memory key (will not survive restarts).`,
+    );
+  }
+  persistedSessionApiKeyCache.set(filePath, newKey);
+  return newKey;
+}
+
+/**
+ * Clear the in-memory cache used by {@link getOrCreatePersistedSessionApiKey}.
+ * Intended for tests that swap the persisted file path between cases.
+ */
+export function resetPersistedSessionApiKeyCache() {
+  persistedSessionApiKeyCache.clear();
+}
 
 function isEnoentError(error) {
   return Boolean(
@@ -400,16 +473,24 @@ function buildConfigFromPorts(ports, cwd, env) {
   const workspacesPath = path.join(stateDir, "workspaces");
   // Use provided secret key or default for local development
   const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
-  // Use provided session API key or auto-generated random key for this session
+  // Use provided session API key or fall back to a key persisted to
+  // ~/.openhands/agent-canvas/session-api-key.txt. Persisting on disk keeps
+  // the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
+  // `openhands-backends` localStorage entries the frontend has cached all
+  // pointing at the same value across dev restarts.
+  //
   // Check multiple env vars that may be used:
   // - SESSION_API_KEY: Common name
   // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
   // - VITE_SESSION_API_KEY: Used by frontend config
+  // OH_SESSION_API_KEY_PATH overrides the persisted file path (used by tests).
+  const persistedKeyPath =
+    env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH;
   const sessionApiKey =
     env.SESSION_API_KEY ||
     env.OH_SESSION_API_KEYS_0 ||
     env.VITE_SESSION_API_KEY ||
-    DEFAULT_SESSION_API_KEY;
+    getOrCreatePersistedSessionApiKey(persistedKeyPath);
 
   return {
     cwd,
@@ -565,7 +646,9 @@ async function main() {
     process.env.OH_SESSION_API_KEYS_0 ||
     process.env.VITE_SESSION_API_KEY
       ? "custom (from env)"
-      : "auto-generated (random)";
+      : `persisted (${
+          process.env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH
+        })`;
 
   console.log(`- agent-server: ${agentServerCmd.source}`);
   console.log(`- backend: ${config.backendBaseUrl}`);

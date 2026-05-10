@@ -54,13 +54,15 @@ export function DropdownMenu({
                 className: cn(
                   "px-2 py-2 cursor-pointer text-sm rounded-md",
                   "text-white focus:outline-none font-normal",
+                  "flex items-center gap-2",
                   selectedItem?.value === option.value
                     ? "bg-[#C9B974] text-black"
                     : "hover:bg-[#5C5D62]",
                 ),
               })}
             >
-              {option.label}
+              {option.prefix}
+              <span className="min-w-0 truncate">{option.label}</span>
             </li>
           ))}
       </ul>

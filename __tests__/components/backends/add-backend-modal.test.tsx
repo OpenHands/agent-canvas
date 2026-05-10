@@ -104,14 +104,17 @@ describe("AddBackendModal", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    expect(stored).toMatchObject([
-      {
-        name: "Local Extra",
-        host: "http://127.0.0.1:18002",
-        apiKey: "",
-        kind: "local",
-      },
-    ]);
+    // The seeded default ("Local") is in the list alongside the new
+    // entry. Find the user-added one to assert its shape.
+    const added = stored.find(
+      (b: { name: string }) => b.name === "Local Extra",
+    );
+    expect(added).toMatchObject({
+      name: "Local Extra",
+      host: "http://127.0.0.1:18002",
+      apiKey: "",
+      kind: "local",
+    });
   });
 
   it("keeps submit disabled for cloud backends until an API key is entered", async () => {
@@ -153,8 +156,11 @@ describe("AddBackendModal", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    expect(stored).toHaveLength(1);
-    expect(stored[0]).toMatchObject({
+    // The seeded default ("Local") is in the list alongside the new
+    // entry. Find the user-added one to assert its shape.
+    expect(stored).toHaveLength(2);
+    const added = stored.find((b: { name: string }) => b.name === "Local 1");
+    expect(added).toMatchObject({
       name: "Local 1",
       host: "http://localhost:9000",
       apiKey: "k",

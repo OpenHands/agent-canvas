@@ -1,8 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { buildExtraBackendConfig } from "../../scripts/dev-extra-backend.mjs";
-import { buildSafeDevConfig } from "../../scripts/dev-safe.mjs";
+import {
+  buildSafeDevConfig,
+  resetPersistedSessionApiKeyCache,
+} from "../../scripts/dev-safe.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -10,9 +15,26 @@ const repoRoot = path.resolve(
 );
 
 describe("buildExtraBackendConfig", () => {
+  const keyDirs: string[] = [];
+
+  afterEach(() => {
+    while (keyDirs.length > 0) {
+      const dir = keyDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+    resetPersistedSessionApiKeyCache();
+  });
+
+  function isolatedKeyPath(): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "extra-backend-key-"));
+    keyDirs.push(dir);
+    return path.join(dir, "session-api-key.txt");
+  }
+
   it("defaults to ports 18002/18003 distinct from the bundled instance", () => {
-    const bundled = buildSafeDevConfig(repoRoot, {});
-    const extra = buildExtraBackendConfig(repoRoot, {});
+    const env = { OH_SESSION_API_KEY_PATH: isolatedKeyPath() };
+    const bundled = buildSafeDevConfig(repoRoot, env);
+    const extra = buildExtraBackendConfig(repoRoot, env);
 
     expect(extra.backendPort).toBe(18002);
     expect(extra.vscodePort).toBe(18003);
@@ -26,6 +48,7 @@ describe("buildExtraBackendConfig", () => {
     const config = buildExtraBackendConfig(repoRoot, {
       OH_CANVAS_EXTRA_BACKEND_PORT: "29000",
       OH_CANVAS_EXTRA_VSCODE_PORT: "29001",
+      OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
     });
 
     expect(config.backendPort).toBe(29000);
@@ -34,7 +57,10 @@ describe("buildExtraBackendConfig", () => {
   });
 
   it("shares state dir, conversations, bash events, and secret key with the bundled config", () => {
-    const env = { OH_CANVAS_SAFE_STATE_DIR: "/tmp/canvas-state" };
+    const env = {
+      OH_CANVAS_SAFE_STATE_DIR: "/tmp/canvas-state",
+      OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
+    };
     const bundled = buildSafeDevConfig(repoRoot, env);
     const extra = buildExtraBackendConfig(repoRoot, env);
 
@@ -49,6 +75,7 @@ describe("buildExtraBackendConfig", () => {
     expect(() =>
       buildExtraBackendConfig(repoRoot, {
         OH_CANVAS_EXTRA_BACKEND_PORT: "not-a-port",
+        OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
       }),
     ).toThrow(/Invalid port/);
   });

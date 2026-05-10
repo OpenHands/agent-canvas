@@ -88,18 +88,19 @@ describe("BackendSyncedSettingsBadge", () => {
     __resetActiveStoreForTests();
   });
 
-  it("renders the bundled local backend label and host URL without HTML-escaping", () => {
-    // Arrange — no registered backends; resolved active falls back to bundled.
+  it("renders the seeded default local backend label and host URL without HTML-escaping", () => {
+    // Arrange — no explicit setRegisteredBackends() in this test; the
+    // active store auto-seeds a default local backend named "Local".
     // Act
     renderBadge();
 
-    // Assert — the bundled name slot resolves to BACKEND$LOCAL_ROW and the
-    // host URL is preserved literally (no `&#x2F;` from i18next escape).
+    // Assert — the default name slot resolves to "Local" and the host
+    // URL is preserved literally (no `&#x2F;` from i18next escape).
     const text = screen.getByTestId(
       "backend-synced-settings-badge",
     ).textContent;
     expect(text).toMatch(
-      /These settings are synced from BACKEND\$LOCAL_ROW backend \(https?:\/\/.+\)/,
+      /These settings are synced from Local backend \(https?:\/\/.+\)/,
     );
     expect(text).not.toContain("&#x2F;");
   });
