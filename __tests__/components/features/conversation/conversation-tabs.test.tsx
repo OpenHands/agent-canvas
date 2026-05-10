@@ -5,6 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { useConversationStore } from "#/stores/conversation-store";
+import {
+  ActiveBackendProvider,
+} from "#/contexts/active-backend-context";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  ACTIVE_BACKEND_STORAGE_KEY,
+  BACKENDS_STORAGE_KEY,
+} from "#/api/backend-registry/storage";
+import type { Backend } from "#/api/backend-registry/types";
 
 const TASK_CONVERSATION_ID = "task-ec03fb2ab8604517b24af632b058c2fd";
 const REAL_CONVERSATION_ID = "conv-abc123";
@@ -27,15 +36,25 @@ const createWrapper = (conversationId: string) => {
   return ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>
       <QueryClientProvider client={new QueryClient()}>
-        {children}
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
       </QueryClientProvider>
     </MemoryRouter>
   );
 };
 
+function seedActiveBackend(backend: Backend): void {
+  localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
+  localStorage.setItem(
+    ACTIVE_BACKEND_STORAGE_KEY,
+    JSON.stringify({ backendId: backend.id, orgId: null }),
+  );
+  __resetActiveStoreForTests();
+}
+
 describe("ConversationTabs localStorage behavior", () => {
   beforeEach(() => {
     localStorage.clear();
+    __resetActiveStoreForTests();
     vi.resetAllMocks();
     mockConversationId = TASK_CONVERSATION_ID;
     mockHasTaskList = false;
@@ -170,6 +189,54 @@ describe("ConversationTabs localStorage behavior", () => {
         localStorage.getItem(`conversation-state-${REAL_CONVERSATION_ID}`)!,
       );
       expect(storedState.selectedTab).toBe("browser");
+    });
+  });
+
+  describe("vscode tab visibility by backend kind", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("should hide the vscode tab when the active backend is local", () => {
+      // Arrange: active backend is local (default behavior)
+      seedActiveBackend({
+        id: "local-test",
+        name: "Local Test",
+        host: "http://localhost:8000",
+        apiKey: "",
+        kind: "local",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.queryByTestId("conversation-tab-vscode"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should show the vscode tab when the active backend is cloud", () => {
+      // Arrange: active backend is cloud
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.getByTestId("conversation-tab-vscode"),
+      ).toBeInTheDocument();
     });
   });
 

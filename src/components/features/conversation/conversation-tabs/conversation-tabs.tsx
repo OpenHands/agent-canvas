@@ -19,6 +19,7 @@ import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useTaskList } from "#/hooks/use-task-list";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 export function ConversationTabs() {
   const { conversationId } = useConversationId();
@@ -30,6 +31,7 @@ export function ConversationTabs() {
     useConversationLocalStorageState(conversationId);
 
   const { hasTaskList } = useTaskList();
+  const { backend } = useActiveBackend();
 
   const {
     selectTab,
@@ -136,10 +138,12 @@ export function ConversationTabs() {
     });
   }
 
-  // Filter out unpinned tabs
-  const visibleTabs = tabs.filter(
-    (tab) => !persistedState.unpinnedTabs.includes(tab.tabValue),
-  );
+  // Filter out unpinned tabs, and hide the VSCode tab on local backends
+  // (the agent-server's VSCode URL is only reachable in cloud deployments).
+  const visibleTabs = tabs.filter((tab) => {
+    if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
+    return !persistedState.unpinnedTabs.includes(tab.tabValue);
+  });
 
   return (
     <div
