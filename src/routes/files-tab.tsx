@@ -32,6 +32,7 @@ function FilesTab() {
   const diffViewEnabled = diffViewOverride ?? isGitRepo;
 
   const [contentViewMode, setContentViewMode] = useState<ViewMode>("rich");
+  const [isTreeVisible, setIsTreeVisible] = useState(true);
 
   const filesQuery = useWorkspaceFiles();
   const paths = useMemo(() => filesQuery.data ?? [], [filesQuery.data]);
@@ -94,18 +95,22 @@ function FilesTab() {
                 paths={paths}
                 selectedPath={selectedPath}
                 onSelectFile={setSelectedPath}
+                isTreeVisible={isTreeVisible}
+                onToggleTree={() => setIsTreeVisible((prev) => !prev)}
               />
               <div className="flex flex-1 min-h-0">
-                <aside
-                  className="w-56 shrink-0 border-r border-[#3A3D44] overflow-y-auto custom-scrollbar-always"
-                  data-testid="files-tab-tree"
-                >
-                  <FileTreeView
-                    paths={paths}
-                    selectedPath={selectedPath}
-                    onSelectFile={setSelectedPath}
-                  />
-                </aside>
+                {isTreeVisible && (
+                  <aside
+                    className="w-56 shrink-0 border-r border-[#3A3D44] overflow-y-auto custom-scrollbar-always"
+                    data-testid="files-tab-tree"
+                  >
+                    <FileTreeView
+                      paths={paths}
+                      selectedPath={selectedPath}
+                      onSelectFile={setSelectedPath}
+                    />
+                  </aside>
+                )}
                 <section
                   className="flex-1 min-w-0 min-h-0"
                   data-testid="files-tab-content"

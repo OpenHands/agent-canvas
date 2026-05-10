@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
+import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
 import type { ViewMode } from "./view-mode";
 
 interface FileContentViewerProps {
@@ -11,6 +12,7 @@ interface FileContentViewerProps {
 }
 
 const HTML_LIKE_EXTS = new Set(["html", "htm", "svg"]);
+const MARKDOWN_EXTS = new Set(["md", "markdown", "mdx"]);
 
 function getExtension(path: string): string {
   const idx = path.lastIndexOf(".");
@@ -42,35 +44,6 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
       }
     };
   }, [query.data?.blobUrl]);
-
-  // For markdown, build a small HTML wrapper so the iframe renders
-  // something readable in "rich" mode. We deliberately avoid pulling in a
-  // markdown library here — the iframe is sandboxed, and the goal is just a
-  // best-effort preview, not a full editor experience.
-  const markdownIframeUrl = useMemo(() => {
-    if (!query.data || query.data.kind !== "text") return null;
-    if (getExtension(path) !== "md" && getExtension(path) !== "markdown") {
-      return null;
-    }
-    const text = query.data.text ?? "";
-    const escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 16px; color: #222; background: #fff; }
-      pre { white-space: pre-wrap; }
-    </style></head><body><pre>${escaped}</pre></body></html>`;
-    const blob = new Blob([html], { type: "text/html" });
-    return URL.createObjectURL(blob);
-  }, [query.data, path]);
-
-  useEffect(
-    () => () => {
-      if (markdownIframeUrl) URL.revokeObjectURL(markdownIframeUrl);
-    },
-    [markdownIframeUrl],
-  );
 
   if (query.isLoading) {
     return (
@@ -171,15 +144,20 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     );
   }
 
-  if (markdownIframeUrl) {
+  if (kind === "text" && MARKDOWN_EXTS.has(getExtension(path))) {
     return (
-      <iframe
-        title={path}
-        src={markdownIframeUrl}
-        sandbox=""
-        data-testid="file-content-viewer-iframe"
-        className="h-full w-full bg-white"
-      />
+      <div
+        data-testid="file-content-viewer-markdown"
+        className="h-full w-full overflow-auto bg-white text-[#222] custom-scrollbar-always"
+      >
+        <div className="prose prose-sm max-w-none p-6">
+          <MarkdownRenderer
+            content={text ?? ""}
+            includeStandard
+            includeHeadings
+          />
+        </div>
+      </div>
     );
   }
 

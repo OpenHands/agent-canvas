@@ -145,6 +145,72 @@ describe("FilesTab", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows full file paths (not just basenames) as quick-row pills", () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+
+    renderTab();
+
+    // The pill for src/main.ts should display the full relative path.
+    const pill = screen.getByTestId("file-quick-row-item-src/main.ts");
+    expect(pill).toHaveTextContent("src/main.ts");
+  });
+
+  it("toggles the left-hand file tree visibility via the caret", async () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    const user = userEvent.setup();
+
+    renderTab();
+
+    // Visible by default.
+    expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("file-quick-row-tree-toggle"));
+    expect(screen.queryByTestId("files-tab-tree")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("file-quick-row-tree-toggle"));
+    expect(screen.getByTestId("files-tab-tree")).toBeInTheDocument();
+  });
+
+  it("renders markdown content via MarkdownRenderer in rich mode", async () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    // Only expose a markdown file so it is auto-selected as the first
+    // priority entry.
+    useWorkspaceFilesMock.mockReturnValue({
+      data: ["README.md"],
+      isLoading: false,
+    });
+    useWorkspaceFileContentMock.mockReturnValue({
+      data: {
+        path: "README.md",
+        absolutePath: "/work/README.md",
+        kind: "text",
+        text: "# Hello\n\nSome **bold** text",
+        blobUrl: null,
+        mimeType: "text/markdown",
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("file-content-viewer-markdown"),
+      ).toBeInTheDocument();
+    });
+
+    // react-markdown turns "# Hello" into an <h1>.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Hello" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("bold").tagName.toLowerCase()).toBe("strong");
+    // Markdown rendering uses MarkdownRenderer, not a sandboxed iframe.
+    expect(
+      screen.queryByTestId("file-content-viewer-iframe"),
+    ).not.toBeInTheDocument();
+  });
+
   it("switches between rich and plain content modes", async () => {
     useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
     useWorkspaceFileContentMock.mockReturnValue({
