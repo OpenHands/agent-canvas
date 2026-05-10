@@ -14964,6 +14964,23 @@
     "uk": "OpenHands ще не вніс жодних змін",
     "ca": "L'OpenHands encara no ha fet cap canvi"
   },
+  "DIFF_VIEWER$FILE_DELETED": {
+    "en": "This file was deleted. Its previous contents are no longer available for preview.",
+    "ja": "このファイルは削除されました。以前の内容はプレビューできません。",
+    "zh-CN": "此文件已被删除，无法预览其先前内容。",
+    "zh-TW": "此檔案已被刪除，無法預覽其先前內容。",
+    "ko-KR": "이 파일은 삭제되었습니다. 이전 내용은 더 이상 미리 볼 수 없습니다.",
+    "no": "Denne filen ble slettet. Det tidligere innholdet er ikke lenger tilgjengelig for forhåndsvisning.",
+    "it": "Questo file è stato eliminato. Il contenuto precedente non è più disponibile per l'anteprima.",
+    "pt": "Este arquivo foi excluído. Seu conteúdo anterior não está mais disponível para visualização.",
+    "es": "Este archivo fue eliminado. Su contenido anterior ya no está disponible para previsualización.",
+    "ar": "تم حذف هذا الملف. لم يعد محتواه السابق متاحًا للمعاينة.",
+    "fr": "Ce fichier a été supprimé. Son contenu précédent n'est plus disponible pour l'aperçu.",
+    "tr": "Bu dosya silindi. Önceki içeriği artık önizleme için kullanılamıyor.",
+    "de": "Diese Datei wurde gelöscht. Ihr früherer Inhalt steht nicht mehr zur Vorschau zur Verfügung.",
+    "uk": "Цей файл було видалено. Його попередній вміст більше недоступний для перегляду.",
+    "ca": "Aquest fitxer s'ha eliminat. El seu contingut anterior ja no està disponible per a la previsualització."
+  },
   "DIFF_VIEWER$WAITING_FOR_RUNTIME": {
     "en": "Waiting for runtime to start...",
     "ja": "ランタイムの起動を待っています...",
