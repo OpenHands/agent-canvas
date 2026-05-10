@@ -8,6 +8,7 @@ import VSCodeIcon from "#/icons/vscode.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
+import RefreshIcon from "#/icons/u-refresh.svg?react";
 import { cn } from "#/utils/utils";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { ConversationTabNav } from "./conversation-tab-nav";
@@ -20,10 +21,16 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
+import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
+import { useAgentState } from "#/hooks/use-agent-state";
+import { AgentState } from "#/types/agent-state";
+import { Typography } from "#/ui/typography";
 
 export function ConversationTabs() {
   const { conversationId } = useConversationId();
-  const { setHasRightPanelToggled, setSelectedTab } = useConversationStore();
+  const { setHasRightPanelToggled, setSelectedTab, planContent } =
+    useConversationStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -32,6 +39,11 @@ export function ConversationTabs() {
 
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
+
+  const { refetch: refetchGitChanges, isFetching: isFetchingGitChanges } =
+    useUnifiedGetGitChanges();
+  const { handleBuildPlanClick } = useHandleBuildPlanClick();
+  const { curAgentState } = useAgentState();
 
   const {
     selectTab,
@@ -145,6 +157,11 @@ export function ConversationTabs() {
     return !persistedState.unpinnedTabs.includes(tab.tabValue);
   });
 
+  const isAgentRunning =
+    curAgentState === AgentState.RUNNING ||
+    curAgentState === AgentState.LOADING;
+  const isBuildDisabled = isAgentRunning || !planContent;
+
   return (
     <div
       className={cn(
@@ -182,13 +199,48 @@ export function ConversationTabs() {
           </ChatActionTooltip>
         ),
       )}
+      {isTabActive("editor") && (
+        <button
+          type="button"
+          className="flex w-[26px] py-1 justify-center items-center gap-[10px] rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => refetchGitChanges()}
+          disabled={isFetchingGitChanges}
+          aria-label={t(I18nKey.COMMON$CHANGES)}
+        >
+          <RefreshIcon
+            width={12.75}
+            height={15}
+            color="#ffffff"
+            className={isFetchingGitChanges ? "animate-spin" : ""}
+          />
+        </button>
+      )}
+      {isTabActive("planner") && (
+        <button
+          type="button"
+          onClick={handleBuildPlanClick}
+          disabled={isBuildDisabled}
+          className={cn(
+            "flex items-center justify-center h-5 min-w-17 px-2 rounded bg-white transition-opacity",
+            isBuildDisabled
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:opacity-90 cursor-pointer",
+          )}
+          data-testid="planner-tab-build-button"
+        >
+          <Typography.Text className="text-black text-[11px] font-medium leading-5">
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            {t(I18nKey.COMMON$BUILD)} ⌘↩
+          </Typography.Text>
+        </button>
+      )}
       <div className="relative">
         <button
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className={cn(
             "p-1 pl-0 rounded-md cursor-pointer",
-            "text-[#9299AA] bg-[#0D0F11]",
+            "text-[#9299AA] bg-transparent hover:text-white",
           )}
           aria-label={t(I18nKey.COMMON$MORE_OPTIONS)}
         >
