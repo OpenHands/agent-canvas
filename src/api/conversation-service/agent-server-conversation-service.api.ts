@@ -1,4 +1,10 @@
 import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationClient,
+  FileClient,
+  VSCodeClient,
+} from "@openhands/typescript-client/clients";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -32,12 +38,7 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  createConversationClient,
-  createFileClient,
-  createRemoteWorkspace,
-  createVSCodeClient,
-} from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -62,9 +63,13 @@ class AgentServerConversationService {
     conversationId: string,
     message: SendMessageRequest,
   ): Promise<SendMessageResponse> {
-    await createConversationClient().sendEvent(conversationId, message, {
-      run: true,
-    });
+    await new ConversationClient(getAgentServerClientOptions()).sendEvent(
+      conversationId,
+      message,
+      {
+        run: true,
+      },
+    );
 
     return message;
   }
@@ -119,10 +124,9 @@ class AgentServerConversationService {
       workingDir,
     });
 
-    const data =
-      await createConversationClient().createConversation<DirectConversationInfo>(
-        payload,
-      );
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).createConversation<DirectConversationInfo>(payload);
 
     if (metadata?.selected_repository) {
       // The agent-server runtime has no concept of selected repo/branch, so
@@ -197,10 +201,12 @@ class AgentServerConversationService {
       await this.resolveConversationWorkingDir(conversationId);
     // Local mode: the typescript-client targets the local agent-server
     // directly via the conversationUrl override.
-    const vscodeUrl = await createVSCodeClient({
-      conversationUrl,
-      sessionApiKey,
-    }).getUrl({
+    const vscodeUrl = await new VSCodeClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).getUrl({
       baseUrl:
         typeof window !== "undefined" ? window.location.origin : undefined,
       workspaceDir,
@@ -223,10 +229,12 @@ class AgentServerConversationService {
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    return createConversationClient({
-      conversationUrl,
-      sessionApiKey,
-    }).pauseConversation(conversationId);
+    return new ConversationClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).pauseConversation(conversationId);
   }
 
   static async askAgent(
@@ -235,10 +243,12 @@ class AgentServerConversationService {
     question: string,
     sessionApiKey?: string | null,
   ): Promise<{ response: string }> {
-    return createConversationClient({
-      conversationUrl,
-      sessionApiKey,
-    }).askAgent(conversationId, question);
+    return new ConversationClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).askAgent(conversationId, question);
   }
 
   static async resumeConversation(
@@ -246,10 +256,12 @@ class AgentServerConversationService {
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    return createConversationClient({
-      conversationUrl,
-      sessionApiKey,
-    }).runConversation(conversationId);
+    return new ConversationClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).runConversation(conversationId);
   }
 
   static async batchGetAppConversations(
@@ -261,10 +273,9 @@ class AgentServerConversationService {
       return batchGetCloudConversations(ids);
     }
 
-    const data =
-      await createConversationClient().getConversations<DirectConversationInfo>(
-        ids,
-      );
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).getConversations<DirectConversationInfo>(ids);
 
     return data.map((item) => (item ? toAppConversation(item) : null));
   }
@@ -276,7 +287,9 @@ class AgentServerConversationService {
     path?: string,
   ): Promise<void> {
     const uploadPath = path || `/workspace/${file.name}`;
-    await createRemoteWorkspace({ sessionApiKey }).fileUpload(file, uploadPath);
+    await new RemoteWorkspace(
+      getAgentServerClientOptions({ sessionApiKey }),
+    ).fileUpload(file, uploadPath);
   }
 
   static async getConversationConfig(
@@ -341,7 +354,9 @@ class AgentServerConversationService {
       return downloadCloudConversation(conversationId);
     }
 
-    return createFileClient().downloadTrajectory(conversationId);
+    return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
+      conversationId,
+    );
   }
 
   static async getSkills(conversationId: string): Promise<GetSkillsResponse> {
@@ -383,10 +398,12 @@ class AgentServerConversationService {
             authMode: "session-api-key",
             sessionApiKey,
           })
-        : await createConversationClient({
-            conversationUrl,
-            sessionApiKey,
-          }).getConversation<RawRuntime>(conversationId);
+        : await new ConversationClient(
+            getAgentServerClientOptions({
+              conversationUrl,
+              sessionApiKey,
+            }),
+          ).getConversation<RawRuntime>(conversationId);
 
     return {
       id: data.id,
@@ -432,7 +449,9 @@ class AgentServerConversationService {
       return searchCloudConversations(limit, pageId);
     }
 
-    const data = await createConversationClient().searchConversations({
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).searchConversations({
       limit,
       page_id: pageId,
       sort_order: ConversationSortOrder.UPDATED_AT_DESC,
@@ -448,7 +467,9 @@ class AgentServerConversationService {
     if (getActiveBackend().backend.kind === "cloud") {
       await deleteCloudConversation(conversationId);
     } else {
-      await createConversationClient().deleteConversation(conversationId);
+      await new ConversationClient(
+        getAgentServerClientOptions(),
+      ).deleteConversation(conversationId);
     }
     removeStoredConversationMetadata(conversationId);
   }
@@ -457,7 +478,9 @@ class AgentServerConversationService {
     conversationId: string,
     title: string,
   ): Promise<AppConversation> {
-    await createConversationClient().updateConversation(conversationId, {
+    await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).updateConversation(conversationId, {
       title,
     });
     const [conversation] = await this.batchGetAppConversations([

@@ -1,14 +1,17 @@
-import { getAgentServerWorkingDir } from "../agent-server-config";
+import { VSCodeClient } from "@openhands/typescript-client/clients";
+import { HttpClient } from "@openhands/typescript-client/client/http-client";
+import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import {
   GetVSCodeUrlResponse,
   GetTrajectoryResponse,
   FileUploadSuccessResponse,
 } from "../open-hands.types";
+import { getAgentServerWorkingDir } from "../agent-server-config";
 import {
-  createRemoteEventsList,
-  createRemoteWorkspace,
-  createVSCodeClient,
-} from "../typescript-client";
+  getAgentServerClientOptions,
+  getAgentServerHttpClientOptions,
+} from "../agent-server-client-options";
 import { AppConversation } from "./agent-server-conversation-service.types";
 
 const FILE_UPLOAD_CONCURRENCY = 5;
@@ -49,8 +52,8 @@ class ConversationService {
         ? (this.currentConversation?.workspace?.working_dir ??
           getAgentServerWorkingDir())
         : getAgentServerWorkingDir();
-    const vscodeUrl = await createVSCodeClient(
-      this.getClientOverrides(),
+    const vscodeUrl = await new VSCodeClient(
+      getAgentServerClientOptions(this.getClientOverrides()),
     ).getUrl({
       baseUrl:
         typeof window !== "undefined" ? window.location.origin : undefined,
@@ -63,9 +66,11 @@ class ConversationService {
   static async getTrajectory(
     conversationId: string,
   ): Promise<GetTrajectoryResponse> {
-    const page = await createRemoteEventsList(
+    const page = await new RemoteEventsList(
+      new HttpClient(
+        getAgentServerHttpClientOptions(this.getClientOverrides()),
+      ),
       conversationId,
-      this.getClientOverrides(),
     ).search({ limit: 10000 });
 
     return { trajectory: page.items ?? [] };
@@ -75,7 +80,9 @@ class ConversationService {
     _conversationId: string,
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
-    const workspace = createRemoteWorkspace(this.getClientOverrides());
+    const workspace = new RemoteWorkspace(
+      getAgentServerClientOptions(this.getClientOverrides()),
+    );
     const uploadFile = async (file: File) => {
       try {
         await workspace.fileUpload(file, `/workspace/${file.name}`);

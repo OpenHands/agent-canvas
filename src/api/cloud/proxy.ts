@@ -77,7 +77,7 @@ export async function callCloudProxy<TResponse = unknown>(
   const upstreamHost = req.hostOverride ?? req.backend.host;
 
   // Talk directly to the local agent-server, bypassing the global
-  // openHands axios interceptor (which would otherwise read host + auth
+  // local agent-server client configuration (which would otherwise read host + auth
   // from the active backend — wrong for this call).
   const response = await axios.post<TResponse>(
     `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,

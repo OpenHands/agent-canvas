@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
-import { createSessionClient } from "#/api/typescript-client";
+import { SessionClient } from "@openhands/typescript-client/clients";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 export const useLogout = () => {
@@ -9,7 +10,9 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: async () => {
-      await createSessionClient().unsetProviderTokens();
+      await new SessionClient(
+        getAgentServerClientOptions(),
+      ).unsetProviderTokens();
     },
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: ["tasks"] });

@@ -11,8 +11,8 @@ import {
 } from "#/contexts/active-backend-context";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(() => ({
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(() => ({
     getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
   })),
 }));
@@ -80,9 +80,7 @@ describe("ManageBackendsModal", () => {
 
     await user.click(screen.getByTestId("manage-backends-add"));
 
-    expect(
-      await screen.findByTestId("add-backend-modal"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
   });
 
   it("opens an edit form pre-filled with the row's backend, and persists changes via updateBackend", async () => {
@@ -109,11 +107,15 @@ describe("ManageBackendsModal", () => {
     );
 
     await screen.findByTestId("edit-backend-modal");
-    const nameInput = screen.getByTestId("edit-backend-name") as HTMLInputElement;
+    const nameInput = screen.getByTestId(
+      "edit-backend-name",
+    ) as HTMLInputElement;
     expect(nameInput.value).toBe("Acme Local");
 
     // Update the host and save.
-    const hostInput = screen.getByTestId("edit-backend-host") as HTMLInputElement;
+    const hostInput = screen.getByTestId(
+      "edit-backend-host",
+    ) as HTMLInputElement;
     await user.clear(hostInput);
     await user.type(hostInput, "http://localhost:9999");
 

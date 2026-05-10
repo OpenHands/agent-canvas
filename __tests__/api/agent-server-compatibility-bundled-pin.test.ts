@@ -1,3 +1,4 @@
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,21 +8,17 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import { loadAgentServerInfo } from "#/api/agent-server-compatibility";
 
-const getServerInfoMock = vi.fn();
-const createServerClientMock = vi.fn(() => ({
-  getServerInfo: getServerInfoMock,
+const { getServerInfoMock } = vi.hoisted(() => ({
+  getServerInfoMock: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", async () => {
-  const actual = await vi.importActual<
-    typeof import("#/api/typescript-client")
-  >("#/api/typescript-client");
-  return {
-    ...actual,
-    createServerClient: (...args: unknown[]) =>
-      createServerClientMock(...(args as [])),
-  };
-});
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return {
+      getServerInfo: getServerInfoMock,
+    };
+  }),
+}));
 
 const cloudBackend: Backend = {
   id: "prod",
@@ -35,7 +32,7 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   getServerInfoMock.mockReset();
-  createServerClientMock.mockClear();
+  vi.mocked(ServerClient).mockClear();
   getServerInfoMock.mockResolvedValue({ version: "1.0.0" });
 });
 
@@ -51,9 +48,9 @@ describe("loadAgentServerInfo", () => {
 
     await loadAgentServerInfo();
 
-    expect(createServerClientMock).toHaveBeenCalledOnce();
-    const callArgs = createServerClientMock.mock.calls[0] as unknown as [
-      { host?: string; sessionApiKey?: string | null },
+    expect(ServerClient).toHaveBeenCalledOnce();
+    const callArgs = vi.mocked(ServerClient).mock.calls[0] as unknown as [
+      { host?: string; apiKey?: string | null },
     ];
     const overrides = callArgs[0];
 

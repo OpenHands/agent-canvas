@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
+import { FileClient } from "@openhands/typescript-client/clients";
 
-import FilesService from "#/api/files-service/files-service.api";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
@@ -26,6 +27,8 @@ interface UseResolvedWorkspacesResult {
 const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
 ];
+
+const getFileClient = () => new FileClient(getAgentServerClientOptions());
 
 /**
  * Returns the merged list of workspaces to display:
@@ -55,7 +58,7 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
   const parentQueries = useQueries({
     queries: workspaceParents.map((parent) => ({
       queryKey: ["file", "search_subdirs", parent.path],
-      queryFn: () => FilesService.searchSubdirs(parent.path),
+      queryFn: () => getFileClient().searchSubdirectories(parent.path),
       retry: false,
       meta: { disableToast: true },
     })),

@@ -22,13 +22,13 @@ import {
   EnvironmentSwitchOverlay,
 } from "#/components/features/backends/environment-switch-overlay";
 
+import { ServerClient } from "@openhands/typescript-client/clients";
 import {
   getCloudOrganizations,
   switchCloudOrganization,
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
-import { createServerClient } from "#/api/typescript-client";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
@@ -38,8 +38,8 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
   getCurrentCloudApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(),
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(),
 }));
 
 vi.mock("#/utils/custom-toast-handlers", () => ({
@@ -103,13 +103,15 @@ beforeEach(() => {
   // Default the local-server health probe to "connected" so the
   // existing label-focused tests aren't surprised by a red indicator;
   // tests that assert on the disconnected state override this.
-  vi.mocked(createServerClient).mockReset();
-  vi.mocked(createServerClient).mockReturnValue({
-    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-    // The dropdown only invokes getServerInfo on the returned client;
-    // the rest of the ServerClient surface is unused here, so a
-    // partial cast is sufficient.
-  } as unknown as ReturnType<typeof createServerClient>);
+  vi.mocked(ServerClient).mockReset();
+  vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+    return {
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      // The dropdown only invokes getServerInfo on the returned client;
+      // the rest of the ServerClient surface is unused here, so a
+      // partial cast is sufficient.
+    } as unknown as ServerClient;
+  });
   vi.mocked(displayErrorToast).mockReset();
 });
 
@@ -821,9 +823,11 @@ describe("BackendSelector", () => {
 
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(
         <TestSeed
@@ -855,9 +859,11 @@ describe("BackendSelector", () => {
     });
 
     it("flips the status dot to red when the local probe fails", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(<BackendSelector />);
 

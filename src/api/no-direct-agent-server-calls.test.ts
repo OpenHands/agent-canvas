@@ -3,11 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const SRC_ROOT = join(process.cwd(), "src");
-const EXCLUDED_SEGMENTS = new Set([
-  "mocks",
-  "routeTree.gen.ts",
-  "open-hands-axios.ts",
-]);
+const EXCLUDED_SEGMENTS = new Set(["mocks", "routeTree.gen.ts"]);
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -27,7 +23,7 @@ function collectSourceFiles(dir: string): string[] {
 }
 
 describe("agent-server API access", () => {
-  it("goes through @openhands/typescript-client wrappers", () => {
+  it("uses typed @openhands/typescript-client access instead of ad-hoc HTTP", () => {
     const violations = collectSourceFiles(SRC_ROOT).flatMap((relPath) => {
       const source = readFileSync(join(SRC_ROOT, relPath), "utf8");
       const fileViolations: string[] = [];
@@ -36,10 +32,7 @@ describe("agent-server API access", () => {
         fileViolations.push("uses the shared axios instance directly");
       }
 
-      if (
-        relPath !== "api/typescript-client.ts" &&
-        /\bcreateHttpClient\s*\(/.test(source)
-      ) {
+      if (/\bcreateHttpClient\s*\(/.test(source)) {
         fileViolations.push("uses createHttpClient directly");
       }
 

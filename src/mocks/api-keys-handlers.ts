@@ -1,5 +1,8 @@
 import { http, HttpResponse } from "msw";
-import { ApiKey, CreateApiKeyResponse } from "#/api/api-keys";
+import type {
+  ApiKey,
+  CreateApiKeyResponse,
+} from "@openhands/typescript-client";
 
 let nextId = 2;
 

@@ -1,3 +1,4 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { getActiveBackend } from "./backend-registry/active-store";
 import {
   createCloudSecret,
@@ -5,7 +6,7 @@ import {
   fetchCloudSecrets,
   updateCloudSecret,
 } from "./cloud/secrets-service.api";
-import { createSettingsClient } from "./typescript-client";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
 import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
 
@@ -157,7 +158,7 @@ export class SecretsService {
         return await withRetry(() => fetchCloudSecrets());
       }
       const response = await withRetry(() =>
-        createSettingsClient().listSecrets(),
+        new SettingsClient(getAgentServerClientOptions()).listSecrets(),
       );
       return response.secrets.map((s) => ({
         name: s.name,
@@ -188,7 +189,7 @@ export class SecretsService {
       return;
     }
     await withRetry(() =>
-      createSettingsClient().upsertSecret({
+      new SettingsClient(getAgentServerClientOptions()).upsertSecret({
         name,
         value,
         description,
@@ -235,7 +236,9 @@ export class SecretsService {
         await withRetry(() => deleteCloudSecret(name));
         return;
       }
-      await withRetry(() => createSettingsClient().deleteSecret(name));
+      await withRetry(() =>
+        new SettingsClient(getAgentServerClientOptions()).deleteSecret(name),
+      );
     } catch (error) {
       // 404 means secret doesn't exist - treat as successful deletion
       if (

@@ -1,3 +1,4 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import {
   Provider,
@@ -13,7 +14,7 @@ import {
   fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "../cloud/settings-service.api";
-import { createSettingsClient } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 /**
  * Response from GET /api/settings
@@ -215,7 +216,9 @@ class SettingsService {
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<SettingsApiResponse> {
     return withRetry(() =>
-      createSettingsClient().getSettings({ exposeSecrets }),
+      new SettingsClient(getAgentServerClientOptions()).getSettings({
+        exposeSecrets,
+      }),
     ) as Promise<SettingsApiResponse>;
   }
 
@@ -297,14 +300,18 @@ class SettingsService {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getAgentSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getAgentSchema()) as SettingsSchema;
   }
 
   static async getConversationSettingsSchema(): Promise<SettingsSchema> {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudConversationSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getConversationSchema()) as SettingsSchema;
   }
 
   /**
@@ -365,7 +372,9 @@ class SettingsService {
         return true;
       }
       await withRetry(() =>
-        createSettingsClient().updateSettings(localPayload),
+        new SettingsClient(getAgentServerClientOptions()).updateSettings(
+          localPayload,
+        ),
       );
     }
 

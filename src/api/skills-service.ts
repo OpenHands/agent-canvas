@@ -1,8 +1,9 @@
+import { SkillsClient } from "@openhands/typescript-client/clients";
 import { SkillInfo } from "#/types/settings";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getActiveBackend } from "./backend-registry/active-store";
 import { fetchCloudSkills } from "./cloud/skills-service.api";
-import { createSkillsClient } from "./typescript-client";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 
 class SkillsService {
   static async getSkills(): Promise<SkillInfo[]> {
@@ -14,7 +15,9 @@ class SkillsService {
     // sees the available catalog even on a fresh dev environment with no local
     // user/project skills. Conversation creation paths still gate on
     // shouldLoadPublicSkills() to keep new-conversation latency low.
-    const response = await createSkillsClient().getSkills({
+    const response = await new SkillsClient(
+      getAgentServerClientOptions(),
+    ).getSkills({
       load_public: true,
       load_user: true,
       load_project: true,

@@ -1,11 +1,14 @@
+import { ConversationClient } from "@openhands/typescript-client/clients";
+import { HttpClient } from "@openhands/typescript-client/client/http-client";
+import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
 import {
-  createConversationClient,
-  createRemoteEventsList,
-} from "../typescript-client";
+  getAgentServerClientOptions,
+  getAgentServerHttpClientOptions,
+} from "../agent-server-client-options";
 import type {
   ConfirmationResponseRequest,
   ConfirmationResponseResponse,
@@ -30,7 +33,7 @@ import type {
  * `localhost` from talking directly to either the SaaS or the runtime.
  *
  * Local mode keeps the existing typescript-client path: it targets the
- * conversation's host directly via `createRemoteEventsList`/`createHttpClient`.
+ * conversation's host directly via typed client classes.
  */
 class EventService {
   static async respondToConfirmation(
@@ -53,10 +56,12 @@ class EventService {
       });
     }
 
-    return createConversationClient({
-      conversationUrl,
-      sessionApiKey,
-    }).respondToConfirmation<ConfirmationResponseResponse>(
+    return new ConversationClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).respondToConfirmation<ConfirmationResponseResponse>(
       conversationId,
       request,
     );
@@ -80,10 +85,12 @@ class EventService {
       });
     }
 
-    return createConversationClient({
-      conversationUrl,
-      sessionApiKey,
-    }).getEventCount(conversationId);
+    return new ConversationClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).getEventCount(conversationId);
   }
 
   static async searchEvents(
@@ -107,10 +114,12 @@ class EventService {
       return data?.items ?? [];
     }
 
-    const page = await createRemoteEventsList(conversationId, {
-      conversationUrl,
-      sessionApiKey,
-    }).search({
+    const page = await new RemoteEventsList(
+      new HttpClient(
+        getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
+      ),
+      conversationId,
+    ).search({
       limit,
     });
 

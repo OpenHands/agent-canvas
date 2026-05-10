@@ -1,3 +1,4 @@
+import { FileClient, SkillsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -15,7 +16,7 @@ import {
   AppConversation,
   AppConversationPage,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { createFileClient, createSkillsClient } from "./typescript-client";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -521,7 +522,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 }
 
 export async function downloadTextFile(path: string): Promise<string> {
-  return createFileClient().downloadTextFile(path);
+  return new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
 }
 
 export async function loadSkillsForConversation(
@@ -530,7 +531,9 @@ export async function loadSkillsForConversation(
   const projectDir =
     conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
 
-  const response = await createSkillsClient().getSkills({
+  const response = await new SkillsClient(
+    getAgentServerClientOptions(),
+  ).getSkills({
     load_public: shouldLoadPublicSkills(),
     load_user: true,
     load_project: true,

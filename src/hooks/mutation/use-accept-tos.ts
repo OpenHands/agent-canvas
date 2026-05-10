@@ -1,7 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useNavigate } from "react-router";
-import { createSessionClient } from "#/api/typescript-client";
+import { SessionClient } from "@openhands/typescript-client/clients";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { handleCaptureConsent } from "#/utils/handle-capture-consent";
 import { useTracking } from "#/hooks/use-tracking";
 
@@ -20,7 +21,9 @@ export const useAcceptTos = () => {
       handleCaptureConsent(posthog, true);
 
       // Call the API to record TOS acceptance in the database
-      return createSessionClient().acceptTos(redirectUrl);
+      return new SessionClient(getAgentServerClientOptions()).acceptTos(
+        redirectUrl,
+      );
     },
     onSuccess: (response, { redirectUrl }) => {
       // Track user signup completion

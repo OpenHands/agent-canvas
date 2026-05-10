@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { type Backend } from "#/api/backend-registry/types";
-import { createServerClient } from "#/api/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
@@ -24,11 +25,13 @@ function BackendVersion({ backend }: { backend: Backend }) {
   const { data: version } = useQuery({
     queryKey: ["backend-version", backend.host, backend.apiKey],
     queryFn: async () => {
-      const info = await createServerClient({
-        host: backend.host,
-        sessionApiKey: backend.apiKey || null,
-        timeout: 5000,
-      }).getServerInfo();
+      const info = await new ServerClient(
+        getAgentServerClientOptions({
+          host: backend.host,
+          sessionApiKey: backend.apiKey || null,
+          timeout: 5000,
+        }),
+      ).getServerInfo();
       return info.version ?? null;
     },
     retry: false,

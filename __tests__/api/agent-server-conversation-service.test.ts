@@ -1,3 +1,9 @@
+import {
+  ConversationClient,
+  FileClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import axios from "axios";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -15,11 +21,9 @@ const {
   mockHttpPost,
   mockHttpDelete,
   mockFileUpload,
-  mockCreateHttpClient,
-  mockCreateRemoteWorkspace,
-  mockCreateConversationClient,
-  mockCreateFileClient,
-  mockCreateSettingsClient,
+  mockConversationClient,
+  mockFileClient,
+  mockSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
@@ -27,22 +31,38 @@ const {
   mockHttpPost: vi.fn(),
   mockHttpDelete: vi.fn(),
   mockFileUpload: vi.fn(),
-  mockCreateHttpClient: vi.fn(),
-  mockCreateRemoteWorkspace: vi.fn(),
-  mockCreateConversationClient: vi.fn(),
-  mockCreateFileClient: vi.fn(),
-  mockCreateSettingsClient: vi.fn(),
+  mockConversationClient: vi.fn(),
+  mockFileClient: vi.fn(),
+  mockSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createHttpClient: mockCreateHttpClient,
-  createRemoteWorkspace: mockCreateRemoteWorkspace,
-  createConversationClient: mockCreateConversationClient,
-  createFileClient: mockCreateFileClient,
-  createSettingsClient: mockCreateSettingsClient,
-  createVSCodeClient: vi.fn(),
+vi.mock("@openhands/typescript-client/clients", async () => {
+  const actual = await vi.importActual<
+    typeof import("@openhands/typescript-client/clients")
+  >("@openhands/typescript-client/clients");
+  return {
+    ...actual,
+    ConversationClient: vi.fn(function ConversationClientMock() {
+      return mockConversationClient();
+    }),
+    FileClient: vi.fn(function FileClientMock() {
+      return mockFileClient();
+    }),
+    SettingsClient: vi.fn(function SettingsClientMock() {
+      return mockSettingsClient();
+    }),
+    VSCodeClient: vi.fn(function VSCodeClientMock() {
+      return { getUrl: vi.fn() };
+    }),
+  };
+});
+
+vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
+  RemoteWorkspace: vi.fn(function RemoteWorkspaceMock() {
+    return { fileUpload: mockFileUpload };
+  }),
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -72,16 +92,12 @@ describe("AgentServerConversationService", () => {
     mockHttpDelete.mockReset();
     mockFileUpload.mockReset();
 
-    mockCreateHttpClient.mockReturnValue({
-      get: mockHttpGet,
-      post: mockHttpPost,
-      patch: vi.fn(),
-      delete: mockHttpDelete,
-    });
-    mockCreateRemoteWorkspace.mockReturnValue({
-      fileUpload: mockFileUpload,
-    });
-    mockCreateConversationClient.mockReturnValue({
+    vi.mocked(RemoteWorkspace).mockClear();
+    vi.mocked(ConversationClient).mockClear();
+    vi.mocked(FileClient).mockClear();
+    vi.mocked(SettingsClient).mockClear();
+
+    mockConversationClient.mockReturnValue({
       createConversation: async (payload: unknown) => {
         const response = await mockHttpPost("/api/conversations", payload);
         return response.data;
@@ -99,7 +115,7 @@ describe("AgentServerConversationService", () => {
         return response.data;
       },
     });
-    mockCreateFileClient.mockReturnValue({
+    mockFileClient.mockReturnValue({
       downloadTextFile: async (path: string) => {
         const response = await mockHttpGet("/api/file/download", {
           params: { path },
@@ -115,7 +131,7 @@ describe("AgentServerConversationService", () => {
         return response.data;
       },
     });
-    mockCreateSettingsClient.mockReturnValue({
+    mockSettingsClient.mockReturnValue({
       listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
     });
   });
@@ -351,9 +367,9 @@ describe("AgentServerConversationService", () => {
         uploadPath,
       );
 
-      expect(mockCreateRemoteWorkspace).toHaveBeenCalledWith({
-        sessionApiKey: "test-api-key",
-      });
+      expect(RemoteWorkspace).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: "test-api-key" }),
+      );
       expect(mockFileUpload).toHaveBeenCalledWith(file, uploadPath);
     });
 
@@ -385,9 +401,9 @@ describe("AgentServerConversationService", () => {
         file,
       );
 
-      expect(mockCreateRemoteWorkspace).toHaveBeenCalledWith({
-        sessionApiKey: "my-session-key",
-      });
+      expect(RemoteWorkspace).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: "my-session-key" }),
+      );
     });
   });
 });
