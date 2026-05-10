@@ -9638,6 +9638,9 @@
     "uk": "Надіслати повідомлення",
     "ca": "Envia el missatge"
   },
+  "CHAT_INTERFACE$UPLOAD_IMAGES_AS_FILES": {
+    "en": "upload as file"
+  },
   "CHAT_INTERFACE$TOOLTIP_UPLOAD_IMAGE": {
     "en": "Upload image",
     "zh-CN": "上传图片",
