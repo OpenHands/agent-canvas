@@ -1,11 +1,8 @@
 import { lazy, useMemo, Suspense } from "react";
-import { useTranslation } from "react-i18next";
 import { ConversationLoading } from "../../conversation-loading";
-import { I18nKey } from "#/i18n/declaration";
 import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
-import { ConversationTabTitle } from "../conversation-tab-title";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
@@ -21,40 +18,18 @@ const TaskListTab = lazy(() => import("#/routes/task-list-tab"));
 const Terminal = lazy(() => import("#/components/features/terminal/terminal"));
 
 const TAB_CONFIG = {
-  tasklist: {
-    component: TaskListTab,
-    titleKey: I18nKey.COMMON$TASK_LIST,
-  },
-  editor: {
-    component: EditorTab,
-    titleKey: I18nKey.COMMON$CHANGES,
-  },
-  browser: {
-    component: BrowserTab,
-    titleKey: I18nKey.COMMON$BROWSER,
-  },
-  served: {
-    component: ServedTab,
-    titleKey: I18nKey.COMMON$APP,
-  },
-  vscode: {
-    component: VSCodeTab,
-    titleKey: I18nKey.COMMON$CODE,
-  },
-  terminal: {
-    component: Terminal,
-    titleKey: I18nKey.COMMON$TERMINAL,
-  },
-  planner: {
-    component: PlannerTab,
-    titleKey: I18nKey.COMMON$PLANNER,
-  },
+  tasklist: { component: TaskListTab },
+  editor: { component: EditorTab },
+  browser: { component: BrowserTab },
+  served: { component: ServedTab },
+  vscode: { component: VSCodeTab },
+  terminal: { component: Terminal },
+  planner: { component: PlannerTab },
 };
 
 export function ConversationTabContent() {
   const { selectedTab, shouldShownAgentLoading } = useConversationStore();
   const { conversationId } = useConversationId();
-  const { t } = useTranslation("openhands");
 
   const activeTab = useMemo(
     () => TAB_CONFIG[selectedTab ?? "editor"],
@@ -62,7 +37,6 @@ export function ConversationTabContent() {
   );
 
   const ActiveComponent = activeTab.component;
-  const conversationTabTitle = t(activeTab.titleKey);
 
   if (shouldShownAgentLoading) {
     return <ConversationLoading />;
@@ -70,10 +44,6 @@ export function ConversationTabContent() {
 
   return (
     <TabContainer>
-      <ConversationTabTitle
-        title={conversationTabTitle}
-        conversationKey={selectedTab ?? "editor"}
-      />
       <Suspense fallback={<ConversationLoading />}>
         <TabContentArea>
           <TabWrapper

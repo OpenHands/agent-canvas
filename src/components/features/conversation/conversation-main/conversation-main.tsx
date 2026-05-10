@@ -35,7 +35,7 @@ export function ConversationMain() {
       className={cn(
         isMobile
           ? "relative flex-1 flex flex-col"
-          : "h-full flex flex-col overflow-hidden md:pt-3",
+          : "h-full flex flex-col overflow-hidden",
       )}
     >
       <div
@@ -58,7 +58,7 @@ export function ConversationMain() {
             "flex flex-col bg-base overflow-hidden",
             isMobile
               ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out md:pb-3",
+              : "transition-all duration-300 ease-in-out md:pt-3 md:pb-3",
           )}
           style={
             !isMobile
@@ -114,18 +114,20 @@ export function ConversationMain() {
           <div
             className={cn(
               isMobile
-                ? "h-full flex flex-col gap-3 pb-2 md:pb-0 pt-2"
-                : "flex flex-col gap-3 h-full w-full",
+                ? "h-full flex flex-col pb-2 md:pb-0 pt-2"
+                : "flex flex-col h-full w-full",
             )}
           >
-            <div
-              data-testid="tabs-pane-header"
-              className="flex items-center min-h-9"
-            >
-              <ConversationTabs />
-            </div>
-            <div className="flex-1 min-h-0 flex flex-col">
-              <ConversationTabContent />
+            <div className="flex flex-col flex-1 min-h-0 bg-[#25272D] border border-[#525252] overflow-hidden">
+              <div
+                data-testid="tabs-pane-header"
+                className="flex items-center min-h-9 px-3 py-1.5 border-b border-[#474A54]"
+              >
+                <ConversationTabs />
+              </div>
+              <div className="flex-1 min-h-0 flex flex-col">
+                <ConversationTabContent />
+              </div>
             </div>
           </div>
         </div>

@@ -23,6 +23,24 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
+vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
+  useUnifiedGetGitChanges: () => ({
+    refetch: vi.fn(),
+    isFetching: false,
+    data: [],
+  }),
+}));
+
+vi.mock("#/hooks/use-handle-build-plan-click", () => ({
+  useHandleBuildPlanClick: () => ({
+    handleBuildPlanClick: vi.fn(),
+  }),
+}));
+
+vi.mock("#/hooks/use-agent-state", () => ({
+  useAgentState: () => ({ curAgentState: "AWAITING_USER_INPUT" }),
+}));
+
 const createWrapper = (conversationId: string) => {
   return ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>

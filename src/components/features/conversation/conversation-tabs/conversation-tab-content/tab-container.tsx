@@ -6,8 +6,6 @@ interface TabContainerProps {
 
 export function TabContainer({ children }: TabContainerProps) {
   return (
-    <div className="bg-[#25272D] border border-[#525252] flex flex-col h-full w-full">
-      {children}
-    </div>
+    <div className="flex flex-col h-full w-full">{children}</div>
   );
 }

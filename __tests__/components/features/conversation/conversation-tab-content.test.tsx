@@ -16,14 +16,7 @@ vi.mock("#/hooks/use-conversation-id", () => ({
   }),
 }));
 
-// Mock useUnifiedGetGitChanges hook (used by ConversationTabTitle)
-vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
-  useUnifiedGetGitChanges: () => ({
-    refetch: vi.fn(),
-    data: [],
-    isLoading: false,
-  }),
-}));
+
 
 // Mock lazy-loaded components
 vi.mock("#/routes/changes-tab", () => ({
@@ -107,15 +100,6 @@ describe("ConversationTabContent", () => {
   });
 
   describe("Rendering", () => {
-    it("should render the container with correct structure", async () => {
-      render(<ConversationTabContent />, { wrapper: createWrapper() });
-
-      // Should show the title for the default tab (editor -> COMMON$CHANGES)
-      await waitFor(() => {
-        expect(screen.getByText("COMMON$CHANGES")).toBeInTheDocument();
-      });
-    });
-
     it("should render editor tab content by default", async () => {
       setSelectedTab("editor");
 
@@ -124,8 +108,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$CHANGES")).toBeInTheDocument();
     });
 
     it("should render editor tab when selectedTab is null", async () => {
@@ -136,8 +118,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$CHANGES")).toBeInTheDocument();
     });
   });
 
@@ -150,8 +130,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("browser-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$BROWSER")).toBeInTheDocument();
     });
 
     it("should render served tab when selected", async () => {
@@ -162,8 +140,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("served-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$APP")).toBeInTheDocument();
     });
 
     it("should render vscode tab when selected", async () => {
@@ -174,8 +150,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("vscode-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$CODE")).toBeInTheDocument();
     });
 
     it("should render terminal tab when selected", async () => {
@@ -186,8 +160,6 @@ describe("ConversationTabContent", () => {
       await waitFor(() => {
         expect(screen.getByTestId("terminal-tab-content")).toBeInTheDocument();
       });
-
-      expect(screen.getByText("COMMON$TERMINAL")).toBeInTheDocument();
     });
 
     it("should render planner tab when selected", async () => {
@@ -197,34 +169,6 @@ describe("ConversationTabContent", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("planner-tab-content")).toBeInTheDocument();
-      });
-
-      expect(screen.getByText("COMMON$PLANNER")).toBeInTheDocument();
-    });
-  });
-
-  describe("Title display", () => {
-    const tabTitleMapping: Array<{
-      tab: ConversationTab;
-      expectedTitle: string;
-    }> = [
-        { tab: "editor", expectedTitle: "COMMON$CHANGES" },
-        { tab: "browser", expectedTitle: "COMMON$BROWSER" },
-        { tab: "served", expectedTitle: "COMMON$APP" },
-        { tab: "vscode", expectedTitle: "COMMON$CODE" },
-        { tab: "terminal", expectedTitle: "COMMON$TERMINAL" },
-        { tab: "planner", expectedTitle: "COMMON$PLANNER" },
-      ];
-
-    tabTitleMapping.forEach(({ tab, expectedTitle }) => {
-      it(`should display "${expectedTitle}" title for "${tab}" tab`, async () => {
-        setSelectedTab(tab);
-
-        render(<ConversationTabContent />, { wrapper: createWrapper() });
-
-        await waitFor(() => {
-          expect(screen.getByText(expectedTitle)).toBeInTheDocument();
-        });
       });
     });
   });
