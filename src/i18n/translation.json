@@ -22834,5 +22834,89 @@
     "de": "Aktionen einklappen",
     "uk": "Згорнути дії",
     "ca": "Replega les accions"
+  },
+  "ONBOARDING$TITLE": {
+    "en": "Welcome to OpenHands"
+  },
+  "ONBOARDING$STEP_LABEL": {
+    "en": "Step {{current}} of {{total}}"
+  },
+  "ONBOARDING$NEXT": {
+    "en": "Next"
+  },
+  "ONBOARDING$BACK": {
+    "en": "Back"
+  },
+  "ONBOARDING$SKIP": {
+    "en": "Skip for now"
+  },
+  "ONBOARDING$AGENT_TITLE": {
+    "en": "Choose your agent"
+  },
+  "ONBOARDING$AGENT_SUBTITLE": {
+    "en": "Pick the agent that will drive your conversations. You can change this later."
+  },
+  "ONBOARDING$AGENT_OPENHANDS_DESCRIPTION": {
+    "en": "The default OpenHands agent. Best for general-purpose coding and exploration."
+  },
+  "ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION": {
+    "en": "Anthropic's Claude Code agent."
+  },
+  "ONBOARDING$AGENT_CODEX_DESCRIPTION": {
+    "en": "OpenAI's Codex agent."
+  },
+  "ONBOARDING$AGENT_COMING_SOON": {
+    "en": "Support for other agents coming soon!"
+  },
+  "ONBOARDING$BACKEND_TITLE": {
+    "en": "Check your backend"
+  },
+  "ONBOARDING$BACKEND_SUBTITLE": {
+    "en": "OpenHands talks to an agent server. Make sure the default backend is reachable."
+  },
+  "ONBOARDING$BACKEND_CONNECTED_TITLE": {
+    "en": "You're connected! 🎉"
+  },
+  "ONBOARDING$BACKEND_CONNECTED_BODY": {
+    "en": "Your agent server is up and running. Let's keep going."
+  },
+  "ONBOARDING$BACKEND_CHECKING": {
+    "en": "Checking your backend connection…"
+  },
+  "ONBOARDING$BACKEND_DISCONNECTED_TITLE": {
+    "en": "We can't reach your backend"
+  },
+  "ONBOARDING$BACKEND_DISCONNECTED_BODY": {
+    "en": "Update the connection details below and save to retry."
+  },
+  "ONBOARDING$BACKEND_STATUS_CONNECTED": {
+    "en": "Connected"
+  },
+  "ONBOARDING$BACKEND_STATUS_DISCONNECTED": {
+    "en": "Disconnected"
+  },
+  "ONBOARDING$BACKEND_STATUS_CHECKING": {
+    "en": "Checking…"
+  },
+  "ONBOARDING$LLM_TITLE": {
+    "en": "Set up your LLM"
+  },
+  "ONBOARDING$LLM_SUBTITLE": {
+    "en": "Pick a provider and model. We've pre-selected Anthropic Claude Opus."
+  },
+  "ONBOARDING$HELLO_TITLE": {
+    "en": "Say hello 👋"
+  },
+  "ONBOARDING$HELLO_SUBTITLE": {
+    "en": "Send your first message to OpenHands. We'll start a fresh conversation with no workspace."
+  },
+  "ONBOARDING$HELLO_DEFAULT_MESSAGE": {
+    "en": "hello OpenHands!"
+  },
+  "ONBOARDING$HELLO_LAUNCH": {
+    "en": "Send"
+  },
+  "ONBOARDING$HELLO_LAUNCHING": {
+    "en": "Starting conversation…"
   }
 }
