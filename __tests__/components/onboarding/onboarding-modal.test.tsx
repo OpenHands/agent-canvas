@@ -78,7 +78,7 @@ afterEach(() => {
 });
 
 describe("OnboardingModal", () => {
-  it("starts on the Choose Agent step with the rail at offset 0", () => {
+  it("starts on the Choose Agent step with each slide offset by its index", () => {
     renderModal();
 
     expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -89,8 +89,25 @@ describe("OnboardingModal", () => {
       screen.getByTestId("onboarding-step-choose-agent"),
     ).toBeInTheDocument();
 
-    const rail = screen.getByTestId("onboarding-slide-rail");
-    expect(rail.style.transform).toBe("translateX(-0%)");
+    // Active slide sits at offset 0; later slides are translated 100%
+    // per index away to the right and absolute-positioned so they
+    // don't bleed into the modal box.
+    expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(
+      screen.getByTestId("onboarding-slide-0").style.transform,
+    ).toBe("translateX(0%)");
+    expect(
+      screen.getByTestId("onboarding-slide-1").style.transform,
+    ).toBe("translateX(100%)");
+    expect(
+      screen.getByTestId("onboarding-slide-2").style.transform,
+    ).toBe("translateX(200%)");
+    expect(
+      screen.getByTestId("onboarding-slide-3").style.transform,
+    ).toBe("translateX(300%)");
 
     // Progress bar reflects step 1 of 4.
     expect(
@@ -101,7 +118,7 @@ describe("OnboardingModal", () => {
     ).toHaveAttribute("data-state", "upcoming");
   });
 
-  it("advances each step via the per-step Next button and slides the rail", async () => {
+  it("advances each step via the per-step Next button and reframes slide offsets", async () => {
     renderModal();
     const user = userEvent.setup();
 
@@ -113,9 +130,19 @@ describe("OnboardingModal", () => {
         "1",
       ),
     );
+    expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
     expect(
-      screen.getByTestId("onboarding-slide-rail").style.transform,
+      screen.getByTestId("onboarding-slide-0").style.transform,
     ).toBe("translateX(-100%)");
+    expect(
+      screen.getByTestId("onboarding-slide-1").style.transform,
+    ).toBe("translateX(0%)");
+    expect(
+      screen.getByTestId("onboarding-slide-2").style.transform,
+    ).toBe("translateX(100%)");
 
     // Once the backend health probe resolves, step 1's Next is enabled.
     await waitFor(() =>
@@ -128,9 +155,10 @@ describe("OnboardingModal", () => {
       "data-current-step",
       "2",
     );
-    expect(
-      screen.getByTestId("onboarding-slide-rail").style.transform,
-    ).toBe("translateX(-200%)");
+    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
 
     // Step 2 → 3
     await user.click(screen.getByTestId("onboarding-llm-next"));
@@ -138,9 +166,13 @@ describe("OnboardingModal", () => {
       "data-current-step",
       "3",
     );
+    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
     expect(
-      screen.getByTestId("onboarding-slide-rail").style.transform,
-    ).toBe("translateX(-300%)");
+      screen.getByTestId("onboarding-slide-3").style.transform,
+    ).toBe("translateX(0%)");
   });
 
   it("Skip immediately closes the modal", async () => {

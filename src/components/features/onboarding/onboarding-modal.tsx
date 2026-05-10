@@ -15,23 +15,43 @@ import { SayHelloStep } from "./steps/say-hello-step";
 
 const TOTAL_STEPS = 4;
 
-/**
- * Wrapper that pads each step into a 1/N-width column of the slide
- * rail and hides inactive steps from assistive tech / tab order so
- * keyboard users only ever interact with the visible step.
- */
-function Slide({
-  isActive,
-  children,
-}: {
-  isActive: boolean;
+interface SlideProps {
+  /** Index of this slide in the step sequence. */
+  index: number;
+  /** Index of the currently visible step. */
+  currentStep: number;
   children: React.ReactNode;
-}) {
+}
+
+/**
+ * One step panel inside the slide rail.
+ *
+ * Only the active slide is in normal flow — it drives the surrounding
+ * container's height. Inactive slides are absolutely positioned so
+ * they don't add their height to the modal box (which previously made
+ * the modal "overhang" with empty space sized to the tallest step).
+ *
+ * Each slide is translated horizontally by `(index - currentStep) *
+ * 100%` so the active step sits at offset 0, with prior steps off to
+ * the left and upcoming steps off to the right. Changes to
+ * `currentStep` smoothly animate the transform.
+ */
+function Slide({ index, currentStep, children }: SlideProps) {
+  const isActive = index === currentStep;
+  const offsetPct = (index - currentStep) * 100;
   return (
     <div
+      data-testid={`onboarding-slide-${index}`}
+      data-active={isActive}
       aria-hidden={!isActive}
-      style={{ width: `${100 / TOTAL_STEPS}%` }}
-      className={cn("shrink-0 px-1", !isActive && "pointer-events-none")}
+      style={{ transform: `translateX(${offsetPct}%)` }}
+      className={cn(
+        "w-full transition-transform duration-300 ease-out",
+        // Inactive slides are taken out of flow so the rail's height
+        // tracks just the active step; they stay overlaid via inset-0
+        // so they slide in/out of view across the same horizontal box.
+        !isActive && "pointer-events-none absolute inset-0",
+      )}
     >
       {children}
     </div>
@@ -109,32 +129,26 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
           />
         </header>
 
-        <div className="overflow-hidden px-7 pb-7">
+        <div className="px-7 pb-7">
           <div
             data-testid="onboarding-slide-rail"
-            className="flex transition-transform duration-300 ease-out"
-            style={{
-              // The rail is `TOTAL_STEPS * 100%` wide; we slide it
-              // left by `step * 100%` so the next step animates in
-              // from the right.
-              transform: `translateX(-${currentStep * 100}%)`,
-              width: `${TOTAL_STEPS * 100}%`,
-            }}
+            data-current-step={currentStep}
+            className="relative overflow-hidden"
           >
-            <Slide isActive={currentStep === 0}>
+            <Slide index={0} currentStep={currentStep}>
               <ChooseAgentStep
                 selectedAgentId={selectedAgentId}
                 onSelect={setSelectedAgentId}
                 onNext={goNext}
               />
             </Slide>
-            <Slide isActive={currentStep === 1}>
+            <Slide index={1} currentStep={currentStep}>
               <CheckBackendStep onBack={goBack} onNext={goNext} />
             </Slide>
-            <Slide isActive={currentStep === 2}>
+            <Slide index={2} currentStep={currentStep}>
               <SetupLlmStep onBack={goBack} onNext={goNext} />
             </Slide>
-            <Slide isActive={currentStep === 3}>
+            <Slide index={3} currentStep={currentStep}>
               <SayHelloStep onBack={goBack} onLaunched={onClose} />
             </Slide>
           </div>

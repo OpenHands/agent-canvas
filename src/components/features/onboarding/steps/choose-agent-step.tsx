@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -63,6 +63,19 @@ export function ChooseAgentStep({
       </header>
 
       <div
+        role="note"
+        data-testid="onboarding-agent-coming-soon"
+        className={cn(
+          "flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3",
+        )}
+      >
+        <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+        <p className="text-sm font-medium text-primary">
+          {t(I18nKey.ONBOARDING$AGENT_COMING_SOON)}
+        </p>
+      </div>
+
+      <div
         role="radiogroup"
         aria-label={t(I18nKey.ONBOARDING$AGENT_TITLE)}
         className="flex flex-col gap-3"
@@ -110,13 +123,6 @@ export function ChooseAgentStep({
           );
         })}
       </div>
-
-      <p
-        data-testid="onboarding-agent-coming-soon"
-        className="text-xs italic text-gray-500"
-      >
-        {t(I18nKey.ONBOARDING$AGENT_COMING_SOON)}
-      </p>
 
       <div className="flex justify-end">
         <BrandButton
