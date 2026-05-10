@@ -161,11 +161,15 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
 
       renderWithQueryClient(<ChatInterface />, queryClient);
 
-      // AC1: Messages should display immediately without skeleton
+      // AC1: Messages should display immediately without the full history
+      // skeleton, even if the lazy older-events pagination spinner appears.
       expect(
         screen.queryByTestId("chat-messages-skeleton"),
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("conversation-messages") ??
+          screen.queryByTestId("user-message"),
+      ).not.toBeNull();
     });
 
     it("shows skeleton when store is empty and loading", () => {
@@ -207,11 +211,14 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
 
       renderWithQueryClient(<ChatInterface />, queryClient);
 
-      // Messages should display, no skeleton
+      // Messages should display without the full history skeleton.
       expect(
         screen.queryByTestId("chat-messages-skeleton"),
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("conversation-messages") ??
+          screen.queryByTestId("user-message"),
+      ).not.toBeNull();
     });
   });
 });

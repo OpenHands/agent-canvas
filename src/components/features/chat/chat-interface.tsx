@@ -156,6 +156,7 @@ export function ChatInterface() {
         scrollTop: target.scrollTop,
       };
       loadOlder().catch((error) => {
+        preserveScrollPosition.current = null;
         const message =
           error instanceof Error && error.message
             ? error.message

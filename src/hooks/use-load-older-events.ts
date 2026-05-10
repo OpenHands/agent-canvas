@@ -34,15 +34,21 @@ export const useLoadOlderEvents = (
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
+  const isLoadingRef = React.useRef(false);
+  const hasMoreRef = React.useRef(true);
 
   // Reset the pagination cursor whenever we switch conversations.
   React.useEffect(() => {
+    hasMoreRef.current = true;
+    isLoadingRef.current = false;
     setHasMore(true);
     setIsLoading(false);
   }, [conversationId]);
 
   const loadOlder = React.useCallback(async () => {
-    if (!conversationId || isLoading || !hasMore) return;
+    if (!conversationId || isLoadingRef.current || !hasMoreRef.current) {
+      return;
+    }
 
     const { events } = useEventStore.getState();
     const oldest = events[0];
@@ -53,12 +59,14 @@ export const useLoadOlderEvents = (
 
     const oldestTimestamp = getEventTimestamp(oldest);
     if (!oldestTimestamp) {
+      hasMoreRef.current = false;
       setHasMore(false);
       throw new Error(
         "Unable to load older events because the oldest loaded event has no timestamp.",
       );
     }
 
+    isLoadingRef.current = true;
     setIsLoading(true);
     try {
       const page = await EventService.searchEvents(
@@ -82,9 +90,11 @@ export const useLoadOlderEvents = (
       const exhausted =
         !page.next_page_id || page.items.length < INITIAL_HISTORY_PAGE_SIZE;
       if (exhausted) {
+        hasMoreRef.current = false;
         setHasMore(false);
       }
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
   }, [
@@ -92,8 +102,6 @@ export const useLoadOlderEvents = (
     conversation?.conversation_url,
     conversation?.session_api_key,
     addEvents,
-    isLoading,
-    hasMore,
   ]);
 
   return { isLoading, hasMore, loadOlder };

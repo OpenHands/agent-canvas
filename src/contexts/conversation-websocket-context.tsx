@@ -182,8 +182,7 @@ export function ConversationWebSocketProvider({
     isError: isPreloadHistoryError,
   } = useConversationHistory(conversationId);
 
-  const isLoadingHistoryMain =
-    !!conversationId && (isPreloadingHistory || !preloadedHistory);
+  const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
   useEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {

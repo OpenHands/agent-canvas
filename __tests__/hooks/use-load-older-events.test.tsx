@@ -182,6 +182,78 @@ describe("useLoadOlderEvents", () => {
     expect(result.current.hasMore).toBe(true);
   });
 
+  it("coalesces repeated loadOlder calls while a page request is already in flight", async () => {
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeEvent("evt-recent", "2024-06-01T00:00:00Z"));
+    });
+
+    let resolvePage!: (page: EventSearchPage<OpenHandsEvent>) => void;
+    const pendingPage = new Promise<EventSearchPage<OpenHandsEvent>>(
+      (resolve) => {
+        resolvePage = resolve;
+      },
+    );
+
+    const spy = vi
+      .spyOn(EventService, "searchEvents")
+      .mockReturnValue(pendingPage);
+
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    let firstLoad!: Promise<void>;
+    let secondLoad!: Promise<void>;
+    await act(async () => {
+      firstLoad = result.current.loadOlder();
+      secondLoad = result.current.loadOlder();
+    });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolvePage(makePage([makeEvent("evt-older", "2024-05-01T00:00:00Z")], null));
+      await Promise.all([firstLoad, secondLoad]);
+    });
+
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("cleans up loading state and rethrows when the page request fails", async () => {
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeEvent("evt-recent", "2024-06-01T00:00:00Z"));
+    });
+
+    vi.spyOn(EventService, "searchEvents").mockRejectedValue(
+      new Error("request failed"),
+    );
+
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    let thrown: unknown;
+    await act(async () => {
+      try {
+        await result.current.loadOlder();
+      } catch (error) {
+        thrown = error;
+      }
+    });
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("request failed");
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasMore).toBe(true);
+  });
+
+
+
   it("stops paginating and throws when the oldest loaded event is missing a timestamp", async () => {
     act(() => {
       useEventStore

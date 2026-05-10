@@ -112,12 +112,36 @@ export const useEventStore = create<EventState>()((set) => ({
   addEvents: (incoming: OHEvent[]) =>
     set((state) => {
       if (incoming.length === 0) return state;
-      let next = state;
+
+      const eventIds = new Set(state.eventIds);
+      const events = [...state.events];
+      let uiEvents = [...state.uiEvents];
+      let added = false;
+
       for (const event of incoming) {
-        next = appendEvent(next, event);
+        const eventId = getEventId(event);
+        const isDuplicate = eventId !== undefined && eventIds.has(eventId);
+
+        if (!isDuplicate) {
+          added = true;
+          if (eventId !== undefined) {
+            eventIds.add(eventId);
+          }
+          events.push(event);
+          uiEvents = handleEventForUI(event, uiEvents);
+        }
       }
 
-      return next === state ? state : sortEventState(next);
+      if (!added) {
+        return state;
+      }
+
+      return sortEventState({
+        ...state,
+        events,
+        eventIds,
+        uiEvents,
+      });
     }),
   clearEvents: () =>
     set(() => ({
