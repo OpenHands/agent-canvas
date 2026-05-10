@@ -163,23 +163,72 @@ describe("useWebSocket", () => {
   });
 
   it("should support query parameters in WebSocket URL", async () => {
-    const baseUrl = "ws://acme.com/ws";
-    const queryParams = {
-      token: "abc123",
-      userId: "user456",
-      version: "v1",
-    };
+    // Stub WebSocket deterministically (mirrors the `onClose` test below).
+    // The MSW-backed variant was flaky in CI — `wsLink.broadcast()` from
+    // other tests leaks across the shared mock server, and this assertion
+    // only needs to observe the constructed URL, not a real connection.
+    class MockWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
 
-    const { result } = renderHook(() => useWebSocket(baseUrl, { queryParams }));
+      readonly url: string;
+      readyState = MockWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
 
-    // Wait for connection to be established
-    await waitForConnection(result);
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.readyState = MockWebSocket.OPEN;
+          this.onopen?.(new Event("open"));
+        });
+      }
 
-    // Verify that the WebSocket was created with query parameters
-    expect(result.current.socket).toBeTruthy();
-    expect(result.current.socket!.url).toBe(
-      "ws://acme.com/ws?token=abc123&userId=user456&version=v1",
-    );
+      send() {}
+
+      close() {
+        this.readyState = MockWebSocket.CLOSED;
+        this.onclose?.(
+          new CloseEvent("close", {
+            code: 1000,
+            reason: "Normal closure",
+            wasClean: true,
+          }),
+        );
+      }
+    }
+
+    const originalWebSocket = globalThis.WebSocket;
+    vi.stubGlobal("WebSocket", MockWebSocket);
+
+    try {
+      const baseUrl = "ws://acme.com/ws";
+      const queryParams = {
+        token: "abc123",
+        userId: "user456",
+        version: "v1",
+      };
+
+      const { result, unmount } = renderHook(() =>
+        useWebSocket(baseUrl, { queryParams }),
+      );
+
+      await waitForConnection(result);
+
+      // Verify that the WebSocket was created with query parameters
+      expect(result.current.socket).toBeTruthy();
+      expect(result.current.socket!.url).toBe(
+        "ws://acme.com/ws?token=abc123&userId=user456&version=v1",
+      );
+
+      unmount();
+    } finally {
+      globalThis.WebSocket = originalWebSocket;
+    }
   });
 
   // Skipped: flaky in CI - see comment at top of file
