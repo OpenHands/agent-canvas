@@ -20,16 +20,23 @@ flowchart LR
     user(["🧑 You"])
     subgraph vm["Your VM (single host)"]
         direction LR
-        nginx["nginx<br/>(TLS + basic auth)"]
-        vite["Vite dev server"]
-        agent["Agent server<br/>(SESSION_API_KEY)"]
-        automation["Automation server"]
-        nginx --> vite
-        nginx --> agent
-        nginx --> automation
+        nginx["nginx :443<br/>(TLS + basic auth)"]
+        ingress["Ingress proxy<br/>127.0.0.1:8000"]
+        vite["Vite dev server<br/>:3001"]
+        agent["Agent server<br/>:18000<br/>(SESSION_API_KEY)"]
+        automation["Automation backend<br/>:18001"]
+        nginx --> ingress
+        ingress -- "/*" --> vite
+        ingress -- "/api/*, /sockets" --> agent
+        ingress -- "/api/automation/*" --> automation
     end
     user -- "HTTPS / 443" --> nginx
 ```
+
+`npm run dev:dangerously-dockerless` spins up the Vite dev server, the agent
+server, and the automation backend, and fronts them with an ingress proxy on
+`127.0.0.1:8000` that routes by path. nginx only needs to know about that
+single ingress port — it doesn't talk to the three upstreams directly.
 
 There are three lines of defense:
 
@@ -289,9 +296,10 @@ and restart the app so both sides regenerate from the same value.
   `/var/log/nginx/access.log`, and `/var/log/nginx/error.log` are your friends
   when something looks off. Repeated 401s in the access log are normal scanner
   noise; a successful 200 from an IP you don't recognize is not.
-- **Do not expose the agent server port (`8000`/`18000`) directly.** If you
-  ever need to debug, tunnel it over SSH (`ssh -L 8000:127.0.0.1:8000 vm`)
-  rather than opening it in the firewall.
+- **Do not expose the ingress (`:8000`) or backend ports (`:18000`, `:18001`,
+  `:3001`) directly.** Only `:443` (via nginx) should be reachable from
+  outside. If you need to debug, tunnel over SSH
+  (`ssh -L 8000:127.0.0.1:8000 vm`) rather than opening a port in the firewall.
 
 ## Advanced: defense in depth
 
@@ -312,14 +320,18 @@ ufw allow 443/tcp
 ufw enable
 ```
 
-And confirm the agent server and Vite ports are bound to `127.0.0.1` only, so
-even if a firewall rule slips, those ports are not reachable from outside the
-host:
+And confirm the ingress, agent server, automation backend, and Vite ports are
+bound to `127.0.0.1` only, so even if a firewall rule slips, none of them are
+reachable from outside the host:
 
 ```bash
 ss -tlnp
-# expect 127.0.0.1:8000, 127.0.0.1:18000 etc. — never 0.0.0.0:* for those
+# expect 127.0.0.1:8000  (ingress)
+#        127.0.0.1:18000 (agent server)
+#        127.0.0.1:18001 (automation backend)
+#        127.0.0.1:3001  (Vite dev server)
+# never  0.0.0.0:* or :::*  for any of those
 ```
 
-If you ever see one of the agent ports listening on `0.0.0.0` or `::`, stop
-the app immediately and investigate before re-enabling it.
+If you ever see one of those ports listening on `0.0.0.0` or `::`, stop the
+app immediately and investigate before re-enabling it.
