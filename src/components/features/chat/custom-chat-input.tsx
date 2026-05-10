@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useChatInputLogic } from "#/hooks/chat/use-chat-input-logic";
 import { useFileHandling } from "#/hooks/chat/use-file-handling";
 import { useGripResize } from "#/hooks/chat/use-grip-resize";
@@ -46,14 +46,27 @@ export function CustomChatInput({
   // immediately via the WebSocket if connected, or queued via REST otherwise.
   const isDisabled = disabled;
 
+  // Always call the latest `onSubmit` without making the effect re-run when
+  // its identity changes. `onSubmit` (typically `handleSendMessage`) is a
+  // fresh function on every parent render, and the parent re-renders
+  // whenever the pending-message queue updates synchronously inside
+  // `onSubmit` itself. Listing it in the dep array caused the effect to
+  // fire twice — once for the original submit and again from the
+  // mid-submit re-render, before `setSubmittedMessage(null)` was applied —
+  // producing a duplicate "Sending…" bubble.
+  const onSubmitRef = useRef(onSubmit);
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
+
   // Listen to submittedMessage state changes
   useEffect(() => {
     if (!submittedMessage || disabled) {
       return;
     }
-    onSubmit(submittedMessage);
+    onSubmitRef.current(submittedMessage);
     setSubmittedMessage(null);
-  }, [submittedMessage, disabled, onSubmit, setSubmittedMessage]);
+  }, [submittedMessage, disabled, setSubmittedMessage]);
 
   // Custom hooks
   const {

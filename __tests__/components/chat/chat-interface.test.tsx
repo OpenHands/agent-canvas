@@ -185,6 +185,7 @@ describe("ChatInterface - Chat Suggestions", () => {
 
   test("should hide chat suggestions when there is an optimistic user message", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: "test-conversation-id",
       text: "Optimistic message",
     });
 

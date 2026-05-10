@@ -15,6 +15,13 @@ vi.mock("#/services/chat-service", () => ({
   createChatMessage: vi.fn(),
 }));
 
+// The hook now scopes pending messages by conversation id; stub the lookup
+// so the hook always sees a stable conversation in the test environment.
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
+  useConversationId: () => ({ conversationId: "test-conversation-id" }),
+}));
+
 // Import mocked modules
 import { useSendMessage } from "#/hooks/use-send-message";
 

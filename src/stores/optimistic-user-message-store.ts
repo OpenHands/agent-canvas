@@ -4,6 +4,12 @@ export type PendingUserMessageStatus = "sending" | "error";
 
 export interface PendingUserMessage {
   id: string;
+  /**
+   * The conversation this pending message belongs to. The chat UI filters the
+   * global queue by the active conversation id so messages enqueued in one
+   * conversation never leak into another when the user switches.
+   */
+  conversationId: string;
   text: string;
   status: PendingUserMessageStatus;
   imageUrls: string[];
@@ -17,6 +23,7 @@ interface OptimisticUserMessageState {
 }
 
 export interface EnqueuePendingMessagePayload {
+  conversationId: string;
   text: string;
   imageUrls?: string[];
   fileUrls?: string[];
@@ -36,10 +43,15 @@ interface OptimisticUserMessageActions {
   /** Drop a pending message from the queue (e.g., after success/cancellation). */
   removePendingMessage: (id: string) => void;
   /**
-   * Remove the oldest pending message that is currently in "sending" state.
-   * Called when the WebSocket echoes back a real `UserMessageEvent`.
+   * Remove the oldest pending message in "sending" state for the given
+   * conversation. Called when the WebSocket echoes back a real
+   * `UserMessageEvent` for that conversation. Scoping by `conversationId`
+   * ensures a stale ack for one conversation never pops a pending entry
+   * belonging to another.
    */
-  consumeOldestSendingMessage: () => PendingUserMessage | null;
+  consumeOldestSendingMessage: (
+    conversationId: string,
+  ) => PendingUserMessage | null;
   /** Wipe all queued messages (e.g., when changing conversations). */
   clearPendingMessages: () => void;
 }
@@ -65,6 +77,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       const id = generatePendingId();
       const message: PendingUserMessage = {
         id,
+        conversationId: payload.conversationId,
         text: payload.text,
         status: "sending",
         imageUrls: payload.imageUrls ?? [],
@@ -102,9 +115,11 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         ),
       })),
 
-    consumeOldestSendingMessage: () => {
+    consumeOldestSendingMessage: (conversationId) => {
       const oldest = get().pendingMessages.find(
-        (message) => message.status === "sending",
+        (message) =>
+          message.status === "sending" &&
+          message.conversationId === conversationId,
       );
       if (!oldest) return null;
       set((state) => ({

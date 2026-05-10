@@ -1,7 +1,6 @@
 import React from "react";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { EventMessage } from "./event-message";
-import { PendingUserMessages } from "../../features/chat/pending-user-messages";
 import { usePlanPreviewEvents } from "./hooks/use-plan-preview-events";
 import { groupEvents } from "./group-events";
 import { EventGroup } from "./event-message-components/event-group";
@@ -77,8 +76,6 @@ export const Messages: React.FC<MessagesProps> = React.memo(
             </EventGroup>
           );
         })}
-
-        <PendingUserMessages />
       </>
     );
   },

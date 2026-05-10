@@ -6,9 +6,16 @@ import { renderWithProviders } from "test-utils";
 import { PendingUserMessages } from "#/components/features/chat/pending-user-messages";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 
+const ACTIVE_CONVO = "conv-active";
+
 const mockSend = vi.fn();
 vi.mock("#/hooks/use-send-message", () => ({
   useSendMessage: () => ({ send: mockSend }),
+}));
+
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: ACTIVE_CONVO }),
+  useConversationId: () => ({ conversationId: ACTIVE_CONVO }),
 }));
 
 describe("PendingUserMessages", () => {
@@ -28,9 +35,11 @@ describe("PendingUserMessages", () => {
 
   it("renders each queued message with the faded 'sending' treatment", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
       text: "first message",
     });
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
       text: "second message",
     });
 
@@ -47,10 +56,31 @@ describe("PendingUserMessages", () => {
     expect(screen.getAllByTestId("chat-message-sending")).toHaveLength(2);
   });
 
+  it("ignores pending entries belonging to a different conversation", () => {
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
+      text: "mine",
+    });
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: "other-convo",
+      text: "from another conversation",
+    });
+
+    renderWithProviders(<PendingUserMessages />);
+
+    const messages = screen.getAllByTestId("user-message");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toHaveTextContent("mine");
+    expect(screen.queryByText("from another conversation")).toBeNull();
+  });
+
   it("shows an error state with a retry link when the message is in 'error'", () => {
     const id = useOptimisticUserMessageStore
       .getState()
-      .enqueuePendingMessage({ text: "broken message" });
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "broken message",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");
@@ -67,7 +97,10 @@ describe("PendingUserMessages", () => {
     mockSend.mockResolvedValueOnce({ queued: false });
     const id = useOptimisticUserMessageStore
       .getState()
-      .enqueuePendingMessage({ text: "retry me" });
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "retry me",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");
@@ -97,7 +130,10 @@ describe("PendingUserMessages", () => {
     mockSend.mockRejectedValueOnce(new Error("still broken"));
     const id = useOptimisticUserMessageStore
       .getState()
-      .enqueuePendingMessage({ text: "retry me" });
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "retry me",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");

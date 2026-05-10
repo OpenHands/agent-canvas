@@ -407,9 +407,9 @@ export function ConversationWebSocketProvider({
 
           // Clear optimistic user message when a user message is confirmed
           if (isUserMessageEvent(event)) {
-            consumeOldestSendingMessage();
-            // Clear draft from localStorage - message was successfully delivered
             if (conversationId) {
+              consumeOldestSendingMessage(conversationId);
+              // Clear draft from localStorage - message was successfully delivered
               setConversationState(conversationId, { draftMessage: null });
             }
           }
@@ -554,10 +554,9 @@ export function ConversationWebSocketProvider({
 
           // Clear optimistic user message when a user message is confirmed
           if (isUserMessageEvent(event)) {
-            consumeOldestSendingMessage();
-            // Clear draft from localStorage - message was successfully delivered
             // Use main conversationId since user types in main conversation input
             if (conversationId) {
+              consumeOldestSendingMessage(conversationId);
               setConversationState(conversationId, { draftMessage: null });
             }
           }

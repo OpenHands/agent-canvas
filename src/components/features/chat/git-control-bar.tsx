@@ -114,7 +114,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             repository.git_provider.charAt(0).toUpperCase() +
             repository.git_provider.slice(1);
           const clonePrompt = `Clone ${repository.full_name} from ${providerName} and checkout branch ${branch.name}.`;
-          enqueuePendingMessage({ text: clonePrompt });
+          if (conversationId) {
+            enqueuePendingMessage({ conversationId, text: clonePrompt });
+          }
           sendRef.current({
             action: "message",
             args: {

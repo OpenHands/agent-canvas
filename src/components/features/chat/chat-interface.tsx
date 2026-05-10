@@ -274,6 +274,7 @@ export function ChatInterface() {
     // `UserMessageEvent`. If the API call to send the message fails, the entry
     // is flipped to "error" with a retry link.
     const pendingId = enqueuePendingMessage({
+      conversationId: conversationId!,
       text: content,
       imageUrls,
       fileUrls: uploadedFiles,

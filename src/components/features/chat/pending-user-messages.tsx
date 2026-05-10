@@ -2,6 +2,7 @@ import React from "react";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { ChatMessage } from "./chat-message";
 
 /**
@@ -10,8 +11,14 @@ import { ChatMessage } from "./chat-message";
  * "sending" treatment until the server echoes a real `UserMessageEvent`
  * (which removes it via `consumeOldestSendingMessage`). If the API rejects the
  * send, the message switches to an "error" state with a retry button.
+ *
+ * The queue is global but each entry is tagged with the conversation id it
+ * was enqueued from; this component filters to only entries belonging to the
+ * active conversation, so switching conversations never carries pending
+ * bubbles over.
  */
 export function PendingUserMessages() {
+  const { conversationId } = useOptionalConversationId();
   const pendingMessages = useOptimisticUserMessageStore(
     (state) => state.pendingMessages,
   );
@@ -22,6 +29,16 @@ export function PendingUserMessages() {
     (state) => state.markPendingMessageSending,
   );
   const { send } = useSendMessage();
+
+  const visibleMessages = React.useMemo(
+    () =>
+      conversationId
+        ? pendingMessages.filter(
+            (message) => message.conversationId === conversationId,
+          )
+        : [],
+    [pendingMessages, conversationId],
+  );
 
   const handleRetry = React.useCallback(
     async (id: string) => {
@@ -50,13 +67,13 @@ export function PendingUserMessages() {
     [send, markPendingMessageError, markPendingMessageSending],
   );
 
-  if (pendingMessages.length === 0) {
+  if (visibleMessages.length === 0) {
     return null;
   }
 
   return (
     <>
-      {pendingMessages.map((message) => (
+      {visibleMessages.map((message) => (
         <ChatMessage
           key={message.id}
           type="user"
