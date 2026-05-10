@@ -275,7 +275,12 @@ export function ChatInterface() {
     // is flipped to "error" with a retry link.
     const pendingId = enqueuePendingMessage({
       conversationId: conversationId!,
+      // `text` is what the user sees in the bubble; `content` is what we
+      // actually hand to the server (the prompt may include an appended
+      // "Files uploaded: …" block) and is what the echo will be matched
+      // against. They're different when there are file attachments.
       text: content,
+      content: prompt,
       imageUrls,
       fileUrls: uploadedFiles,
       timestamp,

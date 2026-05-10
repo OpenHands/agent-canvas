@@ -2,6 +2,17 @@ import { create } from "zustand";
 
 export type PendingUserMessageStatus = "sending" | "error";
 
+/**
+ * How long a pending message is allowed to stay in "sending" state before we
+ * give up and flip it to "error" with a retry link. This guards against the
+ * "server crashed / websocket dropped after our send resolved, echo never
+ * arrives" scenario where the message would otherwise hang forever.
+ *
+ * Exported so tests can override it via vi.fakeTimers without hard-coding the
+ * value.
+ */
+export const PENDING_MESSAGE_TIMEOUT_MS = 60_000;
+
 export interface PendingUserMessage {
   id: string;
   /**
@@ -10,7 +21,14 @@ export interface PendingUserMessage {
    * conversation never leak into another when the user switches.
    */
   conversationId: string;
+  /** User-visible bubble text (what the user typed; no file annotations). */
   text: string;
+  /**
+   * The exact string sent to the server (may include the appended
+   * "Files uploaded: …" prompt when attachments are present). Used as the
+   * primary key when matching against the echoed `UserMessageEvent`.
+   */
+  content: string;
   status: PendingUserMessageStatus;
   imageUrls: string[];
   fileUrls: string[];
@@ -24,7 +42,13 @@ interface OptimisticUserMessageState {
 
 export interface EnqueuePendingMessagePayload {
   conversationId: string;
+  /** User-visible text for the bubble. */
   text: string;
+  /**
+   * The exact string sent to the server. Defaults to `text` for call sites
+   * that don't transform the content (e.g. git-control-bar, task-card).
+   */
+  content?: string;
   imageUrls?: string[];
   fileUrls?: string[];
   timestamp?: string;
@@ -33,7 +57,9 @@ export interface EnqueuePendingMessagePayload {
 interface OptimisticUserMessageActions {
   /**
    * Append a new user message to the queue with status "sending".
-   * Returns the locally-generated id for later updates.
+   * Returns the locally-generated id for later updates. Schedules a
+   * `PENDING_MESSAGE_TIMEOUT_MS` watchdog that flips the entry to "error" if
+   * it's still in "sending" state when the timer fires.
    */
   enqueuePendingMessage: (payload: EnqueuePendingMessagePayload) => string;
   /** Mark a pending message as failed (the API rejected it). */
@@ -43,14 +69,18 @@ interface OptimisticUserMessageActions {
   /** Drop a pending message from the queue (e.g., after success/cancellation). */
   removePendingMessage: (id: string) => void;
   /**
-   * Remove the oldest pending message in "sending" state for the given
-   * conversation. Called when the WebSocket echoes back a real
-   * `UserMessageEvent` for that conversation. Scoping by `conversationId`
-   * ensures a stale ack for one conversation never pops a pending entry
-   * belonging to another.
+   * Remove the pending message that matches the given echoed `content` in
+   * the given conversation. Matching is done by exact content equality on
+   * messages still in "sending" state; if no match exists we fall back to
+   * removing the oldest "sending" entry in that conversation so that an echo
+   * with a slightly munged body (e.g. trailing-whitespace stripped by the
+   * server) still clears its bubble. Scoping by `conversationId` ensures a
+   * stale ack for one conversation never pops a pending entry belonging to
+   * another.
    */
-  consumeOldestSendingMessage: (
+  consumeMatchingPendingMessage: (
     conversationId: string,
+    content: string,
   ) => PendingUserMessage | null;
   /** Wipe all queued messages (e.g., when changing conversations). */
   clearPendingMessages: () => void;
@@ -71,7 +101,7 @@ const generatePendingId = (): string =>
   `pending-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
-  (set) => ({
+  (set, get) => ({
     ...initialState,
 
     enqueuePendingMessage: (payload) => {
@@ -80,6 +110,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         id,
         conversationId: payload.conversationId,
         text: payload.text,
+        content: payload.content ?? payload.text,
         status: "sending",
         imageUrls: payload.imageUrls ?? [],
         fileUrls: payload.fileUrls ?? [],
@@ -88,6 +119,17 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       set((state) => ({
         pendingMessages: [...state.pendingMessages, message],
       }));
+
+      // Watchdog: if the server echo never lands (WS dropped, server crashed,
+      // network partition), flip this entry to "error" so the user gets a
+      // retry link instead of a permanently-pinned "Sending…" bubble.
+      setTimeout(() => {
+        const current = get().pendingMessages.find((m) => m.id === id);
+        if (current && current.status === "sending") {
+          get().markPendingMessageError(id, "Send timed out");
+        }
+      }, PENDING_MESSAGE_TIMEOUT_MS);
+
       return id;
     },
 
@@ -116,26 +158,31 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         ),
       })),
 
-    consumeOldestSendingMessage: (conversationId) => {
-      // Atomic find + remove in a single `set` so we can't race against
-      // another action mutating the queue between the read and the write.
-      // The WebSocket transport for a given conversation is sequential, so
-      // FIFO consumption matches the order in which the server echoes user
-      // messages back; scoping by `conversationId` keeps cross-conversation
-      // echoes from popping the wrong bubble.
+    consumeMatchingPendingMessage: (conversationId, content) => {
+      // Single atomic `set` so the find + filter can't observe an interleaved
+      // mutation from another action. We prefer an exact content match (this
+      // is what makes out-of-order echoes safe: an echo of "world" will pop
+      // the "world" bubble, not the older "hello" one). If no exact match
+      // exists — e.g. the server slightly munged the body — fall back to the
+      // oldest "sending" entry in this conversation so the user doesn't end
+      // up with a permanently-stuck bubble in the happy-path single-message
+      // case.
       let consumed: PendingUserMessage | null = null;
       set((state) => {
-        const idx = state.pendingMessages.findIndex(
-          (message) =>
-            message.status === "sending" &&
-            message.conversationId === conversationId,
-        );
-        if (idx === -1) return state;
-        consumed = state.pendingMessages[idx];
+        const sending = state.pendingMessages
+          .map((m, i) => ({ m, i }))
+          .filter(
+            ({ m }) =>
+              m.status === "sending" && m.conversationId === conversationId,
+          );
+        if (sending.length === 0) return state;
+        const exact = sending.find(({ m }) => m.content === content);
+        const target = exact ?? sending[0];
+        consumed = target.m;
         return {
           pendingMessages: [
-            ...state.pendingMessages.slice(0, idx),
-            ...state.pendingMessages.slice(idx + 1),
+            ...state.pendingMessages.slice(0, target.i),
+            ...state.pendingMessages.slice(target.i + 1),
           ],
         };
       });
