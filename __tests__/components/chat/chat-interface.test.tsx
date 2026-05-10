@@ -306,6 +306,73 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     );
   });
 
+  it("shows an error banner if loading older events fails", async () => {
+    const seedEvent: MessageEvent = {
+      id: "msg-seed",
+      timestamp: "2025-07-01T00:00:00Z",
+      source: "user",
+      llm_message: {
+        role: "user",
+        content: [{ type: "text", text: "Existing message" }],
+      },
+      activated_microagents: [],
+      extended_content: [],
+    };
+    useEventStore.setState({
+      events: [seedEvent],
+      eventIds: new Set(["msg-seed"]),
+      uiEvents: [seedEvent],
+    });
+
+    const useUserConversationModule =
+      await import("#/hooks/query/use-user-conversation");
+    vi.spyOn(useUserConversationModule, "useUserConversation").mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        conversation_url: "https://example.com",
+        session_api_key: "k",
+        conversation_version: "V1",
+      },
+      isLoading: false,
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<
+      typeof useUserConversationModule.useUserConversation
+    >);
+
+    const eventServiceModule =
+      await import("#/api/event-service/event-service.api");
+    vi.spyOn(eventServiceModule.default, "searchEvents").mockRejectedValue(
+      new Error("Older events request failed"),
+    );
+
+    renderWithQueryClient(<ChatInterface />, queryClient);
+
+    const scrollContainer = document.querySelector(
+      ".custom-scrollbar-always",
+    ) as HTMLElement | null;
+    expect(scrollContainer).not.toBeNull();
+
+    Object.defineProperty(scrollContainer!, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(scrollContainer!, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 5000,
+    });
+
+    scrollContainer!.dispatchEvent(new Event("scroll", { bubbles: true }));
+
+    expect(
+      await screen.findByText("Older events request failed"),
+    ).toBeInTheDocument();
+  });
+
   it("renders renderable agent events even when the loaded window has no user message (so the user has something to scroll up from)", () => {
     // Simulate the lazy-loaded "50 most recent" window landing in the
     // store with only agent / environment events — the original user

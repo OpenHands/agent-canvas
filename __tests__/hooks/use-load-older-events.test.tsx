@@ -181,4 +181,35 @@ describe("useLoadOlderEvents", () => {
     // Full page + next_page_id present → still has more.
     expect(result.current.hasMore).toBe(true);
   });
+
+  it("stops paginating and throws when the oldest loaded event is missing a timestamp", async () => {
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent({ id: "evt-missing-ts" } as OpenHandsEvent);
+    });
+
+    const spy = vi.spyOn(EventService, "searchEvents");
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    let thrown: unknown;
+    await act(async () => {
+      try {
+        await result.current.loadOlder();
+      } catch (error) {
+        thrown = error;
+      }
+    });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain(
+      "oldest loaded event has no timestamp",
+    );
+    await waitFor(() => {
+      expect(result.current.hasMore).toBe(false);
+    });
+  });
 });

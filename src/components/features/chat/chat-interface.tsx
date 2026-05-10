@@ -49,7 +49,8 @@ function getEntryPoint(
 export function ChatInterface() {
   const posthog = usePostHog();
   const { setMessageToSend } = useConversationStore();
-  const { errorMessage, removeErrorMessage } = useErrorMessageStore();
+  const { errorMessage, removeErrorMessage, setErrorMessage } =
+    useErrorMessageStore();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
@@ -143,13 +144,16 @@ export function ChatInterface() {
           scrollHeight: target.scrollHeight,
           scrollTop: target.scrollTop,
         };
-        // Fire-and-forget: errors surface via the existing error banner.
-        loadOlder().catch(() => {
-          /* error already surfaced via global toast / banner */
+        loadOlder().catch((error) => {
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : t(I18nKey.ERROR$GENERIC);
+          setErrorMessage(message);
         });
       }
     },
-    [isLoadingOlderEvents, hasMoreOlderEvents, loadOlder],
+    [hasMoreOlderEvents, isLoadingOlderEvents, loadOlder, setErrorMessage, t],
   );
 
   const optimisticUserMessage = getOptimisticUserMessage();

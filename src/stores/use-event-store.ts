@@ -62,17 +62,11 @@ export interface EventState {
   clearEvents: () => void;
 }
 
-const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
+const appendEvent = (state: EventState, event: OHEvent): EventState => {
   // Deduplicate: skip if event with same id already exists (O(1) lookup)
   const eventId = getEventId(event);
   if (eventId !== undefined && state.eventIds.has(eventId)) {
     return state;
-  }
-
-  // Add event and sort if needed to maintain chronological order
-  let newEvents = [...state.events, event];
-  if (needsSorting(state.events, event)) {
-    newEvents = newEvents.sort(compareEventsByTimestamp);
   }
 
   const newEventIds =
@@ -80,19 +74,34 @@ const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
       ? new Set(state.eventIds).add(eventId)
       : state.eventIds;
 
-  // Process UI events and sort if needed
-  let newUiEvents = handleEventForUI(event, state.uiEvents);
-
-  if (needsSorting(state.uiEvents, event)) {
-    newUiEvents = newUiEvents.sort(compareEventsByTimestamp);
-  }
-
   return {
     ...state,
-    events: newEvents,
+    events: [...state.events, event],
     eventIds: newEventIds,
-    uiEvents: newUiEvents,
+    uiEvents: handleEventForUI(event, state.uiEvents),
   };
+};
+
+const sortEventState = (state: EventState): EventState => ({
+  ...state,
+  events: [...state.events].sort(compareEventsByTimestamp),
+  uiEvents: [...state.uiEvents].sort(compareEventsByTimestamp),
+});
+
+const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
+  const next = appendEvent(state, event);
+  if (next === state) {
+    return state;
+  }
+
+  if (
+    !needsSorting(state.events, event) &&
+    !needsSorting(state.uiEvents, event)
+  ) {
+    return next;
+  }
+
+  return sortEventState(next);
 };
 
 export const useEventStore = create<EventState>()((set) => ({
@@ -103,19 +112,12 @@ export const useEventStore = create<EventState>()((set) => ({
   addEvents: (incoming: OHEvent[]) =>
     set((state) => {
       if (incoming.length === 0) return state;
-      // Reduce so dedup + UI-event handling stay consistent with addEvent.
-      // Sort once at the end to amortize the cost of inserting an older page.
       let next = state;
       for (const event of incoming) {
-        next = applyAddEvent(next, event);
+        next = appendEvent(next, event);
       }
-      const sortedEvents = [...next.events].sort(compareEventsByTimestamp);
-      const sortedUiEvents = [...next.uiEvents].sort(compareEventsByTimestamp);
-      return {
-        ...next,
-        events: sortedEvents,
-        uiEvents: sortedUiEvents,
-      };
+
+      return next === state ? state : sortEventState(next);
     }),
   clearEvents: () =>
     set(() => ({

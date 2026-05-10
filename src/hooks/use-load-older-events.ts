@@ -46,11 +46,18 @@ export const useLoadOlderEvents = (
 
     const { events } = useEventStore.getState();
     const oldest = events[0];
-    const oldestTimestamp = oldest ? getEventTimestamp(oldest) : undefined;
 
     // No anchor yet — defer until the initial REST load has populated the
     // store (avoids fetching twice with the same `TIMESTAMP_DESC` window).
-    if (!oldestTimestamp) return;
+    if (!oldest) return;
+
+    const oldestTimestamp = getEventTimestamp(oldest);
+    if (!oldestTimestamp) {
+      setHasMore(false);
+      throw new Error(
+        "Unable to load older events because the oldest loaded event has no timestamp.",
+      );
+    }
 
     setIsLoading(true);
     try {

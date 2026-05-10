@@ -149,6 +149,23 @@ describe("useEventStore", () => {
     expect(result.current.events).toHaveLength(2);
   });
 
+  it("should apply action-to-observation UI replacement during bulk add", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvents([
+        mockUserMessageEvent,
+        mockActionEvent,
+        mockObservationEvent,
+      ]);
+    });
+
+    expect(result.current.uiEvents).toEqual([
+      mockUserMessageEvent,
+      mockObservationEvent,
+    ]);
+  });
+
   it("should clear all events when clearEvents is called", () => {
     const { result } = renderHook(() => useEventStore());
 
