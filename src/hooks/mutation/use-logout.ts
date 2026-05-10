@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
-import { openHands } from "#/api/open-hands-axios";
+import { createSessionClient } from "#/api/typescript-client";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 export const useLogout = () => {
@@ -9,7 +9,7 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: async () => {
-      await openHands.post("/api/unset-provider-tokens");
+      await createSessionClient().unsetProviderTokens();
     },
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: ["tasks"] });

@@ -1,16 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useNavigate } from "react-router";
-import { openHands } from "#/api/open-hands-axios";
+import { createSessionClient } from "#/api/typescript-client";
 import { handleCaptureConsent } from "#/utils/handle-capture-consent";
 import { useTracking } from "#/hooks/use-tracking";
 
 interface AcceptTosVariables {
   redirectUrl: string;
-}
-
-interface AcceptTosResponse {
-  redirect_url?: string;
 }
 
 export const useAcceptTos = () => {
@@ -24,16 +20,14 @@ export const useAcceptTos = () => {
       handleCaptureConsent(posthog, true);
 
       // Call the API to record TOS acceptance in the database
-      return openHands.post<AcceptTosResponse>("/api/accept_tos", {
-        redirect_url: redirectUrl,
-      });
+      return createSessionClient().acceptTos(redirectUrl);
     },
     onSuccess: (response, { redirectUrl }) => {
       // Track user signup completion
       trackUserSignupCompleted();
 
       // Get the redirect URL from the response
-      const finalRedirectUrl = response.data.redirect_url || redirectUrl;
+      const finalRedirectUrl = response.redirect_url || redirectUrl;
 
       // Check if the redirect URL is an external URL (starts with http or https)
       if (

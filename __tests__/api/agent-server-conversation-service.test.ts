@@ -17,6 +17,9 @@ const {
   mockFileUpload,
   mockCreateHttpClient,
   mockCreateRemoteWorkspace,
+  mockCreateConversationClient,
+  mockCreateFileClient,
+  mockCreateSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
@@ -26,6 +29,9 @@ const {
   mockFileUpload: vi.fn(),
   mockCreateHttpClient: vi.fn(),
   mockCreateRemoteWorkspace: vi.fn(),
+  mockCreateConversationClient: vi.fn(),
+  mockCreateFileClient: vi.fn(),
+  mockCreateSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
@@ -33,6 +39,9 @@ const {
 vi.mock("#/api/typescript-client", () => ({
   createHttpClient: mockCreateHttpClient,
   createRemoteWorkspace: mockCreateRemoteWorkspace,
+  createConversationClient: mockCreateConversationClient,
+  createFileClient: mockCreateFileClient,
+  createSettingsClient: mockCreateSettingsClient,
   createVSCodeClient: vi.fn(),
 }));
 
@@ -71,6 +80,43 @@ describe("AgentServerConversationService", () => {
     });
     mockCreateRemoteWorkspace.mockReturnValue({
       fileUpload: mockFileUpload,
+    });
+    mockCreateConversationClient.mockReturnValue({
+      createConversation: async (payload: unknown) => {
+        const response = await mockHttpPost("/api/conversations", payload);
+        return response.data;
+      },
+      getConversations: async (conversationIds: string[]) => {
+        const response = await mockHttpGet("/api/conversations", {
+          params: { ids: conversationIds },
+        });
+        return response.data;
+      },
+      deleteConversation: async (conversationId: string) => {
+        const response = await mockHttpDelete(
+          `/api/conversations/${conversationId}`,
+        );
+        return response.data;
+      },
+    });
+    mockCreateFileClient.mockReturnValue({
+      downloadTextFile: async (path: string) => {
+        const response = await mockHttpGet("/api/file/download", {
+          params: { path },
+          responseType: "arrayBuffer",
+        });
+        return new TextDecoder().decode(response.data);
+      },
+      downloadTrajectory: async (conversationId: string) => {
+        const response = await mockHttpGet(
+          `/api/file/download-trajectory/${conversationId}`,
+          { responseType: "blob" },
+        );
+        return response.data;
+      },
+    });
+    mockCreateSettingsClient.mockReturnValue({
+      listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
     });
   });
 
@@ -276,7 +322,9 @@ describe("AgentServerConversationService", () => {
 
       // Act
       const content =
-        await AgentServerConversationService.readConversationFile("conv-cloud-1");
+        await AgentServerConversationService.readConversationFile(
+          "conv-cloud-1",
+        );
 
       // Assert
       expect(content).toBe("# PLAN content");

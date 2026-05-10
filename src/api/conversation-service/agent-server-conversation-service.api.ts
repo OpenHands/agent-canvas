@@ -1,3 +1,4 @@
+import { ConversationSortOrder } from "@openhands/typescript-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -32,7 +33,8 @@ import {
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
-  createHttpClient,
+  createConversationClient,
+  createFileClient,
   createRemoteWorkspace,
   createVSCodeClient,
 } from "../typescript-client";
@@ -60,13 +62,9 @@ class AgentServerConversationService {
     conversationId: string,
     message: SendMessageRequest,
   ): Promise<SendMessageResponse> {
-    await createHttpClient().post(
-      `/api/conversations/${conversationId}/events`,
-      {
-        ...message,
-        run: true,
-      },
-    );
+    await createConversationClient().sendEvent(conversationId, message, {
+      run: true,
+    });
 
     return message;
   }
@@ -121,11 +119,10 @@ class AgentServerConversationService {
       workingDir,
     });
 
-    const response = await createHttpClient().post<DirectConversationInfo>(
-      "/api/conversations",
-      payload,
-    );
-    const { data } = response;
+    const data =
+      await createConversationClient().createConversation<DirectConversationInfo>(
+        payload,
+      );
 
     if (metadata?.selected_repository) {
       // The agent-server runtime has no concept of selected repo/branch, so
@@ -223,39 +220,36 @@ class AgentServerConversationService {
 
   static async pauseConversation(
     conversationId: string,
-    _conversationUrl: string | null | undefined,
+    conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/pause`, {});
-
-    return response.data;
+    return createConversationClient({
+      conversationUrl,
+      sessionApiKey,
+    }).pauseConversation(conversationId);
   }
 
   static async askAgent(
     conversationId: string,
-    _conversationUrl: string | null | undefined,
+    conversationUrl: string | null | undefined,
     question: string,
     sessionApiKey?: string | null,
   ): Promise<{ response: string }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      response: string;
-    }>(`/api/conversations/${conversationId}/ask_agent`, { question });
-
-    return response.data;
+    return createConversationClient({
+      conversationUrl,
+      sessionApiKey,
+    }).askAgent(conversationId, question);
   }
 
   static async resumeConversation(
     conversationId: string,
-    _conversationUrl: string | null | undefined,
+    conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/run`, {});
-
-    return response.data;
+    return createConversationClient({
+      conversationUrl,
+      sessionApiKey,
+    }).runConversation(conversationId);
   }
 
   static async batchGetAppConversations(
@@ -267,11 +261,12 @@ class AgentServerConversationService {
       return batchGetCloudConversations(ids);
     }
 
-    const response = await createHttpClient().get<
-      (DirectConversationInfo | null)[]
-    >("/api/conversations", { params: { ids } });
+    const data =
+      await createConversationClient().getConversations<DirectConversationInfo>(
+        ids,
+      );
 
-    return response.data.map((item) => (item ? toAppConversation(item) : null));
+    return data.map((item) => (item ? toAppConversation(item) : null));
   }
 
   static async uploadFile(
@@ -346,14 +341,7 @@ class AgentServerConversationService {
       return downloadCloudConversation(conversationId);
     }
 
-    const response = await createHttpClient().get<Blob>(
-      `/api/file/download-trajectory/${conversationId}`,
-      {
-        responseType: "blob",
-      },
-    );
-
-    return response.data;
+    return createFileClient().downloadTrajectory(conversationId);
   }
 
   static async getSkills(conversationId: string): Promise<GetSkillsResponse> {
@@ -395,12 +383,10 @@ class AgentServerConversationService {
             authMode: "session-api-key",
             sessionApiKey,
           })
-        : (
-            await createHttpClient({
-              conversationUrl,
-              sessionApiKey,
-            }).get<RawRuntime>(`/api/conversations/${conversationId}`)
-          ).data;
+        : await createConversationClient({
+            conversationUrl,
+            sessionApiKey,
+          }).getConversation<RawRuntime>(conversationId);
 
     return {
       id: data.id,
@@ -446,25 +432,23 @@ class AgentServerConversationService {
       return searchCloudConversations(limit, pageId);
     }
 
-    const response = await createHttpClient().get<{
-      items: DirectConversationInfo[];
-      next_page_id: string | null;
-    }>("/api/conversations/search", {
-      params: {
-        limit,
-        page_id: pageId,
-        sort_order: "UPDATED_AT_DESC",
-      },
+    const data = await createConversationClient().searchConversations({
+      limit,
+      page_id: pageId,
+      sort_order: ConversationSortOrder.UPDATED_AT_DESC,
     });
 
-    return toConversationPage(response.data);
+    return toConversationPage({
+      items: data.items as DirectConversationInfo[],
+      next_page_id: data.next_page_id ?? null,
+    });
   }
 
   static async deleteConversation(conversationId: string): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
       await deleteCloudConversation(conversationId);
     } else {
-      await createHttpClient().delete(`/api/conversations/${conversationId}`);
+      await createConversationClient().deleteConversation(conversationId);
     }
     removeStoredConversationMetadata(conversationId);
   }
@@ -473,7 +457,7 @@ class AgentServerConversationService {
     conversationId: string,
     title: string,
   ): Promise<AppConversation> {
-    await createHttpClient().patch(`/api/conversations/${conversationId}`, {
+    await createConversationClient().updateConversation(conversationId, {
       title,
     });
     const [conversation] = await this.batchGetAppConversations([

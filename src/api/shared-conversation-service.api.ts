@@ -1,5 +1,5 @@
 import { OpenHandsEvent } from "#/types/agent-server/core";
-import { createHttpClient } from "./typescript-client";
+import { createSharedClient } from "./typescript-client";
 
 export interface SharedConversation {
   id: string;
@@ -26,11 +26,9 @@ export const sharedConversationService = {
   async getSharedConversation(
     conversationId: string,
   ): Promise<SharedConversation | null> {
-    const response = await createHttpClient().get<
-      (SharedConversation | null)[]
-    >("/api/shared-conversations", { params: { ids: conversationId } });
-
-    return response.data[0] || null;
+    return createSharedClient().getSharedConversation(
+      conversationId,
+    ) as Promise<SharedConversation | null>;
   },
 
   async getSharedConversationEvents(
@@ -38,17 +36,10 @@ export const sharedConversationService = {
     limit: number = 100,
     pageId?: string,
   ): Promise<EventPage> {
-    const response = await createHttpClient().get<EventPage>(
-      "/api/shared-events/search",
-      {
-        params: {
-          conversation_id: conversationId,
-          limit,
-          ...(pageId ? { page_id: pageId } : {}),
-        },
-      },
-    );
-
-    return response.data;
+    return createSharedClient().searchSharedEvents({
+      conversationId,
+      limit,
+      pageId,
+    }) as Promise<EventPage>;
   },
 };

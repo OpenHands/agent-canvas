@@ -1,29 +1,24 @@
-import { openHands } from "./open-hands-axios";
+import { createSecurityClient } from "./typescript-client";
 
 class InvariantService {
   static async getPolicy() {
-    const { data } = await openHands.get("/api/security/policy");
-    return data.policy;
+    return createSecurityClient().getPolicy();
   }
 
   static async getRiskSeverity() {
-    const { data } = await openHands.get("/api/security/settings");
-    return data.RISK_SEVERITY;
+    return createSecurityClient().getRiskSeverity();
   }
 
   static async getTraces() {
-    const { data } = await openHands.get("/api/security/export-trace");
-    return data;
+    return createSecurityClient().exportTrace();
   }
 
   static async updatePolicy(policy: string) {
-    await openHands.post("/api/security/policy", { policy });
+    await createSecurityClient().updatePolicy(policy);
   }
 
   static async updateRiskSeverity(riskSeverity: number) {
-    await openHands.post("/api/security/settings", {
-      RISK_SEVERITY: riskSeverity,
-    });
+    await createSecurityClient().updateRiskSeverity(riskSeverity);
   }
 }
 

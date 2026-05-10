@@ -5,37 +5,9 @@ import {
   fetchCloudSecrets,
   updateCloudSecret,
 } from "./cloud/secrets-service.api";
-import { createHttpClient } from "./typescript-client";
+import { createSettingsClient } from "./typescript-client";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
 import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
-
-/**
- * Response from GET /api/settings/secrets (agent-server API)
- */
-interface SecretsListResponse {
-  secrets: Array<{
-    name: string;
-    description?: string;
-  }>;
-}
-
-/**
- * Request for PUT /api/settings/secrets (agent-server API)
- * This is an upsert operation - creates or updates by name.
- */
-interface CreateSecretRequest {
-  name: string;
-  value: string;
-  description?: string;
-}
-
-/**
- * Response from PUT /api/settings/secrets (agent-server API)
- */
-interface CreateSecretResponse {
-  name: string;
-  description?: string;
-}
 
 const normalizeHost = (host: string | null | undefined): string | null => {
   const trimmed = typeof host === "string" ? host.trim() : "";
@@ -185,9 +157,9 @@ export class SecretsService {
         return await withRetry(() => fetchCloudSecrets());
       }
       const response = await withRetry(() =>
-        createHttpClient().get<SecretsListResponse>("/api/settings/secrets"),
+        createSettingsClient().listSecrets(),
       );
-      return response.data.secrets.map((s) => ({
+      return response.secrets.map((s) => ({
         name: s.name,
         description: s.description,
       }));
@@ -216,11 +188,11 @@ export class SecretsService {
       return;
     }
     await withRetry(() =>
-      createHttpClient().put<CreateSecretResponse>("/api/settings/secrets", {
+      createSettingsClient().upsertSecret({
         name,
         value,
         description,
-      } satisfies CreateSecretRequest),
+      }),
     );
   }
 
@@ -263,11 +235,7 @@ export class SecretsService {
         await withRetry(() => deleteCloudSecret(name));
         return;
       }
-      await withRetry(() =>
-        createHttpClient().delete<{ deleted: boolean }>(
-          `/api/settings/secrets/${encodeURIComponent(name)}`,
-        ),
-      );
+      await withRetry(() => createSettingsClient().deleteSecret(name));
     } catch (error) {
       // 404 means secret doesn't exist - treat as successful deletion
       if (

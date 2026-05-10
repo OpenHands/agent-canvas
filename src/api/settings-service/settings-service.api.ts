@@ -13,7 +13,7 @@ import {
   fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "../cloud/settings-service.api";
-import { createHttpClient, createSettingsClient } from "../typescript-client";
+import { createSettingsClient } from "../typescript-client";
 
 /**
  * Response from GET /api/settings
@@ -214,16 +214,9 @@ class SettingsService {
   static async fetchSettingsFromApi(
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<SettingsApiResponse> {
-    const headers: Record<string, string> = {};
-    if (exposeSecrets) {
-      headers["X-Expose-Secrets"] = exposeSecrets;
-    }
-
-    const response = await withRetry(() =>
-      createHttpClient().get<SettingsApiResponse>("/api/settings", { headers }),
-    );
-
-    return response.data;
+    return withRetry(() =>
+      createSettingsClient().getSettings({ exposeSecrets }),
+    ) as Promise<SettingsApiResponse>;
   }
 
   /**
@@ -372,10 +365,7 @@ class SettingsService {
         return true;
       }
       await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>(
-          "/api/settings",
-          localPayload,
-        ),
+        createSettingsClient().updateSettings(localPayload),
       );
     }
 

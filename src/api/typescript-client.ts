@@ -1,7 +1,13 @@
 import {
+  ApiKeysClient,
+  ConversationClient,
+  FileClient,
   LLMMetadataClient,
+  SecurityClient,
   ServerClient,
+  SessionClient,
   SettingsClient,
+  SharedClient,
   SkillsClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
@@ -79,6 +85,48 @@ export function createServerClient(
     ...(apiKey ? { apiKey } : {}),
     ...(overrides?.timeout ? { timeout: overrides.timeout } : {}),
   });
+}
+
+export function createConversationClient(
+  overrides?: TypeScriptClientOverrides,
+): ConversationClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new ConversationClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createFileClient(
+  overrides?: TypeScriptClientOverrides,
+): FileClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new FileClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createSecurityClient(
+  overrides?: TypeScriptClientOverrides,
+): SecurityClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new SecurityClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createApiKeysClient(
+  overrides?: TypeScriptClientOverrides,
+): ApiKeysClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new ApiKeysClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createSessionClient(
+  overrides?: TypeScriptClientOverrides,
+): SessionClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new SessionClient({ host, ...(apiKey ? { apiKey } : {}) });
+}
+
+export function createSharedClient(
+  overrides?: TypeScriptClientOverrides,
+): SharedClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new SharedClient({ host, ...(apiKey ? { apiKey } : {}) });
 }
 
 export function createLlmMetadataClient(

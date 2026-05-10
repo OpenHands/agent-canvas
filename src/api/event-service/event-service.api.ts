@@ -2,7 +2,10 @@ import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
-import { createHttpClient, createRemoteEventsList } from "../typescript-client";
+import {
+  createConversationClient,
+  createRemoteEventsList,
+} from "../typescript-client";
 import type {
   ConfirmationResponseRequest,
   ConfirmationResponseResponse,
@@ -50,15 +53,13 @@ class EventService {
       });
     }
 
-    const response = await createHttpClient({
+    return createConversationClient({
       conversationUrl,
       sessionApiKey,
-    }).post<ConfirmationResponseResponse>(
-      `/api/conversations/${conversationId}/events/respond_to_confirmation`,
+    }).respondToConfirmation<ConfirmationResponseResponse>(
+      conversationId,
       request,
     );
-
-    return response.data;
   }
 
   static async getEventCount(
@@ -79,10 +80,10 @@ class EventService {
       });
     }
 
-    return createRemoteEventsList(conversationId, {
+    return createConversationClient({
       conversationUrl,
       sessionApiKey,
-    }).count();
+    }).getEventCount(conversationId);
   }
 
   static async searchEvents(

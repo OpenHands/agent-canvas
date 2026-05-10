@@ -8,17 +8,23 @@ import { getStoredConversationMetadata } from "#/api/conversation-metadata-store
 const {
   mockHttpPost,
   mockCreateHttpClient,
+  mockCreateConversationClient,
+  mockCreateSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
   mockHttpPost: vi.fn(),
   mockCreateHttpClient: vi.fn(),
+  mockCreateConversationClient: vi.fn(),
+  mockCreateSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
   createHttpClient: mockCreateHttpClient,
+  createConversationClient: mockCreateConversationClient,
+  createSettingsClient: mockCreateSettingsClient,
   createRemoteWorkspace: vi.fn(),
   createVSCodeClient: vi.fn(),
 }));
@@ -74,6 +80,16 @@ describe("useCreateConversation persists selected repository metadata", () => {
       post: mockHttpPost,
       patch: vi.fn(),
       delete: vi.fn(),
+    });
+    mockCreateConversationClient.mockReset();
+    mockCreateConversationClient.mockReturnValue({
+      createConversation: async (payload: unknown) => {
+        const response = await mockHttpPost("/api/conversations", payload);
+        return response.data;
+      },
+    });
+    mockCreateSettingsClient.mockReturnValue({
+      listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
     });
     mockHttpPost.mockResolvedValue({
       data: {

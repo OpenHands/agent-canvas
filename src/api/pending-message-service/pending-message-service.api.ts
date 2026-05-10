@@ -1,4 +1,4 @@
-import { createHttpClient } from "../typescript-client";
+import { createConversationClient } from "../typescript-client";
 import type {
   PendingMessageResponse,
   QueuePendingMessageRequest,
@@ -9,13 +9,13 @@ class PendingMessageService {
     conversationId: string,
     message: QueuePendingMessageRequest,
   ): Promise<PendingMessageResponse> {
-    await createHttpClient().post(
-      `/api/conversations/${conversationId}/events`,
+    await createConversationClient().sendEvent(
+      conversationId,
       {
         ...message,
         role: "user",
-        run: true,
       },
+      { run: true },
     );
 
     return {

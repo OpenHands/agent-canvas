@@ -1,4 +1,4 @@
-import { openHands } from "./open-hands-axios";
+import { createApiKeysClient } from "./typescript-client";
 
 export interface ApiKey {
   id: string;
@@ -21,9 +21,7 @@ class ApiKeysClient {
    * Get all API keys for the current user
    */
   static async getApiKeys(): Promise<ApiKey[]> {
-    const { data } = await openHands.get<unknown>("/api/keys");
-    // Ensure we always return an array, even if the API returns something else
-    return Array.isArray(data) ? (data as ApiKey[]) : [];
+    return createApiKeysClient().listApiKeys() as Promise<ApiKey[]>;
   }
 
   /**
@@ -31,10 +29,9 @@ class ApiKeysClient {
    * @param name - A descriptive name for the API key
    */
   static async createApiKey(name: string): Promise<CreateApiKeyResponse> {
-    const { data } = await openHands.post<CreateApiKeyResponse>("/api/keys", {
+    return createApiKeysClient().createApiKey(
       name,
-    });
-    return data;
+    ) as Promise<CreateApiKeyResponse>;
   }
 
   /**
@@ -42,7 +39,7 @@ class ApiKeysClient {
    * @param id - The ID of the API key to delete
    */
   static async deleteApiKey(id: string): Promise<void> {
-    await openHands.delete(`/api/keys/${id}`);
+    await createApiKeysClient().deleteApiKey(id);
   }
 }
 
