@@ -45,116 +45,140 @@ server, and the automation backend, and fronts them with an ingress proxy on
 `127.0.0.1:8000` that routes by path. nginx only needs to know about that
 single ingress port — it doesn't talk to the three upstreams directly.
 
-There are three lines of defense:
+The defenses layered on top of this:
 
-1. **Cloud / network firewall** — only ports 80 and 443 are reachable from the
-   public internet, and ideally only from your IP allow-list.
-2. **nginx HTTP basic auth** — every request must present a username/password
-   before it reaches the application.
-3. **`SESSION_API_KEY` on the agent server** — every `/api/*` call must also
-   carry a matching `X-Session-API-Key` header. This guards against any
-   misconfiguration that lets a request bypass nginx (e.g. a stray bind to
-   `0.0.0.0` on the agent port).
+1. **Cloud / network firewall (step 2)** — by default nothing inbound is
+   reachable except SSH from your IP. If you do step 4, you additionally open
+   80 and 443 (ideally still restricted to your IP allow-list on 443).
+2. **`SESSION_API_KEY` on the agent server (step 3, auto-generated)** —
+   every `/api/*` call must carry a matching `X-Session-API-Key` header.
+   This guards against any misconfiguration that lets a request bypass the
+   firewall (e.g. a stray bind to `0.0.0.0`).
+3. **nginx HTTP basic auth (step 4, optional)** — if you expose the UI on a
+   public domain, every request must additionally present a username and
+   password before it ever reaches the application.
 
-## 1. Provision a VM and a domain
+## 1. Provision a machine
 
-1. Provision a small Linux VM with a public IPv4 address from any cloud
-   provider (DigitalOcean, AWS EC2, GCP Compute Engine, Hetzner, Linode, …).
-   Ubuntu 24.04 LTS is a good default. 2 vCPU / 4 GB RAM is plenty for a single
-   user; bump it up if you plan to keep many long-running conversations.
-2. Register a domain (or use an existing one) and create an `A` record pointing
-   to the VM's public IP — for example `canvas.example.com`. You will use this
-   hostname for HTTPS and Let's Encrypt verification.
-3. Verify DNS has propagated:
+Any always-on Linux (or macOS) host with a stable network connection will do.
+Pick whichever fits your situation:
 
-   ```bash
-   dig +short canvas.example.com
-   ```
+- **A cloud VM** from any provider — DigitalOcean, AWS EC2, GCP Compute Engine,
+  Hetzner, Linode, etc. Ubuntu 24.04 LTS is a good default. 2 vCPU / 4 GB RAM
+  is plenty for a single user; bump it up if you plan to keep many
+  long-running conversations.
+- **Dedicated hardware on your network** — a Mac Mini, an Intel NUC, a spare
+  laptop. The same setup applies; just keep in mind that anything reachable
+  from your LAN is also part of the threat model.
 
-## 2. Lock down the network
+Whichever you pick, treat the machine as the single source of truth for the
+agent — it will hold your conversation history, secrets, and any credentials
+the agent needs.
 
-This is the most important step. Do it **before** the agent server ever
-listens on a port.
+## 2. Secure the machine
 
-Restrict inbound traffic at the cloud-provider level (DigitalOcean Cloud
-Firewall, AWS Security Group, GCP firewall rule, Hetzner firewall, etc.):
+> [!IMPORTANT]
+> Do this **before** you start the agent server for the first time. The whole
+> point is that nothing on the public internet should be able to reach the
+> agent until you have explicitly chosen how to expose it.
+
+The default posture should be: **nothing inbound is reachable from the public
+internet** except SSH (and only from your own IP). The agent server, the
+automation backend, the Vite dev server, and the ingress proxy will all bind
+to `127.0.0.1` on their own (see step 3), but the network firewall is what
+guarantees no one else can reach them even if something binds wrong.
+
+Restrict inbound traffic at the cloud-provider / network level (DigitalOcean
+Cloud Firewall, AWS Security Group, GCP firewall rule, Hetzner firewall, your
+home router's port-forwarding rules, etc.):
 
 - **Inbound 22 (SSH)** — restrict to your own IP / VPN CIDR. Never leave it
   open to `0.0.0.0/0` long-term.
-- **Inbound 80 (HTTP)** — open to `0.0.0.0/0`. Let's Encrypt's HTTP-01
-  challenge verifies from many IPs worldwide, so this needs to be world-open
-  during issuance and renewal. nginx will redirect it to HTTPS.
-- **Inbound 443 (HTTPS)** — this is the one you actually use. Restrict it to
-  your own IP / VPN CIDR if you can. If you need it world-open (e.g. you roam
-  often), the basic auth + `SESSION_API_KEY` layers below become your primary
-  defense.
-- **Everything else** — drop. In particular, the agent server's port and the
-  Vite dev port must **not** be reachable from outside.
+- **Everything else** — drop. In particular, the ingress port (`:8000`), the
+  agent server (`:18000`), the automation backend (`:18001`), and the Vite
+  dev server (`:3001`) must not be reachable from outside the host.
 
 If you are running inside Kubernetes, use a `NetworkPolicy` to the same effect:
-allow ingress on the proxy's port from a known set of CIDRs / namespaces, and
-deny everything else.
+deny all ingress by default and only allow what you explicitly need.
+
+At this point your machine is reachable only over SSH. That's enough to run
+the agent (step 3) and access the UI through an SSH tunnel. If you also want
+to reach it from a browser without tunneling, you'll open ports 80 and 443
+in the optional domain + nginx step (step 4).
 
 For an extra host-level backstop, see
 [Advanced: defense in depth](#advanced-defense-in-depth) at the end of this
 document.
 
-## 3. Install prerequisites on the VM
+## 3. Run the server
+
+Install the prerequisites on the machine. On Ubuntu:
 
 ```bash
 apt-get update
-apt-get install -y nginx certbot python3-certbot-nginx apache2-utils acl curl git
+apt-get install -y curl git
 # Node.js 22.x (use nvm, asdf, or NodeSource — whatever you prefer)
 # uv (for the agent-server uvx runtime):
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Clone the repo and install dependencies:
+On macOS (Mac Mini, etc.) install Node and `uv` via `brew` instead.
+
+Clone this repo, install dependencies, and start the server:
 
 ```bash
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-```
-
-## 4. `SESSION_API_KEY` is auto-generated
-
-The `npm run dev:*` scripts automatically generate a random `SESSION_API_KEY`
-on first run and persist it to
-`~/.openhands/agent-canvas/session-api-key.txt`. The same value is wired into
-both the agent server (which refuses any `/api/*` request without a matching
-`X-Session-API-Key` header) and the Vite-built frontend (which sends it on
-every request), and it stays stable across restarts. You don't need to
-configure anything.
-
-To rotate the key, delete the file and restart the app. To pin a specific
-value instead of the auto-generated one, export `SESSION_API_KEY` before
-starting the app — it takes precedence over the persisted file.
-
-> [!IMPORTANT]
-> Treat that file like an SSH private key — anyone who learns the value can
-> drive your agent. Keep it on the VM and don't copy it elsewhere.
-
-## 5. Run the app on the VM
-
-Start Agent Canvas in dockerless mode:
-
-```bash
 npm run dev:dangerously-dockerless
 ```
 
 > [!WARNING]
 > `dev:dangerously-dockerless` runs the agent server **directly on the host**.
-> The agent has full access to the VM's filesystem, environment, and network.
-> That is exactly why the firewall, basic auth, and `SESSION_API_KEY` layers
-> are non-negotiable: they are what stop a stranger from walking in and
-> getting that same access.
+> The agent has full access to the machine's filesystem, environment, and
+> network. That is exactly why the firewall (step 2) and the
+> `SESSION_API_KEY` below are non-negotiable: they are what stop a stranger
+> from walking in and getting that same access.
 
-By default the ingress listens on `127.0.0.1:8000`. Leave it bound to localhost
-— nginx will be the only thing talking to it.
+The ingress proxy binds to `127.0.0.1:8000`, and the underlying agent server,
+automation backend, and Vite dev server all bind to `127.0.0.1` as well — so
+they're only reachable from the machine itself.
 
-To keep it running across reboots, wrap it in a `systemd` unit, a `tmux`/
-`screen` session, or a process manager like `pm2`. A minimal unit file:
+### `SESSION_API_KEY` is auto-generated
+
+On first run, the dev scripts generate a random `SESSION_API_KEY` and persist
+it to `~/.openhands/agent-canvas/session-api-key.txt`. The same value is wired
+into both the agent server (which refuses any `/api/*` request without a
+matching `X-Session-API-Key` header) and the frontend (which sends it on every
+request), and it stays stable across restarts. You don't need to configure
+anything.
+
+To rotate the key, delete the file and restart the app. To pin a specific
+value instead of the auto-generated one, export `SESSION_API_KEY` before
+starting — it takes precedence over the persisted file.
+
+> [!IMPORTANT]
+> Treat the key file like an SSH private key. Anyone who learns its value can
+> drive your agent. Keep it on the machine and don't copy it elsewhere.
+
+### Access the UI over an SSH tunnel
+
+With just steps 1–3 done, the simplest way to use the UI is to forward the
+ingress port over SSH from your laptop:
+
+```bash
+ssh -L 8000:127.0.0.1:8000 your-vm
+# then open http://localhost:8000 in your browser
+```
+
+No public ports, no nginx, no TLS to manage — the SSH connection is what
+authenticates and encrypts you. This is a great starting point and a good
+fallback for debugging.
+
+### Keep it running across reboots
+
+Wrap the command in a `systemd` unit, a `tmux`/`screen` session, or a process
+manager like `pm2`. A minimal Linux `systemd` unit:
 
 ```ini
 # /etc/systemd/system/agent-canvas.service
@@ -179,10 +203,43 @@ systemctl enable --now agent-canvas
 journalctl -u agent-canvas -f
 ```
 
-## 6. Put nginx + Let's Encrypt + basic auth in front
+On macOS, use `launchd` (a `LaunchAgent`/`LaunchDaemon` plist) for the same
+effect.
 
-This is the same pattern documented for any reverse-proxied service: nginx
-terminates TLS, requires HTTP basic auth, and forwards to the local app.
+## 4. (Optional) Get a domain and put nginx + Let's Encrypt + basic auth in front
+
+If you want to reach the UI from a browser without an SSH tunnel — for
+example, to use it from a phone or a machine you can't easily forward ports
+from — point a domain at the host and front it with nginx + TLS + HTTP basic
+auth. nginx terminates TLS, requires basic auth, and forwards to the ingress
+on `127.0.0.1:8000`.
+
+### Point a domain at the machine
+
+Register a domain (or use one you already own) and create an `A` record
+pointing to the machine's public IPv4 — for example `canvas.example.com`.
+Verify DNS has propagated:
+
+```bash
+dig +short canvas.example.com
+```
+
+### Open ports 80 and 443
+
+Go back to your network firewall and additionally allow inbound:
+
+- **Inbound 80 (HTTP)** — open to `0.0.0.0/0`. Let's Encrypt's HTTP-01
+  challenge verifies from many IPs worldwide, so this must be world-open
+  during issuance and renewal. nginx will redirect it to HTTPS.
+- **Inbound 443 (HTTPS)** — this is what you'll actually use. Restrict to
+  your own IP / VPN CIDR if you can. If you need it world-open (e.g. you
+  roam often), basic auth + `SESSION_API_KEY` become your primary defense.
+
+### Install nginx, certbot, and helpers
+
+```bash
+apt-get install -y nginx certbot python3-certbot-nginx apache2-utils acl
+```
 
 ### Create a basic-auth user
 
@@ -278,7 +335,7 @@ curl -I http://canvas.example.com/                        # → 301 to https
 If you see `502 Bad Gateway`, the app on `127.0.0.1:8000` is down — check
 `journalctl -u agent-canvas -f`.
 
-## 7. Smoke-test from your laptop
+### Smoke-test from your laptop
 
 Open `https://canvas.example.com/`, enter your basic-auth credentials, and
 confirm that you land in Agent Canvas. Conversations, settings, and the LLM
@@ -287,6 +344,39 @@ provider picker all hit `/api/*` routes that are guarded by both basic auth
 return `401`, the persisted session key and the one baked into the frontend
 have drifted apart — delete `~/.openhands/agent-canvas/session-api-key.txt`
 and restart the app so both sides regenerate from the same value.
+
+## 5. (Optional) Connect your local Agent Canvas to the remote machine
+
+If you already run Agent Canvas locally (e.g. via `npm run dev` on your
+laptop), you can register the remote machine as an additional backend and
+flip between local and remote from the UI — no need to keep a browser tab
+open against the remote domain.
+
+1. On the remote machine, read the auto-generated session key:
+
+   ```bash
+   cat ~/.openhands/agent-canvas/session-api-key.txt
+   ```
+
+2. In your local Agent Canvas, open **Manage backends** and click
+   **Add a backend**. Fill in:
+   - **Host Name** — anything memorable, e.g. `my-vm`.
+   - **Host** — the URL you exposed in step 4, e.g. `https://canvas.example.com`.
+     If you skipped step 4 and are using an SSH tunnel, use the forwarded
+     local URL (e.g. `http://localhost:8000`) while the tunnel is open.
+   - **Session API key** — the value from `session-api-key.txt`.
+3. Save. The new backend should show up as "Connected" with the remote
+   server's version. Pick it from the backend switcher in the menu and the
+   UI will start talking to the remote machine.
+
+> [!NOTE]
+> If you put nginx basic auth in front of the remote (step 4), the browser
+> needs the basic-auth credentials too. The easiest way is to visit
+> `https://canvas.example.com/` in the same browser first and authenticate
+> — the browser will cache the credentials and reuse them for the
+> cross-origin `/api/*` calls made by your local Agent Canvas. Alternatively,
+> skip basic auth and rely on the cloud firewall + `SESSION_API_KEY` for
+> protection.
 
 ## Operational tips
 
