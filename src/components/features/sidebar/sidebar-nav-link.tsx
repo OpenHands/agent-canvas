@@ -39,7 +39,7 @@ export function SidebarNavLink({
           indent ? "pl-7 pr-3 py-1.5" : "px-3 py-2",
           isActive
             ? "bg-[#1f1f1f99] text-white font-medium"
-            : "text-[#B1B9D3] hover:text-white hover:bg-[#1f1f1f99]",
+            : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
           disabled && "pointer-events-none opacity-50",
         )
       }
