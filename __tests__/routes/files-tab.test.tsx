@@ -9,12 +9,18 @@ import FilesTab from "#/routes/files-tab";
 
 // Mocks must be declared before the SUT is imported.
 const useIsGitRepoMock = vi.fn();
+const useHasGitCommitsMock = vi.fn();
 const useWorkspaceFilesMock = vi.fn();
 const useWorkspaceFileContentMock = vi.fn();
 const refetchGitChangesMock = vi.fn();
 
 vi.mock("#/hooks/use-is-git-repo", () => ({
   useIsGitRepo: () => useIsGitRepoMock(),
+}));
+
+vi.mock("#/hooks/query/use-has-git-commits", () => ({
+  useHasGitCommits: (opts?: { enabled?: boolean }) =>
+    useHasGitCommitsMock(opts),
 }));
 
 vi.mock("#/hooks/query/use-workspace-files", () => ({
@@ -53,9 +59,16 @@ function renderTab() {
 describe("FilesTab", () => {
   beforeEach(() => {
     useIsGitRepoMock.mockReset();
+    useHasGitCommitsMock.mockReset();
     useWorkspaceFilesMock.mockReset();
     useWorkspaceFileContentMock.mockReset();
     refetchGitChangesMock.mockReset();
+    // Default: pretend the probe has already resolved with at least one
+    // commit. Individual tests can override this for "empty repo" cases.
+    useHasGitCommitsMock.mockReturnValue({
+      hasCommits: true,
+      isLoading: false,
+    });
 
     useWorkspaceFilesMock.mockReturnValue({
       data: ["index.html", "src/main.ts", "README.md"],
@@ -85,6 +98,48 @@ describe("FilesTab", () => {
     expect(
       screen.queryByTestId("files-tab-content-mode-toggle"),
     ).not.toBeInTheDocument();
+  });
+
+  it("defaults to files+rich view in a git repo with zero commits (unborn HEAD)", () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasGitCommitsMock.mockReturnValue({
+      hasCommits: false,
+      isLoading: false,
+    });
+
+    renderTab();
+
+    // Even though it's an attached repo, the diff view is suppressed when
+    // there's nothing to diff against.
+    expect(screen.queryByTestId("changes-tab-content")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("files-tab-content-mode-toggle"),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT probe for commits when there is no attached repo", () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+
+    renderTab();
+
+    // The hook is still called (so the diff toggle has a value), but it
+    // must be called with enabled: false so we don't shell out to the
+    // workspace pointlessly.
+    expect(useHasGitCommitsMock).toHaveBeenCalledWith({ enabled: false });
+  });
+
+  it("optimistically defaults to diff view while the has-commits probe is still loading", () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasGitCommitsMock.mockReturnValue({
+      hasCommits: null,
+      isLoading: true,
+    });
+
+    renderTab();
+
+    // The common case is a repo with commits, so to avoid a files→diff
+    // flash on initial mount we lean diff-view while loading.
+    expect(screen.getByTestId("changes-tab-content")).toBeInTheDocument();
   });
 
   it("defaults to plain file viewer when not in a git repo", () => {

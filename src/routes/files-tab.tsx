@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
 import { useIsGitRepo } from "#/hooks/use-is-git-repo";
+import { useHasGitCommits } from "#/hooks/query/use-has-git-commits";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { sortFilesByPriority } from "#/utils/file-priority";
@@ -23,16 +24,25 @@ function FilesTab() {
   useAutoRefreshFilesOnEdit();
 
   const { isGitRepo } = useIsGitRepo();
+  // A repo with zero commits has no diff base to compare against, so the
+  // diff view would just be empty / misleading. Only probe when we already
+  // believe there's a repo — saves a workspace round trip on every plain
+  // (non-git) conversation.
+  const { hasCommits } = useHasGitCommits({ enabled: isGitRepo });
 
-  // Diff view defaults to ON inside a git repo, OFF otherwise. We don't want
-  // to flip the user's choice once they touch the toggle, so track whether
-  // they have explicitly overridden the default. While the detection is
-  // still loading we keep `diffViewOverride === null`, and the computed
-  // `diffViewEnabled` follows `isGitRepo` automatically once it resolves.
+  // Diff view defaults to ON inside an existing git repo *with at least
+  // one commit*, OFF otherwise (no repo, or repo with no commits yet).
+  //
+  // We treat `hasCommits === null` (still loading the probe) as
+  // optimistically `true`: the common case is a normal repo, so this
+  // avoids a brief flash of files-view → diff-view on initial load. Once
+  // the probe resolves to `false` we switch to files view. The user's
+  // explicit choice (via `diffViewOverride`) always wins.
   const [diffViewOverride, setDiffViewOverride] = useState<boolean | null>(
     null,
   );
-  const diffViewEnabled = diffViewOverride ?? isGitRepo;
+  const diffViewDefault = isGitRepo && hasCommits !== false;
+  const diffViewEnabled = diffViewOverride ?? diffViewDefault;
 
   const [contentViewMode, setContentViewMode] = useState<ViewMode>("rich");
   // Collapsed by default — the quick-access pill row at the top is usually

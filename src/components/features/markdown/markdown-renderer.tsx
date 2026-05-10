@@ -1,12 +1,70 @@
 import Markdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import type { Schema } from "hast-util-sanitize";
+import type { PluggableList } from "unified";
 import { code } from "./code";
 import { ul, ol } from "./list";
 import { paragraph } from "./paragraph";
 import { anchor } from "./anchor";
 import { h1, h2, h3, h4, h5, h6 } from "./headings";
 import { table, th, td } from "./table";
+
+// Build a sanitize schema that extends rehype-sanitize's defaults with a
+// few markdown-friendly additions. The defaults strip `<script>`, event
+// handlers, `javascript:` URLs, and most dangerous attributes; we layer
+// on:
+//   - class / id / style on common block + inline elements (so authored
+//     HTML keeps its visual intent in rich previews),
+//   - `<img>` (kept disabled in defaults), with safe src schemes only,
+//   - `<details>` / `<summary>` for collapsible sections,
+//   - `target` / `rel` on anchors so external links keep working.
+const MARKDOWN_SANITIZE_SCHEMA: Schema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    "*": [
+      ...(defaultSchema.attributes?.["*"] ?? []),
+      "className",
+      "id",
+      "style",
+    ],
+    a: [
+      ...(defaultSchema.attributes?.a ?? []),
+      "target",
+      ["rel", "noopener", "noreferrer", "nofollow"],
+    ],
+    img: [
+      ...(defaultSchema.attributes?.img ?? []),
+      "src",
+      "alt",
+      "title",
+      "width",
+      "height",
+      "loading",
+    ],
+  },
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    "img",
+    "details",
+    "summary",
+    "figure",
+    "figcaption",
+    "mark",
+    "kbd",
+    "sub",
+    "sup",
+  ],
+  // Allow only http(s), data:image/, and protocol-relative URLs in src/href.
+  protocols: {
+    ...defaultSchema.protocols,
+    src: ["http", "https", "data"],
+    href: ["http", "https", "mailto", "tel"],
+  },
+};
 
 interface MarkdownRendererProps {
   /**
@@ -29,6 +87,16 @@ interface MarkdownRendererProps {
    * Defaults to false.
    */
   includeHeadings?: boolean;
+  /**
+   * Whether to parse and render inline HTML embedded in the markdown
+   * source. When `true`, raw HTML is parsed via `rehype-raw` and then
+   * sanitized via `rehype-sanitize` with a schema that strips scripts,
+   * event handlers, and dangerous URL schemes. Defaults to `true` — the
+   * sanitizer makes this safe by construction, and most markdown
+   * authoring relies on at least some inline HTML (badges, details
+   * blocks, anchor targets, etc.).
+   */
+  allowHtml?: boolean;
 }
 
 /**
@@ -50,6 +118,7 @@ export function MarkdownRenderer({
   components: customComponents,
   includeStandard = false,
   includeHeadings = false,
+  allowHtml = true,
 }: MarkdownRendererProps) {
   // Build the components object with defaults and optional additions
   const components: Components = {
@@ -76,11 +145,20 @@ export function MarkdownRenderer({
 
   const markdownContent = content ?? children ?? "";
 
+  // `rehype-raw` parses raw HTML embedded in the markdown into the rehype
+  // tree. `rehype-sanitize` then strips anything dangerous (scripts,
+  // event handlers, `javascript:` URLs, etc.). The order matters: sanitize
+  // must run *after* raw so it sees the parsed HTML nodes.
+  const rehypePlugins: PluggableList | undefined = allowHtml
+    ? [rehypeRaw, [rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]
+    : undefined;
+
   return (
     <div data-testid="markdown-renderer">
       <Markdown
         components={components}
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={rehypePlugins}
       >
         {markdownContent}
       </Markdown>
