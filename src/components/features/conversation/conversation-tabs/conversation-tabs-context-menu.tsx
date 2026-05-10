@@ -16,6 +16,7 @@ import PillFillIcon from "#/icons/pill-fill.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export function ConversationTabsContextMenu({
     useConversationStore();
 
   const { hasTaskList } = useTaskList();
+  const { backend } = useActiveBackend();
 
   const tabConfig = [
     {
@@ -57,6 +59,11 @@ export function ConversationTabsContextMenu({
     });
   }
 
+  // Hide the VSCode pin/unpin entry on local backends, mirroring the tab bar.
+  const visibleTabConfig = tabConfig.filter(
+    ({ tab }) => tab !== "vscode" || backend.kind === "cloud",
+  );
+
   if (!isOpen) return null;
 
   const handleTabClick = (tab: string) => {
@@ -78,7 +85,7 @@ export function ConversationTabsContextMenu({
       position="bottom"
       className="mt-2 w-fit z-[9999]"
     >
-      {tabConfig.map(({ tab, icon: Icon, i18nKey }) => {
+      {visibleTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
           <ContextMenuListItem

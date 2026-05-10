@@ -3,6 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ConversationTabsContextMenu } from "#/components/features/conversation/conversation-tabs/conversation-tabs-context-menu";
 import { useConversationStore } from "#/stores/conversation-store";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  ACTIVE_BACKEND_STORAGE_KEY,
+  BACKENDS_STORAGE_KEY,
+} from "#/api/backend-registry/storage";
+import type { Backend } from "#/api/backend-registry/types";
 
 const CONVERSATION_ID = "conv-abc123";
 
@@ -18,9 +25,19 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
+function seedActiveBackend(backend: Backend): void {
+  localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
+  localStorage.setItem(
+    ACTIVE_BACKEND_STORAGE_KEY,
+    JSON.stringify({ backendId: backend.id, orgId: null }),
+  );
+  __resetActiveStoreForTests();
+}
+
 describe("ConversationTabsContextMenu", () => {
   beforeEach(() => {
     localStorage.clear();
+    __resetActiveStoreForTests();
     mockHasTaskList = false;
     useConversationStore.setState({
       selectedTab: "editor",
@@ -40,10 +57,10 @@ describe("ConversationTabsContextMenu", () => {
   it("should render all default tabs when open", () => {
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
+    // Default active backend is local, so the Code (vscode) entry is hidden.
     const expectedTabs = [
       "COMMON$PLANNER",
       "COMMON$CHANGES",
-      "COMMON$CODE",
       "COMMON$TERMINAL",
       "COMMON$APP",
       "COMMON$BROWSER",
@@ -51,6 +68,27 @@ describe("ConversationTabsContextMenu", () => {
     for (const tab of expectedTabs) {
       expect(screen.getByText(tab)).toBeInTheDocument();
     }
+  });
+
+  it("should show the Code entry when the active backend is cloud", () => {
+    // Arrange
+    seedActiveBackend({
+      id: "cloud-test",
+      name: "Cloud Test",
+      host: "https://app.example.com",
+      apiKey: "secret",
+      kind: "cloud",
+    });
+
+    // Act
+    render(
+      <ActiveBackendProvider>
+        <ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />
+      </ActiveBackendProvider>,
+    );
+
+    // Assert
+    expect(screen.getByText("COMMON$CODE")).toBeInTheDocument();
   });
 
   it("should re-pin a tab when clicking an unpinned tab", async () => {

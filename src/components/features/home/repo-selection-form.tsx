@@ -16,7 +16,14 @@ import { GitRepoDropdown } from "./git-repo-dropdown";
 import { useHomeStore } from "#/stores/home-store";
 
 interface RepositorySelectionFormProps {
-  onRepoSelection: (repo: GitRepository | null) => void;
+  /**
+   * Optional callback fired whenever the user picks or clears a repository.
+   * The form itself owns the "Launch" action — it creates the conversation
+   * and navigates internally — so this prop is only useful for callers that
+   * want to mirror the selection in their own state (e.g. to filter a
+   * sibling list by the currently picked repo).
+   */
+  onRepoSelection?: (repo: GitRepository | null) => void;
   isLoadingSettings?: boolean;
 }
 
@@ -85,7 +92,7 @@ export function RepositorySelectionForm({
     setLastSelectedProvider(provider); // Store the selected provider
     setSelectedRepository(null); // Reset repository selection when provider changes
     setSelectedBranch(null); // Reset branch selection when provider changes
-    onRepoSelection(null); // Reset parent component's selected repo
+    onRepoSelection?.(null); // Reset parent component's selected repo
   };
 
   const handleBranchSelection = React.useCallback((branch: Branch | null) => {
@@ -115,10 +122,10 @@ export function RepositorySelectionForm({
   const renderRepositorySelector = () => {
     const handleRepoSelection = (repository?: GitRepository) => {
       if (repository) {
-        onRepoSelection(repository);
+        onRepoSelection?.(repository);
         setSelectedRepository(repository);
       } else {
-        onRepoSelection(null); // Notify parent component that repo was cleared
+        onRepoSelection?.(null); // Notify parent component that repo was cleared
         setSelectedRepository(null);
         setSelectedBranch(null);
       }
