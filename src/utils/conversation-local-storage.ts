@@ -27,13 +27,36 @@ export interface ConversationState {
 }
 
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
-  selectedTab: "editor",
+  selectedTab: "files",
   rightPanelShown: true,
   unpinnedTabs: [],
   conversationMode: "code",
   subConversationTaskId: null,
   draftMessage: null,
 };
+
+const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
+  "files",
+  "browser",
+  "vscode",
+  "terminal",
+  "planner",
+  "tasklist",
+]);
+
+function sanitizeStoredState(stored: Partial<ConversationState>): Partial<ConversationState> {
+  // Drop selectedTab values that no longer correspond to a real tab (e.g.
+  // "editor" or "served" persisted before the Files tab refactor) so the
+  // default fallback is applied instead.
+  if (
+    stored.selectedTab != null &&
+    !VALID_CONVERSATION_TABS.has(stored.selectedTab as ConversationTab)
+  ) {
+    const { selectedTab: _drop, ...rest } = stored;
+    return rest;
+  }
+  return stored;
+}
 
 /**
  * Check if a conversation ID is a temporary task ID that should not be persisted.
@@ -56,7 +79,10 @@ export function getConversationState(
     const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
     const item = localStorage.getItem(key);
     if (item !== null) {
-      return { ...DEFAULT_CONVERSATION_STATE, ...JSON.parse(item) };
+      return {
+        ...DEFAULT_CONVERSATION_STATE,
+        ...sanitizeStoredState(JSON.parse(item)),
+      };
     }
     return DEFAULT_CONVERSATION_STATE;
   } catch {

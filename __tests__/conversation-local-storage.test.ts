@@ -29,7 +29,7 @@ describe("conversation localStorage utilities", () => {
       const state = getConversationState("task-uuid-123");
 
       expect(state.conversationMode).toBe("code");
-      expect(state.selectedTab).toBe("editor");
+      expect(state.selectedTab).toBe("files");
       expect(state.rightPanelShown).toBe(true);
       expect(
         localStorage.getItem(
@@ -115,7 +115,7 @@ describe("conversation localStorage utilities", () => {
       const state = getConversationState(conversationId);
 
       expect(state.subConversationTaskId).toBeNull();
-      expect(state.selectedTab).toBe("editor");
+      expect(state.selectedTab).toBe("files");
       expect(state.rightPanelShown).toBe(true);
       expect(state.unpinnedTabs).toEqual([]);
     });
@@ -154,9 +154,28 @@ describe("conversation localStorage utilities", () => {
       const state = getConversationState(conversationId);
 
       expect(state.subConversationTaskId).toBe("task-123");
-      expect(state.selectedTab).toBe("editor");
+      expect(state.selectedTab).toBe("files");
       expect(state.rightPanelShown).toBe(true);
       expect(state.unpinnedTabs).toEqual([]);
+    });
+
+    it("falls back to the default tab when stored selectedTab is no longer valid", () => {
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+
+      // Persisted from a previous app version where "editor" was a tab.
+      localStorage.setItem(
+        consolidatedKey,
+        JSON.stringify({
+          selectedTab: "editor",
+          rightPanelShown: true,
+          unpinnedTabs: [],
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      expect(state.selectedTab).toBe("files");
     });
   });
 
@@ -185,7 +204,7 @@ describe("conversation localStorage utilities", () => {
       localStorage.setItem(
         consolidatedKey,
         JSON.stringify({
-          selectedTab: "changes",
+          selectedTab: "browser",
           rightPanelShown: false,
           unpinnedTabs: ["tab-1"],
           subConversationTaskId: "old-task-id",
@@ -201,7 +220,7 @@ describe("conversation localStorage utilities", () => {
       const parsed = JSON.parse(stored!);
 
       expect(parsed.subConversationTaskId).toBe("new-task-id");
-      expect(parsed.selectedTab).toBe("changes");
+      expect(parsed.selectedTab).toBe("browser");
       expect(parsed.rightPanelShown).toBe(false);
       expect(parsed.unpinnedTabs).toEqual(["tab-1"]);
     });

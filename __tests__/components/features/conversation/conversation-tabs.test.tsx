@@ -70,7 +70,7 @@ const seedConversationState = (
   localStorage.setItem(
     `conversation-state-${conversationId}`,
     JSON.stringify({
-      selectedTab: "editor",
+      selectedTab: "files",
       rightPanelShown: true,
       unpinnedTabs: [],
       conversationMode: "code",
@@ -90,7 +90,7 @@ function seedActiveBackend(backend: Backend): void {
   __resetActiveStoreForTests();
 }
 
-const setActiveTabState = (tab: "editor" | "planner") => {
+const setActiveTabState = (tab: "files" | "planner") => {
   seedConversationState(REAL_CONVERSATION_ID, {
     selectedTab: tab,
     rightPanelShown: true,
@@ -142,7 +142,7 @@ describe("ConversationTabs localStorage behavior", () => {
         wrapper: createWrapper(REAL_CONVERSATION_ID),
       });
 
-      const changesTab = screen.getByTestId("conversation-tab-editor");
+      const changesTab = screen.getByTestId("conversation-tab-files");
       await user.click(changesTab);
 
       const consolidatedKey = `conversation-state-${REAL_CONVERSATION_ID}`;
@@ -194,7 +194,7 @@ describe("ConversationTabs localStorage behavior", () => {
 
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -204,7 +204,7 @@ describe("ConversationTabs localStorage behavior", () => {
       });
 
       // Act: Click the editor tab again
-      const editorTab = screen.getByTestId("conversation-tab-editor");
+      const editorTab = screen.getByTestId("conversation-tab-files");
       await user.click(editorTab);
 
       // Assert: Panel should be closed
@@ -223,7 +223,7 @@ describe("ConversationTabs localStorage behavior", () => {
 
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -253,16 +253,16 @@ describe("ConversationTabs localStorage behavior", () => {
       mockConversationId = REAL_CONVERSATION_ID;
     });
 
-    it("shows the refresh button for the active editor tab and refetches changes", async () => {
+    it("shows the refresh button for the active files tab and refetches changes", async () => {
       const user = userEvent.setup();
-      setActiveTabState("editor");
+      setActiveTabState("files");
 
       render(<ConversationTabs />, {
         wrapper: createWrapper(REAL_CONVERSATION_ID),
       });
 
       const refreshButton = document.querySelector(
-        'button[aria-label="COMMON$CHANGES"]',
+        'button[aria-label="COMMON$FILES"]',
       );
       expect(refreshButton).toBeInTheDocument();
       if (!refreshButton) {
@@ -275,7 +275,7 @@ describe("ConversationTabs localStorage behavior", () => {
     });
 
     it("does not show the build button when the planner tab is inactive", () => {
-      setActiveTabState("editor");
+      setActiveTabState("files");
       useConversationStore.setState({
         planContent: "# Plan content",
       });

@@ -36,7 +36,7 @@ describe("useDraftPersistence", () => {
     // Default mock for useConversationLocalStorageState
     vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
       state: {
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -52,7 +52,7 @@ describe("useDraftPersistence", () => {
 
     // Default mock for getConversationState
     vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-      selectedTab: "editor",
+      selectedTab: "files",
       rightPanelShown: true,
       unpinnedTabs: [],
       conversationMode: "code",
@@ -74,7 +74,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef();
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -97,7 +97,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef(existingContent);
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -118,7 +118,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef("Some stale content");
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -206,7 +206,7 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
         state: {
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -221,7 +221,7 @@ describe("useDraftPersistence", () => {
       });
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -306,7 +306,7 @@ describe("useDraftPersistence", () => {
       // First conversation has a draft
       vi.mocked(conversationLocalStorage.getConversationState)
         .mockReturnValueOnce({
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -314,7 +314,7 @@ describe("useDraftPersistence", () => {
           draftMessage: "Draft from conv A",
         })
         .mockReturnValue({
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -342,7 +342,7 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState)
         .mockReturnValueOnce({
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -350,7 +350,7 @@ describe("useDraftPersistence", () => {
           draftMessage: null,
         })
         .mockReturnValue({
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -409,7 +409,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef("Draft typed during init");
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -444,7 +444,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef("");
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -471,7 +471,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef("Some draft");
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
@@ -502,7 +502,7 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
         state: {
-          selectedTab: "editor",
+          selectedTab: "files",
           rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
@@ -545,7 +545,7 @@ describe("useDraftPersistence", () => {
       const chatInputRef = createMockChatInputRef();
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",

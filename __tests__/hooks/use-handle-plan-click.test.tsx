@@ -88,7 +88,7 @@ describe("useHandlePlanClick", () => {
     );
 
     vi.mocked(getConversationState).mockReturnValue({
-      selectedTab: "editor",
+      selectedTab: "files",
       rightPanelShown: true,
       unpinnedTabs: [],
       subConversationTaskId: null,
@@ -118,7 +118,7 @@ describe("useHandlePlanClick", () => {
       );
 
       vi.mocked(getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,
@@ -157,7 +157,7 @@ describe("useHandlePlanClick", () => {
       );
 
       vi.mocked(getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,

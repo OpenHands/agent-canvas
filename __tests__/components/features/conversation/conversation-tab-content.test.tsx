@@ -19,8 +19,8 @@ vi.mock("#/hooks/use-conversation-id", () => ({
 
 
 // Mock lazy-loaded components
-vi.mock("#/routes/changes-tab", () => ({
-  default: () => <div data-testid="editor-tab-content">Editor Tab Content</div>,
+vi.mock("#/routes/files-tab", () => ({
+  default: () => <div data-testid="files-tab-content">Files Tab Content</div>,
 }));
 
 // Control for lazy loading test
@@ -32,12 +32,6 @@ vi.mock("#/routes/browser-tab", () => ({
     }
     return <div data-testid="browser-tab-content">Browser Tab Content</div>;
   },
-}));
-
-vi.mock("#/routes/served-tab", () => ({
-  default: () => (
-    <div data-testid="served-tab-content">Served Tab Content</div>
-  ),
 }));
 
 vi.mock("#/routes/vscode-tab", () => ({
@@ -89,7 +83,7 @@ describe("ConversationTabContent", () => {
       },
     });
     // Reset store state
-    useConversationStore.setState({ selectedTab: "editor" });
+    useConversationStore.setState({ selectedTab: "files" });
     // Reset conversation ID
     mockConversationId = "test-conversation-id-123";
   });
@@ -100,23 +94,23 @@ describe("ConversationTabContent", () => {
   });
 
   describe("Rendering", () => {
-    it("should render editor tab content by default", async () => {
-      setSelectedTab("editor");
+    it("should render files tab content by default", async () => {
+      setSelectedTab("files");
 
       render(<ConversationTabContent />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
+        expect(screen.getByTestId("files-tab-content")).toBeInTheDocument();
       });
     });
 
-    it("should render editor tab when selectedTab is null", async () => {
+    it("should render files tab when selectedTab is null", async () => {
       setSelectedTab(null);
 
       render(<ConversationTabContent />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
+        expect(screen.getByTestId("files-tab-content")).toBeInTheDocument();
       });
     });
   });
@@ -129,16 +123,6 @@ describe("ConversationTabContent", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("browser-tab-content")).toBeInTheDocument();
-      });
-    });
-
-    it("should render served tab when selected", async () => {
-      setSelectedTab("served");
-
-      render(<ConversationTabContent />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByTestId("served-tab-content")).toBeInTheDocument();
       });
     });
 
@@ -273,15 +257,15 @@ describe("ConversationTabContent", () => {
 
   describe("Tab state persistence", () => {
     it("should render content based on store state", async () => {
-      // First render with editor tab
-      setSelectedTab("editor");
+      // First render with files tab
+      setSelectedTab("files");
 
       const { rerender } = render(<ConversationTabContent />, {
         wrapper: createWrapper(),
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
+        expect(screen.getByTestId("files-tab-content")).toBeInTheDocument();
       });
 
       // Change the store state
@@ -298,13 +282,13 @@ describe("ConversationTabContent", () => {
 
   describe("Suspense boundary", () => {
     it("should wrap tab content in Suspense boundary", async () => {
-      setSelectedTab("editor");
+      setSelectedTab("files");
 
       render(<ConversationTabContent />, { wrapper: createWrapper() });
 
       // The component should render without throwing
       await waitFor(() => {
-        expect(screen.getByTestId("editor-tab-content")).toBeInTheDocument();
+        expect(screen.getByTestId("files-tab-content")).toBeInTheDocument();
       });
     });
   });
