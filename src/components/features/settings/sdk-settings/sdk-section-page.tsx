@@ -122,6 +122,8 @@ export function SdkSectionPage({
   getInitialView,
   forceShowAdvancedView = false,
   allowAllView = true,
+  initialValueOverrides,
+  embedded = false,
   testId = "sdk-section-settings-screen",
 }: {
   sectionKeys: string[];
@@ -146,6 +148,21 @@ export function SdkSectionPage({
   ) => SettingsView;
   forceShowAdvancedView?: boolean;
   allowAllView?: boolean;
+  /**
+   * Per-field initial value overrides that win over the values
+   * derived from `useSettings`. The keys of each override are also
+   * marked dirty on hydration so the user can save the form without
+   * having to touch the prefilled fields. Useful when the page is
+   * embedded in a flow that wants to nudge brand-new users toward a
+   * particular default (e.g. onboarding pre-filling Anthropic/Opus).
+   */
+  initialValueOverrides?: SettingsFormValues;
+  /**
+   * When true, the Save button container is rendered inline (no
+   * sticky positioning, no contrasting `bg-base` band) so the page
+   * can be dropped into a modal/card without a hard footer break.
+   */
+  embedded?: boolean;
   testId?: string;
 }) {
   const { t } = useTranslation("openhands");
@@ -201,14 +218,24 @@ export function SdkSectionPage({
     [activeSchemaQuery.error, t],
   );
 
+  const overridesSignature = React.useMemo(
+    () => (initialValueOverrides ? JSON.stringify(initialValueOverrides) : ""),
+    [initialValueOverrides],
+  );
+
   const initialValues = React.useMemo(() => {
     if (!settings || !filteredSchema) return null;
-    return buildInitialSettingsFormValues(
+    const base = buildInitialSettingsFormValues(
       settings,
       filteredSchema,
       settingsSource,
     );
-  }, [settings, filteredSchema, settingsSource]);
+    if (!initialValueOverrides) return base;
+    return { ...base, ...initialValueOverrides };
+    // overridesSignature keeps the memo reactive without depending on
+    // a (potentially recreated) object reference each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, filteredSchema, settingsSource, overridesSignature]);
 
   const initialView = React.useMemo(() => {
     if (!settings || !filteredSchema) return null;
@@ -238,7 +265,16 @@ export function SdkSectionPage({
     if (!initialValues || !initialView) return;
 
     setValues(initialValues);
-    setDirty({});
+    // Override-supplied keys are pre-populated for the user, so mark
+    // them dirty up-front; otherwise the Save button stays disabled
+    // until the user touches a field, defeating the point of the
+    // override.
+    const overrideDirty: SettingsDirtyState = initialValueOverrides
+      ? Object.fromEntries(
+          Object.keys(initialValueOverrides).map((key) => [key, true]),
+        )
+      : {};
+    setDirty(overrideDirty);
     setView((currentView) => {
       if (!hasHydratedViewRef.current) {
         hasHydratedViewRef.current = true;
@@ -247,6 +283,10 @@ export function SdkSectionPage({
 
       return getLessDetailedView(currentView, initialView);
     });
+    // initialValueOverrides is intentionally tracked via
+    // overridesSignature on initialValues; including the object ref
+    // here would re-fire the effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues, initialView]);
 
   const visibleSections = React.useMemo(() => {
@@ -366,7 +406,7 @@ export function SdkSectionPage({
       </div>
 
       {!isReadOnly ? (
-        <div className="sticky bottom-0 bg-base py-4">
+        <div className={embedded ? "pt-2" : "sticky bottom-0 bg-base py-4"}>
           <BrandButton
             testId="save-button"
             type="button"

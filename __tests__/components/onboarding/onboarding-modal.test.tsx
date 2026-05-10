@@ -161,7 +161,7 @@ describe("OnboardingModal", () => {
     );
 
     // Step 2 → 3
-    await user.click(screen.getByTestId("onboarding-llm-next"));
+    await user.click(screen.getByTestId("onboarding-llm-skip"));
     expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
       "data-current-step",
       "3",
@@ -196,7 +196,7 @@ describe("OnboardingModal", () => {
       ).not.toBeDisabled(),
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
-    await user.click(screen.getByTestId("onboarding-llm-next"));
+    await user.click(screen.getByTestId("onboarding-llm-skip"));
 
     const helloInput = screen.getByTestId(
       "onboarding-hello-input",

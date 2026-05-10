@@ -15,6 +15,7 @@ import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import {
   inferInitialView,
+  type SettingsFormValues,
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
@@ -93,10 +94,16 @@ function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
 export function LlmSettingsScreen({
   scope = "personal",
   onSaveSuccess,
+  initialValueOverrides,
+  embedded,
 }: {
   scope?: SettingsScope;
   /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
   onSaveSuccess?: () => void;
+  /** Forwarded to {@link SdkSectionPage}. */
+  initialValueOverrides?: SettingsFormValues;
+  /** Forwarded to {@link SdkSectionPage}. */
+  embedded?: boolean;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -278,6 +285,8 @@ export function LlmSettingsScreen({
       forceShowAdvancedView
       allowAllView
       onSaveSuccess={onSaveSuccess}
+      initialValueOverrides={initialValueOverrides}
+      embedded={embedded}
       testId="llm-settings-screen"
     />
   );
