@@ -86,7 +86,7 @@ export function AgentStatus({
   return (
     <div className={cn("flex items-center gap-1 min-w-0", className)}>
       <span
-        className="text-[11px] text-white font-normal leading-5 flex-1 min-w-0 max-w-full whitespace-normal break-words"
+        className="text-[11px] text-white font-normal leading-5 min-w-0 max-w-full truncate"
         title={t(statusCode)}
       >
         {t(statusCode)}
