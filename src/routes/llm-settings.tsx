@@ -9,6 +9,7 @@ import { KeyStatusIcon } from "#/components/features/settings/key-status-icon";
 import {
   SdkSectionHeaderProps,
   SdkSectionPage,
+  SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
@@ -96,6 +97,8 @@ export function LlmSettingsScreen({
   onSaveSuccess,
   initialValueOverrides,
   embedded,
+  hideSaveButton,
+  onSaveControlChange,
 }: {
   scope?: SettingsScope;
   /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
@@ -104,6 +107,10 @@ export function LlmSettingsScreen({
   initialValueOverrides?: SettingsFormValues;
   /** Forwarded to {@link SdkSectionPage}. */
   embedded?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -287,6 +294,8 @@ export function LlmSettingsScreen({
       onSaveSuccess={onSaveSuccess}
       initialValueOverrides={initialValueOverrides}
       embedded={embedded}
+      hideSaveButton={hideSaveButton}
+      onSaveControlChange={onSaveControlChange}
       testId="llm-settings-screen"
     />
   );

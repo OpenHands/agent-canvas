@@ -102,6 +102,21 @@ export interface SdkSectionHeaderProps {
 }
 
 /**
+ * Snapshot of the page's save state, surfaced to the parent so it can
+ * render its own Save/Next button (e.g. in onboarding) when
+ * {@link SdkSectionPage}'s built-in button is hidden via
+ * `hideSaveButton`.
+ */
+export interface SdkSectionSaveControl {
+  /** Trigger a save of the currently-dirty fields. No-op while `isSaving` or `!isDirty`. */
+  save: () => void;
+  /** A save mutation is in flight. */
+  isSaving: boolean;
+  /** At least one field is dirty (or `extraDirty` was passed in). */
+  isDirty: boolean;
+}
+
+/**
  * A generic SDK-schema–driven settings page that renders fields
  * from one or more schema sections.
  *
@@ -124,6 +139,8 @@ export function SdkSectionPage({
   allowAllView = true,
   initialValueOverrides,
   embedded = false,
+  hideSaveButton = false,
+  onSaveControlChange,
   testId = "sdk-section-settings-screen",
 }: {
   sectionKeys: string[];
@@ -163,6 +180,19 @@ export function SdkSectionPage({
    * can be dropped into a modal/card without a hard footer break.
    */
   embedded?: boolean;
+  /**
+   * Suppress the built-in Save Changes button entirely. Pair with
+   * {@link onSaveControlChange} to drive saving from a parent-rendered
+   * action (e.g. an onboarding "Next" button).
+   */
+  hideSaveButton?: boolean;
+  /**
+   * Fires whenever the save state changes (a mutation starts/finishes,
+   * dirty status flips). Provides a stable `save()` callback the
+   * parent can wire to its own button. Useful when the form is
+   * embedded in a custom flow and the built-in Save button is hidden.
+   */
+  onSaveControlChange?: (control: SdkSectionSaveControl) => void;
   testId?: string;
 }) {
   const { t } = useTranslation("openhands");
@@ -315,6 +345,14 @@ export function SdkSectionPage({
     [t],
   );
 
+  // Stable save callback so `onSaveControlChange` can hand a single
+  // function reference to the parent across renders. The latest
+  // closure is kept up to date via `handleSaveRef`.
+  const handleSaveRef = React.useRef<() => void>(() => {});
+  const stableSave = React.useCallback(() => {
+    handleSaveRef.current();
+  }, []);
+
   const handleSave = () => {
     if (!filteredSchema || isReadOnly) return;
 
@@ -354,6 +392,25 @@ export function SdkSectionPage({
     });
   };
 
+  handleSaveRef.current = handleSave;
+
+  // Surface save state to the parent. Hooks must run before any
+  // conditional early-returns below, so this lives here rather than
+  // alongside the JSX. The dependency list deliberately excludes
+  // `stableSave` (it never changes) and `onSaveControlChange` (we
+  // tolerate ref-instability of the callback to avoid spamming the
+  // parent on every render).
+  const saveControlIsDirty = Object.keys(dirty).length > 0 || extraDirty;
+  React.useEffect(() => {
+    if (!onSaveControlChange) return;
+    onSaveControlChange({
+      save: stableSave,
+      isSaving: isPending,
+      isDirty: saveControlIsDirty,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, saveControlIsDirty]);
+
   if (isLoading || isFetching || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
@@ -378,7 +435,16 @@ export function SdkSectionPage({
         isDisabled={isReadOnly}
       />
 
-      <div className="flex flex-col gap-8 pb-20">
+      {/* `pb-20` reserves space for the sticky Save button. When the
+          button is hidden (or rendered inline via `embedded`) that
+          padding becomes a meaningless gap, so collapse it. */}
+      <div
+        className={
+          embedded || hideSaveButton
+            ? "flex flex-col gap-8"
+            : "flex flex-col gap-8 pb-20"
+        }
+      >
         {header?.({
           values,
           isDisabled: isReadOnly,
@@ -405,7 +471,7 @@ export function SdkSectionPage({
         ))}
       </div>
 
-      {!isReadOnly ? (
+      {!isReadOnly && !hideSaveButton ? (
         <div className={embedded ? "pt-2" : "sticky bottom-0 bg-base py-4"}>
           <BrandButton
             testId="save-button"

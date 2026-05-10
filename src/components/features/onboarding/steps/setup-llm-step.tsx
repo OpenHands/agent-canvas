@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
+import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-settings/sdk-section-page";
 
 interface SetupLlmStepProps {
   onBack: () => void;
@@ -14,7 +15,7 @@ interface SetupLlmStepProps {
  * lands on this onboarding step. The global `DEFAULT_SETTINGS` ships
  * the OpenHands-prefixed Opus, but the onboarding spec calls for
  * routing directly through Anthropic, and these overrides are also
- * marked dirty so the Save Changes button is enabled immediately.
+ * marked dirty so the Next button is enabled immediately.
  */
 const ONBOARDING_LLM_OVERRIDES = {
   "llm.model": "anthropic/claude-opus-4-5-20251101",
@@ -22,13 +23,30 @@ const ONBOARDING_LLM_OVERRIDES = {
 
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
- * mode so its Save button renders inline (rather than as a sticky
- * `bg-base` band that visually breaks the modal). On a successful
- * save we advance to the next step — there is no separate Next
- * button, since saving the form *is* the act of moving on.
+ * mode (so it doesn't render its own sticky Save bar) and with
+ * `hideSaveButton` set, surfacing its save state via
+ * `onSaveControlChange`. We then render a single Next button at the
+ * modal footer level matching the other onboarding steps; clicking
+ * Next saves the form and `onSaveSuccess` advances to the next step.
+ *
+ * If the form happens to be untouched (no dirty fields), Next falls
+ * through to advancing without a save call, so users with already-
+ * configured settings aren't blocked.
  */
 export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
+  const [saveControl, setSaveControl] =
+    React.useState<SdkSectionSaveControl | null>(null);
+
+  const handleNext = () => {
+    if (saveControl?.isDirty) {
+      saveControl.save();
+      // `onSaveSuccess` (wired to `onNext` below) will advance once
+      // the mutation resolves successfully.
+      return;
+    }
+    onNext();
+  };
 
   return (
     <div
@@ -47,8 +65,10 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
       <div data-testid="onboarding-llm-settings">
         <LlmSettingsScreen
           embedded
+          hideSaveButton
           initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
           onSaveSuccess={onNext}
+          onSaveControlChange={setSaveControl}
         />
       </div>
 
@@ -61,14 +81,15 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         >
           {t(I18nKey.ONBOARDING$BACK)}
         </BrandButton>
-        <button
+        <BrandButton
+          testId="onboarding-llm-next"
           type="button"
-          data-testid="onboarding-llm-skip"
-          onClick={onNext}
-          className="text-xs text-gray-400 hover:text-white"
+          variant="primary"
+          isDisabled={saveControl?.isSaving ?? false}
+          onClick={handleNext}
         >
-          {t(I18nKey.ONBOARDING$SKIP)}
-        </button>
+          {t(I18nKey.ONBOARDING$NEXT)}
+        </BrandButton>
       </div>
     </div>
   );
