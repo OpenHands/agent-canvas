@@ -97,24 +97,16 @@ function renderSidebar(currentPath: string) {
 }
 
 describe("Sidebar", () => {
-  it.each([["/automations"], ["/automations/abc-123"]])(
-    "applies the standalone vertical padding on %s so the sidebar has breathing room when the root layout's padding is dropped",
+  it.each([["/conversations"], ["/automations"], ["/automations/abc-123"], ["/settings"]])(
+    "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
     (currentPath) => {
       renderSidebar(currentPath);
 
       const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
-      expect(sidebar?.className).toMatch(/(^|\s)md:pb-3(\s|$)/);
+      expect(sidebar?.className).toMatch(/(^|\s)md:pt-4(\s|$)/);
+      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
     },
   );
-
-  it("does not apply the standalone vertical padding on routes that still use the root layout's padding", () => {
-    renderSidebar("/settings");
-
-    const sidebar = screen.getByRole("navigation").parentElement;
-    expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
-    expect(sidebar?.className).not.toMatch(/(^|\s)md:pb-3(\s|$)/);
-  });
 
   it("renders sidebar nav links and the settings toggle with the default text color shared by the settings page nav (text-[#8C8C8C])", () => {
     renderSidebar("/skills");

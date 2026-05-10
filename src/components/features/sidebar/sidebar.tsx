@@ -90,8 +90,7 @@ export function Sidebar() {
           "h-[54px] md:h-full md:w-[300px] md:min-w-[300px]",
           "px-3 py-2 md:px-3 md:pt-4",
           "flex-row md:flex-col",
-          (currentPath === "/" || currentPath.startsWith("/automations")) &&
-            "md:pt-6.5 md:pb-3",
+          currentPath === "/" && "md:pt-6.5 md:pb-3",
         )}
       >
         <div className="flex items-center md:px-2 md:py-1">
