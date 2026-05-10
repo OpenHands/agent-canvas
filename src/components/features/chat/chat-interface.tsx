@@ -125,35 +125,56 @@ export function ChatInterface() {
     loadOlder,
   } = useLoadOlderEvents(conversationId);
 
-  // Trigger `loadOlder` when the user scrolls near the top, and preserve the
-  // visual scroll position once the older page is merged in (otherwise
-  // prepending events would jump the chat far down).
+  // Trigger `loadOlder` and preserve the visual scroll position once the
+  // older page is merged in (otherwise prepending events would jump the
+  // chat far down). We fire from three places to cover the cases the
+  // browser's scroll event misses:
+  //
+  //   - `onScroll`: normal "user scrolled near the top" path.
+  //   - `onWheel`:  user is already pinned at scrollTop=0 and tries to
+  //                 wheel further up — no scroll event fires past 0.
+  //   - effect:     content is shorter than the viewport (no scrollbar
+  //                 at all), so the user has nothing to scroll. Re-runs
+  //                 as more pages arrive until there's overflow or the
+  //                 server runs out of older events.
   const SCROLL_TOP_THRESHOLD_PX = 80;
   const preserveScrollPosition = React.useRef<{
     scrollHeight: number;
     scrollTop: number;
   } | null>(null);
-  const handleScrollForPagination = React.useCallback(
+  const maybeLoadOlder = React.useCallback(
     (target: HTMLElement) => {
-      if (
-        target.scrollTop <= SCROLL_TOP_THRESHOLD_PX &&
-        !isLoadingOlderEvents &&
-        hasMoreOlderEvents
-      ) {
-        preserveScrollPosition.current = {
-          scrollHeight: target.scrollHeight,
-          scrollTop: target.scrollTop,
-        };
-        loadOlder().catch((error) => {
-          const message =
-            error instanceof Error && error.message
-              ? error.message
-              : t(I18nKey.ERROR$GENERIC);
-          setErrorMessage(message);
-        });
-      }
+      if (isLoadingOlderEvents || !hasMoreOlderEvents) return;
+
+      const atTop = target.scrollTop <= SCROLL_TOP_THRESHOLD_PX;
+      const noOverflow =
+        target.scrollHeight <= target.clientHeight + SCROLL_TOP_THRESHOLD_PX;
+      if (!atTop && !noOverflow) return;
+
+      preserveScrollPosition.current = {
+        scrollHeight: target.scrollHeight,
+        scrollTop: target.scrollTop,
+      };
+      loadOlder().catch((error) => {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : t(I18nKey.ERROR$GENERIC);
+        setErrorMessage(message);
+      });
     },
     [hasMoreOlderEvents, isLoadingOlderEvents, loadOlder, setErrorMessage, t],
+  );
+
+  const handleWheelForPagination = React.useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      // Browsers don't dispatch a scroll event when scrollTop is already
+      // 0 and the user wheels upward, so onScroll alone misses this case.
+      if (e.deltaY < 0 && e.currentTarget.scrollTop <= 0) {
+        maybeLoadOlder(e.currentTarget);
+      }
+    },
+    [maybeLoadOlder],
   );
 
   const optimisticUserMessage = getOptimisticUserMessage();
@@ -276,6 +297,26 @@ export function ChatInterface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderableEvents.length, optimisticUserMessage, scrollDomToBottom]);
 
+  // Auto-load older events when the chat content doesn't overflow the
+  // scroll area (no scrollbar to drag, no wheel events past 0). We
+  // re-run only when the rendered list grows or `hasMore` flips, NOT
+  // when `maybeLoadOlder` re-creates: the underlying hook's `loadOlder`
+  // ref changes whenever its internal `isLoading` toggles, so depending
+  // on `maybeLoadOlder` would re-fire the effect on every failed page
+  // and tight-loop until the server recovered. Driving off
+  // `renderableEvents.length` instead means a successful page (events
+  // grow) chains the next request, while a failed page (events
+  // unchanged) waits for the user to retry.
+  const maybeLoadOlderRef = React.useRef(maybeLoadOlder);
+  React.useEffect(() => {
+    maybeLoadOlderRef.current = maybeLoadOlder;
+  });
+  React.useEffect(() => {
+    const target = scrollRef.current;
+    if (!target) return;
+    maybeLoadOlderRef.current(target);
+  }, [renderableEvents.length, hasMoreOlderEvents]);
+
   // Create a ScrollProvider with the scroll hook values
   const scrollProviderValue = {
     scrollRef,
@@ -329,8 +370,9 @@ export function ChatInterface() {
           ref={scrollRef}
           onScroll={(e) => {
             onChatBodyScroll(e.currentTarget);
-            handleScrollForPagination(e.currentTarget);
+            maybeLoadOlder(e.currentTarget);
           }}
+          onWheel={handleWheelForPagination}
           className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2"
         >
           {isChatLoading && isReturningToConversation && (

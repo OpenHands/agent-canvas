@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithProviders, useParamsMock } from "test-utils";
@@ -17,6 +17,7 @@ import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files
 import type { MessageEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import { AgentState } from "#/types/agent-state";
 
 vi.mock("#/hooks/query/use-config");
@@ -42,6 +43,10 @@ vi.mock("#/hooks/use-conversation-name-context-menu", () => ({
     handleRename: vi.fn(),
     handleDelete: vi.fn(),
   }),
+}));
+
+vi.mock("#/hooks/use-load-older-events", () => ({
+  useLoadOlderEvents: vi.fn(),
 }));
 
 vi.mock("#/hooks/use-agent-state", () => ({
@@ -82,6 +87,14 @@ beforeEach(() => {
   });
   vi.mocked(useOptionalConversationId).mockReturnValue({
     conversationId: "test-conversation-id",
+  });
+  // Default: pagination disabled (hasMore=false) so unrelated tests don't
+  // accidentally trigger loadOlder via the on-mount auto-trigger effect.
+  // Tests that exercise pagination override this.
+  vi.mocked(useLoadOlderEvents).mockReturnValue({
+    isLoading: false,
+    hasMore: false,
+    loadOlder: vi.fn().mockResolvedValue(undefined),
   });
 });
 
@@ -217,9 +230,15 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     vi.clearAllMocks();
   });
 
-  it("calls EventService.searchEvents with timestamp__lt when the user scrolls to the top", async () => {
-    // Seed the store with one renderable user message so the chat actually
-    // renders Messages and creates a scroll context.
+  // Helper: install a controllable mock of useLoadOlderEvents and seed the
+  // store with one renderable user message so the chat mounts a scroll area.
+  const setupPaginationTest = () => {
+    const loadOlder = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useLoadOlderEvents).mockReturnValue({
+      isLoading: false,
+      hasMore: true,
+      loadOlder,
+    });
     const seedEvent: MessageEvent = {
       id: "msg-seed",
       timestamp: "2025-07-01T00:00:00Z",
@@ -236,77 +255,127 @@ describe("ChatInterface - Scroll-up loads older events", () => {
       eventIds: new Set(["msg-seed"]),
       uiEvents: [seedEvent],
     });
+    return loadOlder;
+  };
 
-    // Mock the conversation lookup so useLoadOlderEvents has a URL to call.
-    const useUserConversationModule =
-      await import("#/hooks/query/use-user-conversation");
-    vi.spyOn(useUserConversationModule, "useUserConversation").mockReturnValue({
-      data: {
-        conversation_id: "test-conversation-id",
-        conversation_url: "https://example.com",
-        session_api_key: "k",
-        conversation_version: "V1",
+  // The auto-scroll-to-bottom hook schedules a rAF that does
+  // `dom.scrollTop = dom.scrollHeight`, which clobbers any value we set
+  // here before the test's event fires. Pin `scrollTop` as a stable
+  // getter so those assignments are no-ops.
+  const setScrollMetrics = (
+    el: HTMLElement,
+    metrics: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  ) => {
+    Object.defineProperty(el, "scrollTop", {
+      configurable: true,
+      get: () => metrics.scrollTop,
+      set: () => {
+        /* swallow assignments from auto-scroll-to-bottom */
       },
-      isLoading: false,
-      isPending: false,
-      isError: false,
-      error: null,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<
-      typeof useUserConversationModule.useUserConversation
-    >);
+    });
+    Object.defineProperty(el, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: metrics.scrollHeight,
+    });
+    Object.defineProperty(el, "clientHeight", {
+      configurable: true,
+      writable: true,
+      value: metrics.clientHeight,
+    });
+  };
 
-    const eventServiceModule =
-      await import("#/api/event-service/event-service.api");
-    const searchSpy = vi
-      .spyOn(eventServiceModule.default, "searchEvents")
-      .mockResolvedValue({
-        items: [],
-        next_page_id: null,
-      });
-
+  it("calls loadOlder when the user scrolls near the top", async () => {
+    const loadOlder = setupPaginationTest();
     renderWithQueryClient(<ChatInterface />, queryClient);
 
-    // The scroll container is the outer div with the custom scrollbar class.
     const scrollContainer = document.querySelector(
       ".custom-scrollbar-always",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
-    // Simulate the user being scrolled near the top. JSDOM's default
-    // `scrollTop`/`scrollHeight` are non-writable getters; redefine them
-    // as plain writable properties so the auto-scroll-to-bottom effect
-    // (which assigns `dom.scrollTop = dom.scrollHeight`) doesn't throw.
-    Object.defineProperty(scrollContainer!, "scrollTop", {
-      configurable: true,
-      writable: true,
-      value: 0,
+    // Pretend the user just scrolled near the top of an overflowing list.
+    setScrollMetrics(scrollContainer!, {
+      scrollTop: 0,
+      scrollHeight: 5000,
+      clientHeight: 800,
     });
-    Object.defineProperty(scrollContainer!, "scrollHeight", {
-      configurable: true,
-      writable: true,
-      value: 5000,
+    // Drop any on-mount auto-trigger so we exclusively assert the scroll path.
+    await new Promise((r) => {
+      setTimeout(r, 0);
     });
+    loadOlder.mockClear();
 
-    scrollContainer!.dispatchEvent(new Event("scroll", { bubbles: true }));
+    fireEvent.scroll(scrollContainer!);
 
-    // Allow the async loadOlder() to fire.
     await new Promise((r) => {
       setTimeout(r, 0);
     });
 
-    expect(searchSpy).toHaveBeenCalledWith(
-      "test-conversation-id",
-      "https://example.com",
-      "k",
-      expect.objectContaining({
-        sortOrder: "TIMESTAMP_DESC",
-        timestampLt: "2025-07-01T00:00:00Z",
-      }),
-    );
+    expect(loadOlder).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-loads older events when the chat content does not overflow the viewport", async () => {
+    // No overflow ⇒ no scrollbar ⇒ user can't trigger loadOlder by
+    // scrolling. The component must auto-trigger via useEffect.
+    const loadOlder = setupPaginationTest();
+    renderWithQueryClient(<ChatInterface />, queryClient);
+
+    // Allow the on-mount auto-trigger useEffect to fire.
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+    expect(loadOlder).toHaveBeenCalled();
+  });
+
+  it("loads older events when the user wheels up while pinned at scrollTop=0", async () => {
+    // Overscroll-at-top: scrollTop is already 0 so the browser does not
+    // dispatch a scroll event. Wheel handler must catch this.
+    const loadOlder = setupPaginationTest();
+    renderWithQueryClient(<ChatInterface />, queryClient);
+
+    const scrollContainer = document.querySelector(
+      ".custom-scrollbar-always",
+    ) as HTMLElement | null;
+    expect(scrollContainer).not.toBeNull();
+
+    // Plenty of scrollable content overhead so the no-overflow branch
+    // doesn't claim the call — we want to exercise the wheel path.
+    setScrollMetrics(scrollContainer!, {
+      scrollTop: 0,
+      scrollHeight: 10000,
+      clientHeight: 800,
+    });
+
+    // Let any on-mount auto-trigger settle.
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+    loadOlder.mockClear();
+
+    // User is pinned at the top and wheels upward — no scroll event
+    // would fire here in a real browser.
+    fireEvent.wheel(scrollContainer!, { deltaY: -100 });
+
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+    expect(loadOlder).toHaveBeenCalledTimes(1);
   });
 
   it("shows an error banner if loading older events fails", async () => {
+    // This test exercises the real useLoadOlderEvents (so a rejected
+    // searchEvents propagates through to the chat's error banner).
+    // Override the global mock with the actual implementation.
+    const actualLoadOlderModule = await vi.importActual<
+      typeof import("#/hooks/use-load-older-events")
+    >("#/hooks/use-load-older-events");
+    vi.mocked(useLoadOlderEvents).mockImplementation(
+      actualLoadOlderModule.useLoadOlderEvents,
+    );
+
     const seedEvent: MessageEvent = {
       id: "msg-seed",
       timestamp: "2025-07-01T00:00:00Z",
