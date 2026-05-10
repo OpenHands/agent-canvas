@@ -15,13 +15,20 @@ This guide walks through running Agent Canvas on a virtual machine (VM) so you
 
 The deployment model:
 
-```
-            ┌──────────────┐         ┌──────────────────────────────────┐
- you ──►   │  HTTPS / 443  │  ──►   │  nginx  ──►  Vite dev server     │
-            │ (basic auth)  │         │           ──►  agent server      │
-            └──────────────┘         │           ──►  automation server │
-                                     └──────────────────────────────────┘
-                                              your VM (single host)
+```mermaid
+flowchart LR
+    user(["🧑 You"])
+    subgraph vm["Your VM (single host)"]
+        direction LR
+        nginx["nginx<br/>(TLS + basic auth)"]
+        vite["Vite dev server"]
+        agent["Agent server<br/>(SESSION_API_KEY)"]
+        automation["Automation server"]
+        nginx --> vite
+        nginx --> agent
+        nginx --> automation
+    end
+    user -- "HTTPS / 443" --> nginx
 ```
 
 There are three lines of defense:
@@ -55,8 +62,6 @@ There are three lines of defense:
 This is the most important step. Do it **before** the agent server ever
 listens on a port.
 
-### Cloud / VM firewall
-
 Restrict inbound traffic at the cloud-provider level (DigitalOcean Cloud
 Firewall, AWS Security Group, GCP firewall rule, Hetzner firewall, etc.):
 
@@ -76,26 +81,9 @@ If you are running inside Kubernetes, use a `NetworkPolicy` to the same effect:
 allow ingress on the proxy's port from a known set of CIDRs / namespaces, and
 deny everything else.
 
-### Host firewall (defense in depth)
-
-On the VM itself, enable a host firewall as a backstop in case the cloud
-firewall is misconfigured. With `ufw` on Ubuntu:
-
-```bash
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw enable
-```
-
-Confirm the agent server and Vite ports are bound to `127.0.0.1` only:
-
-```bash
-ss -tlnp
-# expect 127.0.0.1:8000, 127.0.0.1:18000 etc. — never 0.0.0.0:* for those
-```
+For an extra host-level backstop, see
+[Advanced: defense in depth](#advanced-defense-in-depth) at the end of this
+document.
 
 ## 3. Install prerequisites on the VM
 
@@ -115,30 +103,23 @@ cd agent-canvas
 npm install
 ```
 
-## 4. Generate a `SESSION_API_KEY`
+## 4. `SESSION_API_KEY` is auto-generated
 
-The agent server will refuse any unauthenticated `/api/*` request when started
-with `SESSION_API_KEY` (or `OH_SESSION_API_KEYS_0`) set. Generate a strong
-random value and store it in `.env` at the repo root:
+The `npm run dev:*` scripts automatically generate a random `SESSION_API_KEY`
+on first run and persist it to
+`~/.openhands/agent-canvas/session-api-key.txt`. The same value is wired into
+both the agent server (which refuses any `/api/*` request without a matching
+`X-Session-API-Key` header) and the Vite-built frontend (which sends it on
+every request), and it stays stable across restarts. You don't need to
+configure anything.
 
-```bash
-cat >> .env <<EOF
-SESSION_API_KEY=$(openssl rand -hex 32)
-EOF
-# Mirror it for the frontend so the browser sends X-Session-API-Key
-echo "VITE_SESSION_API_KEY=$(grep '^SESSION_API_KEY=' .env | cut -d= -f2-)" >> .env
-chmod 600 .env
-```
-
-Both halves are required:
-
-- `SESSION_API_KEY` — the agent server validates this on every `/api/*` call.
-- `VITE_SESSION_API_KEY` — the Vite-built frontend injects it as
-  `X-Session-API-Key` on every request it makes.
+To rotate the key, delete the file and restart the app. To pin a specific
+value instead of the auto-generated one, export `SESSION_API_KEY` before
+starting the app — it takes precedence over the persisted file.
 
 > [!IMPORTANT]
-> Never commit `.env`. Treat the value like an SSH private key — anyone who
-> learns it can drive your agent.
+> Treat that file like an SSH private key — anyone who learns the value can
+> drive your agent. Keep it on the VM and don't copy it elsewhere.
 
 ## 5. Run the app on the VM
 
@@ -152,7 +133,7 @@ npm run dev:dangerously-dockerless
 > `dev:dangerously-dockerless` runs the agent server **directly on the host**.
 > The agent has full access to the VM's filesystem, environment, and network.
 > That is exactly why the firewall, basic auth, and `SESSION_API_KEY` layers
-> below are non-negotiable: they are what stop a stranger from walking in and
+> are non-negotiable: they are what stop a stranger from walking in and
 > getting that same access.
 
 By default the ingress listens on `127.0.0.1:8000`. Leave it bound to localhost
@@ -170,7 +151,6 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/root/agent-canvas
-EnvironmentFile=/root/agent-canvas/.env
 ExecStart=/usr/bin/npm run dev:dangerously-dockerless
 Restart=on-failure
 User=root
@@ -290,16 +270,17 @@ Open `https://canvas.example.com/`, enter your basic-auth credentials, and
 confirm that you land in Agent Canvas. Conversations, settings, and the LLM
 provider picker all hit `/api/*` routes that are guarded by both basic auth
 (at nginx) and `X-Session-API-Key` (at the agent server). If the API calls
-return `401`, double-check that `SESSION_API_KEY` and `VITE_SESSION_API_KEY`
-in `.env` are identical, and rebuild/restart the app.
+return `401`, the persisted session key and the one baked into the frontend
+have drifted apart — delete `~/.openhands/agent-canvas/session-api-key.txt`
+and restart the app so both sides regenerate from the same value.
 
 ## Operational tips
 
 - **Rotate the basic-auth password and `SESSION_API_KEY` periodically**,
   especially after offboarding anyone who had access. `htpasswd` changes take
-  effect on the next request — no nginx reload needed. `SESSION_API_KEY`
-  changes require restarting the agent server (and updating
-  `VITE_SESSION_API_KEY` for the frontend).
+  effect on the next request — no nginx reload needed. To rotate the session
+  key, delete `~/.openhands/agent-canvas/session-api-key.txt` and restart the
+  app.
 - **Keep the VM patched** (`unattended-upgrades` is fine for Ubuntu).
 - **Back up `~/.openhands-dev/` (or wherever conversations are persisted)**
   if you care about conversation history. Treat the backup as sensitive — it
@@ -311,3 +292,34 @@ in `.env` are identical, and rebuild/restart the app.
 - **Do not expose the agent server port (`8000`/`18000`) directly.** If you
   ever need to debug, tunnel it over SSH (`ssh -L 8000:127.0.0.1:8000 vm`)
   rather than opening it in the firewall.
+
+## Advanced: defense in depth
+
+The cloud firewall (step 2) is your primary network perimeter. If you want an
+extra backstop in case it is ever misconfigured — for example, a teammate
+relaxes a rule, a Terraform diff lands wrong, or you migrate to a provider
+whose firewall fails open during maintenance — also enable a host-level
+firewall on the VM itself.
+
+With `ufw` on Ubuntu:
+
+```bash
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable
+```
+
+And confirm the agent server and Vite ports are bound to `127.0.0.1` only, so
+even if a firewall rule slips, those ports are not reachable from outside the
+host:
+
+```bash
+ss -tlnp
+# expect 127.0.0.1:8000, 127.0.0.1:18000 etc. — never 0.0.0.0:* for those
+```
+
+If you ever see one of the agent ports listening on `0.0.0.0` or `::`, stop
+the app immediately and investigate before re-enabling it.
