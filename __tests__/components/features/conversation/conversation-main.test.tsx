@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mutable mock state for controlling breakpoint
 let mockIsMobile = false;
+let mockIsRightPanelShown = false;
+let mockLeftWidth = 50;
 
 // Track ChatInterface unmount via vi.fn()
 const chatInterfaceUnmount = vi.fn();
@@ -13,8 +15,8 @@ vi.mock("#/hooks/use-breakpoint", () => ({
 
 vi.mock("#/hooks/use-resizable-panels", () => ({
   useResizablePanels: () => ({
-    leftWidth: 50,
-    rightWidth: 50,
+    leftWidth: mockLeftWidth,
+    rightWidth: 100 - mockLeftWidth,
     isDragging: false,
     containerRef: { current: null },
     handleMouseDown: vi.fn(),
@@ -23,7 +25,7 @@ vi.mock("#/hooks/use-resizable-panels", () => ({
 
 vi.mock("#/stores/conversation-store", () => ({
   useConversationStore: () => ({
-    isRightPanelShown: false,
+    isRightPanelShown: mockIsRightPanelShown,
   }),
 }));
 
@@ -72,6 +74,8 @@ import { ConversationMain } from "#/components/features/conversation/conversatio
 describe("ConversationMain - Layout Transition Stability", () => {
   beforeEach(() => {
     mockIsMobile = false;
+    mockIsRightPanelShown = false;
+    mockLeftWidth = 50;
     chatInterfaceUnmount.mockClear();
   });
 
@@ -113,6 +117,23 @@ describe("ConversationMain - Layout Transition Stability", () => {
     // ChatInterface must NOT have been unmounted and remounted
     expect(chatInterfaceUnmount).not.toHaveBeenCalled();
     expect(screen.getByTestId("chat-interface")).toBeInTheDocument();
+  });
+
+  it("does not give the right pane inner content min-w-max so its content stays visible at narrow widths", () => {
+    // Repro for the bug where dragging the divider very far to the right made
+    // the right pane appear blank: `min-w-max` made the inner div wider than
+    // its `overflow-hidden` wrapper, pushing right-aligned tab content out of
+    // view.
+    mockIsMobile = false;
+    mockIsRightPanelShown = true;
+    mockLeftWidth = 80;
+
+    render(<ConversationMain />);
+
+    const tabsHeader = screen.getByTestId("tabs-pane-header");
+    const tabsInnerWrapper = tabsHeader.parentElement!;
+
+    expect(tabsInnerWrapper.className).not.toMatch(/(^|\s)min-w-max(\s|$)/);
   });
 
   it("survives rapid back-and-forth resize without unmounting ChatInterface", () => {

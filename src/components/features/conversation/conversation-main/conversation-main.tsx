@@ -115,7 +115,7 @@ export function ConversationMain() {
             className={cn(
               isMobile
                 ? "h-full flex flex-col gap-3 pb-2 md:pb-0 pt-2"
-                : "flex flex-col flex-1 gap-3 min-w-max h-full",
+                : "flex flex-col gap-3 h-full w-full",
             )}
           >
             <div
