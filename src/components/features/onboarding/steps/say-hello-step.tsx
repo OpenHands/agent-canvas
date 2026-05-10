@@ -1,0 +1,105 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+import { Send } from "lucide-react";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { useNavigation } from "#/context/navigation-context";
+import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
+import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
+import { I18nKey } from "#/i18n/declaration";
+
+interface SayHelloStepProps {
+  onBack: () => void;
+  /** Called once the conversation has been created — used by the parent
+   * modal to mark the onboarding as complete before unmounting. */
+  onLaunched: () => void;
+}
+
+/**
+ * Step 3: a simple text input pre-filled with "hello OpenHands!" that
+ * launches a brand-new conversation with no workspace and navigates
+ * to it. Completing this step finishes the onboarding flow.
+ */
+export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
+  const { t } = useTranslation("openhands");
+  const { navigate } = useNavigation();
+  const defaultMessage = t(I18nKey.ONBOARDING$HELLO_DEFAULT_MESSAGE);
+  const [message, setMessage] = React.useState(defaultMessage);
+
+  const {
+    mutate: createConversation,
+    isPending,
+    isSuccess,
+  } = useCreateConversation();
+  const isCreatingElsewhere = useIsCreatingConversation();
+  const isLaunching = isPending || isSuccess || isCreatingElsewhere;
+
+  const canSubmit = message.trim().length > 0 && !isLaunching;
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+
+    // Explicitly omit `repository` and `workingDir` so the
+    // conversation starts with no workspace, per the spec.
+    createConversation(
+      { query: message.trim() },
+      {
+        onSuccess: (data) => {
+          onLaunched();
+          navigate(`/conversations/${data.conversation_id}`);
+        },
+      },
+    );
+  };
+
+  return (
+    <form
+      data-testid="onboarding-step-say-hello"
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-6"
+    >
+      <header className="flex flex-col gap-2">
+        <h2 className="text-2xl font-semibold text-white">
+          {t(I18nKey.ONBOARDING$HELLO_TITLE)}
+        </h2>
+        <p className="text-sm text-gray-400">
+          {t(I18nKey.ONBOARDING$HELLO_SUBTITLE)}
+        </p>
+      </header>
+
+      <input
+        data-testid="onboarding-hello-input"
+        aria-label={t(I18nKey.ONBOARDING$HELLO_TITLE)}
+        type="text"
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder={defaultMessage}
+        disabled={isLaunching}
+        className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-gray-500 focus:border-primary focus:outline-none disabled:opacity-60"
+      />
+
+      <div className="flex items-center justify-between gap-2">
+        <BrandButton
+          testId="onboarding-hello-back"
+          type="button"
+          variant="secondary"
+          onClick={onBack}
+          isDisabled={isLaunching}
+        >
+          {t(I18nKey.ONBOARDING$BACK)}
+        </BrandButton>
+        <BrandButton
+          testId="onboarding-hello-launch"
+          type="submit"
+          variant="primary"
+          isDisabled={!canSubmit}
+          startContent={<Send className="size-4" aria-hidden />}
+        >
+          {isLaunching
+            ? t(I18nKey.ONBOARDING$HELLO_LAUNCHING)
+            : t(I18nKey.ONBOARDING$HELLO_LAUNCH)}
+        </BrandButton>
+      </div>
+    </form>
+  );
+}

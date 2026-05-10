@@ -92,8 +92,11 @@ function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
 
 export function LlmSettingsScreen({
   scope = "personal",
+  onSaveSuccess,
 }: {
   scope?: SettingsScope;
+  /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
+  onSaveSuccess?: () => void;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -274,6 +277,7 @@ export function LlmSettingsScreen({
       getInitialView={getInitialView}
       forceShowAdvancedView
       allowAllView
+      onSaveSuccess={onSaveSuccess}
       testId="llm-settings-screen"
     />
   );
