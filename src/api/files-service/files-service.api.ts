@@ -1,4 +1,4 @@
-import { createHttpClient } from "../typescript-client";
+import { createFileClient } from "../typescript-client";
 
 export interface SubdirectoryEntry {
   name: string;
@@ -31,21 +31,21 @@ const FilesService = {
     path: string,
     options: SearchSubdirsOptions = {},
   ): Promise<SubdirectoryPage> {
-    const params: Record<string, string | number> = { path };
-    if (options.pageId) params.page_id = options.pageId;
-    if (typeof options.limit === "number") params.limit = options.limit;
-
-    const response = await createHttpClient().get<SubdirectoryPage>(
-      "/api/file/search_subdirs",
-      { params },
-    );
-    return response.data;
+    // SDK's `FileClient.searchSubdirectories` returns the same JSON shape
+    // (items + next_page_id); the `pageId ?? undefined` filters out the
+    // null-vs-undefined mismatch so the SDK doesn't serialize `page_id=null`.
+    const page = await createFileClient().searchSubdirectories(path, {
+      pageId: options.pageId ?? undefined,
+      limit: options.limit,
+    });
+    return {
+      items: page.items,
+      next_page_id: page.next_page_id ?? null,
+    };
   },
 
   async getHome(): Promise<HomeResponse> {
-    const response =
-      await createHttpClient().get<HomeResponse>("/api/file/home");
-    return response.data;
+    return createFileClient().getHome();
   },
 };
 

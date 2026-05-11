@@ -15,7 +15,7 @@ import {
   AppConversation,
   AppConversationPage,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { createHttpClient, createSkillsClient } from "./typescript-client";
+import { createFileClient, createSkillsClient } from "./typescript-client";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -529,15 +529,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 }
 
 export async function downloadTextFile(path: string): Promise<string> {
-  const response = await createHttpClient().get<ArrayBuffer>(
-    "/api/file/download",
-    {
-      params: { path },
-      responseType: "arrayBuffer",
-    },
-  );
-
-  return new TextDecoder().decode(response.data);
+  return createFileClient().downloadTextFile(path);
 }
 
 export async function loadSkillsForConversation(

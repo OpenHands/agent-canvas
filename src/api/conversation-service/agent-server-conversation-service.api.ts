@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { ConversationSortOrder } from "@openhands/typescript-client";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
@@ -32,7 +33,8 @@ import {
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
-  createHttpClient,
+  createConversationClient,
+  createFileClient,
   createRemoteWorkspace,
   createVSCodeClient,
 } from "../typescript-client";
@@ -60,14 +62,9 @@ class AgentServerConversationService {
     conversationId: string,
     message: SendMessageRequest,
   ): Promise<SendMessageResponse> {
-    await createHttpClient().post(
-      `/api/conversations/${conversationId}/events`,
-      {
-        ...message,
-        run: true,
-      },
-    );
-
+    await createConversationClient().sendEvent(conversationId, message, {
+      run: true,
+    });
     return message;
   }
 
@@ -127,11 +124,10 @@ class AgentServerConversationService {
       worktree: !!metadata?.selected_repository,
     });
 
-    const response = await createHttpClient().post<DirectConversationInfo>(
-      "/api/conversations",
-      payload,
-    );
-    const { data } = response;
+    const data =
+      await createConversationClient().createConversation<DirectConversationInfo>(
+        payload as Record<string, unknown>,
+      );
 
     if (metadata?.selected_repository) {
       // The agent-server runtime has no concept of selected repo/branch, so
@@ -232,11 +228,9 @@ class AgentServerConversationService {
     _conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/pause`, {});
-
-    return response.data;
+    return createConversationClient({ sessionApiKey }).pauseConversation(
+      conversationId,
+    );
   }
 
   static async askAgent(
@@ -245,11 +239,10 @@ class AgentServerConversationService {
     question: string,
     sessionApiKey?: string | null,
   ): Promise<{ response: string }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      response: string;
-    }>(`/api/conversations/${conversationId}/ask_agent`, { question });
-
-    return response.data;
+    return createConversationClient({ sessionApiKey }).askAgent(
+      conversationId,
+      question,
+    );
   }
 
   static async resumeConversation(
@@ -257,11 +250,9 @@ class AgentServerConversationService {
     _conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/run`, {});
-
-    return response.data;
+    return createConversationClient({ sessionApiKey }).runConversation(
+      conversationId,
+    );
   }
 
   static async batchGetAppConversations(
@@ -273,11 +264,12 @@ class AgentServerConversationService {
       return batchGetCloudConversations(ids);
     }
 
-    const response = await createHttpClient().get<
-      (DirectConversationInfo | null)[]
-    >("/api/conversations", { params: { ids } });
+    const data =
+      await createConversationClient().getConversations<DirectConversationInfo>(
+        ids,
+      );
 
-    return response.data.map((item) => (item ? toAppConversation(item) : null));
+    return data.map((item) => (item ? toAppConversation(item) : null));
   }
 
   static async uploadFile(
@@ -352,14 +344,7 @@ class AgentServerConversationService {
       return downloadCloudConversation(conversationId);
     }
 
-    const response = await createHttpClient().get<Blob>(
-      `/api/file/download-trajectory/${conversationId}`,
-      {
-        responseType: "blob",
-      },
-    );
-
-    return response.data;
+    return createFileClient().downloadTrajectory(conversationId);
   }
 
   static async getSkills(conversationId: string): Promise<GetSkillsResponse> {
@@ -401,12 +386,10 @@ class AgentServerConversationService {
             authMode: "session-api-key",
             sessionApiKey,
           })
-        : (
-            await createHttpClient({
-              conversationUrl,
-              sessionApiKey,
-            }).get<RawRuntime>(`/api/conversations/${conversationId}`)
-          ).data;
+        : await createConversationClient({
+            conversationUrl,
+            sessionApiKey,
+          }).getConversation<RawRuntime>(conversationId);
 
     return {
       id: data.id,
@@ -452,25 +435,28 @@ class AgentServerConversationService {
       return searchCloudConversations(limit, pageId);
     }
 
-    const response = await createHttpClient().get<{
-      items: DirectConversationInfo[];
-      next_page_id: string | null;
-    }>("/api/conversations/search", {
-      params: {
-        limit,
-        page_id: pageId,
-        sort_order: "UPDATED_AT_DESC",
-      },
+    // ConversationClient.searchConversations returns the SDK's typed
+    // `ConversationInfo[]`; on the local agent-server the same JSON is also
+    // a `DirectConversationInfo[]` (which is what the rest of agent-canvas
+    // expects), so a cast through `unknown` is honest about the change of
+    // narrow type without re-walking the items.
+    const data = await createConversationClient().searchConversations({
+      limit,
+      page_id: pageId,
+      sort_order: ConversationSortOrder.UPDATED_AT_DESC,
     });
 
-    return toConversationPage(response.data);
+    return toConversationPage({
+      items: data.items as unknown as DirectConversationInfo[],
+      next_page_id: data.next_page_id ?? null,
+    });
   }
 
   static async deleteConversation(conversationId: string): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
       await deleteCloudConversation(conversationId);
     } else {
-      await createHttpClient().delete(`/api/conversations/${conversationId}`);
+      await createConversationClient().deleteConversation(conversationId);
     }
     removeStoredConversationMetadata(conversationId);
   }
@@ -479,7 +465,7 @@ class AgentServerConversationService {
     conversationId: string,
     title: string,
   ): Promise<AppConversation> {
-    await createHttpClient().patch(`/api/conversations/${conversationId}`, {
+    await createConversationClient().updateConversation(conversationId, {
       title,
     });
     const [conversation] = await this.batchGetAppConversations([

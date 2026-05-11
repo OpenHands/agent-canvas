@@ -1,4 +1,6 @@
 import {
+  ConversationClient,
+  FileClient,
   LLMMetadataClient,
   ServerClient,
   SettingsClient,
@@ -117,6 +119,28 @@ export function createHttpClient(
     baseUrl: host,
     ...(apiKey ? { apiKey } : {}),
     timeout: 60000,
+  });
+}
+
+export function createConversationClient(
+  overrides?: TypeScriptClientOverrides,
+): ConversationClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new ConversationClient({
+    host,
+    ...(apiKey ? { apiKey } : {}),
+    ...(overrides?.timeout ? { timeout: overrides.timeout } : {}),
+  });
+}
+
+export function createFileClient(
+  overrides?: TypeScriptClientOverrides,
+): FileClient {
+  const { host, apiKey } = resolveClientOptions(overrides);
+  return new FileClient({
+    host,
+    ...(apiKey ? { apiKey } : {}),
+    ...(overrides?.timeout ? { timeout: overrides.timeout } : {}),
   });
 }
 
