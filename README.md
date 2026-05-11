@@ -26,25 +26,106 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ### With Docker (recommended)
 
+This starts the full local stack:
+
+- Agent Canvas UI on [http://localhost:8000](http://localhost:8000)
+- OpenHands Agent Server in Docker
+- Automation backend
+- Ingress proxy that routes everything through port `8000`
+
 **Prerequisites**:
 
-- Node.js 22.12.x or later
-- `npm`
-- Docker
+- [Node.js](https://nodejs.org/) 22.12.x or later
+- `npm` (included with Node.js)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine, running before you start Agent Canvas
+- [`uv` / `uvx`](https://docs.astral.sh/uv/getting-started/installation/) for the automation backend
 
-Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+Install `uv` if you do not already have `uvx`:
 
-By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
 ```sh
-export PROJECT_PATH=/path/to/your/projects
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+After installing `uv`, restart your terminal if `uvx --version` is not found.
+
+Set `PROJECT_PATH` to the folder that contains the projects you want agents to work on. The Docker container mounts this directory at `/projects`, and the UI lists its immediate subfolders as workspaces.
+
+> [!TIP]
+> If your code lives in `C:\Users\you\Documents\GitHub\agent-canvas`, set `PROJECT_PATH` to `C:\Users\you\Documents\GitHub` — the parent folder, not the `agent-canvas` folder itself.
+
+#### Windows PowerShell
+
+```powershell
+cd C:\Users\you\Documents\GitHub
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
+
+$env:PROJECT_PATH = "C:\Users\you\Documents\GitHub"
+node --env-file-if-exists=.env .\scripts\dev-docker.mjs
+```
+
+Then open [http://localhost:8000](http://localhost:8000).
+
+> [!NOTE]
+> On Windows, starting the Docker stack through `node --env-file-if-exists=.env .\scripts\dev-docker.mjs` avoids a known `npm run dev:docker` path quoting issue where Vite can exit with `'C:\Program' is not recognized...`, causing `localhost:8000` to show Bad Gateway.
+
+#### macOS / Linux
+
+```sh
+cd ~/code
+git clone https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+npm install
+
+export PROJECT_PATH="$HOME/code"
 npm run dev:docker
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+Then open [http://localhost:8000](http://localhost:8000).
+
+If you already cloned the repository, do not clone it again; just `cd` into the existing `agent-canvas` directory and run the install/start commands.
+
+By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before starting the Docker stack to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
+
+#### Troubleshooting: Bad Gateway on localhost:8000
+
+`localhost:8000` is the ingress proxy. If it shows Bad Gateway, one of the services behind it usually failed to start.
+
+Check the terminal logs for lines like:
+
+```text
+[vite] Exited with code 1
+[ingress] Proxy error for /:
+```
+
+If Vite exited on Windows with a `C:\Program` error, stop the stack with `Ctrl+C` and restart it with the Windows PowerShell command above:
+
+```powershell
+node --env-file-if-exists=.env .\scripts\dev-docker.mjs
+```
+
+You can also check whether the backend and frontend ports are listening:
+
+```powershell
+# Windows PowerShell
+Test-NetConnection localhost -Port 18000
+Test-NetConnection localhost -Port 3001
+```
+
+```sh
+# macOS / Linux
+curl http://localhost:18000/server_info
+curl http://localhost:3001
+```
+
+If port `18000` works but port `3001` does not, the Docker agent server is healthy and the issue is the frontend/Vite process.
 
 ### Without Docker
 
@@ -60,6 +141,18 @@ them from the same Agent Canvas frontend!
 - Node.js 22.12.x or later
 - `npm`
 - `uv` (for running the agent server via `uvx`)
+
+#### Windows PowerShell
+
+```powershell
+cd C:\Users\you\Documents\GitHub
+git clone https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+npm install
+node --env-file-if-exists=.env .\scripts\dev-with-automation.mjs
+```
+
+#### macOS / Linux
 
 ```sh
 git clone https://github.com/OpenHands/agent-canvas.git
