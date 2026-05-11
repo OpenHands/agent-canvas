@@ -10,8 +10,15 @@ export interface SubdirectoryPage {
   next_page_id: string | null;
 }
 
+export interface FileBrowserEntry {
+  label: string;
+  path: string;
+}
+
 export interface HomeResponse {
   home: string;
+  favorites: FileBrowserEntry[];
+  locations: FileBrowserEntry[];
 }
 
 export interface SearchSubdirsOptions {

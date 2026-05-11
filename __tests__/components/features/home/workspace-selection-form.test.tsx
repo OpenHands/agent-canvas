@@ -96,7 +96,11 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({ home: "/Users/me" });
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [],
+      locations: [{ label: "/", path: "/" }],
+    });
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
       .mockImplementation(async (path: string) => {
@@ -258,9 +262,10 @@ describe("WorkspaceSelectionForm", () => {
       .spyOn(FilesService, "searchSubdirs")
       .mockResolvedValue({ items: [], next_page_id: null });
 
-    renderForm([], [
-      { id: "custom-projects", name: "My Projects", path: "/projects" },
-    ]);
+    renderForm(
+      [],
+      [{ id: "custom-projects", name: "My Projects", path: "/projects" }],
+    );
 
     await waitFor(() => expect(searchSpy).toHaveBeenCalledTimes(1));
     expect(searchSpy).toHaveBeenCalledWith("/projects");
@@ -330,7 +335,11 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add all subdirectories saves a workspace parent and lists its children dynamically", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({ home: "/Users/me" });
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [],
+      locations: [{ label: "/", path: "/" }],
+    });
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
       .mockImplementation(async (path: string) => {
@@ -455,6 +464,47 @@ describe("WorkspaceSelectionForm", () => {
     ).not.toBeInTheDocument();
     expect(
       within(refreshedDropdown).queryByText("repoB"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Add Workspace sidebar renders backend-provided favorites dynamically and navigates into them on click", async () => {
+    // Arrange: backend reports a home with a custom favorite that did NOT
+    // exist in the old hardcoded list (Documents / Desktop / Downloads).
+    // This is the regression guard for the original 404-on-navigate bug.
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [{ label: "projects", path: "/Users/me/projects" }],
+      locations: [{ label: "/", path: "/" }],
+    });
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockImplementation(async (path: string) => {
+        if (path === "/Users/me/projects") {
+          return {
+            items: [{ name: "repo1", path: "/Users/me/projects/repo1" }],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    // Act: open the modal and click the dynamic favorite.
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await user.click(
+      await screen.findByTestId("folder-browser-sidebar-projects"),
+    );
+
+    // Assert: the dynamic favorite drove the navigation, and the previously
+    // hardcoded names are no longer present in the sidebar.
+    await screen.findByTestId("folder-browser-entry-repo1");
+    expect(searchSpy).toHaveBeenCalledWith("/Users/me/projects");
+    expect(
+      screen.queryByTestId("folder-browser-sidebar-documents"),
     ).not.toBeInTheDocument();
   });
 });
