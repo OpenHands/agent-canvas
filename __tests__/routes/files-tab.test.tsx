@@ -277,6 +277,51 @@ describe("FilesTab", () => {
     expect(
       screen.queryByTestId("file-content-viewer-iframe"),
     ).not.toBeInTheDocument();
+
+    // The rich-rendered markdown container must paint the right-pane bg
+    // color (so it blends with the surrounding chrome) and project white
+    // text — both spelled out in the user's design ask.
+    const container = screen.getByTestId("file-content-viewer-markdown");
+    expect(container.className).toContain("bg-[#25272D]");
+    expect(container.className).toContain("text-white");
+  });
+
+  it("shows highlighted source (not rich markdown) when toggled to plain on a .md", async () => {
+    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useWorkspaceFilesMock.mockReturnValue({
+      data: ["README.md"],
+      isLoading: false,
+    });
+    useWorkspaceFileContentMock.mockReturnValue({
+      data: {
+        path: "README.md",
+        kind: "text",
+        text: "# Hello\n\nSome **bold** text",
+        staticUrl:
+          "http://localhost:3000/api/conversations/c1/workspace/README.md",
+        mimeType: "text/markdown",
+      },
+      isLoading: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+
+    renderTab();
+
+    // Toggle to plain — markdown source should now be syntax-highlighted
+    // as `markdown`, not rendered.
+    await user.click(
+      screen.getByTestId("files-tab-content-mode-toggle-option-plain"),
+    );
+
+    const highlighted = await screen.findByTestId(
+      "file-content-viewer-highlighted",
+    );
+    expect(highlighted.getAttribute("data-language")).toBe("markdown");
+    // Confirm the rich-rendered <h1> is gone.
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Hello" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the static workspace URL as the iframe src for HTML files", async () => {
@@ -320,6 +365,13 @@ describe("FilesTab", () => {
 
   it("switches between rich and plain content modes", async () => {
     useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    // Only `src/main.ts` is exposed so it auto-selects (otherwise the
+    // priority sort picks `index.html` first and the assertion below
+    // would see the markup grammar instead).
+    useWorkspaceFilesMock.mockReturnValue({
+      data: ["src/main.ts"],
+      isLoading: false,
+    });
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "src/main.ts",
@@ -339,7 +391,15 @@ describe("FilesTab", () => {
     await user.click(
       screen.getByTestId("files-tab-content-mode-toggle-option-plain"),
     );
-    expect(screen.getByTestId("file-content-viewer-plain")).toBeInTheDocument();
+    // `src/main.ts` resolves to a Prism grammar (`typescript`), so the
+    // plain view is a syntax-highlighted source view rather than a raw
+    // `<pre>`. We assert the highlighted container and its data-language
+    // attribute as a regression guard.
+    const highlighted = await screen.findByTestId(
+      "file-content-viewer-highlighted",
+    );
+    expect(highlighted).toBeInTheDocument();
+    expect(highlighted.getAttribute("data-language")).toBe("typescript");
   });
 
   it("shows the refresh button inside the files-tab toolbar and triggers a refetch", async () => {

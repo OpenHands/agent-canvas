@@ -7,6 +7,7 @@ import {
   withWorkspaceCacheBuster,
 } from "#/stores/use-workspace-mutation-counter";
 import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
+import { HighlightedSourceView } from "./highlighted-source-view";
 import type { ViewMode } from "./view-mode";
 
 interface FileContentViewerProps {
@@ -67,16 +68,18 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   const { kind, text, staticUrl, mimeType } = query.data;
   const bustedStaticUrl = withWorkspaceCacheBuster(staticUrl, mutationCounter);
 
-  // ----- Plain mode: always raw text, or a fallback for binary. -----
+  // ----- Plain mode: raw source bytes, syntax-highlighted when we can
+  // recognize the grammar (falls through to a `<pre>` otherwise). This
+  // includes "plain" view of markdown / HTML, where the point is to see
+  // the markup behind the rich preview.
   if (viewMode === "plain") {
     if (kind === "text" && text !== null) {
       return (
-        <pre
-          data-testid="file-content-viewer-plain"
-          className="h-full w-full overflow-auto whitespace-pre-wrap break-words p-4 text-xs leading-5 text-[#D6D6D6] custom-scrollbar-always"
-        >
-          {text}
-        </pre>
+        <HighlightedSourceView
+          path={path}
+          text={text}
+          mimeType={mimeType ?? undefined}
+        />
       );
     }
     return (
@@ -157,12 +160,22 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   if (kind === "text" && MARKDOWN_EXTS.has(getExtension(path))) {
+    // Match the right-pane chrome color so the rich-rendered markdown
+    // blends with the surrounding files tab instead of painting a stark
+    // white card. We use `prose-invert` (typography plugin's dark-theme
+    // variant) and then layer arbitrary CSS-variable overrides on top to
+    // pin body / bold / quote text to pure white — the user specifically
+    // asked for every text element (not just headings) to read as white.
+    // The custom heading components in `markdown/headings.tsx` already
+    // hard-code `text-white`, so headers stay white through this change.
     return (
       <div
         data-testid="file-content-viewer-markdown"
-        className="h-full w-full overflow-auto bg-white text-[#222] custom-scrollbar-always"
+        className="h-full w-full overflow-auto bg-[#25272D] text-white custom-scrollbar-always"
       >
-        <div className="prose prose-sm max-w-none p-6">
+        <div
+          className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:#3A3D44] [--tw-prose-bullets:#9299AA] [--tw-prose-hr:#3A3D44] [--tw-prose-captions:#9299AA] [--tw-prose-kbd:#fff]"
+        >
           <MarkdownRenderer
             content={text ?? ""}
             includeStandard
@@ -173,14 +186,24 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     );
   }
 
-  // Fallback for plain text in rich mode: still show the text so users see
-  // something rather than an empty pane.
+  // Rich mode for actual source code (.ts, .py, .yaml, .css, …): there
+  // is no other "rich" rendering to fall back to, so highlighted source
+  // IS the rich view. Identical to the plain-mode treatment — keeping
+  // both branches reuse `HighlightedSourceView` means the toggle has the
+  // same visual identity for source files in both modes (which is the
+  // honest answer: source IS rendered code).
+  if (kind === "text" && text !== null) {
+    return <HighlightedSourceView path={path} text={text} mimeType={mimeType ?? undefined} />;
+  }
+
+  // Truly unknown / empty payload — show a fallback so the pane is never
+  // blank.
   return (
-    <pre
-      data-testid="file-content-viewer-plain"
-      className="h-full w-full overflow-auto whitespace-pre-wrap break-words p-4 text-xs leading-5 text-[#D6D6D6] custom-scrollbar-always"
+    <div
+      className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
+      data-testid="file-content-viewer-binary-fallback"
     >
-      {text ?? ""}
-    </pre>
+      {t(I18nKey.FILES$BINARY_FALLBACK)}
+    </div>
   );
 }
