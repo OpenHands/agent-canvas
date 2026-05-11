@@ -210,12 +210,19 @@ describe("useAutoRefreshFilesOnEdit", () => {
     );
   });
 
-  it("does NOT deduplicate id-less events (every id-less arrival is a new event)", () => {
-    // The event store explicitly allows events without ids (see
-    // `getEventId` returning undefined). If our hook keyed dedup on
-    // `event.id` naively, a single `undefined` entry in the Set would
+  it("processes each id-less event distinctly (does NOT collapse them via an `undefined` Set key)", () => {
+    // The event store explicitly allows events without ids
+    // (`getEventId` returns undefined for them). If the hook keyed dedup
+    // on `event.id` naively, a single `undefined` entry in the Set would
     // swallow every subsequent id-less event — silently dropping real
-    // mutations on the floor. This guard makes sure that doesn't happen.
+    // mutations on the floor.
+    //
+    // Verifies via three SEPARATE act() calls (one per event) so each
+    // store mutation gets its own effect-flush. The counter bumps once
+    // per flush that found at least one new mutation; three flushes →
+    // counter ends at 3. Putting all three addEvent calls inside a
+    // single act() would batch them into one flush (counter=1) and
+    // verify nothing useful.
     const client = new QueryClient();
 
     renderHook(() => useAutoRefreshFilesOnEdit(), {
@@ -244,17 +251,63 @@ describe("useAutoRefreshFilesOnEdit", () => {
 
     act(() => {
       useEventStore.getState().addEvent(idlessEvent(1));
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(1);
+
+    act(() => {
       useEventStore.getState().addEvent(idlessEvent(2));
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(2);
+
+    act(() => {
       useEventStore.getState().addEvent(idlessEvent(3));
     });
-
-    // The counter is the cleanest signal — one bump per useEffect tick
-    // that found at least one new mutation. The three id-less events
-    // arrive in sequence across three store updates (and therefore at
-    // least three effect runs), so we expect three bumps. If the hook
-    // were deduping on `undefined`, only the first effect run would
-    // bump and the count would be stuck at 1.
     expect(useWorkspaceMutationCounter.getState().count).toBe(3);
+  });
+
+  it("does NOT re-bump on subsequent renders for the same id-less event", () => {
+    // Companion to the previous test, targeting the *other* half of the
+    // id-less dedup contract: each id-less event must be processed
+    // exactly ONCE across the lifetime of the hook. Without
+    // reference-based dedup (`processedEventsRef` WeakSet) the events
+    // array — which is rebuilt on every store mutation but keeps stable
+    // element references — would cause the same id-less event to
+    // re-trigger the bump on every subsequent re-render, spamming
+    // cache invalidations.
+    const client = new QueryClient();
+
+    const { rerender } = renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    const idlessEvent: OHEvent = {
+      timestamp: new Date(2026, 0, 1, 0, 0, 0).toISOString(),
+      source: "environment",
+      tool_name: "str_replace_based_edit_tool",
+      tool_call_id: "tc-idless-stable",
+      action_id: "act-idless-stable",
+      observation: {
+        kind: "FileEditorObservation",
+        command: "create",
+        path: "/workspace/project/foo.txt",
+        old_content: null,
+        new_content: "hello",
+        output: "ok",
+      },
+    } as unknown as OHEvent;
+
+    act(() => {
+      useEventStore.getState().addEvent(idlessEvent);
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(1);
+
+    // Force several extra re-renders without adding new events. The
+    // id-less event still sits in the events array on every re-render,
+    // but the WeakSet dedup must prevent it from being re-processed.
+    rerender();
+    rerender();
+    rerender();
+    expect(useWorkspaceMutationCounter.getState().count).toBe(1);
   });
 
   it("dedupes numeric event ids the same way as string ids", () => {

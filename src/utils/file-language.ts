@@ -127,7 +127,7 @@ const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 const FILENAME_TO_LANGUAGE: Record<string, string> = {
   dockerfile: "docker",
   makefile: "makefile",
-  "gnumakefile": "makefile",
+  gnumakefile: "makefile",
   ".bashrc": "bash",
   ".zshrc": "bash",
   ".profile": "bash",
@@ -137,10 +137,7 @@ const FILENAME_TO_LANGUAGE: Record<string, string> = {
 };
 
 function getExtension(path: string): string {
-  const slashIdx = Math.max(
-    path.lastIndexOf("/"),
-    path.lastIndexOf("\\"),
-  );
+  const slashIdx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   const basename = path.slice(slashIdx + 1);
   const dotIdx = basename.lastIndexOf(".");
   if (dotIdx <= 0) return "";
@@ -148,10 +145,7 @@ function getExtension(path: string): string {
 }
 
 function getBasename(path: string): string {
-  const slashIdx = Math.max(
-    path.lastIndexOf("/"),
-    path.lastIndexOf("\\"),
-  );
+  const slashIdx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return path.slice(slashIdx + 1).toLowerCase();
 }
 

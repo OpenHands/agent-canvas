@@ -44,38 +44,52 @@ export function useAutoRefreshFilesOnEdit(): void {
     (state) => state.bump,
   );
 
-  // Track which event ids we've already reacted to. The event store
-  // re-sorts on insert when out-of-order events arrive (an older event
-  // can land *between* two newer ones already in the array), so we
-  // cannot rely on a `slice(processedCount)` trick — that would miss a
-  // late-arriving older event because the array length grew but the
-  // tail we just diffed didn't contain it. Using a Set of ids is
-  // O(events) per render in the worst case but small in practice and
-  // immune to reordering.
+  // Track which events we've already reacted to. Two parallel stores:
   //
-  // Type matches the event store's own dedup set (`Set<string | number>`
-  // in `use-event-store.ts`). The formal `EventID` type is `string`, but
-  // `getEventId` returns `string | number | undefined`, and we mirror
-  // that tolerance here so a stray numeric id (legacy server payload,
-  // hand-crafted test event, …) doesn't sneak past dedup. Events with
-  // *no* id are not added to the set at all — adding `undefined` once
-  // would cause every subsequent id-less event (which is a *different*
-  // event) to be silently skipped.
+  // 1. `processedIdsRef` — keys events that *have* an id. The event store
+  //    re-sorts on insert when out-of-order events arrive (an older event
+  //    can land *between* two newer ones already in the array), so we
+  //    cannot use a `slice(processedCount)` trick — it would miss a
+  //    late-arriving older event because the array length grew but the
+  //    tail we just diffed didn't contain it. Using a Set of ids is O(n)
+  //    per render in the worst case but small in practice and immune to
+  //    reordering. Type matches the event store's own dedup set
+  //    (`Set<string | number>` in `use-event-store.ts`) so a stray
+  //    numeric id (legacy server payload, hand-crafted test event, …)
+  //    can't sneak past.
+  //
+  // 2. `processedEventsRef` — keys events that have NO id. We cannot put
+  //    a literal `undefined` into the id Set: that would make the second,
+  //    third, … id-less arrival collide on the same `undefined` key and
+  //    silently skip them. We also cannot just skip dedup for id-less
+  //    events: the events array is rebuilt on every store mutation but
+  //    its element references are stable, so the same id-less event
+  //    appears in the array forever and would re-bump the workspace
+  //    mutation counter on every subsequent re-render. Keying by object
+  //    reference (via a WeakSet) gives us "process each id-less event
+  //    exactly once" — durable, free, no held-onto memory after the
+  //    store clears.
   const processedIdsRef = useRef<Set<string | number>>(new Set());
+  const processedEventsRef = useRef<WeakSet<OHEvent>>(new WeakSet());
 
   useEffect(() => {
     const newMutationEvents: OHEvent[] = [];
     for (const event of events) {
       const id: string | number | undefined =
         "id" in event ? event.id : undefined;
-      // Id-less events are always treated as "new" — there is nothing to
-      // key on, so dedup would be wrong (it'd swallow the 2nd / 3rd / Nth
-      // ID-less event by collapsing them under a single `undefined` key).
-      if (id !== undefined) {
-        if (processedIdsRef.current.has(id)) continue;
-        processedIdsRef.current.add(id);
+      const alreadyProcessed =
+        id !== undefined
+          ? processedIdsRef.current.has(id)
+          : processedEventsRef.current.has(event);
+      // Inverted predicate so we avoid `continue` (banned by repo lint).
+      if (!alreadyProcessed) {
+        if (id !== undefined) {
+          processedIdsRef.current.add(id);
+        } else {
+          processedEventsRef.current.add(event);
+        }
+        if (isFileMutationObservation(event)) newMutationEvents.push(event);
       }
-      if (isFileMutationObservation(event)) newMutationEvents.push(event);
     }
 
     if (newMutationEvents.length === 0) return;

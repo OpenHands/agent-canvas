@@ -173,9 +173,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
         data-testid="file-content-viewer-markdown"
         className="h-full w-full overflow-auto bg-[#25272D] text-white custom-scrollbar-always"
       >
-        <div
-          className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:#3A3D44] [--tw-prose-bullets:#9299AA] [--tw-prose-hr:#3A3D44] [--tw-prose-captions:#9299AA] [--tw-prose-kbd:#fff]"
-        >
+        <div className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:#3A3D44] [--tw-prose-bullets:#9299AA] [--tw-prose-hr:#3A3D44] [--tw-prose-captions:#9299AA] [--tw-prose-kbd:#fff]">
           <MarkdownRenderer
             content={text ?? ""}
             includeStandard
@@ -193,7 +191,13 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   // same visual identity for source files in both modes (which is the
   // honest answer: source IS rendered code).
   if (kind === "text" && text !== null) {
-    return <HighlightedSourceView path={path} text={text} mimeType={mimeType ?? undefined} />;
+    return (
+      <HighlightedSourceView
+        path={path}
+        text={text}
+        mimeType={mimeType ?? undefined}
+      />
+    );
   }
 
   // Truly unknown / empty payload — show a fallback so the pane is never
