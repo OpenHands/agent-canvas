@@ -153,46 +153,49 @@ export function createRemoteWorkspace(
   overrides?: TypeScriptClientOverrides,
 ): AgentCanvasRemoteWorkspace {
   const { host, apiKey, workingDir } = resolveClientOptions(overrides);
-  const workspace = new RemoteWorkspace({
+  const baseWorkspace = new RemoteWorkspace({
     host,
     workingDir,
     ...(apiKey ? { apiKey } : {}),
-  }) as AgentCanvasRemoteWorkspace;
+  });
 
-  workspace.startWorkspaceSession = async (conversationId: string) => {
-    const response = await workspace.client.post<string>(
-      "/api/auth/workspace-session",
-      { conversation_id: conversationId },
-    );
+  const workspaceExtensions = {
+    startWorkspaceSession: async (conversationId: string) => {
+      const response = await baseWorkspace.client.post<string>(
+        "/api/auth/workspace-session",
+        { conversation_id: conversationId },
+      );
 
-    return response.data;
-  };
-
-  workspace.gitChanges = async (path: string, options?: GitRefOptions) => {
-    const response = await workspace.client.get<RemoteGitChanges>(
-      "/api/git/changes",
-      {
-        params: {
-          path,
-          ...(options?.ref ? { ref: options.ref } : {}),
+      return response.data;
+    },
+    gitChanges: async (path: string, options?: GitRefOptions) => {
+      const response = await baseWorkspace.client.get<RemoteGitChanges>(
+        "/api/git/changes",
+        {
+          params: {
+            path,
+            ...(options?.ref ? { ref: options.ref } : {}),
+          },
         },
-      },
-    );
-    return response.data;
-  };
-
-  workspace.gitDiff = async (path: string, options?: GitRefOptions) => {
-    const response = await workspace.client.get<RemoteGitDiff>(
-      "/api/git/diff",
-      {
-        params: {
-          path,
-          ...(options?.ref ? { ref: options.ref } : {}),
+      );
+      return response.data;
+    },
+    gitDiff: async (path: string, options?: GitRefOptions) => {
+      const response = await baseWorkspace.client.get<RemoteGitDiff>(
+        "/api/git/diff",
+        {
+          params: {
+            path,
+            ...(options?.ref ? { ref: options.ref } : {}),
+          },
         },
-      },
-    );
-    return response.data;
-  };
+      );
+      return response.data;
+    },
+  } satisfies Pick<
+    AgentCanvasRemoteWorkspace,
+    "startWorkspaceSession" | "gitChanges" | "gitDiff"
+  >;
 
-  return workspace;
+  return Object.assign(baseWorkspace, workspaceExtensions);
 }

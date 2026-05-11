@@ -41,7 +41,9 @@ describe("createRemoteWorkspace", () => {
       .spyOn(workspace.client, "get")
       .mockResolvedValue(httpResponse([]));
 
-    await workspace.gitChanges("/workspace/project", { ref: "HEAD" });
+    const result = await workspace.gitChanges("/workspace/project", {
+      ref: "HEAD",
+    });
 
     expect(getMock).toHaveBeenCalledWith("/api/git/changes", {
       params: {
@@ -49,6 +51,7 @@ describe("createRemoteWorkspace", () => {
         ref: "HEAD",
       },
     });
+    expect(result).toEqual([]);
   });
 
   it("passes git ref options to the runtime git diff endpoint", async () => {
@@ -61,7 +64,7 @@ describe("createRemoteWorkspace", () => {
       .spyOn(workspace.client, "get")
       .mockResolvedValue(httpResponse({ diff: "diff content" }));
 
-    await workspace.gitDiff("/workspace/project/file.ts", {
+    const result = await workspace.gitDiff("/workspace/project/file.ts", {
       ref: "HEAD",
     });
 
@@ -71,5 +74,6 @@ describe("createRemoteWorkspace", () => {
         ref: "HEAD",
       },
     });
+    expect(result).toEqual({ diff: "diff content" });
   });
 });

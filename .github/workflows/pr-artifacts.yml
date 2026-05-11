@@ -69,6 +69,7 @@ jobs:
         id: remove
         if: steps.check_fork.outputs.is_fork == 'false'
         env:
+          PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
           PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
         run: |
           set -euo pipefail

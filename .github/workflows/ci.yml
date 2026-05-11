@@ -241,10 +241,15 @@ jobs:
         if: always() && steps.live_media.outputs.video_path != '' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
         run: |
+          video_path="${{ steps.live_media.outputs.video_path }}"
+          if [ ! -f "$video_path" ]; then
+            echo "::warning::Live E2E video file was not found, skipping GIF preview generation."
+            exit 0
+          fi
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           ffmpeg -y \
-            -i "${{ steps.live_media.outputs.video_path }}" \
+            -i "$video_path" \
             -vf "fps=4,scale=960:-1:flags=lanczos" \
             -loop 0 \
             test-results-live/media/live-agent-recording.gif
@@ -300,6 +305,10 @@ jobs:
               tail -n "+$((MEDIA_KEEP_RUNS + 1))" |
               while IFS= read -r stale_run; do
                 [ -n "$stale_run" ] || continue
+                if [[ ! "$stale_run" =~ ^[0-9]+$ ]]; then
+                  echo "::warning::Skipping invalid live E2E media directory name: $stale_run"
+                  continue
+                fi
                 rm -rf ".pr/live-e2e/$stale_run"
               done
           fi

@@ -51,6 +51,16 @@ export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
   "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.";
 
+function sanitizeFailureText(value: string) {
+  return value
+    .slice(0, 500)
+    .replace(
+      /(api[_-]?key|authorization|secret|token)(["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
+      "$1$2<redacted>",
+    )
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "<redacted>");
+}
+
 export async function configureLiveAgentServer(request: APIRequestContext) {
   const llmSettings: Record<string, string | number> = {
     model: llmModel,
@@ -83,7 +93,7 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
   const settingsResponseText = await settingsResponse.text();
   expect(
     settingsResponse.ok(),
-    `PATCH /api/settings failed with ${settingsResponse.status()}: ${settingsResponseText}`,
+    `PATCH /api/settings failed with ${settingsResponse.status()}: ${sanitizeFailureText(settingsResponseText)}`,
   ).toBeTruthy();
 }
 
