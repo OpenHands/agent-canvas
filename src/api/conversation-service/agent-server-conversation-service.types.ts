@@ -134,6 +134,15 @@ export interface Skill {
   type: "repo" | "knowledge" | "agentskills";
   content: string;
   triggers: string[];
+  source?: string | null;
+  description?: string | null;
+  version?: string;
+  license?: string | null;
+  compatibility?: string | null;
+  metadata?: Record<string, string> | null;
+  allowed_tools?: string[] | null;
+  is_agentskills_format?: boolean;
+  disable_model_invocation?: boolean;
 }
 
 export interface GetSkillsResponse {

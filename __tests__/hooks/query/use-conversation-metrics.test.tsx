@@ -71,4 +71,75 @@ describe("useConversationMetrics", () => {
       null,
     );
   });
+
+  it("preserves an active LLM's per_turn_token when combined with a dormant condenser entry", async () => {
+    // Arrange
+    const multiLlmRuntimeInfo = {
+      id: "conv-multi",
+      title: "Test",
+      metrics: null,
+      created_at: "2026-04-16T00:00:00Z",
+      updated_at: "2026-04-16T00:00:00Z",
+      status: ExecutionStatus.IDLE,
+      stats: {
+        usage_to_metrics: {
+          agent: {
+            model_name: "test-model",
+            accumulated_cost: 0.07,
+            max_budget_per_task: null,
+            accumulated_token_usage: {
+              prompt_tokens: 37802,
+              completion_tokens: 1024,
+              cache_read_tokens: 24686,
+              cache_write_tokens: 12764,
+              context_window: 1_000_000,
+              per_turn_token: 38826,
+            },
+            costs: [],
+            response_latencies: [],
+            token_usages: [],
+          },
+          condenser: {
+            model_name: "test-model",
+            accumulated_cost: 0,
+            max_budget_per_task: null,
+            accumulated_token_usage: {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              cache_read_tokens: 0,
+              cache_write_tokens: 0,
+              context_window: 0,
+              per_turn_token: 0,
+            },
+            costs: [],
+            response_latencies: [],
+            token_usages: [],
+          },
+        },
+      },
+    };
+    vi.spyOn(
+      AgentServerConversationService,
+      "getRuntimeConversation",
+    ).mockResolvedValue(multiLlmRuntimeInfo);
+
+    // Act
+    const { result } = renderHook(
+      () =>
+        useConversationMetrics(
+          "conv-multi",
+          "http://localhost:8888/api/conversations/conv-multi",
+          null,
+          true,
+        ),
+      { wrapper: makeWrapper() },
+    );
+
+    // Assert
+    await waitFor(() => {
+      expect(
+        result.current.data?.accumulated_token_usage?.per_turn_token,
+      ).toBe(38826);
+    });
+  });
 });

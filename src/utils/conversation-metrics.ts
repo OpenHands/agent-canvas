@@ -57,7 +57,10 @@ export function getCombinedMetrics(
             combinedTokenUsage.context_window,
             metrics.accumulated_token_usage.context_window,
           ),
-          per_turn_token: metrics.accumulated_token_usage.per_turn_token, // Use the latest per_turn_token
+          per_turn_token: Math.max(
+            combinedTokenUsage.per_turn_token,
+            metrics.accumulated_token_usage.per_turn_token,
+          ),
         };
       }
     }

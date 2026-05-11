@@ -23,7 +23,7 @@ describe("OptionService", () => {
 
   it("loads config regardless of agent server version", async () => {
     server.use(
-      http.get("/server_info", () =>
+      http.get("*/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
       ),
     );
@@ -35,7 +35,7 @@ describe("OptionService", () => {
 
   it("loads config even when the server does not advertise a version", async () => {
     server.use(
-      http.get("/server_info", () =>
+      http.get("*/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
       ),
     );
@@ -46,7 +46,7 @@ describe("OptionService", () => {
   });
 
   it("throws an unavailable error when the agent server cannot be reached", async () => {
-    server.use(http.get("/server_info", () => HttpResponse.error()));
+    server.use(http.get("*/server_info", () => HttpResponse.error()));
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
@@ -57,7 +57,7 @@ describe("OptionService", () => {
 
   it("caches usable_tools from server_info for later tool gating", async () => {
     server.use(
-      http.get("/server_info", () =>
+      http.get("*/server_info", () =>
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
@@ -75,7 +75,7 @@ describe("OptionService", () => {
 
   it("allows all tools when the server does not advertise tool metadata", async () => {
     server.use(
-      http.get("/server_info", () =>
+      http.get("*/server_info", () =>
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,

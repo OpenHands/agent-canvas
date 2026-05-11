@@ -62,7 +62,7 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 // Default automation version (released PyPI version)
 // Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 

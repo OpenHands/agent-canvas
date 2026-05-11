@@ -15,12 +15,14 @@ describe("ModelSelector — OpenHands round-trip", () => {
     providersCount = 0;
     verifiedCount = 0;
     modelsCount = 0;
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/api/...) when VITE_BACKEND_BASE_URL is configured.
     server.use(
-      http.get("/api/llm/providers", () => {
+      http.get("*/api/llm/providers", () => {
         providersCount += 1;
         return HttpResponse.json({ providers: ["anthropic", "openai"] });
       }),
-      http.get("/api/llm/models/verified", () => {
+      http.get("*/api/llm/models/verified", () => {
         verifiedCount += 1;
         return HttpResponse.json({
           models: {
@@ -29,7 +31,7 @@ describe("ModelSelector — OpenHands round-trip", () => {
           },
         });
       }),
-      http.get("/api/llm/models", () => {
+      http.get("*/api/llm/models", () => {
         modelsCount += 1;
         return HttpResponse.json({ models: [] });
       }),
