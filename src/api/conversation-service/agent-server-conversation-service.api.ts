@@ -77,9 +77,7 @@ function readTimestamp(
     : DEFAULT_CONVERSATION_TIMESTAMP;
 }
 
-function requireDirectConversationInfo(
-  item: unknown,
-): DirectConversationInfo {
+function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
   if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
     throw invalidConversationResponse();
   }
