@@ -4,6 +4,7 @@ import {
   type Settings,
   type SettingsValue,
 } from "#/types/settings";
+import { type StoredAppPreferences } from "../app-preferences-store";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 import { callCloudProxy } from "./proxy";
@@ -149,6 +150,7 @@ export async function saveCloudSettings(diff: {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
   disabled_skills?: string[];
+  app_preferences?: StoredAppPreferences;
 }): Promise<void> {
   const backend = getActiveCloudBackend();
   const body: Record<string, unknown> = {};
@@ -167,6 +169,15 @@ export async function saveCloudSettings(diff: {
   // Use !== undefined so re-enabling every skill (empty array) round-trips.
   if (diff.disabled_skills !== undefined) {
     body.disabled_skills = diff.disabled_skills;
+  }
+  // Flat top-level app-preference fields (language, git_user_name, …).
+  // The cloud POST /api/v1/settings stores these directly; see
+  // `CloudSettingsResponse` and the MSW handler in
+  // `src/mocks/settings-handlers.ts` for the accepted shape.
+  if (diff.app_preferences) {
+    for (const [key, value] of Object.entries(diff.app_preferences)) {
+      body[key] = value;
+    }
   }
   await callCloudProxy<unknown>({
     backend,

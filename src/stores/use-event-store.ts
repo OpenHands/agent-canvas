@@ -52,44 +52,96 @@ export interface EventState {
   eventIds: Set<string | number>;
   uiEvents: OHEvent[];
   addEvent: (event: OHEvent) => void;
+  /**
+   * Bulk-insert events. Used for the initial REST history load and for
+   * "scroll up to load older" pagination. Newly-added events are de-duped
+   * against the existing store and the combined list is re-sorted by
+   * timestamp so older pages drop into the correct position.
+   */
+  addEvents: (events: OHEvent[]) => void;
   clearEvents: () => void;
 }
+
+const appendEvent = (state: EventState, event: OHEvent): EventState => {
+  // Deduplicate: skip if event with same id already exists (O(1) lookup)
+  const eventId = getEventId(event);
+  if (eventId !== undefined && state.eventIds.has(eventId)) {
+    return state;
+  }
+
+  const newEventIds =
+    eventId !== undefined
+      ? new Set(state.eventIds).add(eventId)
+      : state.eventIds;
+
+  return {
+    ...state,
+    events: [...state.events, event],
+    eventIds: newEventIds,
+    uiEvents: handleEventForUI(event, state.uiEvents),
+  };
+};
+
+const sortEventState = (state: EventState): EventState => ({
+  ...state,
+  events: [...state.events].sort(compareEventsByTimestamp),
+  uiEvents: [...state.uiEvents].sort(compareEventsByTimestamp),
+});
+
+const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
+  const next = appendEvent(state, event);
+  if (next === state) {
+    return state;
+  }
+
+  if (
+    !needsSorting(state.events, event) &&
+    !needsSorting(state.uiEvents, event)
+  ) {
+    return next;
+  }
+
+  return sortEventState(next);
+};
 
 export const useEventStore = create<EventState>()((set) => ({
   events: [],
   eventIds: new Set(),
   uiEvents: [],
-  addEvent: (event: OHEvent) =>
+  addEvent: (event: OHEvent) => set((state) => applyAddEvent(state, event)),
+  addEvents: (incoming: OHEvent[]) =>
     set((state) => {
-      // Deduplicate: skip if event with same id already exists (O(1) lookup)
-      const eventId = getEventId(event);
-      if (eventId !== undefined && state.eventIds.has(eventId)) {
+      if (incoming.length === 0) return state;
+
+      const eventIds = new Set(state.eventIds);
+      const events = [...state.events];
+      let uiEvents = [...state.uiEvents];
+      let added = false;
+
+      for (const event of incoming) {
+        const eventId = getEventId(event);
+        const isDuplicate = eventId !== undefined && eventIds.has(eventId);
+
+        if (!isDuplicate) {
+          added = true;
+          if (eventId !== undefined) {
+            eventIds.add(eventId);
+          }
+          events.push(event);
+          uiEvents = handleEventForUI(event, uiEvents);
+        }
+      }
+
+      if (!added) {
         return state;
       }
 
-      // Add event and sort if needed to maintain chronological order
-      let newEvents = [...state.events, event];
-      if (needsSorting(state.events, event)) {
-        newEvents = newEvents.sort(compareEventsByTimestamp);
-      }
-
-      const newEventIds =
-        eventId !== undefined
-          ? new Set(state.eventIds).add(eventId)
-          : state.eventIds;
-
-      // Process UI events and sort if needed
-      let newUiEvents = handleEventForUI(event, state.uiEvents);
-
-      if (needsSorting(state.uiEvents, event)) {
-        newUiEvents = newUiEvents.sort(compareEventsByTimestamp);
-      }
-
-      return {
-        events: newEvents,
-        eventIds: newEventIds,
-        uiEvents: newUiEvents,
-      };
+      return sortEventState({
+        ...state,
+        events,
+        eventIds,
+        uiEvents,
+      });
     }),
   clearEvents: () =>
     set(() => ({

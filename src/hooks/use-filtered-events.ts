@@ -3,7 +3,7 @@ import { useEventStore } from "#/stores/use-event-store";
 import {
   shouldRenderEvent as shouldRenderAgentServerEvent,
   hasUserEvent as hasAgentServerUserEvent,
-} from "#/components/conversation-events/chat";
+} from "#/components/conversation-events/chat/event-content-helpers/should-render-event";
 import {
   isSystemPromptEvent,
   isConversationStateUpdateEvent,

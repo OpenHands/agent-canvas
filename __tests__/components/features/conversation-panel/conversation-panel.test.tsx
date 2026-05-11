@@ -1,4 +1,9 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import {
+  screen,
+  waitFor,
+  waitForElementToBeRemoved,
+  within,
+} from "@testing-library/react";
 import {
   afterEach,
   beforeAll,
@@ -133,6 +138,39 @@ describe("ConversationPanel", () => {
 
     const emptyState = await screen.findByText("CONVERSATION$NO_CONVERSATIONS");
     expect(emptyState).toBeInTheDocument();
+  });
+
+  it("should not display the empty state when there are no conversations and the panel is compact", async () => {
+    const searchConversationsSpy = vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    );
+    searchConversationsSpy.mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
+
+    const CompactRouterStub = createRoutesStub([
+      {
+        Component: () => <ConversationPanel compact />,
+        path: "/",
+      },
+      {
+        Component: () => null,
+        path: "/conversations/:conversationId",
+      },
+    ]);
+
+    renderWithProviders(<CompactRouterStub />);
+
+    const skeletons = await screen.findAllByTestId(
+      "conversation-card-skeleton",
+    );
+    await waitForElementToBeRemoved(skeletons);
+
+    expect(
+      screen.queryByText("CONVERSATION$NO_CONVERSATIONS"),
+    ).not.toBeInTheDocument();
   });
 
   it("should handle an error when fetching conversations", async () => {

@@ -5,6 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { useConversationStore } from "#/stores/conversation-store";
+import { AgentState } from "#/types/agent-state";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  ACTIVE_BACKEND_STORAGE_KEY,
+  BACKENDS_STORAGE_KEY,
+} from "#/api/backend-registry/storage";
+import type { Backend } from "#/api/backend-registry/types";
 
 const TASK_CONVERSATION_ID = "task-ec03fb2ab8604517b24af632b058c2fd";
 const REAL_CONVERSATION_ID = "conv-abc123";
@@ -23,26 +31,94 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
-const createWrapper = (conversationId: string) => {
-  return ({ children }: { children: React.ReactNode }) => (
-    <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>
-      <QueryClientProvider client={new QueryClient()}>
-        {children}
-      </QueryClientProvider>
-    </MemoryRouter>
+const mockRefetchGitChanges = vi.fn();
+let mockIsFetchingGitChanges = false;
+vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
+  useUnifiedGetGitChanges: () => ({
+    refetch: mockRefetchGitChanges,
+    isFetching: mockIsFetchingGitChanges,
+    data: [],
+  }),
+}));
+
+const mockHandleBuildPlanClick = vi.fn();
+vi.mock("#/hooks/use-handle-build-plan-click", () => ({
+  useHandleBuildPlanClick: () => ({
+    handleBuildPlanClick: mockHandleBuildPlanClick,
+  }),
+}));
+
+let mockCurAgentState = AgentState.AWAITING_USER_INPUT;
+vi.mock("#/hooks/use-agent-state", () => ({
+  useAgentState: () => ({ curAgentState: mockCurAgentState }),
+}));
+
+const createWrapper = (conversationId: string) =>
+  function ({ children }: { children: React.ReactNode }) {
+    return (
+      <MemoryRouter initialEntries={[`/conversations/${conversationId}`]}>
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveBackendProvider>{children}</ActiveBackendProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
+
+const seedConversationState = (
+  conversationId: string,
+  overrides: Record<string, unknown> = {},
+) => {
+  localStorage.setItem(
+    `conversation-state-${conversationId}`,
+    JSON.stringify({
+      selectedTab: "files",
+      rightPanelShown: true,
+      unpinnedTabs: [],
+      conversationMode: "code",
+      subConversationTaskId: null,
+      draftMessage: null,
+      ...overrides,
+    }),
   );
+};
+
+function seedActiveBackend(backend: Backend): void {
+  localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
+  localStorage.setItem(
+    ACTIVE_BACKEND_STORAGE_KEY,
+    JSON.stringify({ backendId: backend.id, orgId: null }),
+  );
+  __resetActiveStoreForTests();
+}
+
+const setActiveTabState = (tab: "files" | "planner") => {
+  seedConversationState(REAL_CONVERSATION_ID, {
+    selectedTab: tab,
+    rightPanelShown: true,
+  });
+  useConversationStore.setState({
+    selectedTab: tab,
+    isRightPanelShown: true,
+    hasRightPanelToggled: true,
+  });
 };
 
 describe("ConversationTabs localStorage behavior", () => {
   beforeEach(() => {
     localStorage.clear();
+    __resetActiveStoreForTests();
     vi.resetAllMocks();
+    mockRefetchGitChanges.mockReset();
+    mockHandleBuildPlanClick.mockReset();
     mockConversationId = TASK_CONVERSATION_ID;
     mockHasTaskList = false;
+    mockIsFetchingGitChanges = false;
+    mockCurAgentState = AgentState.AWAITING_USER_INPUT;
     useConversationStore.setState({
       selectedTab: null,
       isRightPanelShown: false,
       hasRightPanelToggled: false,
+      planContent: null,
     });
   });
 
@@ -67,7 +143,7 @@ describe("ConversationTabs localStorage behavior", () => {
         wrapper: createWrapper(REAL_CONVERSATION_ID),
       });
 
-      const changesTab = screen.getByTestId("conversation-tab-editor");
+      const changesTab = screen.getByTestId("conversation-tab-files");
       await user.click(changesTab);
 
       const consolidatedKey = `conversation-state-${REAL_CONVERSATION_ID}`;
@@ -119,7 +195,7 @@ describe("ConversationTabs localStorage behavior", () => {
 
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -129,7 +205,7 @@ describe("ConversationTabs localStorage behavior", () => {
       });
 
       // Act: Click the editor tab again
-      const editorTab = screen.getByTestId("conversation-tab-editor");
+      const editorTab = screen.getByTestId("conversation-tab-files");
       await user.click(editorTab);
 
       // Assert: Panel should be closed
@@ -148,7 +224,7 @@ describe("ConversationTabs localStorage behavior", () => {
 
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -170,6 +246,187 @@ describe("ConversationTabs localStorage behavior", () => {
         localStorage.getItem(`conversation-state-${REAL_CONVERSATION_ID}`)!,
       );
       expect(storedState.selectedTab).toBe("browser");
+    });
+  });
+
+  describe("tab action buttons", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("no longer renders the refresh button in the top tab bar (it now lives inside the Files tab toolbar)", () => {
+      setActiveTabState("files");
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // The old conversation-tabs refresh button used aria-label "COMMON$FILES"
+      // on a top-bar <button>. Our `conversation-tab-files` button uses a
+      // different DOM shape, so any <button> matching that aria-label here
+      // would be the legacy refresh button.
+      const buttons = Array.from(
+        document.querySelectorAll('button[aria-label="COMMON$FILES"]'),
+      );
+      // The only remaining match should be the tab nav itself (a button with
+      // data-testid conversation-tab-files), if anything. There must be no
+      // standalone refresh button.
+      const refreshButtons = buttons.filter(
+        (b) => b.getAttribute("data-testid") !== "conversation-tab-files",
+      );
+      expect(refreshButtons).toHaveLength(0);
+    });
+
+    it("places the Files tab leftmost in the tab bar", () => {
+      setActiveTabState("files");
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      const tabs = Array.from(
+        document.querySelectorAll('[data-testid^="conversation-tab-"]'),
+      );
+      const testIds = tabs.map((t) => t.getAttribute("data-testid"));
+      // Files must be the first tab rendered in the bar.
+      expect(testIds[0]).toBe("conversation-tab-files");
+    });
+
+    it("keeps Files leftmost even when the task list tab is present", () => {
+      setActiveTabState("files");
+      mockHasTaskList = true;
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      const tabs = Array.from(
+        document.querySelectorAll('[data-testid^="conversation-tab-"]'),
+      );
+      const testIds = tabs.map((t) => t.getAttribute("data-testid"));
+      expect(testIds[0]).toBe("conversation-tab-files");
+      // Task list should still be visible, just not first.
+      expect(testIds).toContain("conversation-tab-tasklist");
+    });
+
+    it("does not show the build button when the planner tab is inactive", () => {
+      setActiveTabState("files");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.queryByTestId("planner-tab-build-button"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the build button when the planner tab is active", async () => {
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeInTheDocument();
+    });
+
+    it("disables the build button when there is no plan content", async () => {
+      setActiveTabState("planner");
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeDisabled();
+    });
+
+    it("disables the build button when the agent is running", async () => {
+      mockCurAgentState = AgentState.RUNNING;
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        await screen.findByTestId("planner-tab-build-button"),
+      ).toBeDisabled();
+    });
+
+    it("calls the build handler when the build button is clicked", async () => {
+      const user = userEvent.setup();
+      setActiveTabState("planner");
+      useConversationStore.setState({
+        planContent: "# Plan content",
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      await user.click(await screen.findByTestId("planner-tab-build-button"));
+
+      expect(mockHandleBuildPlanClick).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("vscode tab visibility by backend kind", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("should hide the vscode tab when the active backend is local", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "local-test",
+        name: "Local Test",
+        host: "http://localhost:8000",
+        apiKey: "",
+        kind: "local",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.queryByTestId("conversation-tab-vscode"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should show the vscode tab when the active backend is cloud", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(screen.getByTestId("conversation-tab-vscode")).toBeInTheDocument();
     });
   });
 

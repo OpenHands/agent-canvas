@@ -33,11 +33,11 @@ describe("useSelectConversationTab", () => {
 
       // Act: Select a tab
       act(() => {
-        result.current.selectTab("editor");
+        result.current.selectTab("files");
       });
 
       // Assert: Panel should be open and tab selected
-      expect(useConversationStore.getState().selectedTab).toBe("editor");
+      expect(useConversationStore.getState().selectedTab).toBe("files");
       expect(useConversationStore.getState().hasRightPanelToggled).toBe(true);
 
       // Verify localStorage was updated
@@ -46,14 +46,14 @@ describe("useSelectConversationTab", () => {
           `conversation-state-${TEST_CONVERSATION_ID}`,
         )!,
       );
-      expect(storedState.selectedTab).toBe("editor");
+      expect(storedState.selectedTab).toBe("files");
       expect(storedState.rightPanelShown).toBe(true);
     });
 
     it("should close panel when clicking the same active tab", () => {
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -62,7 +62,7 @@ describe("useSelectConversationTab", () => {
 
       // Act: Click the same tab again
       act(() => {
-        result.current.selectTab("editor");
+        result.current.selectTab("files");
       });
 
       // Assert: Panel should be closed
@@ -80,7 +80,7 @@ describe("useSelectConversationTab", () => {
     it("should switch to different tab when panel is already open", () => {
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -110,7 +110,7 @@ describe("useSelectConversationTab", () => {
     it("should return true when tab is selected and panel is visible", () => {
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -118,13 +118,13 @@ describe("useSelectConversationTab", () => {
       const { result } = renderHook(() => useSelectConversationTab());
 
       // Assert: Editor tab should be active
-      expect(result.current.isTabActive("editor")).toBe(true);
+      expect(result.current.isTabActive("files")).toBe(true);
     });
 
     it("should return false when tab is selected but panel is not visible", () => {
       // Arrange: Editor tab selected but panel is closed
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: false,
         hasRightPanelToggled: false,
       });
@@ -132,13 +132,13 @@ describe("useSelectConversationTab", () => {
       const { result } = renderHook(() => useSelectConversationTab());
 
       // Assert: Editor tab should not be active
-      expect(result.current.isTabActive("editor")).toBe(false);
+      expect(result.current.isTabActive("files")).toBe(false);
     });
 
     it("should return false when different tab is selected", () => {
       // Arrange: Panel is open with editor tab selected
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -181,7 +181,7 @@ describe("useSelectConversationTab", () => {
     it("should set tab to null when passing null", () => {
       // Arrange
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -224,7 +224,7 @@ describe("useSelectConversationTab", () => {
     it("should return current isRightPanelShown from store", () => {
       // Arrange
       useConversationStore.setState({
-        selectedTab: "editor",
+        selectedTab: "files",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });

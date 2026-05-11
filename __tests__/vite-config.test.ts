@@ -22,6 +22,50 @@ describe("vite optimizeDeps", () => {
   });
 });
 
+describe("vite path resolution", () => {
+  it("uses Vite's native tsconfig paths support", async () => {
+    const config = await viteConfig({ mode: "development", command: "serve" });
+
+    expect(config.resolve?.tsconfigPaths).toBe(true);
+    expect(config.plugins).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "vite-tsconfig-paths" }),
+      ]),
+    );
+  });
+});
+
+describe("vite app build", () => {
+  it("configures Rolldown code splitting for large vendor chunks", async () => {
+    const config = await viteConfig({ mode: "production", command: "build" });
+    const appBuild = config as {
+      build?: {
+        rolldownOptions?: {
+          output?: {
+            codeSplitting?: {
+              groups?: Array<{
+                name?: string;
+                maxSize?: number;
+                entriesAware?: boolean;
+              }>;
+            };
+          };
+        };
+      };
+    };
+
+    expect(appBuild.build?.rolldownOptions?.output?.codeSplitting?.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "vendor",
+          maxSize: 450 * 1024,
+          entriesAware: true,
+        }),
+      ]),
+    );
+  });
+});
+
 describe("vite library build", () => {
   it("configures a dual-format preserved-module library build", async () => {
     process.env.BUILD_LIB = "true";

@@ -6,6 +6,8 @@ import { useSkills } from "#/hooks/query/use-skills";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { I18nKey } from "#/i18n/declaration";
+import { Typography } from "#/ui/typography";
+import InfoCircleIcon from "#/icons/info-circle.svg?react";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -63,7 +65,15 @@ function SkillsSettingsScreen() {
 
   return (
     <div data-testid="skills-settings-screen" className="flex flex-col h-full">
-      <p className="text-xs mb-4">{t(I18nKey.SETTINGS$SKILLS_DESCRIPTION)}</p>
+      <div
+        data-testid="skills-settings-description-badge"
+        className="flex items-center gap-2 bg-[rgba(31,31,31,0.4)] border border-[#242424] rounded-full px-2.5 py-1 mt-4 mb-4 self-start"
+      >
+        <InfoCircleIcon width={12} height={12} className="text-[#8c8c8c]" />
+        <Typography.Text className="text-[11px] font-medium text-[#8c8c8c] leading-5">
+          {t(I18nKey.SETTINGS$SKILLS_DESCRIPTION)}
+        </Typography.Text>
+      </div>
 
       <div className="flex-1 overflow-auto custom-scrollbar-always">
         {isLoading && (

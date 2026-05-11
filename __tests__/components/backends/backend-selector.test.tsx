@@ -28,6 +28,7 @@ import {
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
+import { createServerClient } from "#/api/typescript-client";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
@@ -35,6 +36,10 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
   switchCloudOrganization: vi.fn().mockResolvedValue(undefined),
   getCloudOrganizationMe: vi.fn(),
   getCurrentCloudApiKey: vi.fn(),
+}));
+
+vi.mock("#/api/typescript-client", () => ({
+  createServerClient: vi.fn(),
 }));
 
 vi.mock("#/utils/custom-toast-handlers", () => ({
@@ -95,6 +100,16 @@ beforeEach(() => {
     orgId: null,
     isLegacyKey: true,
   });
+  // Default the local-server health probe to "connected" so the
+  // existing label-focused tests aren't surprised by a red indicator;
+  // tests that assert on the disconnected state override this.
+  vi.mocked(createServerClient).mockReset();
+  vi.mocked(createServerClient).mockReturnValue({
+    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+    // The dropdown only invokes getServerInfo on the returned client;
+    // the rest of the ServerClient surface is unused here, so a
+    // partial cast is sufficient.
+  } as unknown as ReturnType<typeof createServerClient>);
   vi.mocked(displayErrorToast).mockReset();
 });
 
@@ -802,5 +817,55 @@ describe("BackendSelector", () => {
     const input = wrapper.querySelector("input") as HTMLInputElement;
     expect(input.value).toBe("Local 1");
     expect(screen.queryByTestId("home")).not.toBeInTheDocument();
+  });
+
+  describe("connection indicator", () => {
+    it("renders one status dot per option, green when the probe succeeds", async () => {
+      vi.mocked(createServerClient).mockReturnValue({
+        getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      } as unknown as ReturnType<typeof createServerClient>);
+
+      renderWithProviders(
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <BackendSelector />
+        </TestSeed>,
+      );
+
+      await openDropdown();
+
+      // One dot for the seeded default row + one for "Local 1".
+      const dots = await screen.findAllByTestId("backend-status-dot");
+      expect(dots.length).toBeGreaterThanOrEqual(2);
+
+      await waitFor(() => {
+        const connected = screen
+          .getAllByTestId("backend-status-dot")
+          .filter((el) => el.getAttribute("data-status") === "connected");
+        expect(connected.length).toBeGreaterThanOrEqual(2);
+      });
+    });
+
+    it("flips the status dot to red when the local probe fails", async () => {
+      vi.mocked(createServerClient).mockReturnValue({
+        getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+      } as unknown as ReturnType<typeof createServerClient>);
+
+      renderWithProviders(<BackendSelector />);
+
+      await waitFor(() => {
+        const wrapper = screen.getByTestId("backend-selector");
+        const dot = within(wrapper).getByTestId("backend-status-dot");
+        expect(dot.getAttribute("data-status")).toBe("disconnected");
+      });
+    });
   });
 });

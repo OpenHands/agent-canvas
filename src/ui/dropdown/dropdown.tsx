@@ -89,6 +89,15 @@ export function Dropdown({
 
   const isDisabled = loading || disabled;
 
+  // `selectedItem` is downshift's internal state, frozen to whatever
+  // initialized it. Resolve the currently selected option against the
+  // live `options` array so per-option fields like `prefix` (e.g. a
+  // status indicator that re-renders on a timer) update on the trigger
+  // without remounting the dropdown.
+  const liveSelectedOption = selectedItem
+    ? (options.find((o) => o.value === selectedItem.value) ?? selectedItem)
+    : null;
+
   // Wrap getInputProps to inject a direct onChange handler that preserves
   // cursor position. Downshift's default onInputValueChange resets cursor
   // to end of input on every keystroke; reading from e.target.value keeps
@@ -112,6 +121,11 @@ export function Dropdown({
           className,
         )}
       >
+        {liveSelectedOption?.prefix ? (
+          <span className="flex items-center shrink-0">
+            {liveSelectedOption.prefix}
+          </span>
+        ) : null}
         <DropdownInput
           placeholder={placeholder}
           isDisabled={isDisabled}

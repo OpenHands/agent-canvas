@@ -7,7 +7,8 @@ type EventType =
   | "FileEditor"
   | "StrReplaceEditor"
   | "TaskTracker"
-  | "PlanningFileEditor";
+  | "PlanningFileEditor"
+  | "InvokeSkill";
 
 type ActionOnlyType =
   | "BrowserNavigate"
