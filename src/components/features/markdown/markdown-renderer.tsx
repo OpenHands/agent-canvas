@@ -43,7 +43,7 @@ const MARKDOWN_SANITIZE_SCHEMA: Schema = {
     a: [
       ...(defaultSchema.attributes?.a ?? []),
       "target",
-      ["rel", "noopener", "noreferrer", "nofollow"],
+      a: ["href", "title", "target", "rel"],
     ],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
