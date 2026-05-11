@@ -8,18 +8,18 @@ import {
   useWorkspaceSession,
 } from "#/hooks/query/use-workspace-session";
 
-// We mock the underlying conversation factory rather than the lower-level
-// HttpClient: that's where our wiring contract lives (we hand it an id and
-// trust the typescript-client to do the right POST + return a base URL).
+// We mock the workspace factory rather than the lower-level HttpClient:
+// that's where our wiring contract lives (we hand the typescript-client a
+// conversation id and trust it to do the right POST + return a base URL).
 const startWorkspaceSessionMock = vi.fn();
-const createRemoteConversationMock = vi.fn();
+const createRemoteWorkspaceMock = vi.fn();
 
 vi.mock("#/api/typescript-client", async (importOriginal) => {
   const real = await importOriginal<typeof import("#/api/typescript-client")>();
   return {
     ...real,
-    createRemoteConversation: (...args: unknown[]) => {
-      createRemoteConversationMock(...args);
+    createRemoteWorkspace: (...args: unknown[]) => {
+      createRemoteWorkspaceMock(...args);
       return {
         startWorkspaceSession: startWorkspaceSessionMock,
       };
@@ -65,7 +65,7 @@ function flushScheduler(ms = 10): Promise<void> {
 
 beforeEach(() => {
   startWorkspaceSessionMock.mockReset();
-  createRemoteConversationMock.mockReset();
+  createRemoteWorkspaceMock.mockReset();
   useActiveConversationMock.mockReset();
   useRuntimeIsReadyMock.mockReset();
   useRuntimeIsReadyMock.mockReturnValue(true);
@@ -98,12 +98,13 @@ describe("useWorkspaceSession", () => {
       );
     });
 
-    expect(createRemoteConversationMock).toHaveBeenCalledTimes(1);
-    expect(createRemoteConversationMock).toHaveBeenCalledWith("conv-1", {
+    expect(createRemoteWorkspaceMock).toHaveBeenCalledTimes(1);
+    expect(createRemoteWorkspaceMock).toHaveBeenCalledWith({
       conversationUrl: "https://agent.example.com/api/conversations/conv-1",
       sessionApiKey: "key-abc",
     });
     expect(startWorkspaceSessionMock).toHaveBeenCalledTimes(1);
+    expect(startWorkspaceSessionMock).toHaveBeenCalledWith("conv-1");
   });
 
   it("does not call startWorkspaceSession until the runtime is ready", async () => {

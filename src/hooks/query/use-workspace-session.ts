@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { createRemoteConversation } from "#/api/typescript-client";
+import { createRemoteWorkspace } from "#/api/typescript-client";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 
@@ -56,11 +56,11 @@ export function useWorkspaceSession(): {
       sessionApiKey,
     ],
     queryFn: async () => {
-      const remoteConversation = createRemoteConversation(conversationId!, {
+      const workspace = createRemoteWorkspace({
         conversationUrl,
         sessionApiKey,
       });
-      const baseUrl = await remoteConversation.startWorkspaceSession();
+      const baseUrl = await workspace.startWorkspaceSession(conversationId!);
       return { baseUrl };
     },
     enabled,
