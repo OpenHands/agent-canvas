@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -497,7 +497,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendPort,
     vscodePort,
     stateDir,
-    tmuxTmpDir: path.join(stateDir, "tmux"),
+    tmuxTmpDir: path.join(tmpdir(), "openhands-agent-canvas-tmux"),
     conversationsPath,
     workspacesPath,
     bashEventsDir: path.join(stateDir, "bash_events"),
