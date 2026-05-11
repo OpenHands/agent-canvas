@@ -26,19 +26,19 @@
  *     edits on the host are reflected in the running container on module
  *     reload / process restart, matching the non-Docker dev loop.
  *
- * Host home mount:
- *   The host user's home directory is bind-mounted onto the container user's
- *   home at `/home/openhands`. Two things this gives us:
- *     - The "Add Workspace" file browser can navigate the host filesystem,
- *       since `Path.home()` inside the container now resolves to the host
- *       home's contents.
- *     - Credentials and persistence dirs (`~/.openhands`, `~/.claude`,
- *       `~/.codex`, `~/.ssh`, …) come along automatically as subpaths, so
- *       they no longer need individual conditional mounts.
+ * Optional credential mounts (only mounted when the host path exists):
+ *   - ~/.openhands -> /home/openhands/.openhands  (persistence)
+ *   - ~/.claude    -> /home/openhands/.claude     (Claude credentials)
+ *   - ~/.codex     -> /home/openhands/.codex      (Codex credentials)
+ *   - ~/.ssh       -> /home/openhands/.ssh        (git/ssh access)
  *
- *   To opt out (revert to the older minimal-mount behavior), set
- *   `OH_NO_HOST_HOME_MOUNT=1` — useful if you want the container isolated
- *   from your host home.
+ * Optional host home mount (opt-in):
+ *   Set `OH_MOUNT_HOST_HOME=1` to bind-mount your entire host home onto
+ *   the container user's home at `/home/openhands`. This lets the
+ *   "Add Workspace" file browser navigate your real host filesystem
+ *   (and credentials/persistence dirs above are picked up automatically
+ *   as subpaths). Off by default so the container stays isolated from
+ *   the host home unless you opt in.
  *
  * Usage:
  *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
@@ -195,16 +195,15 @@ function startAgentServerDocker(config) {
     dockerArgs.push("-v", `${localSdkPath}:${CONTAINER_LOCAL_SDK_DIR}`);
   }
 
-  // Bind-mount the host user's home onto the container user's home so the
-  // file-browser endpoints (`/api/file/home`, `/api/file/search_subdirs`)
-  // see the host's real filesystem instead of the container's near-empty
-  // `/home/openhands`. Sensitive subpaths (`~/.openhands`, `~/.claude`,
-  // `~/.codex`, `~/.ssh`, …) come along as part of the same mount, so we no
-  // longer need individual conditional mounts for them.
-  //
-  // Opt out with OH_NO_HOST_HOME_MOUNT=1, which falls back to the older
-  // per-credential mounts (useful for stricter container isolation).
-  if (process.env.OH_NO_HOST_HOME_MOUNT === "1") {
+  // Mount credentials / state individually by default so the container
+  // stays isolated from the host home. Opt in to bind-mounting the
+  // entire host home with OH_MOUNT_HOST_HOME=1 — useful when you want
+  // the Add Workspace file browser to navigate your real host
+  // filesystem (those credential subpaths come along automatically as
+  // part of the same mount).
+  if (process.env.OH_MOUNT_HOST_HOME === "1") {
+    dockerArgs.push("-v", `${home}:/home/openhands`);
+  } else {
     const optionalMounts = [
       [join(home, ".openhands"), "/home/openhands/.openhands"],
       [join(home, ".claude"), "/home/openhands/.claude"],
@@ -216,8 +215,6 @@ function startAgentServerDocker(config) {
         dockerArgs.push("-v", `${src}:${dest}`);
       }
     }
-  } else {
-    dockerArgs.push("-v", `${home}:/home/openhands`);
   }
 
   // Map agent-server's in-container port (8000) to the host port the
