@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useEventStore, type OHEvent } from "#/stores/use-event-store";
+import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 // `kind` values we treat as a file-mutation observation.
 const FILE_EDIT_OBSERVATION_KINDS = new Set([
@@ -39,6 +40,9 @@ function isFileMutationObservation(event: OHEvent): boolean {
 export function useAutoRefreshFilesOnEdit(): void {
   const queryClient = useQueryClient();
   const events = useEventStore((state) => state.events);
+  const bumpWorkspaceMutationCounter = useWorkspaceMutationCounter(
+    (state) => state.bump,
+  );
 
   // Only react to events we haven't seen yet. We compare against the last
   // processed array length rather than tracking individual ids — the store
@@ -55,5 +59,12 @@ export function useAutoRefreshFilesOnEdit(): void {
     queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
     queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
     queryClient.invalidateQueries({ queryKey: ["file_changes"] });
-  }, [events, queryClient]);
+    // Force iframes / <img> tags pointing at the static workspace
+    // fileserver to re-fetch. Without this they happily keep showing the
+    // stale (browser-cached) bytes even after the agent has rewritten the
+    // file on disk — e.g. tweaking style.css would silently have no
+    // visible effect on the rendered index.html until the user reloaded
+    // the whole canvas.
+    bumpWorkspaceMutationCounter();
+  }, [events, queryClient, bumpWorkspaceMutationCounter]);
 }

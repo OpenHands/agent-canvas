@@ -94,6 +94,8 @@ describe("useHandlePlanClick", () => {
       subConversationTaskId: null,
       conversationMode: "code",
       draftMessage: null,
+      filesTabDiffView: null,
+      filesTabContentViewMode: "rich",
     });
   });
 
@@ -124,6 +126,8 @@ describe("useHandlePlanClick", () => {
         subConversationTaskId: storedTaskId,
         conversationMode: "code",
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       renderHook(() => useHandlePlanClick());
@@ -163,6 +167,8 @@ describe("useHandlePlanClick", () => {
         subConversationTaskId: storedTaskId,
         conversationMode: "code",
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       renderHook(() => useHandlePlanClick());

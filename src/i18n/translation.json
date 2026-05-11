@@ -18633,6 +18633,23 @@
     "uk": "Простий",
     "ca": "Pla"
   },
+  "FILES$OPEN_IN_NEW_WINDOW": {
+    "en": "Open in new window",
+    "ja": "新しいウィンドウで開く",
+    "zh-CN": "在新窗口中打开",
+    "zh-TW": "在新視窗中開啟",
+    "ko-KR": "새 창에서 열기",
+    "no": "Åpne i nytt vindu",
+    "it": "Apri in una nuova finestra",
+    "pt": "Abrir em nova janela",
+    "es": "Abrir en una ventana nueva",
+    "ar": "افتح في نافذة جديدة",
+    "fr": "Ouvrir dans une nouvelle fenêtre",
+    "tr": "Yeni pencerede aç",
+    "de": "In neuem Fenster öffnen",
+    "uk": "Відкрити в новому вікні",
+    "ca": "Obre en una finestra nova"
+  },
   "FILES$NO_FILE_SELECTED": {
     "en": "Select a file to view its contents",
     "ja": "内容を表示するファイルを選択してください",

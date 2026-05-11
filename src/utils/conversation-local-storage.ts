@@ -3,6 +3,7 @@ import type {
   ConversationTab,
   ConversationMode,
 } from "#/stores/conversation-store";
+import type { ViewMode } from "#/components/features/files-tab/view-mode";
 
 export const LOCAL_STORAGE_KEYS = {
   CONVERSATION_STATE: "conversation-state",
@@ -24,6 +25,15 @@ export interface ConversationState {
   conversationMode: ConversationMode;
   subConversationTaskId: string | null;
   draftMessage: string | null;
+  /**
+   * User's persisted choice for the Files tab diff-vs-files toggle.
+   * `null` means "no explicit choice yet" — the Files tab then falls back
+   * to its repo-aware default (diff inside a git repo with commits, files
+   * otherwise).
+   */
+  filesTabDiffView: boolean | null;
+  /** User's persisted choice for the Files tab Rich/Plain content toggle. */
+  filesTabContentViewMode: ViewMode;
 }
 
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
@@ -33,6 +43,8 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   conversationMode: "code",
   subConversationTaskId: null,
   draftMessage: null,
+  filesTabDiffView: null,
+  filesTabContentViewMode: "rich",
 };
 
 const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
@@ -70,12 +82,25 @@ export function isTaskConversationId(conversationId: string): boolean {
 }
 
 /**
+ * Whether persistence should be skipped for this conversation id.
+ *
+ * Skips:
+ *  - empty string ids (callers outside of a conversation route, e.g.
+ *    rendered inside a unit test without a NavigationProvider)
+ *  - "task-..." ids used as placeholders during V1 conversation
+ *    initialization
+ */
+function shouldSkipPersistence(conversationId: string): boolean {
+  return conversationId === "" || isTaskConversationId(conversationId);
+}
+
+/**
  * Get the full conversation state from localStorage.
  */
 export function getConversationState(
   conversationId: string,
 ): ConversationState {
-  if (isTaskConversationId(conversationId)) {
+  if (shouldSkipPersistence(conversationId)) {
     return DEFAULT_CONVERSATION_STATE;
   }
   try {
@@ -100,7 +125,7 @@ export function setConversationState(
   conversationId: string,
   updates: Partial<ConversationState>,
 ): void {
-  if (isTaskConversationId(conversationId)) {
+  if (shouldSkipPersistence(conversationId)) {
     return;
   }
   try {
@@ -153,6 +178,8 @@ export function useConversationLocalStorageState(conversationId: string): {
   setUnpinnedTabs: (tabs: string[]) => void;
   setConversationMode: (mode: ConversationMode) => void;
   setDraftMessage: (message: string | null) => void;
+  setFilesTabDiffView: (diffView: boolean | null) => void;
+  setFilesTabContentViewMode: (mode: ViewMode) => void;
 } {
   const [state, setState] = useState<ConversationState>(() =>
     getConversationState(conversationId),
@@ -201,6 +228,14 @@ export function useConversationLocalStorageState(conversationId: string): {
   }, [conversationId]);
 
   const updateState = (updates: Partial<ConversationState>) => {
+    if (shouldSkipPersistence(conversationId)) {
+      // No durable storage for this id (empty / task placeholder), but the
+      // hook is still useful as ephemeral in-memory state — update the
+      // local React mirror directly so toggles in the UI behave normally
+      // until a real conversation id arrives.
+      setState((prev) => ({ ...prev, ...updates }));
+      return;
+    }
     setConversationState(conversationId, updates);
   };
 
@@ -211,5 +246,9 @@ export function useConversationLocalStorageState(conversationId: string): {
     setUnpinnedTabs: (tabs) => updateState({ unpinnedTabs: tabs }),
     setConversationMode: (mode) => updateState({ conversationMode: mode }),
     setDraftMessage: (message) => updateState({ draftMessage: message }),
+    setFilesTabDiffView: (diffView) =>
+      updateState({ filesTabDiffView: diffView }),
+    setFilesTabContentViewMode: (mode) =>
+      updateState({ filesTabContentViewMode: mode }),
   };
 }

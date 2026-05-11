@@ -6,6 +6,7 @@ import React from "react";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { useEventStore } from "#/stores/use-event-store";
 import type { OHEvent } from "#/stores/use-event-store";
+import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 function makeWrapper(client: QueryClient) {
   return ({ children }: { children: React.ReactNode }) => (
@@ -41,6 +42,9 @@ describe("useAutoRefreshFilesOnEdit", () => {
   beforeEach(() => {
     act(() => {
       useEventStore.getState().clearEvents();
+      // Reset the workspace mutation counter so per-test counter assertions
+      // don't see ticks bled over from earlier tests.
+      useWorkspaceMutationCounter.setState({ count: 0 });
     });
   });
 
@@ -104,6 +108,59 @@ describe("useAutoRefreshFilesOnEdit", () => {
     });
 
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("bumps the workspace mutation counter on each mutating observation so iframes / images cache-bust", () => {
+    const client = new QueryClient();
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    expect(useWorkspaceMutationCounter.getState().count).toBe(0);
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(
+          makeObservationEvent("1", "FileEditorObservation", "str_replace"),
+        );
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(1);
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(
+          makeObservationEvent(
+            "2",
+            "StrReplaceEditorObservation",
+            "create",
+          ),
+        );
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(2);
+  });
+
+  it("does NOT bump the workspace mutation counter for read-only / non-file observations", () => {
+    const client = new QueryClient();
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeObservationEvent("1", "FileEditorObservation", "view"));
+      useEventStore
+        .getState()
+        .addEvent(
+          makeObservationEvent("2", "ExecuteBashObservation", "ls"),
+        );
+    });
+
+    expect(useWorkspaceMutationCounter.getState().count).toBe(0);
   });
 
   it("only invalidates once per new event batch", () => {

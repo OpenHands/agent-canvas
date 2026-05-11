@@ -2,6 +2,10 @@ import { useTranslation } from "react-i18next";
 
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
+import {
+  useWorkspaceMutationCounter,
+  withWorkspaceCacheBuster,
+} from "#/stores/use-workspace-mutation-counter";
 import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
 import type { ViewMode } from "./view-mode";
 
@@ -28,6 +32,11 @@ function getExtension(path: string): string {
 export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   const { t } = useTranslation("openhands");
   const query = useWorkspaceFileContent(path);
+  // Subscribe to the workspace mutation counter so the iframe / <img> src
+  // changes after every agent-side edit, forcing a fresh fetch even when
+  // the *path* hasn't moved (e.g. agent rewrote `style.css` referenced by
+  // the currently-displayed `index.html`).
+  const mutationCounter = useWorkspaceMutationCounter((state) => state.count);
 
   if (query.isLoading) {
     return (
@@ -50,6 +59,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   const { kind, text, staticUrl, mimeType } = query.data;
+  const bustedStaticUrl = withWorkspaceCacheBuster(staticUrl, mutationCounter);
 
   // ----- Plain mode: always raw text, or a fallback for binary. -----
   if (viewMode === "plain") {
@@ -81,7 +91,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
         data-testid="file-content-viewer-image"
       >
         <img
-          src={staticUrl}
+          src={bustedStaticUrl}
           alt={path}
           className="max-h-full max-w-full object-contain"
         />
@@ -93,7 +103,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     return (
       <iframe
         title={path}
-        src={staticUrl}
+        src={bustedStaticUrl}
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />
@@ -116,7 +126,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     return (
       <iframe
         title={path}
-        src={staticUrl}
+        src={bustedStaticUrl}
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />

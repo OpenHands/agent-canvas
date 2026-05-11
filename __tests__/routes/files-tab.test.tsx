@@ -303,7 +303,12 @@ describe("FilesTab", () => {
 
     const iframe = await screen.findByTestId("file-content-viewer-iframe");
     expect(iframe).toBeInTheDocument();
-    expect(iframe).toHaveAttribute("src", staticUrl);
+    // The iframe src starts with the workspace static URL and carries the
+    // mutation-counter cache-buster (`?v=<n>`) so browser-cached responses
+    // are invalidated whenever the agent edits a file.
+    expect(iframe.getAttribute("src")).toMatch(
+      new RegExp(`^${staticUrl.replace(/[/.]/g, "\\$&")}\\?v=\\d+$`),
+    );
     // The iframe must not be sandboxed away from itself — relative asset
     // refs in the served HTML rely on the same-origin static fileserver.
     expect(iframe).not.toHaveAttribute("sandbox");

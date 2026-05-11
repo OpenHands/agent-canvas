@@ -59,33 +59,44 @@ function pathDepth(path: string): number {
   return path.split("/").length - 1;
 }
 
+/**
+ * Rank a path *within its own depth bucket*: high-priority entrypoints
+ * first (in the order listed), then secondary supporting files, then
+ * everything else. Depth is the primary sort axis applied by
+ * {@link sortFilesByPriority}; this score is the tie-breaker for paths at
+ * the same depth.
+ */
 export function filePriorityScore(path: string): number {
   const base = getBasename(path);
 
   const highIdx = HIGH_PRIORITY_BASENAMES.indexOf(base);
-  if (highIdx !== -1) {
-    // High-priority entries get the lowest scores so they come first; nudge
-    // by depth so a top-level index.html beats a nested one.
-    return highIdx + pathDepth(path) * 0.01;
-  }
+  if (highIdx !== -1) return highIdx;
 
   const secondaryIdx = SECONDARY_BASENAMES.indexOf(base);
-  if (secondaryIdx !== -1) {
-    return 1000 + secondaryIdx + pathDepth(path) * 0.01;
-  }
+  if (secondaryIdx !== -1) return 1000 + secondaryIdx;
 
-  // Generic files: shallower paths beat deeper ones, then alphabetical.
-  return 10000 + pathDepth(path) * 100;
+  return 10000;
 }
 
 /**
- * Returns a copy of `paths` sorted with "important" files first, then by
- * directory depth, then alphabetically.
+ * Returns a copy of `paths` sorted so the most likely "landing files" come
+ * first.
+ *
+ * Sort order:
+ *   1. Shallower paths beat deeper ones, unconditionally. A top-level
+ *      `README.md` outranks `foo/bar/index.html` even though `index.html`
+ *      is a more "important" basename — the user almost always cares more
+ *      about top-level files when they first open a project.
+ *   2. Within the same depth, basenames are ordered by importance
+ *      (`index.html` before `README.md` before random utility modules).
+ *   3. Final tie-breaker is alphabetical.
  */
 export function sortFilesByPriority(paths: string[]): string[] {
   return [...paths].sort((a, b) => {
-    const diff = filePriorityScore(a) - filePriorityScore(b);
-    if (diff !== 0) return diff;
+    const depthDiff = pathDepth(a) - pathDepth(b);
+    if (depthDiff !== 0) return depthDiff;
+    const scoreDiff = filePriorityScore(a) - filePriorityScore(b);
+    if (scoreDiff !== 0) return scoreDiff;
     return a.localeCompare(b);
   });
 }

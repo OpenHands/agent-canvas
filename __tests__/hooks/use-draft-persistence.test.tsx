@@ -42,12 +42,16 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       },
       setSelectedTab: vi.fn(),
       setRightPanelShown: vi.fn(),
       setUnpinnedTabs: vi.fn(),
       setConversationMode: vi.fn(),
       setDraftMessage: mockSetDraftMessage,
+      setFilesTabDiffView: vi.fn(),
+      setFilesTabContentViewMode: vi.fn(),
     });
 
     // Default mock for getConversationState
@@ -58,6 +62,8 @@ describe("useDraftPersistence", () => {
       conversationMode: "code",
       subConversationTaskId: null,
       draftMessage: null,
+      filesTabDiffView: null,
+      filesTabContentViewMode: "rich",
     });
   });
 
@@ -80,6 +86,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: savedDraft,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       // Act
@@ -103,6 +111,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: savedDraft,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       // Act
@@ -124,6 +134,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       // Act
@@ -212,12 +224,16 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: existingDraft,
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         },
         setSelectedTab: vi.fn(),
         setRightPanelShown: vi.fn(),
         setUnpinnedTabs: vi.fn(),
         setConversationMode: vi.fn(),
         setDraftMessage: mockSetDraftMessage,
+        setFilesTabDiffView: vi.fn(),
+        setFilesTabContentViewMode: vi.fn(),
       });
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
@@ -227,6 +243,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: existingDraft,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       const { result } = renderHook(() =>
@@ -312,6 +330,8 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: "Draft from conv A",
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         })
         .mockReturnValue({
           selectedTab: "files",
@@ -320,6 +340,8 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: null,
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         });
 
       const { rerender } = renderHook(
@@ -348,6 +370,8 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: null,
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         })
         .mockReturnValue({
           selectedTab: "files",
@@ -356,6 +380,8 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: draftForConvB,
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         });
 
       const { rerender } = renderHook(
@@ -415,6 +441,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       const { rerender } = renderHook(
@@ -450,6 +478,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       const { rerender } = renderHook(
@@ -477,6 +507,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       const { rerender } = renderHook(
@@ -508,12 +540,16 @@ describe("useDraftPersistence", () => {
           conversationMode: "code",
           subConversationTaskId: null,
           draftMessage: "Existing draft",
+          filesTabDiffView: null,
+          filesTabContentViewMode: "rich",
         },
         setSelectedTab: vi.fn(),
         setRightPanelShown: vi.fn(),
         setUnpinnedTabs: vi.fn(),
         setConversationMode: vi.fn(),
         setDraftMessage: mockSetDraftMessage,
+        setFilesTabDiffView: vi.fn(),
+        setFilesTabContentViewMode: vi.fn(),
       });
 
       // Act
@@ -551,6 +587,8 @@ describe("useDraftPersistence", () => {
         conversationMode: "code",
         subConversationTaskId: null,
         draftMessage: "Draft to restore",
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       // Act

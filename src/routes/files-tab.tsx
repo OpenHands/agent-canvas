@@ -4,10 +4,17 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
+import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useIsGitRepo } from "#/hooks/use-is-git-repo";
 import { useHasGitCommits } from "#/hooks/query/use-has-git-commits";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
+import {
+  useWorkspaceMutationCounter,
+  withWorkspaceCacheBuster,
+} from "#/stores/use-workspace-mutation-counter";
 import { sortFilesByPriority } from "#/utils/file-priority";
 import { FileQuickRow } from "#/components/features/files-tab/file-quick-row";
 import { FileTreeView } from "#/components/features/files-tab/file-tree-view";
@@ -15,6 +22,7 @@ import { FileContentViewer } from "#/components/features/files-tab/file-content-
 import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import type { ViewMode } from "#/components/features/files-tab/view-mode";
 import RefreshIcon from "#/icons/u-refresh.svg?react";
+import LinkExternalIcon from "#/icons/link-external.svg?react";
 import GitChanges from "./changes-tab";
 
 function FilesTab() {
@@ -23,7 +31,7 @@ function FilesTab() {
   // Keep the list / content / diff caches fresh as the agent writes files.
   useAutoRefreshFilesOnEdit();
 
-  const { isGitRepo } = useIsGitRepo();
+  const { isGitRepo, isLoading: isGitRepoLoading } = useIsGitRepo();
   // A repo with zero commits has no diff base to compare against, so the
   // diff view would just be empty / misleading. Only probe when we already
   // believe there's a repo — saves a workspace round trip on every plain
@@ -33,18 +41,23 @@ function FilesTab() {
   // Diff view defaults to ON inside an existing git repo *with at least
   // one commit*, OFF otherwise (no repo, or repo with no commits yet).
   //
-  // We treat `hasCommits === null` (still loading the probe) as
-  // optimistically `true`: the common case is a normal repo, so this
-  // avoids a brief flash of files-view → diff-view on initial load. Once
-  // the probe resolves to `false` we switch to files view. The user's
-  // explicit choice (via `diffViewOverride`) always wins.
-  const [diffViewOverride, setDiffViewOverride] = useState<boolean | null>(
-    null,
-  );
-  const diffViewDefault = isGitRepo && hasCommits !== false;
-  const diffViewEnabled = diffViewOverride ?? diffViewDefault;
+  // While the repo / commit probes are still resolving we stay optimistic
+  // — most conversations live in a real repo, so defaulting to diff during
+  // the brief loading window avoids a "files → diff" flash on initial
+  // load. We only flip to files-view once `isGitRepo` *or* `hasCommits`
+  // definitively resolves false. The user's persisted choice always wins.
+  const { conversationId } = useOptionalConversationId();
+  const {
+    state: persistedState,
+    setFilesTabDiffView,
+    setFilesTabContentViewMode,
+  } = useConversationLocalStorageState(conversationId ?? "");
 
-  const [contentViewMode, setContentViewMode] = useState<ViewMode>("rich");
+  const diffViewDefault =
+    (isGitRepo || isGitRepoLoading) && hasCommits !== false;
+  const diffViewEnabled = persistedState.filesTabDiffView ?? diffViewDefault;
+  const contentViewMode = persistedState.filesTabContentViewMode;
+
   // Collapsed by default — the quick-access pill row at the top is usually
   // enough; the user can expand the tree on demand.
   const [isTreeVisible, setIsTreeVisible] = useState(false);
@@ -53,6 +66,17 @@ function FilesTab() {
   const paths = useMemo(() => filesQuery.data ?? [], [filesQuery.data]);
 
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+  // Pre-fetch the selected file's content here too so the toolbar's
+  // "open in new window" link can reach for its `staticUrl`. react-query
+  // dedupes against `FileContentViewer`'s identical call, so this costs
+  // nothing extra.
+  const selectedFileContent = useWorkspaceFileContent(selectedPath);
+  const mutationCounter = useWorkspaceMutationCounter((state) => state.count);
+  const selectedFileStaticUrl = withWorkspaceCacheBuster(
+    selectedFileContent.data?.staticUrl ?? null,
+    mutationCounter,
+  );
 
   // Auto-select the highest-priority file the first time we load the list,
   // so users see something useful immediately.
@@ -91,7 +115,7 @@ function FilesTab() {
             { value: "on", label: t(I18nKey.FILES$DIFF_VIEW) },
             { value: "off", label: t(I18nKey.COMMON$FILES) },
           ]}
-          onChange={(value) => setDiffViewOverride(value === "on")}
+          onChange={(value) => setFilesTabDiffView(value === "on")}
         />
 
         {!diffViewEnabled && (
@@ -103,25 +127,43 @@ function FilesTab() {
               { value: "rich", label: t(I18nKey.FILES$RICH) },
               { value: "plain", label: t(I18nKey.FILES$PLAIN) },
             ]}
-            onChange={setContentViewMode}
+            onChange={setFilesTabContentViewMode}
           />
         )}
 
-        <button
-          type="button"
-          onClick={refreshFiles}
-          disabled={isFetchingGitChanges}
-          aria-label={t(I18nKey.COMMON$FILES)}
-          data-testid="files-tab-refresh"
-          className="ml-auto flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshIcon
-            width={12.75}
-            height={15}
-            color="#ffffff"
-            className={isFetchingGitChanges ? "animate-spin" : ""}
-          />
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          {/* Open the currently-selected file in a new browser tab. Only
+              meaningful while we're showing a file (not the diff view) and
+              we've resolved its staticUrl from the workspace fileserver. */}
+          {!diffViewEnabled && selectedFileStaticUrl && (
+            <a
+              href={selectedFileStaticUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t(I18nKey.FILES$OPEN_IN_NEW_WINDOW)}
+              title={t(I18nKey.FILES$OPEN_IN_NEW_WINDOW)}
+              data-testid="files-tab-open-in-new-window"
+              className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:bg-[#474A54] cursor-pointer text-white"
+            >
+              <LinkExternalIcon width={14} height={14} />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={refreshFiles}
+            disabled={isFetchingGitChanges}
+            aria-label={t(I18nKey.COMMON$FILES)}
+            data-testid="files-tab-refresh"
+            className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshIcon
+              width={12.75}
+              height={15}
+              color="#ffffff"
+              className={isFetchingGitChanges ? "animate-spin" : ""}
+            />
+          </button>
+        </div>
       </div>
 
       {diffViewEnabled ? (
