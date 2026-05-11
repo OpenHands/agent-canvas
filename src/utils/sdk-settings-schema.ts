@@ -23,6 +23,99 @@ export const SPECIALLY_RENDERED_KEYS = new Set([
   "llm.base_url",
 ]);
 
+const SETTINGS_VALUE_TYPES = new Set([
+  "string",
+  "integer",
+  "number",
+  "boolean",
+  "array",
+  "object",
+]);
+
+const SETTING_PROMINENCES = new Set(["critical", "major", "minor"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeSchemaField(
+  field: unknown,
+  section: SettingsSectionSchema,
+): SettingsFieldSchema | null {
+  if (!isRecord(field) || typeof field.key !== "string") return null;
+
+  return {
+    key: field.key,
+    label: typeof field.label === "string" ? field.label : field.key,
+    description:
+      typeof field.description === "string" || field.description === null
+        ? field.description
+        : null,
+    section: typeof field.section === "string" ? field.section : section.key,
+    section_label:
+      typeof field.section_label === "string"
+        ? field.section_label
+        : section.label,
+    value_type:
+      typeof field.value_type === "string" &&
+      SETTINGS_VALUE_TYPES.has(field.value_type)
+        ? (field.value_type as SettingsFieldSchema["value_type"])
+        : "string",
+    default: field.default as SettingsValue | undefined,
+    choices: Array.isArray(field.choices)
+      ? (field.choices as SettingsFieldSchema["choices"])
+      : [],
+    depends_on: Array.isArray(field.depends_on)
+      ? field.depends_on.filter(
+          (dependency): dependency is string => typeof dependency === "string",
+        )
+      : [],
+    prominence:
+      typeof field.prominence === "string" &&
+      SETTING_PROMINENCES.has(field.prominence)
+        ? (field.prominence as SettingsFieldSchema["prominence"])
+        : "critical",
+    secret: typeof field.secret === "boolean" ? field.secret : false,
+    required: typeof field.required === "boolean" ? field.required : false,
+  };
+}
+
+export function normalizeSettingsSchema(
+  schema: SettingsSchema | null | undefined,
+): SettingsSchema | null {
+  if (!isRecord(schema) || !Array.isArray(schema.sections)) return null;
+
+  const sections = schema.sections.flatMap(
+    (section): SettingsSectionSchema[] => {
+      if (!isRecord(section) || typeof section.key !== "string") return [];
+
+      const normalizedSection: SettingsSectionSchema = {
+        key: section.key,
+        label: typeof section.label === "string" ? section.label : section.key,
+        fields: [],
+      };
+
+      const fields = Array.isArray(section.fields)
+        ? section.fields.flatMap((field): SettingsFieldSchema[] => {
+            const normalizedField = normalizeSchemaField(
+              field,
+              normalizedSection,
+            );
+            return normalizedField ? [normalizedField] : [];
+          })
+        : [];
+
+      return [{ ...normalizedSection, fields }];
+    },
+  );
+
+  return {
+    model_name:
+      typeof schema.model_name === "string" ? schema.model_name : "Settings",
+    sections,
+  };
+}
+
 /** Prominence tiers visible at each view level. */
 const VIEW_PROMINENCES: Record<SettingsView, Set<SettingProminence>> = {
   basic: new Set<SettingProminence>(["critical"]),

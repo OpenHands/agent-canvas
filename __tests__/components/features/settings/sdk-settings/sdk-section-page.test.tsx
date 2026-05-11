@@ -105,6 +105,20 @@ beforeEach(() => {
 });
 
 describe("SdkSectionPage", () => {
+  it("shows schema unavailable instead of crashing when schema sections are missing", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings_schema: { model_name: "AgentSettings" } as never,
+      }),
+    );
+
+    renderSdkSectionPage({ sectionKeys: ["llm"] });
+
+    expect(
+      await screen.findByText("SETTINGS$SDK_SCHEMA_UNAVAILABLE"),
+    ).toBeInTheDocument();
+  });
+
   it("renders advanced-only fields when a custom initial view is provided", async () => {
     const schema: NonNullable<Settings["agent_settings_schema"]> = {
       model_name: "AgentSettings",
