@@ -113,7 +113,7 @@
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → Vite dev server (:3001)
-  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a1`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
+  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a2`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
