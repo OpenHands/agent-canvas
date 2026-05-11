@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           git init .
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          git fetch --depth=2 origin "$PR_HEAD_SHA"
+          git fetch origin "$PR_HEAD_SHA"
           git checkout --detach FETCH_HEAD
           actual_sha="$(git rev-parse HEAD)"
           if [ "$actual_sha" != "$PR_HEAD_SHA" ]; then

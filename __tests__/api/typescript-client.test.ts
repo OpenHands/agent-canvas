@@ -94,6 +94,29 @@ describe("createRemoteWorkspace", () => {
     expect(result).toEqual([]);
   });
 
+  it("passes empty git ref options through to runtime git changes", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse([]));
+
+    const result = await workspace.gitChanges("/workspace/project", {
+      ref: "",
+    });
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/changes", {
+      params: {
+        path: "/workspace/project",
+        ref: "",
+      },
+    });
+    expect(result).toEqual([]);
+  });
+
   it("passes git ref options to the runtime git diff endpoint", async () => {
     const workspace = createRemoteWorkspace({
       host: "http://agent.example.com",
@@ -155,6 +178,47 @@ describe("createRemoteWorkspace", () => {
       },
     });
     expect(result).toEqual({ diff: "diff content" });
+  });
+
+  it("passes empty git ref options through to runtime git diff", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse({ diff: "diff content" }));
+
+    const result = await workspace.gitDiff("/workspace/project/file.ts", {
+      ref: "",
+    });
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/diff", {
+      params: {
+        path: "/workspace/project/file.ts",
+        ref: "",
+      },
+    });
+    expect(result).toEqual({ diff: "diff content" });
+  });
+
+  it("rejects empty runtime workspace parameters", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+
+    await expect(workspace.gitChanges("")).rejects.toThrow(
+      "path must be a non-empty string.",
+    );
+    await expect(workspace.gitDiff("")).rejects.toThrow(
+      "path must be a non-empty string.",
+    );
+    await expect(workspace.startWorkspaceSession("")).rejects.toThrow(
+      "conversationId must be a non-empty string.",
+    );
   });
 
   it("starts a workspace session through the runtime auth endpoint", async () => {

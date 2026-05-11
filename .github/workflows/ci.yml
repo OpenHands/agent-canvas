@@ -13,9 +13,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: >-
-    ${{ github.event_name != 'pull_request' ||
-    !contains(github.event.pull_request.labels.*.name, 'live-e2e') }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -73,6 +71,7 @@ jobs:
       LIVE_E2E_LLM_MODEL: ${{ vars.LIVE_E2E_LLM_MODEL || 'openhands/claude-haiku-4-5-20251001' }}
       LIVE_E2E_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
       LIVE_E2E_REPORT_PATH: live-e2e-report.md
+      LIVE_E2E_RECORD_VIDEO: "on"
       LIVE_E2E_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       LIVE_E2E_PR_ARTIFACT_KEEP_RUNS: 3
 
@@ -142,7 +141,7 @@ jobs:
           git init .
           git remote remove pr-head >/dev/null 2>&1 || true
           git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
-          git fetch --depth=2 pr-head "$PR_HEAD_SHA"
+          git fetch pr-head "$PR_HEAD_SHA"
           git checkout --detach FETCH_HEAD
           actual_sha="$(git rev-parse HEAD)"
           if [ "$actual_sha" != "$PR_HEAD_SHA" ]; then
@@ -258,7 +257,6 @@ jobs:
       - name: Publish live E2E media
         id: publish_live_media
         if: always() && steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        continue-on-error: true
         env:
           MEDIA_KEEP_RUNS: ${{ env.LIVE_E2E_PR_ARTIFACT_KEEP_RUNS }}
           MEDIA_RUN_DIR: ${{ github.run_id }}

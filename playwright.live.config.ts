@@ -13,9 +13,11 @@ let liveE2EBackendPort: string;
 try {
   liveE2EBackendPort = new URL(liveE2EBackendURL).port || "18100";
 } catch {
-  throw new Error(`Invalid LIVE_E2E_BACKEND_URL: ${liveE2EBackendURL}`);
+  throw new Error("Invalid LIVE_E2E_BACKEND_URL. Expected an absolute URL.");
 }
 const liveE2EFrontendURL = `http://localhost:${liveE2EFrontendPort}/`;
+const liveE2EVideoMode =
+  process.env.LIVE_E2E_RECORD_VIDEO === "on" ? "on" : "retain-on-failure";
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
@@ -43,7 +45,7 @@ export default defineConfig({
     baseURL: liveE2EFrontendURL,
     screenshot: "only-on-failure",
     trace: "off",
-    video: "on",
+    video: liveE2EVideoMode,
   },
   projects: [
     {

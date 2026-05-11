@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, type APIRequestContext } from "@playwright/test";
 
 import {
   BACKEND_URL,
@@ -26,16 +26,12 @@ import {
   waitForTestId,
 } from "./utils/agent-server-conversation";
 
-test.beforeEach(async ({ page }) => {
-  await enableLiveE2EFlags(page);
-});
+const createdConversationIds = new Set<string>();
 
-test.afterEach(async ({ page, request }) => {
-  const conversationId = getOptionalConversationIdFromURL(page);
-  if (!conversationId) {
-    return;
-  }
-
+async function deleteConversation(
+  request: APIRequestContext,
+  conversationId: string,
+) {
   const response = await request.delete(
     `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}`,
     {
@@ -44,11 +40,37 @@ test.afterEach(async ({ page, request }) => {
       },
     },
   );
-  if (!response.ok() && response.status() !== 404) {
-    console.warn(
-      `Failed to clean up live E2E conversation ${conversationId}: ${response.status()}`,
-    );
+  if (response.ok() || response.status() === 404) {
+    createdConversationIds.delete(conversationId);
+    return;
   }
+
+  console.warn(
+    `Failed to clean up live E2E conversation ${conversationId}: ${response.status()}`,
+  );
+}
+
+async function cleanupKnownConversations(request: APIRequestContext) {
+  for (const conversationId of Array.from(createdConversationIds)) {
+    await deleteConversation(request, conversationId);
+  }
+}
+
+test.beforeEach(async ({ page }) => {
+  await enableLiveE2EFlags(page);
+});
+
+test.afterEach(async ({ page, request }) => {
+  const conversationId = getOptionalConversationIdFromURL(page);
+  if (conversationId) {
+    createdConversationIds.add(conversationId);
+  }
+
+  await cleanupKnownConversations(request);
+});
+
+test.afterAll(async ({ request }) => {
+  await cleanupKnownConversations(request);
 });
 
 test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
@@ -69,6 +91,8 @@ test("runs a real LLM-backed Agent Server terminal conversation through the UI",
     "New Conversation",
   );
   await openCreatedConversation(page);
+  const conversationId = getConversationIdFromURL(page);
+  createdConversationIds.add(conversationId);
   await waitForTestId(page, "app-route");
   await waitForTestId(page, "interactive-chat-box");
 
@@ -84,15 +108,12 @@ test("runs a real LLM-backed Agent Server terminal conversation through the UI",
   await clickButtonByTestId(page, "submit-button");
 
   await waitForAgentReply(page);
-  await waitForSuccessfulBashObservation(
-    request,
-    getConversationIdFromURL(page),
-  );
+  await waitForSuccessfulBashObservation(request, conversationId);
   await expandVisibleEventDetails(page);
   await waitForNonUserMessageText(page, EXPECTED_BASH_OUTPUT_TOKEN);
 
   const screenshotPath = testInfo.outputPath("live-agent-response.png");
-  await page.screenshot({ path: screenshotPath, fullPage: true });
+  await page.getByTestId("app-route").screenshot({ path: screenshotPath });
   await testInfo.attach("live-agent-response", {
     path: screenshotPath,
     contentType: "image/png",

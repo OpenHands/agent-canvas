@@ -54,6 +54,12 @@ export type AgentCanvasRemoteWorkspace = Omit<
   ): ReturnType<RemoteWorkspace["gitDiff"]>;
 };
 
+function assertNonEmptyString(name: string, value: string) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${name} must be a non-empty string.`);
+  }
+}
+
 /**
  * Pick the backend whose host + API key the typescript-client should use
  * by default. The typescript-client clients (createHttpClient and friends)
@@ -161,6 +167,8 @@ export function createRemoteWorkspace(
 
   const workspaceExtensions = {
     startWorkspaceSession: async (conversationId: string) => {
+      assertNonEmptyString("conversationId", conversationId);
+
       const response = await baseWorkspace.client.post<string>(
         "/api/auth/workspace-session",
         { conversation_id: conversationId },
@@ -169,24 +177,28 @@ export function createRemoteWorkspace(
       return response.data;
     },
     gitChanges: async (path: string, options?: GitRefOptions) => {
+      assertNonEmptyString("path", path);
+
       const response = await baseWorkspace.client.get<RemoteGitChanges>(
         "/api/git/changes",
         {
           params: {
             path,
-            ...(options?.ref ? { ref: options.ref } : {}),
+            ...(options?.ref !== undefined ? { ref: options.ref } : {}),
           },
         },
       );
       return response.data;
     },
     gitDiff: async (path: string, options?: GitRefOptions) => {
+      assertNonEmptyString("path", path);
+
       const response = await baseWorkspace.client.get<RemoteGitDiff>(
         "/api/git/diff",
         {
           params: {
             path,
-            ...(options?.ref ? { ref: options.ref } : {}),
+            ...(options?.ref !== undefined ? { ref: options.ref } : {}),
           },
         },
       );

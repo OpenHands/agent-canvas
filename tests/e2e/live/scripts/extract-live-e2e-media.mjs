@@ -66,6 +66,8 @@ function nearestExistingPath(path) {
 
 function resolveWithinCwd(label, filePath, options = {}) {
   const resolvedPath = resolve(filePath);
+  assertWithinCwd(label, resolvedPath);
+
   if (existsSync(resolvedPath)) {
     assertWithinCwd(label, realpathSync(resolvedPath));
     return resolvedPath;
@@ -115,26 +117,32 @@ function collectPlaywrightAttachments(results) {
   return attachments
     .map((attachment) => ({
       contentType: attachment.contentType || "",
-      path: normalizePath(attachment.path || ""),
+      path: resolveExistingMediaPath("attachment", attachment.path || ""),
     }))
-    .filter((attachment) => attachment.path && existsSync(attachment.path));
+    .filter((attachment) => attachment.path);
 }
 
-function normalizePath(path) {
+function resolveExistingMediaPath(label, path) {
   if (!path) {
     return "";
   }
-  return resolve(path);
+
+  try {
+    return resolveWithinCwd(label, path, { mustExist: true });
+  } catch {
+    return "";
+  }
 }
 
 function collectFiles(dir) {
-  if (!dir || !existsSync(dir)) {
+  const safeDir = resolveExistingMediaPath("dir", dir);
+  if (!safeDir) {
     return [];
   }
 
   const files = [];
-  for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry);
+  for (const entry of readdirSync(safeDir)) {
+    const path = join(safeDir, entry);
     const stat = lstatSync(path);
     if (stat.isSymbolicLink()) {
       continue;
