@@ -1,4 +1,4 @@
-import { MCPServerConfig } from "#/types/mcp-server";
+import { ExistingInstall, MCPServerConfig } from "#/types/mcp-server";
 import {
   MarketplaceEntry,
   MarketplaceTemplate,
@@ -18,11 +18,21 @@ const tryUrl = (raw: string): URL | null => {
  * default ports. We want clicking "Linear" to flag the entry as
  * installed even if the user pasted the URL with extra trailing slash
  * or a different port-equivalent variant.
+ *
+ * Defensive against runtime data that doesn't match the static type:
+ * if either input is not a string (e.g. parsed from an older settings
+ * blob), we fall through the URL parsing path and the safe trim
+ * fallback below, never calling `.replace` on undefined.
  */
-function urlsMatch(a: string, b: string): boolean {
-  const left = tryUrl(a);
-  const right = tryUrl(b);
-  if (!left || !right) return a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+function urlsMatch(a: unknown, b: unknown): boolean {
+  const aStr = typeof a === "string" ? a : "";
+  const bStr = typeof b === "string" ? b : "";
+  if (!aStr || !bStr) return false;
+  const left = tryUrl(aStr);
+  const right = tryUrl(bStr);
+  if (!left || !right) {
+    return aStr.replace(/\/+$/, "") === bStr.replace(/\/+$/, "");
+  }
   return (
     left.protocol === right.protocol &&
     left.host === right.host &&
@@ -39,30 +49,34 @@ export function findInstalledMatch(
   template: MarketplaceTemplate,
   servers: MCPServerConfig[],
   settings?: Pick<Settings, "search_api_key_set">,
-): MCPServerConfig | "tavily-builtin" | null {
+): ExistingInstall | null {
   if (template.kind === "tavily-builtin") {
-    return settings?.search_api_key_set ? "tavily-builtin" : null;
+    return settings?.search_api_key_set ? { kind: "tavily-builtin" } : null;
   }
 
   if (template.kind === "shttp") {
+    const tplUrl = template.url;
+    if (!tplUrl) return null;
     const match = servers.find(
-      (s) => s.type === "shttp" && s.url && urlsMatch(s.url, template.url),
+      (s) => s.type === "shttp" && !!s.url && urlsMatch(s.url, tplUrl),
     );
-    return match ?? null;
+    return match ? { kind: "mcp", server: match } : null;
   }
 
   if (template.kind === "sse") {
+    const tplUrl = template.url;
+    if (!tplUrl) return null;
     const match = servers.find(
-      (s) => s.type === "sse" && s.url && urlsMatch(s.url, template.url),
+      (s) => s.type === "sse" && !!s.url && urlsMatch(s.url, tplUrl),
     );
-    return match ?? null;
+    return match ? { kind: "mcp", server: match } : null;
   }
 
   // stdio: match on the registered server name.
   const match = servers.find(
     (s) => s.type === "stdio" && s.name === template.serverName,
   );
-  return match ?? null;
+  return match ? { kind: "mcp", server: match } : null;
 }
 
 export function isMarketplaceEntryAvailable(

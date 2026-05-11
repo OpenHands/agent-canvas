@@ -24,7 +24,10 @@ describe("findInstalledMatch", () => {
         args: ["-y", "@modelcontextprotocol/server-slack"],
       },
     ]);
-    expect(result).toMatchObject({ id: "stdio-0" });
+    expect(result).toEqual({
+      kind: "mcp",
+      server: expect.objectContaining({ id: "stdio-0" }),
+    });
   });
 
   it("does not match a different stdio name", () => {
@@ -40,12 +43,12 @@ describe("findInstalledMatch", () => {
     expect(result).toBeNull();
   });
 
-  it("returns the tavily-builtin sentinel when search_api_key_set", () => {
+  it("returns the tavily-builtin variant when search_api_key_set", () => {
     expect(
       findInstalledMatch(tavilyEntry.template, [], {
         search_api_key_set: true,
       }),
-    ).toBe("tavily-builtin");
+    ).toEqual({ kind: "tavily-builtin" });
     expect(
       findInstalledMatch(tavilyEntry.template, [], {
         search_api_key_set: false,
@@ -61,7 +64,19 @@ describe("findInstalledMatch", () => {
         url: "https://mcp.linear.app/sse/",
       },
     ]);
-    expect(result).toMatchObject({ id: "sse-0" });
+    expect(result).toEqual({
+      kind: "mcp",
+      server: expect.objectContaining({ id: "sse-0" }),
+    });
+  });
+
+  it("returns null when servers carry malformed urls (defensive)", () => {
+    const result = findInstalledMatch(linearEntry.template, [
+      // Cast to any to simulate runtime data slipping past the type.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { id: "sse-0", type: "sse", url: undefined as any },
+    ]);
+    expect(result).toBeNull();
   });
 });
 
