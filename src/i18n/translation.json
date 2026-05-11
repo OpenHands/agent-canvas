@@ -11866,6 +11866,15 @@
   "MCP$MARKETPLACE_DESCRIPTION": {
     "en": "Well-known MCP servers, ready to install with a single click."
   },
+  "MCP$SEARCH_PLACEHOLDER": {
+    "en": "Search MCP servers"
+  },
+  "MCP$SEARCH_CLEAR": {
+    "en": "Clear search"
+  },
+  "MCP$SEARCH_EMPTY": {
+    "en": "No matches for your search."
+  },
   "MCP$INSTALLED_BADGE": {
     "en": "Installed"
   },

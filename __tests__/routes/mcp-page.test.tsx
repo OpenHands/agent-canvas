@@ -48,7 +48,7 @@ describe("MCPPage", () => {
     expect(screen.getByTestId("mcp-marketplace-grid")).toBeInTheDocument();
   });
 
-  it("lists Slack and Tavily as the first two marketplace tiles", async () => {
+  it("lists GitHub, Slack, and Tavily as the first three marketplace tiles", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
     renderPage();
@@ -56,12 +56,16 @@ describe("MCPPage", () => {
     await screen.findByTestId("mcp-marketplace-grid");
 
     const cards = screen.getAllByTestId(/^mcp-marketplace-card-/);
-    expect(cards.length).toBeGreaterThan(2);
+    expect(cards.length).toBeGreaterThan(3);
     expect(cards[0]).toHaveAttribute(
+      "data-testid",
+      "mcp-marketplace-card-github",
+    );
+    expect(cards[1]).toHaveAttribute(
       "data-testid",
       "mcp-marketplace-card-slack",
     );
-    expect(cards[1]).toHaveAttribute(
+    expect(cards[2]).toHaveAttribute(
       "data-testid",
       "mcp-marketplace-card-tavily",
     );
@@ -84,6 +88,42 @@ describe("MCPPage", () => {
     expect(
       screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"),
     ).toBeInTheDocument();
+  });
+
+  it("filters marketplace tiles by the search input", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    const search = await screen.findByTestId("mcp-search-input");
+    fireEvent.change(search, { target: { value: "Slack" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-marketplace-card-slack"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-github"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-postgres"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a search-empty state when the query matches nothing", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    const search = await screen.findByTestId("mcp-search-input");
+    fireEvent.change(search, {
+      target: { value: "totally-not-a-real-server" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
+    });
   });
 
   it("badges Tavily as installed when search_api_key_set is true", async () => {

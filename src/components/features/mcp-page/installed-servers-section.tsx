@@ -4,11 +4,22 @@ import { MCPServerConfig } from "#/types/mcp-server";
 import { InstalledServerCard } from "./installed-server-card";
 
 interface InstalledServersSectionProps {
+  /** Already-filtered list — search filtering happens upstream. */
   servers: MCPServerConfig[];
-  /** Tavily-specific entry: when search_api_key is set the agent server
-   * registers a Tavily MCP automatically — surface it as a virtual card
-   * so it can be removed from the same place as everything else. */
+  /**
+   * Tavily has a virtual "installed" card when search_api_key is set
+   * on the backend. Pass `true` when it matches the current search.
+   */
   tavilyBuiltinInstalled?: boolean;
+  /**
+   * True iff there is at least one installed server (or the Tavily
+   * builtin) before applying the search filter. Lets the section
+   * differentiate "nothing installed yet" from "no installed servers
+   * match the current search".
+   */
+  hasAnyInstalled: boolean;
+  /** Current search query — empty string means no filter applied. */
+  query?: string;
   onEdit: (server: MCPServerConfig) => void;
   onDelete: (serverId: string) => void;
   onConfigureTavilyBuiltin?: () => void;
@@ -18,6 +29,8 @@ interface InstalledServersSectionProps {
 export function InstalledServersSection({
   servers,
   tavilyBuiltinInstalled,
+  hasAnyInstalled,
+  query = "",
   onEdit,
   onDelete,
   onConfigureTavilyBuiltin,
@@ -28,6 +41,20 @@ export function InstalledServersSection({
   const isEmpty = servers.length === 0 && !tavilyBuiltinInstalled;
 
   if (isEmpty) {
+    // Filter narrowed everything out — vs. nothing was installed in
+    // the first place. Different copy in each case.
+    if (hasAnyInstalled && query.trim().length > 0) {
+      return (
+        <div
+          data-testid="mcp-installed-empty-search"
+          className="rounded-xl border border-dashed border-tertiary p-6 text-center"
+        >
+          <p className="text-xs text-tertiary-alt">
+            {t(I18nKey.MCP$SEARCH_EMPTY)}
+          </p>
+        </div>
+      );
+    }
     return (
       <div
         data-testid="mcp-installed-empty"

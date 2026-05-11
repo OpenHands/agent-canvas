@@ -16,12 +16,18 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-import { findInstalledMatch } from "#/utils/mcp-marketplace-utils";
+import {
+  findCatalogEntryForServer,
+  findInstalledMatch,
+  installedServerMatchesQuery,
+  marketplaceEntryMatchesQuery,
+} from "#/utils/mcp-marketplace-utils";
 import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
 import { MCPConfig } from "#/types/settings";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   InstalledServersSection,
+  MarketplaceSearch,
   MarketplaceSection,
   InstallServerModal,
   CustomServerEditor,
@@ -70,6 +76,7 @@ export default function MCPPage() {
   const [serverToDelete, setServerToDelete] = React.useState<
     MCPServerConfig | "tavily-builtin" | null
   >(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
@@ -77,6 +84,23 @@ export default function MCPPage() {
 
   const isInstalled = (entry: MarketplaceEntry) =>
     !!findInstalledMatch(entry.template, allServers, settings);
+
+  // Filter installed servers by the search query. We pair each server
+  // with its catalog entry (if any) so the search can match friendly
+  // names like "Slack" against a stdio server whose own `.name` is
+  // just "slack".
+  const filteredInstalledServers = allServers.filter((server) =>
+    installedServerMatchesQuery(
+      server,
+      findCatalogEntryForServer(server, MCP_MARKETPLACE),
+      searchQuery,
+    ),
+  );
+  const tavilyCatalogEntry = MCP_MARKETPLACE.find((e) => e.id === "tavily");
+  const tavilyVisibleAfterSearch =
+    tavilyBuiltinInstalled &&
+    !!tavilyCatalogEntry &&
+    marketplaceEntryMatchesQuery(tavilyCatalogEntry, searchQuery);
 
   const handleMarketplaceClick = (entry: MarketplaceEntry) => {
     setInstallEntry(entry);
@@ -164,13 +188,17 @@ export default function MCPPage() {
           </Typography.Paragraph>
         </header>
 
+        <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
+
         <section className="flex flex-col gap-3">
           <h2 className="text-base font-semibold">
             {t(I18nKey.MCP$INSTALLED_TITLE)}
           </h2>
           <InstalledServersSection
-            servers={allServers}
-            tavilyBuiltinInstalled={tavilyBuiltinInstalled}
+            servers={filteredInstalledServers}
+            tavilyBuiltinInstalled={tavilyVisibleAfterSearch}
+            hasAnyInstalled={allServers.length > 0 || tavilyBuiltinInstalled}
+            query={searchQuery}
             onEdit={handleEdit}
             onDelete={handleDeleteClick}
             onConfigureTavilyBuiltin={() => setInstallEntry(TAVILY_ENTRY)}
@@ -182,6 +210,7 @@ export default function MCPPage() {
           isInstalled={isInstalled}
           backendKind={backendKind}
           onSelect={handleMarketplaceClick}
+          query={searchQuery}
         />
       </div>
 
