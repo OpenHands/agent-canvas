@@ -188,6 +188,29 @@ describe("NewConversationButton", () => {
     expect(screen.getByTestId("new-conversation-popover")).toBeInTheDocument();
   });
 
+  it("applies the pointer-cursor affordance to every interactive popover item", async () => {
+    useWorkspacesStore.getState().addWorkspaces([
+      {
+        id: "/workspace/project/repo1",
+        name: "repo1",
+        path: "/workspace/project/repo1",
+      },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />);
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+
+    for (const testId of [
+      "launch-no-workspace",
+      "launch-workspace",
+      "add-workspaces-button",
+      "manage-workspaces-button",
+    ]) {
+      expect(screen.getByTestId(testId)).toHaveClass("cursor-pointer");
+    }
+  });
+
   it("keeps the popover open when conversation creation fails", async () => {
     const navigate = vi.fn();
     const createSpy = vi

@@ -221,6 +221,34 @@ describe("NewConversationButton (cloud)", () => {
     expect(screen.getByTestId("cloud-provider-tab-gitlab")).toBeInTheDocument();
   });
 
+  it("applies the pointer-cursor affordance to every interactive popover item", async () => {
+    mockUseGitRepositories.mockReturnValue({
+      data: {
+        pages: [
+          {
+            items: [makeRepo("octo/cat", { main_branch: "main" })],
+            next_page_id: "page-2",
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      onLoadMore: vi.fn(),
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />);
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+
+    for (const testId of ["launch-repository", "cloud-repo-load-more"]) {
+      expect(screen.getByTestId(testId)).toHaveClass("cursor-pointer");
+    }
+  });
+
   it("shows an empty state when no repositories are returned", async () => {
     mockUseGitRepositories.mockReturnValue({
       data: { pages: [{ items: [], next_page_id: null }] },
