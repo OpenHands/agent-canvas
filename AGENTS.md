@@ -104,7 +104,7 @@
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.22.0` for agent-server SDK libraries
 - `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`. The default image uses versioned release tags:
-  - `DEFAULT_AGENT_SERVER_TAG` — uses format `v{version}-python` (e.g., `v1.22.0-python`) for reproducibility
+  - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.0-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
   - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
   - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
   - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`

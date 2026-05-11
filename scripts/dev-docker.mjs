@@ -70,8 +70,9 @@ const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Default tag used when OH_AGENT_SERVER_GIT_REF is not set.
 // Should match DEFAULT_AGENT_SERVER_VERSION in dev-safe.mjs for consistency.
-// Format: v{version}-python (e.g., v1.22.0-python) for released versions.
-const DEFAULT_AGENT_SERVER_TAG = "v1.22.0-python";
+// Format: {version}-python (e.g., 1.22.0-python) for released versions.
+// Note: The SDK build script strips the "v" prefix from semver release tags.
+const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
