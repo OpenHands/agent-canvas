@@ -122,16 +122,6 @@ export default defineConfig(({ mode }) => {
       : appBuildConfig,
     copyPublicDir: !isLibraryBuild,
     optimizeDeps: {
-      entries: [
-        "src/entry.client.tsx",
-        "src/routes/**/*.{ts,tsx}",
-        "src/components/**/*.{ts,tsx}",
-        "src/contexts/**/*.{ts,tsx}",
-        "src/hooks/**/*.{ts,tsx}",
-        "src/stores/**/*.{ts,tsx}",
-        "src/api/**/*.{ts,tsx}",
-        "src/ui/**/*.{ts,tsx}",
-      ],
       include: [
         // Pre-bundle client entry dependencies so the first page load does not 504
         // with Vite's "Outdated Optimize Dep" before hydration finishes.
@@ -179,6 +169,7 @@ export default defineConfig(({ mode }) => {
         // Terminal dependencies - added to prevent runtime optimization
         "@xterm/addon-fit",
         "@xterm/xterm",
+        "@xterm/xterm/css/xterm.css",
       ],
     },
     server: {

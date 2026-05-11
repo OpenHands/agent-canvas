@@ -42,11 +42,13 @@ describe("useWebSocket", () => {
   afterEach(() => mswServer.resetHandlers());
   afterAll(() => mswServer.close());
 
-  const waitForConnection = async (result: {
-    current: {
-      isConnected: boolean;
-    };
-  }) => {
+  const waitForConnection = async (
+    result: {
+      current: {
+        isConnected: boolean;
+      };
+    },
+  ) => {
     await waitFor(
       () => {
         expect(result.current.isConnected).toBe(true);
@@ -162,7 +164,7 @@ describe("useWebSocket", () => {
 
   it("should support query parameters in WebSocket URL", async () => {
     // Stub WebSocket deterministically (mirrors the `onClose` test below).
-    // The MSW-backed variant was flaky in CI because `wsLink.broadcast()` from
+    // The MSW-backed variant was flaky in CI — `wsLink.broadcast()` from
     // other tests leaks across the shared mock server, and this assertion
     // only needs to observe the constructed URL, not a real connection.
     class MockWebSocket {
