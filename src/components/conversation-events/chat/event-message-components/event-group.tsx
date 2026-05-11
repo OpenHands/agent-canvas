@@ -15,6 +15,21 @@ import { IsInEventGroupContext } from "../../../features/chat/is-in-event-group-
 interface EventGroupProps {
   /** The events represented by this group. Used to compute the summary. */
   events: OpenHandsEvent[];
+  /**
+   * Full event history. Used to resolve the action that produced the latest
+   * observation in the group so the summary title matches what the individual
+   * card would show (e.g. "Editing path/to/file"). Falls back to `events` when
+   * omitted.
+   */
+  allEvents?: OpenHandsEvent[];
+  /**
+   * `true` once an event outside this group has been emitted after it, so the
+   * group is no longer the "live" tail of the chat. While `false` (the
+   * default), the group keeps showing the most recent action's title as its
+   * prominent summary, with the count of completed actions shown subtly on
+   * the right.
+   */
+  isFinalized?: boolean;
   /** The fully-rendered event messages to show when the group is expanded. */
   children: React.ReactNode;
 }
@@ -23,16 +38,29 @@ interface EventGroupProps {
  * Collapsible container that wraps a run of consecutive agent action/observation
  * events into a single summary card.
  *
- * Collapsed:
- *   - While running: "{completed} of {total} actions" + the title of the
- *     currently-running action.
- *   - When done:    "{count} actions completed" with a success check.
+ * Collapsed, while the group is still the live tail of the chat
+ * (`isFinalized=false`):
+ *   - Left (prominent): the title of the most recent action/observation in
+ *     the group — i.e. either the action currently in flight, or the latest
+ *     completed step.
+ *   - Right (subdued):  "{completed} of {total} actions" while at least one
+ *     action is still pending, otherwise "{count} actions completed", followed
+ *     by a success check once nothing is in flight.
+ *
+ * Collapsed, after the group has been "moved past" (`isFinalized=true`):
+ *   - "{count} actions completed" is promoted to the prominent foreground
+ *     style and the count is the only thing shown next to the chevron.
  *
  * Expanded:
  *   - Renders the children verbatim, so each individual action/observation can
  *     still be expanded the way it was before grouping.
  */
-export function EventGroup({ events, children }: EventGroupProps) {
+export function EventGroup({
+  events,
+  allEvents,
+  isFinalized = false,
+  children,
+}: EventGroupProps) {
   const { t } = useTranslation("openhands");
   const [expanded, setExpanded] = React.useState(false);
   const contentId = React.useId();
@@ -42,19 +70,34 @@ export function EventGroup({ events, children }: EventGroupProps) {
     return null;
   }
 
-  // Each ObservationEvent in the group is a completed action.
-  // An ActionEvent that's still here (i.e. not yet replaced by its observation
-  // in the UI events array) is the action currently in flight.
+  // Each ObservationEvent in the group is a completed action. An ActionEvent
+  // that's still here (i.e. not yet replaced by its observation in the UI
+  // events array) is an action currently in flight.
   const pendingAction = events.find((e): e is ActionEvent => isActionEvent(e));
   const completedCount = events.filter(isObservationEvent).length;
   const totalCount = events.length;
   const isRunning = !!pendingAction;
 
-  const runningTitle = pendingAction
-    ? getEventContent(pendingAction).title
-    : null;
+  // Title of the most recent groupable event. While running this is the
+  // pending action; otherwise it's the latest observation, with its
+  // originating action looked up so the title can be the action-style summary
+  // ("Editing path/to/file") instead of the observation default.
+  const latestEvent = events[events.length - 1];
+  let latestTitle: React.ReactNode = null;
+  if (latestEvent) {
+    if (isActionEvent(latestEvent)) {
+      latestTitle = getEventContent(latestEvent).title;
+    } else if (isObservationEvent(latestEvent)) {
+      const lookupSource = allEvents ?? events;
+      const correspondingAction = lookupSource.find(
+        (e): e is ActionEvent =>
+          isActionEvent(e) && e.id === latestEvent.action_id,
+      );
+      latestTitle = getEventContent(latestEvent, correspondingAction).title;
+    }
+  }
 
-  const summary = isRunning
+  const countSummary = isRunning
     ? t(I18nKey.EVENT_GROUP$ACTIONS_PROGRESS, {
         completed: completedCount,
         total: totalCount,
@@ -80,19 +123,25 @@ export function EventGroup({ events, children }: EventGroupProps) {
             : t(I18nKey.EVENT_GROUP$EXPAND)
         }
         data-testid="event-group-toggle"
-        className="w-full flex items-center justify-between gap-2 text-left cursor-pointer font-bold text-neutral-300"
+        className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
       >
-        <span className="flex items-center gap-2 min-w-0">
-          <Chevron className="h-4 w-4 fill-neutral-300 flex-shrink-0" />
-          <span className="truncate">{summary}</span>
-          {isRunning && runningTitle && (
-            <span className="font-normal text-neutral-400 truncate">
-              <span className="mx-1">·</span>
-              {runningTitle}
+        {isFinalized ? (
+          <span className="flex items-center gap-2 min-w-0 font-bold text-neutral-300">
+            <Chevron className="h-4 w-4 fill-neutral-300 flex-shrink-0" />
+            <span className="truncate">{countSummary}</span>
+          </span>
+        ) : (
+          <>
+            <span className="flex items-center gap-2 min-w-0 font-bold text-neutral-300">
+              <Chevron className="h-4 w-4 fill-neutral-300 flex-shrink-0" />
+              <span className="truncate">{latestTitle ?? countSummary}</span>
             </span>
-          )}
-        </span>
-        {!isRunning && <SuccessIndicator status="success" />}
+            <span className="flex items-center flex-shrink-0 font-normal text-neutral-400">
+              <span className="truncate">{countSummary}</span>
+              {!isRunning && <SuccessIndicator status="success" />}
+            </span>
+          </>
+        )}
       </button>
 
       {expanded && (
