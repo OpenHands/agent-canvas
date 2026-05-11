@@ -71,8 +71,13 @@ export const useLocalGitInfo = () => {
       if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
 
       const parsedRemote = parseGitRemoteUrl(remoteUrl);
+      // Local-only repos (no `origin` remote) still want a name in the UI so
+      // the repo button doesn't read "No repo connected" next to a valid
+      // branch. Fall back to the working-dir basename; provider stays null
+      // and the button renders as plain text rather than a link.
+      const folderName = workingDir?.split("/").filter(Boolean).pop() ?? null;
       return {
-        repository: parsedRemote?.repository ?? null,
+        repository: parsedRemote?.repository ?? folderName,
         provider: parsedRemote?.provider ?? null,
         remoteUrl: remoteUrl || null,
         branch,
