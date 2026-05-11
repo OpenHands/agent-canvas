@@ -26,6 +26,7 @@ interface ConversationState {
   selectedTab: ConversationTab | null;
   images: File[];
   files: File[];
+  uploadImagesAsFiles: boolean; // If true, attached images are sent through the file-upload path instead of being embedded in the LLM message
   loadingFiles: string[]; // File names currently being processed
   loadingImages: string[]; // Image names currently being processed
   messageToSend: IMessageToSend | null;
@@ -45,6 +46,7 @@ interface ConversationActions {
   setShouldHideSuggestions: (shouldHideSuggestions: boolean) => void;
   addImages: (images: File[]) => void;
   addFiles: (files: File[]) => void;
+  setUploadImagesAsFiles: (uploadImagesAsFiles: boolean) => void;
   removeImage: (index: number) => void;
   removeFile: (index: number) => void;
   clearImages: () => void;
@@ -132,6 +134,7 @@ export const useConversationStore = create<ConversationStore>()(
       selectedTab: "editor" as ConversationTab,
       images: [],
       files: [],
+      uploadImagesAsFiles: false,
       loadingFiles: [],
       loadingImages: [],
       messageToSend: null,
@@ -170,6 +173,9 @@ export const useConversationStore = create<ConversationStore>()(
           "addFiles",
         ),
 
+      setUploadImagesAsFiles: (uploadImagesAsFiles) =>
+        set({ uploadImagesAsFiles }, false, "setUploadImagesAsFiles"),
+
       removeImage: (index) =>
         set(
           (state) => {
@@ -201,6 +207,7 @@ export const useConversationStore = create<ConversationStore>()(
           {
             images: [],
             files: [],
+            uploadImagesAsFiles: false,
             loadingFiles: [],
             loadingImages: [],
           },

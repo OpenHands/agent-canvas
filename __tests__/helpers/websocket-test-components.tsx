@@ -40,14 +40,21 @@ export function EventStoreComponent() {
 }
 
 /**
- * Test component to access and display optimistic user message store values
+ * Test component to access and display the queue of pending user messages
+ * tracked locally until the WebSocket echoes them back.
  */
 export function OptimisticUserMessageStoreComponent() {
-  const { optimisticUserMessage } = useOptimisticUserMessageStore();
+  const { pendingMessages } = useOptimisticUserMessageStore();
   return (
     <div>
       <div data-testid="optimistic-user-message">
-        {optimisticUserMessage || "none"}
+        {pendingMessages[0]?.text || "none"}
+      </div>
+      <div data-testid="optimistic-user-message-count">
+        {pendingMessages.length}
+      </div>
+      <div data-testid="optimistic-user-message-statuses">
+        {pendingMessages.map((m) => m.status).join(",") || "none"}
       </div>
     </div>
   );

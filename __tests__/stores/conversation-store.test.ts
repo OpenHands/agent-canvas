@@ -32,6 +32,7 @@ describe("conversation store", () => {
       planContent: null,
       subConversationTaskId: null,
       shouldHideSuggestions: false,
+      uploadImagesAsFiles: false,
     });
   });
 
@@ -43,6 +44,26 @@ describe("conversation store", () => {
       expect(mockSetConversationState).toHaveBeenCalledWith(CONV_ID, {
         conversationMode: "plan",
       });
+    });
+  });
+
+  describe("uploadImagesAsFiles", () => {
+    it("defaults to false and is updated by setUploadImagesAsFiles", () => {
+      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
+
+      useConversationStore.getState().setUploadImagesAsFiles(true);
+      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(true);
+
+      useConversationStore.getState().setUploadImagesAsFiles(false);
+      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
+    });
+
+    it("is reset to false by clearAllFiles", () => {
+      useConversationStore.getState().setUploadImagesAsFiles(true);
+      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(true);
+
+      useConversationStore.getState().clearAllFiles();
+      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
     });
   });
 

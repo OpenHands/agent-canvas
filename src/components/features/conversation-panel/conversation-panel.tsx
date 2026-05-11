@@ -21,9 +21,16 @@ import {
 import { ConversationCard } from "./conversation-card/conversation-card";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
+import { CompactConversationRow } from "./compact-conversation-row";
 
 interface ConversationPanelProps {
   onClose?: () => void;
+  /**
+   * Render a minimal icon-only variant of each conversation row (used by the
+   * collapsed sidebar). Each row is a single status dot with a hover preview
+   * containing the full card content.
+   */
+  compact?: boolean;
 }
 
 const noop = () => {};
@@ -52,7 +59,10 @@ const partitionByCutoff = <T extends { updated_at: string }>(
   return { recent, older };
 };
 
-export function ConversationPanel({ onClose }: ConversationPanelProps) {
+export function ConversationPanel({
+  onClose,
+  compact = false,
+}: ConversationPanelProps) {
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
   // Click-outside is only relevant in the legacy drawer mode where an
@@ -112,7 +122,9 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   // pagination, which previously caused the panel to feel like it had stray
   // scrollable space at the bottom.
   const olderHidden = olderConversations.length > 0 && !showOlderConversations;
-  const showLoadMore = !!hasNextPage && !olderHidden;
+  // Compact mode also hides "Load more" — paginating into archived
+  // conversations contradicts the "active only" intent of the icon rail.
+  const showLoadMore = !!hasNextPage && !olderHidden && !compact;
 
   const handleDeleteProject = React.useCallback(
     (conversationId: string, title: string) => {
@@ -193,41 +205,64 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   };
 
   const renderConversationCard = React.useCallback(
-    (conversation: (typeof conversations)[number]) => (
-      <NavigationLink
-        key={conversation.id}
-        to={`/conversations/${conversation.id}`}
-        onClick={onClose}
-        className="block"
-      >
-        <ConversationCard
-          onDelete={() =>
-            handleDeleteProject(conversation.id, conversation.title ?? "")
-          }
-          onStop={() => handleStopConversation(conversation.id)}
-          onChangeTitle={(title) =>
-            handleConversationTitleChange(conversation.id, title)
-          }
-          title={conversation.title ?? ""}
-          selectedRepository={{
-            selected_repository: conversation.selected_repository,
-            selected_branch: conversation.selected_branch,
-            git_provider: conversation.git_provider as Provider,
-          }}
-          lastUpdatedAt={conversation.updated_at}
-          createdAt={conversation.created_at}
-          executionStatus={conversation.execution_status}
-          conversationId={conversation.id}
-          contextMenuOpen={openContextMenuId === conversation.id}
-          onContextMenuToggle={(isOpen) =>
-            setOpenContextMenuId(isOpen ? conversation.id : null)
-          }
-          isActive={conversation.id === currentConversationId}
-          workspaceWorkingDir={conversation.workspace?.working_dir}
-        />
-      </NavigationLink>
-    ),
+    (conversation: (typeof conversations)[number]) => {
+      if (compact) {
+        return (
+          <CompactConversationRow
+            key={conversation.id}
+            conversationId={conversation.id}
+            title={conversation.title ?? ""}
+            selectedRepository={{
+              selected_repository: conversation.selected_repository,
+              selected_branch: conversation.selected_branch,
+              git_provider: conversation.git_provider as Provider,
+            }}
+            executionStatus={conversation.execution_status}
+            lastUpdatedAt={conversation.updated_at}
+            createdAt={conversation.created_at}
+            workspaceWorkingDir={conversation.workspace?.working_dir}
+            isActive={conversation.id === currentConversationId}
+            onClose={onClose}
+          />
+        );
+      }
+      return (
+        <NavigationLink
+          key={conversation.id}
+          to={`/conversations/${conversation.id}`}
+          onClick={onClose}
+          className="block"
+        >
+          <ConversationCard
+            onDelete={() =>
+              handleDeleteProject(conversation.id, conversation.title ?? "")
+            }
+            onStop={() => handleStopConversation(conversation.id)}
+            onChangeTitle={(title) =>
+              handleConversationTitleChange(conversation.id, title)
+            }
+            title={conversation.title ?? ""}
+            selectedRepository={{
+              selected_repository: conversation.selected_repository,
+              selected_branch: conversation.selected_branch,
+              git_provider: conversation.git_provider as Provider,
+            }}
+            lastUpdatedAt={conversation.updated_at}
+            createdAt={conversation.created_at}
+            executionStatus={conversation.execution_status}
+            conversationId={conversation.id}
+            contextMenuOpen={openContextMenuId === conversation.id}
+            onContextMenuToggle={(isOpen) =>
+              setOpenContextMenuId(isOpen ? conversation.id : null)
+            }
+            isActive={conversation.id === currentConversationId}
+            workspaceWorkingDir={conversation.workspace?.working_dir}
+          />
+        </NavigationLink>
+      );
+    },
     [
+      compact,
       currentConversationId,
       handleConversationTitleChange,
       handleDeleteProject,
@@ -274,23 +309,26 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           </div>
         )}
 
-        {/* Render in-progress start tasks first */}
-        {startTasks?.map((task) => (
-          <NavigationLink
-            key={task.id}
-            to={`/conversations/task-${task.id}`}
-            onClick={onClose}
-            className="block"
-          >
-            <StartTaskCard task={task} />
-          </NavigationLink>
-        ))}
+        {/* Render in-progress start tasks first (skipped in compact mode —
+            their rich card layout doesn't fit in the icon rail). */}
+        {!compact &&
+          startTasks?.map((task) => (
+            <NavigationLink
+              key={task.id}
+              to={`/conversations/task-${task.id}`}
+              onClick={onClose}
+              className="block"
+            >
+              <StartTaskCard task={task} />
+            </NavigationLink>
+          ))}
 
         {/* Recent conversations (last_updated within the past hour) */}
         {recentConversations.map(renderConversationCard)}
 
-        {/* Older conversations are hidden by default behind a count + toggle */}
-        {olderConversations.length > 0 && (
+        {/* Older conversations: full summary in expanded mode, just a flat
+            list of dots in compact mode (the summary text can't fit). */}
+        {!compact && olderConversations.length > 0 && (
           <div
             data-testid="older-conversations-summary"
             className="px-3 py-2 text-xs text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-[#1f2228]"
@@ -320,7 +358,11 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           </div>
         )}
 
-        {showOlderConversations &&
+        {/* Older conversations only render when explicitly expanded via
+            "Show all". Compact mode mirrors expanded's default — recent
+            only — so the icon rail isn't packed with archive cruft. */}
+        {!compact &&
+          showOlderConversations &&
           olderConversations.map(renderConversationCard)}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist

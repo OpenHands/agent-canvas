@@ -148,6 +148,25 @@ describe("FileDiffViewer", () => {
     expect(screen.queryByTestId("markdown-preview")).not.toBeInTheDocument();
   });
 
+  it("renders a 'file deleted' placeholder when expanded for a deleted file", async () => {
+    // Simulate the hook short-circuiting the API call for deleted files.
+    mockDiff = undefined as unknown as typeof MOCK_DIFF;
+    mockIsSuccess = false;
+    const user = userEvent.setup();
+    render(<FileDiffViewer path="src/removed.ts" type="D" />);
+
+    await expand(user);
+
+    expect(screen.getByTestId("file-deleted-message")).toBeInTheDocument();
+    expect(screen.queryByTestId("file-diff-viewer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("file-single-viewer")).not.toBeInTheDocument();
+    // View-mode toolbar should not render for deleted files since there is
+    // nothing to switch between.
+    expect(screen.queryByTestId("view-mode-old")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("view-mode-diff")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("view-mode-new")).not.toBeInTheDocument();
+  });
+
   it("highlights the active view mode button", async () => {
     const user = userEvent.setup();
     render(<FileDiffViewer path="src/index.ts" type="M" />);

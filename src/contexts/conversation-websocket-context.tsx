@@ -75,6 +75,24 @@ const ConversationWebSocketContext = createContext<
   ConversationWebSocketContextType | undefined
 >(undefined);
 
+/**
+ * Extract the text body of an echoed user `MessageEvent` for matching against
+ * the optimistic pending-message queue. The server wraps the original
+ * `args.content` string in one or more `TextContent` entries (alongside any
+ * `ImageContent` entries for inline images), so concatenating the `text`
+ * fields gives us back the exact prompt we sent.
+ */
+function extractMessageEventText(
+  event: import("#/types/agent-server/core/events/message-event").MessageEvent,
+): string {
+  return event.llm_message.content
+    .filter(
+      (part): part is { type: "text"; text: string } => part.type === "text",
+    )
+    .map((part) => part.text)
+    .join("");
+}
+
 export function ConversationWebSocketProvider({
   children,
   conversationId,
@@ -103,19 +121,22 @@ export function ConversationWebSocketProvider({
 
   const posthog = usePostHog();
   const queryClient = useQueryClient();
-  const { addEvent } = useEventStore();
+  const addEvent = useEventStore((state) => state.addEvent);
+  const addEvents = useEventStore((state) => state.addEvents);
   const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
-  const { removeOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
+    (state) => state.consumeMatchingPendingMessage,
+  );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
 
-  // History loading state - separate per connection
-  const [isLoadingHistoryMain, setIsLoadingHistoryMain] = useState(true);
+  // History loading state.
+  // - Main conversation history is now loaded via REST (`useConversationHistory`),
+  //   so its loading state mirrors the REST query state (see below).
+  // - Planning sub-conversation history still streams over the WebSocket using
+  //   `resend_mode='all'`, so we keep the count-based detection for it.
   const [isLoadingHistoryPlanning, setIsLoadingHistoryPlanning] =
     useState(true);
-  const [expectedEventCountMain, setExpectedEventCountMain] = useState<
-    number | null
-  >(null);
   const [expectedEventCountPlanning, setExpectedEventCountPlanning] = useState<
     number | null
   >(null);
@@ -125,8 +146,7 @@ export function ConversationWebSocketProvider({
   // Hook for reading conversation file
   const { mutate: readConversationFile } = useReadConversationFile();
 
-  // Separate received event count tracking per connection
-  const receivedEventCountRefMain = useRef(0);
+  // Track planning-agent received events (still WS-driven).
   const receivedEventCountRefPlanning = useRef(0);
 
   // Track the latest PlanningFileEditorObservation for Plan.md during history replay
@@ -173,16 +193,64 @@ export function ConversationWebSocketProvider({
     [],
   );
 
-  // Build WebSocket URL from props
-  // Only build URL if we have both conversationId and conversationUrl
-  // This prevents connection attempts during task polling phase
+  // Initial REST history load: fetch the most recent events and seed the
+  // store. Older events are paginated in via `useLoadOlderEvents` when the
+  // user scrolls to the top of the chat. The WebSocket connection waits for
+  // this query so it can subscribe with `resend_mode='since'` and avoid
+  // re-streaming everything REST already returned.
+  const {
+    data: preloadedHistory,
+    isPending: isPreloadingHistory,
+    isError: isPreloadHistoryError,
+  } = useConversationHistory(conversationId);
+
+  const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
+
+  useEffect(() => {
+    if (!preloadedHistory || preloadedHistory.events.length === 0) {
+      return;
+    }
+    addEvents(preloadedHistory.events);
+  }, [preloadedHistory, addEvents]);
+
+  /**
+   * Timestamp of the latest event we already have from REST. Used as
+   * `after_timestamp` when opening the WebSocket so the server only resends
+   * events strictly after this point. `null` until the REST query settles
+   * (we hold the WS connection open until then to avoid an `all` resend).
+   */
+  const initialAfterTimestamp = useMemo<string | null>(() => {
+    if (isPreloadingHistory) return null;
+    const events = preloadedHistory?.events ?? [];
+    const latest = events[events.length - 1];
+    if (!latest || !("timestamp" in latest) || !latest.timestamp) return null;
+    return latest.timestamp;
+  }, [preloadedHistory, isPreloadingHistory]);
+
+  // Build WebSocket URL from props.
+  //
+  // We deliberately wait for the initial REST history fetch to settle before
+  // opening the socket so the WS subscription can use `resend_mode='since'`
+  // with a meaningful `after_timestamp`. Without this gate, the WS would open
+  // immediately and either replay the entire conversation (when falling back
+  // to `resend_mode='all'`) or miss events that arrived between REST and WS.
   const wsUrl = useMemo(() => {
-    // Don't attempt connection if we're missing required data
     if (!conversationId || !conversationUrl) {
       return null;
     }
+    // Don't connect while we're still fetching the initial history. If the
+    // REST query errored we fall through and connect with `resend_mode='all'`
+    // so the user still sees live events.
+    if (isPreloadingHistory && !isPreloadHistoryError) {
+      return null;
+    }
     return buildWebSocketUrl(conversationId, conversationUrl);
-  }, [conversationId, conversationUrl]);
+  }, [
+    conversationId,
+    conversationUrl,
+    isPreloadingHistory,
+    isPreloadHistoryError,
+  ]);
 
   const planningAgentWsUrl = useMemo(() => {
     if (!subConversations?.length) {
@@ -247,16 +315,6 @@ export function ConversationWebSocketProvider({
 
   useEffect(() => {
     if (
-      expectedEventCountMain !== null &&
-      receivedEventCountRefMain.current >= expectedEventCountMain &&
-      isLoadingHistoryMain
-    ) {
-      setIsLoadingHistoryMain(false);
-    }
-  }, [expectedEventCountMain, isLoadingHistoryMain, receivedEventCountRefMain]);
-
-  useEffect(() => {
-    if (
       expectedEventCountPlanning !== null &&
       receivedEventCountRefPlanning.current >= expectedEventCountPlanning &&
       isLoadingHistoryPlanning
@@ -305,36 +363,19 @@ export function ConversationWebSocketProvider({
     latestPlanningFileEventRef.current = null;
   }, [subConversationIds]);
 
+  // Reset hasConnected flags when the conversation changes.
+  useEffect(() => {
+    hasConnectedRefMain.current = false;
+    hasConnectedRefPlanning.current = false;
+    // Reset the tracked event ref when conversation changes
+    latestPlanningFileEventRef.current = null;
+  }, [conversationId]);
+
   // Merged loading history state - true if either connection is still loading
   const isLoadingHistory = useMemo(
     () => isLoadingHistoryMain || isLoadingHistoryPlanning,
     [isLoadingHistoryMain, isLoadingHistoryPlanning],
   );
-
-  // Reset hasConnected flags and history loading state when conversation changes
-  useEffect(() => {
-    hasConnectedRefPlanning.current = false;
-    setIsLoadingHistoryMain(true);
-    setExpectedEventCountMain(null);
-    receivedEventCountRefMain.current = 0;
-    // Reset the tracked event ref when conversation changes
-    latestPlanningFileEventRef.current = null;
-  }, [conversationId]);
-
-  const { data: preloadedEvents } = useConversationHistory(conversationId);
-
-  useEffect(() => {
-    if (!preloadedEvents || preloadedEvents.length === 0) {
-      setIsLoadingHistoryMain(false);
-      return;
-    }
-
-    for (const event of preloadedEvents) {
-      addEvent(event);
-    }
-
-    setIsLoadingHistoryMain(false);
-  }, [preloadedEvents, addEvent]);
 
   // Separate message handlers for each connection
   const handleMainMessage = useCallback(
@@ -342,18 +383,8 @@ export function ConversationWebSocketProvider({
       try {
         const event = JSON.parse(messageEvent.data);
 
-        // Track received events for history loading (count ALL events from WebSocket)
-        // Always count when loading, even if we don't have the expected count yet
-        if (isLoadingHistoryMain) {
-          receivedEventCountRefMain.current += 1;
-
-          if (
-            expectedEventCountMain !== null &&
-            receivedEventCountRefMain.current >= expectedEventCountMain
-          ) {
-            setIsLoadingHistoryMain(false);
-          }
-        }
+        // History loading for the main conversation is REST-driven now;
+        // every WS message is a new event we add to the store.
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
@@ -394,11 +425,18 @@ export function ConversationWebSocketProvider({
             setErrorMessage(event.error);
           }
 
-          // Clear optimistic user message when a user message is confirmed
+          // Clear optimistic user message when a user message is confirmed.
+          // We match by the echoed text content (with FIFO fallback inside the
+          // store), so an echo for "second" pops "second" — not whichever
+          // pending entry happens to be oldest — protecting against any
+          // out-of-order delivery between conversations or sub-agents.
           if (isUserMessageEvent(event)) {
-            removeOptimisticUserMessage();
-            // Clear draft from localStorage - message was successfully delivered
             if (conversationId) {
+              consumeMatchingPendingMessage(
+                conversationId,
+                extractMessageEventText(event),
+              );
+              // Clear draft from localStorage - message was successfully delivered
               setConversationState(conversationId, { draftMessage: null });
             }
           }
@@ -466,10 +504,8 @@ export function ConversationWebSocketProvider({
     },
     [
       addEvent,
-      isLoadingHistoryMain,
-      expectedEventCountMain,
       setErrorMessage,
-      removeOptimisticUserMessage,
+      consumeMatchingPendingMessage,
       queryClient,
       conversationId,
       setExecutionStatus,
@@ -543,12 +579,16 @@ export function ConversationWebSocketProvider({
             setErrorMessage(event.error);
           }
 
-          // Clear optimistic user message when a user message is confirmed
+          // Clear optimistic user message when a user message is confirmed.
+          // Always scope to the main `conversationId` (where the user types)
+          // and match on the echoed content so the planning sub-agent's own
+          // events can never consume a main-conversation pending entry.
           if (isUserMessageEvent(event)) {
-            removeOptimisticUserMessage();
-            // Clear draft from localStorage - message was successfully delivered
-            // Use main conversationId since user types in main conversation input
             if (conversationId) {
+              consumeMatchingPendingMessage(
+                conversationId,
+                extractMessageEventText(event),
+              );
               setConversationState(conversationId, { draftMessage: null });
             }
           }
@@ -641,7 +681,7 @@ export function ConversationWebSocketProvider({
       isLoadingHistoryPlanning,
       expectedEventCountPlanning,
       setErrorMessage,
-      removeOptimisticUserMessage,
+      consumeMatchingPendingMessage,
       queryClient,
       subConversations,
       conversationId,
@@ -658,9 +698,15 @@ export function ConversationWebSocketProvider({
 
   // Separate WebSocket options for main connection
   const mainWebsocketOptions: WebSocketHookOptions = useMemo(() => {
-    const queryParams: Record<string, string | boolean> = {
-      resend_all: true,
-    };
+    // History was already loaded over REST (`useConversationHistory`).
+    // Subscribe with `resend_mode='since'` so the server only resends events
+    // strictly after the latest one we already have. If REST returned no
+    // events at all (brand-new conversation), fall back to `'all'` so any
+    // events that may have been written between the REST call and the WS
+    // handshake still show up. Dedup in the event store handles overlap.
+    const queryParams: Record<string, string | boolean> = initialAfterTimestamp
+      ? { resend_mode: "since", after_timestamp: initialAfterTimestamp }
+      : { resend_mode: "all" };
 
     // Add session_api_key if available
     if (sessionApiKey) {
@@ -670,30 +716,10 @@ export function ConversationWebSocketProvider({
     return {
       queryParams,
       reconnect: { enabled: true },
-      onOpen: async () => {
+      onOpen: () => {
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
         removeErrorMessage(); // Clear any previous error messages on successful connection
-
-        // Fetch expected event count for history loading detection
-        if (conversationId && conversationUrl) {
-          try {
-            const count = await EventService.getEventCount(
-              conversationId,
-              conversationUrl,
-              sessionApiKey,
-            );
-            setExpectedEventCountMain(count);
-
-            // If no events expected, mark as loaded immediately
-            if (count === 0) {
-              setIsLoadingHistoryMain(false);
-            }
-          } catch (error) {
-            // Fall back to marking as loaded to avoid infinite loading state
-            setIsLoadingHistoryMain(false);
-          }
-        }
       },
       onClose: () => {
         setMainConnectionState("CLOSED");
@@ -712,8 +738,7 @@ export function ConversationWebSocketProvider({
     setErrorMessage,
     removeErrorMessage,
     sessionApiKey,
-    conversationId,
-    conversationUrl,
+    initialAfterTimestamp,
   ]);
 
   // Separate WebSocket options for planning agent connection

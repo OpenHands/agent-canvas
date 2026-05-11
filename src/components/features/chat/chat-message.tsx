@@ -1,9 +1,13 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipboard-button";
 import type { SourceType } from "#/types/agent-server/core/base/common";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { I18nKey } from "#/i18n/declaration";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
+
+export type ChatMessagePendingStatus = "sending" | "error";
 
 interface ChatMessageProps {
   type: SourceType;
@@ -14,6 +18,8 @@ interface ChatMessageProps {
     tooltip?: string;
   }>;
   isFromPlanningAgent?: boolean;
+  pendingStatus?: ChatMessagePendingStatus;
+  onRetry?: () => void;
 }
 
 export function ChatMessage({
@@ -22,7 +28,10 @@ export function ChatMessage({
   children,
   actions,
   isFromPlanningAgent = false,
+  pendingStatus,
+  onRetry,
 }: React.PropsWithChildren<ChatMessageProps>) {
+  const { t } = useTranslation("openhands");
   const [isHovering, setIsHovering] = React.useState(false);
   const [isCopy, setIsCopy] = React.useState(false);
 
@@ -48,6 +57,7 @@ export function ChatMessage({
   return (
     <article
       data-testid={`${type}-message`}
+      data-pending-status={pendingStatus}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       className={cn(
@@ -58,6 +68,8 @@ export function ChatMessage({
         isFromPlanningAgent &&
           type === "agent" &&
           "border border-[#597ff4] bg-tertiary p-4 mt-2",
+        pendingStatus === "sending" && "opacity-60",
+        pendingStatus === "error" && "border border-status-fail-border",
       )}
     >
       <div
@@ -109,6 +121,37 @@ export function ChatMessage({
       >
         <MarkdownRenderer includeStandard>{message}</MarkdownRenderer>
       </div>
+
+      {pendingStatus === "sending" && (
+        <span
+          role="status"
+          aria-live="polite"
+          data-testid="chat-message-sending"
+          className="self-end text-xs italic text-content-muted"
+        >
+          {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
+        </span>
+      )}
+
+      {pendingStatus === "error" && (
+        <span
+          role="alert"
+          data-testid="chat-message-error"
+          className="self-end text-xs text-status-fail-text"
+        >
+          {t(I18nKey.CHAT_INTERFACE$MESSAGE_SEND_FAILED)}{" "}
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="underline cursor-pointer"
+              data-testid="chat-message-retry"
+            >
+              {t(I18nKey.CHAT_INTERFACE$MESSAGE_RETRY)}
+            </button>
+          )}
+        </span>
+      )}
 
       {children}
     </article>
