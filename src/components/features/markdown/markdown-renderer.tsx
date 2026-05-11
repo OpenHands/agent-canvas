@@ -40,11 +40,13 @@ const MARKDOWN_SANITIZE_SCHEMA: Schema = {
   attributes: {
     ...defaultSchema.attributes,
     "*": [...(defaultSchema.attributes?.["*"] ?? []), "className", "id"],
-    a: [
-      ...(defaultSchema.attributes?.a ?? []),
-      "target",
-      a: ["href", "title", "target", "rel"],
-    ],
+    // `["rel", "noopener", "noreferrer", "nofollow"]` (rehype-sanitize's
+    // "[attrName, ...allowed-values]" form) requires `rel` to be EXACTLY
+    // one of those tokens — it would strip the standard, space-separated
+    // `rel="noopener noreferrer"` and reintroduce a reverse-tabnabbing
+    // vector on `target="_blank"` links. None of the `rel` keywords
+    // execute code or navigate, so allowing any rel value is safe.
+    a: ["href", "title", "target", "rel"],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
       "src",
