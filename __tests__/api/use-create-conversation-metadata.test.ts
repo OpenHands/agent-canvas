@@ -6,21 +6,36 @@ import { useCreateConversation } from "#/hooks/mutation/use-create-conversation"
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 
 const {
-  mockHttpPost,
-  mockCreateHttpClient,
+  mockCreateConversation,
+  mockCreateConversationClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
-  mockHttpPost: vi.fn(),
-  mockCreateHttpClient: vi.fn(),
+  mockCreateConversation: vi.fn(),
+  mockCreateConversationClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
-  createHttpClient: mockCreateHttpClient,
+  createConversationClient: mockCreateConversationClient,
+  createFileClient: vi.fn(),
   createRemoteWorkspace: vi.fn(),
   createVSCodeClient: vi.fn(),
+  createSkillsClient: vi.fn(() => ({
+    publicSkills: vi.fn().mockResolvedValue({ skills: [] }),
+  })),
+  // SecretsService.getSecrets still uses createHttpClient directly (it's
+  // not part of the SDK clients yet); stub it as a returns-empty-data
+  // shape so its retry+fallback path returns [] quickly instead of
+  // hanging waitFor.
+  createHttpClient: vi.fn(() => ({
+    get: vi.fn().mockResolvedValue({ data: { secrets: [] } }),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  })),
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -56,8 +71,8 @@ const wrapper = ({ children }: { children: React.ReactNode }) => {
 describe("useCreateConversation persists selected repository metadata", () => {
   beforeEach(() => {
     window.localStorage.clear();
-    mockHttpPost.mockReset();
-    mockCreateHttpClient.mockReset();
+    mockCreateConversation.mockReset();
+    mockCreateConversationClient.mockReset();
     mockGetSettings.mockReset();
     mockGetSettingsForConversation.mockReset();
     mockGetSettings.mockResolvedValue({
@@ -69,18 +84,23 @@ describe("useCreateConversation persists selected repository metadata", () => {
       conversationSettings: {},
       secretsEncrypted: true,
     });
-    mockCreateHttpClient.mockReturnValue({
-      get: vi.fn(),
-      post: mockHttpPost,
-      patch: vi.fn(),
-      delete: vi.fn(),
+    mockCreateConversationClient.mockReturnValue({
+      createConversation: mockCreateConversation,
+      // Other methods on the client surface are unused here.
+      getConversation: vi.fn(),
+      getConversations: vi.fn(),
+      searchConversations: vi.fn(),
+      sendEvent: vi.fn(),
+      pauseConversation: vi.fn(),
+      runConversation: vi.fn(),
+      askAgent: vi.fn(),
+      updateConversation: vi.fn(),
+      deleteConversation: vi.fn(),
     });
-    mockHttpPost.mockResolvedValue({
-      data: {
-        id: "conv-new",
-        created_at: "2026-05-05T00:00:00Z",
-        updated_at: "2026-05-05T00:00:00Z",
-      },
+    mockCreateConversation.mockResolvedValue({
+      id: "conv-new",
+      created_at: "2026-05-05T00:00:00Z",
+      updated_at: "2026-05-05T00:00:00Z",
     });
   });
 

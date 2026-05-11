@@ -11,29 +11,51 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 vi.mock("axios");
 
 const {
-  mockHttpGet,
-  mockHttpPost,
-  mockHttpDelete,
+  mockCreateConversation,
+  mockGetConversations,
+  mockDeleteConversation,
+  mockDownloadTrajectory,
+  mockDownloadTextFile,
   mockFileUpload,
-  mockCreateHttpClient,
+  mockCreateConversationClient,
+  mockCreateFileClient,
   mockCreateRemoteWorkspace,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
-  mockHttpGet: vi.fn(),
-  mockHttpPost: vi.fn(),
-  mockHttpDelete: vi.fn(),
+  mockCreateConversation: vi.fn(),
+  mockGetConversations: vi.fn(),
+  mockDeleteConversation: vi.fn(),
+  mockDownloadTrajectory: vi.fn(),
+  mockDownloadTextFile: vi.fn(),
   mockFileUpload: vi.fn(),
-  mockCreateHttpClient: vi.fn(),
+  mockCreateConversationClient: vi.fn(),
+  mockCreateFileClient: vi.fn(),
   mockCreateRemoteWorkspace: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
-  createHttpClient: mockCreateHttpClient,
+  createConversationClient: mockCreateConversationClient,
+  createFileClient: mockCreateFileClient,
   createRemoteWorkspace: mockCreateRemoteWorkspace,
   createVSCodeClient: vi.fn(),
+  // Tests still patch the skills loader path indirectly via the adapter;
+  // returning a no-op SkillsClient is sufficient.
+  createSkillsClient: vi.fn(() => ({
+    publicSkills: vi.fn().mockResolvedValue({ skills: [] }),
+  })),
+  // SecretsService.getSecrets still uses createHttpClient directly (not
+  // yet migrated to a typed SDK client). Without this stub the
+  // createConversation tests would hit retry+fallback timing.
+  createHttpClient: vi.fn(() => ({
+    get: vi.fn().mockResolvedValue({ data: { secrets: [] } }),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  })),
 }));
 
 vi.mock("#/api/agent-server-config", () => ({
@@ -58,16 +80,33 @@ vi.mock("#/api/settings-service/settings-service.api", () => ({
 describe("AgentServerConversationService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHttpGet.mockReset();
-    mockHttpPost.mockReset();
-    mockHttpDelete.mockReset();
+    mockCreateConversation.mockReset();
+    mockGetConversations.mockReset();
+    mockDeleteConversation.mockReset();
+    mockDownloadTrajectory.mockReset();
+    mockDownloadTextFile.mockReset();
     mockFileUpload.mockReset();
 
-    mockCreateHttpClient.mockReturnValue({
-      get: mockHttpGet,
-      post: mockHttpPost,
-      patch: vi.fn(),
-      delete: mockHttpDelete,
+    mockCreateConversationClient.mockReturnValue({
+      createConversation: mockCreateConversation,
+      getConversations: mockGetConversations,
+      deleteConversation: mockDeleteConversation,
+      // The rest are unused by these tests but the client surface is
+      // typed in the consumer, so provide no-op stubs.
+      sendEvent: vi.fn(),
+      pauseConversation: vi.fn(),
+      runConversation: vi.fn(),
+      askAgent: vi.fn(),
+      getConversation: vi.fn(),
+      searchConversations: vi.fn(),
+      updateConversation: vi.fn(),
+    });
+    mockCreateFileClient.mockReturnValue({
+      downloadTrajectory: mockDownloadTrajectory,
+      downloadTextFile: mockDownloadTextFile,
+      downloadFile: vi.fn(),
+      searchSubdirectories: vi.fn(),
+      getHome: vi.fn(),
     });
     mockCreateRemoteWorkspace.mockReturnValue({
       fileUpload: mockFileUpload,
@@ -76,37 +115,27 @@ describe("AgentServerConversationService", () => {
 
   describe("readConversationFile", () => {
     it("downloads the plan from the conversation's own working_dir when no filePath is provided", async () => {
-      const encodedPlan = new TextEncoder().encode("# PLAN content").buffer;
-      mockHttpGet.mockImplementation((url: string) => {
-        if (url === "/api/conversations") {
-          return Promise.resolve({
-            data: [
-              {
-                id: "conv-123",
-                created_at: "2024-01-01",
-                updated_at: "2024-01-01",
-                workspace: {
-                  working_dir: "/workspace/project/agent-canvas/conv-123",
-                },
-              },
-            ],
-          });
-        }
-        return Promise.resolve({ data: encodedPlan });
-      });
+      mockGetConversations.mockResolvedValue([
+        {
+          id: "conv-123",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+          workspace: {
+            working_dir: "/workspace/project/agent-canvas/conv-123",
+          },
+        },
+      ]);
+      mockDownloadTextFile.mockResolvedValue("# PLAN content");
 
       const content =
         await AgentServerConversationService.readConversationFile("conv-123");
 
       expect(content).toBe("# PLAN content");
-      expect(mockHttpGet).toHaveBeenCalledWith(
-        "/api/file/download",
-        expect.objectContaining({
-          params: {
-            path: "/workspace/project/agent-canvas/conv-123/.agents_tmp/PLAN.md",
-          },
-          responseType: "arrayBuffer",
-        }),
+      // The conversation lookup picks the working_dir; the file path is
+      // {working_dir}/.agents_tmp/PLAN.md, which the SDK's
+      // FileClient.downloadTextFile sends as a `path` query param.
+      expect(mockDownloadTextFile).toHaveBeenCalledWith(
+        "/workspace/project/agent-canvas/conv-123/.agents_tmp/PLAN.md",
       );
     });
   });
@@ -122,24 +151,22 @@ describe("AgentServerConversationService", () => {
         conversationSettings: {},
         secretsEncrypted: true,
       });
-      mockHttpPost.mockResolvedValue({
-        data: {
-          id: "ignored-server-id",
-          created_at: "2024-01-01",
-          updated_at: "2024-01-01",
-        },
+      mockCreateConversation.mockResolvedValue({
+        id: "ignored-server-id",
+        created_at: "2024-01-01",
+        updated_at: "2024-01-01",
       });
 
       await AgentServerConversationService.createConversation();
       await AgentServerConversationService.createConversation();
 
-      expect(mockHttpPost).toHaveBeenCalledTimes(2);
-      const [firstCall, secondCall] = mockHttpPost.mock.calls;
-      const firstPayload = firstCall[1] as {
+      expect(mockCreateConversation).toHaveBeenCalledTimes(2);
+      const [firstCall, secondCall] = mockCreateConversation.mock.calls;
+      const firstPayload = firstCall[0] as {
         conversation_id: string;
         workspace: { working_dir: string };
       };
-      const secondPayload = secondCall[1] as {
+      const secondPayload = secondCall[0] as {
         conversation_id: string;
         workspace: { working_dir: string };
       };
@@ -171,17 +198,14 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
     });
 
-    it("hits the local /api/file/download-trajectory endpoint with responseType blob when active backend is local", async () => {
+    it("delegates to FileClient.downloadTrajectory with the conversation id when active backend is local", async () => {
       const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
-      mockHttpGet.mockResolvedValue({ data: zipBlob });
+      mockDownloadTrajectory.mockResolvedValue(zipBlob);
 
       const result =
         await AgentServerConversationService.downloadConversation("conv-abc");
 
-      expect(mockHttpGet).toHaveBeenCalledWith(
-        "/api/file/download-trajectory/conv-abc",
-        expect.objectContaining({ responseType: "blob" }),
-      );
+      expect(mockDownloadTrajectory).toHaveBeenCalledWith("conv-abc");
       expect(result).toBe(zipBlob);
     });
   });
@@ -197,14 +221,12 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
     });
 
-    it("hits the local /api/conversations/{id} endpoint when active backend is local", async () => {
-      mockHttpDelete.mockResolvedValue({ data: undefined });
+    it("delegates to ConversationClient.deleteConversation when active backend is local", async () => {
+      mockDeleteConversation.mockResolvedValue(undefined);
 
       await AgentServerConversationService.deleteConversation("conv-abc");
 
-      expect(mockHttpDelete).toHaveBeenCalledWith(
-        "/api/conversations/conv-abc",
-      );
+      expect(mockDeleteConversation).toHaveBeenCalledWith("conv-abc");
     });
   });
 
