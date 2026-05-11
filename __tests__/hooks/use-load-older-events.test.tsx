@@ -12,7 +12,6 @@ import type { Conversation } from "#/api/open-hands.types";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 import type { EventSearchPage } from "#/api/event-service/event-service.types";
 
-vi.mock("#/api/open-hands-axios", () => ({ openHands: { get: vi.fn() } }));
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
 

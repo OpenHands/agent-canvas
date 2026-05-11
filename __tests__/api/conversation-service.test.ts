@@ -72,5 +72,27 @@ describe("ConversationService", () => {
         skipped_files: [{ name: "bad.txt", reason: "too large" }],
       });
     });
+
+    it("uploads files in bounded batches", async () => {
+      let activeUploads = 0;
+      let maxActiveUploads = 0;
+      fileUploadMock.mockImplementation(async () => {
+        activeUploads += 1;
+        maxActiveUploads = Math.max(maxActiveUploads, activeUploads);
+        await Promise.resolve();
+        activeUploads -= 1;
+      });
+
+      const files = Array.from({ length: 7 }, (_, index) =>
+        makeFile(`file-${String(index)}.txt`),
+      );
+
+      const result = await ConversationService.uploadFiles("conv-1", files);
+
+      expect(fileUploadMock).toHaveBeenCalledTimes(7);
+      expect(maxActiveUploads).toBe(5);
+      expect(result.uploaded_files).toEqual(files.map((file) => file.name));
+      expect(result.skipped_files).toEqual([]);
+    });
   });
 });

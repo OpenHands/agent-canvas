@@ -52,25 +52,75 @@ import type {
   SendMessageResponse,
 } from "./agent-server-conversation-service.types";
 
-function isDirectConversationInfo(
+const DEFAULT_CONVERSATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+const INVALID_CONVERSATION_RESPONSE_MESSAGE =
+  "Unable to load conversations because the selected agent server returned " +
+  "data this UI does not understand. Check the backend URL/session key and " +
+  "update the agent server if needed.";
+
+function invalidConversationResponse(): Error {
+  return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readTimestamp(
+  item: Record<string, unknown>,
+  snakeKey: "created_at" | "updated_at",
+  camelKey: "createdAt" | "updatedAt",
+): string {
+  const value = item[snakeKey] ?? item[camelKey];
+  return typeof value === "string" && value.trim()
+    ? value
+    : DEFAULT_CONVERSATION_TIMESTAMP;
+}
+
+function requireDirectConversationInfo(
   item: unknown,
-): item is DirectConversationInfo {
-  return (
-    typeof item === "object" &&
-    item !== null &&
-    typeof (item as { id?: unknown }).id === "string" &&
-    typeof (item as { created_at?: unknown }).created_at === "string" &&
-    typeof (item as { updated_at?: unknown }).updated_at === "string"
-  );
+): DirectConversationInfo {
+  if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
+    throw invalidConversationResponse();
+  }
+
+  return {
+    ...(item as unknown as DirectConversationInfo),
+    id: item.id,
+    created_at: readTimestamp(item, "created_at", "createdAt"),
+    updated_at: readTimestamp(item, "updated_at", "updatedAt"),
+  };
 }
 
 function requireDirectConversationItems(
   items: unknown,
 ): DirectConversationInfo[] {
-  if (!Array.isArray(items) || !items.every(isDirectConversationInfo)) {
-    throw new Error("Invalid conversation response shape");
+  if (!Array.isArray(items)) {
+    throw invalidConversationResponse();
   }
-  return items;
+  return items.map(requireDirectConversationInfo);
+}
+
+function requireConversationSearchPage(page: unknown): {
+  items: DirectConversationInfo[];
+  next_page_id: string | null;
+} {
+  if (Array.isArray(page)) {
+    return {
+      items: requireDirectConversationItems(page),
+      next_page_id: null,
+    };
+  }
+
+  if (!isRecord(page)) {
+    throw invalidConversationResponse();
+  }
+
+  return {
+    items: requireDirectConversationItems(page.items),
+    next_page_id:
+      typeof page.next_page_id === "string" ? page.next_page_id : null,
+  };
 }
 
 const RUNTIME_STATUSES = new Set<string>([
@@ -272,7 +322,9 @@ class AgentServerConversationService {
       getAgentServerClientOptions(),
     ).getConversations<DirectConversationInfo>(ids);
 
-    return data.map((item) => (item ? toAppConversation(item) : null));
+    return requireDirectConversationItems(data).map((item) =>
+      toAppConversation(item),
+    );
   }
 
   static async updateConversationPublicFlag(
@@ -351,7 +403,7 @@ class AgentServerConversationService {
     // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
     // mode forwards conversationUrl so the host explicitly resolves to the
     // conversation's runtime instead of falling back to the active backend.
-    const data: RawRuntime =
+    const data = requireDirectConversationInfo(
       active.kind === "cloud" && conversationUrl
         ? await callCloudProxy<RawRuntime>({
             backend: active,
@@ -366,7 +418,8 @@ class AgentServerConversationService {
               conversationUrl,
               sessionApiKey,
             }),
-          ).getConversation<RawRuntime>(conversationId);
+          ).getConversation<RawRuntime>(conversationId),
+    ) as RawRuntime;
 
     return {
       id: data.id,
@@ -419,10 +472,7 @@ class AgentServerConversationService {
       sort_order: ConversationSortOrder.UPDATED_AT_DESC,
     });
 
-    return toConversationPage({
-      items: requireDirectConversationItems(data.items),
-      next_page_id: data.next_page_id ?? null,
-    });
+    return toConversationPage(requireConversationSearchPage(data));
   }
 
   static async deleteConversation(conversationId: string): Promise<void> {

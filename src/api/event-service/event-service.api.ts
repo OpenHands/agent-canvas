@@ -145,8 +145,8 @@ class EventService {
     });
 
     return {
-      items: (page.items ?? []) as OpenHandsEvent[],
-      next_page_id: page.next_page_id ?? null,
+      items: (page?.items ?? []) as OpenHandsEvent[],
+      next_page_id: page?.next_page_id ?? null,
     };
   }
 }

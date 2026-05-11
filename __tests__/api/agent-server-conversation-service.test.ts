@@ -103,6 +103,7 @@ describe("AgentServerConversationService", () => {
         return response.data;
       },
       searchConversations: vi.fn(),
+      getConversation: vi.fn(),
       sendEvent: vi.fn(),
       updateConversation: vi.fn(),
     });
@@ -278,7 +279,7 @@ describe("AgentServerConversationService", () => {
 
   describe("conversation update fallbacks", () => {
     it("throws a useful error when repository update cannot reload the conversation", async () => {
-      mockHttpGet.mockResolvedValue({ data: [null] });
+      mockHttpGet.mockResolvedValue({ data: [] });
 
       await expect(
         AgentServerConversationService.updateConversationRepository(
@@ -289,7 +290,7 @@ describe("AgentServerConversationService", () => {
     });
 
     it("throws a useful error when title update cannot reload the conversation", async () => {
-      mockHttpGet.mockResolvedValue({ data: [null] });
+      mockHttpGet.mockResolvedValue({ data: [] });
 
       await expect(
         AgentServerConversationService.updateConversationTitle(
@@ -297,6 +298,38 @@ describe("AgentServerConversationService", () => {
           "New title",
         ),
       ).rejects.toThrow("Conversation missing-conv was not found");
+    });
+
+    it("normalizes conversation list items with missing timestamps", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-no-timestamps",
+            title: "Conversation without timestamps",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-no-timestamps",
+        ]);
+
+      expect(conversation).toMatchObject({
+        id: "conv-no-timestamps",
+        created_at: "1970-01-01T00:00:00.000Z",
+        updated_at: "1970-01-01T00:00:00.000Z",
+      });
+    });
+
+    it("throws a user-friendly error for unusable conversation list responses", async () => {
+      mockHttpGet.mockResolvedValue({ data: [{ title: "missing id" }] });
+
+      await expect(
+        AgentServerConversationService.batchGetAppConversations(["missing-id"]),
+      ).rejects.toThrow(
+        "Unable to load conversations because the selected agent server returned",
+      );
     });
   });
 

@@ -100,7 +100,10 @@ function renderForm(
 describe("WorkspaceSelectionForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchSubdirectories.mockReset();
+    mockGetHome.mockReset();
     mockUseIsCreatingConversation.mockReturnValue(false);
+    mockGetHome.mockResolvedValue({ home: "/Users/me" });
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
     // `useResolvedWorkspaces` always queries an implicit `/projects` parent
     // (the dev:docker mount point). Default it to empty so tests that don't
