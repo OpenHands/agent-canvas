@@ -103,6 +103,11 @@
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.22.0` for agent-server SDK libraries
+- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`. The default image uses versioned release tags:
+  - `DEFAULT_AGENT_SERVER_TAG` — uses format `v{version}-python` (e.g., `v1.22.0-python`) for reproducibility
+  - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
+  - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
+  - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
 - Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
