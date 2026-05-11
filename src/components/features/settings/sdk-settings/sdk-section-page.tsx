@@ -24,6 +24,7 @@ import {
   hasAdvancedSettings,
   hasMinorSettings,
   inferInitialView,
+  isValidSettingsSchema,
   SettingsDirtyState,
   SettingsFormValues,
   type SettingsValueSource,
@@ -226,9 +227,15 @@ export function SdkSectionPage({
     [sectionKeysSignature],
   );
 
-  // Build a filtered schema containing only the requested sections
+  // Build a filtered schema containing only the requested sections.
+  // `isValidSettingsSchema` guards against truthy-but-malformed schema
+  // responses (e.g. when the deployment is pointed at a host that does
+  // not serve `/api/settings/agent-schema` and returns an SPA shell
+  // that parses into an object without a `sections` array). Without
+  // the guard, `schema.sections.filter(...)` would throw and React
+  // Router would escalate the crash to a full-screen error.
   const filteredSchema = React.useMemo(() => {
-    if (!schema) return null;
+    if (!isValidSettingsSchema(schema)) return null;
     const sectionSet = new Set(stableSectionKeys);
     return {
       ...schema,
