@@ -65,20 +65,19 @@ describe("RightPanelToggle", () => {
   });
 
   it("should have aria-pressed attribute reflecting panel state", () => {
-    render(<RightPanelToggle />);
+    const { unmount } = render(<RightPanelToggle />);
+    expect(screen.getByTestId("right-panel-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
-    const button = screen.getByTestId("right-panel-toggle");
-    expect(button).toHaveAttribute("aria-pressed", "true");
+    unmount();
 
     useConversationStore.setState({ isRightPanelShown: false });
-
-    // Re-render to get updated state
-    const { rerender } = render(<RightPanelToggle />);
-    rerender(<RightPanelToggle />);
-
-    const buttons = screen.getAllByTestId("right-panel-toggle");
-    // Get the latest button (from rerender)
-    const latestButton = buttons[buttons.length - 1];
-    expect(latestButton).toHaveAttribute("aria-pressed", "false");
+    render(<RightPanelToggle />);
+    expect(screen.getByTestId("right-panel-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

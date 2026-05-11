@@ -81,7 +81,7 @@ export function ConversationNameWithStatus() {
         </div>
         <ConversationName />
       </div>
-      <RightPanelToggle className="mr-2 hidden lg:block" />
+      <RightPanelToggle className="mr-2" />
     </div>
   );
 }
