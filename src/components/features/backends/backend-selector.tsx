@@ -338,7 +338,7 @@ export function BackendSelector({
             placeholder={active.backend.name}
             loading={someCloudLoading || isSwitching}
             options={options}
-            className="bg-[#1F1F1F66] border-[#242424]"
+            className="bg-transparent border-transparent hover:bg-[#1f1f1f99] focus-within:bg-[#1f1f1f99]"
           />
         </div>
         {!hideTrigger ? (
@@ -347,7 +347,7 @@ export function BackendSelector({
             data-testid="backend-selector-settings-link"
             aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
             onClick={() => navigate("/settings")}
-            className="inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md border border-[#242424] bg-[#1F1F1F66] text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99] transition-colors"
+            className="inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99] transition-colors"
           >
             <Settings width={16} height={16} />
           </button>
