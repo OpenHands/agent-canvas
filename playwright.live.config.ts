@@ -9,7 +9,12 @@ process.env.LIVE_E2E_SESSION_API_KEY = liveE2ESessionApiKey;
 const liveE2EFrontendPort = process.env.LIVE_E2E_FRONTEND_PORT ?? "3101";
 const liveE2EBackendURL =
   process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18100";
-const liveE2EBackendPort = new URL(liveE2EBackendURL).port || "18100";
+let liveE2EBackendPort: string;
+try {
+  liveE2EBackendPort = new URL(liveE2EBackendURL).port || "18100";
+} catch {
+  throw new Error(`Invalid LIVE_E2E_BACKEND_URL: ${liveE2EBackendURL}`);
+}
 const liveE2EFrontendURL = `http://localhost:${liveE2EFrontendPort}/`;
 
 function shellQuote(value: string) {
@@ -49,6 +54,8 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
+  // This live stack is intended for macOS/Linux shells and Ubuntu CI runners;
+  // the command below intentionally uses POSIX environment assignment syntax.
   webServer: {
     command:
       "node -e \"const fs=require('node:fs'); for (const p of ['.tmp/live-e2e-state','node_modules/.vite']) fs.rmSync(p,{recursive:true,force:true});\" && " +

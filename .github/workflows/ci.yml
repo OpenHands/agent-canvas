@@ -144,6 +144,11 @@ jobs:
           git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
           git fetch --depth=2 pr-head "$PR_HEAD_SHA"
           git checkout --detach FETCH_HEAD
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$PR_HEAD_SHA" ]; then
+            echo "::error::SHA mismatch: expected $PR_HEAD_SHA, got $actual_sha"
+            exit 1
+          fi
 
       - name: Detect PR artifact-only commit
         id: latest_commit
@@ -308,7 +313,24 @@ jobs:
           fi
 
           git commit -m "chore: Update PR QA artifacts"
-          git push "https://x-access-token:${PR_ARTIFACT_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$PR_HEAD_REF"
+          push_succeeded=false
+          for attempt in 1 2 3; do
+            if git push "https://x-access-token:${PR_ARTIFACT_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$PR_HEAD_REF"; then
+              push_succeeded=true
+              break
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "::notice::Failed to push .pr media, rebasing and retrying."
+              git fetch pr-head "$PR_HEAD_REF"
+              git rebase FETCH_HEAD
+              sleep 2
+            fi
+          done
+          if [ "$push_succeeded" != "true" ]; then
+            echo "::error::Failed to push .pr media after retries."
+            exit 1
+          fi
 
           media_commit="$(git rev-parse HEAD)"
           media_url() {
