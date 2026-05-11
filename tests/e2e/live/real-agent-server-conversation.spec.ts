@@ -14,13 +14,13 @@ import {
   waitForPath,
   waitForTestId,
   waitForTestIdText,
-} from "../support/live-agent-server-helpers";
+} from "./utils/agent-server-conversation";
 
 test.beforeEach(async ({ page }) => {
   await enableLiveE2EFlags(page);
 });
 
-test("runs a real Agent Server conversation through the UI", async ({
+test("completes a real LLM-backed Agent Server conversation through the UI", async ({
   page,
   request,
 }, testInfo) => {
