@@ -31,11 +31,14 @@ function firstConfiguredEnvVar(names) {
 }
 
 function commandExists(command) {
-  const result = spawnSync(command, ["--version"], {
+  const result = spawnSync(platformCommand(command), ["--version"], {
     stdio: "ignore",
-    shell: process.platform === "win32",
   });
   return !result.error && result.status === 0;
+}
+
+function platformCommand(command) {
+  return process.platform === "win32" ? `${command}.cmd` : command;
 }
 
 function localPlaywrightExists() {
@@ -193,11 +196,10 @@ function validateEnvironment() {
 
 async function runPlaywright(args) {
   const child = spawn(
-    "npx",
+    platformCommand("npx"),
     ["playwright", "test", `--config=${PLAYWRIGHT_CONFIG}`, ...args],
     {
       stdio: "inherit",
-      shell: process.platform === "win32",
     },
   );
 

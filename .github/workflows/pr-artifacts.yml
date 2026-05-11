@@ -17,7 +17,7 @@ jobs:
     if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     concurrency:
-      group: cleanup-pr-artifacts-${{ github.event.pull_request.number }}
+      group: pr-artifacts-live-e2e-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -46,9 +46,15 @@ jobs:
           head_sha="$(gh api "$pr_api" --jq '.head.sha')"
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          if gh api "repos/${{ github.repository }}/contents/.pr?ref=$head_sha" --silent >/dev/null 2>&1; then
+            echo "has_pr_dir=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_pr_dir=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No .pr directory exists at the approved PR head; skipping artifact cleanup."
+          fi
 
       - name: Check out PR branch
-        if: steps.check_fork.outputs.is_fork == 'false'
+        if: steps.check_fork.outputs.is_fork == 'false' && steps.pr_context.outputs.has_pr_dir == 'true'
         env:
           PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
           PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
@@ -67,7 +73,7 @@ jobs:
 
       - name: Remove .pr directory
         id: remove
-        if: steps.check_fork.outputs.is_fork == 'false'
+        if: steps.check_fork.outputs.is_fork == 'false' && steps.pr_context.outputs.has_pr_dir == 'true'
         env:
           PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
           PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
@@ -112,7 +118,7 @@ jobs:
           echo "removed=true" >> "$GITHUB_OUTPUT"
 
       - name: Update PR artifacts comment
-        if: steps.check_fork.outputs.is_fork == 'false' && steps.remove.outputs.removed == 'true'
+        if: steps.check_fork.outputs.is_fork == 'false' && steps.pr_context.outputs.has_pr_dir == 'true' && steps.remove.outputs.removed == 'true'
         uses: actions/github-script@v9
         with:
           script: |

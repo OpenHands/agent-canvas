@@ -79,7 +79,11 @@ function resolveWithinCwd(label, filePath, options = {}) {
 }
 
 function validateRepo(repo) {
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+  if (
+    !/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\/[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(
+      repo,
+    )
+  ) {
     throw new Error(`Invalid repo format: ${repo}`);
   }
   return repo;
@@ -92,26 +96,67 @@ function validateIssueNumber(issueNumber) {
   return String(issueNumber);
 }
 
-async function githubRequest(method, path, token, body) {
-  const response = await fetch(`${API_ROOT}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
+}
 
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
-  if (!response.ok) {
+function retryDelayMs(attempt, response) {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter && /^\d+$/.test(retryAfter)) {
+    return Number(retryAfter) * 1000;
+  }
+  return 1000 * 2 ** attempt;
+}
+
+function parseGitHubPayload(method, path, status, text) {
+  if (!text) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
     throw new Error(
-      `GitHub API ${method} ${path} failed with ${response.status}: ${text}`,
+      `GitHub API ${method} ${path} returned invalid JSON with status ${status}: ${text.slice(
+        0,
+        500,
+      )}`,
     );
   }
-  return payload;
+}
+
+async function githubRequest(method, path, token, body) {
+  const retryableStatuses = new Set([429, 502, 503, 504]);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch(`${API_ROOT}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    const text = await response.text();
+    if (!response.ok && retryableStatuses.has(response.status) && attempt < 4) {
+      await sleep(retryDelayMs(attempt, response));
+      continue;
+    }
+
+    const payload = parseGitHubPayload(method, path, response.status, text);
+    if (!response.ok) {
+      throw new Error(
+        `GitHub API ${method} ${path} failed with ${response.status}: ${text}`,
+      );
+    }
+    return payload;
+  }
+
+  throw new Error(`GitHub API ${method} ${path} failed after retries.`);
 }
 
 async function listIssueComments(repo, issueNumber, token) {

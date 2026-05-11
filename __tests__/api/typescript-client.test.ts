@@ -54,6 +54,46 @@ describe("createRemoteWorkspace", () => {
     expect(result).toEqual([]);
   });
 
+  it("omits git ref when runtime git changes options are not provided", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse([]));
+
+    const result = await workspace.gitChanges("/workspace/project");
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/changes", {
+      params: {
+        path: "/workspace/project",
+      },
+    });
+    expect(result).toEqual([]);
+  });
+
+  it("omits git ref when runtime git changes options are empty", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse([]));
+
+    const result = await workspace.gitChanges("/workspace/project", {});
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/changes", {
+      params: {
+        path: "/workspace/project",
+      },
+    });
+    expect(result).toEqual([]);
+  });
+
   it("passes git ref options to the runtime git diff endpoint", async () => {
     const workspace = createRemoteWorkspace({
       host: "http://agent.example.com",
@@ -75,5 +115,63 @@ describe("createRemoteWorkspace", () => {
       },
     });
     expect(result).toEqual({ diff: "diff content" });
+  });
+
+  it("omits git ref when runtime git diff options are not provided", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse({ diff: "diff content" }));
+
+    const result = await workspace.gitDiff("/workspace/project/file.ts");
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/diff", {
+      params: {
+        path: "/workspace/project/file.ts",
+      },
+    });
+    expect(result).toEqual({ diff: "diff content" });
+  });
+
+  it("omits git ref when runtime git diff options are empty", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const getMock = vi
+      .spyOn(workspace.client, "get")
+      .mockResolvedValue(httpResponse({ diff: "diff content" }));
+
+    const result = await workspace.gitDiff("/workspace/project/file.ts", {});
+
+    expect(getMock).toHaveBeenCalledWith("/api/git/diff", {
+      params: {
+        path: "/workspace/project/file.ts",
+      },
+    });
+    expect(result).toEqual({ diff: "diff content" });
+  });
+
+  it("starts a workspace session through the runtime auth endpoint", async () => {
+    const workspace = createRemoteWorkspace({
+      host: "http://agent.example.com",
+      apiKey: "session-key",
+      workingDir: "/workspace/project",
+    });
+    const postMock = vi
+      .spyOn(workspace.client, "post")
+      .mockResolvedValue(httpResponse("workspace-session-url"));
+
+    const result = await workspace.startWorkspaceSession("conversation-id");
+
+    expect(postMock).toHaveBeenCalledWith("/api/auth/workspace-session", {
+      conversation_id: "conversation-id",
+    });
+    expect(result).toBe("workspace-session-url");
   });
 });

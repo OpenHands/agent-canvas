@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 
 import {
+  BACKEND_URL,
   clickButtonByTestId,
   clickButtonByTestIdOrText,
   configureLiveAgentServer,
@@ -12,10 +13,13 @@ import {
   expandVisibleEventDetails,
   fillChatInput,
   getConversationIdFromURL,
+  getOptionalConversationIdFromURL,
   guardAgainstPostHogRequests,
   hasLiveLLMConfig,
   missingLiveLLMConfigMessage,
   openCreatedConversation,
+  routeBackendSessionApiKey,
+  sessionApiKey,
   waitForAgentReply,
   waitForNonUserMessageText,
   waitForSuccessfulBashObservation,
@@ -26,6 +30,27 @@ test.beforeEach(async ({ page }) => {
   await enableLiveE2EFlags(page);
 });
 
+test.afterEach(async ({ page, request }) => {
+  const conversationId = getOptionalConversationIdFromURL(page);
+  if (!conversationId) {
+    return;
+  }
+
+  const response = await request.delete(
+    `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}`,
+    {
+      headers: {
+        "X-Session-API-Key": sessionApiKey,
+      },
+    },
+  );
+  if (!response.ok() && response.status() !== 404) {
+    console.warn(
+      `Failed to clean up live E2E conversation ${conversationId}: ${response.status()}`,
+    );
+  }
+});
+
 test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
   page,
   request,
@@ -33,6 +58,7 @@ test("runs a real LLM-backed Agent Server terminal conversation through the UI",
   test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
 
   await configureLiveAgentServer(request);
+  await routeBackendSessionApiKey(page);
   const postHogGuard = await guardAgainstPostHogRequests(page);
 
   await page.goto("/", { waitUntil: "domcontentloaded" });

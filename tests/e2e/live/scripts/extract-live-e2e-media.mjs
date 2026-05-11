@@ -88,7 +88,11 @@ function readJson(path) {
   if (!path || !existsSync(path)) {
     return null;
   }
-  return JSON.parse(readFileSync(path, "utf8"));
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function collectPlaywrightAttachments(results) {

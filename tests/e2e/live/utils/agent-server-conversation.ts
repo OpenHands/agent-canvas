@@ -36,7 +36,7 @@ const llmModel =
     : openAIKey?.trim()
       ? "openai/gpt-5.4-mini"
       : "anthropic/claude-haiku-4-5-20251001");
-const sessionApiKey = firstNonEmpty(
+export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
   process.env.SESSION_API_KEY,
   process.env.OH_SESSION_API_KEYS_0,
@@ -53,15 +53,40 @@ export const missingLiveLLMConfigMessage =
 
 function sanitizeFailureText(value: string) {
   return value
-    .slice(0, 500)
     .replace(
       /(api[_-]?key|authorization|secret|token)(["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
       "$1$2<redacted>",
     )
-    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "<redacted>");
+    .replace(/sk-ant-[A-Za-z0-9_-]+/g, "<redacted>")
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "<redacted>")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "<redacted>")
+    .slice(0, 500);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function routeBackendSessionApiKey(page: Page) {
+  const backendOrigin = new URL(BACKEND_URL).origin;
+  await page.route(
+    new RegExp(`^${escapeRegExp(backendOrigin)}(?:/|$)`),
+    async (route) => {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          "X-Session-API-Key": sessionApiKey,
+        },
+      });
+    },
+  );
 }
 
 export async function configureLiveAgentServer(request: APIRequestContext) {
+  if (!llmApiKey.trim()) {
+    throw new Error(missingLiveLLMConfigMessage);
+  }
+
   const llmSettings: Record<string, string | number> = {
     model: llmModel,
     api_key: llmApiKey,
@@ -176,44 +201,34 @@ export async function waitForTestId(
 export async function dismissAnalyticsModal(page: Page) {
   await page.waitForLoadState("domcontentloaded");
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const clicked = await page
-      .evaluate(() => {
-        const confirmButton = Array.from(
-          document.querySelectorAll("button"),
-        ).find(
-          (button) => button.textContent?.trim() === "Confirm preferences",
-        );
-        if (!(confirmButton instanceof HTMLButtonElement)) {
-          return false;
-        }
-        confirmButton.click();
-        return true;
-      })
-      .catch(() => false);
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(() => {
+            const hasAnalyticsDialog = Array.from(
+              document.querySelectorAll('[role="dialog"]'),
+            ).some((dialog) =>
+              dialog.textContent?.includes("Help improve OpenHands"),
+            );
+            if (!hasAnalyticsDialog) {
+              return true;
+            }
 
-    if (clicked) {
-      await expect
-        .poll(
-          async () =>
-            page
-              .evaluate(
-                () =>
-                  !Array.from(
-                    document.querySelectorAll('[role="dialog"]'),
-                  ).some((dialog) =>
-                    dialog.textContent?.includes("Help improve OpenHands"),
-                  ),
-              )
-              .catch(() => false),
-          { timeout: 5_000 },
-        )
-        .toBe(true);
-      return;
-    }
-
-    await page.waitForTimeout(500);
-  }
+            const confirmButton = Array.from(
+              document.querySelectorAll("button"),
+            ).find(
+              (button) => button.textContent?.trim() === "Confirm preferences",
+            );
+            if (confirmButton instanceof HTMLButtonElement) {
+              confirmButton.click();
+            }
+            return false;
+          })
+          .catch(() => false),
+      { timeout: 5_000 },
+    )
+    .toBe(true);
 }
 
 export async function clickButtonByTestId(page: Page, testId: string) {
@@ -315,32 +330,30 @@ export async function waitForNonUserMessageText(page: Page, text: string) {
 }
 
 export async function expandVisibleEventDetails(page: Page) {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const expandedCount = await page
-      .evaluate(() => {
-        const isVisible = (element: Element) => {
-          const rect = element.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        };
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(() => {
+            const isVisible = (element: Element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0;
+            };
 
-        const buttons = Array.from(
-          document.querySelectorAll('button[aria-label="Expand"]'),
-        ).filter(isVisible);
-        buttons.forEach((button) => {
-          if (button instanceof HTMLButtonElement) {
-            button.click();
-          }
-        });
-        return buttons.length;
-      })
-      .catch(() => 0);
-
-    if (expandedCount === 0) {
-      return;
-    }
-
-    await page.waitForTimeout(250);
-  }
+            const buttons = Array.from(
+              document.querySelectorAll('button[aria-label="Expand"]'),
+            ).filter(isVisible);
+            buttons.forEach((button) => {
+              if (button instanceof HTMLButtonElement) {
+                button.click();
+              }
+            });
+            return buttons.length;
+          })
+          .catch(() => 0),
+      { timeout: 5_000 },
+    )
+    .toBe(0);
 }
 
 export async function waitForAgentReply(page: Page) {
@@ -375,6 +388,11 @@ export function getConversationIdFromURL(page: Page) {
     `Could not read conversation id from ${page.url()}`,
   ).toBeTruthy();
   return decodeURIComponent(match![1]);
+}
+
+export function getOptionalConversationIdFromURL(page: Page) {
+  const match = page.url().match(/\/conversations\/([^/?#]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : "";
 }
 
 function eventTextContent(event: unknown) {

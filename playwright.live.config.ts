@@ -41,9 +41,6 @@ export default defineConfig({
   outputDir: "test-results-live",
   use: {
     baseURL: liveE2EFrontendURL,
-    extraHTTPHeaders: {
-      "X-Session-API-Key": liveE2ESessionApiKey,
-    },
     screenshot: "only-on-failure",
     trace: "off",
     video: "on",
