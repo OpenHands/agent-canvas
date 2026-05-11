@@ -16,7 +16,7 @@ export function ConversationCardHeader({
   executionStatus,
 }: ConversationCardHeaderProps) {
   return (
-    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden mr-2">
+    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
       {executionStatus !== undefined && (
         <div className="flex items-center">
           <ConversationStatusDot executionStatus={executionStatus} />

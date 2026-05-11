@@ -117,7 +117,7 @@ export function Sidebar() {
           setCollapsedRailHovered(false);
         }}
         className={cn(
-          "bg-base flex flex-col gap-3 transition-[width,min-width] duration-200",
+          "bg-base flex flex-col transition-[width,min-width] duration-200",
           "md:border-r md:border-[#242424]",
           // Mobile: top bar; Desktop: vertical column. Width responds to
           // the collapsed state on md+ screens.
@@ -132,7 +132,7 @@ export function Sidebar() {
       >
         <div
           className={cn(
-            "flex items-center gap-2 md:py-1",
+            "flex items-center gap-2 md:py-1 md:pb-3",
             // Collapsed: stack the chevron beneath the logo so the 64px rail
             // doesn't need to grow to fit two controls in a row. Expanded:
             // chevron is right-aligned via ml-auto further down.
@@ -250,7 +250,7 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch mt-auto pt-2 border-t border-[#242424]">
+          <div className="hidden md:flex md:flex-col md:items-stretch mt-auto pt-2 border-t border-[#242424] md:-mx-3 md:px-3">
             <BackendSelector openUpward />
           </div>
         )}

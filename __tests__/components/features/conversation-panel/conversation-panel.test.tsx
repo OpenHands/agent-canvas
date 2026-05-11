@@ -1,7 +1,6 @@
 import {
   screen,
   waitFor,
-  waitForElementToBeRemoved,
   within,
 } from "@testing-library/react";
 import {
@@ -163,17 +162,18 @@ describe("ConversationPanel", () => {
 
     renderWithProviders(<CompactRouterStub />);
 
-    const skeletons = await screen.findAllByTestId(
-      "conversation-card-skeleton",
-    );
-    await waitForElementToBeRemoved(skeletons);
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("conversation-card-skeleton-compact"),
+      ).not.toBeInTheDocument();
+    });
 
     expect(
       screen.queryByText("CONVERSATION$NO_CONVERSATIONS"),
     ).not.toBeInTheDocument();
   });
 
-  it("should handle an error when fetching conversations", async () => {
+  it("should not render fetch errors in the conversation panel", async () => {
     const searchConversationsSpy = vi.spyOn(
       AgentServerConversationService,
       "searchConversations",
@@ -184,8 +184,11 @@ describe("ConversationPanel", () => {
 
     renderConversationPanel();
 
-    const error = await screen.findByText("Failed to fetch conversations");
-    expect(error).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Failed to fetch conversations"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("should cancel deleting a conversation", async () => {
