@@ -47,13 +47,19 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   if (query.isError || !query.data) {
+    // Show a load-error message rather than the binary-fallback string —
+    // these are completely different failure modes (couldn't even fetch
+    // the file vs. fetched fine but the bytes aren't previewable) and
+    // mixing them up hides real backend failures behind a misleading
+    // "Binary file" label. Prefer the underlying error's own message when
+    // we have one; fall back to the generic translated string otherwise.
     return (
       <div
         className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
         data-testid="file-content-viewer-error"
       >
         {(query.error as Error | undefined)?.message ??
-          t(I18nKey.FILES$BINARY_FALLBACK)}
+          t(I18nKey.FILES$LOAD_ERROR)}
       </div>
     );
   }
@@ -100,10 +106,19 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   if (kind === "pdf") {
+    // PDFs can carry embedded JavaScript (AcroForm, OpenAction…). Even
+    // though `staticUrl` lives on the agent server origin, the PDF
+    // viewer's scripting capability isn't worth the risk for a file
+    // preview, so we sandbox the iframe. `allow-same-origin` lets the
+    // browser's built-in PDF viewer load the underlying bytes without
+    // tripping cross-origin restrictions; we omit `allow-scripts`
+    // because no PDF preview we care about needs to run JS in the
+    // parent's origin.
     return (
       <iframe
         title={path}
         src={bustedStaticUrl}
+        sandbox="allow-same-origin"
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />
@@ -123,10 +138,18 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   // Text-like content.
   if (mimeType === "text/html" || HTML_LIKE_EXTS.has(getExtension(path))) {
+    // Sandbox the preview iframe: `allow-same-origin` keeps the frame on
+    // the workspace fileserver's origin so relative `<link href="…">`,
+    // `<img src="…">`, etc. continue to resolve, while the absence of
+    // `allow-scripts` means any `<script>` (or `onerror=…`, inline event
+    // handler, …) inside the previewed file is inert. This is exactly
+    // the safe-preview posture we want — users can look at their HTML
+    // without it executing in the canvas's context.
     return (
       <iframe
         title={path}
         src={bustedStaticUrl}
+        sandbox="allow-same-origin"
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />

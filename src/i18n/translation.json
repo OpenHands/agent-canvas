@@ -18667,6 +18667,23 @@
     "uk": "Виберіть файл, щоб переглянути його вміст",
     "ca": "Selecciona un fitxer per veure'n el contingut"
   },
+  "FILES$LOAD_ERROR": {
+    "en": "Could not load this file",
+    "ja": "このファイルを読み込めませんでした",
+    "zh-CN": "无法加载此文件",
+    "zh-TW": "無法載入此檔案",
+    "ko-KR": "이 파일을 불러올 수 없습니다",
+    "no": "Kunne ikke laste denne filen",
+    "it": "Impossibile caricare questo file",
+    "pt": "Não foi possível carregar este arquivo",
+    "es": "No se pudo cargar este archivo",
+    "ar": "تعذّر تحميل هذا الملف",
+    "fr": "Impossible de charger ce fichier",
+    "tr": "Bu dosya yüklenemedi",
+    "de": "Diese Datei konnte nicht geladen werden",
+    "uk": "Не вдалося завантажити цей файл",
+    "ca": "No s'ha pogut carregar aquest fitxer"
+  },
   "FILES$BINARY_FALLBACK": {
     "en": "Binary file – preview not available",
     "ja": "バイナリファイル - プレビューを利用できません",

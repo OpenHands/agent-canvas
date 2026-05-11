@@ -163,6 +163,53 @@ describe("useAutoRefreshFilesOnEdit", () => {
     expect(useWorkspaceMutationCounter.getState().count).toBe(0);
   });
 
+  it("still reacts to mutations that arrive out-of-order (older timestamp inserted between newer events)", () => {
+    // Regression test for a bug where the hook used `events.slice(processedCount)`
+    // to find new events. The event store re-sorts by timestamp on insert,
+    // so a late-arriving older event lands *between* two newer ones and
+    // the tail slice would miss it.
+    const client = new QueryClient();
+    const spy = vi.spyOn(client, "invalidateQueries");
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    // First, push two newer events. The id-numbers drive the timestamp,
+    // so id "10" is later than id "5". Both land in the same effect run
+    // (we coalesce — one bump per batch, not per event), so count goes
+    // from 0 → 1.
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeObservationEvent("10", "FileEditorObservation", "create"));
+      useEventStore
+        .getState()
+        .addEvent(makeObservationEvent("20", "FileEditorObservation", "create"));
+    });
+    const callsAfterInitial = spy.mock.calls.length;
+    expect(callsAfterInitial).toBeGreaterThan(0);
+    const countAfterInitial = useWorkspaceMutationCounter.getState().count;
+    expect(countAfterInitial).toBe(1);
+
+    // Now insert an OLDER event (id "5" → earliest timestamp). The store
+    // re-sorts so the events array becomes [e5, e10, e20]. The previous
+    // "slice from index 2" approach would return [e20] only and miss e5
+    // entirely — no invalidation, no cache-bust, stale iframe.
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeObservationEvent("5", "FileEditorObservation", "create"));
+    });
+
+    // We should have invalidated again and bumped the counter exactly once
+    // more for the late-arriving mutation (count: 1 → 2).
+    expect(spy.mock.calls.length).toBeGreaterThan(callsAfterInitial);
+    expect(useWorkspaceMutationCounter.getState().count).toBe(
+      countAfterInitial + 1,
+    );
+  });
+
   it("only invalidates once per new event batch", () => {
     const client = new QueryClient();
     const spy = vi.spyOn(client, "invalidateQueries");

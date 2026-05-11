@@ -177,6 +177,30 @@ describe("conversation localStorage utilities", () => {
 
       expect(state.selectedTab).toBe("files");
     });
+
+    it("filters obsolete tabs out of stored unpinnedTabs (changes / editor / served)", () => {
+      // Returning users may have unpinned the now-removed Changes, Editor,
+      // or Served tabs in a previous version. Those names should not
+      // survive the read — otherwise they linger forever in localStorage
+      // since the UI has no way to surface them again to be re-pinned.
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+
+      localStorage.setItem(
+        consolidatedKey,
+        JSON.stringify({
+          selectedTab: "files",
+          rightPanelShown: true,
+          unpinnedTabs: ["editor", "changes", "served", "terminal"],
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      // Only the still-valid `terminal` entry survives; the three
+      // obsolete names are dropped.
+      expect(state.unpinnedTabs).toEqual(["terminal"]);
+    });
   });
 
   describe("setConversationState", () => {

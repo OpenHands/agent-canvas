@@ -45,4 +45,30 @@ describe("buildFileTree", () => {
     const root = buildFileTree([]);
     expect(root.children).toEqual([]);
   });
+
+  it("promotes a previously-leaf node to a directory when a deeper path needs it", () => {
+    // Regression test: feeding the builder a flat list that contains both
+    // `src` (treated as a file by virtue of having no further segments)
+    // and `src/index.ts` used to silently drop `index.ts` because the
+    // `src` node had `isDirectory: false` and we never descended into
+    // it. The builder now promotes the leaf to a directory.
+    const root = buildFileTree(["src", "src/index.ts"]);
+
+    const srcNode = root.children.find((c) => c.name === "src");
+    expect(srcNode).toBeDefined();
+    expect(srcNode?.isDirectory).toBe(true);
+    expect(srcNode?.children.map((c) => c.name)).toEqual(["index.ts"]);
+  });
+
+  it("handles very wide directories efficiently (regression: O(n) lookup)", () => {
+    // Just a smoke test — with the old O(n²) `find` lookup, building a
+    // tree of 5000 siblings took noticeably long. We don't time the
+    // call (flaky in CI); we just exercise the path to make sure the
+    // builder doesn't blow up and produces the right shape.
+    const paths = Array.from({ length: 5000 }, (_, i) => `pkg/file_${i}.ts`);
+    const root = buildFileTree(paths);
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].name).toBe("pkg");
+    expect(root.children[0].children).toHaveLength(5000);
+  });
 });

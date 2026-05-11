@@ -309,9 +309,13 @@ describe("FilesTab", () => {
     expect(iframe.getAttribute("src")).toMatch(
       new RegExp(`^${staticUrl.replace(/[/.]/g, "\\$&")}\\?v=\\d+$`),
     );
-    // The iframe must not be sandboxed away from itself — relative asset
-    // refs in the served HTML rely on the same-origin static fileserver.
-    expect(iframe).not.toHaveAttribute("sandbox");
+    // The iframe is sandboxed with `allow-same-origin` only: relative
+    // asset refs (CSS, images) load from the workspace fileserver
+    // origin, but `<script>` / inline event handlers inside the
+    // previewed file are inert. We deliberately do NOT add
+    // `allow-scripts` — a workspace HTML file's scripts must not run in
+    // the canvas's context.
+    expect(iframe).toHaveAttribute("sandbox", "allow-same-origin");
   });
 
   it("switches between rich and plain content modes", async () => {

@@ -56,21 +56,46 @@ const VALID_CONVERSATION_TABS: ReadonlySet<ConversationTab> = new Set([
   "tasklist",
 ]);
 
+// Tab keys that *used to* exist and were removed during the Files tab
+// refactor. We strip these out of any persisted state on read so that
+// returning users don't keep ghost entries (in `selectedTab` or
+// `unpinnedTabs`) forever — the UI has no way to surface them again to
+// be re-pinned or re-selected. We deliberately use an explicit denylist
+// here rather than a strict "whitelist against VALID_CONVERSATION_TABS"
+// filter because `unpinnedTabs` is typed `string[]` and other parts of
+// the app legitimately store arbitrary tab keys in it (sub-conversation
+// tab ids etc.).
+const REMOVED_CONVERSATION_TABS: ReadonlySet<string> = new Set([
+  "editor",
+  "served",
+  "changes",
+  "app",
+]);
+
 function sanitizeStoredState(
   stored: Partial<ConversationState>,
 ): Partial<ConversationState> {
-  // Drop selectedTab values that no longer correspond to a real tab (e.g.
-  // "editor" or "served" persisted before the Files tab refactor) so the
-  // default fallback is applied instead.
+  let result: Partial<ConversationState> = stored;
+
   if (
-    stored.selectedTab != null &&
-    !VALID_CONVERSATION_TABS.has(stored.selectedTab as ConversationTab)
+    result.selectedTab != null &&
+    (REMOVED_CONVERSATION_TABS.has(result.selectedTab) ||
+      !VALID_CONVERSATION_TABS.has(result.selectedTab as ConversationTab))
   ) {
-    const rest = { ...stored };
-    delete rest.selectedTab;
-    return rest;
+    result = { ...result };
+    delete result.selectedTab;
   }
-  return stored;
+
+  if (result.unpinnedTabs) {
+    const filtered = result.unpinnedTabs.filter(
+      (tab) => !REMOVED_CONVERSATION_TABS.has(tab),
+    );
+    if (filtered.length !== result.unpinnedTabs.length) {
+      result = { ...result, unpinnedTabs: filtered };
+    }
+  }
+
+  return result;
 }
 
 /**

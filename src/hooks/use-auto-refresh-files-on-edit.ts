@@ -44,17 +44,26 @@ export function useAutoRefreshFilesOnEdit(): void {
     (state) => state.bump,
   );
 
-  // Only react to events we haven't seen yet. We compare against the last
-  // processed array length rather than tracking individual ids — the store
-  // is append-only (sort-on-insert happens but ids stay unique), so this
-  // is a cheap conservative bound.
-  const processedCountRef = useRef(0);
+  // Track which event ids we've already reacted to. The event store
+  // re-sorts on insert when out-of-order events arrive (an older event
+  // can land *between* two newer ones already in the array), so we
+  // cannot rely on a `slice(processedCount)` trick — that would miss a
+  // late-arriving older event because the array length grew but the
+  // tail we just diffed didn't contain it. Using a Set of ids is
+  // O(events) per render in the worst case but small in practice and
+  // immune to reordering.
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const newEvents = events.slice(processedCountRef.current);
-    processedCountRef.current = events.length;
+    const newMutationEvents: OHEvent[] = [];
+    for (const event of events) {
+      if (!processedIdsRef.current.has(event.id)) {
+        processedIdsRef.current.add(event.id);
+        if (isFileMutationObservation(event)) newMutationEvents.push(event);
+      }
+    }
 
-    if (!newEvents.some(isFileMutationObservation)) return;
+    if (newMutationEvents.length === 0) return;
 
     queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
     queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
