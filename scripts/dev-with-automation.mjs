@@ -332,7 +332,6 @@ function checkPrerequisites() {
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
-    join(config.stateDir, "tmux"),
     join(config.stateDir, "conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
