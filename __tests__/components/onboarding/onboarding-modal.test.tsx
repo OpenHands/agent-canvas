@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -185,6 +185,45 @@ describe("OnboardingModal", () => {
     await user.click(screen.getByTestId("onboarding-skip"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
+    // Arrange + act: render the modal once.
+    renderModal();
+
+    // Assert: the slide rail lives inside the scroll region. Long step
+    // content overflows this region rather than the modal itself, so
+    // the progress bar and Skip control above it never scroll away.
+    const scrollArea = screen.getByTestId("onboarding-scroll-area");
+    const rail = screen.getByTestId("onboarding-slide-rail");
+    expect(scrollArea.contains(rail)).toBe(true);
+  });
+
+  it("keeps the LLM step heading and Back/Next outside the scrollable settings body", async () => {
+    // Arrange: render the modal and walk through to the LLM step.
+    renderModal();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+
+    // Act: locate the step's scrollable settings wrapper and the chrome
+    // around it that the user expects to remain visible.
+    const step = screen.getByTestId("onboarding-step-setup-llm");
+    const settings = within(step).getByTestId("onboarding-llm-settings");
+    const heading = within(step).getByRole("heading", { level: 2 });
+    const back = within(step).getByTestId("onboarding-llm-back");
+    const next = within(step).getByTestId("onboarding-llm-next");
+
+    // Assert: heading and footer buttons are siblings of the settings
+    // body, not descendants. Anything moved inside the settings wrapper
+    // would scroll out of view on the All tab — this is the invariant
+    // the fix relies on.
+    expect(settings.contains(heading)).toBe(false);
+    expect(settings.contains(back)).toBe(false);
+    expect(settings.contains(next)).toBe(false);
   });
 
   it("pre-fills the say-hello input with the default greeting on step 3", async () => {

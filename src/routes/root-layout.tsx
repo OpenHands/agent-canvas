@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  useRouteError,
-  isRouteErrorResponse,
-  Outlet,
-  useLocation,
-} from "react-router";
+import { useRouteError, isRouteErrorResponse, Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
@@ -13,7 +8,6 @@ import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { cn } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
@@ -70,7 +64,6 @@ export function ErrorBoundary() {
 
 export default function MainApp() {
   const appTitle = useAppTitle();
-  const { pathname } = useLocation();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
@@ -105,23 +98,11 @@ export default function MainApp() {
     );
   }
 
-  let rootLayoutPaddingClass = "p-0 md:p-3 md:pl-0";
-  if (
-    pathname === "/" ||
-    pathname.startsWith("/automations") ||
-    pathname.startsWith("/conversations")
-  ) {
-    rootLayoutPaddingClass = "p-0";
-  }
-
   return (
     <ReactRouterNavigationProvider>
       <div
         data-testid="root-layout"
-        className={cn(
-          "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-          rootLayoutPaddingClass,
-        )}
+        className="h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden p-0"
       >
         <title>{appTitle}</title>
         <Sidebar />

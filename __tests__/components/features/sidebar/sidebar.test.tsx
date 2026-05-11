@@ -152,6 +152,21 @@ describe("Sidebar", () => {
     expect(remountedSidebar?.dataset.collapsed).toBe("true");
   });
 
+  it("expands the sidebar when the toggle is clicked from the collapsed state", () => {
+    // Arrange: simulate a user whose sidebar was previously collapsed.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    // Act
+    fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
+
+    // Assert: state flips back to expanded and the inline settings submenu
+    // toggle (rendered only when expanded) reappears.
+    const sidebar = screen.getByRole("navigation").parentElement;
+    expect(sidebar?.dataset.collapsed).toBe("false");
+    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
+  });
+
   it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {
     renderSidebar("/conversations");
 

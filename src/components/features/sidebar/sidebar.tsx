@@ -142,7 +142,7 @@ export function Sidebar() {
         aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
         data-collapsed={collapsed ? "true" : "false"}
         className={cn(
-          "bg-base flex flex-col gap-3 transition-[width] duration-200",
+          "bg-base flex flex-col gap-3 transition-[width,min-width] duration-200",
           // Mobile: top bar; Desktop: vertical column. Width responds to
           // the collapsed state on md+ screens.
           "h-[54px] md:h-full",

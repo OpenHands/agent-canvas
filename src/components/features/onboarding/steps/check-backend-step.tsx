@@ -106,7 +106,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         onSubmitted={() => {}}
         testIdRoot="onboarding-backend"
         renderActions={({ canSubmit, testIdRoot }) => (
-          <div className="flex items-center justify-between gap-2 mt-2">
+          <div className="sticky bottom-0 flex items-center justify-between gap-2 mt-2 bg-base-secondary pt-4 pb-7">
             <BrandButton
               testId="onboarding-backend-back"
               type="button"

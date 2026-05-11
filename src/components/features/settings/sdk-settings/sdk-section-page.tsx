@@ -425,8 +425,27 @@ export function SdkSectionPage({
 
   if (Object.keys(values).length === 0) return <LlmSettingsInputsSkeleton />;
 
+  // In embedded mode the form body owns scrolling so the surrounding
+  // chrome (heading, tabs, footer) stays pinned. Otherwise we keep the
+  // historical block layout, reserving `pb-20` for the sticky Save bar
+  // when it is rendered.
+  let bodyClassName: string;
+  if (embedded) {
+    bodyClassName =
+      "flex-1 min-h-0 overflow-y-auto custom-scrollbar-always flex flex-col gap-8";
+  } else if (hideSaveButton) {
+    bodyClassName = "flex flex-col gap-8";
+  } else {
+    bodyClassName = "flex flex-col gap-8 pb-20";
+  }
+
   return (
-    <div data-testid={testId} className="h-full relative">
+    <div
+      data-testid={testId}
+      className={
+        embedded ? "relative flex-1 min-h-0 flex flex-col" : "h-full relative"
+      }
+    >
       <ViewToggle
         view={view}
         setView={setView}
@@ -435,16 +454,7 @@ export function SdkSectionPage({
         isDisabled={isReadOnly}
       />
 
-      {/* `pb-20` reserves space for the sticky Save button. When the
-          button is hidden (or rendered inline via `embedded`) that
-          padding becomes a meaningless gap, so collapse it. */}
-      <div
-        className={
-          embedded || hideSaveButton
-            ? "flex flex-col gap-8"
-            : "flex flex-col gap-8 pb-20"
-        }
-      >
+      <div className={bodyClassName}>
         {header?.({
           values,
           isDisabled: isReadOnly,
