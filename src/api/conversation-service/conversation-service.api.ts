@@ -19,23 +19,10 @@ const FILE_UPLOAD_CONCURRENCY = 5;
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
 
-  static getCurrentConversation(): AppConversation | null {
-    return this.currentConversation;
-  }
-
   static setCurrentConversation(
     currentConversation: AppConversation | null,
   ): void {
     this.currentConversation = currentConversation;
-  }
-
-  static getConversationUrl(conversationId: string): string {
-    if (this.currentConversation?.id === conversationId) {
-      if (this.currentConversation.conversation_url) {
-        return this.currentConversation.conversation_url;
-      }
-    }
-    return `/api/conversations/${conversationId}`;
   }
 
   private static getClientOverrides() {

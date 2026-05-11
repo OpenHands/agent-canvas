@@ -27,10 +27,6 @@ class OptionService {
     };
   }
 
-  static async getSecurityAnalyzers(): Promise<string[]> {
-    return ["llm", "pattern", "policy_rail"];
-  }
-
   static async getConfig(): Promise<WebClientConfig> {
     await loadAgentServerInfo();
 

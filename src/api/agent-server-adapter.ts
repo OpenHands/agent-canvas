@@ -10,7 +10,6 @@ import {
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
-  GetHooksResponse,
   GetSkillsResponse,
   PluginSpec,
   AppConversation,
@@ -538,8 +537,4 @@ export async function loadSkillsForConversation(
   });
 
   return { skills: response.skills ?? [] };
-}
-
-export function emptyHooksResponse(): GetHooksResponse {
-  return { hooks: [] };
 }

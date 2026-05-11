@@ -29,9 +29,7 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
-  emptyHooksResponse,
   getDefaultConversationTitle,
-  loadSkillsForConversation,
   toAppConversation,
   toConversationPage,
 } from "../agent-server-adapter";
@@ -44,8 +42,6 @@ import {
   setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
-  GetHooksResponse,
-  GetSkillsResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -163,15 +159,6 @@ class AgentServerConversationService {
     return null;
   }
 
-  static async searchStartTasks(
-    limit: number = 100,
-  ): Promise<AppConversationStartTask[]> {
-    if (limit < 0) {
-      return [];
-    }
-    return [];
-  }
-
   static async getVSCodeUrl(
     conversationId: string,
     conversationUrl: string | null | undefined,
@@ -238,12 +225,6 @@ class AgentServerConversationService {
     return data.map((item) => (item ? toAppConversation(item) : null));
   }
 
-  static async getConversationConfig(
-    conversationId: string,
-  ): Promise<{ runtime_id: string }> {
-    return { runtime_id: conversationId };
-  }
-
   static async updateConversationPublicFlag(
     conversationId: string,
     isPublic: boolean,
@@ -301,20 +282,6 @@ class AgentServerConversationService {
     return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
       conversationId,
     );
-  }
-
-  static async getSkills(conversationId: string): Promise<GetSkillsResponse> {
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
-    return loadSkillsForConversation(conversation);
-  }
-
-  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
-    if (!conversationId) {
-      return emptyHooksResponse();
-    }
-    return emptyHooksResponse();
   }
 
   static async getRuntimeConversation(
