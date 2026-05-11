@@ -11848,9 +11848,6 @@
     "tr": "Entegrasyonlar",
     "uk": "Інтеграції"
   },
-  "SIDEBAR$MCP": {
-    "en": "MCP"
-  },
   "MCP$PAGE_DESCRIPTION": {
     "en": "Add Model Context Protocol servers to expand what your agent can do. Click any server below to install it."
   },
