@@ -77,6 +77,7 @@ jobs:
         env:
           PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
           PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
+          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           set -euo pipefail
           if [ ! -d ".pr" ]; then
@@ -106,6 +107,10 @@ jobs:
               git fetch origin "$PR_HEAD_REF"
               if ! git rebase FETCH_HEAD; then
                 echo "::error::Failed to rebase .pr cleanup commit. Manual resolution required."
+                exit 1
+              fi
+              if ! git merge-base --is-ancestor "$PR_HEAD_SHA" HEAD; then
+                echo "::error::Rebased .pr cleanup commit no longer descends from the approved PR head $PR_HEAD_SHA."
                 exit 1
               fi
               sleep 2

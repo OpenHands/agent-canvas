@@ -1,4 +1,9 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 export const BACKEND_URL =
   process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18100";
@@ -68,6 +73,22 @@ export async function routeBackendSessionApiKey(page: Page) {
       });
     },
   );
+}
+
+export function getLiveArtifactMask(page: Page): Locator[] {
+  return [
+    page.locator('input[type="password"]'),
+    page.locator('[data-sensitive="true"]'),
+    page.locator('[data-testid*="secret" i]'),
+    page.locator('[data-testid*="token" i]'),
+    page.locator('[data-testid*="api-key" i]'),
+    page.getByText(
+      /(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|LIVE_E2E_LLM_API_KEY|LLM_API_KEY|SESSION_API_KEY|X-Session-API-Key)\s*[:=]\s*\S+/i,
+    ),
+    page.getByText(
+      /(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|(?:api[_ -]?key|secret|password|token)\s*[:=]\s*\S+)/i,
+    ),
+  ];
 }
 
 export async function configureLiveAgentServer(request: APIRequestContext) {
@@ -447,7 +468,7 @@ export async function waitForSuccessfulBashObservation(
     .poll(
       async () => {
         const response = await request.get(
-          `${BACKEND_URL}/api/conversations/${conversationId}/events/search`,
+          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
           {
             headers: {
               "X-Session-API-Key": sessionApiKey,

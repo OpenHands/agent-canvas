@@ -81,6 +81,23 @@ function resolvedLLMModel(apiKeySource) {
   return DEFAULT_ANTHROPIC_MODEL;
 }
 
+function redactUrlForLog(value) {
+  if (!value || value.startsWith("(")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) {
+      url.username = "redacted";
+      url.password = "redacted";
+    }
+    return url.toString();
+  } catch {
+    return value.replace(/\/\/[^/@\s]+@/g, "//redacted:redacted@");
+  }
+}
+
 function ensureSessionApiKey() {
   if (hasValue("LIVE_E2E_SESSION_API_KEY")) {
     return;
@@ -118,9 +135,10 @@ The npm script loads .env automatically through Node's --env-file-if-exists flag
 }
 
 function printConfiguration(apiKeySource) {
+  const llmBaseUrl = resolvedLLMBaseUrl(apiKeySource);
   console.log("Live Agent Server E2E configuration:");
   console.log(`- LLM API key source: ${apiKeySource || "(missing)"}`);
-  console.log(`- LIVE_E2E_LLM_BASE_URL: ${resolvedLLMBaseUrl(apiKeySource)}`);
+  console.log(`- LIVE_E2E_LLM_BASE_URL: ${redactUrlForLog(llmBaseUrl)}`);
   console.log(`- LIVE_E2E_LLM_MODEL: ${resolvedLLMModel(apiKeySource)}`);
   console.log(
     `- LIVE_E2E_SESSION_API_KEY: ${
@@ -134,14 +152,14 @@ function printConfiguration(apiKeySource) {
   console.log(
     `- LIVE_E2E_BACKEND_URL: ${
       hasValue("LIVE_E2E_BACKEND_URL")
-        ? process.env.LIVE_E2E_BACKEND_URL.trim()
+        ? redactUrlForLog(process.env.LIVE_E2E_BACKEND_URL.trim())
         : `(default: ${DEFAULT_BACKEND_URL})`
     }`,
   );
   console.log(
     `- LIVE_E2E_FRONTEND_PORT: ${
       hasValue("LIVE_E2E_FRONTEND_PORT")
-        ? process.env.LIVE_E2E_FRONTEND_PORT.trim()
+        ? redactUrlForLog(process.env.LIVE_E2E_FRONTEND_PORT.trim())
         : `(default: ${DEFAULT_FRONTEND_PORT})`
     }`,
   );
@@ -197,7 +215,7 @@ function validateEnvironment() {
 async function runPlaywright(args) {
   const child = spawn(
     platformCommand("npx"),
-    ["playwright", "test", `--config=${PLAYWRIGHT_CONFIG}`, ...args],
+    ["playwright", "test", ...args, `--config=${PLAYWRIGHT_CONFIG}`],
     {
       stdio: "inherit",
     },

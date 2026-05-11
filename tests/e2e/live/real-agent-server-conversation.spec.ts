@@ -12,6 +12,7 @@ import {
   EXPECTED_REPLY_TOKEN,
   expandVisibleEventDetails,
   fillChatInput,
+  getLiveArtifactMask,
   getConversationIdFromURL,
   getOptionalConversationIdFromURL,
   guardAgainstPostHogRequests,
@@ -26,98 +27,116 @@ import {
   waitForTestId,
 } from "./utils/agent-server-conversation";
 
-const createdConversationIds = new Set<string>();
+test.describe("live Agent Server terminal conversation", () => {
+  const createdConversationIds = new Set<string>();
 
-async function deleteConversation(
-  request: APIRequestContext,
-  conversationId: string,
-) {
-  const response = await request.delete(
-    `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}`,
-    {
-      headers: {
-        "X-Session-API-Key": sessionApiKey,
+  async function deleteConversation(
+    request: APIRequestContext,
+    conversationId: string,
+  ) {
+    const response = await request.delete(
+      `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        headers: {
+          "X-Session-API-Key": sessionApiKey,
+        },
       },
-    },
-  );
-  if (response.ok() || response.status() === 404) {
-    createdConversationIds.delete(conversationId);
-    return;
+    );
+    if (response.ok() || response.status() === 404) {
+      createdConversationIds.delete(conversationId);
+      return;
+    }
+
+    throw new Error(
+      `Failed to clean up live E2E conversation ${conversationId}: ${response.status()}`,
+    );
   }
 
-  console.warn(
-    `Failed to clean up live E2E conversation ${conversationId}: ${response.status()}`,
-  );
-}
+  async function cleanupKnownConversations(request: APIRequestContext) {
+    const cleanupErrors: string[] = [];
 
-async function cleanupKnownConversations(request: APIRequestContext) {
-  for (const conversationId of Array.from(createdConversationIds)) {
-    await deleteConversation(request, conversationId);
-  }
-}
+    for (const conversationId of Array.from(createdConversationIds)) {
+      try {
+        await deleteConversation(request, conversationId);
+      } catch (error) {
+        cleanupErrors.push(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
 
-test.beforeEach(async ({ page }) => {
-  await enableLiveE2EFlags(page);
-});
-
-test.afterEach(async ({ page, request }) => {
-  const conversationId = getOptionalConversationIdFromURL(page);
-  if (conversationId) {
-    createdConversationIds.add(conversationId);
+    if (cleanupErrors.length > 0) {
+      throw new Error(cleanupErrors.join("\n"));
+    }
   }
 
-  await cleanupKnownConversations(request);
-});
-
-test.afterAll(async ({ request }) => {
-  await cleanupKnownConversations(request);
-});
-
-test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
-  page,
-  request,
-}, testInfo) => {
-  test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
-
-  await configureLiveAgentServer(request);
-  await routeBackendSessionApiKey(page);
-  const postHogGuard = await guardAgainstPostHogRequests(page);
-
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await dismissAnalyticsModal(page);
-  await clickButtonByTestIdOrText(
-    page,
-    "launch-new-conversation-button",
-    "New Conversation",
-  );
-  await openCreatedConversation(page);
-  const conversationId = getConversationIdFromURL(page);
-  createdConversationIds.add(conversationId);
-  await waitForTestId(page, "app-route");
-  await waitForTestId(page, "interactive-chat-box");
-
-  await fillChatInput(
-    page,
-    [
-      "Use the terminal/bash tool exactly once.",
-      `Run this exact command: ${EXPECTED_BASH_COMMAND}`,
-      `After the command succeeds, reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
-      "Do not use any other tools. Do not add any other text in the final reply.",
-    ].join("\n"),
-  );
-  await clickButtonByTestId(page, "submit-button");
-
-  await waitForAgentReply(page);
-  await waitForSuccessfulBashObservation(request, conversationId);
-  await expandVisibleEventDetails(page);
-  await waitForNonUserMessageText(page, EXPECTED_BASH_OUTPUT_TOKEN);
-
-  const screenshotPath = testInfo.outputPath("live-agent-response.png");
-  await page.getByTestId("app-route").screenshot({ path: screenshotPath });
-  await testInfo.attach("live-agent-response", {
-    path: screenshotPath,
-    contentType: "image/png",
+  test.beforeEach(async ({ page }) => {
+    await enableLiveE2EFlags(page);
   });
 
-  await postHogGuard.expectNoRequests();
+  test.afterEach(async ({ page, request }) => {
+    const conversationId = getOptionalConversationIdFromURL(page);
+    if (conversationId) {
+      createdConversationIds.add(conversationId);
+    }
+
+    await cleanupKnownConversations(request);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await cleanupKnownConversations(request);
+  });
+
+  test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
+
+    await configureLiveAgentServer(request);
+    await routeBackendSessionApiKey(page);
+    const postHogGuard = await guardAgainstPostHogRequests(page);
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await clickButtonByTestIdOrText(
+      page,
+      "launch-new-conversation-button",
+      "New Conversation",
+    );
+    await openCreatedConversation(page);
+    const conversationId = getConversationIdFromURL(page);
+    createdConversationIds.add(conversationId);
+    await waitForTestId(page, "app-route");
+    await waitForTestId(page, "chat-interface");
+    await waitForTestId(page, "interactive-chat-box");
+
+    await fillChatInput(
+      page,
+      [
+        "Use the terminal/bash tool exactly once.",
+        `Run this exact command: ${EXPECTED_BASH_COMMAND}`,
+        `After the command succeeds, reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
+        "Do not use any other tools. Do not add any other text in the final reply.",
+      ].join("\n"),
+    );
+    await clickButtonByTestId(page, "submit-button");
+
+    await waitForAgentReply(page);
+    await waitForSuccessfulBashObservation(request, conversationId);
+    await expandVisibleEventDetails(page);
+    await waitForNonUserMessageText(page, EXPECTED_BASH_OUTPUT_TOKEN);
+
+    const screenshotPath = testInfo.outputPath("live-agent-response.png");
+    await page.getByTestId("chat-interface").screenshot({
+      path: screenshotPath,
+      mask: getLiveArtifactMask(page),
+    });
+    await testInfo.attach("live-agent-response", {
+      path: screenshotPath,
+      contentType: "image/png",
+    });
+
+    await postHogGuard.expectNoRequests();
+  });
 });

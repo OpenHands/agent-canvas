@@ -94,27 +94,21 @@ describe("createRemoteWorkspace", () => {
     expect(result).toEqual([]);
   });
 
-  it("passes empty git ref options through to runtime git changes", async () => {
+  it("rejects empty git ref options for runtime git changes", async () => {
     const workspace = createRemoteWorkspace({
       host: "http://agent.example.com",
       apiKey: "session-key",
       workingDir: "/workspace/project",
     });
-    const getMock = vi
-      .spyOn(workspace.client, "get")
-      .mockResolvedValue(httpResponse([]));
 
-    const result = await workspace.gitChanges("/workspace/project", {
-      ref: "",
-    });
-
-    expect(getMock).toHaveBeenCalledWith("/api/git/changes", {
-      params: {
-        path: "/workspace/project",
-        ref: "",
-      },
-    });
-    expect(result).toEqual([]);
+    await expect(
+      workspace.gitChanges("/workspace/project", { ref: "" }),
+    ).rejects.toThrow("ref must be a non-empty string.");
+    await expect(
+      workspace.gitChanges("/workspace/project", {
+        ref: null as unknown as string,
+      }),
+    ).rejects.toThrow("ref must be a non-empty string.");
   });
 
   it("passes git ref options to the runtime git diff endpoint", async () => {
@@ -180,27 +174,21 @@ describe("createRemoteWorkspace", () => {
     expect(result).toEqual({ diff: "diff content" });
   });
 
-  it("passes empty git ref options through to runtime git diff", async () => {
+  it("rejects empty git ref options for runtime git diff", async () => {
     const workspace = createRemoteWorkspace({
       host: "http://agent.example.com",
       apiKey: "session-key",
       workingDir: "/workspace/project",
     });
-    const getMock = vi
-      .spyOn(workspace.client, "get")
-      .mockResolvedValue(httpResponse({ diff: "diff content" }));
 
-    const result = await workspace.gitDiff("/workspace/project/file.ts", {
-      ref: "",
-    });
-
-    expect(getMock).toHaveBeenCalledWith("/api/git/diff", {
-      params: {
-        path: "/workspace/project/file.ts",
-        ref: "",
-      },
-    });
-    expect(result).toEqual({ diff: "diff content" });
+    await expect(
+      workspace.gitDiff("/workspace/project/file.ts", { ref: "" }),
+    ).rejects.toThrow("ref must be a non-empty string.");
+    await expect(
+      workspace.gitDiff("/workspace/project/file.ts", {
+        ref: null as unknown as string,
+      }),
+    ).rejects.toThrow("ref must be a non-empty string.");
   });
 
   it("rejects empty runtime workspace parameters", async () => {

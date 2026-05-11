@@ -178,6 +178,9 @@ export function createRemoteWorkspace(
     },
     gitChanges: async (path: string, options?: GitRefOptions) => {
       assertNonEmptyString("path", path);
+      if (options?.ref !== undefined) {
+        assertNonEmptyString("ref", options.ref);
+      }
 
       const response = await baseWorkspace.client.get<RemoteGitChanges>(
         "/api/git/changes",
@@ -192,6 +195,9 @@ export function createRemoteWorkspace(
     },
     gitDiff: async (path: string, options?: GitRefOptions) => {
       assertNonEmptyString("path", path);
+      if (options?.ref !== undefined) {
+        assertNonEmptyString("ref", options.ref);
+      }
 
       const response = await baseWorkspace.client.get<RemoteGitDiff>(
         "/api/git/diff",
