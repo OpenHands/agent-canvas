@@ -38,6 +38,20 @@ function requireValue(name, value) {
   return value;
 }
 
+function validateRepo(repo) {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    throw new Error(`Invalid repo format: ${repo}`);
+  }
+  return repo;
+}
+
+function validateIssueNumber(issueNumber) {
+  if (!/^\d+$/.test(String(issueNumber))) {
+    throw new Error(`Invalid issue number: ${issueNumber}`);
+  }
+  return String(issueNumber);
+}
+
 async function githubRequest(method, path, token, body) {
   const response = await fetch(`${API_ROOT}${path}`, {
     method,
@@ -89,7 +103,10 @@ async function main() {
     return;
   }
 
-  const repo = requireValue("repo", args.repo ?? process.env.GITHUB_REPOSITORY);
+  const repo = validateRepo(
+    requireValue("repo", args.repo ?? process.env.GITHUB_REPOSITORY),
+  );
+  const validatedIssueNumber = validateIssueNumber(issueNumber);
   const token = requireValue(
     "token",
     args.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN,
@@ -102,7 +119,7 @@ async function main() {
     body = `${marker}\n${body}`;
   }
 
-  const comments = await listIssueComments(repo, issueNumber, token);
+  const comments = await listIssueComments(repo, validatedIssueNumber, token);
   const existing = comments.find((comment) => comment.body?.includes(marker));
 
   if (existing) {
@@ -118,7 +135,7 @@ async function main() {
 
   const created = await githubRequest(
     "POST",
-    `/repos/${repo}/issues/${issueNumber}/comments`,
+    `/repos/${repo}/issues/${validatedIssueNumber}/comments`,
     token,
     { body },
   );

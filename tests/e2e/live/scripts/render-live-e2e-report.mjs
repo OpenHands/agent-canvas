@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 
 const DEFAULT_MARKER = "<!-- agent-canvas-live-e2e-report -->";
 
@@ -28,6 +29,15 @@ function parseArgs(argv) {
     }
   }
   return args;
+}
+
+function resolveWithinCwd(label, filePath) {
+  const resolvedPath = resolve(filePath);
+  const relativePath = relative(resolve("."), resolvedPath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`${label} must be within the current working directory.`);
+  }
+  return resolvedPath;
 }
 
 function readJson(path) {
@@ -438,7 +448,7 @@ const args = parseArgs(process.argv.slice(2));
 const report = buildReport(args);
 
 if (args.output) {
-  writeFileSync(args.output, report);
+  writeFileSync(resolveWithinCwd("output", args.output), report);
 } else {
   process.stdout.write(report);
 }

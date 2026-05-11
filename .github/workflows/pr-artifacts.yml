@@ -55,6 +55,11 @@ jobs:
           git config user.name "allhands-bot"
           git config user.email "allhands-bot@users.noreply.github.com"
           git rm -rf .pr/
+          if git diff --cached --quiet; then
+            echo "removed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No tracked .pr files to remove."
+            exit 0
+          fi
           git commit -m "chore: Remove PR-only artifacts"
           git push
           echo "removed=true" >> "$GITHUB_OUTPUT"

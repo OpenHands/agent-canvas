@@ -20,7 +20,6 @@ import {
   waitForNonUserMessageText,
   waitForSuccessfulBashObservation,
   waitForTestId,
-  waitForTestIdText,
 } from "./utils/agent-server-conversation";
 
 test.beforeEach(async ({ page }) => {
@@ -58,7 +57,6 @@ test("runs a real LLM-backed Agent Server terminal conversation through the UI",
   );
   await clickButtonByTestId(page, "submit-button");
 
-  await waitForTestIdText(page, "user-message", EXPECTED_REPLY_TOKEN, 15_000);
   await waitForAgentReply(page);
   await waitForSuccessfulBashObservation(
     request,

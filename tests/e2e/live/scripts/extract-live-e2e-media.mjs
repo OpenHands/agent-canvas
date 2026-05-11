@@ -9,7 +9,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { extname, join, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
 
 function parseArgs(argv) {
   const args = {};
@@ -35,6 +35,15 @@ function parseArgs(argv) {
     }
   }
   return args;
+}
+
+function resolveWithinCwd(label, filePath) {
+  const resolvedPath = resolve(filePath);
+  const relativePath = relative(resolve("."), resolvedPath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`${label} must be within the current working directory.`);
+  }
+  return resolvedPath;
 }
 
 function readJson(path) {
@@ -127,9 +136,18 @@ function writeOutput(key, value) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const resultsPath = args.results || "test-results-live/results.json";
-  const testResultsDir = args.test_results_dir || "test-results-live";
-  const outputDir = args.output_dir || "test-results-live/media";
+  const resultsPath = resolveWithinCwd(
+    "results",
+    args.results || "test-results-live/results.json",
+  );
+  const testResultsDir = resolveWithinCwd(
+    "test-results-dir",
+    args.test_results_dir || "test-results-live",
+  );
+  const outputDir = resolveWithinCwd(
+    "output-dir",
+    args.output_dir || "test-results-live/media",
+  );
   const results = readJson(resultsPath);
 
   const attachments = collectPlaywrightAttachments(results);

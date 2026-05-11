@@ -1,7 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 
+const configuredLiveE2ESessionApiKey =
+  process.env.LIVE_E2E_SESSION_API_KEY?.trim();
 const liveE2ESessionApiKey =
-  process.env.LIVE_E2E_SESSION_API_KEY ?? "live-e2e-session-key";
+  configuredLiveE2ESessionApiKey || randomBytes(32).toString("hex");
+process.env.LIVE_E2E_SESSION_API_KEY = liveE2ESessionApiKey;
 const liveE2EFrontendPort = process.env.LIVE_E2E_FRONTEND_PORT ?? "3101";
 const liveE2EBackendURL =
   process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18100";
@@ -35,7 +39,6 @@ export default defineConfig({
     extraHTTPHeaders: {
       "X-Session-API-Key": liveE2ESessionApiKey,
     },
-    ignoreHTTPSErrors: true,
     screenshot: "only-on-failure",
     trace: "off",
     video: "on",
@@ -48,7 +51,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "rm -rf .tmp/live-e2e-state node_modules/.vite && " +
+      "node -e \"const fs=require('node:fs'); for (const p of ['.tmp/live-e2e-state','node_modules/.vite']) fs.rmSync(p,{recursive:true,force:true});\" && " +
       [
         "OH_CANVAS_SAFE_STATE_DIR=.tmp/live-e2e-state",
         envAssignment("SESSION_API_KEY", liveE2ESessionApiKey),

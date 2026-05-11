@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -15,10 +16,11 @@ const DEFAULT_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev";
 const DEFAULT_PROXY_MODEL = "openhands/claude-haiku-4-5-20251001";
 const DEFAULT_OPENAI_MODEL = "openai/gpt-5.4-mini";
 const DEFAULT_ANTHROPIC_MODEL = "anthropic/claude-haiku-4-5-20251001";
-const DEFAULT_SESSION_API_KEY = "live-e2e-session-key";
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:18100";
 const DEFAULT_FRONTEND_PORT = "3101";
 const PLAYWRIGHT_CONFIG = "playwright.live.config.ts";
+
+let generatedSessionApiKey = false;
 
 function hasValue(name) {
   return Boolean(process.env[name]?.trim());
@@ -76,6 +78,14 @@ function resolvedLLMModel(apiKeySource) {
   return DEFAULT_ANTHROPIC_MODEL;
 }
 
+function ensureSessionApiKey() {
+  if (hasValue("LIVE_E2E_SESSION_API_KEY")) {
+    return;
+  }
+  process.env.LIVE_E2E_SESSION_API_KEY = randomBytes(32).toString("hex");
+  generatedSessionApiKey = true;
+}
+
 function printUsage() {
   console.log(`
 Run the live Agent Server end-to-end test locally.
@@ -96,7 +106,7 @@ Required:
 Optional:
   - LIVE_E2E_LLM_BASE_URL
   - LIVE_E2E_LLM_MODEL
-  - LIVE_E2E_SESSION_API_KEY
+  - LIVE_E2E_SESSION_API_KEY (generated per run when unset)
   - LIVE_E2E_BACKEND_URL
   - LIVE_E2E_FRONTEND_PORT
 
@@ -112,8 +122,10 @@ function printConfiguration(apiKeySource) {
   console.log(
     `- LIVE_E2E_SESSION_API_KEY: ${
       hasValue("LIVE_E2E_SESSION_API_KEY")
-        ? "(configured)"
-        : `(default: ${DEFAULT_SESSION_API_KEY})`
+        ? generatedSessionApiKey
+          ? "(generated for this run)"
+          : "(configured)"
+        : "(missing)"
     }`,
   );
   console.log(
@@ -133,6 +145,7 @@ function printConfiguration(apiKeySource) {
 }
 
 function validateEnvironment() {
+  ensureSessionApiKey();
   const apiKeySource = firstConfiguredEnvVar(REQUIRED_LLM_API_KEY_ENV_VARS);
   const errors = [];
 

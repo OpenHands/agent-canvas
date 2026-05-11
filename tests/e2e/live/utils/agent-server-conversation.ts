@@ -36,13 +36,16 @@ const llmModel =
     : openAIKey?.trim()
       ? "openai/gpt-5.4-mini"
       : "anthropic/claude-haiku-4-5-20251001");
-const sessionApiKey =
-  firstNonEmpty(
-    process.env.LIVE_E2E_SESSION_API_KEY,
-    process.env.SESSION_API_KEY,
-    process.env.OH_SESSION_API_KEYS_0,
-    process.env.VITE_SESSION_API_KEY,
-  ) || "live-e2e-session-key";
+const sessionApiKey = firstNonEmpty(
+  process.env.LIVE_E2E_SESSION_API_KEY,
+  process.env.SESSION_API_KEY,
+  process.env.OH_SESSION_API_KEYS_0,
+  process.env.VITE_SESSION_API_KEY,
+);
+
+if (!sessionApiKey) {
+  throw new Error("LIVE_E2E_SESSION_API_KEY must be set for live E2E.");
+}
 
 export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
@@ -77,9 +80,10 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
       },
     },
   });
+  const settingsResponseText = await settingsResponse.text();
   expect(
     settingsResponse.ok(),
-    `PATCH /api/settings failed with ${settingsResponse.status()}: ${await settingsResponse.text()}`,
+    `PATCH /api/settings failed with ${settingsResponse.status()}: ${settingsResponseText}`,
   ).toBeTruthy();
 }
 
@@ -279,29 +283,6 @@ export async function fillChatInput(page: Page, text: string) {
   }, text);
 }
 
-export async function waitForTestIdText(
-  page: Page,
-  testId: string,
-  text: string,
-  timeout = 60_000,
-) {
-  await expect
-    .poll(
-      async () =>
-        page
-          .evaluate(
-            ({ testId, text }) =>
-              Array.from(
-                document.querySelectorAll(`[data-testid="${testId}"]`),
-              ).some((element) => element.textContent?.includes(text)),
-            { testId, text },
-          )
-          .catch(() => false),
-      { timeout },
-    )
-    .toBe(true);
-}
-
 export async function waitForNonUserMessageText(page: Page, text: string) {
   await expect
     .poll(
@@ -391,8 +372,8 @@ function eventTextContent(event: unknown) {
     return "";
   }
 
-  const content = (event as { observation?: { content?: unknown } })
-    .observation?.content;
+  const content = (event as { observation?: { content?: unknown } }).observation
+    ?.content;
   if (!Array.isArray(content)) {
     return "";
   }
