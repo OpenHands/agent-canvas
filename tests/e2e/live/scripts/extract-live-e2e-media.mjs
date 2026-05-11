@@ -118,10 +118,11 @@ function copyMedia(sourcePath, outputDir, targetBase, fallbackExt) {
     return "";
   }
 
+  const safeSourcePath = resolveWithinCwd("media source", sourcePath);
   mkdirSync(outputDir, { recursive: true });
-  const ext = extname(sourcePath) || fallbackExt;
+  const ext = extname(safeSourcePath) || fallbackExt;
   const targetPath = join(outputDir, `${targetBase}${ext}`);
-  copyFileSync(sourcePath, targetPath);
+  copyFileSync(safeSourcePath, targetPath);
   return targetPath;
 }
 
