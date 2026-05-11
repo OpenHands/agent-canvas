@@ -20348,6 +20348,15 @@
     "uk": "Ця розмова не існує або у вас немає дозволу на доступ до неї. Якщо це ваша розмова, спробуйте перейти до робочої області, де вона була створена.",
     "ca": "Aquesta conversa no existeix o no teniu permís per accedir-hi."
   },
+  "CONVERSATION$LOAD_ERROR_LABEL": {
+    "en": "Conversation unavailable"
+  },
+  "CONVERSATION$LOAD_ERROR_TITLE": {
+    "en": "We couldn't load this conversation"
+  },
+  "CONVERSATION$LOAD_ERROR_HINT": {
+    "en": "Verify that the selected backend points to the expected agent server, that the session key matches, and that the agent server is up to date."
+  },
   "CONVERSATION$FAILED_TO_START_WITH_ERROR": {
     "en": "Failed to start conversation: {{error}}",
     "ja": "会話の開始に失敗しました: {{error}}",

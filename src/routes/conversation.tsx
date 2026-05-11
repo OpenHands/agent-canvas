@@ -23,6 +23,37 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
 
+function getConversationLoadErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Unable to load conversation.";
+}
+
+function ConversationLoadError({ error }: { error: unknown }) {
+  const { t } = useTranslation("openhands");
+  const message = getConversationLoadErrorMessage(error);
+
+  return (
+    <main
+      data-testid="conversation-load-error"
+      className="flex min-h-screen w-full items-center justify-center bg-base px-6 text-white"
+    >
+      <section className="max-w-2xl rounded-2xl border border-danger/40 bg-tertiary p-8 shadow-xl">
+        <p className="mb-3 text-sm font-medium uppercase tracking-wide text-danger">
+          {t(I18nKey.CONVERSATION$LOAD_ERROR_LABEL)}
+        </p>
+        <h1 className="mb-4 text-2xl font-semibold text-white">
+          {t(I18nKey.CONVERSATION$LOAD_ERROR_TITLE)}
+        </h1>
+        <p className="text-sm leading-6 text-neutral-300">{message}</p>
+        <p className="mt-4 text-sm leading-6 text-neutral-400">
+          {t(I18nKey.CONVERSATION$LOAD_ERROR_HINT)}
+        </p>
+      </section>
+    </main>
+  );
+}
+
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
@@ -30,7 +61,12 @@ function AppContent() {
 
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
-  const { data: conversation, isFetched } = useActiveConversation();
+  const {
+    data: conversation,
+    error: conversationError,
+    isError: conversationIsError,
+    isFetched,
+  } = useActiveConversation();
   const { data: isAuthed } = useIsAuthed();
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
@@ -71,13 +107,17 @@ function AppContent() {
   }, [isTask, taskStatus, taskDetail, t]);
 
   React.useEffect(() => {
-    if (!isFetched || !isAuthed) return;
+    if (!isFetched || !isAuthed || conversationIsError) return;
 
     if (!conversation) {
       displayErrorToast(t(I18nKey.CONVERSATION$NOT_EXIST_OR_NO_PERMISSION));
       navigate("/conversations");
     }
-  }, [conversation, isFetched, isAuthed, navigate, t]);
+  }, [conversation, conversationIsError, isFetched, isAuthed, navigate, t]);
+
+  if (conversationIsError) {
+    return <ConversationLoadError error={conversationError} />;
+  }
 
   const content = (
     <EventHandler>
