@@ -110,7 +110,7 @@
     "@types/react-syntax-highlighter": "15.5.13",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
-    "@vercel/react-router": "1.2.6",
+    "@vercel/react-router": "1.3.0",
     "@vitest/coverage-v8": "4.1.5",
     "cross-env": "10.1.0",
     "eslint": "8.57.1",
