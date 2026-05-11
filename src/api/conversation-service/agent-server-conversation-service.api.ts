@@ -133,11 +133,19 @@ class AgentServerConversationService {
     );
     const { data } = response;
 
-    if (metadata?.selected_repository) {
-      // The agent-server runtime has no concept of selected repo/branch, so
-      // persist the home-page selection client-side. toAppConversation
-      // reads the same store when the chat page hydrates the badges.
-      setStoredConversationMetadata(data.id, metadata);
+    if (metadata?.selected_repository || workingDirOverride) {
+      // The agent-server runtime has no concept of selected repo/branch/
+      // workspace, so persist the home-page selection client-side.
+      // `toAppConversation` reads the repo/branch fields back to hydrate
+      // the chat-page badges; `useHasAttachedSource` reads
+      // `selected_workspace` to default the Files tab to Diff mode when
+      // the user explicitly attached a local workspace.
+      setStoredConversationMetadata(data.id, {
+        selected_repository: metadata?.selected_repository ?? null,
+        selected_branch: metadata?.selected_branch ?? null,
+        git_provider: metadata?.git_provider ?? null,
+        selected_workspace: workingDirOverride ?? null,
+      });
     }
 
     return {

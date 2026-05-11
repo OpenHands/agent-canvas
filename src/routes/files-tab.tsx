@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
-import { useIsGitRepo } from "#/hooks/use-is-git-repo";
+import { useHasAttachedSource } from "#/hooks/use-has-attached-source";
 import { useHasGitCommits } from "#/hooks/query/use-has-git-commits";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
@@ -31,21 +31,24 @@ function FilesTab() {
   // Keep the list / content / diff caches fresh as the agent writes files.
   useAutoRefreshFilesOnEdit();
 
-  const { isGitRepo, isLoading: isGitRepoLoading } = useIsGitRepo();
-  // A repo with zero commits has no diff base to compare against, so the
-  // diff view would just be empty / misleading. Only probe when we already
-  // believe there's a repo — saves a workspace round trip on every plain
-  // (non-git) conversation.
-  const { hasCommits } = useHasGitCommits({ enabled: isGitRepo });
+  const { hasAttachedSource, isLoading: isAttachedSourceLoading } =
+    useHasAttachedSource();
+  // A workspace with zero commits has no diff base to compare against, so
+  // the diff view would just be empty / misleading. Only probe when we
+  // already believe the user attached a source — saves a workspace round
+  // trip on every plain (no-attachment) conversation.
+  const { hasCommits } = useHasGitCommits({ enabled: hasAttachedSource });
 
-  // Diff view defaults to ON inside an existing git repo *with at least
-  // one commit*, OFF otherwise (no repo, or repo with no commits yet).
+  // Diff view defaults to ON when the user attached a source (repo or
+  // local workspace) *and* there's at least one commit, OFF otherwise
+  // (no attachment, or attachment with no commits yet).
   //
-  // While the repo / commit probes are still resolving we stay optimistic
-  // — most conversations live in a real repo, so defaulting to diff during
-  // the brief loading window avoids a "files → diff" flash on initial
-  // load. We only flip to files-view once `isGitRepo` *or* `hasCommits`
-  // definitively resolves false. The user's persisted choice always wins.
+  // While the attachment / commit probes are still resolving we stay
+  // optimistic — most attached conversations live in a real repo, so
+  // defaulting to diff during the brief loading window avoids a
+  // "files → diff" flash on initial load. We only flip to files-view
+  // once `hasAttachedSource` *or* `hasCommits` definitively resolves
+  // false. The user's persisted choice always wins.
   const { conversationId } = useOptionalConversationId();
   const {
     state: persistedState,
@@ -54,7 +57,7 @@ function FilesTab() {
   } = useConversationLocalStorageState(conversationId ?? "");
 
   const diffViewDefault =
-    (isGitRepo || isGitRepoLoading) && hasCommits !== false;
+    (hasAttachedSource || isAttachedSourceLoading) && hasCommits !== false;
   const diffViewEnabled = persistedState.filesTabDiffView ?? diffViewDefault;
   const contentViewMode = persistedState.filesTabContentViewMode;
 

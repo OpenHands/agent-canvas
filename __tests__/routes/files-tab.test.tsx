@@ -8,14 +8,14 @@ import { MemoryRouter } from "react-router";
 import FilesTab from "#/routes/files-tab";
 
 // Mocks must be declared before the SUT is imported.
-const useIsGitRepoMock = vi.fn();
+const useHasAttachedSourceMock = vi.fn();
 const useHasGitCommitsMock = vi.fn();
 const useWorkspaceFilesMock = vi.fn();
 const useWorkspaceFileContentMock = vi.fn();
 const refetchGitChangesMock = vi.fn();
 
-vi.mock("#/hooks/use-is-git-repo", () => ({
-  useIsGitRepo: () => useIsGitRepoMock(),
+vi.mock("#/hooks/use-has-attached-source", () => ({
+  useHasAttachedSource: () => useHasAttachedSourceMock(),
 }));
 
 vi.mock("#/hooks/query/use-has-git-commits", () => ({
@@ -58,7 +58,7 @@ function renderTab() {
 
 describe("FilesTab", () => {
   beforeEach(() => {
-    useIsGitRepoMock.mockReset();
+    useHasAttachedSourceMock.mockReset();
     useHasGitCommitsMock.mockReset();
     useWorkspaceFilesMock.mockReset();
     useWorkspaceFileContentMock.mockReset();
@@ -89,7 +89,7 @@ describe("FilesTab", () => {
   });
 
   it("defaults to diff view when working inside a git repo", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: true, isLoading: false });
 
     renderTab();
 
@@ -101,7 +101,7 @@ describe("FilesTab", () => {
   });
 
   it("defaults to files+rich view in a git repo with zero commits (unborn HEAD)", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: true, isLoading: false });
     useHasGitCommitsMock.mockReturnValue({
       hasCommits: false,
       isLoading: false,
@@ -118,7 +118,7 @@ describe("FilesTab", () => {
   });
 
   it("does NOT probe for commits when there is no attached repo", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
 
     renderTab();
 
@@ -129,7 +129,7 @@ describe("FilesTab", () => {
   });
 
   it("optimistically defaults to diff view while the has-commits probe is still loading", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: true, isLoading: false });
     useHasGitCommitsMock.mockReturnValue({
       hasCommits: null,
       isLoading: true,
@@ -143,7 +143,7 @@ describe("FilesTab", () => {
   });
 
   it("defaults to plain file viewer when not in a git repo", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
 
     renderTab();
 
@@ -156,7 +156,7 @@ describe("FilesTab", () => {
   });
 
   it("lets users toggle diff view off even when in a git repo", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: true, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: true, isLoading: false });
     const user = userEvent.setup();
 
     renderTab();
@@ -178,7 +178,7 @@ describe("FilesTab", () => {
   });
 
   it("auto-selects the highest-priority file on first render", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
 
     renderTab();
 
@@ -187,7 +187,7 @@ describe("FilesTab", () => {
   });
 
   it("renders the binary fallback in plain mode for binary files", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "logo.png",
@@ -214,7 +214,7 @@ describe("FilesTab", () => {
   });
 
   it("shows full file paths (not just basenames) as quick-row pills", () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
 
     renderTab();
 
@@ -224,7 +224,7 @@ describe("FilesTab", () => {
   });
 
   it("collapses the file tree by default and expands it via the caret", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     const user = userEvent.setup();
 
     renderTab();
@@ -240,7 +240,7 @@ describe("FilesTab", () => {
   });
 
   it("renders markdown content via MarkdownRenderer in rich mode", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     // Only expose a markdown file so it is auto-selected as the first
     // priority entry.
     useWorkspaceFilesMock.mockReturnValue({
@@ -287,7 +287,7 @@ describe("FilesTab", () => {
   });
 
   it("shows highlighted source (not rich markdown) when toggled to plain on a .md", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     useWorkspaceFilesMock.mockReturnValue({
       data: ["README.md"],
       isLoading: false,
@@ -325,7 +325,7 @@ describe("FilesTab", () => {
   });
 
   it("uses the static workspace URL as the iframe src for HTML files", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     useWorkspaceFilesMock.mockReturnValue({
       data: ["index.html"],
       isLoading: false,
@@ -364,7 +364,7 @@ describe("FilesTab", () => {
   });
 
   it("switches between rich and plain content modes", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     // Only `src/main.ts` is exposed so it auto-selects (otherwise the
     // priority sort picks `index.html` first and the assertion below
     // would see the markup grammar instead).
@@ -403,7 +403,7 @@ describe("FilesTab", () => {
   });
 
   it("shows the refresh button inside the files-tab toolbar and triggers a refetch", async () => {
-    useIsGitRepoMock.mockReturnValue({ isGitRepo: false, isLoading: false });
+    useHasAttachedSourceMock.mockReturnValue({ hasAttachedSource: false, isLoading: false });
     const user = userEvent.setup();
 
     renderTab();
