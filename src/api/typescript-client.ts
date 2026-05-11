@@ -39,15 +39,6 @@ interface GitRefOptions {
 type RemoteGitChanges = Awaited<ReturnType<RemoteWorkspace["gitChanges"]>>;
 type RemoteGitDiff = Awaited<ReturnType<RemoteWorkspace["gitDiff"]>>;
 
-type WorkspaceSessionResponse =
-  | string
-  | {
-      base_url?: string;
-      baseUrl?: string;
-      url?: string;
-      workspace_url?: string;
-    };
-
 export type AgentCanvasRemoteWorkspace = Omit<
   RemoteWorkspace,
   "gitChanges" | "gitDiff"
@@ -158,28 +149,6 @@ export function createRemoteEventsList(
   return new RemoteEventsList(createHttpClient(overrides), conversationId);
 }
 
-function normalizeWorkspaceSessionUrl(
-  host: string,
-  conversationId: string,
-  response: WorkspaceSessionResponse,
-) {
-  const value =
-    typeof response === "string"
-      ? response
-      : (response.base_url ??
-        response.baseUrl ??
-        response.workspace_url ??
-        response.url);
-
-  const url = value?.trim()
-    ? new URL(value, `${host.replace(/\/$/, "")}/`).toString()
-    : `${host.replace(/\/$/, "")}/api/conversations/${encodeURIComponent(
-        conversationId,
-      )}/workspace/`;
-
-  return url.endsWith("/") ? url : `${url}/`;
-}
-
 export function createRemoteWorkspace(
   overrides?: TypeScriptClientOverrides,
 ): AgentCanvasRemoteWorkspace {
@@ -191,12 +160,12 @@ export function createRemoteWorkspace(
   }) as AgentCanvasRemoteWorkspace;
 
   workspace.startWorkspaceSession = async (conversationId: string) => {
-    const response = await workspace.client.post<WorkspaceSessionResponse>(
+    const response = await workspace.client.post<string>(
       "/api/auth/workspace-session",
       { conversation_id: conversationId },
     );
 
-    return normalizeWorkspaceSessionUrl(host, conversationId, response.data);
+    return response.data;
   };
 
   workspace.gitChanges = async (path: string, options?: GitRefOptions) => {

@@ -72,21 +72,4 @@ describe("createRemoteWorkspace", () => {
       },
     });
   });
-
-  it("normalizes workspace-session responses into a trailing-slash base URL", async () => {
-    const workspace = createRemoteWorkspace({
-      host: "http://agent.example.com",
-      apiKey: "session-key",
-      workingDir: "/workspace/project",
-    });
-    vi.spyOn(workspace.client, "post").mockResolvedValue(
-      httpResponse({
-        base_url: "/api/conversations/conv-1/workspace",
-      }),
-    );
-
-    await expect(workspace.startWorkspaceSession("conv-1")).resolves.toBe(
-      "http://agent.example.com/api/conversations/conv-1/workspace/",
-    );
-  });
 });
