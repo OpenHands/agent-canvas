@@ -7,8 +7,8 @@ Welcome to Agent Canvas! This guide will walk you through installing Agent Canva
 Agent Canvas is a web interface for managing AI agents. With it, you can:
 
 - ⌨️ **Prompt agents manually** — Have conversations and give tasks to AI agents
-- 🕐 **Run agents on a schedule** — Automate recurring tasks
-- ⚡ **Trigger agents automatically** — Respond to events from Slack, GitHub, and more
+- 🕐 **Run agents on a schedule** — Automate recurring tasks with scheduled automations
+- 🔄 **Connect to multiple backends** — Switch between local and remote agent servers
 
 Agents can run on your laptop, a remote server, or in the cloud. This guide starts with a local setup, then shows you how to connect to OpenHands Cloud.
 
