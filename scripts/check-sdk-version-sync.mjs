@@ -3,12 +3,15 @@
 /**
  * Check SDK Version Sync
  *
- * Verifies that the automation project (openhands-automation) uses the same
- * SDK version as specified in dev-safe.mjs for all agent SDK libraries:
+ * Verifies that the released automation package (openhands-automation on PyPI)
+ * uses the same SDK version as specified in dev-safe.mjs for all agent SDK libraries:
  *   - openhands-sdk
  *   - openhands-tools
  *   - openhands-workspace
  *   - openhands-agent-server
+ *
+ * This script checks the RELEASED PyPI version of openhands-automation (as specified
+ * by DEFAULT_AUTOMATION_VERSION in dev-with-automation.mjs), not the main branch.
  *
  * This script is run in CI to catch version drift between projects.
  *
@@ -46,7 +49,11 @@ if (showHelp) {
   console.log(`
 SDK Version Sync Check
 
-Verifies that the automation project uses the same SDK version as this repo.
+Verifies that the released openhands-automation package on PyPI uses the same
+SDK version as specified in this repo's dev-safe.mjs.
+
+The automation version is read from DEFAULT_AUTOMATION_VERSION in
+dev-with-automation.mjs (currently used for local development).
 
 Usage:
   node scripts/check-sdk-version-sync.mjs [options]
@@ -131,48 +138,61 @@ async function fetchPyPIVersion(packageName) {
 }
 
 /**
- * Fetch the pyproject.toml from the automation repository
+ * Read the automation version from dev-with-automation.mjs
  */
-async function fetchAutomationPyproject() {
-  // The automation project is at https://github.com/OpenHands/automation
-  // We fetch its pyproject.toml from the main branch
-  const url =
-    "https://raw.githubusercontent.com/OpenHands/automation/main/pyproject.toml";
+function getAutomationVersion() {
+  const devAutomationPath = join(projectRoot, "scripts", "dev-with-automation.mjs");
+  const content = readFileSync(devAutomationPath, "utf8");
+
+  const match = content.match(
+    /const DEFAULT_AUTOMATION_VERSION = "([^"]+)"/,
+  );
+  if (!match) {
+    throw new Error(
+      "Could not find DEFAULT_AUTOMATION_VERSION in dev-with-automation.mjs",
+    );
+  }
+  return match[1];
+}
+
+/**
+ * Fetch package metadata from PyPI and extract dependencies
+ */
+async function fetchPyPIDependencies(packageName, version) {
+  const url = `https://pypi.org/pypi/${packageName}/${version}/json`;
 
   console.log(`${colors.dim}Fetching ${url}${colors.reset}`);
 
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch automation pyproject.toml: ${response.status} ${response.statusText}`,
+      `Failed to fetch ${packageName}==${version} from PyPI: ${response.status} ${response.statusText}`,
     );
   }
-  return response.text();
+  const data = await response.json();
+  return data.info?.requires_dist || [];
 }
 
 /**
- * Parse pyproject.toml and extract SDK package versions
+ * Parse PyPI requires_dist array and extract SDK package versions
  *
- * Looks for patterns like:
+ * PyPI returns dependencies in PEP 508 format like:
  *   "openhands-sdk>=1.22.0,<2.0.0"
  *   "openhands-tools==1.22.0"
- *   openhands-workspace = "^1.22.0"
+ *   "openhands-workspace (>=1.22.0)"
  */
-function parseSdkVersions(pyprojectContent) {
+function parseSdkVersionsFromRequiresDist(requiresDist) {
   const versions = {};
 
   for (const pkg of SDK_PACKAGES) {
-    // Match various dependency formats:
-    // "pkg>=X.Y.Z" or "pkg==X.Y.Z" or "pkg~=X.Y.Z" or pkg = "^X.Y.Z"
-    const patterns = [
-      // Standard PEP 508 format: "pkg>=1.22.0" or "pkg==1.22.0"
-      new RegExp(`["']${pkg}[><=~!]+([0-9]+\\.[0-9]+\\.[0-9]+)`, "i"),
-      // Poetry-style: pkg = "^1.22.0" or pkg = ">=1.22.0"
-      new RegExp(`${pkg}\\s*=\\s*["'][^0-9]*([0-9]+\\.[0-9]+\\.[0-9]+)`, "i"),
-    ];
-
-    for (const pattern of patterns) {
-      const match = pyprojectContent.match(pattern);
+    for (const dep of requiresDist) {
+      // Match the package name at the start, then extract version
+      // Examples: "openhands-sdk>=1.22.0,<2", "openhands-sdk (>=1.22.0)"
+      const pattern = new RegExp(
+        `^${pkg}\\s*(?:\\(|[><=~!]+)\\s*([0-9]+\\.[0-9]+\\.[0-9]+)`,
+        "i",
+      );
+      const match = dep.match(pattern);
       if (match) {
         versions[pkg] = match[1];
         break;
@@ -201,6 +221,12 @@ async function main() {
       `Expected SDK version: ${colors.green}${expectedVersion}${colors.reset} (from ${versionSource})`,
     );
 
+    // Get automation version from dev-with-automation.mjs
+    const automationVersion = getAutomationVersion();
+    console.log(
+      `Automation package version: ${colors.cyan}openhands-automation==${automationVersion}${colors.reset}`,
+    );
+
     // Optionally check PyPI for the latest SDK version
     if (checkPyPI) {
       console.log("");
@@ -220,16 +246,16 @@ async function main() {
 
     console.log("");
 
-    // Fetch and parse automation project dependencies
-    const pyprojectContent = await fetchAutomationPyproject();
-    const automationVersions = parseSdkVersions(pyprojectContent);
+    // Fetch automation package dependencies from PyPI
+    const requiresDist = await fetchPyPIDependencies("openhands-automation", automationVersion);
+    const automationVersions = parseSdkVersionsFromRequiresDist(requiresDist);
 
     // Check each SDK package
     let hasErrors = false;
     let foundAny = false;
     const mismatches = [];
 
-    console.log("Checking automation project SDK dependencies:");
+    console.log(`Checking openhands-automation==${automationVersion} SDK dependencies:`);
     console.log("");
 
     for (const pkg of SDK_PACKAGES) {
@@ -264,9 +290,9 @@ async function main() {
 
     if (!foundAny) {
       console.log(
-        `${colors.yellow}Warning: No SDK packages found in automation pyproject.toml${colors.reset}`,
+        `${colors.yellow}Warning: No SDK packages found in openhands-automation==${automationVersion} dependencies${colors.reset}`,
       );
-      console.log("This might indicate a parsing issue or structural change.");
+      console.log("This might indicate a parsing issue or the package is not yet published.");
       console.log("");
       process.exit(1);
     }
@@ -276,7 +302,7 @@ async function main() {
         `${colors.red}Version mismatch detected!${colors.reset}`,
       );
       console.log("");
-      console.log("The automation project uses different SDK versions than expected.");
+      console.log(`The released openhands-automation==${automationVersion} uses different SDK versions than expected.`);
       console.log("");
       console.log("Mismatched packages:");
       for (const m of mismatches) {
@@ -285,10 +311,13 @@ async function main() {
       console.log("");
       console.log("To fix, update one of the following:");
       console.log(
-        `  1. Update DEFAULT_AGENT_SERVER_VERSION in scripts/dev-safe.mjs to match automation`,
+        `  1. Update DEFAULT_AGENT_SERVER_VERSION in scripts/dev-safe.mjs to match the automation release`,
       );
       console.log(
-        `  2. Update the automation project's SDK dependencies to ${expectedVersion}`,
+        `  2. Release a new version of openhands-automation with SDK dependencies pinned to ${expectedVersion}`,
+      );
+      console.log(
+        `  3. Update DEFAULT_AUTOMATION_VERSION in scripts/dev-with-automation.mjs to a newer release`,
       );
       console.log("");
       process.exit(1);
