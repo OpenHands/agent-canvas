@@ -214,7 +214,7 @@ function metadataLines(args) {
   }
   if (args.artifact_url) {
     lines.push(
-      `- Artifacts: [Playwright report, videos, screenshots, traces](${sanitizeForComment(args.artifact_url)})`,
+      `- Artifacts: [Playwright report, videos, screenshots](${sanitizeForComment(args.artifact_url)})`,
     );
   }
   if (args.timestamp) {
@@ -345,7 +345,7 @@ function evidenceDetails(specs, args) {
 
   if (args.artifact_url) {
     lines.push(
-      `- Full artifact: [Playwright report, videos, screenshots, traces](${sanitizeForComment(args.artifact_url)})`,
+      `- Full artifact: [Playwright report, videos, screenshots](${sanitizeForComment(args.artifact_url)})`,
     );
   }
   lines.push(

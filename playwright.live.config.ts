@@ -37,7 +37,7 @@ export default defineConfig({
     },
     ignoreHTTPSErrors: true,
     screenshot: "only-on-failure",
-    trace: "retain-on-failure",
+    trace: "off",
     video: "on",
   },
   projects: [
