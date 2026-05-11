@@ -24,7 +24,7 @@ const tryUrl = (raw: string): URL | null => {
  * blob), we fall through the URL parsing path and the safe trim
  * fallback below, never calling `.replace` on undefined.
  */
-function urlsMatch(a: unknown, b: unknown): boolean {
+export function urlsMatch(a: unknown, b: unknown): boolean {
   const aStr = typeof a === "string" ? a : "";
   const bStr = typeof b === "string" ? b : "";
   if (!aStr || !bStr) return false;
@@ -158,10 +158,16 @@ export function findCatalogEntryForServer(
     if (tpl.kind === "tavily-builtin") return false;
     if (tpl.kind === "stdio")
       return server.type === "stdio" && server.name === tpl.serverName;
+    // Reuse the same loose URL match as `findInstalledMatch` so a
+    // server whose URL was normalized by the backend (trailing slash
+    // stripped, query string dropped, etc.) still gets paired with
+    // its catalog tile — otherwise the installed-servers list would
+    // render the generic icon while the marketplace shows the
+    // entry as installed, which is confusing.
     if (tpl.kind === "shttp")
-      return server.type === "shttp" && server.url === tpl.url;
+      return server.type === "shttp" && urlsMatch(server.url, tpl.url);
     if (tpl.kind === "sse")
-      return server.type === "sse" && server.url === tpl.url;
+      return server.type === "sse" && urlsMatch(server.url, tpl.url);
     return false;
   });
 }

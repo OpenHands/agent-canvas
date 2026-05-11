@@ -126,6 +126,46 @@ describe("MCPPage", () => {
     });
   });
 
+  it("deletes an installed stdio server through the confirmation modal", async () => {
+    // Pre-install a Slack stdio server via the SDK-shaped mcp_config
+    // the route reads from agent_settings.mcp_config.
+    const settingsWithSlack = buildSettings({
+      agent_settings: {
+        ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+        mcp_config: {
+          mcpServers: {
+            slack: {
+              command: "npx",
+              args: ["-y", "@modelcontextprotocol/server-slack"],
+              env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
+            },
+          },
+        },
+      },
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      settingsWithSlack,
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderPage();
+
+    const deleteBtn = await screen.findByTestId("delete-mcp-server-button");
+    fireEvent.click(deleteBtn);
+
+    const confirmBtn = await screen.findByTestId("confirm-button");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as { mcp_config: unknown };
+    // Server gets pulled out of mcp_config entirely (parseMcpConfig
+    // emits `null` once the last entry is removed).
+    expect(sent.mcp_config).toBeNull();
+  });
+
   it("badges Tavily as installed when search_api_key_set is true", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({ search_api_key_set: true }),

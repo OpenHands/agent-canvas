@@ -213,16 +213,27 @@ export function InstallServerModal({
   const renderFields = () => {
     if (entry.template.kind === "tavily-builtin") {
       return (
-        <SettingsInput
-          testId="mcp-install-field-search_api_key"
-          name="search_api_key"
-          type="password"
-          label={t(I18nKey.SETTINGS$SEARCH_API_KEY)}
-          value={state.values.search_api_key ?? ""}
-          onChange={(v) => setValue("search_api_key", v)}
-          placeholder="tvly-..."
-          className="w-full"
-        />
+        <div className="flex flex-col gap-1">
+          <SettingsInput
+            testId="mcp-install-field-search_api_key"
+            name="search_api_key"
+            type="password"
+            label={t(I18nKey.SETTINGS$SEARCH_API_KEY)}
+            value={state.values.search_api_key ?? ""}
+            onChange={(v) => setValue("search_api_key", v)}
+            placeholder="tvly-..."
+            className="w-full"
+          />
+          {/* `handleTavilySubmit` sets this error on submit when the
+              key is empty; render it inline so the user actually sees
+              the validation failure (previously the state was set but
+              never displayed). */}
+          {state.errors.search_api_key && (
+            <p className="text-xs text-red-500">
+              {state.errors.search_api_key}
+            </p>
+          )}
+        </div>
       );
     }
 

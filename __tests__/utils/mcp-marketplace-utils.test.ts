@@ -185,4 +185,21 @@ describe("findCatalogEntryForServer", () => {
       ),
     ).toBeUndefined();
   });
+
+  it("matches an SSE server whose URL differs only by trailing slash", () => {
+    // Regression coverage for the strict-=== URL match that previously
+    // diverged from findInstalledMatch and caused installed cards to
+    // render the generic icon while the marketplace tile said
+    // "Installed".
+    const linear = MCP_MARKETPLACE.find((e) => e.id === "linear")!;
+    if (linear.template.kind !== "sse") {
+      throw new Error("Linear template should be SSE");
+    }
+    const normalizedUrl = linear.template.url.replace(/\/$/, "");
+    const match = findCatalogEntryForServer(
+      { id: "sse-0", type: "sse", url: `${normalizedUrl}/` },
+      MCP_MARKETPLACE,
+    );
+    expect(match?.id).toBe("linear");
+  });
 });

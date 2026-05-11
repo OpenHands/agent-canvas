@@ -130,6 +130,23 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
+  it("renders an inline error when Tavily submit is clicked with no key", async () => {
+    const tavily = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={tavily} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // Error state set in handleTavilySubmit must actually render
+    // (previously it was set but never displayed).
+    await screen.findByText("MCP$ERROR_FIELD_REQUIRED");
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
     const entry: MarketplaceEntry = {
       id: "synthetic-optional",

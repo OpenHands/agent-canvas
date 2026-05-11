@@ -42,17 +42,26 @@ export function useDeleteMcpServer() {
         return undefined;
       };
 
+      // Each branch guards on the discriminating field(s) it relies
+      // on. `MCPServerConfig` marks url/name/command optional for
+      // historical reasons, so without these guards an entry with
+      // undefined identifiers could accidentally match another entry
+      // that's also missing the same field (e.g. two stdio servers
+      // both lacking `name`).
       if (target.type === "sse") {
+        if (!target.url) return;
         const idx = newConfig.sse_servers.findIndex(
           (s) => extractUrl(s) === target.url,
         );
         if (idx >= 0) newConfig.sse_servers.splice(idx, 1);
       } else if (target.type === "shttp") {
+        if (!target.url) return;
         const idx = newConfig.shttp_servers.findIndex(
           (s) => extractUrl(s) === target.url,
         );
         if (idx >= 0) newConfig.shttp_servers.splice(idx, 1);
       } else if (target.type === "stdio") {
+        if (!target.name || !target.command) return;
         const idx = newConfig.stdio_servers.findIndex(
           (s) =>
             s.name === target.name &&
@@ -60,6 +69,8 @@ export function useDeleteMcpServer() {
             JSON.stringify(s.args ?? []) === JSON.stringify(target.args ?? []),
         );
         if (idx >= 0) newConfig.stdio_servers.splice(idx, 1);
+      } else {
+        return;
       }
 
       await SettingsService.saveSettings({

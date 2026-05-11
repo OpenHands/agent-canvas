@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
+import { findCatalogEntryForServer } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 
 interface InstalledServerCardProps {
@@ -43,22 +44,6 @@ function getServerSubtitle(server: MCPServerConfig): string {
   return server.url ?? "";
 }
 
-/** Best-effort match between an installed server and a catalog tile so
- * we can render the friendly icon/name. */
-function findCatalogMatch(server: MCPServerConfig) {
-  return MCP_MARKETPLACE.find((entry) => {
-    const tpl = entry.template;
-    if (tpl.kind === "tavily-builtin") return false;
-    if (tpl.kind === "stdio")
-      return server.type === "stdio" && server.name === tpl.serverName;
-    if (tpl.kind === "shttp")
-      return server.type === "shttp" && server.url === tpl.url;
-    if (tpl.kind === "sse")
-      return server.type === "sse" && server.url === tpl.url;
-    return false;
-  });
-}
-
 export function InstalledServerCard({
   server,
   catalogIdOverride,
@@ -66,9 +51,13 @@ export function InstalledServerCard({
   onDelete,
 }: InstalledServerCardProps) {
   const { t } = useTranslation("openhands");
+  // Match-by-content is delegated to the shared utility so this card
+  // and `findInstalledMatch` agree on URL canonicalization (trailing
+  // slashes, query strings, default ports) and stay in sync when one
+  // is updated.
   const catalog = catalogIdOverride
     ? MCP_MARKETPLACE.find((entry) => entry.id === catalogIdOverride)
-    : findCatalogMatch(server);
+    : findCatalogEntryForServer(server, MCP_MARKETPLACE);
 
   const title = catalog?.name ?? getServerTitle(server);
   const subtitle = catalogIdOverride ? "" : getServerSubtitle(server);

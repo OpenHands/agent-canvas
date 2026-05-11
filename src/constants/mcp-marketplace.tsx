@@ -460,7 +460,11 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       kind: "stdio",
       serverName: "git",
       command: "uvx",
-      args: ["mcp-server-git"],
+      // The repo path is appended as the value of `--repository`; the
+      // flag belongs on the base command so it lands immediately
+      // before the user-supplied path when the modal concatenates
+      // them.
+      args: ["mcp-server-git", "--repository"],
       argFields: [
         {
           key: "repo_path",
@@ -811,7 +815,10 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       kind: "stdio",
       serverName: "sqlite",
       command: "uvx",
-      args: ["mcp-server-sqlite"],
+      // `--db-path` is the flag the official mcp-server-sqlite expects
+      // before the user-supplied path; keeping it on the base command
+      // means the modal can concatenate the path verbatim.
+      args: ["mcp-server-sqlite", "--db-path"],
       argFields: [
         {
           key: "db_path",
