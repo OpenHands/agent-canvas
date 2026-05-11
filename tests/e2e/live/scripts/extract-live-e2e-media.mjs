@@ -3,13 +3,21 @@
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
-  statSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
-import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 
 function parseArgs(argv) {
   const args = {};
@@ -37,12 +45,42 @@ function parseArgs(argv) {
   return args;
 }
 
-function resolveWithinCwd(label, filePath) {
-  const resolvedPath = resolve(filePath);
-  const relativePath = relative(resolve("."), resolvedPath);
+function assertWithinCwd(label, path) {
+  const relativePath = relative(realpathSync(resolve(".")), path);
   if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
     throw new Error(`${label} must be within the current working directory.`);
   }
+}
+
+function nearestExistingPath(path) {
+  let currentPath = path;
+  while (!existsSync(currentPath)) {
+    const parentPath = dirname(currentPath);
+    if (parentPath === currentPath) {
+      throw new Error(`No existing parent found for ${path}`);
+    }
+    currentPath = parentPath;
+  }
+  return currentPath;
+}
+
+function resolveWithinCwd(label, filePath, options = {}) {
+  const resolvedPath = resolve(filePath);
+  if (existsSync(resolvedPath)) {
+    assertWithinCwd(label, realpathSync(resolvedPath));
+    return resolvedPath;
+  }
+
+  if (options.mustExist) {
+    throw new Error(`${label} does not exist: ${resolvedPath}`);
+  }
+
+  const existingParent = nearestExistingPath(dirname(resolvedPath));
+  const checkedPath = resolve(
+    realpathSync(existingParent),
+    relative(existingParent, resolvedPath),
+  );
+  assertWithinCwd(label, checkedPath);
   return resolvedPath;
 }
 
@@ -93,7 +131,10 @@ function collectFiles(dir) {
   const files = [];
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
-    const stat = statSync(path);
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink()) {
+      continue;
+    }
     if (stat.isDirectory()) {
       files.push(...collectFiles(path));
     } else if (stat.isFile()) {
@@ -118,7 +159,9 @@ function copyMedia(sourcePath, outputDir, targetBase, fallbackExt) {
     return "";
   }
 
-  const safeSourcePath = resolveWithinCwd("media source", sourcePath);
+  const safeSourcePath = resolveWithinCwd("media source", sourcePath, {
+    mustExist: true,
+  });
   mkdirSync(outputDir, { recursive: true });
   const ext = extname(safeSourcePath) || fallbackExt;
   const targetPath = join(outputDir, `${targetBase}${ext}`);

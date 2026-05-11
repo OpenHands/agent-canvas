@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 const DEFAULT_MARKER = "<!-- agent-canvas-live-e2e-report -->";
 const API_ROOT = process.env.GITHUB_API_URL ?? "https://api.github.com";
@@ -36,6 +37,45 @@ function requireValue(name, value) {
     throw new Error(`Missing required value: ${name}`);
   }
   return value;
+}
+
+function assertWithinCwd(label, path) {
+  const relativePath = relative(realpathSync(resolve(".")), path);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`${label} must be within the current working directory.`);
+  }
+}
+
+function nearestExistingPath(path) {
+  let currentPath = path;
+  while (!existsSync(currentPath)) {
+    const parentPath = dirname(currentPath);
+    if (parentPath === currentPath) {
+      throw new Error(`No existing parent found for ${path}`);
+    }
+    currentPath = parentPath;
+  }
+  return currentPath;
+}
+
+function resolveWithinCwd(label, filePath, options = {}) {
+  const resolvedPath = resolve(filePath);
+  if (existsSync(resolvedPath)) {
+    assertWithinCwd(label, realpathSync(resolvedPath));
+    return resolvedPath;
+  }
+
+  if (options.mustExist) {
+    throw new Error(`${label} does not exist: ${resolvedPath}`);
+  }
+
+  const existingParent = nearestExistingPath(dirname(resolvedPath));
+  const checkedPath = resolve(
+    realpathSync(existingParent),
+    relative(existingParent, resolvedPath),
+  );
+  assertWithinCwd(label, checkedPath);
+  return resolvedPath;
 }
 
 function validateRepo(repo) {
@@ -112,7 +152,11 @@ async function main() {
     args.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN,
   );
   const marker = args.marker ?? DEFAULT_MARKER;
-  const bodyFile = requireValue("body-file", args.body_file);
+  const bodyFile = resolveWithinCwd(
+    "body-file",
+    requireValue("body-file", args.body_file),
+    { mustExist: true },
+  );
   let body = readFileSync(bodyFile, "utf8");
 
   if (!body.includes(marker)) {

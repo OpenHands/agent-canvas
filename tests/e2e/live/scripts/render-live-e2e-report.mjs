@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 const DEFAULT_MARKER = "<!-- agent-canvas-live-e2e-report -->";
 
@@ -31,12 +31,42 @@ function parseArgs(argv) {
   return args;
 }
 
-function resolveWithinCwd(label, filePath) {
-  const resolvedPath = resolve(filePath);
-  const relativePath = relative(resolve("."), resolvedPath);
+function assertWithinCwd(label, path) {
+  const relativePath = relative(realpathSync(resolve(".")), path);
   if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
     throw new Error(`${label} must be within the current working directory.`);
   }
+}
+
+function nearestExistingPath(path) {
+  let currentPath = path;
+  while (!existsSync(currentPath)) {
+    const parentPath = dirname(currentPath);
+    if (parentPath === currentPath) {
+      throw new Error(`No existing parent found for ${path}`);
+    }
+    currentPath = parentPath;
+  }
+  return currentPath;
+}
+
+function resolveWithinCwd(label, filePath, options = {}) {
+  const resolvedPath = resolve(filePath);
+  if (existsSync(resolvedPath)) {
+    assertWithinCwd(label, realpathSync(resolvedPath));
+    return resolvedPath;
+  }
+
+  if (options.mustExist) {
+    throw new Error(`${label} does not exist: ${resolvedPath}`);
+  }
+
+  const existingParent = nearestExistingPath(dirname(resolvedPath));
+  const checkedPath = resolve(
+    realpathSync(existingParent),
+    relative(existingParent, resolvedPath),
+  );
+  assertWithinCwd(label, checkedPath);
   return resolvedPath;
 }
 
@@ -396,7 +426,10 @@ function evidenceDetails(specs, args) {
 }
 
 function buildReport(args) {
-  const results = readJson(args.results);
+  const resultsPath = args.results
+    ? resolveWithinCwd("results", args.results)
+    : null;
+  const results = readJson(resultsPath);
   const status = inferOverallStatus(args.status, results?.stats);
   const summary = buildSummary(results, status, args.reason);
 

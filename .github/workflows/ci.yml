@@ -306,6 +306,9 @@ jobs:
 
           git config user.name "allhands-bot"
           git config user.email "allhands-bot@users.noreply.github.com"
+          git config credential.helper '!f() { echo "username=x-access-token"; echo "password=$PR_ARTIFACT_PUSH_TOKEN"; }; f'
+          git remote remove pr-artifacts >/dev/null 2>&1 || true
+          git remote add pr-artifacts "https://github.com/${GITHUB_REPOSITORY}.git"
           git add .pr
           if git diff --cached --quiet; then
             echo "No .pr media changes to publish."
@@ -315,7 +318,7 @@ jobs:
           git commit -m "chore: Update PR QA artifacts"
           push_succeeded=false
           for attempt in 1 2 3; do
-            if git push "https://x-access-token:${PR_ARTIFACT_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$PR_HEAD_REF"; then
+            if git push pr-artifacts "HEAD:refs/heads/$PR_HEAD_REF"; then
               push_succeeded=true
               break
             fi
@@ -323,7 +326,10 @@ jobs:
             if [ "$attempt" -lt 3 ]; then
               echo "::notice::Failed to push .pr media, rebasing and retrying."
               git fetch pr-head "$PR_HEAD_REF"
-              git rebase FETCH_HEAD
+              if ! git rebase FETCH_HEAD; then
+                echo "::error::Failed to rebase .pr media commit. Manual resolution required."
+                exit 1
+              fi
               sleep 2
             fi
           done
