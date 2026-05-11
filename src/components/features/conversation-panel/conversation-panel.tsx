@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Check, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
@@ -335,7 +335,7 @@ export function ConversationPanel({
             {olderFilterMenuOpen && (
               <div
                 data-testid="older-conversations-filter-menu"
-                className="absolute right-0 top-full mt-1 z-20 min-w-[180px] rounded-lg border border-[#242424] bg-[#1F1F1F] p-1 shadow-xl"
+                className="absolute right-0 top-full mt-0 z-50 min-w-[168px] overflow-hidden rounded-[6px] bg-tertiary px-1 py-[6px] text-white context-menu-box-shadow"
               >
                 <button
                   type="button"
@@ -344,7 +344,7 @@ export function ConversationPanel({
                     setShowOlderConversations((value) => !value);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="block w-full rounded-md px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
                 >
                   {showOlderConversations
                     ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
@@ -357,11 +357,11 @@ export function ConversationPanel({
                     setConfirmDeleteOlderVisible(true);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="block w-full rounded-md px-2 py-2 text-left text-sm text-danger hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-danger hover:bg-[#5C5D62]"
                 >
                   {capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
                 </button>
-                <div className="my-1 border-t border-[#242424]" />
+                <div className="my-1 h-[1px] w-full bg-[#5C5D62]" />
                 <button
                   type="button"
                   data-testid="toggle-repo-branch-metadata"
@@ -369,20 +369,11 @@ export function ConversationPanel({
                     setShowRepoBranchMetadata((value) => !value);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
                 >
-                  <span className="min-w-0 flex-1 truncate">
-                    {showRepoBranchMetadata
-                      ? "Hide Repo/Branch"
-                      : "Show Repo/Branch"}
-                  </span>
-                  {showRepoBranchMetadata ? (
-                    <Check
-                      data-testid="repo-branch-metadata-check"
-                      size={14}
-                      className="shrink-0 text-white"
-                    />
-                  ) : null}
+                  {showRepoBranchMetadata
+                    ? "Hide Repo/Branch"
+                    : "Show Repo/Branch"}
                 </button>
               </div>
             )}

@@ -1205,11 +1205,6 @@ describe("ConversationPanel", () => {
       expect(
         await screen.findByTestId("conversation-card-selected-branch"),
       ).toHaveTextContent("main");
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      expect(
-        screen.getByTestId("repo-branch-metadata-check"),
-      ).toBeInTheDocument();
     });
 
     it("delete-all confirms then deletes every older conversation", async () => {

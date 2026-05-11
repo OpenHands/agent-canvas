@@ -31,14 +31,14 @@ export function DropdownMenu({
   return (
     <div
       className={cn(
-        "absolute z-10 w-full",
+        "absolute z-50 w-full overflow-hidden text-white",
         openUpward ? "bottom-full mb-1" : "mt-1",
-        "bg-[#1F1F1F] border border-[#242424] rounded-lg",
+        "bg-tertiary rounded-[6px] context-menu-box-shadow py-[6px] px-1",
         "max-h-60 overflow-auto",
         !isOpen && "hidden",
       )}
     >
-      <ul {...getMenuProps({ className: "p-1" })}>
+      <ul {...getMenuProps({ className: "p-0" })}>
         {isOpen && filteredOptions.length === 0 && (
           <li className="px-2 py-2 text-sm text-gray-400 italic">
             {emptyMessage}
@@ -52,7 +52,7 @@ export function DropdownMenu({
                 item: option,
                 index,
                 className: cn(
-                  "px-2 py-2 cursor-pointer text-sm rounded-md",
+                  "px-2 py-2 cursor-pointer text-sm rounded",
                   "text-white focus:outline-none font-normal",
                   "flex items-center gap-2",
                   selectedItem?.value === option.value
@@ -67,7 +67,10 @@ export function DropdownMenu({
           ))}
       </ul>
       {isOpen && footer ? (
-        <div className="border-t border-[#242424] p-1">{footer}</div>
+        <>
+          <div className="my-1 h-[1px] w-full bg-[#5C5D62]" />
+          <div className="p-0">{footer}</div>
+        </>
       ) : null}
     </div>
   );
