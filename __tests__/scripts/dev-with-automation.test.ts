@@ -10,6 +10,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   buildAutomationCommand,
   buildConfig,
+  buildViteEnv,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
@@ -354,6 +355,37 @@ describe("buildConfig", () => {
     });
 
     expect(config.sessionApiKey).toBe("v0-key");
+  });
+
+  it("tracks when browser session-key entry is required", async () => {
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ OH_REQUIRE_BROWSER_SESSION_KEY: "1" }),
+    );
+
+    expect(config.requireBrowserSessionKey).toBe(true);
+  });
+
+  it("passes the session API key to Vite by default", async () => {
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ SESSION_API_KEY: "session-key" }),
+    );
+
+    expect(buildViteEnv(config).VITE_SESSION_API_KEY).toBe("session-key");
+  });
+
+  it("clears VITE_SESSION_API_KEY for Vite when browser session-key entry is required", async () => {
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({
+        SESSION_API_KEY: "session-key",
+        OH_REQUIRE_BROWSER_SESSION_KEY: "true",
+      }),
+    );
+
+    expect(config.sessionApiKey).toBe("session-key");
+    expect(buildViteEnv(config).VITE_SESSION_API_KEY).toBe("");
   });
 });
 

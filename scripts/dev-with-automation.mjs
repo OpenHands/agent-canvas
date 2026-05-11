@@ -50,6 +50,10 @@ import {
   buildSafeDevConfig,
   buildAgentServerEnv,
   buildNpmScriptCommand,
+  buildFrontendSessionEnv,
+  DEFAULT_SESSION_API_KEY_PATH,
+  REQUIRE_BROWSER_SESSION_KEY_ENV,
+  shouldRequireBrowserSessionKey,
   formatMissingUvxGuidance,
   generateRandomApiKey,
   findFreePorts,
@@ -169,6 +173,9 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+  OH_REQUIRE_BROWSER_SESSION_KEY
+                              Set to 1/true to require entering the session
+                              API key in the browser instead of passing it to Vite
 
 SECRETS:
   The automation API key is automatically seeded into agent-server secrets
@@ -295,6 +302,7 @@ async function buildConfig(args, env = process.env) {
     // Auth
     localApiKey,
     sessionApiKey,
+    requireBrowserSessionKey: shouldRequireBrowserSessionKey(env),
 
     verbose: args.verbose,
   };
@@ -545,6 +553,19 @@ function startIngress(config) {
   );
 }
 
+function buildViteEnv(config) {
+  return {
+    // Point Vite at the ingress (so client-side fetches work)
+    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    VITE_FRONTEND_PORT: config.vitePort.toString(),
+    // Automation API key for frontend to authenticate with automation backend
+    VITE_AUTOMATION_API_KEY: config.localApiKey,
+    ...buildFrontendSessionEnv(config),
+  };
+}
+
 function startVite(config) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
@@ -552,19 +573,7 @@ function startVite(config) {
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
-    env: {
-      // Point Vite at the ingress (so client-side fetches work)
-      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-      VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key for frontend to authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
-      // Automation API key for frontend to authenticate with automation backend
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Session API key for agent-server auth (when SESSION_API_KEY is set)
-      ...(config.sessionApiKey && { VITE_SESSION_API_KEY: config.sessionApiKey }),
-    },
+    env: buildViteEnv(config),
     color: c.magenta,
   });
 }
@@ -680,6 +689,14 @@ function printBanner(config) {
   );
   console.log("");
   console.log(`${c.dim}State directory: ${config.stateDir}${c.reset}`);
+  if (config.requireBrowserSessionKey) {
+    console.log(
+      `${c.dim}Browser login: enter the session API key from ${process.env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH}${c.reset}`,
+    );
+    console.log(
+      `${c.dim}${REQUIRE_BROWSER_SESSION_KEY_ENV}=1 suppressed automatic VITE_SESSION_API_KEY passing.${c.reset}`,
+    );
+  }
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");
 }
@@ -759,6 +776,7 @@ async function main(options = {}) {
 export {
   buildAutomationCommand,
   buildConfig,
+  buildViteEnv,
   generateRandomApiKey,
   main,
   spawnService,

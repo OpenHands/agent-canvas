@@ -34,6 +34,26 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AGENT_SERVER_VERSION = "1.21.1";
 
+export const REQUIRE_BROWSER_SESSION_KEY_ENV = "OH_REQUIRE_BROWSER_SESSION_KEY";
+
+function isTruthyEnvValue(value) {
+  return /^(1|true|yes|on)$/i.test(value?.trim() ?? "");
+}
+
+export function shouldRequireBrowserSessionKey(env = process.env) {
+  return isTruthyEnvValue(env[REQUIRE_BROWSER_SESSION_KEY_ENV]);
+}
+
+export function buildFrontendSessionEnv(config) {
+  return {
+    // Empty string intentionally overrides VITE_SESSION_API_KEY from .env or
+    // the parent process so the browser-local connection form must provide it.
+    VITE_SESSION_API_KEY: config.requireBrowserSessionKey
+      ? ""
+      : config.sessionApiKey,
+  };
+}
+
 /**
  * Generate a cryptographically secure random API key.
  * Returns a 64-character hex string (256-bit).
@@ -45,7 +65,7 @@ export function generateRandomApiKey() {
 // Where the auto-generated default session API key is persisted so it stays
 // stable across `npm run dev` / `npm run dev:dangerously-dockerless` /
 // `npm run dev:docker` restarts. Keeping the key stable means the value
-// baked into the frontend (VITE_SESSION_API_KEY) and the persisted
+// baked into the frontend by default (VITE_SESSION_API_KEY) and the persisted
 // backend-registry entry (`openhands-backends` localStorage) stay in sync
 // without users needing to set anything in `.env`.
 //
@@ -453,6 +473,7 @@ export async function buildSafeDevConfigAsync(
  * @property {string} workingDir
  * @property {string} secretKey
  * @property {string} sessionApiKey
+ * @property {boolean} requireBrowserSessionKey
  */
 
 /**
@@ -506,6 +527,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
     secretKey,
     sessionApiKey,
+    requireBrowserSessionKey: shouldRequireBrowserSessionKey(env),
   };
 }
 
@@ -657,6 +679,11 @@ async function main() {
   console.log(`- isolated state dir: ${config.stateDir}`);
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
+  if (config.requireBrowserSessionKey) {
+    console.log(
+      `- browser session key entry: required (${REQUIRE_BROWSER_SESSION_KEY_ENV}=1)`,
+    );
+  }
   console.log("");
 
   const backend = spawnProcess(
@@ -727,8 +754,7 @@ async function main() {
       VITE_BACKEND_HOST: config.backendHost,
       VITE_BACKEND_BASE_URL: config.backendBaseUrl,
       VITE_WORKING_DIR: config.workingDir,
-      // Pass session API key so frontend can authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
+      ...buildFrontendSessionEnv(config),
     },
   });
 

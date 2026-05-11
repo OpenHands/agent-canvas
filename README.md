@@ -44,6 +44,8 @@ npm run dev:docker
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
 
+By default, the dev script automatically passes the generated session API key to the browser frontend for local convenience. To require each browser to enter the key instead, start it with `OH_REQUIRE_BROWSER_SESSION_KEY=1 npm run dev:docker`; users will see the Agent Server connection screen and must enter the key from `~/.openhands/agent-canvas/session-api-key.txt` (or your `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` value).
+
 ### Without Docker
 
 > [!WARNING]
@@ -67,6 +69,8 @@ npm run dev:dangerously-dockerless
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
+
+By default, the dev script automatically passes the generated session API key to the browser frontend for local convenience. To require each browser to enter the key instead, start it with `OH_REQUIRE_BROWSER_SESSION_KEY=1 npm run dev:dangerously-dockerless`; users will see the Agent Server connection screen and must enter the key from `~/.openhands/agent-canvas/session-api-key.txt` (or your `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` value).
 
 ### Remote VM / internet access
 

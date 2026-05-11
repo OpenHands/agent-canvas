@@ -157,6 +157,12 @@ To rotate the key, delete the file and restart the app. To pin a specific
 value instead of the auto-generated one, export `SESSION_API_KEY` before
 starting — it takes precedence over the persisted file.
 
+If you do not want the frontend to receive that key automatically, set
+`OH_REQUIRE_BROWSER_SESSION_KEY=1` when starting the recommended Docker or
+non-Docker dev stack. The agent server still uses the generated/pinned key, but
+the browser sees the Agent Server connection screen and must enter the key
+manually before any API requests can succeed.
+
 > [!IMPORTANT]
 > Treat the key file like an SSH private key. Anyone who learns its value can
 > drive your agent. Keep it on the machine and don't copy it elsewhere.

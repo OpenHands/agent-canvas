@@ -35,6 +35,7 @@
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - OH_SECRET_KEY: Session secret key
+ *   - OH_REQUIRE_BROWSER_SESSION_KEY: Set to 1/true to require browser entry of the session API key
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -50,6 +51,8 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   DEFAULT_SESSION_API_KEY_PATH,
+  REQUIRE_BROWSER_SESSION_KEY_ENV,
+  shouldRequireBrowserSessionKey,
   formatMissingUvxGuidance,
   isPortBusy,
   releaseStaleConversationLeases,
@@ -96,14 +99,14 @@ function logError(message) {
 // CLI parsing
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function parseArgs(argv = process.argv.slice(2)) {
+export function parseArgs(argv = process.argv.slice(2), env = process.env) {
   const config = {
     port: null,
     automationGitRef: null,
     automationRepo: null,
     skipBuild: false,
     remote: false,
-    requireBrowserSessionKey: false,
+    requireBrowserSessionKey: shouldRequireBrowserSessionKey(env),
     verbose: false,
   };
 
@@ -172,6 +175,9 @@ ENVIRONMENT VARIABLES:
   OH_AUTOMATION_GIT_REF       Alternative to --automation-ref
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK
   OH_SECRET_KEY               Secret key for sessions
+  OH_REQUIRE_BROWSER_SESSION_KEY
+                              Set to 1/true to require browser entry of the
+                              session API key (same behavior as --require-browser-session-key)
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -577,6 +583,11 @@ function printBanner(config) {
     console.log(
       `${c.dim}Browser login: enter the session API key from ${keyPath}${c.reset}`,
     );
+    if (process.env[REQUIRE_BROWSER_SESSION_KEY_ENV]) {
+      console.log(
+        `${c.dim}${REQUIRE_BROWSER_SESSION_KEY_ENV}=1 suppressed automatic VITE_SESSION_API_KEY passing.${c.reset}`,
+      );
+    }
   }
   if (config.remote) {
     console.log(

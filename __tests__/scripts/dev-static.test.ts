@@ -15,4 +15,13 @@ describe("dev-static CLI", () => {
       requireBrowserSessionKey: true,
     });
   });
+
+  it("can require browser session-key entry through the environment", () => {
+    expect(
+      parseArgs([], { OH_REQUIRE_BROWSER_SESSION_KEY: "true" }),
+    ).toMatchObject({
+      remote: false,
+      requireBrowserSessionKey: true,
+    });
+  });
 });
