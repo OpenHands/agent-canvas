@@ -18,7 +18,7 @@ interface SetupLlmStepProps {
  * marked dirty so the Next button is enabled immediately.
  */
 const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": "anthropic/claude-opus-4-5-20251101",
+  "llm.model": "anthropic/claude-opus-4-7",
 } as const;
 
 /**

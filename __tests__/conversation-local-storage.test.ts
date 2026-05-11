@@ -544,12 +544,12 @@ describe("conversation localStorage utilities", () => {
       setConversationState("files-diff-convA", { filesTabDiffView: true });
       setConversationState("files-diff-convB", { filesTabDiffView: false });
 
-      expect(
-        getConversationState("files-diff-convA").filesTabDiffView,
-      ).toBe(true);
-      expect(
-        getConversationState("files-diff-convB").filesTabDiffView,
-      ).toBe(false);
+      expect(getConversationState("files-diff-convA").filesTabDiffView).toBe(
+        true,
+      );
+      expect(getConversationState("files-diff-convB").filesTabDiffView).toBe(
+        false,
+      );
     });
   });
 
@@ -571,9 +571,9 @@ describe("conversation localStorage utilities", () => {
         filesTabContentViewMode: "plain",
       });
 
-      expect(
-        getConversationState(conversationId).filesTabContentViewMode,
-      ).toBe("plain");
+      expect(getConversationState(conversationId).filesTabContentViewMode).toBe(
+        "plain",
+      );
 
       const raw = localStorage.getItem(
         `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`,
@@ -587,9 +587,9 @@ describe("conversation localStorage utilities", () => {
         filesTabContentViewMode: "rich",
       });
 
-      expect(
-        getConversationState(conversationId).filesTabContentViewMode,
-      ).toBe("rich");
+      expect(getConversationState(conversationId).filesTabContentViewMode).toBe(
+        "rich",
+      );
     });
 
     it("is isolated per conversation", () => {
@@ -606,6 +606,22 @@ describe("conversation localStorage utilities", () => {
       expect(
         getConversationState("files-view-convB").filesTabContentViewMode,
       ).toBe("rich");
+    });
+
+    it("falls back to the 'rich' default when localStorage holds a junk value", () => {
+      // A corrupted entry (older build with a renamed mode, a hand-edited
+      // value in devtools, …) must not leak through to the ViewMode-typed
+      // consumer — the sanitizer drops the bad value so the merged result
+      // re-applies the typed default.
+      const conversationId = "files-view-corrupt";
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({ filesTabContentViewMode: "fancy" }),
+      );
+
+      const state = getConversationState(conversationId);
+      expect(state.filesTabContentViewMode).toBe("rich");
     });
   });
 });
