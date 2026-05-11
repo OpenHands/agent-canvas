@@ -4,6 +4,10 @@ import { join, relative } from "node:path";
 
 const SRC_ROOT = join(process.cwd(), "src");
 const EXCLUDED_SEGMENTS = new Set(["mocks", "routeTree.gen.ts"]);
+const ALLOWED_AD_HOC_HTTP_FILES = new Set([
+  "api/automation-service/automation-service.api.ts",
+  "api/cloud/proxy.ts",
+]);
 
 function collectSourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -34,6 +38,15 @@ describe("agent-server API access", () => {
 
       if (/\bcreateHttpClient\s*\(/.test(source)) {
         fileViolations.push("uses createHttpClient directly");
+      }
+
+      if (
+        /\baxios\s*\.\s*(?:create|get|post|put|patch|delete|request)\s*\(/.test(
+          source,
+        ) &&
+        !ALLOWED_AD_HOC_HTTP_FILES.has(relPath)
+      ) {
+        fileViolations.push("uses axios directly for HTTP calls");
       }
 
       if (/\bfetch\s*\([^\n]*(?:['"`])\/api\//.test(source)) {

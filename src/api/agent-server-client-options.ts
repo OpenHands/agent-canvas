@@ -1,9 +1,6 @@
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getAgentServerWorkingDir } from "./agent-server-config";
-import {
-  getActiveBackend,
-  getEffectiveLocalBackend,
-} from "./backend-registry/active-store";
+import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 
 export interface AgentServerClientOverrides {
   host?: string;
@@ -21,23 +18,21 @@ export interface AgentServerClientOptions {
   timeout?: number;
 }
 
-function resolveDefaultBackend() {
-  const active = getActiveBackend().backend;
-  if (active.kind === "cloud") return getEffectiveLocalBackend();
-  return active;
+function normalizeHost(host: string): string {
+  return host.replace(/\/+$/, "");
 }
 
 function resolveHost(overrides: AgentServerClientOverrides): string {
-  if (overrides.host) return overrides.host.replace(/\/$/, "");
+  if (overrides.host) return normalizeHost(overrides.host);
   if (overrides.conversationUrl)
-    return buildHttpBaseUrl(overrides.conversationUrl);
-  return resolveDefaultBackend().host;
+    return normalizeHost(buildHttpBaseUrl(overrides.conversationUrl));
+  return normalizeHost(getEffectiveLocalBackend().host);
 }
 
 export function getAgentServerClientOptions(
   overrides: AgentServerClientOverrides = {},
 ): AgentServerClientOptions {
-  const backend = resolveDefaultBackend();
+  const backend = getEffectiveLocalBackend();
   const apiKey =
     overrides.sessionApiKey ?? overrides.apiKey ?? backend.apiKey ?? undefined;
 

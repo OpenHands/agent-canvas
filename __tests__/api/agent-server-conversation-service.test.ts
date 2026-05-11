@@ -102,6 +102,7 @@ describe("AgentServerConversationService", () => {
         );
         return response.data;
       },
+      updateConversation: vi.fn(),
     });
     mockFileClient.mockReturnValue({
       downloadTextFile: async (path: string) => {
@@ -149,6 +150,16 @@ describe("AgentServerConversationService", () => {
         await AgentServerConversationService.readConversationFile("conv-123");
 
       expect(content).toBe("# PLAN content");
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
+      expect(FileClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
       expect(mockHttpGet).toHaveBeenCalledWith(
         "/api/file/download",
         expect.objectContaining({
@@ -183,6 +194,11 @@ describe("AgentServerConversationService", () => {
       await AgentServerConversationService.createConversation();
       await AgentServerConversationService.createConversation();
 
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
       expect(mockHttpPost).toHaveBeenCalledTimes(2);
       const [firstCall, secondCall] = mockHttpPost.mock.calls;
       const firstPayload = firstCall[1] as {
@@ -255,6 +271,30 @@ describe("AgentServerConversationService", () => {
       expect(mockHttpDelete).toHaveBeenCalledWith(
         "/api/conversations/conv-abc",
       );
+    });
+  });
+
+  describe("conversation update fallbacks", () => {
+    it("throws a useful error when repository update cannot reload the conversation", async () => {
+      mockHttpGet.mockResolvedValue({ data: [null] });
+
+      await expect(
+        AgentServerConversationService.updateConversationRepository(
+          "missing-conv",
+          "OpenHands/agent-canvas",
+        ),
+      ).rejects.toThrow("Conversation missing-conv was not found");
+    });
+
+    it("throws a useful error when title update cannot reload the conversation", async () => {
+      mockHttpGet.mockResolvedValue({ data: [null] });
+
+      await expect(
+        AgentServerConversationService.updateConversationTitle(
+          "missing-conv",
+          "New title",
+        ),
+      ).rejects.toThrow("Conversation missing-conv was not found");
     });
   });
 

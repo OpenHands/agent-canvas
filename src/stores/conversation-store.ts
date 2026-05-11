@@ -6,9 +6,8 @@ import {
 } from "#/utils/conversation-local-storage";
 
 export type ConversationTab =
-  | "editor"
+  | "files"
   | "browser"
-  | "served"
   | "vscode"
   | "terminal"
   | "planner"
@@ -131,7 +130,7 @@ export const useConversationStore = create<ConversationStore>()(
     (set) => ({
       // Initial state
       isRightPanelShown: getInitialRightPanelState(),
-      selectedTab: "editor" as ConversationTab,
+      selectedTab: "files" as ConversationTab,
       images: [],
       files: [],
       uploadImagesAsFiles: false,

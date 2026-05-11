@@ -52,6 +52,16 @@ import type {
   SendMessageResponse,
 } from "./agent-server-conversation-service.types";
 
+function requireAppConversation(
+  conversation: AppConversation | null | undefined,
+  conversationId: string,
+): AppConversation {
+  if (!conversation) {
+    throw new Error(`Conversation ${conversationId} was not found`);
+  }
+  return conversation;
+}
+
 class AgentServerConversationService {
   static async sendMessage(
     conversationId: string,
@@ -250,8 +260,10 @@ class AgentServerConversationService {
     } else {
       removeStoredConversationMetadata(conversationId);
     }
-    const results = await this.batchGetAppConversations([conversationId]);
-    return results[0] as AppConversation;
+    const [conversation] = await this.batchGetAppConversations([
+      conversationId,
+    ]);
+    return requireAppConversation(conversation, conversationId);
   }
 
   static async readConversationFile(
@@ -397,7 +409,7 @@ class AgentServerConversationService {
     const [conversation] = await this.batchGetAppConversations([
       conversationId,
     ]);
-    return conversation as AppConversation;
+    return requireAppConversation(conversation, conversationId);
   }
 }
 

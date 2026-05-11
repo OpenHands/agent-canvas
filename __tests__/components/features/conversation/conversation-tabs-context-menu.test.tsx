@@ -40,7 +40,7 @@ describe("ConversationTabsContextMenu", () => {
     __resetActiveStoreForTests();
     mockHasTaskList = false;
     useConversationStore.setState({
-      selectedTab: "editor",
+      selectedTab: "files",
       isRightPanelShown: true,
       hasRightPanelToggled: true,
     });
@@ -60,9 +60,8 @@ describe("ConversationTabsContextMenu", () => {
     // Default active backend is local, so the Code (vscode) entry is hidden.
     const expectedTabs = [
       "COMMON$PLANNER",
-      "COMMON$CHANGES",
+      "COMMON$FILES",
       "COMMON$TERMINAL",
-      "COMMON$APP",
       "COMMON$BROWSER",
     ];
     for (const tab of expectedTabs) {
@@ -118,7 +117,7 @@ describe("ConversationTabsContextMenu", () => {
 
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    await user.click(screen.getByText("COMMON$CHANGES"));
+    await user.click(screen.getByText("COMMON$FILES"));
 
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(false);

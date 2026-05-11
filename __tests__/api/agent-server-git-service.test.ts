@@ -46,12 +46,11 @@ describe("AgentServerGitService", () => {
         "/workspace/project",
       );
 
-      expect(RemoteWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: "http://localhost:3000",
-          apiKey: "my-session-key",
-        }),
-      );
+      expect(RemoteWorkspace).toHaveBeenCalledWith({
+        host: "http://localhost:3000",
+        apiKey: "my-session-key",
+        workingDir: "workspace/project",
+      });
       expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project", {
         ref: "HEAD",
       });
@@ -107,12 +106,11 @@ describe("AgentServerGitService", () => {
         "/workspace/project/file.ts",
       );
 
-      expect(RemoteWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({
-          host: "http://localhost:3000",
-          apiKey: "test-api-key",
-        }),
-      );
+      expect(RemoteWorkspace).toHaveBeenCalledWith({
+        host: "http://localhost:3000",
+        apiKey: "test-api-key",
+        workingDir: "workspace/project",
+      });
       expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts", {
         ref: "HEAD",
       });
