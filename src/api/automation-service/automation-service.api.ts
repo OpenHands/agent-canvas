@@ -4,8 +4,10 @@ import type {
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
-import { getAgentServerBaseUrl } from "../agent-server-config";
-import { getActiveBackend } from "../backend-registry/active-store";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+} from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
@@ -16,15 +18,20 @@ export interface AutomationHealthResponse {
 }
 
 // Local automation calls go to the automation sidecar that
-// `scripts/dev-with-automation.mjs` mounts behind the bundled agent-server.
+// `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
 // That sidecar authenticates via its own `VITE_AUTOMATION_API_KEY` Bearer
 // token — NOT the agent-server's `X-Session-API-Key` — so we cannot reuse
 // the shared `openHands` axios for these calls.
-const localAutomationAxios = axios.create({
-  baseURL: getAgentServerBaseUrl(),
-});
+const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
+  // Resolve the local backend host on every call so it tracks the
+  // currently-active local backend (and any host edits made via the
+  // manage-backends UI), rather than freezing whatever value the
+  // agent-server-config produced at module load time.
+  // eslint-disable-next-line no-param-reassign
+  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+
   const apiKey = import.meta.env.VITE_AUTOMATION_API_KEY?.trim();
   if (apiKey) {
     config.headers.set("Authorization", `Bearer ${apiKey}`);

@@ -26,6 +26,12 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
     return `${gitPath}/${config.filePath}`;
   }, [selectedRepository, config.filePath, workingDir]);
 
+  // Deleted files no longer exist on disk, so the agent server's
+  // `/api/git/diff` endpoint returns a `GitPathError` (HTTP 400) for them.
+  // Skip the request entirely and let the UI render a "file deleted"
+  // placeholder instead of triggering an error toast.
+  const isDeleted = config.type === "D";
+
   return useQuery({
     queryKey: [
       "file_diff",
@@ -43,7 +49,7 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
         absoluteFilePath,
       );
     },
-    enabled: config.enabled,
+    enabled: config.enabled && !isDeleted,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 15, // 15 minutes
   });

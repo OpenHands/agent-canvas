@@ -8,14 +8,14 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
-import ServerIcon from "#/icons/server.svg?react";
-import GitChanges from "#/icons/git_changes.svg?react";
+import DocumentIcon from "#/icons/document.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
 import PillIcon from "#/icons/pill.svg?react";
 import PillFillIcon from "#/icons/pill-fill.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -35,6 +35,7 @@ export function ConversationTabsContextMenu({
     useConversationStore();
 
   const { hasTaskList } = useTaskList();
+  const { backend } = useActiveBackend();
 
   const tabConfig = [
     {
@@ -42,10 +43,9 @@ export function ConversationTabsContextMenu({
       icon: LessonPlanIcon,
       i18nKey: I18nKey.COMMON$PLANNER,
     },
-    { tab: "editor", icon: GitChanges, i18nKey: I18nKey.COMMON$CHANGES },
+    { tab: "files", icon: DocumentIcon, i18nKey: I18nKey.COMMON$FILES },
     { tab: "vscode", icon: VSCodeIcon, i18nKey: I18nKey.COMMON$CODE },
     { tab: "terminal", icon: TerminalIcon, i18nKey: I18nKey.COMMON$TERMINAL },
-    { tab: "served", icon: ServerIcon, i18nKey: I18nKey.COMMON$APP },
     { tab: "browser", icon: GlobeIcon, i18nKey: I18nKey.COMMON$BROWSER },
   ];
 
@@ -56,6 +56,11 @@ export function ConversationTabsContextMenu({
       i18nKey: I18nKey.COMMON$TASK_LIST,
     });
   }
+
+  // Hide the VSCode pin/unpin entry on local backends, mirroring the tab bar.
+  const visibleTabConfig = tabConfig.filter(
+    ({ tab }) => tab !== "vscode" || backend.kind === "cloud",
+  );
 
   if (!isOpen) return null;
 
@@ -78,7 +83,7 @@ export function ConversationTabsContextMenu({
       position="bottom"
       className="mt-2 w-fit z-[9999]"
     >
-      {tabConfig.map(({ tab, icon: Icon, i18nKey }) => {
+      {visibleTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
           <ContextMenuListItem

@@ -84,7 +84,12 @@ export const useLocalGitInfo = () => {
       !!workingDir &&
       !hasConversationRepo,
     retry: false,
-    staleTime: 1000 * 60,
+    // Re-probe the workspace every 10s so the UI reflects branch/repo
+    // changes (e.g. `git checkout`, adding a remote) without requiring a
+    // manual refresh when there is no `selected_repository` recorded on
+    // the conversation.
+    staleTime: 10_000,
+    refetchInterval: 10_000,
     gcTime: 1000 * 60 * 5,
     meta: { disableToast: true },
   });

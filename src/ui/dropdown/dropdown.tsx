@@ -74,6 +74,11 @@ export function Dropdown({
       selectedItem: currentSelectedItem,
     }) => {
       if (newIsOpen) {
+        // Clear the input on open so the user sees an empty search box
+        // (with the placeholder reminding them of the current value)
+        // and the full options list. Otherwise the active label would
+        // appear both in the trigger AND as the highlighted menu row.
+        setInputValue("");
         setSearchTerm("");
       } else {
         setInputValue(currentSelectedItem?.label ?? "");
@@ -83,6 +88,15 @@ export function Dropdown({
   });
 
   const isDisabled = loading || disabled;
+
+  // `selectedItem` is downshift's internal state, frozen to whatever
+  // initialized it. Resolve the currently selected option against the
+  // live `options` array so per-option fields like `prefix` (e.g. a
+  // status indicator that re-renders on a timer) update on the trigger
+  // without remounting the dropdown.
+  const liveSelectedOption = selectedItem
+    ? (options.find((o) => o.value === selectedItem.value) ?? selectedItem)
+    : null;
 
   // Wrap getInputProps to inject a direct onChange handler that preserves
   // cursor position. Downshift's default onInputValueChange resets cursor
@@ -107,6 +121,11 @@ export function Dropdown({
           className,
         )}
       >
+        {liveSelectedOption?.prefix ? (
+          <span className="flex items-center shrink-0">
+            {liveSelectedOption.prefix}
+          </span>
+        ) : null}
         <DropdownInput
           placeholder={placeholder}
           isDisabled={isDisabled}

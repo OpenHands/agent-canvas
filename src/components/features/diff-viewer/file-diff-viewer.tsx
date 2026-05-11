@@ -1,6 +1,7 @@
 import { DiffEditor, Editor, Monaco } from "@monaco-editor/react";
 import React from "react";
 import { editor as editor_t } from "monaco-editor";
+import { useTranslation } from "react-i18next";
 import {
   LuFileDiff,
   LuFileMinus,
@@ -11,6 +12,7 @@ import {
 } from "react-icons/lu";
 import { IconType } from "react-icons/lib";
 import { GitChangeStatus } from "#/api/open-hands.types";
+import { I18nKey } from "#/i18n/declaration";
 import { getLanguageFromPath } from "#/utils/get-language-from-path";
 import { cn } from "#/utils/utils";
 import ChevronUp from "#/icons/chveron-up.svg?react";
@@ -73,6 +75,7 @@ export interface FileDiffViewerProps {
 }
 
 export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
+  const { t } = useTranslation("openhands");
   const [isCollapsed, setIsCollapsed] = React.useState(true);
   const [editorHeight, setEditorHeight] = React.useState(400);
   const [viewMode, setViewMode] = React.useState<ViewMode>("diff");
@@ -211,7 +214,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
         <span className="text-sm w-full text-content flex items-center gap-2">
           {isFetchingData ? <LoadingSpinner className="w-4 h-4" /> : statusIcon}
           <strong className="w-full truncate font-medium">{filePath}</strong>
-          {!isCollapsed && (
+          {!isCollapsed && !isDeleted && (
             <span
               className="flex items-center gap-0.5 shrink-0"
               onClick={(e) => e.stopPropagation()}
@@ -245,7 +248,16 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
         </span>
       </div>
 
-      {isSuccess && !isCollapsed && renderContent()}
+      {!isCollapsed && isDeleted && (
+        <div
+          data-testid="file-deleted-message"
+          className="w-full border-b border-[#474A54] p-4 bg-neutral-900 text-[#8D95A9] text-sm"
+        >
+          {t(I18nKey.DIFF_VIEWER$FILE_DELETED)}
+        </div>
+      )}
+
+      {!isCollapsed && !isDeleted && isSuccess && renderContent()}
     </div>
   );
 }

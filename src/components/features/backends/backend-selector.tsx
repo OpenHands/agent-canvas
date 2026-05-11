@@ -8,17 +8,26 @@ import { DropdownOption } from "#/ui/dropdown/types";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useAllCloudOrganizations } from "#/hooks/query/use-cloud-organizations";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
+import {
+  useBackendsHealth,
+  type BackendHealth,
+} from "#/hooks/query/use-backends-health";
 import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
+// Import the trigger helpers from the lightweight store, not the overlay
+// component, so the eagerly-mounted sidebar/backend-selector graph does not
+// pull in the overlay's render code (the overlay is lazy-loaded from
+// `routes/root-layout.tsx`).
 import {
   dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
-} from "#/components/features/backends/environment-switch-overlay";
+} from "#/components/features/backends/environment-switch-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AddBackendModal } from "./add-backend-modal";
+import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
 
 const VALUE_SEPARATOR = "::";
@@ -35,29 +44,39 @@ function parseOptionValue(value: string): {
   return { backendId, orgId: orgId ?? null };
 }
 
+function buildStatusPrefix(health: BackendHealth | undefined) {
+  return <BackendStatusDot isConnected={health?.isConnected ?? null} />;
+}
+
 function buildOptions(
-  bundled: Backend,
   registered: Backend[],
-  bundledLabel: string,
   personalWorkspaceLabel: string,
   cloudOrgs: ReturnType<typeof useAllCloudOrganizations>,
   currentUserIds: ReturnType<typeof useCloudCurrentUserId>,
+  healthByBackendId: Record<string, BackendHealth>,
 ): DropdownOption[] {
-  const options: DropdownOption[] = [
-    { value: makeOptionValue(bundled.id, null), label: bundledLabel },
-  ];
+  const options: DropdownOption[] = [];
 
   const locals = registered.filter((b) => b.kind === "local");
   const clouds = registered.filter((b) => b.kind === "cloud");
 
   for (const b of locals) {
-    options.push({ value: makeOptionValue(b.id, null), label: b.name });
+    options.push({
+      value: makeOptionValue(b.id, null),
+      label: b.name,
+      prefix: buildStatusPrefix(healthByBackendId[b.id]),
+    });
   }
 
   for (const b of clouds) {
     const entry = cloudOrgs[b.id];
+    const prefix = buildStatusPrefix(healthByBackendId[b.id]);
     if (!entry || entry.orgs.length === 0) {
-      options.push({ value: makeOptionValue(b.id, null), label: b.name });
+      options.push({
+        value: makeOptionValue(b.id, null),
+        label: b.name,
+        prefix,
+      });
     } else {
       // Personal-workspace rule (per the SaaS contract): the org whose
       // id matches the calling user's id is the user's personal
@@ -71,6 +90,9 @@ function buildOptions(
         options.push({
           value: makeOptionValue(b.id, org.id),
           label: `${b.name} – ${orgLabel}`,
+          // All org rows for the same cloud backend share that backend's
+          // single connectivity verdict — there is no per-org probe.
+          prefix,
         });
       }
     }
@@ -88,10 +110,11 @@ export function BackendSelector({
   openUpward = false,
 }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
-  const { backends, bundledBackend, active, setActive } =
-    useActiveBackendContext();
+  const { backends, active, setActive } = useActiveBackendContext();
   const cloudOrgs = useAllCloudOrganizations();
   const currentUserIds = useCloudCurrentUserId();
+  // Probe each registered backend every 10s.
+  const healthByBackendId = useBackendsHealth(backends);
   const { mutateAsync: switchOrg, isPending: isSwitching } =
     useSwitchCloudOrganization();
   const navigate = useNavigate();
@@ -101,26 +124,28 @@ export function BackendSelector({
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
 
-  const bundledLabel = t(I18nKey.BACKEND$LOCAL_ROW);
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
+
+  const firstLocalBackendId = React.useMemo(
+    () => backends.find((b) => b.kind === "local")?.id ?? null,
+    [backends],
+  );
 
   const options = React.useMemo(
     () =>
       buildOptions(
-        bundledBackend,
         backends,
-        bundledLabel,
         personalWorkspaceLabel,
         cloudOrgs,
         currentUserIds,
+        healthByBackendId,
       ),
     [
-      bundledBackend,
       backends,
-      bundledLabel,
       personalWorkspaceLabel,
       cloudOrgs,
       currentUserIds,
+      healthByBackendId,
     ],
   );
 
@@ -161,8 +186,8 @@ export function BackendSelector({
                 setActive(backend.id, target.id);
               }
             } catch {
-              if (!cancelled) {
-                setActive(bundledBackend.id, null);
+              if (!cancelled && firstLocalBackendId) {
+                setActive(firstLocalBackendId, null);
               }
             }
           };
@@ -177,7 +202,7 @@ export function BackendSelector({
     };
   }, [
     active,
-    bundledBackend.id,
+    firstLocalBackendId,
     cloudOrgs,
     currentUserIds,
     setActive,
@@ -231,17 +256,18 @@ export function BackendSelector({
         testId="backend-selector"
         key={`${activeValue}-${activeOption?.label ?? ""}`}
         defaultValue={
-          activeOption ?? { value: activeValue, label: bundledLabel }
+          activeOption ?? {
+            value: activeValue,
+            label: active.backend.name,
+            prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
+          }
         }
         footer={addBackendFooter}
         openUpward={openUpward}
         onChange={async (item) => {
           if (!item || item.value === activeValue) return;
           const { backendId, orgId } = parseOptionValue(item.value);
-          const target =
-            backendId === bundledBackend.id
-              ? bundledBackend
-              : backends.find((b) => b.id === backendId);
+          const target = backends.find((b) => b.id === backendId);
           if (!target) return;
 
           triggerEnvironmentSwitch(item.label);
@@ -273,7 +299,7 @@ export function BackendSelector({
 
           setActive(target.id, orgId);
         }}
-        placeholder={bundledLabel}
+        placeholder={active.backend.name}
         loading={someCloudLoading || isSwitching}
         options={options}
         className="bg-[#1F1F1F66] border-[#242424]"

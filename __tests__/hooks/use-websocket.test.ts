@@ -161,6 +161,10 @@ describe("useWebSocket", () => {
   });
 
   it("should support query parameters in WebSocket URL", async () => {
+    // Stub WebSocket deterministically (mirrors the `onClose` test below).
+    // The MSW-backed variant was flaky in CI because `wsLink.broadcast()` from
+    // other tests leaks across the shared mock server, and this assertion
+    // only needs to observe the constructed URL, not a real connection.
     class MockWebSocket {
       static readonly CONNECTING = 0;
       static readonly OPEN = 1;
@@ -196,21 +200,21 @@ describe("useWebSocket", () => {
       }
     }
 
-    const baseUrl = "ws://acme.com/ws";
-    const queryParams = {
-      token: "abc123",
-      userId: "user456",
-      version: "v1",
-    };
     const originalWebSocket = globalThis.WebSocket;
     vi.stubGlobal("WebSocket", MockWebSocket);
 
     try {
+      const baseUrl = "ws://acme.com/ws";
+      const queryParams = {
+        token: "abc123",
+        userId: "user456",
+        version: "v1",
+      };
+
       const { result, unmount } = renderHook(() =>
         useWebSocket(baseUrl, { queryParams }),
       );
 
-      // Wait for connection to be established
       await waitForConnection(result);
 
       // Verify that the WebSocket was created with query parameters

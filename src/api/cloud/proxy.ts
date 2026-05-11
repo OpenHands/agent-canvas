@@ -1,6 +1,6 @@
 import axios from "axios";
+import { getEffectiveLocalBackend } from "../backend-registry/active-store";
 import { buildAuthHeaders } from "../backend-registry/auth";
-import { getBundledBackend } from "../backend-registry/bundled";
 import type { Backend } from "../backend-registry/types";
 
 interface CloudProxyRequest {
@@ -58,10 +58,10 @@ function buildUpstreamAuthHeaders(
 }
 
 /**
- * POST a cloud-proxy envelope to the bundled local agent-server. The local
- * server forwards the request to the upstream host server-side, which
- * sidesteps the cross-origin restrictions that would block a direct
- * browser → SaaS or browser → runtime-sandbox call.
+ * POST a cloud-proxy envelope to the local agent-server. The local server
+ * forwards the request to the upstream host server-side, which sidesteps
+ * the cross-origin restrictions that would block a direct browser → SaaS
+ * or browser → runtime-sandbox call.
  *
  * Auth headers (bearer or session-api-key) are attached server-side; they
  * never cross an origin boundary in the browser.
@@ -69,18 +69,18 @@ function buildUpstreamAuthHeaders(
 export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
-  const bundled = getBundledBackend();
+  const local = getEffectiveLocalBackend();
   const upstreamHeaders = {
     ...buildUpstreamAuthHeaders(req),
     ...(req.headers ?? {}),
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
 
-  // Talk directly to the bundled local agent-server, bypassing the global
+  // Talk directly to the local agent-server, bypassing the global
   // openHands axios interceptor (which would otherwise read host + auth
   // from the active backend — wrong for this call).
   const response = await axios.post<TResponse>(
-    `${bundled.host.replace(/\/+$/, "")}/api/cloud-proxy`,
+    `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,
     {
       host: upstreamHost,
       method: req.method,
@@ -90,7 +90,7 @@ export async function callCloudProxy<TResponse = unknown>(
       ...(req.timeoutSeconds ? { timeout_seconds: req.timeoutSeconds } : {}),
     },
     {
-      headers: buildAuthHeaders(bundled),
+      headers: buildAuthHeaders(local),
       timeout: 30_000,
       ...(req.responseType ? { responseType: req.responseType } : {}),
     },

@@ -565,7 +565,7 @@ function printBanner(config) {
 
 async function main() {
   const args = parseArgs();
-  const config = buildConfig(args);
+  const config = await buildConfig(args);
 
   console.log("");
   console.log(

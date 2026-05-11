@@ -1,3 +1,4 @@
+import { makeDefaultLocalBackend } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -20,25 +21,49 @@ function isValidBackend(value: unknown): value is Backend {
   );
 }
 
-export function readStoredBackends(): Backend[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidBackend);
-  } catch {
-    return [];
-  }
-}
-
 export function writeStoredBackends(backends: Backend[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify(backends));
   } catch {
     /* ignore quota / serialization errors */
+  }
+}
+
+export function readStoredBackends(): Backend[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
+
+    // First install: the storage key has never been written. Seed the
+    // registry with one default local backend derived from the env /
+    // agent-server-config so the user has something to talk to out of
+    // the box.
+    if (raw === null) {
+      const seeded = [makeDefaultLocalBackend()];
+      writeStoredBackends(seeded);
+      return seeded;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const valid = parsed.filter(isValidBackend);
+
+    // If the stored array is empty (or everything in it failed validation),
+    // re-seed with the default Local backend so the user always has a
+    // working entry pointing at VITE_SESSION_API_KEY. With the dev scripts
+    // persisting that key to ~/.openhands/agent-canvas/session-api-key.txt,
+    // re-seeding is safe — the seeded entry will keep working across
+    // restarts instead of going stale.
+    if (valid.length === 0) {
+      const seeded = [makeDefaultLocalBackend()];
+      writeStoredBackends(seeded);
+      return seeded;
+    }
+
+    return valid;
+  } catch {
+    return [];
   }
 }
 

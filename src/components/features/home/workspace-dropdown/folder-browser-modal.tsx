@@ -9,6 +9,7 @@ import {
   useHomeDirectory,
   useSearchSubdirs,
 } from "#/hooks/query/use-search-subdirs";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
@@ -79,25 +80,6 @@ function getParentPath(path: string): string | null {
   return trimmed.slice(0, idx);
 }
 
-function buildSidebar(home: string | null): {
-  favorites: SidebarEntry[];
-  locations: SidebarEntry[];
-} {
-  if (!home) {
-    return { favorites: [], locations: [{ label: "/", path: "/" }] };
-  }
-  const trimmed = home.replace(/\/+$/, "");
-  return {
-    favorites: [
-      { label: "Home", path: trimmed },
-      { label: "Desktop", path: `${trimmed}/Desktop` },
-      { label: "Documents", path: `${trimmed}/Documents` },
-      { label: "Downloads", path: `${trimmed}/Downloads` },
-    ],
-    locations: [{ label: "/", path: "/" }],
-  };
-}
-
 export function FolderBrowserModal({
   isOpen,
   onClose,
@@ -106,6 +88,7 @@ export function FolderBrowserModal({
 }: FolderBrowserModalProps) {
   const { t } = useTranslation("openhands");
   const [currentPath, setCurrentPath] = useState<string | null>(null);
+  const active = useActiveBackend();
 
   const { data: homeData } = useHomeDirectory();
 
@@ -119,6 +102,12 @@ export function FolderBrowserModal({
     }
   }, [isOpen, homeData?.home, currentPath]);
 
+  // A backend switch invalidates the previous path — clear it so the
+  // open/close effect can re-seed from the new backend's homeData.home.
+  useEffect(() => {
+    setCurrentPath(null);
+  }, [active.backend.id, active.orgId]);
+
   const {
     data: listing,
     isLoading,
@@ -126,15 +115,33 @@ export function FolderBrowserModal({
     error,
   } = useSearchSubdirs(isOpen ? currentPath : null);
 
-  const sidebar = useMemo(
-    () => buildSidebar(homeData?.home ?? null),
-    [homeData?.home],
-  );
+  const favorites: SidebarEntry[] = useMemo(() => {
+    if (!homeData?.home) return [];
+    const trimmed = homeData.home.replace(/[\\/]+$/, "") || homeData.home;
+    return [{ label: "Home", path: trimmed }, ...(homeData.favorites ?? [])];
+  }, [homeData]);
+
+  const locations: SidebarEntry[] = homeData?.locations ?? [];
 
   if (!isOpen) return null;
 
   const subdirs = listing?.items ?? [];
   const parent = currentPath ? getParentPath(currentPath) : null;
+
+  // Signal that we're inside the dev:docker container without the host
+  // home mounted: the agent server reports `/home/openhands` as home and
+  // returns no favorites (the only contents are hidden credential dirs).
+  // In that case there's nothing useful for the user to browse, so we
+  // surface the OH_MOUNT_HOST_HOME=1 opt-in instead of the generic empty
+  // state. Off in production / non-Docker dev because favorites are
+  // populated there.
+  const showHostHomeHint =
+    homeData?.home === "/home/openhands" &&
+    (homeData?.favorites?.length ?? 0) === 0 &&
+    currentPath === homeData?.home &&
+    !isLoading &&
+    !isError &&
+    subdirs.length === 0;
 
   const getBasename = (path: string): string => {
     const trimmed = path.replace(/\/+$/, "");
@@ -194,13 +201,13 @@ export function FolderBrowserModal({
           >
             <SidebarSection
               label={t(I18nKey.HOME$FAVORITES)}
-              entries={sidebar.favorites}
+              entries={favorites}
               currentPath={currentPath}
               onPick={setCurrentPath}
             />
             <SidebarSection
               label={t(I18nKey.HOME$LOCATIONS)}
-              entries={sidebar.locations}
+              entries={locations}
               currentPath={currentPath}
               onPick={setCurrentPath}
             />
@@ -253,8 +260,17 @@ export function FolderBrowserModal({
                 </li>
               )}
               {!isLoading && !isError && subdirs.length === 0 && (
-                <li className="px-4 py-2 text-sm text-[#B7BDC2]">
-                  {t(I18nKey.HOME$NO_WORKSPACES)}
+                <li
+                  className="px-4 py-2 text-sm text-[#B7BDC2]"
+                  data-testid={
+                    showHostHomeHint
+                      ? "folder-browser-host-home-hint"
+                      : "folder-browser-empty"
+                  }
+                >
+                  {showHostHomeHint
+                    ? t(I18nKey.HOME$HOST_HOME_NOT_MOUNTED_HINT)
+                    : t(I18nKey.HOME$NO_WORKSPACES)}
                 </li>
               )}
               {subdirs.map((entry) => (

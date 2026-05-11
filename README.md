@@ -22,20 +22,48 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ## Quickstart
 
+### With Docker (recommended)
+
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
-- `uv` (for running the agent server via `uvx`)
+- Docker
+
+Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+
+By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
+
+```sh
+export PROJECT_PATH=/path/to/your/projects
+git clone https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+npm install
+npm run dev:docker
+```
+
+Access the UI at [http://localhost:8000](http://localhost:8000)
+
+### Without Docker
 
 > [!WARNING]
 > This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
-> Stay tuned for docker sandboxing instructions.
+
+Running without docker is great if you're running Agent Canvas on a VM. See [SELF_HOSTING.md](SELF_HOSTING.md) for details,
+especially with respect to security hardening. Notably, you can run the backend on _multiple different VMs_ and switch between
+them from the same Agent Canvas frontend!
+
+**Prerequisites**:
+
+- Node.js 22.12.x or later
+- `npm`
+- `uv` (for running the agent server via `uvx`)
 
 ```sh
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-npm run dev
+npm run dev:dangerously-dockerless
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)

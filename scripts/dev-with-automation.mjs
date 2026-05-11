@@ -52,6 +52,7 @@ import {
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
   generateRandomApiKey,
+  findFreePorts,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -220,7 +221,7 @@ function buildAutomationCommand(env = process.env) {
   };
 }
 
-function buildConfig(args, env = process.env) {
+async function buildConfig(args, env = process.env) {
   // Apply args to env for buildAutomationCommand
   if (args.automationGitRef) {
     env.OH_AUTOMATION_GIT_REF = args.automationGitRef;
@@ -229,11 +230,36 @@ function buildConfig(args, env = process.env) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
   }
 
-  const ingressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const backendPort = DEFAULT_BACKEND_PORT;
-  const automationPort = DEFAULT_AUTOMATION_PORT;
-  const vitePort = 3001;
-  const vscodePort = backendPort + 1000;
+  // Preferred ports (from env or defaults)
+  const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
+  const preferredBackendPort = DEFAULT_BACKEND_PORT;
+  const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
+  const preferredVitePort = 3001;
+
+  // Find available ports, preferring the defaults
+  logStep("ports", "Allocating ports...");
+  const ports = await findFreePorts([
+    { name: "ingress", preferred: preferredIngressPort },
+    { name: "backend", preferred: preferredBackendPort },
+    { name: "automation", preferred: preferredAutomationPort },
+    { name: "vite", preferred: preferredVitePort },
+  ]);
+
+  // Log any port changes
+  if (ports.ingress !== preferredIngressPort) {
+    logService("ports", `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`, c.yellow);
+  }
+  if (ports.backend !== preferredBackendPort) {
+    logService("ports", `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`, c.yellow);
+  }
+  if (ports.automation !== preferredAutomationPort) {
+    logService("ports", `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`, c.yellow);
+  }
+  if (ports.vite !== preferredVitePort) {
+    logService("ports", `Port ${preferredVitePort} busy, using ${ports.vite} for vite`, c.yellow);
+  }
+
+  const vscodePort = ports.backend + 1000;
 
   // Local API key for automation backend auth
   const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
@@ -245,19 +271,19 @@ function buildConfig(args, env = process.env) {
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
     OH_CANVAS_SAFE_STATE_DIR: stateDir,
-    OH_CANVAS_SAFE_BACKEND_PORT: backendPort.toString(),
+    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
     OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
   });
   const sessionApiKey = safeConfig.sessionApiKey;
 
   return {
     // Ingress port (main entry point)
-    ingressPort,
+    ingressPort: ports.ingress,
 
     // Service ports (internal)
-    agentServerPort: backendPort,
-    autoBackendPort: automationPort,
-    vitePort,
+    agentServerPort: ports.backend,
+    autoBackendPort: ports.automation,
+    vitePort: ports.vite,
     vscodePort,
 
     // Paths
@@ -530,7 +556,7 @@ function startVite(config) {
       // Point Vite at the ingress (so client-side fetches work)
       VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
+      VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
       // Session API key for frontend to authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,
@@ -658,23 +684,39 @@ function printBanner(config) {
   console.log("");
 }
 
-async function main() {
+async function main(options = {}) {
+  const {
+    bannerTitle = "Agent Canvas + Automation Development Stack",
+    startAgentServer: startAgentServerOverride,
+    extraPrereqs,
+    viteWorkingDir,
+  } = options;
+
   const args = parseArgs();
-  const config = buildConfig(args);
 
   console.log("");
-  console.log(`${c.cyan}${c.bold}Agent Canvas + Automation Development Stack${c.reset}`);
+  console.log(`${c.cyan}${c.bold}${bannerTitle}${c.reset}`);
   console.log("");
 
   // Setup phase
+  // (uvx is still required even in docker mode because the automation
+  // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites();
+
+  // Build config with dynamic port allocation
+  const config = await buildConfig(args);
+  if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
   ensureDirectories(config);
+  if (typeof extraPrereqs === "function") {
+    extraPrereqs(config);
+  }
 
   // Start services phase
   logStep("2/2", "Starting services...");
 
   // 1. Start agent-server first (other services depend on it)
-  startAgentServer(config);
+  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+  agentServerStarter(config);
 
   // Wait for agent-server to be ready (60s timeout for slow systems)
   const agentServerReady = await waitForService(
@@ -718,6 +760,14 @@ export {
   buildAutomationCommand,
   buildConfig,
   generateRandomApiKey,
+  main,
+  spawnService,
+  commandExists,
+  logService,
+  logStep,
+  logSuccess,
+  logError,
+  c,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,

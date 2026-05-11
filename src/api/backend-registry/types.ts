@@ -17,5 +17,3 @@ export interface ResolvedActiveBackend {
   backend: Backend;
   orgId: string | null;
 }
-
-export const BUNDLED_BACKEND_ID = "__bundled__";

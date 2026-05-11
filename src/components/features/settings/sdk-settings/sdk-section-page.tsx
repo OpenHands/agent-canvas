@@ -102,6 +102,21 @@ export interface SdkSectionHeaderProps {
 }
 
 /**
+ * Snapshot of the page's save state, surfaced to the parent so it can
+ * render its own Save/Next button (e.g. in onboarding) when
+ * {@link SdkSectionPage}'s built-in button is hidden via
+ * `hideSaveButton`.
+ */
+export interface SdkSectionSaveControl {
+  /** Trigger a save of the currently-dirty fields. No-op while `isSaving` or `!isDirty`. */
+  save: () => void;
+  /** A save mutation is in flight. */
+  isSaving: boolean;
+  /** At least one field is dirty (or `extraDirty` was passed in). */
+  isDirty: boolean;
+}
+
+/**
  * A generic SDK-schema–driven settings page that renders fields
  * from one or more schema sections.
  *
@@ -122,6 +137,10 @@ export function SdkSectionPage({
   getInitialView,
   forceShowAdvancedView = false,
   allowAllView = true,
+  initialValueOverrides,
+  embedded = false,
+  hideSaveButton = false,
+  onSaveControlChange,
   testId = "sdk-section-settings-screen",
 }: {
   sectionKeys: string[];
@@ -146,6 +165,34 @@ export function SdkSectionPage({
   ) => SettingsView;
   forceShowAdvancedView?: boolean;
   allowAllView?: boolean;
+  /**
+   * Per-field initial value overrides that win over the values
+   * derived from `useSettings`. The keys of each override are also
+   * marked dirty on hydration so the user can save the form without
+   * having to touch the prefilled fields. Useful when the page is
+   * embedded in a flow that wants to nudge brand-new users toward a
+   * particular default (e.g. onboarding pre-filling Anthropic/Opus).
+   */
+  initialValueOverrides?: SettingsFormValues;
+  /**
+   * When true, the Save button container is rendered inline (no
+   * sticky positioning, no contrasting `bg-base` band) so the page
+   * can be dropped into a modal/card without a hard footer break.
+   */
+  embedded?: boolean;
+  /**
+   * Suppress the built-in Save Changes button entirely. Pair with
+   * {@link onSaveControlChange} to drive saving from a parent-rendered
+   * action (e.g. an onboarding "Next" button).
+   */
+  hideSaveButton?: boolean;
+  /**
+   * Fires whenever the save state changes (a mutation starts/finishes,
+   * dirty status flips). Provides a stable `save()` callback the
+   * parent can wire to its own button. Useful when the form is
+   * embedded in a custom flow and the built-in Save button is hidden.
+   */
+  onSaveControlChange?: (control: SdkSectionSaveControl) => void;
   testId?: string;
 }) {
   const { t } = useTranslation("openhands");
@@ -201,14 +248,24 @@ export function SdkSectionPage({
     [activeSchemaQuery.error, t],
   );
 
+  const overridesSignature = React.useMemo(
+    () => (initialValueOverrides ? JSON.stringify(initialValueOverrides) : ""),
+    [initialValueOverrides],
+  );
+
   const initialValues = React.useMemo(() => {
     if (!settings || !filteredSchema) return null;
-    return buildInitialSettingsFormValues(
+    const base = buildInitialSettingsFormValues(
       settings,
       filteredSchema,
       settingsSource,
     );
-  }, [settings, filteredSchema, settingsSource]);
+    if (!initialValueOverrides) return base;
+    return { ...base, ...initialValueOverrides };
+    // overridesSignature keeps the memo reactive without depending on
+    // a (potentially recreated) object reference each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, filteredSchema, settingsSource, overridesSignature]);
 
   const initialView = React.useMemo(() => {
     if (!settings || !filteredSchema) return null;
@@ -238,7 +295,16 @@ export function SdkSectionPage({
     if (!initialValues || !initialView) return;
 
     setValues(initialValues);
-    setDirty({});
+    // Override-supplied keys are pre-populated for the user, so mark
+    // them dirty up-front; otherwise the Save button stays disabled
+    // until the user touches a field, defeating the point of the
+    // override.
+    const overrideDirty: SettingsDirtyState = initialValueOverrides
+      ? Object.fromEntries(
+          Object.keys(initialValueOverrides).map((key) => [key, true]),
+        )
+      : {};
+    setDirty(overrideDirty);
     setView((currentView) => {
       if (!hasHydratedViewRef.current) {
         hasHydratedViewRef.current = true;
@@ -247,6 +313,10 @@ export function SdkSectionPage({
 
       return getLessDetailedView(currentView, initialView);
     });
+    // initialValueOverrides is intentionally tracked via
+    // overridesSignature on initialValues; including the object ref
+    // here would re-fire the effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues, initialView]);
 
   const visibleSections = React.useMemo(() => {
@@ -274,6 +344,14 @@ export function SdkSectionPage({
     },
     [t],
   );
+
+  // Stable save callback so `onSaveControlChange` can hand a single
+  // function reference to the parent across renders. The latest
+  // closure is kept up to date via `handleSaveRef`.
+  const handleSaveRef = React.useRef<() => void>(() => {});
+  const stableSave = React.useCallback(() => {
+    handleSaveRef.current();
+  }, []);
 
   const handleSave = () => {
     if (!filteredSchema || isReadOnly) return;
@@ -314,6 +392,25 @@ export function SdkSectionPage({
     });
   };
 
+  handleSaveRef.current = handleSave;
+
+  // Surface save state to the parent. Hooks must run before any
+  // conditional early-returns below, so this lives here rather than
+  // alongside the JSX. The dependency list deliberately excludes
+  // `stableSave` (it never changes) and `onSaveControlChange` (we
+  // tolerate ref-instability of the callback to avoid spamming the
+  // parent on every render).
+  const saveControlIsDirty = Object.keys(dirty).length > 0 || extraDirty;
+  React.useEffect(() => {
+    if (!onSaveControlChange) return;
+    onSaveControlChange({
+      save: stableSave,
+      isSaving: isPending,
+      isDirty: saveControlIsDirty,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, saveControlIsDirty]);
+
   if (isLoading || isFetching || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
@@ -328,8 +425,27 @@ export function SdkSectionPage({
 
   if (Object.keys(values).length === 0) return <LlmSettingsInputsSkeleton />;
 
+  // In embedded mode the form body owns scrolling so the surrounding
+  // chrome (heading, tabs, footer) stays pinned. Otherwise we keep the
+  // historical block layout, reserving `pb-20` for the sticky Save bar
+  // when it is rendered.
+  let bodyClassName: string;
+  if (embedded) {
+    bodyClassName =
+      "flex-1 min-h-0 overflow-y-auto custom-scrollbar-always flex flex-col gap-8";
+  } else if (hideSaveButton) {
+    bodyClassName = "flex flex-col gap-8";
+  } else {
+    bodyClassName = "flex flex-col gap-8 pb-20";
+  }
+
   return (
-    <div data-testid={testId} className="h-full relative">
+    <div
+      data-testid={testId}
+      className={
+        embedded ? "relative flex-1 min-h-0 flex flex-col" : "h-full relative"
+      }
+    >
       <ViewToggle
         view={view}
         setView={setView}
@@ -338,7 +454,7 @@ export function SdkSectionPage({
         isDisabled={isReadOnly}
       />
 
-      <div className="flex flex-col gap-8 pb-20">
+      <div className={bodyClassName}>
         {header?.({
           values,
           isDisabled: isReadOnly,
@@ -365,8 +481,8 @@ export function SdkSectionPage({
         ))}
       </div>
 
-      {!isReadOnly ? (
-        <div className="sticky bottom-0 bg-base py-4">
+      {!isReadOnly && !hideSaveButton ? (
+        <div className={embedded ? "pt-2" : "sticky bottom-0 bg-base py-4"}>
           <BrandButton
             testId="save-button"
             type="button"

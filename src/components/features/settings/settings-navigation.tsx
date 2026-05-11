@@ -34,9 +34,8 @@ export function SettingsNavigation({
         data-testid="settings-navbar"
         className={cn(
           "flex flex-col gap-6 transition-transform duration-300 ease-in-out",
-          "fixed inset-0 z-50 w-full bg-[#050505] p-4 transform md:transform-none",
+          "fixed inset-0 z-50 w-full bg-[#050505] p-4 transform md:hidden",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
-          "md:relative md:translate-x-0 md:w-64 md:p-0 md:bg-transparent",
         )}
       >
         <div className="flex items-center justify-between">

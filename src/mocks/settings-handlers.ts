@@ -56,7 +56,7 @@ export const createMockWebClientConfig = (
   ...overrides,
 });
 
-export const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
+const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
   Settings["agent_settings_schema"]
 > = {
   model_name: "AgentSettings",
@@ -128,41 +128,6 @@ export const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
       ],
     },
     {
-      key: "condenser",
-      label: "Condenser",
-      fields: [
-        {
-          key: "condenser.enabled",
-          label: "Enable Memory Condenser",
-          description: "Enable the LLM summarizing condenser.",
-          section: "condenser",
-          section_label: "Condenser",
-          value_type: "boolean",
-          default: true,
-          choices: [],
-          depends_on: [],
-          prominence: "critical",
-          secret: false,
-          required: true,
-        },
-        {
-          key: "condenser.max_size",
-          label: "Max Size",
-          description:
-            "Maximum number of events kept before the condenser runs.",
-          section: "condenser",
-          section_label: "Condenser",
-          value_type: "integer",
-          default: 240,
-          choices: [],
-          depends_on: [],
-          prominence: "minor",
-          secret: false,
-          required: false,
-        },
-      ],
-    },
-    {
       key: "critic",
       label: "Critic",
       fields: [
@@ -205,7 +170,7 @@ export const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
   ],
 };
 
-export const MOCK_CONVERSATION_SETTINGS_SCHEMA: NonNullable<
+const MOCK_CONVERSATION_SETTINGS_SCHEMA: NonNullable<
   Settings["conversation_settings_schema"]
 > = {
   model_name: "ConversationSettings",

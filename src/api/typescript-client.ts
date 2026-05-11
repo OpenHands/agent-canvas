@@ -9,8 +9,10 @@ import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
-import { getActiveBackend } from "./backend-registry/active-store";
-import { getBundledBackend } from "./backend-registry/bundled";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+} from "./backend-registry/active-store";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 
 export type { ServerInfo } from "@openhands/typescript-client";
@@ -30,18 +32,31 @@ interface ResolvedClientOptions {
   workingDir: string;
 }
 
+type WorkspaceSessionResponse =
+  | string
+  | {
+      base_url?: string;
+      baseUrl?: string;
+      url?: string;
+      workspace_url?: string;
+    };
+
+export type WorkspaceSessionRemoteWorkspace = RemoteWorkspace & {
+  startWorkspaceSession(conversationId: string): Promise<string>;
+};
+
 /**
  * Pick the backend whose host + API key the typescript-client should use
  * by default. The typescript-client clients (createHttpClient and friends)
  * speak the *local agent-server's* protocol — `X-Session-API-Key` auth and
  * paths like `/api/conversations`, `/api/skills`, etc. The cloud SaaS
  * exposes neither, so when the active backend is cloud, fall back to the
- * bundled local agent-server for these calls. Cloud-specific calls go
+ * first registered local backend for these calls. Cloud-specific calls go
  * through `callCloudProxy` separately and never touch this resolver.
  */
 function resolveDefaultBackend() {
   const active = getActiveBackend().backend;
-  if (active.kind === "cloud") return getBundledBackend();
+  if (active.kind === "cloud") return getEffectiveLocalBackend();
   return active;
 }
 
@@ -125,13 +140,46 @@ export function createRemoteEventsList(
   return new RemoteEventsList(createHttpClient(overrides), conversationId);
 }
 
+function normalizeWorkspaceSessionUrl(
+  host: string,
+  conversationId: string,
+  response: WorkspaceSessionResponse,
+) {
+  const value =
+    typeof response === "string"
+      ? response
+      : (response.base_url ??
+        response.baseUrl ??
+        response.workspace_url ??
+        response.url);
+
+  const url = value?.trim()
+    ? new URL(value, `${host.replace(/\/$/, "")}/`).toString()
+    : `${host.replace(/\/$/, "")}/api/conversations/${encodeURIComponent(
+        conversationId,
+      )}/workspace/`;
+
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
 export function createRemoteWorkspace(
   overrides?: TypeScriptClientOverrides,
-): RemoteWorkspace {
+): WorkspaceSessionRemoteWorkspace {
   const { host, apiKey, workingDir } = resolveClientOptions(overrides);
-  return new RemoteWorkspace({
+  const workspace = new RemoteWorkspace({
     host,
     workingDir,
     ...(apiKey ? { apiKey } : {}),
-  });
+  }) as WorkspaceSessionRemoteWorkspace;
+
+  workspace.startWorkspaceSession = async (conversationId: string) => {
+    const response = await workspace.client.post<WorkspaceSessionResponse>(
+      "/api/auth/workspace-session",
+      { conversation_id: conversationId },
+    );
+
+    return normalizeWorkspaceSessionUrl(host, conversationId, response.data);
+  };
+
+  return workspace;
 }

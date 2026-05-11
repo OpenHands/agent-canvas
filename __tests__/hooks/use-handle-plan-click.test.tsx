@@ -88,12 +88,14 @@ describe("useHandlePlanClick", () => {
     );
 
     vi.mocked(getConversationState).mockReturnValue({
-      selectedTab: "editor",
+      selectedTab: "files",
       rightPanelShown: true,
       unpinnedTabs: [],
       subConversationTaskId: null,
       conversationMode: "code",
       draftMessage: null,
+      filesTabDiffView: null,
+      filesTabContentViewMode: "rich",
     });
   });
 
@@ -118,12 +120,14 @@ describe("useHandlePlanClick", () => {
       );
 
       vi.mocked(getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,
         conversationMode: "code",
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       renderHook(() => useHandlePlanClick());
@@ -157,12 +161,14 @@ describe("useHandlePlanClick", () => {
       );
 
       vi.mocked(getConversationState).mockReturnValue({
-        selectedTab: "editor",
+        selectedTab: "files",
         rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,
         conversationMode: "code",
         draftMessage: null,
+        filesTabDiffView: null,
+        filesTabContentViewMode: "rich",
       });
 
       renderHook(() => useHandlePlanClick());

@@ -2,75 +2,21 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import {
+  getEnvironmentSwitchSnapshot,
+  subscribeEnvironmentSwitch,
+} from "./environment-switch-store";
 
-export const ENVIRONMENT_SWITCH_DURATION_MS = 980;
-export const ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS = 400;
-
-// Module-level store. The overlay state must survive the unmount of the
-// component that triggers a switch — the user-context menu remounts
-// (`menuResetCount` key flip in user-actions.tsx) the moment the dropdown's
-// portaled option list is clicked, because that click registers as outside
-// the menu's `useClickOutsideElement` ref. If state lived inside
-// BackendSelector, the trigger would fire and immediately get torn down
-// before React paints the overlay.
-interface EnvironmentSwitchSnapshot {
-  visible: boolean;
-  target: string;
-}
-
-let snapshot: EnvironmentSwitchSnapshot = { visible: false, target: "" };
-const listeners = new Set<() => void>();
-let hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
-function setSnapshot(next: EnvironmentSwitchSnapshot) {
-  snapshot = next;
-  if (typeof document !== "undefined") {
-    if (next.visible) {
-      document.body.setAttribute("data-environment-switching", "true");
-    } else {
-      document.body.removeAttribute("data-environment-switching");
-    }
-  }
-  listeners.forEach((listener) => listener());
-}
-
-export function triggerEnvironmentSwitch(target: string) {
-  setSnapshot({ visible: true, target });
-  if (hideTimeoutId) clearTimeout(hideTimeoutId);
-  hideTimeoutId = setTimeout(() => {
-    setSnapshot({ visible: false, target: "" });
-    hideTimeoutId = null;
-  }, ENVIRONMENT_SWITCH_DURATION_MS);
-}
-
-export function dismissEnvironmentSwitch() {
-  if (hideTimeoutId) {
-    clearTimeout(hideTimeoutId);
-    hideTimeoutId = null;
-  }
-  setSnapshot({ visible: false, target: "" });
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getSnapshot() {
-  return snapshot;
-}
-
-/** Test-only: clear the pending hide timer and reset the snapshot. */
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export function __resetEnvironmentSwitchOverlayForTests() {
-  if (hideTimeoutId) {
-    clearTimeout(hideTimeoutId);
-    hideTimeoutId = null;
-  }
-  setSnapshot({ visible: false, target: "" });
-}
+// Re-export the store API so existing call sites and tests that import from
+// this module keep working unchanged.
+export {
+  ENVIRONMENT_SWITCH_DURATION_MS,
+  ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
+  triggerEnvironmentSwitch,
+  dismissEnvironmentSwitch,
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  __resetEnvironmentSwitchOverlayForTests,
+} from "./environment-switch-store";
 
 function EnvironmentSwitchIcon({ className }: { className?: string }) {
   return (
@@ -197,9 +143,9 @@ function EnvironmentSwitchIcon({ className }: { className?: string }) {
 export function EnvironmentSwitchOverlay() {
   const { t } = useTranslation("openhands");
   const { visible, target } = React.useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getSnapshot,
+    subscribeEnvironmentSwitch,
+    getEnvironmentSwitchSnapshot,
+    getEnvironmentSwitchSnapshot,
   );
 
   if (!visible || typeof document === "undefined") return null;
@@ -222,3 +168,6 @@ export function EnvironmentSwitchOverlay() {
     document.body,
   );
 }
+
+// React.lazy() expects a default export.
+export default EnvironmentSwitchOverlay;

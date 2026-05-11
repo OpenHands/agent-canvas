@@ -9,12 +9,14 @@ import { KeyStatusIcon } from "#/components/features/settings/key-status-icon";
 import {
   SdkSectionHeaderProps,
   SdkSectionPage,
+  SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import {
   inferInitialView,
+  type SettingsFormValues,
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
@@ -92,8 +94,23 @@ function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
 
 export function LlmSettingsScreen({
   scope = "personal",
+  onSaveSuccess,
+  initialValueOverrides,
+  embedded,
+  hideSaveButton,
+  onSaveControlChange,
 }: {
   scope?: SettingsScope;
+  /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
+  onSaveSuccess?: () => void;
+  /** Forwarded to {@link SdkSectionPage}. */
+  initialValueOverrides?: SettingsFormValues;
+  /** Forwarded to {@link SdkSectionPage}. */
+  embedded?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -274,6 +291,11 @@ export function LlmSettingsScreen({
       getInitialView={getInitialView}
       forceShowAdvancedView
       allowAllView
+      onSaveSuccess={onSaveSuccess}
+      initialValueOverrides={initialValueOverrides}
+      embedded={embedded}
+      hideSaveButton={hideSaveButton}
+      onSaveControlChange={onSaveControlChange}
       testId="llm-settings-screen"
     />
   );

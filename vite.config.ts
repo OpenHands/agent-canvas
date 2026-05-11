@@ -2,7 +2,6 @@
 /// <reference types="vite-plugin-svgr/client" />
 import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
-import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
@@ -21,6 +20,25 @@ const LIB_EXTERNALS = [
   "react/jsx-dev-runtime",
   "react-router",
 ];
+const APP_CHUNK_MAX_BYTES = 450 * 1024;
+
+const appBuildConfig = {
+  rolldownOptions: {
+    output: {
+      codeSplitting: {
+        groups: [
+          {
+            name: "vendor",
+            test: /node_modules[\\/]/,
+            maxSize: APP_CHUNK_MAX_BYTES,
+            minSize: 20 * 1024,
+            entriesAware: true,
+          },
+        ],
+      },
+    },
+  },
+};
 
 export default defineConfig(({ mode }) => {
   const {
@@ -43,10 +61,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       !process.env.VITEST && !isLibraryBuild && reactRouter(),
-      viteTsconfigPaths(),
       svgr(),
       tailwindcss(),
     ],
+    resolve: {
+      tsconfigPaths: true,
+    },
     css: {
       postcss: {
         plugins: [
@@ -99,7 +119,7 @@ export default defineConfig(({ mode }) => {
             ],
           },
         }
-      : undefined,
+      : appBuildConfig,
     copyPublicDir: !isLibraryBuild,
     optimizeDeps: {
       entries: [
@@ -163,6 +183,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: FE_PORT,
+      strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
       proxy: {

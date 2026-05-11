@@ -23,6 +23,7 @@ import {
   BrowserCloseTabAction,
   GlobAction,
   GrepAction,
+  InvokeSkillAction,
 } from "#/types/agent-server/core/base/action";
 
 const getRiskText = (risk: SecurityRisk) => {
@@ -40,6 +41,10 @@ const getRiskText = (risk: SecurityRisk) => {
 };
 
 const getNoContentActionContent = (): string => "";
+
+// Invoke-skill actions
+const getInvokeSkillActionContent = (action: InvokeSkillAction): string =>
+  action.name ? `**Skill:** \`${action.name}\`` : getNoContentActionContent();
 
 // Grep/Glob search actions
 const getSearchActionContent = (
@@ -253,6 +258,9 @@ export const getActionContent = (event: ActionEvent): string => {
       return getSearchActionContent(
         event as ActionEvent<GlobAction | GrepAction>,
       );
+
+    case "InvokeSkillAction":
+      return getInvokeSkillActionContent(action as InvokeSkillAction);
 
     default:
       return getDefaultEventContent(event);

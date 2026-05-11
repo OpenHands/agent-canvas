@@ -14,6 +14,7 @@ import {
   TaskTrackerObservation,
   GlobObservation,
   GrepObservation,
+  InvokeSkillObservation,
 } from "#/types/agent-server/core/base/observation";
 
 // File Editor Observations
@@ -142,6 +143,31 @@ const getMCPToolObservationContent = (
     content = `${content.slice(0, MAX_CONTENT_LENGTH)}...`;
   }
 
+  return content;
+};
+
+// Invoke-skill observations
+const getInvokeSkillObservationContent = (
+  event: ObservationEvent<InvokeSkillObservation>,
+): string => {
+  const { observation } = event;
+
+  const textContent = observation.content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("\n");
+
+  const header = observation.skill_name
+    ? `**Skill:** \`${observation.skill_name}\`\n\n`
+    : "";
+  const body = observation.is_error
+    ? `**Error:**\n${textContent}`
+    : textContent;
+
+  let content = `${header}${body}`;
+  if (content.length > MAX_CONTENT_LENGTH) {
+    content = `${content.slice(0, MAX_CONTENT_LENGTH)}...(truncated)`;
+  }
   return content;
 };
 
@@ -340,6 +366,11 @@ export const getObservationContent = (event: ObservationEvent): string => {
     case "GrepObservation":
       return getGrepObservationContent(
         event as ObservationEvent<GrepObservation>,
+      );
+
+    case "InvokeSkillObservation":
+      return getInvokeSkillObservationContent(
+        event as ObservationEvent<InvokeSkillObservation>,
       );
 
     default:

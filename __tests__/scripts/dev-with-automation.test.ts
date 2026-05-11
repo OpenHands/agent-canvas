@@ -1,10 +1,12 @@
+import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { homedir } from "node:os";
+import { mkdtempSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import {
   buildAutomationCommand,
   buildConfig,
@@ -14,6 +16,7 @@ import {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
+import { resetPersistedSessionApiKeyCache } from "../../scripts/dev-safe.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -112,96 +115,215 @@ describe("buildAutomationCommand", () => {
 });
 
 describe("buildConfig", () => {
-  it("builds default config with correct ports", () => {
-    const config = buildConfig({}, {});
+  const servers: net.Server[] = [];
+  const keyDirs: string[] = [];
 
-    expect(config.ingressPort).toBe(8000);
-    expect(config.agentServerPort).toBe(DEFAULT_BACKEND_PORT);
-    expect(config.autoBackendPort).toBe(DEFAULT_AUTOMATION_PORT);
-    expect(config.vitePort).toBe(3001);
-    expect(config.vscodePort).toBe(DEFAULT_BACKEND_PORT + 1000);
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+    while (keyDirs.length > 0) {
+      const dir = keyDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+    resetPersistedSessionApiKeyCache();
   });
 
-  it("respects port from args", () => {
-    const config = buildConfig({ port: 9000 }, {});
+  /**
+   * Build an env that points the persisted session-api-key file at a
+   * fresh temp dir, so tests don't write to the user's real
+   * ~/.openhands/agent-canvas/session-api-key.txt.
+   */
+  function envWithIsolatedKeyPath(
+    extra: Record<string, string> = {},
+  ): Record<string, string> {
+    const dir = mkdtempSync(path.join(tmpdir(), "buildconfig-key-"));
+    keyDirs.push(dir);
+    return {
+      OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
+      ...extra,
+    };
+  }
 
-    expect(config.ingressPort).toBe(9000);
+  it("builds default config with correct ports", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    // Ports should be allocated (either defaults if free, or alternatives)
+    expect(typeof config.ingressPort).toBe("number");
+    expect(config.ingressPort).toBeGreaterThan(0);
+    expect(typeof config.agentServerPort).toBe("number");
+    expect(config.agentServerPort).toBeGreaterThan(0);
+    expect(typeof config.autoBackendPort).toBe("number");
+    expect(config.autoBackendPort).toBeGreaterThan(0);
+    expect(typeof config.vitePort).toBe("number");
+    expect(config.vitePort).toBeGreaterThan(0);
+    expect(config.vscodePort).toBe(config.agentServerPort + 1000);
+
+    // All four main ports should be unique
+    const ports = new Set([
+      config.ingressPort,
+      config.agentServerPort,
+      config.autoBackendPort,
+      config.vitePort,
+    ]);
+    expect(ports.size).toBe(4);
   });
 
-  it("respects PORT from env", () => {
-    const config = buildConfig({}, { PORT: "9001" });
+  it("respects preferred port from args when available", async () => {
+    // Use a high port unlikely to be busy
+    const preferredPort = 19500;
+    const config = await buildConfig(
+      { port: preferredPort },
+      envWithIsolatedKeyPath(),
+    );
 
-    expect(config.ingressPort).toBe(9001);
+    expect(config.ingressPort).toBe(preferredPort);
   });
 
-  it("args.port takes precedence over env.PORT", () => {
-    const config = buildConfig({ port: 9002 }, { PORT: "9999" });
+  it("falls back to alternative port when ingress port is busy", async () => {
+    const busyPort = 8100;
 
-    expect(config.ingressPort).toBe(9002);
+    // Block port 8100
+    const server = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      server.listen(busyPort, "127.0.0.1", () => {
+        servers.push(server);
+        resolve();
+      });
+      server.on("error", reject);
+    });
+
+    // Request the busy port
+    const config = await buildConfig(
+      { port: busyPort },
+      envWithIsolatedKeyPath(),
+    );
+
+    // Should get a different port since busyPort is taken
+    expect(config.ingressPort).not.toBe(busyPort);
+    expect(config.ingressPort).toBeGreaterThan(0);
   });
 
-  it("applies automationGitRef from args to env", () => {
-    const env: Record<string, string> = {};
-    buildConfig({ automationGitRef: "my-branch" }, env);
+  it("allocates valid ports for all services", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    // All service ports should be valid
+    expect(config.agentServerPort).toBeGreaterThan(0);
+    expect(config.autoBackendPort).toBeGreaterThan(0);
+    expect(config.vitePort).toBeGreaterThan(0);
+    expect(config.vscodePort).toBeGreaterThan(0);
+
+    // All service ports should be different from each other
+    const servicePorts = [
+      config.agentServerPort,
+      config.autoBackendPort,
+      config.vitePort,
+      config.ingressPort,
+    ];
+    expect(new Set(servicePorts).size).toBe(servicePorts.length);
+  });
+
+  it("respects preferred PORT from env when available", async () => {
+    // Use a high port unlikely to be busy
+    const preferredPort = "19501";
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ PORT: preferredPort }),
+    );
+
+    expect(config.ingressPort).toBe(19501);
+  });
+
+  it("args.port takes precedence over env.PORT", async () => {
+    // Use high ports unlikely to be busy
+    const config = await buildConfig(
+      { port: 19502 },
+      envWithIsolatedKeyPath({ PORT: "19599" }),
+    );
+
+    expect(config.ingressPort).toBe(19502);
+  });
+
+  it("applies automationGitRef from args to env", async () => {
+    const env = envWithIsolatedKeyPath();
+    await buildConfig({ automationGitRef: "my-branch" }, env);
 
     expect(env.OH_AUTOMATION_GIT_REF).toBe("my-branch");
   });
 
-  it("applies automationRepo from args to env", () => {
-    const env: Record<string, string> = {};
-    buildConfig({ automationRepo: "https://example.com/repo" }, env);
+  it("applies automationRepo from args to env", async () => {
+    const env = envWithIsolatedKeyPath();
+    await buildConfig({ automationRepo: "https://example.com/repo" }, env);
 
     expect(env.OH_AUTOMATION_REPO).toBe("https://example.com/repo");
   });
 
-  it("uses correct state directory path", () => {
-    const config = buildConfig({}, {});
+  it("uses correct state directory path", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     expect(config.stateDir).toBe(
       path.join(homedir(), ".openhands", "agent-canvas"),
     );
   });
 
-  it("passes verbose flag through", () => {
-    const config = buildConfig({ verbose: true }, {});
+  it("passes verbose flag through", async () => {
+    const config = await buildConfig({ verbose: true }, envWithIsolatedKeyPath());
 
     expect(config.verbose).toBe(true);
   });
 
-  it("auto-generates random local API key by default", () => {
-    const config = buildConfig({}, {});
+  it("auto-generates random local API key by default", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // Default is a 64-char hex string (256-bit random key)
     expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("respects custom AUTOMATION_LOCAL_API_KEY from env", () => {
-    const config = buildConfig({}, { AUTOMATION_LOCAL_API_KEY: "my-custom-key" });
+  it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ AUTOMATION_LOCAL_API_KEY: "my-custom-key" }),
+    );
 
     expect(config.localApiKey).toBe("my-custom-key");
   });
 
-  it("auto-generates random session API key by default", () => {
-    const config = buildConfig({}, {});
+  it("falls back to a freshly persisted session API key by default", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    // Default is a 64-char hex string (256-bit random key)
+    // Default is a 64-char hex string (256-bit random key) read from /
+    // written to OH_SESSION_API_KEY_PATH.
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reads sessionApiKey from SESSION_API_KEY", () => {
-    const config = buildConfig({}, { SESSION_API_KEY: "my-session-key" });
+  it("reuses the persisted session API key across calls (parity for dev:docker and dev:dangerously-dockerless restarts)", async () => {
+    const env = envWithIsolatedKeyPath();
+    const first = await buildConfig({}, env);
+
+    // Simulate a fresh process invocation (the file on disk should be
+    // what makes the key stable).
+    resetPersistedSessionApiKeyCache();
+
+    const second = await buildConfig({}, env);
+
+    expect(second.sessionApiKey).toBe(first.sessionApiKey);
+  });
+
+  it("reads sessionApiKey from SESSION_API_KEY", async () => {
+    const config = await buildConfig({}, { SESSION_API_KEY: "my-session-key" });
 
     expect(config.sessionApiKey).toBe("my-session-key");
   });
 
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", () => {
-    const config = buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
+  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
+    const config = await buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
 
     expect(config.sessionApiKey).toBe("vite-session-key");
   });
 
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "session-key",
       VITE_SESSION_API_KEY: "vite-key",
     });
@@ -209,14 +331,14 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("session-key");
   });
 
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", () => {
-    const config = buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
+  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
+    const config = await buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
 
     expect(config.sessionApiKey).toBe("v1-session-key");
   });
 
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
     });
@@ -224,8 +346,8 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toBe("v0-key");
   });
 
-  it("SESSION_API_KEY takes precedence over all other session key env vars", () => {
-    const config = buildConfig({}, {
+  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
+    const config = await buildConfig({}, {
       SESSION_API_KEY: "v0-key",
       OH_SESSION_API_KEYS_0: "v1-key",
       VITE_SESSION_API_KEY: "vite-key",
