@@ -229,7 +229,6 @@ function startAgentServerDocker(config) {
       "/home/openhands/.openhands/agent-canvas/conversations",
     OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
     OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
-    TMUX_TMPDIR: "/home/openhands/.openhands/agent-canvas/tmux",
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.

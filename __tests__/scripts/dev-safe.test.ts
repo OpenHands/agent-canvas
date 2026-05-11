@@ -442,7 +442,9 @@ describe("buildSafeDevConfig", () => {
     expect(config.stateDir).toBe(
       path.join(homedir(), ".openhands", "agent-canvas"),
     );
-    expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
+    expect(config.tmuxTmpDir).toBe(
+      path.join(tmpdir(), "openhands-agent-canvas-tmux"),
+    );
     expect(config.conversationsPath).toBe(
       path.join(config.stateDir, "conversations"),
     );

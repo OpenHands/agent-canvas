@@ -112,20 +112,31 @@ describe("ConversationTabsContextMenu", () => {
     expect(storedState.unpinnedTabs).not.toContain("terminal");
   });
 
-  it("should close the right panel when unpinning the currently active tab", async () => {
+  it("should switch to another pinned tab when unpinning the currently active tab", async () => {
     const user = userEvent.setup();
 
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
+    // Initially selected tab is "files"
+    expect(useConversationStore.getState().selectedTab).toBe("files");
+
+    // Unpin the active "files" tab
     await user.click(screen.getByText("COMMON$FILES"));
 
+    // Panel should still be shown
     const storeState = useConversationStore.getState();
-    expect(storeState.hasRightPanelToggled).toBe(false);
+    expect(storeState.hasRightPanelToggled).toBe(true);
 
+    // Should have switched to another pinned tab (planner is first in list)
+    expect(storeState.selectedTab).toBe("planner");
+
+    // Verify the files tab was unpinned
     const storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
     );
-    expect(storedState.rightPanelShown).toBe(false);
+    expect(storedState.unpinnedTabs).toContain("files");
+    // Selected tab should be persisted as the new tab
+    expect(storedState.selectedTab).toBe("planner");
   });
 
   it("should not close the right panel when unpinning a non-active tab", async () => {
