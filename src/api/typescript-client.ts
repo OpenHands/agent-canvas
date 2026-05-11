@@ -32,6 +32,13 @@ interface ResolvedClientOptions {
   workingDir: string;
 }
 
+interface GitRefOptions {
+  ref?: string;
+}
+
+type RemoteGitChanges = Awaited<ReturnType<RemoteWorkspace["gitChanges"]>>;
+type RemoteGitDiff = Awaited<ReturnType<RemoteWorkspace["gitDiff"]>>;
+
 type WorkspaceSessionResponse =
   | string
   | {
@@ -41,8 +48,19 @@ type WorkspaceSessionResponse =
       workspace_url?: string;
     };
 
-export type WorkspaceSessionRemoteWorkspace = RemoteWorkspace & {
+export type AgentCanvasRemoteWorkspace = Omit<
+  RemoteWorkspace,
+  "gitChanges" | "gitDiff"
+> & {
   startWorkspaceSession(conversationId: string): Promise<string>;
+  gitChanges(
+    path: string,
+    options?: GitRefOptions,
+  ): ReturnType<RemoteWorkspace["gitChanges"]>;
+  gitDiff(
+    path: string,
+    options?: GitRefOptions,
+  ): ReturnType<RemoteWorkspace["gitDiff"]>;
 };
 
 /**
@@ -164,13 +182,13 @@ function normalizeWorkspaceSessionUrl(
 
 export function createRemoteWorkspace(
   overrides?: TypeScriptClientOverrides,
-): WorkspaceSessionRemoteWorkspace {
+): AgentCanvasRemoteWorkspace {
   const { host, apiKey, workingDir } = resolveClientOptions(overrides);
   const workspace = new RemoteWorkspace({
     host,
     workingDir,
     ...(apiKey ? { apiKey } : {}),
-  }) as WorkspaceSessionRemoteWorkspace;
+  }) as AgentCanvasRemoteWorkspace;
 
   workspace.startWorkspaceSession = async (conversationId: string) => {
     const response = await workspace.client.post<WorkspaceSessionResponse>(
@@ -179,6 +197,32 @@ export function createRemoteWorkspace(
     );
 
     return normalizeWorkspaceSessionUrl(host, conversationId, response.data);
+  };
+
+  workspace.gitChanges = async (path: string, options?: GitRefOptions) => {
+    const response = await workspace.client.get<RemoteGitChanges>(
+      "/api/git/changes",
+      {
+        params: {
+          path,
+          ...(options?.ref ? { ref: options.ref } : {}),
+        },
+      },
+    );
+    return response.data;
+  };
+
+  workspace.gitDiff = async (path: string, options?: GitRefOptions) => {
+    const response = await workspace.client.get<RemoteGitDiff>(
+      "/api/git/diff",
+      {
+        params: {
+          path,
+          ...(options?.ref ? { ref: options.ref } : {}),
+        },
+      },
+    );
+    return response.data;
   };
 
   return workspace;
