@@ -30,7 +30,12 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
   const { addRecentRepository } = useHomeStore();
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
+  const markPendingMessageError = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageError,
+  );
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
@@ -112,13 +117,25 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             repository.git_provider.charAt(0).toUpperCase() +
             repository.git_provider.slice(1);
           const clonePrompt = `Clone ${repository.full_name} from ${providerName} and checkout branch ${branch.name}.`;
-          setOptimisticUserMessage(clonePrompt);
-          sendRef.current({
-            action: "message",
-            args: {
-              content: clonePrompt,
-              timestamp: new Date().toISOString(),
-            },
+          const pendingId = conversationId
+            ? enqueuePendingMessage({ conversationId, text: clonePrompt })
+            : null;
+          // `send` returns a Promise; surface a failed send by flipping the
+          // matching pending entry to "error" so the user gets the retry link
+          // rather than a perpetual "Sending…" bubble.
+          Promise.resolve(
+            sendRef.current({
+              action: "message",
+              args: {
+                content: clonePrompt,
+                timestamp: new Date().toISOString(),
+              },
+            }),
+          ).catch((error) => {
+            if (!pendingId) return;
+            const errorMessage =
+              error instanceof Error ? error.message : "Failed to send message";
+            markPendingMessageError(pendingId, errorMessage);
           });
         },
       },

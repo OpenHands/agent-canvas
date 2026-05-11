@@ -180,4 +180,65 @@ describe("getEventContent", () => {
     expect(screen.getByText("Check repository status")).toBeInTheDocument();
     expect(screen.queryByText("$ git status")).not.toBeInTheDocument();
   });
+
+  it("renders InvokeSkillAction with the skill name instead of 'INVOKESKILL'", () => {
+    const invokeSkillAction: ActionEvent = {
+      id: "action-skill",
+      timestamp: new Date().toISOString(),
+      source: "agent",
+      thought: [],
+      thinking_blocks: [],
+      action: {
+        kind: "InvokeSkillAction",
+        name: "worktree-switch",
+      },
+      tool_name: "invoke_skill",
+      tool_call_id: "tool-skill",
+      tool_call: {
+        id: "tool-skill",
+        type: "function",
+        function: {
+          name: "invoke_skill",
+          arguments: '{"name":"worktree-switch"}',
+        },
+      },
+      llm_response_id: "response-skill",
+      security_risk: SecurityRisk.LOW,
+    };
+
+    const { title, details } = getEventContent(invokeSkillAction);
+
+    render(<span>{title}</span>);
+    // Without i18n loaded, the translation key renders as the raw key —
+    // the important thing is that we no longer fall back to "INVOKESKILL".
+    expect(screen.getByText("ACTION_MESSAGE$INVOKE_SKILL")).toBeInTheDocument();
+    expect(screen.queryByText("INVOKESKILL")).not.toBeInTheDocument();
+    expect(details).toContain("worktree-switch");
+  });
+
+  it("renders InvokeSkillObservation with the skill name", () => {
+    const invokeSkillObservation: ObservationEvent = {
+      id: "obs-skill",
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      tool_name: "invoke_skill",
+      tool_call_id: "tool-skill",
+      action_id: "action-skill",
+      observation: {
+        kind: "InvokeSkillObservation",
+        skill_name: "worktree-switch",
+        content: [{ type: "text", text: "# Skill content" }],
+      },
+    };
+
+    const { title, details } = getEventContent(invokeSkillObservation);
+
+    render(<span>{title}</span>);
+    expect(
+      screen.getByText("OBSERVATION_MESSAGE$INVOKE_SKILL"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("INVOKESKILL")).not.toBeInTheDocument();
+    expect(details).toContain("worktree-switch");
+    expect(details).toContain("# Skill content");
+  });
 });

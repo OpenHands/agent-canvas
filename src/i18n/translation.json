@@ -8176,6 +8176,57 @@
     "uk": "Налаштування оновлено",
     "ca": "Configuració actualitzada"
   },
+  "CHAT_INTERFACE$MESSAGE_SENDING": {
+    "en": "Sending...",
+    "ja": "送信中...",
+    "zh-CN": "发送中...",
+    "zh-TW": "傳送中...",
+    "ko-KR": "보내는 중...",
+    "no": "Sender...",
+    "it": "Invio in corso...",
+    "pt": "Enviando...",
+    "es": "Enviando...",
+    "ar": "جاري الإرسال...",
+    "fr": "Envoi en cours...",
+    "tr": "Gönderiliyor...",
+    "de": "Wird gesendet...",
+    "uk": "Надсилання...",
+    "ca": "Enviant..."
+  },
+  "CHAT_INTERFACE$MESSAGE_SEND_FAILED": {
+    "en": "Failed to send.",
+    "ja": "送信に失敗しました。",
+    "zh-CN": "发送失败。",
+    "zh-TW": "傳送失敗。",
+    "ko-KR": "보내기 실패.",
+    "no": "Sending mislyktes.",
+    "it": "Invio non riuscito.",
+    "pt": "Falha ao enviar.",
+    "es": "Error al enviar.",
+    "ar": "فشل الإرسال.",
+    "fr": "Échec de l'envoi.",
+    "tr": "Gönderilemedi.",
+    "de": "Senden fehlgeschlagen.",
+    "uk": "Не вдалося надіслати.",
+    "ca": "Error en enviar."
+  },
+  "CHAT_INTERFACE$MESSAGE_RETRY": {
+    "en": "Retry",
+    "ja": "再試行",
+    "zh-CN": "重试",
+    "zh-TW": "重試",
+    "ko-KR": "다시 시도",
+    "no": "Prøv igjen",
+    "it": "Riprova",
+    "pt": "Tentar novamente",
+    "es": "Reintentar",
+    "ar": "إعادة المحاولة",
+    "fr": "Réessayer",
+    "tr": "Yeniden dene",
+    "de": "Wiederholen",
+    "uk": "Повторити",
+    "ca": "Torna-ho a provar"
+  },
   "CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE": {
     "en": "NEW FILES ADDED",
     "de": "NEUE DATEIEN HINZUGEFÜGT",
@@ -9637,6 +9688,9 @@
     "ja": "メッセージを送信",
     "uk": "Надіслати повідомлення",
     "ca": "Envia el missatge"
+  },
+  "CHAT_INTERFACE$UPLOAD_IMAGES_AS_FILES": {
+    "en": "upload as file"
   },
   "CHAT_INTERFACE$TOOLTIP_UPLOAD_IMAGE": {
     "en": "Upload image",
@@ -12917,6 +12971,40 @@
     "uk": "Пошук файлів: <cmd>{{pattern}}</cmd>",
     "ca": "Cerca fitxers: <cmd>{{pattern}}</cmd>"
   },
+  "ACTION_MESSAGE$INVOKE_SKILL": {
+    "en": "Invoking skill <cmd>{{name}}</cmd>",
+    "ja": "スキルを呼び出し中: <cmd>{{name}}</cmd>",
+    "zh-CN": "调用技能 <cmd>{{name}}</cmd>",
+    "zh-TW": "呼叫技能 <cmd>{{name}}</cmd>",
+    "ko-KR": "스킬 호출 중 <cmd>{{name}}</cmd>",
+    "no": "Kaller ferdighet <cmd>{{name}}</cmd>",
+    "it": "Invocazione skill <cmd>{{name}}</cmd>",
+    "pt": "Invocando skill <cmd>{{name}}</cmd>",
+    "es": "Invocando skill <cmd>{{name}}</cmd>",
+    "ar": "استدعاء المهارة <cmd>{{name}}</cmd>",
+    "fr": "Invocation de la compétence <cmd>{{name}}</cmd>",
+    "tr": "Yetenek çağrılıyor <cmd>{{name}}</cmd>",
+    "de": "Skill wird aufgerufen <cmd>{{name}}</cmd>",
+    "uk": "Виклик навички <cmd>{{name}}</cmd>",
+    "ca": "Invocant skill <cmd>{{name}}</cmd>"
+  },
+  "OBSERVATION_MESSAGE$INVOKE_SKILL": {
+    "en": "Invoked skill <cmd>{{name}}</cmd>",
+    "ja": "スキルを呼び出しました: <cmd>{{name}}</cmd>",
+    "zh-CN": "已调用技能 <cmd>{{name}}</cmd>",
+    "zh-TW": "已呼叫技能 <cmd>{{name}}</cmd>",
+    "ko-KR": "스킬 호출됨 <cmd>{{name}}</cmd>",
+    "no": "Kalte ferdighet <cmd>{{name}}</cmd>",
+    "it": "Skill invocata <cmd>{{name}}</cmd>",
+    "pt": "Skill invocada <cmd>{{name}}</cmd>",
+    "es": "Skill invocada <cmd>{{name}}</cmd>",
+    "ar": "تم استدعاء المهارة <cmd>{{name}}</cmd>",
+    "fr": "Compétence invoquée <cmd>{{name}}</cmd>",
+    "tr": "Yetenek çağrıldı <cmd>{{name}}</cmd>",
+    "de": "Skill aufgerufen <cmd>{{name}}</cmd>",
+    "uk": "Навичку викликано <cmd>{{name}}</cmd>",
+    "ca": "Skill invocada <cmd>{{name}}</cmd>"
+  },
   "OBSERVATION_MESSAGE$RUN": {
     "en": "Ran <cmd>{{command}}</cmd>",
     "zh-CN": "运行 <cmd>{{command}}</cmd>",
@@ -14926,6 +15014,23 @@
     "de": "OpenHands hat noch keine Änderungen vorgenommen",
     "uk": "OpenHands ще не вніс жодних змін",
     "ca": "L'OpenHands encara no ha fet cap canvi"
+  },
+  "DIFF_VIEWER$FILE_DELETED": {
+    "en": "This file was deleted. Its previous contents are no longer available for preview.",
+    "ja": "このファイルは削除されました。以前の内容はプレビューできません。",
+    "zh-CN": "此文件已被删除，无法预览其先前内容。",
+    "zh-TW": "此檔案已被刪除，無法預覽其先前內容。",
+    "ko-KR": "이 파일은 삭제되었습니다. 이전 내용은 더 이상 미리 볼 수 없습니다.",
+    "no": "Denne filen ble slettet. Det tidligere innholdet er ikke lenger tilgjengelig for forhåndsvisning.",
+    "it": "Questo file è stato eliminato. Il contenuto precedente non è più disponibile per l'anteprima.",
+    "pt": "Este arquivo foi excluído. Seu conteúdo anterior não está mais disponível para visualização.",
+    "es": "Este archivo fue eliminado. Su contenido anterior ya no está disponible para previsualización.",
+    "ar": "تم حذف هذا الملف. لم يعد محتواه السابق متاحًا للمعاينة.",
+    "fr": "Ce fichier a été supprimé. Son contenu précédent n'est plus disponible pour l'aperçu.",
+    "tr": "Bu dosya silindi. Önceki içeriği artık önizleme için kullanılamıyor.",
+    "de": "Diese Datei wurde gelöscht. Ihr früherer Inhalt steht nicht mehr zur Vorschau zur Verfügung.",
+    "uk": "Цей файл було видалено. Його попередній вміст більше недоступний для перегляду.",
+    "ca": "Aquest fitxer s'ha eliminat. El seu contingut anterior ja no està disponible per a la previsualització."
   },
   "DIFF_VIEWER$WAITING_FOR_RUNTIME": {
     "en": "Waiting for runtime to start...",

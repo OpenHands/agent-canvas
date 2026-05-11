@@ -73,6 +73,24 @@ const ConversationWebSocketContext = createContext<
   ConversationWebSocketContextType | undefined
 >(undefined);
 
+/**
+ * Extract the text body of an echoed user `MessageEvent` for matching against
+ * the optimistic pending-message queue. The server wraps the original
+ * `args.content` string in one or more `TextContent` entries (alongside any
+ * `ImageContent` entries for inline images), so concatenating the `text`
+ * fields gives us back the exact prompt we sent.
+ */
+function extractMessageEventText(
+  event: import("#/types/agent-server/core/events/message-event").MessageEvent,
+): string {
+  return event.llm_message.content
+    .filter(
+      (part): part is { type: "text"; text: string } => part.type === "text",
+    )
+    .map((part) => part.text)
+    .join("");
+}
+
 export function ConversationWebSocketProvider({
   children,
   conversationId,
@@ -104,7 +122,9 @@ export function ConversationWebSocketProvider({
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
   const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
-  const { removeOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
+    (state) => state.consumeMatchingPendingMessage,
+  );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
 
@@ -403,11 +423,18 @@ export function ConversationWebSocketProvider({
             setErrorMessage(event.error);
           }
 
-          // Clear optimistic user message when a user message is confirmed
+          // Clear optimistic user message when a user message is confirmed.
+          // We match by the echoed text content (with FIFO fallback inside the
+          // store), so an echo for "second" pops "second" — not whichever
+          // pending entry happens to be oldest — protecting against any
+          // out-of-order delivery between conversations or sub-agents.
           if (isUserMessageEvent(event)) {
-            removeOptimisticUserMessage();
-            // Clear draft from localStorage - message was successfully delivered
             if (conversationId) {
+              consumeMatchingPendingMessage(
+                conversationId,
+                extractMessageEventText(event),
+              );
+              // Clear draft from localStorage - message was successfully delivered
               setConversationState(conversationId, { draftMessage: null });
             }
           }
@@ -476,7 +503,7 @@ export function ConversationWebSocketProvider({
     [
       addEvent,
       setErrorMessage,
-      removeOptimisticUserMessage,
+      consumeMatchingPendingMessage,
       queryClient,
       conversationId,
       setExecutionStatus,
@@ -550,12 +577,16 @@ export function ConversationWebSocketProvider({
             setErrorMessage(event.error);
           }
 
-          // Clear optimistic user message when a user message is confirmed
+          // Clear optimistic user message when a user message is confirmed.
+          // Always scope to the main `conversationId` (where the user types)
+          // and match on the echoed content so the planning sub-agent's own
+          // events can never consume a main-conversation pending entry.
           if (isUserMessageEvent(event)) {
-            removeOptimisticUserMessage();
-            // Clear draft from localStorage - message was successfully delivered
-            // Use main conversationId since user types in main conversation input
             if (conversationId) {
+              consumeMatchingPendingMessage(
+                conversationId,
+                extractMessageEventText(event),
+              );
               setConversationState(conversationId, { draftMessage: null });
             }
           }
@@ -648,7 +679,7 @@ export function ConversationWebSocketProvider({
       isLoadingHistoryPlanning,
       expectedEventCountPlanning,
       setErrorMessage,
-      removeOptimisticUserMessage,
+      consumeMatchingPendingMessage,
       queryClient,
       subConversations,
       conversationId,

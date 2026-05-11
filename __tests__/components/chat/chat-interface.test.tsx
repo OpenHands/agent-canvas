@@ -1,5 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  test,
+  vi,
+} from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithProviders, useParamsMock } from "test-utils";
@@ -19,6 +33,13 @@ import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import { AgentState } from "#/types/agent-state";
+import { useConversationStore } from "#/stores/conversation-store";
+import { act } from "@testing-library/react";
+
+const mockSend = vi.fn();
+vi.mock("#/hooks/use-send-message", () => ({
+  useSendMessage: () => ({ send: mockSend }),
+}));
 
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-get-trajectory");
@@ -112,7 +133,7 @@ describe("ChatInterface - Chat Suggestions", () => {
     });
 
     useOptimisticUserMessageStore.setState({
-      optimisticUserMessage: null,
+      pendingMessages: [],
     });
 
     useErrorMessageStore.setState({
@@ -163,8 +184,9 @@ describe("ChatInterface - Chat Suggestions", () => {
   });
 
   test("should hide chat suggestions when there is an optimistic user message", () => {
-    useOptimisticUserMessageStore.setState({
-      optimisticUserMessage: "Optimistic message",
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: "test-conversation-id",
+      text: "Optimistic message",
     });
 
     renderWithQueryClient(<ChatInterface />, queryClient);
@@ -202,7 +224,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
       defaultOptions: { queries: { retry: false } },
     });
 
-    useOptimisticUserMessageStore.setState({ optimisticUserMessage: null });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
     useErrorMessageStore.setState({ errorMessage: null });
 
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -491,6 +513,118 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     // gated on `conversationUserEventsExist` and stayed hidden here,
     // leaving a blank chat with nothing to scroll).
     expect(scrollContainer!.children.length).toBeGreaterThan(0);
+  });
+});
+
+describe("ChatInterface - Pending message queue", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    mockSend.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useErrorMessageStore.setState({ errorMessage: null });
+    (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {},
+    });
+    (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isLoading: false,
+    });
+    (
+      useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue({ skipped_files: [], uploaded_files: [] }),
+      isLoading: false,
+    });
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+    });
+  });
+
+  afterEach(() => {
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+  });
+
+  function submitMessage(text: string) {
+    // The chat input is a contenteditable div; the conversation store exposes
+    // `submittedMessage` which CustomChatInput watches and forwards to the
+    // ChatInterface's `onSubmit` handler. Driving that store directly is the
+    // most reliable way to simulate "the user pressed send" in jsdom.
+    act(() => {
+      useConversationStore.setState({ submittedMessage: text });
+    });
+  }
+
+  function renderInterface() {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("shows the message in 'sending' state immediately when submitted", async () => {
+    let resolveSend: ((value: unknown) => void) | undefined;
+    mockSend.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+
+    renderInterface();
+    submitMessage("hello world");
+
+    const pendingMessage = await screen.findByTestId("user-message");
+    expect(pendingMessage).toHaveTextContent("hello world");
+    expect(pendingMessage).toHaveAttribute("data-pending-status", "sending");
+    expect(screen.getByTestId("chat-message-sending")).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-message-retry")).not.toBeInTheDocument();
+
+    resolveSend?.({ queued: false });
+  });
+
+  it("flips the message to 'error' with a retry link when send rejects", async () => {
+    mockSend.mockRejectedValue(new Error("network down"));
+
+    renderInterface();
+    submitMessage("hello");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user-message")).toHaveAttribute(
+        "data-pending-status",
+        "error",
+      );
+    });
+    expect(screen.getByTestId("chat-message-error")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-retry")).toBeInTheDocument();
+  });
+
+  it("queues multiple submitted messages, each with its own pending entry", async () => {
+    mockSend.mockResolvedValue({ queued: false });
+
+    renderInterface();
+    submitMessage("first");
+    submitMessage("second");
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("user-message")).toHaveLength(2);
+    });
+    const messages = screen.getAllByTestId("user-message");
+    expect(messages[0]).toHaveTextContent("first");
+    expect(messages[1]).toHaveTextContent("second");
   });
 });
 

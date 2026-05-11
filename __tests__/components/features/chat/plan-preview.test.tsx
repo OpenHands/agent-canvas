@@ -39,7 +39,7 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 // Mock services (underlying dependencies of the hook)
-const mockSend = vi.fn();
+const mockSend = vi.fn().mockResolvedValue({ queued: false });
 
 vi.mock("#/hooks/use-send-message", () => ({
   useSendMessage: vi.fn(() => ({
@@ -56,15 +56,17 @@ vi.mock("#/services/chat-service", () => ({
 
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 
 describe("PlanPreview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSend.mockResolvedValue({ queued: false });
     // Reset store states
     localStorage.clear();
     useOptimisticUserMessageStore.setState({
-      optimisticUserMessage: null,
+      pendingMessages: [],
     });
     useConversationStore.setState({
       conversationMode: "plan",
@@ -81,7 +83,7 @@ describe("PlanPreview", () => {
       conversationMode: "code",
     });
     useOptimisticUserMessageStore.setState({
-      optimisticUserMessage: null,
+      pendingMessages: [],
     });
     localStorage.clear();
   });
@@ -193,9 +195,9 @@ describe("PlanPreview", () => {
     );
   });
 
-  it("should set optimistic user message when Build button is clicked", async () => {
+  it("should enqueue a pending user message when Build button is clicked", async () => {
     // Arrange
-    useOptimisticUserMessageStore.setState({ optimisticUserMessage: null });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
     const user = userEvent.setup();
     const expectedPrompt =
       "Execute the plan based on the .agents_tmp/PLAN.md file.";
@@ -206,9 +208,11 @@ describe("PlanPreview", () => {
     await user.click(buildButton);
 
     // Assert
-    expect(useOptimisticUserMessageStore.getState().optimisticUserMessage).toBe(
-      expectedPrompt,
-    );
+    const pending =
+      useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(pending).toHaveLength(1);
+    expect(pending[0].text).toBe(expectedPrompt);
+    expect(pending[0].status).toBe("sending");
   });
 
   it("should disable Build button when isBuildDisabled is true", () => {

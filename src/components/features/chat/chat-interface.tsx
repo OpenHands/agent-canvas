@@ -25,6 +25,7 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages } from "#/components/conversation-events/chat/messages";
+import { PendingUserMessages } from "./pending-user-messages";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -61,8 +62,15 @@ export function ChatInterface() {
     hasSubstantiveAgentActions,
     userEventsExist,
   } = useFilteredEvents();
-  const { setOptimisticUserMessage, getOptimisticUserMessage } =
-    useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
+  const markPendingMessageError = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageError,
+  );
+  const pendingMessages = useOptimisticUserMessageStore(
+    (state) => state.pendingMessages,
+  );
   const { t } = useTranslation("openhands");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const {
@@ -178,7 +186,7 @@ export function ChatInterface() {
     [maybeLoadOlder],
   );
 
-  const optimisticUserMessage = getOptimisticUserMessage();
+  const hasPendingUserMessages = pendingMessages.length > 0;
 
   // Show V1 messages immediately if events exist in store (e.g., remount),
   // or once loading completes. This replaces the old transition-observation
@@ -260,15 +268,36 @@ export function ChatInterface() {
     const prompt =
       uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
 
-    const result = await send(
-      createChatMessage(prompt, imageUrls, uploadedFiles, timestamp),
-    );
-    // Only show optimistic UI if message was sent immediately via WebSocket
-    // If queued for later delivery, the message will appear when actually delivered
-    if (!result.queued) {
-      setOptimisticUserMessage(content);
-    }
+    // Enqueue the message into the local pending queue with status "sending"
+    // so the user immediately sees it in the chat with a faded treatment. The
+    // entry is removed when the WebSocket echoes back the corresponding
+    // `UserMessageEvent`. If the API call to send the message fails, the entry
+    // is flipped to "error" with a retry link.
+    const pendingId = enqueuePendingMessage({
+      conversationId: conversationId!,
+      // `text` is what the user sees in the bubble; `content` is what we
+      // actually hand to the server (the prompt may include an appended
+      // "Files uploaded: …" block) and is what the echo will be matched
+      // against. They're different when there are file attachments.
+      text: content,
+      content: prompt,
+      imageUrls,
+      fileUrls: uploadedFiles,
+      timestamp,
+    });
     setMessageToSend("");
+
+    try {
+      await send(
+        createChatMessage(prompt, imageUrls, uploadedFiles, timestamp),
+      );
+    } catch (sendError) {
+      const sendErrorMessage =
+        sendError instanceof Error
+          ? sendError.message
+          : "Failed to send message";
+      markPendingMessageError(pendingId, sendErrorMessage);
+    }
   };
 
   // Auto-scroll to bottom when new messages arrive — but only if the user is
@@ -296,7 +325,7 @@ export function ChatInterface() {
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderableEvents.length, optimisticUserMessage, scrollDomToBottom]);
+  }, [renderableEvents.length, hasPendingUserMessages, scrollDomToBottom]);
 
   // Auto-load older events when the chat content doesn't overflow the
   // scroll area (no scrollbar to drag, no wheel events past 0). We
@@ -358,7 +387,7 @@ export function ChatInterface() {
     <ScrollProvider value={scrollProviderValue}>
       <div className="h-full flex flex-col justify-between pr-0 md:pr-4 relative">
         {!hasSubstantiveAgentActions &&
-          !optimisticUserMessage &&
+          !hasPendingUserMessages &&
           !userEventsExist &&
           !isChatLoading && (
             <ChatSuggestions
@@ -412,6 +441,16 @@ export function ChatInterface() {
               allEvents={allConversationEvents}
             />
           )}
+
+          {/*
+            Render the local pending-message queue independently so messages
+            the user just submitted show up immediately (with a faded "sending"
+            treatment) even before any real conversation event has come back
+            from the server. Entries drain (FIFO) when the matching
+            UserMessageEvent echoes back over the WebSocket, so this never
+            double-renders alongside the real event list.
+          */}
+          <PendingUserMessages />
         </div>
 
         <div className="flex flex-col gap-[6px]">

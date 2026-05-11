@@ -46,6 +46,10 @@ Access the UI at [http://localhost:8000](http://localhost:8000)
 > [!WARNING]
 > This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
+Running without docker is great if you're running Agent Canvas on a VM. See [SELF_HOSTING.md](SELF_HOSTING.md) for details,
+especially with respect to security hardening. Notably, you can run the backend on _multiple different VMs_ and switch between
+them from the same Agent Canvas frontend!
+
 **Prerequisites**:
 - Node.js 22.12.x or later
 - `npm`
