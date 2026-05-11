@@ -41,15 +41,16 @@ describe("agent-server API access", () => {
       }
 
       if (
-        /\baxios\s*\.\s*(?:create|get|post|put|patch|delete|request)\s*\(/.test(
-          source,
-        ) &&
+        (/\baxios\s*\(/.test(source) ||
+          /\baxios\s*\.\s*(?:create|get|post|put|patch|delete|request)\s*\(/.test(
+            source,
+          )) &&
         !ALLOWED_AD_HOC_HTTP_FILES.has(relPath)
       ) {
         fileViolations.push("uses axios directly for HTTP calls");
       }
 
-      if (/\bfetch\s*\([^\n]*(?:['"`])\/api\//.test(source)) {
+      if (/\bfetch\s*\([\s\S]{0,200}['"`]\/api\//.test(source)) {
         fileViolations.push("calls an /api path with fetch directly");
       }
 

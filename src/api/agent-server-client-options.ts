@@ -1,6 +1,7 @@
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import type { Backend } from "./backend-registry/types";
 
 export interface AgentServerClientOverrides {
   host?: string;
@@ -22,11 +23,14 @@ function normalizeHost(host: string): string {
   return host.replace(/\/+$/, "");
 }
 
-function resolveHost(overrides: AgentServerClientOverrides): string {
+function resolveHost(
+  overrides: AgentServerClientOverrides,
+  backend: Backend,
+): string {
   if (overrides.host) return normalizeHost(overrides.host);
   if (overrides.conversationUrl)
     return normalizeHost(buildHttpBaseUrl(overrides.conversationUrl));
-  return normalizeHost(getEffectiveLocalBackend().host);
+  return normalizeHost(backend.host);
 }
 
 export function getAgentServerClientOptions(
@@ -37,10 +41,10 @@ export function getAgentServerClientOptions(
     overrides.sessionApiKey ?? overrides.apiKey ?? backend.apiKey ?? undefined;
 
   return {
-    host: resolveHost(overrides),
+    host: resolveHost(overrides, backend),
     ...(apiKey ? { apiKey } : {}),
     workingDir: overrides.workingDir ?? getAgentServerWorkingDir(),
-    ...(overrides.timeout ? { timeout: overrides.timeout } : {}),
+    ...(overrides.timeout !== undefined ? { timeout: overrides.timeout } : {}),
   };
 }
 
