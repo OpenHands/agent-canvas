@@ -87,4 +87,6 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 
 ## More documentation
 
-For contributor and developer workflows, including frontend-only mode, mock mode, environment variables, and build/test commands, see [DEVELOPMENT.md](./DEVELOPMENT.md).
+- **[Getting Started Guide](./GETTING_STARTED.md)** — Step-by-step guide for new users: installation, LLM setup, first conversation, automations, and connecting to OpenHands Cloud
+- **[Self-Hosting Guide](./SELF_HOSTING.md)** — Run Agent Canvas on your own VM with security hardening
+- **[Development Guide](./DEVELOPMENT.md)** — For contributors: frontend-only mode, mock mode, environment variables, and build/test commands

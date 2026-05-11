@@ -454,6 +454,16 @@ Automations let you schedule tasks that run automatically like daily reports, he
 
 > ⚠️ **Important:** Automations only run when Agent Canvas Backend is running. If you schedule an automation for 9 AM, your Docker container must be running at that time for it to execute. Plan your schedules around when you'll have Agent Canvas active.
 
+### Required: Install the Automation Skill
+
+To create automations, you need the **openhands-automation** skill installed. Check if it's available by going to **Settings → Skills**.
+
+If you don't see it listed, add it by sending this command in a conversation:
+
+```
+/add-skill https://github.com/OpenHands/extensions/tree/main/skills/openhands-automation
+```
+
 ### Viewing Automations
 
 To see your automations:
