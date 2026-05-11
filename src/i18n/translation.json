@@ -18755,6 +18755,23 @@
     "uk": "Відкрити в новому вікні",
     "ca": "Obre en una finestra nova"
   },
+  "FILES$REFRESH": {
+    "en": "Refresh files",
+    "ja": "ファイルを更新",
+    "zh-CN": "刷新文件",
+    "zh-TW": "重新整理檔案",
+    "ko-KR": "파일 새로 고침",
+    "no": "Oppdater filer",
+    "it": "Aggiorna file",
+    "pt": "Atualizar arquivos",
+    "es": "Actualizar archivos",
+    "ar": "تحديث الملفات",
+    "fr": "Actualiser les fichiers",
+    "tr": "Dosyaları yenile",
+    "de": "Dateien aktualisieren",
+    "uk": "Оновити файли",
+    "ca": "Actualitza els fitxers"
+  },
   "FILES$NO_FILE_SELECTED": {
     "en": "Select a file to view its contents",
     "ja": "内容を表示するファイルを選択してください",

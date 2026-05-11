@@ -72,6 +72,8 @@ const REMOVED_CONVERSATION_TABS: ReadonlySet<string> = new Set([
   "app",
 ]);
 
+const VALID_VIEW_MODES: ReadonlySet<ViewMode> = new Set(["rich", "plain"]);
+
 function sanitizeStoredState(
   stored: Partial<ConversationState>,
 ): Partial<ConversationState> {
@@ -93,6 +95,19 @@ function sanitizeStoredState(
     if (filtered.length !== result.unpinnedTabs.length) {
       result = { ...result, unpinnedTabs: filtered };
     }
+  }
+
+  // Drop a corrupt/manually-edited `filesTabContentViewMode` so it falls
+  // back to the typed default ("rich") instead of leaking a junk string
+  // into ViewMode-typed consumers. TypeScript can't help us here — the
+  // value comes from `JSON.parse(localStorage.getItem(...))` which is
+  // unknown at runtime.
+  if (
+    result.filesTabContentViewMode != null &&
+    !VALID_VIEW_MODES.has(result.filesTabContentViewMode)
+  ) {
+    result = { ...result };
+    delete result.filesTabContentViewMode;
   }
 
   return result;
