@@ -8,12 +8,15 @@ import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
+import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
 import { SidebarConversationList } from "./sidebar-conversation-list";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
+import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
 
@@ -37,6 +40,9 @@ export function Sidebar() {
     isError: settingsIsError,
     isFetching: isFetchingSettings,
   } = useSettings();
+  const { backends, active } = useActiveBackendContext();
+  const healthByBackendId = useBackendsHealth(backends);
+  const activeBackendHealth = healthByBackendId[active.backend.id];
   const [collapsed, setCollapsed] = useSidebarCollapsedState();
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const [collapsedBackendPopoverOpen, setCollapsedBackendPopoverOpen] =
@@ -277,12 +283,16 @@ export function Sidebar() {
                   setCollapsedBackendPopoverOpen((isOpen) => !isOpen)
                 }
                 className={cn(
-                  "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
+                  "relative inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
                   collapsedBackendPopoverOpen
                     ? "bg-[#1f1f1f99] text-white font-medium"
                     : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
                 )}
               >
+                <BackendStatusDot
+                  isConnected={activeBackendHealth?.isConnected ?? null}
+                  className="absolute top-1 left-1 pointer-events-none"
+                />
                 <Server width={16} height={16} />
               </button>
               {collapsedBackendPopoverOpen ? (

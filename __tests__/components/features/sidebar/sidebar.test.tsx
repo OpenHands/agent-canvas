@@ -25,6 +25,23 @@ vi.mock("#/hooks/query/use-settings", () => ({
   getErrorStatus: () => undefined,
 }));
 
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackendContext: () => ({
+    backends: [{ id: "local", name: "Local", kind: "local" }],
+    active: {
+      backend: { id: "local", name: "Local", kind: "local" },
+      orgId: null,
+    },
+    setActive: vi.fn(),
+  }),
+}));
+
+vi.mock("#/hooks/query/use-backends-health", () => ({
+  useBackendsHealth: () => ({
+    local: { isConnected: true },
+  }),
+}));
+
 vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
   StyledTooltip: ({ children }: { children: unknown }) => children,
 }));
@@ -181,6 +198,7 @@ describe("Sidebar", () => {
     expect(
       screen.getByTestId("collapsed-backend-selector-link"),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("backend-status-dot")).toBeInTheDocument();
   });
 
   it("opens the backend popover from the collapsed backend icon", () => {
