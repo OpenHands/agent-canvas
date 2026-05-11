@@ -208,6 +208,7 @@ export function Sidebar() {
         >
           <SidebarNavLink
             to="/conversations"
+            end
             label="New"
             testId="sidebar-conversations-link"
             disabled={linkDisabled}
