@@ -50,7 +50,7 @@ import {
 // Docker image for the agent-server.
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Default tag used when OH_AGENT_SERVER_GIT_REF is not set. Update to upgrade.
-const DEFAULT_AGENT_SERVER_TAG = "d3f4851-python";
+const DEFAULT_AGENT_SERVER_TAG = "0924962-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
