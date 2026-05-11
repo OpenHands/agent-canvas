@@ -332,9 +332,12 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
 }, {});
 
 // --- Handlers for options/config/settings ---
+// Uses wildcard "*" prefix to match both relative paths and absolute URLs
+// (e.g., http://127.0.0.1:8000/api/...) since the code uses absolute URLs
+// when VITE_BACKEND_BASE_URL is configured.
 
 export const SETTINGS_HANDLERS = [
-  http.get("/server_info", async () =>
+  http.get("*/server_info", async () =>
     HttpResponse.json({
       uptime: 0,
       idle_time: 0,
@@ -352,20 +355,20 @@ export const SETTINGS_HANDLERS = [
     }),
   ),
 
-  http.get("/api/llm/models", async () =>
+  http.get("*/api/llm/models", async () =>
     HttpResponse.json({ models: MOCK_MODELS }),
   ),
 
-  http.get("/api/llm/models/verified", async () =>
+  http.get("*/api/llm/models/verified", async () =>
     HttpResponse.json({ models: MOCK_VERIFIED_MODELS_BY_PROVIDER }),
   ),
 
-  http.get("/api/llm/providers", async () =>
+  http.get("*/api/llm/providers", async () =>
     HttpResponse.json({ providers: MOCK_MODEL_PROVIDERS }),
   ),
 
   // V0 (legacy) models endpoint – still used for default_model
-  http.get("/api/options/models", async () =>
+  http.get("*/api/options/models", async () =>
     HttpResponse.json({
       models: MOCK_MODELS,
       verified_models: [
@@ -378,7 +381,7 @@ export const SETTINGS_HANDLERS = [
   ),
 
   // V1 providers search
-  http.get("/api/v1/config/providers/search", async ({ request }) => {
+  http.get("*/api/v1/config/providers/search", async ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get("query")?.toLowerCase();
     const verifiedEq = url.searchParams.get("verified__eq");
@@ -409,7 +412,7 @@ export const SETTINGS_HANDLERS = [
   }),
 
   // V1 models search
-  http.get("/api/v1/config/models/search", async ({ request }) => {
+  http.get("*/api/v1/config/models/search", async ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get("query")?.toLowerCase();
     const verifiedEq = url.searchParams.get("verified__eq");
@@ -439,11 +442,11 @@ export const SETTINGS_HANDLERS = [
     return HttpResponse.json({ items: models, next_page_id: null });
   }),
 
-  http.get("/api/options/security-analyzers", async () =>
+  http.get("*/api/options/security-analyzers", async () =>
     HttpResponse.json(["llm", "none"]),
   ),
 
-  http.get("/api/v1/web-client/config", () => {
+  http.get("*/api/v1/web-client/config", () => {
     const config: WebClientConfig = {
       posthog_client_key: "fake-posthog-client-key",
       feature_flags: {
@@ -461,17 +464,17 @@ export const SETTINGS_HANDLERS = [
     return HttpResponse.json(config);
   }),
 
-  http.get("/api/settings/conversation-schema", async () => {
+  http.get("*/api/settings/conversation-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_CONVERSATION_SETTINGS_SCHEMA);
   }),
 
-  http.get("/api/v1/settings/conversation-schema", async () => {
+  http.get("*/api/v1/settings/conversation-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_CONVERSATION_SETTINGS_SCHEMA);
   }),
 
-  http.get("/api/v1/settings", async () => {
+  http.get("*/api/v1/settings", async () => {
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
@@ -481,7 +484,12 @@ export const SETTINGS_HANDLERS = [
   }),
 
   // New settings API endpoints (GET /api/settings with X-Expose-Secrets header support)
-  http.get("/api/settings", async ({ request }) => {
+  http.get("*/api/settings", async ({ request }) => {
+    // Exclude sub-paths like /api/settings/agent-schema (handled by separate handlers)
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    if (pathParts.length > 2) return undefined;
+
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
@@ -531,7 +539,7 @@ export const SETTINGS_HANDLERS = [
   }),
 
   // PATCH /api/settings - incremental updates
-  http.patch("/api/settings", async ({ request }) => {
+  http.patch("*/api/settings", async ({ request }) => {
     await delay();
     const body = (await request.json()) as {
       agent_settings_diff?: Record<string, unknown>;
@@ -592,17 +600,17 @@ export const SETTINGS_HANDLERS = [
     });
   }),
 
-  http.get("/api/settings/agent-schema", async () => {
+  http.get("*/api/settings/agent-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_AGENT_SETTINGS_SCHEMA);
   }),
 
-  http.get("/api/v1/settings/agent-schema", async () => {
+  http.get("*/api/v1/settings/agent-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_AGENT_SETTINGS_SCHEMA);
   }),
 
-  http.post("/api/v1/settings", async ({ request }) => {
+  http.post("*/api/v1/settings", async ({ request }) => {
     await delay();
     const body = (await request.json()) as Record<string, unknown> | null;
 
