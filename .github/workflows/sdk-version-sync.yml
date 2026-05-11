@@ -71,5 +71,7 @@ jobs:
       - name: Check SDK version sync
         run: node scripts/check-sdk-version-sync.mjs
         env:
-          # Pass the SDK version from workflow_dispatch if provided
-          EXPECTED_SDK_VERSION: ${{ inputs.sdk_version }}
+          # Pass the SDK version from workflow_dispatch or repository_dispatch if provided
+          # workflow_dispatch: uses inputs.sdk_version
+          # repository_dispatch: uses client_payload.version
+          EXPECTED_SDK_VERSION: ${{ inputs.sdk_version || github.event.client_payload.version || '' }}

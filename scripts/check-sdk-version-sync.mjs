@@ -21,7 +21,9 @@
  *   node scripts/check-sdk-version-sync.mjs --check-pypi
  *
  * Environment variables:
- *   EXPECTED_SDK_VERSION - Override the expected version (instead of reading from dev-safe.mjs)
+ *   EXPECTED_SDK_VERSION      - Override the expected version (instead of reading from dev-safe.mjs)
+ *   AUTOMATION_PACKAGE_NAME   - Override the automation package name (default: openhands-automation)
+ *   AUTOMATION_PACKAGE_VERSION - Override the automation package version (instead of reading from dev-with-automation.mjs)
  *
  * Options:
  *   --check-pypi    Also check the latest SDK version on PyPI
@@ -63,7 +65,9 @@ Options:
   --help, -h      Show this help
 
 Environment variables:
-  EXPECTED_SDK_VERSION    Override the expected version (instead of reading from dev-safe.mjs)
+  EXPECTED_SDK_VERSION        Override the expected SDK version (instead of reading from dev-safe.mjs)
+  AUTOMATION_PACKAGE_NAME     Override the automation package name (default: openhands-automation)
+  AUTOMATION_PACKAGE_VERSION  Override the automation package version (instead of reading from dev-with-automation.mjs)
 
 Triggering from other repos:
   The automation repo or SDK repo can trigger this check via GitHub repository_dispatch:
@@ -94,6 +98,46 @@ const SDK_PACKAGES = [
   "openhands-workspace",
   "openhands-agent-server",
 ];
+
+// Configurable automation package (can be overridden via env)
+const AUTOMATION_PACKAGE_NAME = process.env.AUTOMATION_PACKAGE_NAME || "openhands-automation";
+
+// Default retry configuration
+const RETRY_COUNT = 3;
+const RETRY_DELAY_MS = 1000;
+
+/**
+ * Normalize a version string for comparison.
+ * Handles variations like "1.22" vs "1.22.0" by ensuring consistent format.
+ */
+function normalizeVersion(version) {
+  if (!version) return null;
+  
+  // Remove any pre-release or build metadata for base comparison
+  const baseVersion = version.split(/[-+]/)[0];
+  
+  // Split into parts and pad to 3 parts (major.minor.patch)
+  const parts = baseVersion.split(".").map((p) => parseInt(p, 10) || 0);
+  while (parts.length < 3) {
+    parts.push(0);
+  }
+  
+  return parts.slice(0, 3).join(".");
+}
+
+/**
+ * Compare two versions for equality (handles semantic equivalence)
+ */
+function versionsEqual(v1, v2) {
+  return normalizeVersion(v1) === normalizeVersion(v2);
+}
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Read the expected SDK version from environment variable or dev-safe.mjs
@@ -138,9 +182,15 @@ async function fetchPyPIVersion(packageName) {
 }
 
 /**
- * Read the automation version from dev-with-automation.mjs
+ * Read the automation version from env var or dev-with-automation.mjs
  */
 function getAutomationVersion() {
+  // Allow override via environment variable
+  const envVersion = process.env.AUTOMATION_PACKAGE_VERSION;
+  if (envVersion && envVersion.trim()) {
+    return { version: envVersion.trim(), source: "AUTOMATION_PACKAGE_VERSION env var" };
+  }
+
   const devAutomationPath = join(projectRoot, "scripts", "dev-with-automation.mjs");
   const content = readFileSync(devAutomationPath, "utf8");
 
@@ -152,25 +202,57 @@ function getAutomationVersion() {
       "Could not find DEFAULT_AUTOMATION_VERSION in dev-with-automation.mjs",
     );
   }
-  return match[1];
+  return { version: match[1], source: "dev-with-automation.mjs" };
 }
 
 /**
- * Fetch package metadata from PyPI and extract dependencies
+ * Fetch package metadata from PyPI and extract dependencies (with retry)
  */
 async function fetchPyPIDependencies(packageName, version) {
   const url = `https://pypi.org/pypi/${packageName}/${version}/json`;
 
   console.log(`${colors.dim}Fetching ${url}${colors.reset}`);
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch ${packageName}==${version} from PyPI: ${response.status} ${response.statusText}`,
-    );
+  let lastError;
+  for (let attempt = 0; attempt < RETRY_COUNT; attempt++) {
+    try {
+      const response = await fetch(url);
+      
+      // 404 is a config issue, don't retry
+      if (response.status === 404) {
+        throw new Error(
+          `Package ${packageName}==${version} not found on PyPI (404). Check the package name and version.`,
+        );
+      }
+      
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${packageName}==${version} from PyPI: ${response.status} ${response.statusText}`,
+        );
+      }
+      
+      const data = await response.json();
+      return data.info?.requires_dist || [];
+    } catch (err) {
+      lastError = err;
+      
+      // Don't retry on 404 (config issue)
+      if (err.message.includes("not found on PyPI (404)")) {
+        throw err;
+      }
+      
+      // Retry on other errors (network issues, 5xx, etc.)
+      if (attempt < RETRY_COUNT - 1) {
+        const delay = RETRY_DELAY_MS * (attempt + 1);
+        console.log(
+          `${colors.yellow}Retry ${attempt + 1}/${RETRY_COUNT - 1} after ${delay}ms...${colors.reset}`,
+        );
+        await sleep(delay);
+      }
+    }
   }
-  const data = await response.json();
-  return data.info?.requires_dist || [];
+  
+  throw lastError;
 }
 
 /**
@@ -186,13 +268,17 @@ function parseSdkVersionsFromRequiresDist(requiresDist) {
 
   for (const pkg of SDK_PACKAGES) {
     for (const dep of requiresDist) {
-      // Match the package name at the start, then extract version
-      // Examples: "openhands-sdk>=1.22.0,<2", "openhands-sdk (>=1.22.0)"
-      const pattern = new RegExp(
-        `^${pkg}\\s*(?:\\(|[><=~!]+)\\s*([0-9]+\\.[0-9]+\\.[0-9]+)`,
-        "i",
-      );
-      const match = dep.match(pattern);
+      // Check if the dependency starts with our package name
+      // The package name may be followed by whitespace, operators, or parentheses
+      if (!dep.toLowerCase().startsWith(pkg.toLowerCase())) {
+        continue;
+      }
+
+      // Extract the version number - look for patterns like:
+      // ">=1.22.0", "==1.22.0", "(>=1.22.0)", "~=1.22.0"
+      // After the package name and before any comma or closing paren
+      const versionPattern = /[><=~!]+\s*([0-9]+(?:\.[0-9]+)*)/;
+      const match = dep.match(versionPattern);
       if (match) {
         versions[pkg] = match[1];
         break;
@@ -221,10 +307,10 @@ async function main() {
       `Expected SDK version: ${colors.green}${expectedVersion}${colors.reset} (from ${versionSource})`,
     );
 
-    // Get automation version from dev-with-automation.mjs
-    const automationVersion = getAutomationVersion();
+    // Get automation version from env var or dev-with-automation.mjs
+    const { version: automationVersion, source: automationSource } = getAutomationVersion();
     console.log(
-      `Automation package version: ${colors.cyan}openhands-automation==${automationVersion}${colors.reset}`,
+      `Automation package: ${colors.cyan}${AUTOMATION_PACKAGE_NAME}==${automationVersion}${colors.reset} (from ${automationSource})`,
     );
 
     // Optionally check PyPI for the latest SDK version
@@ -234,7 +320,7 @@ async function main() {
       for (const pkg of SDK_PACKAGES) {
         const pypiVersion = await fetchPyPIVersion(pkg);
         if (pypiVersion) {
-          const status = pypiVersion === expectedVersion
+          const status = versionsEqual(pypiVersion, expectedVersion)
             ? colors.green
             : colors.yellow;
           console.log(`  ${pkg.padEnd(25)} ${status}${pypiVersion}${colors.reset}`);
@@ -247,7 +333,7 @@ async function main() {
     console.log("");
 
     // Fetch automation package dependencies from PyPI
-    const requiresDist = await fetchPyPIDependencies("openhands-automation", automationVersion);
+    const requiresDist = await fetchPyPIDependencies(AUTOMATION_PACKAGE_NAME, automationVersion);
     const automationVersions = parseSdkVersionsFromRequiresDist(requiresDist);
 
     // Check each SDK package
@@ -255,7 +341,7 @@ async function main() {
     let foundAny = false;
     const mismatches = [];
 
-    console.log(`Checking openhands-automation==${automationVersion} SDK dependencies:`);
+    console.log(`Checking ${AUTOMATION_PACKAGE_NAME}==${automationVersion} SDK dependencies:`);
     console.log("");
 
     for (const pkg of SDK_PACKAGES) {
@@ -263,7 +349,7 @@ async function main() {
 
       if (actualVersion) {
         foundAny = true;
-        if (actualVersion === expectedVersion) {
+        if (versionsEqual(actualVersion, expectedVersion)) {
           console.log(
             `  ${pkg.padEnd(25)} ${colors.green}✓ ${actualVersion}${colors.reset}`,
           );
@@ -290,7 +376,7 @@ async function main() {
 
     if (!foundAny) {
       console.log(
-        `${colors.yellow}Warning: No SDK packages found in openhands-automation==${automationVersion} dependencies${colors.reset}`,
+        `${colors.yellow}Warning: No SDK packages found in ${AUTOMATION_PACKAGE_NAME}==${automationVersion} dependencies${colors.reset}`,
       );
       console.log("This might indicate a parsing issue or the package is not yet published.");
       console.log("");
@@ -302,7 +388,7 @@ async function main() {
         `${colors.red}Version mismatch detected!${colors.reset}`,
       );
       console.log("");
-      console.log(`The released openhands-automation==${automationVersion} uses different SDK versions than expected.`);
+      console.log(`The released ${AUTOMATION_PACKAGE_NAME}==${automationVersion} uses different SDK versions than expected.`);
       console.log("");
       console.log("Mismatched packages:");
       for (const m of mismatches) {
@@ -314,7 +400,7 @@ async function main() {
         `  1. Update DEFAULT_AGENT_SERVER_VERSION in scripts/dev-safe.mjs to match the automation release`,
       );
       console.log(
-        `  2. Release a new version of openhands-automation with SDK dependencies pinned to ${expectedVersion}`,
+        `  2. Release a new version of ${AUTOMATION_PACKAGE_NAME} with SDK dependencies pinned to ${expectedVersion}`,
       );
       console.log(
         `  3. Update DEFAULT_AUTOMATION_VERSION in scripts/dev-with-automation.mjs to a newer release`,
@@ -332,5 +418,14 @@ async function main() {
     process.exit(1);
   }
 }
+
+// Export for testing
+export {
+  normalizeVersion,
+  versionsEqual,
+  parseSdkVersionsFromRequiresDist,
+  SDK_PACKAGES,
+  AUTOMATION_PACKAGE_NAME,
+};
 
 main();
