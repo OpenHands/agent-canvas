@@ -9,16 +9,14 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
-import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
-import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SidebarConversationList } from "./sidebar-conversation-list";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
+import { NewConversationButton } from "#/components/features/conversation-panel/new-conversation-button";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
-import CogIcon from "#/icons/cog.svg?react";
 
 // The LLM settings modal is only mounted when the settings query 404s and
 // LLM settings aren't hidden — keep it out of the sidebar's eager graph.
@@ -26,10 +24,6 @@ const SettingsModal = React.lazy(() =>
   import("#/components/shared/modals/settings/settings-modal").then((m) => ({
     default: m.SettingsModal,
   })),
-);
-
-const SETTINGS_NAV_ICON_BY_PATH = new Map(
-  OSS_NAV_ITEMS.map((item) => [item.to, item.icon] as const),
 );
 
 const ICON_SIZE = 18;
@@ -44,22 +38,9 @@ export function Sidebar() {
     isError: settingsIsError,
     isFetching: isFetchingSettings,
   } = useSettings();
-  const settingsNavItems = useSettingsNavItems();
-
   const [collapsed, setCollapsed] = useSidebarCollapsedState();
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const settingsErrorStatus = getErrorStatus(settingsError);
-
-  const isSettingsActive = currentPath.startsWith("/settings");
-  const [settingsExpanded, setSettingsExpanded] =
-    React.useState<boolean>(isSettingsActive);
-
-  // Auto-expand the settings submenu whenever we navigate into /settings.
-  React.useEffect(() => {
-    if (isSettingsActive) {
-      setSettingsExpanded(true);
-    }
-  }, [isSettingsActive]);
 
   React.useEffect(() => {
     if (currentPath === "/settings") {
@@ -89,48 +70,6 @@ export function Sidebar() {
   ]);
 
   const linkDisabled = settings?.email_verified === false;
-
-  // Floating panel rendered in the hover tooltip when the (collapsed)
-  // Settings button is hovered: lists the same submenu the expanded variant
-  // shows inline.
-  const settingsHoverPanel = (
-    <div
-      data-testid="sidebar-settings-flyout"
-      className="w-[220px] p-1 bg-[#1f2228] text-white rounded-md"
-    >
-      <div className="px-2 py-1 text-xs font-semibold text-[#A3A3A3] uppercase tracking-wider">
-        {t(I18nKey.SIDEBAR$SETTINGS)}
-      </div>
-      <ul className="flex flex-col gap-0.5">
-        {settingsNavItems.map((rendered) => {
-          if (rendered.type !== "item") return null;
-          const navIcon = SETTINGS_NAV_ICON_BY_PATH.get(rendered.item.to);
-          return (
-            <li key={rendered.item.to}>
-              <SidebarNavLink
-                to={rendered.item.to}
-                label={t(rendered.item.text as I18nKey)}
-                end
-                testId={`sidebar-settings-flyout-${rendered.item.to}`}
-                disabled={linkDisabled}
-                icon={
-                  navIcon
-                    ? React.cloneElement(
-                        navIcon as React.ReactElement<{
-                          width?: number;
-                          height?: number;
-                        }>,
-                        { width: 16, height: 16 },
-                      )
-                    : undefined
-                }
-              />
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
 
   const collapseToggleLabel = t(
     collapsed ? I18nKey.SIDEBAR$EXPAND : I18nKey.SIDEBAR$COLLAPSE,
@@ -193,14 +132,9 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Hide the backend selector when collapsed — it is a wide dropdown
-            that doesn't compress meaningfully into a 56px rail. Users who
-            want to switch backends can expand the sidebar first. */}
-        {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch">
-            <BackendSelector />
-          </div>
-        )}
+        <div className="hidden md:block">
+          <NewConversationButton compact={collapsed} />
+        </div>
 
         <nav
           className={cn(
@@ -245,102 +179,18 @@ export function Sidebar() {
             testId="sidebar-integrations-link"
             disabled={linkDisabled}
           /> */}
-          <div className="hidden md:flex flex-col gap-0.5">
-            {collapsed ? (
-              // Collapsed: render Settings as a single icon link to /settings
-              // with a hover-flyout that lists the full submenu.
-              <SidebarNavLink
-                to="/settings"
-                label={t(I18nKey.SIDEBAR$SETTINGS)}
-                testId="sidebar-settings-link"
-                disabled={linkDisabled}
-                collapsed
-                icon={<CogIcon width={ICON_SIZE} height={ICON_SIZE} />}
-                hoverContent={settingsHoverPanel}
-              />
-            ) : (
-              <>
-                <button
-                  type="button"
-                  data-testid="sidebar-settings-toggle"
-                  aria-expanded={settingsExpanded}
-                  onClick={() => setSettingsExpanded((prev) => !prev)}
-                  className={cn(
-                    "flex items-center justify-between w-full text-sm leading-5 px-3 py-2 rounded-md transition-colors cursor-pointer",
-                    isSettingsActive
-                      ? "bg-[#1f1f1f99] text-white font-medium"
-                      : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <CogIcon width={ICON_SIZE} height={ICON_SIZE} />
-                    {t(I18nKey.SIDEBAR$SETTINGS)}
-                  </span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    className={cn(
-                      "transition-transform duration-150",
-                      settingsExpanded ? "rotate-180" : "rotate-0",
-                    )}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-                {settingsExpanded && (
-                  <div className="flex flex-col gap-0.5 pt-0.5">
-                    {settingsNavItems.map((rendered) => {
-                      if (rendered.type !== "item") return null;
-                      const navIcon = SETTINGS_NAV_ICON_BY_PATH.get(
-                        rendered.item.to,
-                      );
-                      return (
-                        <SidebarNavLink
-                          key={rendered.item.to}
-                          to={rendered.item.to}
-                          label={t(rendered.item.text as I18nKey)}
-                          end
-                          indent
-                          testId={`sidebar-settings-${rendered.item.to}`}
-                          disabled={linkDisabled}
-                          icon={
-                            navIcon
-                              ? React.cloneElement(
-                                  navIcon as React.ReactElement<{
-                                    width?: number;
-                                    height?: number;
-                                  }>,
-                                  { width: 16, height: 16 },
-                                )
-                              : undefined
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          {/* Mobile: settings as a flat link, no submenu */}
-          <div className="md:hidden">
-            <SidebarNavLink
-              to="/settings"
-              label={t(I18nKey.SIDEBAR$SETTINGS)}
-              testId="sidebar-settings-link-mobile"
-              disabled={linkDisabled}
-            />
-          </div>
         </nav>
 
         <SidebarConversationList />
+
+        {/* Sidebar footer: keep backend selector pinned to the bottom with a
+            visual separator above it. Hidden in collapsed mode because the
+            control needs full-width space. */}
+        {!collapsed && (
+          <div className="hidden md:flex md:flex-col md:items-stretch mt-auto pt-2 border-t border-[#242424]">
+            <BackendSelector openUpward />
+          </div>
+        )}
       </aside>
 
       {settingsModalIsOpen && (

@@ -70,6 +70,10 @@ vi.mock("#/components/features/backends/backend-selector", () => ({
   BackendSelector: () => <div data-testid="backend-selector" />,
 }));
 
+vi.mock("#/components/features/conversation-panel/new-conversation-button", () => ({
+  NewConversationButton: () => <div data-testid="new-conversation-button" />,
+}));
+
 vi.mock("#/components/features/sidebar/sidebar-conversation-list", () => ({
   SidebarConversationList: () => <div data-testid="sidebar-conversation-list" />,
 }));
@@ -116,14 +120,11 @@ describe("Sidebar", () => {
     },
   );
 
-  it("renders sidebar nav links and the settings toggle with the default text color shared by the settings page nav (text-[#8C8C8C])", () => {
+  it("renders sidebar nav links with the default text color (text-[#8C8C8C])", () => {
     renderSidebar("/skills");
 
     const conversationsLink = screen.getByTestId("sidebar-conversations-link");
     expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
-
-    const settingsToggle = screen.getByTestId("sidebar-settings-toggle");
-    expect(settingsToggle.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {
@@ -131,19 +132,11 @@ describe("Sidebar", () => {
 
     const sidebar = screen.getByRole("navigation").parentElement;
     expect(sidebar?.dataset.collapsed).toBe("false");
-    // Settings inline toggle is rendered in expanded mode only.
-    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
 
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     fireEvent.click(toggle);
 
     expect(sidebar?.dataset.collapsed).toBe("true");
-    // Inline settings submenu toggle disappears in the collapsed rail; the
-    // single Settings link remains as the icon entry point.
-    expect(
-      screen.queryByTestId("sidebar-settings-toggle"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-settings-link")).toBeInTheDocument();
 
     // The choice survives a remount via localStorage.
     unmount();
@@ -160,11 +153,9 @@ describe("Sidebar", () => {
     // Act
     fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
 
-    // Assert: state flips back to expanded and the inline settings submenu
-    // toggle (rendered only when expanded) reappears.
+    // Assert: state flips back to expanded.
     const sidebar = screen.getByRole("navigation").parentElement;
     expect(sidebar?.dataset.collapsed).toBe("false");
-    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
   });
 
   it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {
@@ -174,7 +165,6 @@ describe("Sidebar", () => {
       "sidebar-conversations-link",
       "sidebar-automations-link",
       "sidebar-skills-link",
-      "sidebar-settings-toggle",
     ]) {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();

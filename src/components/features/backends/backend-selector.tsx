@@ -252,58 +252,71 @@ export function BackendSelector({
 
   return (
     <>
-      <Dropdown
-        testId="backend-selector"
-        key={`${activeValue}-${activeOption?.label ?? ""}`}
-        defaultValue={
-          activeOption ?? {
-            value: activeValue,
-            label: active.backend.name,
-            prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
-          }
-        }
-        footer={addBackendFooter}
-        openUpward={openUpward}
-        onChange={async (item) => {
-          if (!item || item.value === activeValue) return;
-          const { backendId, orgId } = parseOptionValue(item.value);
-          const target = backends.find((b) => b.id === backendId);
-          if (!target) return;
+      <div className="flex items-center gap-2 w-full">
+        <div className="flex-1 min-w-0">
+          <Dropdown
+            testId="backend-selector"
+            key={`${activeValue}-${activeOption?.label ?? ""}`}
+            defaultValue={
+              activeOption ?? {
+                value: activeValue,
+                label: active.backend.name,
+                prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
+              }
+            }
+            footer={addBackendFooter}
+            openUpward={openUpward}
+            onChange={async (item) => {
+              if (!item || item.value === activeValue) return;
+              const { backendId, orgId } = parseOptionValue(item.value);
+              const target = backends.find((b) => b.id === backendId);
+              if (!target) return;
 
-          triggerEnvironmentSwitch(item.label);
-          await new Promise<void>((resolve) => {
-            setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
-          });
+              triggerEnvironmentSwitch(item.label);
+              await new Promise<void>((resolve) => {
+                setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
+              });
 
-          if (orgId && target.kind === "cloud") {
-            try {
-              await switchOrg({ orgId, backend: target });
-            } catch (error) {
-              dismissEnvironmentSwitch();
+              if (orgId && target.kind === "cloud") {
+                try {
+                  await switchOrg({ orgId, backend: target });
+                } catch (error) {
+                  dismissEnvironmentSwitch();
 
-              if (!axios.isAxiosError(error)) {
-                console.error("Unexpected error during org switch:", error);
-                displayErrorToast(t(I18nKey.ERROR$GENERIC));
-                return;
+                  if (!axios.isAxiosError(error)) {
+                    console.error("Unexpected error during org switch:", error);
+                    displayErrorToast(t(I18nKey.ERROR$GENERIC));
+                    return;
+                  }
+
+                  displayErrorToast(
+                    retrieveAxiosErrorMessage(error) || t(I18nKey.ERROR$GENERIC),
+                  );
+                  return;
+                }
               }
 
-              displayErrorToast(
-                retrieveAxiosErrorMessage(error) || t(I18nKey.ERROR$GENERIC),
-              );
-              return;
-            }
-          }
+              if (conversationMatch) navigate("/conversations");
+              else if (automationDetailMatch) navigate("/automations");
 
-          if (conversationMatch) navigate("/conversations");
-          else if (automationDetailMatch) navigate("/automations");
-
-          setActive(target.id, orgId);
-        }}
-        placeholder={active.backend.name}
-        loading={someCloudLoading || isSwitching}
-        options={options}
-        className="bg-[#1F1F1F66] border-[#242424]"
-      />
+              setActive(target.id, orgId);
+            }}
+            placeholder={active.backend.name}
+            loading={someCloudLoading || isSwitching}
+            options={options}
+            className="bg-[#1F1F1F66] border-[#242424]"
+          />
+        </div>
+        <button
+          type="button"
+          data-testid="backend-selector-settings-link"
+          aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
+          onClick={() => navigate("/settings")}
+          className="inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md border border-[#242424] bg-[#1F1F1F66] text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99] transition-colors"
+        >
+          <Settings width={16} height={16} />
+        </button>
+      </div>
       {addBackendModalOpen ? (
         <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
       ) : null}
