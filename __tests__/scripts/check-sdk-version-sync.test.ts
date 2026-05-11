@@ -1,26 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock process.exit to prevent test from exiting
-vi.mock("node:process", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:process")>();
-  return {
-    ...actual,
-    default: {
-      ...actual.default,
-      exit: vi.fn(),
-      argv: ["node", "script.mjs"],
-      env: {},
-    },
-  };
-});
+// Type definitions for the module exports
+type NormalizeVersion = (version: string | null) => string | null;
+type VersionsEqual = (v1: string, v2: string) => boolean;
+type ParseSdkVersions = (requiresDist: string[]) => Record<string, string>;
 
 // Import after mocking - need dynamic import since the script has side effects
 describe("check-sdk-version-sync helpers", () => {
-  let normalizeVersion: (version: string | null) => string | null;
-  let versionsEqual: (v1: string, v2: string) => boolean;
-  let parseSdkVersionsFromRequiresDist: (
-    requiresDist: string[],
-  ) => Record<string, string>;
+  let normalizeVersion: NormalizeVersion;
+  let versionsEqual: VersionsEqual;
+  let parseSdkVersionsFromRequiresDist: ParseSdkVersions;
   let SDK_PACKAGES: string[];
 
   beforeEach(async () => {
@@ -33,10 +22,11 @@ describe("check-sdk-version-sync helpers", () => {
 
     // Dynamic import to get fresh module
     const module = await import("../../scripts/check-sdk-version-sync.mjs");
-    normalizeVersion = module.normalizeVersion;
-    versionsEqual = module.versionsEqual;
-    parseSdkVersionsFromRequiresDist = module.parseSdkVersionsFromRequiresDist;
-    SDK_PACKAGES = module.SDK_PACKAGES;
+    normalizeVersion = module.normalizeVersion as NormalizeVersion;
+    versionsEqual = module.versionsEqual as VersionsEqual;
+    parseSdkVersionsFromRequiresDist =
+      module.parseSdkVersionsFromRequiresDist as ParseSdkVersions;
+    SDK_PACKAGES = module.SDK_PACKAGES as string[];
   });
 
   afterEach(() => {
