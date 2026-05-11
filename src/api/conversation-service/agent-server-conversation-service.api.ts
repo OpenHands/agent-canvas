@@ -47,6 +47,7 @@ import type {
   AppConversationPage,
   AppConversationStartRequest,
   AppConversationStartTask,
+  MetricsSnapshot,
   RuntimeConversationInfo,
   SendMessageRequest,
   SendMessageResponse,
@@ -63,7 +64,19 @@ function invalidConversationResponse(): Error {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" ? value : 0;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }
 
 function readTimestamp(
@@ -77,16 +90,60 @@ function readTimestamp(
     : DEFAULT_CONVERSATION_TIMESTAMP;
 }
 
+function normalizeTokenUsage(
+  value: unknown,
+): NonNullable<MetricsSnapshot["accumulated_token_usage"]> | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    prompt_tokens: numberOrZero(value.prompt_tokens),
+    completion_tokens: numberOrZero(value.completion_tokens),
+    cache_read_tokens: numberOrZero(value.cache_read_tokens),
+    cache_write_tokens: numberOrZero(value.cache_write_tokens),
+    context_window: numberOrZero(value.context_window),
+    per_turn_token: numberOrZero(value.per_turn_token),
+  };
+}
+
+function normalizeMetrics(value: unknown): MetricsSnapshot | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    accumulated_cost: numberOrNull(value.accumulated_cost),
+    max_budget_per_task: numberOrNull(value.max_budget_per_task),
+    accumulated_token_usage: normalizeTokenUsage(value.accumulated_token_usage),
+  };
+}
+
+function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
+  if (!isRecord(value)) return null;
+  const llm = isRecord(value.llm)
+    ? { model: stringOrNull(value.llm.model) }
+    : null;
+  return { llm };
+}
+
+function normalizeWorkspace(
+  value: unknown,
+): DirectConversationInfo["workspace"] {
+  if (!isRecord(value)) return null;
+  return { working_dir: stringOrNull(value.working_dir) };
+}
+
 function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
   if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
     throw invalidConversationResponse();
   }
 
   return {
-    ...(item as unknown as DirectConversationInfo),
     id: item.id,
+    title: stringOrNull(item.title),
     created_at: readTimestamp(item, "created_at", "createdAt"),
     updated_at: readTimestamp(item, "updated_at", "updatedAt"),
+    execution_status: stringOrNull(item.execution_status),
+    metrics: normalizeMetrics(item.metrics),
+    agent: normalizeAgent(item.agent),
+    workspace: normalizeWorkspace(item.workspace),
   };
 }
 
@@ -401,7 +458,7 @@ class AgentServerConversationService {
     // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
     // mode forwards conversationUrl so the host explicitly resolves to the
     // conversation's runtime instead of falling back to the active backend.
-    const data = requireDirectConversationInfo(
+    const response =
       active.kind === "cloud" && conversationUrl
         ? await callCloudProxy<RawRuntime>({
             backend: active,
@@ -416,41 +473,20 @@ class AgentServerConversationService {
               conversationUrl,
               sessionApiKey,
             }),
-          ).getConversation<RawRuntime>(conversationId),
-    ) as RawRuntime;
+          ).getConversation<RawRuntime>(conversationId);
+    const data = requireDirectConversationInfo(response);
+    const stats = isRecord(response) ? response.stats : null;
 
     return {
       id: data.id,
       title: data.title?.trim()
         ? data.title
         : getDefaultConversationTitle(data.id),
-      metrics: data.metrics
-        ? {
-            accumulated_cost: data.metrics.accumulated_cost ?? null,
-            max_budget_per_task: data.metrics.max_budget_per_task ?? null,
-            accumulated_token_usage: data.metrics.accumulated_token_usage
-              ? {
-                  prompt_tokens:
-                    data.metrics.accumulated_token_usage.prompt_tokens ?? 0,
-                  completion_tokens:
-                    data.metrics.accumulated_token_usage.completion_tokens ?? 0,
-                  cache_read_tokens:
-                    data.metrics.accumulated_token_usage.cache_read_tokens ?? 0,
-                  cache_write_tokens:
-                    data.metrics.accumulated_token_usage.cache_write_tokens ??
-                    0,
-                  context_window:
-                    data.metrics.accumulated_token_usage.context_window ?? 0,
-                  per_turn_token:
-                    data.metrics.accumulated_token_usage.per_turn_token ?? 0,
-                }
-              : null,
-          }
-        : null,
+      metrics: normalizeMetrics(data.metrics),
       created_at: data.created_at,
       updated_at: data.updated_at,
       status: toRuntimeStatus(data.execution_status),
-      stats: data.stats ?? { usage_to_metrics: {} },
+      stats: isRecord(stats) ? stats : { usage_to_metrics: {} },
     };
   }
 

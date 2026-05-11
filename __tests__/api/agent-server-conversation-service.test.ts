@@ -331,6 +331,48 @@ describe("AgentServerConversationService", () => {
         "Unable to load conversations because the selected agent server returned",
       );
     });
+
+    it("sanitizes malformed optional conversation fields", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-malformed-fields",
+            title: "Conversation with malformed fields",
+            metrics: {
+              accumulated_cost: "1.23",
+              max_budget_per_task: 10,
+              accumulated_token_usage: {
+                prompt_tokens: "123",
+                completion_tokens: 4,
+              },
+            },
+            agent: "not an agent object",
+            workspace: "not a workspace object",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-malformed-fields",
+        ]);
+
+      expect(conversation?.metrics).toEqual({
+        accumulated_cost: null,
+        max_budget_per_task: 10,
+        accumulated_token_usage: {
+          prompt_tokens: 0,
+          completion_tokens: 4,
+          cache_read_tokens: 0,
+          cache_write_tokens: 0,
+          context_window: 0,
+          per_turn_token: 0,
+        },
+      });
+      expect(conversation?.workspace?.working_dir).toBe(
+        "/workspace/project/agent-canvas",
+      );
+    });
   });
 
   describe("cloud branches", () => {
