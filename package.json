@@ -4,6 +4,9 @@
   "license": "MIT",
   "private": false,
   "type": "module",
+  "bin": {
+    "agent-canvas": "./bin/agent-canvas.mjs"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
@@ -154,7 +157,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "bin",
+    "build"
   ],
   "exports": {
     ".": {
