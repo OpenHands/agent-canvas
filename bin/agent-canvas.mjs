@@ -39,12 +39,13 @@ OPTIONS:
 
 ENVIRONMENT VARIABLES:
   PROJECT_PATH                 Required: path to your projects directory
-  LLM_MODEL                    LLM model to use (e.g., anthropic/claude-sonnet-4-20250514)
-  LLM_API_KEY                  API key for the LLM provider
   OH_SECRET_KEY                Secret key for encrypting settings
-  OH_AGENT_SERVER_GIT_REF      Git ref for agent-server Docker image
+  OH_AGENT_SERVER_GIT_REF      Git ref for agent-server Docker image tag
   OH_AGENT_SERVER_LOCAL_PATH   Path to local SDK checkout (for development)
   OH_MOUNT_HOST_HOME           Set to "1" to mount entire home directory
+
+Note: LLM settings are configured through the web UI settings page,
+not environment variables.
 
 EXAMPLES:
   # Start full stack (requires PROJECT_PATH)
