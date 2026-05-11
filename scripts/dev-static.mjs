@@ -236,6 +236,9 @@ function buildFrontend(config, args) {
       // Bake the agent-server's workspace path into the build so conversations
       // start with the same default working directory as `npm run dev`.
       VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
+      // Bake the session API key so the static frontend can authenticate with
+      // the colocated agent-server through the ingress.
+      VITE_SESSION_API_KEY: config.sessionApiKey,
       // Bake the automation backend API key so the static frontend can talk
       // to /api/automation through the ingress.
       VITE_AUTOMATION_API_KEY: config.localApiKey,
