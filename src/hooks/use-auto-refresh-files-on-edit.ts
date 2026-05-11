@@ -52,15 +52,30 @@ export function useAutoRefreshFilesOnEdit(): void {
   // tail we just diffed didn't contain it. Using a Set of ids is
   // O(events) per render in the worst case but small in practice and
   // immune to reordering.
-  const processedIdsRef = useRef<Set<string>>(new Set());
+  //
+  // Type matches the event store's own dedup set (`Set<string | number>`
+  // in `use-event-store.ts`). The formal `EventID` type is `string`, but
+  // `getEventId` returns `string | number | undefined`, and we mirror
+  // that tolerance here so a stray numeric id (legacy server payload,
+  // hand-crafted test event, …) doesn't sneak past dedup. Events with
+  // *no* id are not added to the set at all — adding `undefined` once
+  // would cause every subsequent id-less event (which is a *different*
+  // event) to be silently skipped.
+  const processedIdsRef = useRef<Set<string | number>>(new Set());
 
   useEffect(() => {
     const newMutationEvents: OHEvent[] = [];
     for (const event of events) {
-      if (!processedIdsRef.current.has(event.id)) {
-        processedIdsRef.current.add(event.id);
-        if (isFileMutationObservation(event)) newMutationEvents.push(event);
+      const id: string | number | undefined =
+        "id" in event ? event.id : undefined;
+      // Id-less events are always treated as "new" — there is nothing to
+      // key on, so dedup would be wrong (it'd swallow the 2nd / 3rd / Nth
+      // ID-less event by collapsing them under a single `undefined` key).
+      if (id !== undefined) {
+        if (processedIdsRef.current.has(id)) continue;
+        processedIdsRef.current.add(id);
       }
+      if (isFileMutationObservation(event)) newMutationEvents.push(event);
     }
 
     if (newMutationEvents.length === 0) return;

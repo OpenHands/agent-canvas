@@ -35,7 +35,13 @@ import { table, th, td } from "./table";
 // would round-trip an HTML document with no schema validation. Inline
 // base64 images are a thin convenience we don't actually need in our
 // preview, and the cost of allowing them is too high.
-const MARKDOWN_SANITIZE_SCHEMA: Schema = {
+// Exported for direct schema tests. End-to-end MarkdownRenderer tests
+// can't reach every sanitize concern because our custom `anchor`
+// component always hard-codes `target="_blank" rel="noopener noreferrer"`
+// — meaning a buggy schema (e.g. one that strips `rel` from HAST) would
+// still produce a safe-looking `<a>` in the final DOM. Direct schema
+// tests close that gap.
+export const MARKDOWN_SANITIZE_SCHEMA: Schema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,

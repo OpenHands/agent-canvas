@@ -178,11 +178,14 @@ describe("conversation localStorage utilities", () => {
       expect(state.selectedTab).toBe("files");
     });
 
-    it("filters obsolete tabs out of stored unpinnedTabs (changes / editor / served)", () => {
-      // Returning users may have unpinned the now-removed Changes, Editor,
-      // or Served tabs in a previous version. Those names should not
-      // survive the read — otherwise they linger forever in localStorage
-      // since the UI has no way to surface them again to be re-pinned.
+    it("filters obsolete tabs out of stored unpinnedTabs (changes / editor / served / app)", () => {
+      // Returning users may have unpinned the now-removed Changes,
+      // Editor, Served, or App tabs in a previous version. Those names
+      // should not survive the read — otherwise they linger forever in
+      // localStorage since the UI has no way to surface them again to be
+      // re-pinned. We cover ALL four removed names here (the previous
+      // version of this test missed `app` and the gap let a denylist-vs-
+      // whitelist regression slip through review).
       const conversationId = "conv-123";
       const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
 
@@ -191,13 +194,13 @@ describe("conversation localStorage utilities", () => {
         JSON.stringify({
           selectedTab: "files",
           rightPanelShown: true,
-          unpinnedTabs: ["editor", "changes", "served", "terminal"],
+          unpinnedTabs: ["editor", "changes", "served", "app", "terminal"],
         }),
       );
 
       const state = getConversationState(conversationId);
 
-      // Only the still-valid `terminal` entry survives; the three
+      // Only the still-valid `terminal` entry survives; all four
       // obsolete names are dropped.
       expect(state.unpinnedTabs).toEqual(["terminal"]);
     });
@@ -497,6 +500,112 @@ describe("conversation localStorage utilities", () => {
         expect(stateA.draftMessage).toBeNull();
         expect(stateB.draftMessage).toBe("Draft B");
       });
+    });
+  });
+
+  describe("filesTabDiffView persistence", () => {
+    // The diff-view toggle is per-conversation: in a git repo it
+    // defaults to ON, in a plain workspace it defaults to OFF, but the
+    // user's last explicit choice should win. Verify the boolean
+    // round-trips through localStorage and that the unset case stays
+    // `null` (so the higher layer can apply the repo-aware default).
+
+    it("defaults to null when nothing is stored", () => {
+      const state = getConversationState("files-diff-conv-1");
+      expect(state.filesTabDiffView).toBeNull();
+    });
+
+    it("round-trips `true` through localStorage", () => {
+      const conversationId = "files-diff-conv-2";
+      setConversationState(conversationId, { filesTabDiffView: true });
+
+      const state = getConversationState(conversationId);
+      expect(state.filesTabDiffView).toBe(true);
+
+      // Also verify the on-disk shape — important because the consumer
+      // code reads it back via `JSON.parse`, so a wrong-type value would
+      // be a silent regression.
+      const raw = localStorage.getItem(
+        `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`,
+      );
+      expect(raw).not.toBeNull();
+      expect(JSON.parse(raw as string).filesTabDiffView).toBe(true);
+    });
+
+    it("round-trips `false` through localStorage", () => {
+      const conversationId = "files-diff-conv-3";
+      setConversationState(conversationId, { filesTabDiffView: false });
+
+      const state = getConversationState(conversationId);
+      expect(state.filesTabDiffView).toBe(false);
+    });
+
+    it("is isolated per conversation", () => {
+      setConversationState("files-diff-convA", { filesTabDiffView: true });
+      setConversationState("files-diff-convB", { filesTabDiffView: false });
+
+      expect(
+        getConversationState("files-diff-convA").filesTabDiffView,
+      ).toBe(true);
+      expect(
+        getConversationState("files-diff-convB").filesTabDiffView,
+      ).toBe(false);
+    });
+  });
+
+  describe("filesTabContentViewMode persistence", () => {
+    // The rich/plain toggle for the file content viewer also persists
+    // per conversation. Default is "rich" — verified explicitly here so
+    // a careless change to the default field initializer doesn't slip
+    // through unnoticed (it would flip every existing user from rich to
+    // plain after deploy).
+
+    it("defaults to 'rich' when nothing is stored", () => {
+      const state = getConversationState("files-view-conv-1");
+      expect(state.filesTabContentViewMode).toBe("rich");
+    });
+
+    it("round-trips 'plain' through localStorage", () => {
+      const conversationId = "files-view-conv-2";
+      setConversationState(conversationId, {
+        filesTabContentViewMode: "plain",
+      });
+
+      expect(
+        getConversationState(conversationId).filesTabContentViewMode,
+      ).toBe("plain");
+
+      const raw = localStorage.getItem(
+        `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`,
+      );
+      expect(JSON.parse(raw as string).filesTabContentViewMode).toBe("plain");
+    });
+
+    it("round-trips 'rich' through localStorage (explicit save, not default)", () => {
+      const conversationId = "files-view-conv-3";
+      setConversationState(conversationId, {
+        filesTabContentViewMode: "rich",
+      });
+
+      expect(
+        getConversationState(conversationId).filesTabContentViewMode,
+      ).toBe("rich");
+    });
+
+    it("is isolated per conversation", () => {
+      setConversationState("files-view-convA", {
+        filesTabContentViewMode: "plain",
+      });
+      setConversationState("files-view-convB", {
+        filesTabContentViewMode: "rich",
+      });
+
+      expect(
+        getConversationState("files-view-convA").filesTabContentViewMode,
+      ).toBe("plain");
+      expect(
+        getConversationState("files-view-convB").filesTabContentViewMode,
+      ).toBe("rich");
     });
   });
 });

@@ -210,6 +210,96 @@ describe("useAutoRefreshFilesOnEdit", () => {
     );
   });
 
+  it("does NOT deduplicate id-less events (every id-less arrival is a new event)", () => {
+    // The event store explicitly allows events without ids (see
+    // `getEventId` returning undefined). If our hook keyed dedup on
+    // `event.id` naively, a single `undefined` entry in the Set would
+    // swallow every subsequent id-less event — silently dropping real
+    // mutations on the floor. This guard makes sure that doesn't happen.
+    const client = new QueryClient();
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    // Three distinct id-less FileEditorObservation events (different
+    // timestamps so the store treats them as ordered, not duplicates).
+    const idlessEvent = (i: number): OHEvent =>
+      ({
+        // no `id` field at all → getEventId returns undefined
+        timestamp: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+        source: "environment",
+        tool_name: "str_replace_based_edit_tool",
+        tool_call_id: `tc-idless-${i}`,
+        action_id: `act-idless-${i}`,
+        observation: {
+          kind: "FileEditorObservation",
+          command: "create",
+          path: `/workspace/project/foo${i}.txt`,
+          old_content: null,
+          new_content: "hello",
+          output: "ok",
+        },
+      }) as unknown as OHEvent;
+
+    act(() => {
+      useEventStore.getState().addEvent(idlessEvent(1));
+      useEventStore.getState().addEvent(idlessEvent(2));
+      useEventStore.getState().addEvent(idlessEvent(3));
+    });
+
+    // The counter is the cleanest signal — one bump per useEffect tick
+    // that found at least one new mutation. The three id-less events
+    // arrive in sequence across three store updates (and therefore at
+    // least three effect runs), so we expect three bumps. If the hook
+    // were deduping on `undefined`, only the first effect run would
+    // bump and the count would be stuck at 1.
+    expect(useWorkspaceMutationCounter.getState().count).toBe(3);
+  });
+
+  it("dedupes numeric event ids the same way as string ids", () => {
+    // The formal EventID type is `string`, but the event store carries
+    // `Set<string | number>` defensively (use-event-store.ts:52) and
+    // `getEventId` returns `string | number | undefined`. The hook's
+    // processed-ids set is widened to match — a stray numeric id (legacy
+    // payload, hand-crafted test event, …) must still dedup correctly.
+    const client = new QueryClient();
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    const numericEvent: OHEvent = {
+      id: 42 as unknown as string, // intentionally numeric at runtime
+      timestamp: new Date(2026, 0, 1, 0, 0, 1).toISOString(),
+      source: "environment",
+      tool_name: "str_replace_based_edit_tool",
+      tool_call_id: "tc-num",
+      action_id: "act-num",
+      observation: {
+        kind: "FileEditorObservation",
+        command: "create",
+        path: "/workspace/project/foo.txt",
+        old_content: null,
+        new_content: "hello",
+        output: "ok",
+      },
+    } as unknown as OHEvent;
+
+    act(() => {
+      useEventStore.getState().addEvent(numericEvent);
+    });
+    const afterFirst = useWorkspaceMutationCounter.getState().count;
+    expect(afterFirst).toBe(1);
+
+    // Re-adding the same numeric-id event must be a no-op for the
+    // counter (store dedups on id; hook must too).
+    act(() => {
+      useEventStore.getState().addEvent({ ...numericEvent });
+    });
+    expect(useWorkspaceMutationCounter.getState().count).toBe(afterFirst);
+  });
+
   it("only invalidates once per new event batch", () => {
     const client = new QueryClient();
     const spy = vi.spyOn(client, "invalidateQueries");

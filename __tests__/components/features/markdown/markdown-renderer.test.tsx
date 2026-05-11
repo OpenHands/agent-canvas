@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
+import { sanitize } from "hast-util-sanitize";
+import type { Element, Root } from "hast";
 
-import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
+import {
+  MarkdownRenderer,
+  MARKDOWN_SANITIZE_SCHEMA,
+} from "#/components/features/markdown/markdown-renderer";
 
 describe("MarkdownRenderer", () => {
   it("renders GFM tables (a GFM-only feature)", () => {
@@ -172,5 +177,75 @@ describe("MarkdownRenderer", () => {
     // <mark> should not be parsed; the text should still appear.
     expect(container.querySelector("mark")).toBeNull();
     expect(container.textContent).toContain("world");
+  });
+});
+
+// Direct tests against MARKDOWN_SANITIZE_SCHEMA. End-to-end
+// MarkdownRenderer tests can't reach these because our custom `anchor`
+// component always hard-codes target/rel — so even a buggy schema (one
+// that strips `rel` from HAST) would still produce a safe-looking final
+// `<a>`. We run `hast-util-sanitize` directly on hand-built HAST trees
+// to assert what the schema does and doesn't pass through.
+describe("MARKDOWN_SANITIZE_SCHEMA", () => {
+  function makeAnchor(properties: Record<string, unknown>): Root {
+    return {
+      type: "root",
+      children: [
+        {
+          type: "element",
+          tagName: "a",
+          properties,
+          children: [{ type: "text", value: "link" }],
+        } as Element,
+      ],
+    };
+  }
+
+  function firstAnchor(tree: Root): Element | null {
+    const node = tree.children[0];
+    return node && node.type === "element" ? (node as Element) : null;
+  }
+
+  it("preserves space-separated rel values on raw HTML anchors (regression for fc208bc)", () => {
+    // The old schema used `["rel", "noopener", "noreferrer", "nofollow"]`,
+    // which is rehype-sanitize's "exact match against allowed values"
+    // form — it would reject `rel="noopener noreferrer"` (the canonical
+    // safe-link incantation) because the *combined* string isn't in the
+    // allowed-values list. With the fix this test must pass: rel is
+    // preserved verbatim.
+    const tree = sanitize(
+      makeAnchor({
+        href: "https://example.com",
+        target: "_blank",
+        rel: "noopener noreferrer",
+      }),
+      MARKDOWN_SANITIZE_SCHEMA,
+    ) as Root;
+
+    const a = firstAnchor(tree);
+    expect(a).not.toBeNull();
+    // hast-util-sanitize stores `rel` as an array of tokens; reassemble.
+    const relProp = a?.properties?.rel;
+    const rel = Array.isArray(relProp) ? relProp.join(" ") : relProp;
+    expect(rel).toBe("noopener noreferrer");
+    expect(a?.properties?.target).toBe("_blank");
+    expect(a?.properties?.href).toBe("https://example.com");
+  });
+
+  it("preserves rel even when it carries unusual but-safe tokens like `nofollow ugc`", () => {
+    // `rel` keywords never execute code or navigate, so allowing any
+    // value is safe. This locks that property in.
+    const tree = sanitize(
+      makeAnchor({
+        href: "https://example.com",
+        rel: "nofollow ugc",
+      }),
+      MARKDOWN_SANITIZE_SCHEMA,
+    ) as Root;
+
+    const a = firstAnchor(tree);
+    const relProp = a?.properties?.rel;
+    const rel = Array.isArray(relProp) ? relProp.join(" ") : relProp;
+    expect(rel).toBe("nofollow ugc");
   });
 });
