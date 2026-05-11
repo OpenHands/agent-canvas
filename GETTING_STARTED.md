@@ -45,10 +45,13 @@ You'll need an API key to connect Agent Canvas to an AI model. Choose one of the
 
 **Recommended for new users.** A single OpenHands API key gives you access to most major AI models (Claude, GPT-4, Gemini, and more) without needing separate accounts with each provider.
 
-1. Go to [OpenHands Cloud](https://app.openhands.dev)
+1. Go to [OpenHands Cloud API Keys](https://app.all-hands.dev/settings/api-keys)
 2. Create an account or log in
-3. Navigate to **API Keys**
-4. Copy your **OpenHands LLM API key**
+3. Click **Create API Key**
+4. Give it a name (e.g., "Agent Canvas") and save it
+5. **Copy the key immediately** — you won't be able to see it again
+
+> 💡 **Tip:** If you didn't save your API key, no problem! Just delete the old one and click **Create API Key** again to generate a new one.
 
 > 📝 **Note:** OpenHands Cloud has two different API keys. For now, you only need the **LLM API key**. We'll use the other one (REST API key) later in this guide. See the [Glossary](#openhands-llm-api-key-vs-openhands-rest-api-key) if you're confused about the difference.
 
@@ -309,11 +312,18 @@ Now that you have Agent Canvas running locally, let's add OpenHands Cloud as a s
 
 #### Step 1: Get Your OpenHands REST API Key
 
-1. Log in to [OpenHands Cloud](https://app.openhands.dev)
-2. Navigate to **API Keys**
-3. Copy your **REST API key**
+1. Go to [OpenHands Cloud API Keys](https://app.all-hands.dev/settings/api-keys)
+2. Click **Create API Key**
+3. Give it a name (e.g., "Agent Canvas Backend") and save it
+4. **Copy the key immediately** — you won't be able to see it again
 
-> ⚠️ **Important:** This is different from the LLM API key you used earlier! See the [Glossary](#openhands-llm-api-key-vs-openhands-rest-api-key) for details.
+> ⚠️ **Important:** This is a different API key than the LLM API key you created earlier! You need both:
+> - **LLM API key** → for connecting to AI models (used in LLM Settings)
+> - **REST API key** → for connecting to OpenHands Cloud as a backend (used here)
+>
+> See the [Glossary](#openhands-llm-api-key-vs-openhands-rest-api-key) for more details.
+
+> 💡 **Tip:** If you didn't save your API key, just delete the old one and click **Create API Key** again.
 
 #### Step 2: Add the Backend in Agent Canvas
 
@@ -322,7 +332,7 @@ Now that you have Agent Canvas running locally, let's add OpenHands Cloud as a s
 3. Click **Add Backend**
 4. Fill in the form:
    - **Name:** `OpenHands Cloud` (or any name you'll remember)
-   - **Host:** `https://app.openhands.dev`
+   - **Host:** `https://app.all-hands.dev`
    - **API Key:** Paste your REST API key
 5. Click **Save**
 
@@ -435,6 +445,71 @@ Important things to know:
 - Switching backends shows that backend's conversations
 - Conversations **cannot be transferred** between backends
 - Your LLM settings are shared across backends
+
+---
+
+## Automations
+
+Automations let you schedule tasks that run automatically like daily reports, health checks, file cleanup, and more. Each automation runs a full OpenHands conversation on a schedule you define.
+
+> ⚠️ **Important:** Automations only run when Agent Canvas Backend is running. If you schedule an automation for 9 AM, your Docker container must be running at that time for it to execute. Plan your schedules around when you'll have Agent Canvas active.
+
+### Viewing Automations
+
+To see your automations:
+
+1. Click **Automations** in the sidebar
+2. You'll see a list of all your automations, grouped by active/inactive status
+3. Click any automation to see its details, configuration, and run history
+
+### Creating an Automation
+
+Automations are created through conversation with the agent. Simply ask OpenHands to create one:
+
+**Example: Daily summary**
+```
+Create an automation called "Daily Summary" that runs every weekday at 9 AM.
+It should list all files modified in the last 24 hours and summarize the changes.
+```
+
+**Example: Scheduled cleanup**
+```
+Create an automation that runs every Sunday at midnight to find and delete 
+temporary files older than 7 days, then create a summary of what was removed.
+```
+
+The agent will guide you through:
+1. Naming your automation
+2. Setting the schedule (e.g., "every day at 9 AM", "every Monday", "every 6 hours")
+3. Choosing a timezone
+4. Confirming the task description
+
+### Managing Automations
+
+From the Automations page, you can:
+
+| Action | How |
+|--------|-----|
+| **Enable/disable** | Toggle the switch next to any automation |
+| **View details** | Click on an automation to see its configuration |
+| **See run history** | Check when automations ran and their results |
+| **Delete** | Use the menu (⋮) on any automation card |
+
+### What Automations Can Access
+
+When an automation runs, it has access to:
+
+- Your configured LLM settings
+- Files in your workspace (`PROJECT_PATH`)
+- The terminal (can run commands)
+- Any secrets you've stored in Settings → Secrets
+
+### Tips for Good Automation Prompts
+
+- **Be specific**: "Check X, and if Y happens, then do Z"
+- **Include error handling**: "If the check fails, create a summary of what went wrong"
+- **Define outputs**: "Save the report to `reports/` with today's date in the filename"
+- **Consider timing**: Schedule automations for times when you know Agent Canvas will be running
 
 ---
 
@@ -584,13 +659,16 @@ A session with the agent, including your messages, the agent's responses, and al
 
 > ⚠️ **These are two different keys used for different purposes!**
 
-This is a common point of confusion. OpenHands Cloud provides two API keys on the same screen:
+This is a common point of confusion. Both keys are created from the same page ([OpenHands Cloud API Keys](https://app.all-hands.dev/settings/api-keys)), but they serve different purposes:
 
 | | OpenHands LLM API Key | OpenHands REST API Key |
 |---|---|---|
 | **Purpose** | Authenticate with AI models (Claude, GPT-4, etc.) | Authenticate with OpenHands Cloud as a backend |
 | **Where to use it** | Settings → LLM Settings → API Key | Manage Backends → Add Backend → API Key |
 | **What it does** | Lets you send prompts to AI models | Lets Agent Canvas communicate with OpenHands Cloud |
+| **How to create** | Click **Create API Key**, name it (e.g., "Agent Canvas LLM") | Click **Create API Key**, name it (e.g., "Agent Canvas Backend") |
+
+> 💡 **Tip:** You can create multiple API keys with descriptive names to keep track of which is which. If you lose a key, just delete it and create a new one.
 
 **[SCREENSHOT: Show both keys on the OpenHands Cloud API Keys screen with labels]**
 
