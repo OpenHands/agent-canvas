@@ -22,9 +22,10 @@ if ! command -v uvx &> /dev/null; then
   fi
 fi
 
-if [ ! -d node_modules ]; then
-  npm ci
-fi
+# Always run npm ci to ensure dependencies are installed and up-to-date.
+# This is idempotent and ensures hooks (like on_stop.sh) have access to
+# npm scripts like lint and test.
+npm ci
 
 if [ ! -f "$ENV_FILE" ]; then
   cp .env.sample "$ENV_FILE"

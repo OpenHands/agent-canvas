@@ -15,10 +15,12 @@ import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 vi.mock("#/hooks/use-settings-nav-items", () => ({
-  useSettingsNavItems: () => [
-    { type: "item", item: OSS_NAV_ITEMS[0] },
-    { type: "item", item: OSS_NAV_ITEMS[4] },
-  ],
+  // Mirror the real navigation: LLM + Application (which the title test
+  // navigates to via `/settings/app`).
+  useSettingsNavItems: () =>
+    OSS_NAV_ITEMS.filter((item) =>
+      ["/settings", "/settings/app"].includes(item.to),
+    ).map((item) => ({ type: "item", item })),
 }));
 
 const cloudBackend: Backend = {
@@ -47,7 +49,7 @@ describe("settings route", () => {
         hide_llm_settings: true,
         hide_users_page: true,
       }),
-    ).toBe("/settings/mcp");
+    ).toBe("/settings/app");
   });
 
   it("redirects hidden OSS settings pages to the first available route", async () => {
@@ -72,7 +74,7 @@ describe("settings route", () => {
     } as never)) as Response;
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/settings/mcp");
+    expect(response.headers.get("Location")).toBe("/settings/app");
   });
 
   it("redirects /integrations to /conversations when the active backend is cloud", async () => {

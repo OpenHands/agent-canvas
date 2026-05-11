@@ -1,4 +1,16 @@
 {
+  "session_start": [
+    {
+      "matcher": "*",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".openhands/setup.sh",
+          "timeout": 300
+        }
+      ]
+    }
+  ],
   "stop": [
     {
       "matcher": "*",
