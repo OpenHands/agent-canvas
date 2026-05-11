@@ -16506,6 +16506,23 @@
     "uk": "Робочих областей ще немає",
     "ca": "Encara no hi ha espais de treball"
   },
+  "HOME$HOST_HOME_NOT_MOUNTED_HINT": {
+    "en": "Your host filesystem isn't visible to the agent server. Set OH_MOUNT_HOST_HOME=1 before npm run dev:docker to browse it from here.",
+    "ja": "ホストのファイルシステムはエージェントサーバーから見えません。ここから参照するには、npm run dev:docker の前に OH_MOUNT_HOST_HOME=1 を設定してください。",
+    "zh-CN": "代理服务器看不到您的宿主机文件系统。请在运行 npm run dev:docker 之前设置 OH_MOUNT_HOST_HOME=1，即可在此浏览。",
+    "zh-TW": "代理伺服器看不到您的主機檔案系統。請在執行 npm run dev:docker 之前設定 OH_MOUNT_HOST_HOME=1，即可在此瀏覽。",
+    "ko-KR": "에이전트 서버에서 호스트 파일 시스템이 보이지 않습니다. 여기서 탐색하려면 npm run dev:docker 전에 OH_MOUNT_HOST_HOME=1을 설정하세요.",
+    "no": "Vertens filsystem er ikke synlig for agent-serveren. Sett OH_MOUNT_HOST_HOME=1 før npm run dev:docker for å bla gjennom det herfra.",
+    "it": "Il filesystem dell'host non è visibile al server dell'agente. Imposta OH_MOUNT_HOST_HOME=1 prima di npm run dev:docker per esplorarlo da qui.",
+    "pt": "O sistema de arquivos do host não está visível para o servidor do agente. Defina OH_MOUNT_HOST_HOME=1 antes de npm run dev:docker para navegá-lo daqui.",
+    "es": "El sistema de archivos del anfitrión no es visible para el servidor del agente. Establece OH_MOUNT_HOST_HOME=1 antes de npm run dev:docker para explorarlo desde aquí.",
+    "ar": "نظام ملفات المضيف غير مرئي لخادم الوكيل. اضبط OH_MOUNT_HOST_HOME=1 قبل npm run dev:docker لتصفحه من هنا.",
+    "fr": "Le système de fichiers de l'hôte n'est pas visible par le serveur de l'agent. Définissez OH_MOUNT_HOST_HOME=1 avant npm run dev:docker pour le parcourir d'ici.",
+    "tr": "Ana makine dosya sistemi ajan sunucusu tarafından görülmüyor. Buradan göz atmak için npm run dev:docker öncesinde OH_MOUNT_HOST_HOME=1 ayarlayın.",
+    "de": "Das Host-Dateisystem ist für den Agenten-Server nicht sichtbar. Setze OH_MOUNT_HOST_HOME=1 vor npm run dev:docker, um es hier zu durchsuchen.",
+    "uk": "Файлова система хоста не видима для сервера агента. Встановіть OH_MOUNT_HOST_HOME=1 перед npm run dev:docker, щоб переглядати її звідси.",
+    "ca": "El sistema de fitxers de l'amfitrió no és visible per al servidor de l'agent. Establiu OH_MOUNT_HOST_HOME=1 abans de npm run dev:docker per navegar-hi des d'aquí."
+  },
   "HOME$NO_WORKSPACE_OPTION": {
     "en": "No workspace",
     "ja": "ワークスペースなし",
