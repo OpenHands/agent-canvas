@@ -57,30 +57,36 @@ export function useBackendsHealth(
   backends: Backend[],
 ): Record<string, BackendHealth> {
   const results = useQueries({
-    queries: backends.map((b) => ({
-      queryKey: [
-        "backend-health",
-        b.id,
-        b.kind,
-        b.host,
-        b.apiKey ?? "",
-      ] as const,
-      queryFn: () => probeBackend(b),
-      refetchInterval: REFRESH_INTERVAL_MS,
-      refetchIntervalInBackground: false,
-      retry: false,
-      // Keep the previous verdict visible while the next probe is in
-      // flight so the indicator doesn't flicker every 2s.
-      staleTime: REFRESH_INTERVAL_MS,
-      meta: { disableToast: true },
-    })),
+    queries: backends.map((b) => {
+      const hasProbeableHost = b.kind === "cloud" || b.host.trim().length > 0;
+
+      return {
+        queryKey: [
+          "backend-health",
+          b.id,
+          b.kind,
+          b.host,
+          b.apiKey ?? "",
+        ] as const,
+        queryFn: () => probeBackend(b),
+        refetchInterval: REFRESH_INTERVAL_MS,
+        refetchIntervalInBackground: false,
+        retry: false,
+        // Keep the previous verdict visible while the next probe is in
+        // flight so the indicator doesn't flicker every 2s.
+        staleTime: REFRESH_INTERVAL_MS,
+        meta: { disableToast: true },
+        enabled: hasProbeableHost,
+      };
+    }),
   });
 
   const out: Record<string, BackendHealth> = {};
   backends.forEach((b, i) => {
     const r = results[i];
     let isConnected: boolean | null;
-    if (r.isSuccess) isConnected = true;
+    if (b.kind === "local" && b.host.trim().length === 0) isConnected = false;
+    else if (r.isSuccess) isConnected = true;
     else if (r.isError) isConnected = false;
     else isConnected = null;
     out[b.id] = { isConnected };

@@ -52,10 +52,7 @@ import {
   isPortBusy,
   releaseStaleConversationLeases,
 } from "./dev-safe.mjs";
-import {
-  buildAutomationCommand,
-  buildConfig,
-} from "./dev-with-automation.mjs";
+import { buildAutomationCommand, buildConfig } from "./dev-with-automation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -242,9 +239,6 @@ function buildFrontend(config, args) {
       // Bake the automation backend API key so the static frontend can talk
       // to /api/automation through the ingress.
       VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Intentionally do NOT set VITE_BACKEND_BASE_URL: leaving it unset makes
-      // the runtime fall back to window.location.origin (i.e. the ingress
-      // port the user is actually browsing), which keeps the build portable.
     },
   });
 

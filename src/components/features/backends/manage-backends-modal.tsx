@@ -36,7 +36,7 @@ function BackendVersion({ backend }: { backend: Backend }) {
     },
     retry: false,
     staleTime: 60_000,
-    enabled: backend.kind === "local",
+    enabled: backend.kind === "local" && backend.host.trim().length > 0,
   });
 
   if (!version) return null;

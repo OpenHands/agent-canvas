@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVE_BACKEND_STORAGE_KEY,
   BACKENDS_STORAGE_KEY,
@@ -9,8 +9,22 @@ import {
 } from "#/api/backend-registry/storage";
 import type { Backend } from "#/api/backend-registry/types";
 
+const ORIGINAL_LOCATION = window.location;
+
+function mockWindowLocation(url: string) {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: new URL(url),
+  });
+}
+
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllEnvs();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: ORIGINAL_LOCATION,
+  });
 });
 
 describe("backend-registry storage", () => {
@@ -52,6 +66,44 @@ describe("backend-registry storage", () => {
     // Persists the seed so a subsequent read returns the same entry.
     expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
     expect(readStoredBackends()).toEqual(result);
+  });
+
+  it("migrates a stale origin-seeded Vercel default backend to an unset host", () => {
+    mockWindowLocation(
+      "https://agent-canvas-git-use-typescript-client-api-wrappers-openhands.vercel.app",
+    );
+    const staleBackend: Backend = {
+      id: "default-local",
+      name: "Local",
+      host: window.location.origin,
+      apiKey: "",
+      kind: "local",
+    };
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([staleBackend]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      host: "",
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]"),
+    ).toEqual(result);
+  });
+
+  it("seeds the default Local backend from VITE_BACKEND_BASE_URL when configured", () => {
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "https://agent.example.com/");
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      host: "https://agent.example.com",
+    });
   });
 
   it("re-seeds the default Local backend when storage holds an empty array", () => {
