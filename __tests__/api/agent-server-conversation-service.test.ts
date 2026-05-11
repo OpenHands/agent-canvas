@@ -173,6 +173,39 @@ describe("AgentServerConversationService", () => {
         }),
       );
     });
+
+    it("rejects explicit file paths outside the conversation workspace", async () => {
+      mockHttpGet.mockImplementation((url: string) => {
+        if (url === "/api/conversations") {
+          return Promise.resolve({
+            data: [
+              {
+                id: "conv-123",
+                created_at: "2024-01-01",
+                updated_at: "2024-01-01",
+                workspace: {
+                  working_dir: "/workspace/project/agent-canvas/conv-123",
+                },
+              },
+            ],
+          });
+        }
+        return Promise.resolve({ data: new ArrayBuffer(0) });
+      });
+
+      await expect(
+        AgentServerConversationService.readConversationFile(
+          "conv-123",
+          "/workspace/project/agent-canvas/other/PLAN.md",
+        ),
+      ).rejects.toThrow(
+        "Conversation file path must stay inside the workspace",
+      );
+      expect(mockHttpGet).not.toHaveBeenCalledWith(
+        "/api/file/download",
+        expect.anything(),
+      );
+    });
   });
 
   describe("createConversation", () => {
@@ -369,6 +402,7 @@ describe("AgentServerConversationService", () => {
           per_turn_token: 0,
         },
       });
+      expect(conversation?.llm_model).toBeTruthy();
       expect(conversation?.workspace?.working_dir).toBe(
         "/workspace/project/agent-canvas",
       );

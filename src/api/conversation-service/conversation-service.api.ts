@@ -16,6 +16,17 @@ import { AppConversation } from "./agent-server-conversation-service.types";
 
 const FILE_UPLOAD_CONCURRENCY = 5;
 
+function getSafeUploadFileName(fileName: string): string {
+  const parts = fileName.split(/[\\/]+/).filter(Boolean);
+  const safeName = parts[parts.length - 1];
+
+  if (!safeName || safeName === "." || safeName === "..") {
+    throw new Error("Invalid file name");
+  }
+
+  return safeName;
+}
+
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
 
@@ -72,8 +83,9 @@ class ConversationService {
     );
     const uploadFile = async (file: File) => {
       try {
-        await workspace.fileUpload(file, `/workspace/${file.name}`);
-        return { uploadedFile: file.name, skippedFile: null };
+        const safeName = getSafeUploadFileName(file.name);
+        await workspace.fileUpload(file, `/workspace/${safeName}`);
+        return { uploadedFile: safeName, skippedFile: null };
       } catch (error) {
         return {
           uploadedFile: null,

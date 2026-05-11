@@ -50,6 +50,23 @@ describe("ConversationService", () => {
       });
     });
 
+    it("uploads using only the basename of user-provided file names", async () => {
+      fileUploadMock.mockResolvedValue(undefined);
+
+      const result = await ConversationService.uploadFiles("conv-1", [
+        makeFile("../../evil.txt"),
+      ]);
+
+      expect(fileUploadMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "../../evil.txt" }),
+        "/workspace/evil.txt",
+      );
+      expect(result).toEqual({
+        uploaded_files: ["evil.txt"],
+        skipped_files: [],
+      });
+    });
+
     it("uses the current conversation session key and reports per-file failures", async () => {
       ConversationService.setCurrentConversation({
         id: "conv-1",

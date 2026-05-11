@@ -130,13 +130,47 @@ function normalizeWorkspace(
   return { working_dir: stringOrNull(value.working_dir) };
 }
 
+function normalizeAbsolutePath(path: string): string | null {
+  if (!path.startsWith("/")) return null;
+
+  const segments: string[] = [];
+  for (const segment of path.split("/")) {
+    if (segment && segment !== ".") {
+      if (segment === "..") {
+        if (!segments.length) return null;
+        segments.pop();
+      } else {
+        segments.push(segment);
+      }
+    }
+  }
+
+  return `/${segments.join("/")}`;
+}
+
+function requirePathInsideDirectory(path: string, directory: string): string {
+  const normalizedPath = normalizeAbsolutePath(path);
+  const normalizedDirectory = normalizeAbsolutePath(directory);
+
+  if (
+    !normalizedPath ||
+    !normalizedDirectory ||
+    (normalizedPath !== normalizedDirectory &&
+      !normalizedPath.startsWith(`${normalizedDirectory}/`))
+  ) {
+    throw new Error("Conversation file path must stay inside the workspace");
+  }
+
+  return normalizedPath;
+}
+
 function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
   if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
     throw invalidConversationResponse();
   }
 
   return {
-    id: item.id,
+    id: item.id.trim(),
     title: stringOrNull(item.title),
     created_at: readTimestamp(item, "created_at", "createdAt"),
     updated_at: readTimestamp(item, "updated_at", "updatedAt"),
@@ -427,15 +461,18 @@ class AgentServerConversationService {
       // Cloud SaaS exposes a per-conversation file endpoint; the sandbox
       // working dir is fixed (`/workspace/project`), so PLAN.md lives at
       // a known absolute path. Mirrors OpenHands' readConversationFile.
-      return readCloudConversationFile(
-        conversationId,
+      const path = requirePathInsideDirectory(
         filePath ?? "/workspace/project/.agents_tmp/PLAN.md",
+        "/workspace/project",
       );
+      return readCloudConversationFile(conversationId, path);
     }
 
-    const path =
-      filePath ??
-      `${await this.resolveConversationWorkingDir(conversationId)}/.agents_tmp/PLAN.md`;
+    const workingDir = await this.resolveConversationWorkingDir(conversationId);
+    const path = requirePathInsideDirectory(
+      filePath ?? `${workingDir}/.agents_tmp/PLAN.md`,
+      workingDir,
+    );
     return new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
   }
 
