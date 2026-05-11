@@ -18,6 +18,7 @@ import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
+import PuzzleIcon from "#/icons/puzzle.svg?react";
 import CogIcon from "#/icons/cog.svg?react";
 
 // The LLM settings modal is only mounted when the settings query 404s and
@@ -225,6 +226,14 @@ export function Sidebar() {
             disabled={linkDisabled}
             collapsed={collapsed}
             icon={<SparkleIcon width={ICON_SIZE} height={ICON_SIZE} />}
+          />
+          <SidebarNavLink
+            to="/mcp"
+            label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
+            testId="sidebar-mcp-link"
+            disabled={linkDisabled}
+            collapsed={collapsed}
+            icon={<PuzzleIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
           <SidebarNavLink
             to="/automations"

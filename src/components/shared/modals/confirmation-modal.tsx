@@ -7,16 +7,30 @@ interface ConfirmationModalProps {
   text: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * Disables both action buttons while an asynchronous confirm
+   * mutation is in flight. Defaults to false to preserve existing
+   * call sites that don't track mutation state.
+   */
+  isConfirming?: boolean;
 }
 
 export function ConfirmationModal({
   text,
   onConfirm,
   onCancel,
+  isConfirming = false,
 }: ConfirmationModalProps) {
   const { t } = useTranslation("openhands");
+  // Suppress the backdrop's click / Escape close handler while the
+  // confirm mutation is in flight; otherwise the user could dismiss
+  // the modal mid-request and never see the result (the buttons are
+  // already disabled, but the backdrop wasn't).
   return (
-    <ModalBackdrop onClose={onCancel}>
+    <ModalBackdrop
+      onClose={isConfirming ? undefined : onCancel}
+      closeOnEscape={!isConfirming}
+    >
       <div
         data-testid="confirmation-modal"
         className="bg-base-secondary p-4 rounded-xl flex flex-col gap-4 border border-tertiary"
@@ -29,6 +43,7 @@ export function ConfirmationModal({
             onClick={onCancel}
             variant="secondary"
             className="grow"
+            isDisabled={isConfirming}
           >
             {t(I18nKey.BUTTON$CANCEL)}
           </BrandButton>
@@ -38,6 +53,7 @@ export function ConfirmationModal({
             onClick={onConfirm}
             variant="primary"
             className="grow"
+            isDisabled={isConfirming}
           >
             {t(I18nKey.BUTTON$CONFIRM)}
           </BrandButton>
