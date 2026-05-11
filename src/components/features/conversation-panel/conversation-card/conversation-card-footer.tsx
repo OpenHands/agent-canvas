@@ -34,7 +34,7 @@ export function ConversationCardFooter({
       className={cn(
         // Left padding aligns the repo/workspace icon with the title text in
         // the header (status dot 10px + gap-2 8px = 18px).
-        "flex flex-row justify-between items-center mt-1",
+        "flex flex-row items-center gap-2 mt-1 w-full min-w-0",
         showRepositoryMetadata && "pl-[18px]",
         isPaused && "opacity-60",
       )}
@@ -45,7 +45,7 @@ export function ConversationCardFooter({
         ) : (
           <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
         ))}
-      <div className="flex items-center gap-2 flex-1 justify-end">
+      <div className="flex items-center gap-2 shrink-0 ml-auto">
         {(createdAt ?? lastUpdatedAt) && (
           <p className="text-xs text-[#A3A3A3] text-right">
             <time>

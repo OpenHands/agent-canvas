@@ -298,7 +298,7 @@ export function ConversationPanel({
       data-testid="conversation-panel"
       className="w-full h-full flex flex-col"
     >
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar-always">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always">
         {showInitialSkeleton && (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, index) => (
