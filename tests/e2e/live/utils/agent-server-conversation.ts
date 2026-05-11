@@ -1,8 +1,12 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 export const BACKEND_URL =
-  process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18000";
+  process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18100";
+export const EXPECTED_BASH_OUTPUT_TOKEN = "LIVE_AGENT_CANVAS_E2E_BASH_OK";
+export const EXPECTED_BASH_COMMAND = `printf '${EXPECTED_BASH_OUTPUT_TOKEN}\\n'`;
 export const EXPECTED_REPLY_TOKEN = "LIVE_AGENT_CANVAS_E2E_OK";
+const POSTHOG_URL_PATTERN =
+  /^https?:\/\/(?:(?:[^/]+\.)*posthog\.com|z\.openhands\.dev)(?:\/|$)/;
 
 function firstNonEmpty(...values: Array<string | undefined>) {
   return values.find((value) => value?.trim()) ?? "";
@@ -30,7 +34,7 @@ const llmModel =
   (llmBaseUrl
     ? "openhands/claude-haiku-4-5-20251001"
     : openAIKey?.trim()
-      ? "openai/gpt-4o-mini"
+      ? "openai/gpt-5.4-mini"
       : "anthropic/claude-haiku-4-5-20251001");
 const sessionApiKey =
   firstNonEmpty(
@@ -69,27 +73,70 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
       },
       conversation_settings_diff: {
         confirmation_mode: false,
-        max_iterations: 4,
+        max_iterations: 6,
       },
     },
   });
-  expect(settingsResponse.ok()).toBeTruthy();
+  expect(
+    settingsResponse.ok(),
+    `PATCH /api/settings failed with ${settingsResponse.status()}: ${await settingsResponse.text()}`,
+  ).toBeTruthy();
 }
 
 export async function enableLiveE2EFlags(page: Page) {
   await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "true");
+    window.localStorage.setItem("analytics-consent", "false");
+    window.localStorage.setItem("openhands-telemetry-consent", "denied");
+    window.localStorage.setItem("openhands-telemetry-first-use", "true");
+    window.localStorage.setItem("openhands-onboarded", "1");
     window.localStorage.setItem("FEATURE_AUTOMATIONS", "true");
   });
 }
 
-export async function waitForPath(page: Page, pattern: RegExp) {
+export async function guardAgainstPostHogRequests(page: Page) {
+  const postHogRequests: string[] = [];
+
+  await page.route(POSTHOG_URL_PATTERN, async (route) => {
+    postHogRequests.push(route.request().url());
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  return {
+    expectNoRequests() {
+      expect(
+        postHogRequests,
+        [
+          "Live E2E must not send analytics to PostHog.",
+          "Keep VITE_DO_NOT_TRACK=1 and the live-test storage opt-out in place.",
+        ].join(" "),
+      ).toEqual([]);
+    },
+  };
+}
+
+export async function waitForPath(
+  page: Page,
+  pattern: RegExp,
+  timeout = 60_000,
+) {
   await expect
     .poll(
       async () => page.evaluate(() => window.location.pathname).catch(() => ""),
-      { timeout: 60_000 },
+      { timeout },
     )
     .toMatch(pattern);
+}
+
+export async function openCreatedConversation(page: Page) {
+  const conversationPathPattern = /\/conversations\/.+/;
+
+  try {
+    await waitForPath(page, conversationPathPattern, 10_000);
+    return;
+  } catch {
+    await page.locator('a[href^="/conversations/"]').first().click();
+    await waitForPath(page, conversationPathPattern);
+  }
 }
 
 export async function waitForTestId(
@@ -255,6 +302,56 @@ export async function waitForTestIdText(
     .toBe(true);
 }
 
+export async function waitForNonUserMessageText(page: Page, text: string) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate((text) => {
+            const body = document.body.cloneNode(true);
+            if (!(body instanceof HTMLElement)) {
+              return false;
+            }
+            body
+              .querySelectorAll('[data-testid="user-message"]')
+              .forEach((node) => node.remove());
+            return body.textContent?.includes(text) ?? false;
+          }, text)
+          .catch(() => false),
+      { timeout: 120_000 },
+    )
+    .toBe(true);
+}
+
+export async function expandVisibleEventDetails(page: Page) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const expandedCount = await page
+      .evaluate(() => {
+        const isVisible = (element: Element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+
+        const buttons = Array.from(
+          document.querySelectorAll('button[aria-label="Expand"]'),
+        ).filter(isVisible);
+        buttons.forEach((button) => {
+          if (button instanceof HTMLButtonElement) {
+            button.click();
+          }
+        });
+        return buttons.length;
+      })
+      .catch(() => 0);
+
+    if (expandedCount === 0) {
+      return;
+    }
+
+    await page.waitForTimeout(250);
+  }
+}
+
 export async function waitForAgentReply(page: Page) {
   await expect
     .poll(
@@ -278,4 +375,102 @@ export async function waitForAgentReply(page: Page) {
       { timeout: 120_000 },
     )
     .toBe("reply");
+}
+
+export function getConversationIdFromURL(page: Page) {
+  const match = page.url().match(/\/conversations\/([^/?#]+)/);
+  expect(
+    match?.[1],
+    `Could not read conversation id from ${page.url()}`,
+  ).toBeTruthy();
+  return decodeURIComponent(match![1]);
+}
+
+function eventTextContent(event: unknown) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+
+  const content = (event as { observation?: { content?: unknown } })
+    .observation?.content;
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return "";
+      }
+      const text = (item as { text?: unknown }).text;
+      return typeof text === "string" ? text : "";
+    })
+    .join("\n");
+}
+
+function isSuccessfulBashObservation(event: unknown) {
+  if (!event || typeof event !== "object") {
+    return false;
+  }
+
+  const observation = (event as { observation?: Record<string, unknown> })
+    .observation;
+  if (!observation) {
+    return false;
+  }
+
+  const kind = observation.kind;
+  const isTerminalObservation =
+    kind === "ExecuteBashObservation" || kind === "TerminalObservation";
+  if (!isTerminalObservation) {
+    return false;
+  }
+
+  const command =
+    typeof observation.command === "string" ? observation.command : "";
+  const output = eventTextContent(event);
+  const exitCode = observation.exit_code;
+  const failed =
+    observation.error === true ||
+    observation.is_error === true ||
+    observation.timeout === true;
+
+  return (
+    command.includes(EXPECTED_BASH_OUTPUT_TOKEN) &&
+    output.includes(EXPECTED_BASH_OUTPUT_TOKEN) &&
+    exitCode === 0 &&
+    !failed
+  );
+}
+
+export async function waitForSuccessfulBashObservation(
+  request: APIRequestContext,
+  conversationId: string,
+) {
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(
+          `${BACKEND_URL}/api/conversations/${conversationId}/events/search`,
+          {
+            headers: {
+              "X-Session-API-Key": sessionApiKey,
+            },
+            params: {
+              limit: "100",
+              sort_order: "TIMESTAMP_DESC",
+            },
+          },
+        );
+
+        if (!response.ok()) {
+          return false;
+        }
+
+        const body = (await response.json()) as { items?: unknown[] };
+        return body.items?.some(isSuccessfulBashObservation) ?? false;
+      },
+      { timeout: 120_000 },
+    )
+    .toBe(true);
 }

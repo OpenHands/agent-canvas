@@ -13,10 +13,11 @@ const REQUIRED_LLM_API_KEY_ENV_VARS = [
 ];
 const DEFAULT_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev";
 const DEFAULT_PROXY_MODEL = "openhands/claude-haiku-4-5-20251001";
-const DEFAULT_OPENAI_MODEL = "openai/gpt-4o-mini";
+const DEFAULT_OPENAI_MODEL = "openai/gpt-5.4-mini";
 const DEFAULT_ANTHROPIC_MODEL = "anthropic/claude-haiku-4-5-20251001";
 const DEFAULT_SESSION_API_KEY = "live-e2e-session-key";
-const DEFAULT_BACKEND_URL = "http://127.0.0.1:18000";
+const DEFAULT_BACKEND_URL = "http://127.0.0.1:18100";
+const DEFAULT_FRONTEND_PORT = "3101";
 const PLAYWRIGHT_CONFIG = "playwright.live.config.ts";
 
 function hasValue(name) {
@@ -97,6 +98,7 @@ Optional:
   - LIVE_E2E_LLM_MODEL
   - LIVE_E2E_SESSION_API_KEY
   - LIVE_E2E_BACKEND_URL
+  - LIVE_E2E_FRONTEND_PORT
 
 The npm script loads .env automatically through Node's --env-file-if-exists flag.
 `);
@@ -119,6 +121,13 @@ function printConfiguration(apiKeySource) {
       hasValue("LIVE_E2E_BACKEND_URL")
         ? process.env.LIVE_E2E_BACKEND_URL.trim()
         : `(default: ${DEFAULT_BACKEND_URL})`
+    }`,
+  );
+  console.log(
+    `- LIVE_E2E_FRONTEND_PORT: ${
+      hasValue("LIVE_E2E_FRONTEND_PORT")
+        ? process.env.LIVE_E2E_FRONTEND_PORT.trim()
+        : `(default: ${DEFAULT_FRONTEND_PORT})`
     }`,
   );
 }

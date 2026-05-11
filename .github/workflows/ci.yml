@@ -201,7 +201,7 @@ jobs:
         run: |
           node tests/e2e/live/scripts/extract-live-e2e-media.mjs \
             --results "test-results-live/results.json" \
-            --output-dir "live-e2e-media"
+            --output-dir "test-results-live/media"
 
       - name: Create live E2E video preview
         id: live_video_preview
@@ -214,8 +214,8 @@ jobs:
             -i "${{ steps.live_media.outputs.video_path }}" \
             -vf "fps=4,scale=960:-1:flags=lanczos" \
             -loop 0 \
-            live-e2e-media/live-agent-recording.gif
-          echo "video_preview_path=live-e2e-media/live-agent-recording.gif" >> "$GITHUB_OUTPUT"
+            test-results-live/media/live-agent-recording.gif
+          echo "video_preview_path=test-results-live/media/live-agent-recording.gif" >> "$GITHUB_OUTPUT"
 
       - name: Publish live E2E media
         id: publish_live_media

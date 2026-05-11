@@ -129,7 +129,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const resultsPath = args.results || "test-results-live/results.json";
   const testResultsDir = args.test_results_dir || "test-results-live";
-  const outputDir = args.output_dir || "live-e2e-media";
+  const outputDir = args.output_dir || "test-results-live/media";
   const results = readJson(resultsPath);
 
   const attachments = collectPlaywrightAttachments(results);
