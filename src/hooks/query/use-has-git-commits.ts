@@ -9,9 +9,10 @@ import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
  * at least one commit reachable from HEAD.
  *
  * Used by the Files tab to decide whether the diff view is a sensible
- * default: an attached repo with zero commits (e.g. a brand-new empty
- * GitHub repo, or a freshly `git init`-ed workspace) has no diff base to
- * compare against, so the file viewer is a better landing experience.
+ * default: an attached source (repo or local workspace) with no commits
+ * — e.g. a brand-new empty GitHub repo, a freshly `git init`-ed
+ * workspace, or a plain non-git workspace — has no diff base to compare
+ * against, so the file viewer is a better landing experience.
  *
  * Returns `hasCommits: null` while the probe is in-flight so callers can
  * distinguish "still loading" from a definitive "no commits".
@@ -48,10 +49,15 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
         sessionApiKey,
       });
 
-      // `git rev-parse --verify HEAD` exits 0 iff HEAD resolves to a real
-      // commit. On an unborn branch (`git init` with no commits) it exits
-      // non-zero. Equally returns non-zero outside a git repo, but
-      // callers gate this hook on the repo-is-attached signal.
+      // `git rev-parse --verify HEAD` exits 0 iff HEAD resolves to a
+      // real commit. Returns non-zero in three cases that all collapse
+      // to "no diff base, show files view":
+      //   - unborn branch (`git init` with no commits)
+      //   - not a git repository at all (plain workspace directory)
+      //   - other git error
+      // Callers gate this hook on the user having attached a source
+      // (see `useHasAttachedSource`) so we don't shell out for the
+      // unattached-conversation case where the answer is moot.
       const result = await workspace.executeCommand(
         "git rev-parse --verify HEAD",
         workingDir,

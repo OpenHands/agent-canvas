@@ -25,7 +25,8 @@ export function useHasAttachedSource(): {
     : null;
   return {
     hasAttachedSource:
-      !!conversation?.selected_repository || !!storedMetadata?.selected_workspace,
+      !!conversation?.selected_repository ||
+      !!storedMetadata?.selected_workspace,
     isLoading,
   };
 }
