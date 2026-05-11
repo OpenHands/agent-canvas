@@ -52,6 +52,46 @@ import type {
   SendMessageResponse,
 } from "./agent-server-conversation-service.types";
 
+function isDirectConversationInfo(
+  item: unknown,
+): item is DirectConversationInfo {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    typeof (item as { id?: unknown }).id === "string" &&
+    typeof (item as { created_at?: unknown }).created_at === "string" &&
+    typeof (item as { updated_at?: unknown }).updated_at === "string"
+  );
+}
+
+function requireDirectConversationItems(
+  items: unknown,
+): DirectConversationInfo[] {
+  if (!Array.isArray(items) || !items.every(isDirectConversationInfo)) {
+    throw new Error("Invalid conversation response shape");
+  }
+  return items;
+}
+
+const RUNTIME_STATUSES = new Set<string>([
+  "idle",
+  "running",
+  "paused",
+  "waiting_for_confirmation",
+  "finished",
+  "error",
+  "stuck",
+]);
+
+function toRuntimeStatus(
+  status: DirectConversationInfo["execution_status"],
+): RuntimeConversationInfo["status"] {
+  const nextStatus = status ?? "idle";
+  return (
+    RUNTIME_STATUSES.has(nextStatus) ? nextStatus : "idle"
+  ) as RuntimeConversationInfo["status"];
+}
+
 function requireAppConversation(
   conversation: AppConversation | null | undefined,
   conversationId: string,
@@ -358,8 +398,7 @@ class AgentServerConversationService {
         : null,
       created_at: data.created_at,
       updated_at: data.updated_at,
-      status:
-        (data.execution_status as RuntimeConversationInfo["status"]) ?? "idle",
+      status: toRuntimeStatus(data.execution_status),
       stats: data.stats ?? { usage_to_metrics: {} },
     };
   }
@@ -381,7 +420,7 @@ class AgentServerConversationService {
     });
 
     return toConversationPage({
-      items: data.items as DirectConversationInfo[],
+      items: requireDirectConversationItems(data.items),
       next_page_id: data.next_page_id ?? null,
     });
   }

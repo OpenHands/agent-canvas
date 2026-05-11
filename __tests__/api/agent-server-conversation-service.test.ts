@@ -102,6 +102,8 @@ describe("AgentServerConversationService", () => {
         );
         return response.data;
       },
+      searchConversations: vi.fn(),
+      sendEvent: vi.fn(),
       updateConversation: vi.fn(),
     });
     mockFileClient.mockReturnValue({
