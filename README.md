@@ -44,7 +44,7 @@ npm install
 npm run dev:docker
 ```
 
-Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway and the logs include a Vite error like `'C:\Program' is not recognized`, start the same stack directly with Node instead:
+Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway and the logs include a Vite error like `'C:\Program' is not recognized`, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
 
 ```powershell
 $env:PROJECT_PATH = "/path/to/your/projects"
