@@ -47,7 +47,7 @@ npm run dev:docker
 Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway and the logs include a Vite error like `'C:\Program' is not recognized`, start the same stack directly with Node instead:
 
 ```powershell
-$env:PROJECT_PATH = "C:\Users\you\Documents\GitHub"
+$env:PROJECT_PATH = "/path/to/your/projects"
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
