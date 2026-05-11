@@ -5,7 +5,7 @@
   - `option-service` fabricates an OSS web-client config and reads models/providers from `agent_server` LLM endpoints.
   - `settings-service` uses agent server `/api/settings` endpoints for persistence; reads schemas from `/api/settings/agent-schema` and `/api/settings/conversation-schema`, fetches settings with optional `X-Expose-Secrets: encrypted` header for conversation start payloads, and saves settings via PATCH with diffs.
   - `agent-server-conversation-service`, `event-service`, `agent-server-git-service`, and `skills-service` are mapped directly to `agent_server` REST endpoints.
-  - `open-hands-axios` injects the optional `X-Session-API-Key` from env/local config for all requests.
+  - Shared REST calls should use `createHttpClient()` / typed adapters from `src/api/typescript-client.ts`, which handle backend URL and optional `X-Session-API-Key` resolution.
 - Supported env vars for deployment:
   - `VITE_BACKEND_BASE_URL` for the agent server base URL.
   - `VITE_SESSION_API_KEY` for optional session auth.
@@ -30,7 +30,7 @@
 - `__tests__/i18n/library-namespace.test.ts` imports the full library entry and can exceed Vitest's default 5s timeout under full-suite load; keep an explicit higher timeout on that case unless the test is substantially narrowed.
 
 - `@openhands/typescript-client` is consumed directly from `github:OpenHands/typescript-client#6b9603f`; that package ships the needed subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
-- Shared TypeScript-client adapters live in `src/api/typescript-client.ts`; prefer those helpers for agent-server-backed REST/workspace/event/VS Code calls before falling back to `open-hands-axios`.
+- Shared TypeScript-client adapters live in `src/api/typescript-client.ts`; prefer those helpers for agent-server-backed REST/workspace/event/VS Code calls instead of adding new bespoke axios clients.
 - Local verification/build gotchas:
   - `npm run typecheck` assumes generated translation types exist; run `npm run make-i18n` first if `src/i18n/declaration.ts` is missing.
 - Merge note: `main` removed the old project-management integration subcomponents/hooks and their related feature-flag/i18n surface. If a feature branch still keeps the top-level `/integrations` git-token page, retain `src/routes/git-settings.tsx` plus the git-provider token inputs/hooks, but do **not** blindly restore `src/components/features/settings/project-management/*` or the old integration mutation/query hooks unless the corresponding option types and i18n keys are also reintroduced.
@@ -99,10 +99,15 @@
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.21.1")
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.22.0")
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
-  - Default: released PyPI version `1.21.1` for agent-server SDK libraries
+  - Default: released PyPI version `1.22.0` for agent-server SDK libraries
+- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`. The default image uses versioned release tags:
+  - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.0-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
+  - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
+  - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
+  - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
 - Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
@@ -113,7 +118,7 @@
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → Vite dev server (:3001)
-  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a1`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
+  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a2`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
@@ -175,6 +180,8 @@
   - In `useWorkspacesStore`, keep `clearWorkspaces()` scoped to literal workspaces only; use explicit helpers like `clearWorkspaceParents()` / `clearAll()` for broader resets so future callers do not accidentally wipe parent registrations.
 
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
+
+- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog lives in `src/constants/mcp-marketplace.ts` (Slack and Tavily must stay first) — `src/utils/mcp-marketplace-utils.ts` matches installed servers back to catalog entries (Tavily uses the `"tavily-builtin"` sentinel because it is gated by `search_api_key_set` rather than `mcp_config`). Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

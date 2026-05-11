@@ -89,11 +89,21 @@ export type SettingsSchema = {
   sections: SettingsSectionSchema[];
 };
 
+export type SkillType = "repo" | "knowledge" | "agentskills";
+
 export type SkillInfo = {
   name: string;
-  type: string;
-  source: string;
+  type: SkillType;
+  source: string | null;
+  description?: string | null;
   triggers?: string[];
+  version?: string;
+  license?: string | null;
+  compatibility?: string | null;
+  metadata?: Record<string, string> | null;
+  allowed_tools?: string[] | null;
+  is_agentskills_format?: boolean;
+  disable_model_invocation?: boolean;
 };
 
 export type SettingsScope = "personal";

@@ -152,7 +152,8 @@ function FilesTab() {
             type="button"
             onClick={refreshFiles}
             disabled={isFetchingGitChanges}
-            aria-label={t(I18nKey.COMMON$FILES)}
+            aria-label={t(I18nKey.FILES$REFRESH)}
+            title={t(I18nKey.FILES$REFRESH)}
             data-testid="files-tab-refresh"
             className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >

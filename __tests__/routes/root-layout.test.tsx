@@ -143,36 +143,25 @@ describe("root layout", () => {
     expect(migrateUserConsentMock).toHaveBeenCalled();
   });
 
-  it.each([
-    ["/automations"],
-    ["/automations/abc-123"],
-    ["/conversations"],
-    ["/conversations/abc-123"],
-  ])(
-    "drops the outer layout padding on %s so the page can render flush to the viewport edges",
-    (path) => {
-      render(
+  it("renders an identical root-layout className across routes so navigation never shifts the outer container", () => {
+    const paths = [
+      "/",
+      "/automations/abc-123",
+      "/conversations/abc-123",
+      "/settings",
+    ];
+
+    const classNames = paths.map((path) => {
+      const { unmount } = render(
         <QueryClientProvider client={new QueryClient()}>
           <RouterStub initialEntries={[path]} />
         </QueryClientProvider>,
       );
+      const { className } = screen.getByTestId("root-layout");
+      unmount();
+      return className;
+    });
 
-      const layout = screen.getByTestId("root-layout");
-      expect(layout.className).not.toMatch(/(^|\s)md:p-3(\s|$)/);
-      expect(layout.className).not.toMatch(/(^|\s)md:pl-0(\s|$)/);
-      expect(layout.className).not.toMatch(/(^|\s)md:pr-3(\s|$)/);
-    },
-  );
-
-  it("keeps the outer layout padding on routes other than home and automations", () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <RouterStub initialEntries={["/settings"]} />
-      </QueryClientProvider>,
-    );
-
-    const layout = screen.getByTestId("root-layout");
-    expect(layout.className).toMatch(/(^|\s)md:p-3(\s|$)/);
-    expect(layout.className).toMatch(/(^|\s)md:pl-0(\s|$)/);
+    expect(new Set(classNames).size).toBe(1);
   });
 });

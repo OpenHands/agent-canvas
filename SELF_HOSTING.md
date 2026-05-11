@@ -3,7 +3,7 @@
 This guide walks through running Agent Canvas on a virtual machine (VM) so you
 (and only you) can reach it from anywhere via a browser.
 
-> [!CAUTION]
+> [!WARNING]
 > Agent Canvas drives an agent that can read and write the filesystem of the
 > machine it runs on, execute shell commands, and reach the network. Anyone who
 > can talk to the agent server can do the same. **Treat the VM as you would any
@@ -143,68 +143,6 @@ npm run dev:dangerously-dockerless
 The ingress proxy binds to `127.0.0.1:8000`, and the underlying agent server,
 automation backend, and Vite dev server all bind to `127.0.0.1` as well — so
 they're only reachable from the machine itself.
-
-### `SESSION_API_KEY` is auto-generated
-
-On first run, the dev scripts generate a random `SESSION_API_KEY` and persist
-it to `~/.openhands/agent-canvas/session-api-key.txt`. The same value is wired
-into both the agent server (which refuses any `/api/*` request without a
-matching `X-Session-API-Key` header) and the frontend (which sends it on every
-request), and it stays stable across restarts. You don't need to configure
-anything.
-
-To rotate the key, delete the file and restart the app. To pin a specific
-value instead of the auto-generated one, export `SESSION_API_KEY` before
-starting — it takes precedence over the persisted file.
-
-> [!IMPORTANT]
-> Treat the key file like an SSH private key. Anyone who learns its value can
-> drive your agent. Keep it on the machine and don't copy it elsewhere.
-
-### Access the UI over an SSH tunnel
-
-With just steps 1–3 done, the simplest way to use the UI is to forward the
-ingress port over SSH from your laptop:
-
-```bash
-ssh -L 8000:127.0.0.1:8000 your-vm
-# then open http://localhost:8000 in your browser
-```
-
-No public ports, no nginx, no TLS to manage — the SSH connection is what
-authenticates and encrypts you. This is a great starting point and a good
-fallback for debugging.
-
-### Keep it running across reboots
-
-Wrap the command in a `systemd` unit, a `tmux`/`screen` session, or a process
-manager like `pm2`. A minimal Linux `systemd` unit:
-
-```ini
-# /etc/systemd/system/agent-canvas.service
-[Unit]
-Description=Agent Canvas
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/root/agent-canvas
-ExecStart=/usr/bin/npm run dev:dangerously-dockerless
-Restart=on-failure
-User=root
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-systemctl daemon-reload
-systemctl enable --now agent-canvas
-journalctl -u agent-canvas -f
-```
-
-On macOS, use `launchd` (a `LaunchAgent`/`LaunchDaemon` plist) for the same
-effect.
 
 ## 4. (Optional) Get a domain and put nginx + Let's Encrypt + basic auth in front
 
@@ -377,58 +315,3 @@ open against the remote domain.
 > cross-origin `/api/*` calls made by your local Agent Canvas. Alternatively,
 > skip basic auth and rely on the cloud firewall + `SESSION_API_KEY` for
 > protection.
-
-## Operational tips
-
-- **Rotate the basic-auth password and `SESSION_API_KEY` periodically**,
-  especially after offboarding anyone who had access. `htpasswd` changes take
-  effect on the next request — no nginx reload needed. To rotate the session
-  key, delete `~/.openhands/agent-canvas/session-api-key.txt` and restart the
-  app.
-- **Keep the VM patched** (`unattended-upgrades` is fine for Ubuntu).
-- **Back up `~/.openhands-dev/` (or wherever conversations are persisted)**
-  if you care about conversation history. Treat the backup as sensitive — it
-  contains transcripts, secrets, and possibly auth tokens.
-- **Watch the logs.** `journalctl -u agent-canvas`,
-  `/var/log/nginx/access.log`, and `/var/log/nginx/error.log` are your friends
-  when something looks off. Repeated 401s in the access log are normal scanner
-  noise; a successful 200 from an IP you don't recognize is not.
-- **Do not expose the ingress (`:8000`) or backend ports (`:18000`, `:18001`,
-  `:3001`) directly.** Only `:443` (via nginx) should be reachable from
-  outside. If you need to debug, tunnel over SSH
-  (`ssh -L 8000:127.0.0.1:8000 vm`) rather than opening a port in the firewall.
-
-## Advanced: defense in depth
-
-The cloud firewall (step 2) is your primary network perimeter. If you want an
-extra backstop in case it is ever misconfigured — for example, a teammate
-relaxes a rule, a Terraform diff lands wrong, or you migrate to a provider
-whose firewall fails open during maintenance — also enable a host-level
-firewall on the VM itself.
-
-With `ufw` on Ubuntu:
-
-```bash
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw enable
-```
-
-And confirm the ingress, agent server, automation backend, and Vite ports are
-bound to `127.0.0.1` only, so even if a firewall rule slips, none of them are
-reachable from outside the host:
-
-```bash
-ss -tlnp
-# expect 127.0.0.1:8000  (ingress)
-#        127.0.0.1:18000 (agent server)
-#        127.0.0.1:18001 (automation backend)
-#        127.0.0.1:3001  (Vite dev server)
-# never  0.0.0.0:* or :::*  for any of those
-```
-
-If you ever see one of those ports listening on `0.0.0.0` or `::`, stop the
-app immediately and investigate before re-enabling it.

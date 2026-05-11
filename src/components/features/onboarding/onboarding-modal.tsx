@@ -101,11 +101,11 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         data-testid="onboarding-modal"
         data-current-step={currentStep}
         className={cn(
-          "flex flex-col gap-6 rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
-          "w-[560px] max-w-[92vw]",
+          "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
+          "w-[560px] max-w-[92vw] max-h-[90vh]",
         )}
       >
-        <header className="flex flex-col gap-3 px-7 pt-7">
+        <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-gray-400">
               {t(I18nKey.ONBOARDING$STEP_LABEL, {
@@ -129,11 +129,14 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
           />
         </header>
 
-        <div className="px-7 pb-7">
+        <div
+          data-testid="onboarding-scroll-area"
+          className="flex-1 min-h-0 overflow-y-auto custom-scrollbar-always px-7"
+        >
           <div
             data-testid="onboarding-slide-rail"
             data-current-step={currentStep}
-            className="relative overflow-hidden"
+            className="relative overflow-clip"
           >
             <Slide index={0} currentStep={currentStep}>
               <ChooseAgentStep

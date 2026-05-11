@@ -101,7 +101,7 @@ export function LocalNewConversationButton({
   };
 
   const itemClass = cn(
-    "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left",
+    "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left cursor-pointer",
     "hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal",
     "disabled:opacity-60 disabled:cursor-not-allowed",
   );

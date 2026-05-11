@@ -56,7 +56,11 @@ function getBasename(path: string): string {
 }
 
 function pathDepth(path: string): number {
-  return path.split("/").length - 1;
+  // Filter empty segments so leading/trailing/double slashes don't inflate
+  // depth (e.g. `/src/index.html`, `src//index.html`, `src/` should all
+  // count the same as `src/index.html`). Matches the convention already
+  // used by `buildFileTree` in `file-tree.ts`.
+  return path.split("/").filter(Boolean).length - 1;
 }
 
 /**

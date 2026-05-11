@@ -301,7 +301,7 @@ export function ConversationPanel({
           </div>
         )}
 
-        {showEmptyState && (
+        {!compact && showEmptyState && (
           <div className="flex flex-col items-center justify-center h-full">
             <p className="text-neutral-400">
               {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}

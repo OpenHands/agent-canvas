@@ -410,6 +410,10 @@ describe("FilesTab", () => {
 
     const refresh = screen.getByTestId("files-tab-refresh");
     expect(refresh).toBeInTheDocument();
+    // The button should describe its *action* (refresh), not the surrounding
+    // section name ("Files") — the old `COMMON$FILES` aria-label was
+    // ambiguous for screen-reader users who couldn't see the refresh icon.
+    expect(refresh).toHaveAttribute("aria-label", "FILES$REFRESH");
     await user.click(refresh);
     expect(refetchGitChangesMock).toHaveBeenCalledTimes(1);
   });

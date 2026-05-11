@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import {
-  sortFilesByPriority,
-  filePriorityScore,
-} from "#/utils/file-priority";
+import { sortFilesByPriority, filePriorityScore } from "#/utils/file-priority";
 
 describe("file-priority", () => {
   it("places index.html before other files", () => {
@@ -25,10 +22,7 @@ describe("file-priority", () => {
   });
 
   it("prefers top-level index.html over a nested one", () => {
-    const sorted = sortFilesByPriority([
-      "src/nested/index.html",
-      "index.html",
-    ]);
+    const sorted = sortFilesByPriority(["src/nested/index.html", "index.html"]);
     expect(sorted[0]).toBe("index.html");
     expect(sorted[1]).toBe("src/nested/index.html");
   });
@@ -68,5 +62,32 @@ describe("file-priority", () => {
     const original = [...input];
     sortFilesByPriority(input);
     expect(input).toEqual(original);
+  });
+
+  // Regression for the depth-calculation bug where empty path segments
+  // produced by leading / trailing / double slashes (e.g. agent-server
+  // payloads that happen to start with `/`) inflated the computed depth
+  // and caused a top-level file to sort below an actually-nested one.
+  describe("depth calculation tolerates non-canonical path forms", () => {
+    it("treats a leading-slash path the same as the unprefixed form", () => {
+      const sorted = sortFilesByPriority([
+        "src/nested/index.html",
+        "/index.html",
+      ]);
+      expect(sorted[0]).toBe("/index.html");
+      expect(sorted[1]).toBe("src/nested/index.html");
+    });
+
+    it("collapses double slashes when computing depth", () => {
+      // `src//index.html` should sort identically to `src/index.html` (both
+      // depth 1 — one nesting level under root), beating a genuinely
+      // deeper path even though `index.html` is high-priority either way.
+      const sorted = sortFilesByPriority([
+        "deeply/nested/index.html",
+        "src//index.html",
+      ]);
+      expect(sorted[0]).toBe("src//index.html");
+      expect(sorted[1]).toBe("deeply/nested/index.html");
+    });
   });
 });

@@ -20,16 +20,21 @@ You can work with any agent (e.g. Claude Code, Codex) or connect directly to an 
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
+<img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
+
 ## Quickstart
 
 ### With Docker (recommended)
 
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - Docker
 
 Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+
+By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
 
 ```sh
 export PROJECT_PATH=/path/to/your/projects
@@ -51,6 +56,7 @@ especially with respect to security hardening. Notably, you can run the backend 
 them from the same Agent Canvas frontend!
 
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - `uv` (for running the agent server via `uvx`)

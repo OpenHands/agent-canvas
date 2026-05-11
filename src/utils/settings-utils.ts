@@ -71,7 +71,6 @@ export function getFirstAvailablePath(
 ): string | null {
   const fallbackOrder = [
     { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
-    { path: "/settings/mcp", hidden: false },
     { path: "/settings/app", hidden: false },
     { path: "/settings/secrets", hidden: false },
   ];

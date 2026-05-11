@@ -18,7 +18,7 @@ interface SetupLlmStepProps {
  * marked dirty so the Next button is enabled immediately.
  */
 const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": "anthropic/claude-opus-4-5-20251101",
+  "llm.model": "anthropic/claude-opus-4-7",
 } as const;
 
 /**
@@ -51,7 +51,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   return (
     <div
       data-testid="onboarding-step-setup-llm"
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-6 max-h-[calc(90vh-7rem)]"
     >
       <header className="flex flex-col gap-2">
         <h2 className="text-2xl font-semibold text-white">
@@ -62,7 +62,10 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         </p>
       </header>
 
-      <div data-testid="onboarding-llm-settings">
+      <div
+        data-testid="onboarding-llm-settings"
+        className="flex-1 min-h-0 flex flex-col"
+      >
         <LlmSettingsScreen
           embedded
           hideSaveButton
@@ -72,7 +75,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         />
       </div>
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-llm-back"
           type="button"

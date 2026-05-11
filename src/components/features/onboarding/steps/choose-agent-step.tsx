@@ -124,7 +124,7 @@ export function ChooseAgentStep({
         })}
       </div>
 
-      <div className="flex justify-end">
+      <div className="sticky bottom-0 flex justify-end bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-agent-next"
           type="button"

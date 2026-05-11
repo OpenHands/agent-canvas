@@ -1,15 +1,50 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { APP_PREFERENCES_STORAGE_KEY } from "#/api/app-preferences-store";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
+import { server } from "#/mocks/node";
 import { resetTestHandlersMockSettings } from "#/mocks/settings-handlers";
+import type { Settings } from "#/types/settings";
+
+const mockSaveCloudSettings = vi.fn();
+const mockFetchCloudSettings = vi.fn();
+
+vi.mock("#/api/cloud/settings-service.api", () => ({
+  saveCloudSettings: (args: unknown) => mockSaveCloudSettings(args),
+  fetchCloudSettings: () => mockFetchCloudSettings(),
+  fetchCloudSettingsSchema: vi.fn(),
+  fetchCloudConversationSettingsSchema: vi.fn(),
+}));
+
+const cloudBackend: Backend = {
+  id: "prod",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-token",
+  kind: "cloud",
+};
 
 describe("SettingsService", () => {
   beforeEach(() => {
     // Clear localStorage and reset mock settings state
     window.localStorage.clear();
     resetTestHandlersMockSettings();
+    __resetActiveStoreForTests();
+    mockSaveCloudSettings.mockReset().mockResolvedValue(undefined);
+    mockFetchCloudSettings.mockReset();
     // Invalidate the in-memory cache
     SettingsService.invalidateCache();
+  });
+
+  afterEach(() => {
+    __resetActiveStoreForTests();
   });
 
   it("fetches settings from the API and normalizes derived fields", async () => {
@@ -122,6 +157,125 @@ describe("SettingsService", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
+  });
+
+  it("persists app-level preferences to localStorage when saving on a local backend", async () => {
+    // Arrange: no diffs, only the 5 app-level preference fields.
+    const appPrefs = {
+      language: "fr",
+      git_user_name: "Alice",
+      git_user_email: "alice@example.com",
+      enable_sound_notifications: true,
+      user_consents_to_analytics: true,
+    };
+
+    // Act
+    await SettingsService.saveSettings(appPrefs);
+
+    // Assert: localStorage holds the saved fields under the dedicated key.
+    const raw = window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY);
+    expect(raw && JSON.parse(raw)).toEqual(appPrefs);
+  });
+
+  it("surfaces stored app-level preferences in getSettings on a local backend", async () => {
+    // Arrange: pre-seed localStorage as if a previous save had persisted them.
+    const appPrefs = {
+      language: "fr",
+      git_user_name: "Alice",
+      git_user_email: "alice@example.com",
+      enable_sound_notifications: true,
+      user_consents_to_analytics: true,
+    };
+    window.localStorage.setItem(
+      APP_PREFERENCES_STORAGE_KEY,
+      JSON.stringify(appPrefs),
+    );
+
+    // Act
+    const settings = await SettingsService.getSettings();
+
+    // Assert: each stored field is reflected on the returned Settings.
+    expect({
+      language: settings.language,
+      git_user_name: settings.git_user_name,
+      git_user_email: settings.git_user_email,
+      enable_sound_notifications: settings.enable_sound_notifications,
+      user_consents_to_analytics: settings.user_consents_to_analytics,
+    }).toEqual(appPrefs);
+  });
+
+  it("excludes app-level fields from the local PATCH body when mixed with diffs", async () => {
+    // Arrange: capture the PATCH body the local agent-server would receive.
+    // The handler must echo a valid response so saveSettings does not throw.
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/api/...) when VITE_BACKEND_BASE_URL is configured.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    // Act: send both an agent diff and an app-level field in the same save.
+    await SettingsService.saveSettings({
+      git_user_name: "Alice",
+      agent_settings_diff: { agent: "CodeActAgent" },
+    });
+
+    // Assert: the local backend only sees the diff; the app field is
+    // confined to localStorage.
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { agent: "CodeActAgent" } },
+    ]);
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY) ?? "{}",
+      ),
+    ).toEqual({ git_user_name: "Alice" });
+  });
+
+  it("forwards app-level preferences as flat top-level fields to the cloud save", async () => {
+    // Arrange: switch the active backend to cloud so saveSettings routes
+    // through saveCloudSettings (mocked).
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    // Act
+    await SettingsService.saveSettings({
+      language: "fr",
+      git_user_name: "Alice",
+    });
+
+    // Assert: cloud save received the fields under `app_preferences` so
+    // `saveCloudSettings` can spread them into the POST body as flat keys.
+    expect(mockSaveCloudSettings).toHaveBeenCalledWith({
+      app_preferences: { language: "fr", git_user_name: "Alice" },
+    });
+  });
+
+  it("lets the cloud response override locally-stored app preferences", async () => {
+    // Arrange: localStorage holds a stale "fr" while the cloud is the
+    // authoritative source and returns "ja".
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    window.localStorage.setItem(
+      APP_PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ language: "fr" }),
+    );
+    mockFetchCloudSettings.mockResolvedValue({
+      language: "ja",
+    } as Partial<Settings>);
+
+    // Act
+    const settings = await SettingsService.getSettings();
+
+    // Assert: the server wins.
+    expect(settings.language).toBe("ja");
   });
 
   it("derives provider_tokens_set from locally stored git provider tokens", async () => {
