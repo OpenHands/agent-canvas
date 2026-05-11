@@ -139,6 +139,7 @@ jobs:
           PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           set -euo pipefail
+          git init .
           git remote remove pr-head >/dev/null 2>&1 || true
           git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
           git fetch --depth=2 pr-head "$PR_HEAD_SHA"
