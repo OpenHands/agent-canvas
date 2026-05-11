@@ -243,7 +243,7 @@ export function ConversationPanel({
           key={conversation.id}
           to={`/conversations/${conversation.id}`}
           onClick={onClose}
-          className="block px-1 py-0.5"
+          className="block px-2 py-0.5"
         >
           <ConversationCard
             onDelete={() =>
@@ -305,7 +305,7 @@ export function ConversationPanel({
         <div
           data-testid="older-conversations-summary"
           className={cn(
-            "pl-8 pr-3 py-2 text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1",
+            "pl-4 pr-3 py-2 text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1",
             isListScrolled && "border-b border-[#1f2228]",
           )}
         >

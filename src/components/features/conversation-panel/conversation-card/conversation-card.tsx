@@ -119,6 +119,7 @@ export function ConversationCard({
   };
 
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
+  const shouldRenderFooter = showRepositoryMetadata;
 
   return (
     <div
@@ -184,15 +185,17 @@ export function ConversationCard({
         </div>
       </div>
 
-      <ConversationCardFooter
-        selectedRepository={selectedRepository}
-        lastUpdatedAt={lastUpdatedAt}
-        createdAt={createdAt}
-        executionStatus={executionStatus}
-        workspaceWorkingDir={workspaceWorkingDir}
-        showRepositoryMetadata={showRepositoryMetadata}
-        showTimestamp={false}
-      />
+      {shouldRenderFooter && (
+        <ConversationCardFooter
+          selectedRepository={selectedRepository}
+          lastUpdatedAt={lastUpdatedAt}
+          createdAt={createdAt}
+          executionStatus={executionStatus}
+          workspaceWorkingDir={workspaceWorkingDir}
+          showRepositoryMetadata={showRepositoryMetadata}
+          showTimestamp={false}
+        />
+      )}
     </div>
   );
 }

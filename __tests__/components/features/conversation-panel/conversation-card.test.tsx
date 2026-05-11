@@ -85,9 +85,6 @@ describe("ConversationCard", () => {
 
     within(card).getByText("Conversation 1");
 
-    // Just check that the card contains the expected text content
-    expect(card).toHaveTextContent("ago");
-
     // Use a regex to match the time part since it might have whitespace
     const timeRegex = new RegExp(
       formatTimeDelta(new Date("2021-10-01T12:00:00Z")),

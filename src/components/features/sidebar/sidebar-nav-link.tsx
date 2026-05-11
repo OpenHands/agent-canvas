@@ -26,8 +26,8 @@ interface SidebarNavLinkProps {
 
 function getLayoutClasses(collapsed: boolean, indent: boolean): string {
   if (collapsed) return "justify-center w-10 h-10 p-0 mx-auto";
-  if (indent) return "pl-7 pr-3 py-1.5 w-full";
-  return "px-3 py-2 w-full";
+  if (indent) return "pl-7 pr-2 py-1.5 w-full";
+  return "px-2 py-2 w-full";
 }
 
 export function SidebarNavLink({

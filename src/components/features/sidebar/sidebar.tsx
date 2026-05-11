@@ -123,7 +123,7 @@ export function Sidebar() {
           collapsed
             ? "md:w-[64px] md:min-w-[64px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-2 md:pt-4" : "px-3 py-2 md:px-3 md:pt-4",
+          collapsed ? "md:px-2 md:pt-4" : "px-2 py-2 md:px-2 md:pt-4",
           "flex-row md:flex-col",
           currentPath === "/" && "md:pt-6.5 md:pb-3",
         )}
@@ -182,7 +182,7 @@ export function Sidebar() {
                   "w-7 h-7 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
                   "transition-colors cursor-pointer",
                   // ml-auto right-aligns inside the header row; -mr-2 pulls
-                  // past the header's own pr-0 + most of the aside's pr-3 so
+                  // past the header's own pr-0 + most of the aside's pr-2 so
                   // the caret sits flush against the right edge of the rail.
                   "ml-auto md:-mr-2",
                 )}
@@ -250,7 +250,7 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch mt-auto pt-2 border-t border-[#242424] md:-mx-3 md:px-3">
+          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[#242424] md:-mx-2 md:px-2">
             <BackendSelector openUpward />
           </div>
         )}

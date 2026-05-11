@@ -15,7 +15,7 @@ export function SidebarConversationList() {
     <div
       className={cn(
         "hidden md:flex md:flex-col md:flex-1 md:min-h-0",
-        collapsed ? "items-center -mx-1" : "-mx-3",
+        collapsed ? "items-center -mx-1" : "-mx-2",
       )}
     >
       <div className="flex-1 min-h-0 overflow-hidden w-full">
