@@ -91,6 +91,10 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 
 Agent Canvas is also available as an npm package for embedding in your own applications:
 
+> [!WARNING]
+> Agent Canvas has not published a stable release yet. Until the first stable version is available, the npm `latest` dist-tag may point to alpha, beta, or release-candidate builds, so `npm install @openhands/agent-canvas` can install a prerelease. Pin an exact version if you need predictable behavior.
+> This temporary behavior is tracked in [#395](https://github.com/OpenHands/agent-canvas/issues/395); retag `latest` to the first stable release when it ships.
+
 ```bash
 npm install @openhands/agent-canvas
 ```
