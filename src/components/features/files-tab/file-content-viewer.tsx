@@ -2,10 +2,6 @@ import { useTranslation } from "react-i18next";
 
 import { I18nKey } from "#/i18n/declaration";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
-import {
-  useWorkspaceMutationCounter,
-  withWorkspaceCacheBuster,
-} from "#/stores/use-workspace-mutation-counter";
 import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
 import { HighlightedSourceView } from "./highlighted-source-view";
 import type { ViewMode } from "./view-mode";
@@ -32,10 +28,6 @@ function getExtension(path: string): string {
 export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   const { t } = useTranslation("openhands");
   const query = useWorkspaceFileContent(path);
-  // Subscribe to the workspace mutation counter so remote static URLs change
-  // after every agent-side edit. Blob/data preview URLs are already fresh and
-  // are passed through unchanged by the cache-buster helper.
-  const mutationCounter = useWorkspaceMutationCounter((state) => state.count);
 
   if (query.isLoading) {
     return (
@@ -64,7 +56,6 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   const { kind, text, staticUrl, mimeType } = query.data;
-  const bustedStaticUrl = withWorkspaceCacheBuster(staticUrl, mutationCounter);
 
   // ----- Plain mode: raw source bytes, syntax-highlighted when we can
   // recognize the grammar (falls through to a `<pre>` otherwise). This
@@ -98,7 +89,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
         data-testid="file-content-viewer-image"
       >
         <img
-          src={bustedStaticUrl}
+          src={staticUrl}
           alt={path}
           className="max-h-full max-w-full object-contain"
         />
@@ -118,7 +109,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     return (
       <iframe
         title={path}
-        src={bustedStaticUrl}
+        src={staticUrl}
         sandbox="allow-same-origin"
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
@@ -147,7 +138,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     return (
       <iframe
         title={path}
-        src={bustedStaticUrl}
+        src={staticUrl}
         sandbox="allow-same-origin"
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"

@@ -4,6 +4,7 @@ import { FileClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 // Magic-number sniff for common binary formats we can render via iframe.
 const IMAGE_EXTENSIONS = new Set([
@@ -140,6 +141,9 @@ function makePreviewUrl(buffer: ArrayBuffer, mimeType: string): string {
 export function useWorkspaceFileContent(relativePath: string | null) {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const workspaceMutationCount = useWorkspaceMutationCounter(
+    (state) => state.count,
+  );
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -154,6 +158,7 @@ export function useWorkspaceFileContent(relativePath: string | null) {
       sessionApiKey,
       workingDir,
       relativePath,
+      workspaceMutationCount,
     ],
     queryFn: async () => {
       if (!relativePath) throw new Error("No path");

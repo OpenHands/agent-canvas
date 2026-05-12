@@ -1,9 +1,10 @@
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
+import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 const { downloadFileMock, fileClientMock } = vi.hoisted(() => {
   const downloadFile = vi.fn();
@@ -59,6 +60,7 @@ describe("useWorkspaceFileContent", () => {
       configurable: true,
       value: vi.fn(() => "blob:preview-url"),
     });
+    useWorkspaceMutationCounter.setState({ count: 0 });
     fileClientMock.mockClear();
     downloadFileMock.mockReset();
     useActiveConversationMock.mockReset();
@@ -95,6 +97,26 @@ describe("useWorkspaceFileContent", () => {
       staticUrl: "blob:preview-url",
       mimeType: "text/markdown",
     });
+  });
+
+  it("refetches selected file content after workspace mutations", async () => {
+    downloadFileMock
+      .mockResolvedValueOnce(new TextEncoder().encode("first").buffer)
+      .mockResolvedValueOnce(new TextEncoder().encode("second").buffer);
+
+    const { result } = renderHook(
+      () => useWorkspaceFileContent("docs/readme.md"),
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data?.text).toBe("first"));
+
+    act(() => {
+      useWorkspaceMutationCounter.getState().bump();
+    });
+
+    await waitFor(() => expect(result.current.data?.text).toBe("second"));
+    expect(downloadFileMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not start a file request before a path is selected", async () => {
