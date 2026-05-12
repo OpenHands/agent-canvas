@@ -136,16 +136,19 @@ function SkillsSettingsScreen() {
                   {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
                 </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {filteredSkills.map((skill) => (
-                    <SkillCard
-                      key={skill.name}
-                      skill={skill}
-                      enabled={!disabledSet.has(skill.name)}
-                      onToggle={(enabled) => handleToggle(skill.name, enabled)}
-                    />
-                  ))}
-                </div>
+                <section className="flex flex-col gap-3">
+                  <h2 className="text-base font-semibold">Installed</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {filteredSkills.map((skill) => (
+                      <SkillCard
+                        key={skill.name}
+                        skill={skill}
+                        enabled={!disabledSet.has(skill.name)}
+                        onToggle={(enabled) => handleToggle(skill.name, enabled)}
+                      />
+                    ))}
+                  </div>
+                </section>
               )}
             </>
           )}
