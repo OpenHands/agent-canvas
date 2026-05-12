@@ -10,7 +10,6 @@ import {
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAxiosError } from "test-utils";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
   ActiveBackendProvider,
@@ -24,26 +23,19 @@ import {
 
 import {
   getCloudOrganizations,
-  switchCloudOrganization,
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
 import { createServerClient } from "#/api/typescript-client";
-import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
-  switchCloudOrganization: vi.fn().mockResolvedValue(undefined),
   getCloudOrganizationMe: vi.fn(),
   getCurrentCloudApiKey: vi.fn(),
 }));
 
 vi.mock("#/api/typescript-client", () => ({
   createServerClient: vi.fn(),
-}));
-
-vi.mock("#/utils/custom-toast-handlers", () => ({
-  displayErrorToast: vi.fn(),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -85,8 +77,6 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();
-  vi.mocked(switchCloudOrganization).mockReset();
-  vi.mocked(switchCloudOrganization).mockResolvedValue(undefined);
   vi.mocked(getCloudOrganizationMe).mockReset();
   vi.mocked(getCloudOrganizationMe).mockResolvedValue({
     orgId: "",
@@ -110,7 +100,6 @@ beforeEach(() => {
     // the rest of the ServerClient surface is unused here, so a
     // partial cast is sufficient.
   } as unknown as ReturnType<typeof createServerClient>);
-  vi.mocked(displayErrorToast).mockReset();
 });
 
 afterEach(() => {
@@ -158,7 +147,7 @@ describe("BackendSelector", () => {
     expect(screen.getByText("Production")).toBeInTheDocument();
   });
 
-  it("expands a cloud backend into one row per org and fires switch-org on select", async () => {
+  it("expands a cloud backend into one row per org and records the org locally without calling SaaS /switch", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
         { id: "org-personal", name: "Personal" },
@@ -167,15 +156,16 @@ describe("BackendSelector", () => {
       currentOrgId: "org-personal",
     });
 
+    let cloudId = "";
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
+          cloudId = ctx.addBackend({
             name: "Production",
             host: "https://app.all-hands.dev",
             apiKey: "bearer-key",
             kind: "cloud",
-          });
+          }).id;
         }}
       >
         <BackendSelector />
@@ -191,15 +181,15 @@ describe("BackendSelector", () => {
 
     await user.click(screen.getByText("Production – Acme Inc"));
 
+    // Selecting an org row updates the active selection locally only —
+    // it must never trigger the SaaS-mutating /switch call that used to
+    // leak the local-UI choice into the cloud UI's `current_org_id`.
     await waitFor(() => {
-      expect(switchCloudOrganization).toHaveBeenCalled();
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-active-backend") ?? "null",
+      );
+      expect(stored).toEqual({ backendId: cloudId, orgId: "org-2" });
     });
-    // The selector now passes an explicit backend so /switch lands on
-    // the right cloud BEFORE the active selection flips.
-    expect(switchCloudOrganization).toHaveBeenCalledWith(
-      "org-2",
-      expect.objectContaining({ host: "https://app.all-hands.dev" }),
-    );
   });
 
   it("filters each cloud backend's org rows to the org its API key is bound to", async () => {
@@ -304,7 +294,7 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("self-heals (cloud, null) → (cloud, personal-workspace org) once orgs + /me resolve", async () => {
+  it("self-heals (cloud, null) → (cloud, personal-workspace org) locally once orgs + /me resolve", async () => {
     const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
@@ -337,16 +327,10 @@ describe("BackendSelector", () => {
       </TestSeed>,
     );
 
-    // After orgs + /me resolve, the selector should have snapped the
-    // selection onto the personal-workspace org and fired switchOrg.
-    await waitFor(() => {
-      expect(switchCloudOrganization).toHaveBeenCalled();
-    });
-    expect(switchCloudOrganization).toHaveBeenCalledWith(
-      personalOrgId,
-      expect.objectContaining({ host: "https://app.all-hands.dev" }),
-    );
-
+    // After orgs + /me resolve, the selector snaps the active selection
+    // onto the personal-workspace org locally — without round-tripping
+    // /switch on the SaaS (which would have mutated the cloud UI's
+    // user.current_org_id as a side effect).
     await waitFor(() => {
       const stored = JSON.parse(
         window.localStorage.getItem("openhands-active-backend") ?? "null",
@@ -590,147 +574,6 @@ describe("BackendSelector", () => {
     expect(
       screen.queryByTestId("manage-backends-modal"),
     ).not.toBeInTheDocument();
-  });
-
-  it("shows an error toast, dismisses the overlay, and does not switch to the failing cloud backend", async () => {
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      createAxiosError(500, "Server Error", { message: "switch failed" }),
-    );
-
-    let productionId = "";
-    let activeLocalId = "";
-    renderWithProviders(
-      <>
-        <TestSeed
-          onMount={(ctx) => {
-            activeLocalId = ctx.addBackend({
-              name: "Active Local",
-              host: "http://localhost:9000",
-              apiKey: "local-key",
-              kind: "local",
-            }).id;
-            ctx.setActive(activeLocalId, null);
-            productionId = ctx.addBackend({
-              name: "Production",
-              host: "https://app.all-hands.dev",
-              apiKey: "bearer-key",
-              kind: "cloud",
-            }).id;
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-        <EnvironmentSwitchOverlay />
-      </>,
-    );
-
-    const initialSelection = JSON.parse(
-      window.localStorage.getItem("openhands-active-backend") ?? "null",
-    );
-
-    const user = await openDropdown();
-    await waitFor(() => {
-      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText("Production – Acme Inc"));
-
-    await waitFor(() => {
-      expect(displayErrorToast).toHaveBeenCalledWith("switch failed");
-    });
-    expect(
-      screen.queryByTestId("environment-switch-overlay"),
-    ).not.toBeInTheDocument();
-
-    const stored = JSON.parse(
-      window.localStorage.getItem("openhands-active-backend") ?? "null",
-    );
-    expect(initialSelection?.backendId).toBe(activeLocalId);
-    expect(stored?.backendId).not.toBe(productionId);
-    expect(stored?.orgId ?? null).toBeNull();
-  });
-
-  it("shows a generic error toast instead of throwing on unexpected org switch errors", async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      new Error("unexpected failure"),
-    );
-
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
-    );
-
-    const user = await openDropdown();
-    await waitFor(() => {
-      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText("Production – Acme Inc"));
-
-    await waitFor(() => {
-      expect(displayErrorToast).toHaveBeenCalledWith("ERROR$GENERIC");
-    });
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Unexpected error during org switch:",
-      expect.any(Error),
-    );
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("falls back to the first registered local backend when malformed cloud self-heal fails", async () => {
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      createAxiosError(500, "Server Error", { message: "switch failed" }),
-    );
-
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          const production = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
-          ctx.setActive(production.id, null);
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
-    );
-
-    await waitFor(() => {
-      const stored = JSON.parse(
-        window.localStorage.getItem("openhands-active-backend") ?? "null",
-      );
-      // The seeded default-local backend is the first registered local.
-      expect(stored?.backendId).toBe("default-local");
-      expect(stored?.orgId ?? null).toBeNull();
-    });
   });
 
   it("renders the backend footer actions and opens/closes the add modal", async () => {

@@ -83,18 +83,6 @@ export async function getCurrentCloudApiKey(
   }
 }
 
-export async function switchCloudOrganization(
-  orgId: string,
-  backend?: Backend,
-): Promise<void> {
-  const target = resolveBackend(backend);
-  await callCloudProxy<unknown>({
-    backend: target,
-    method: "POST",
-    path: `/api/organizations/${encodeURIComponent(orgId)}/switch`,
-  });
-}
-
 /**
  * Fetch `GET /api/organizations/{orgId}/me`. Identifies the calling user as
  * a member of `orgId`. The GUI uses `me.org_id === me.user_id` to decide
