@@ -47,6 +47,7 @@ export function Sidebar() {
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const [collapsedBackendPopoverOpen, setCollapsedBackendPopoverOpen] =
     React.useState(false);
+  const collapsedBackendCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [collapsedRailHovered, setCollapsedRailHovered] = React.useState(false);
   const collapsedBackendPopoverRef = useClickOutsideElement<HTMLDivElement>(() =>
     setCollapsedBackendPopoverOpen(false),
@@ -276,8 +277,19 @@ export function Sidebar() {
             <div
               className="relative"
               ref={collapsedBackendPopoverRef}
-              onMouseEnter={() => setCollapsedBackendPopoverOpen(true)}
-              onMouseLeave={() => setCollapsedBackendPopoverOpen(false)}
+              onMouseEnter={() => {
+                if (collapsedBackendCloseTimer.current) {
+                  clearTimeout(collapsedBackendCloseTimer.current);
+                  collapsedBackendCloseTimer.current = null;
+                }
+                setCollapsedBackendPopoverOpen(true);
+              }}
+              onMouseLeave={() => {
+                collapsedBackendCloseTimer.current = setTimeout(
+                  () => setCollapsedBackendPopoverOpen(false),
+                  150,
+                );
+              }}
             >
               <button
                 type="button"
@@ -298,7 +310,7 @@ export function Sidebar() {
                 <Server width={16} height={16} />
               </button>
               {collapsedBackendPopoverOpen ? (
-                <div className="absolute bottom-0 left-full ml-2 z-40 w-[260px]">
+                <div className="absolute bottom-0 left-full pl-2 z-40 w-[272px]">
                   <BackendSelector
                     hideTrigger
                     defaultOpen

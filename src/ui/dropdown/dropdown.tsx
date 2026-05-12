@@ -44,6 +44,7 @@ export function Dropdown({
   defaultOpen = false,
   openOnHover = false,
 }: DropdownProps) {
+  const closeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inputValue, setInputValue] = useState(defaultValue?.label ?? "");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -125,8 +126,16 @@ export function Dropdown({
     <div
       className="relative w-full"
       data-testid={testId}
-      onMouseEnter={openOnHover ? () => openMenu() : undefined}
-      onMouseLeave={openOnHover ? () => closeMenu() : undefined}
+      onMouseEnter={openOnHover ? () => {
+        if (closeTimerRef.current) {
+          clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = null;
+        }
+        openMenu();
+      } : undefined}
+      onMouseLeave={openOnHover ? () => {
+        closeTimerRef.current = setTimeout(() => closeMenu(), 150);
+      } : undefined}
     >
       {!hideTrigger && (
         <div
