@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { LoaderCircle } from "lucide-react";
 import ArrowDown from "#/icons/angle-down-solid.svg?react";
 import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { OpenHandsEvent, ActionEvent } from "#/types/agent-server/core";
@@ -43,9 +44,9 @@ interface EventGroupProps {
  *   - Left (prominent): the title of the most recent action/observation in
  *     the group — i.e. either the action currently in flight, or the latest
  *     completed step.
- *   - Right (subdued):  "{completed} of {total} actions" while at least one
- *     action is still pending, otherwise "{count} actions completed", followed
- *     by a success check once nothing is in flight.
+ *   - Right (subdued):  "{completed}/{total} actions completed" while at
+ *     least one action is still pending (with a spinner), otherwise
+ *     "{count} actions completed" followed by a success check.
  *
  * Collapsed, after the group has been "moved past" (`isFinalized=true`):
  *   - "{count} actions completed" is promoted to the prominent foreground
@@ -138,7 +139,14 @@ export function EventGroup({
             </span>
             <span className="flex items-center flex-shrink-0 font-normal text-neutral-400">
               <span className="truncate">{countSummary}</span>
-              {!isRunning && <SuccessIndicator status="success" />}
+              {isRunning ? (
+                <LoaderCircle
+                  data-testid="spinner-icon"
+                  className="h-4 w-4 ml-2 inline animate-spin text-neutral-300"
+                />
+              ) : (
+                <SuccessIndicator status="success" />
+              )}
             </span>
           </>
         )}

@@ -165,7 +165,7 @@ describe("EventGroup", () => {
     expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
   });
 
-  it("hides the success indicator while running and shows it when done", () => {
+  it("shows a spinner while running and the success indicator when done", () => {
     const running = [
       makeBashObservation("o1", "a1", "ls"),
       makeBashAction("a2", "pwd"),
@@ -176,6 +176,7 @@ describe("EventGroup", () => {
         <div>child</div>
       </EventGroup>,
     );
+    expect(screen.getByTestId("spinner-icon")).toBeInTheDocument();
     expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
 
     const done = [
@@ -187,6 +188,7 @@ describe("EventGroup", () => {
         <div>child</div>
       </EventGroup>,
     );
+    expect(screen.queryByTestId("spinner-icon")).not.toBeInTheDocument();
     expect(screen.getByTestId("status-icon")).toBeInTheDocument();
   });
 
