@@ -194,4 +194,87 @@ describe("ProfileNameInput", () => {
     expect(screen.getByText("Profile Name")).toBeInTheDocument();
     expect(screen.queryByText(/optional/i)).not.toBeInTheDocument();
   });
+
+  describe("boundary conditions", () => {
+    it("accepts exactly 64 character names", () => {
+      const name64 = "a".repeat(64);
+      render(
+        <ProfileNameInput
+          value={name64}
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      // Valid names show gray rule text
+      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+    });
+
+    it("rejects 65 character names", () => {
+      const name65 = "a".repeat(65);
+      render(
+        <ProfileNameInput
+          value={name65}
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      // Invalid names show red rule text
+      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+    });
+
+    it("accepts names starting with numbers", () => {
+      render(
+        <ProfileNameInput
+          value="1profile"
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+    });
+
+    it("accepts names with all allowed special characters", () => {
+      render(
+        <ProfileNameInput
+          value="valid.name_with-chars"
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+    });
+
+    it("rejects names starting with special characters", () => {
+      render(
+        <ProfileNameInput
+          value=".invalid"
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+    });
+
+    it("rejects names starting with hyphen", () => {
+      render(
+        <ProfileNameInput
+          value="-invalid"
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+    });
+
+    it("rejects names starting with underscore", () => {
+      render(
+        <ProfileNameInput
+          value="_invalid"
+          onChange={() => {}}
+          ruleTestId="rule"
+        />,
+      );
+      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+    });
+  });
 });

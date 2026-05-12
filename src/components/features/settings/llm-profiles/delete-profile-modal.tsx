@@ -56,9 +56,13 @@ export function DeleteProfileModal({
         className="grow"
         onClick={handleDelete}
         isDisabled={deleteProfile.isPending}
+        aria-busy={deleteProfile.isPending}
       >
         {deleteProfile.isPending ? (
-          <LoadingSpinner size="small" />
+          <>
+            <LoadingSpinner size="small" />
+            <span className="sr-only">{t(I18nKey.BUTTON$DELETE)}</span>
+          </>
         ) : (
           t(I18nKey.BUTTON$DELETE)
         )}

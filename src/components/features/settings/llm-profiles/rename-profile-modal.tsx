@@ -33,10 +33,14 @@ export function RenameProfileModal({
 
   if (!profile) return null;
 
-  const trimmed = newName.trim();
-  const isUnchanged = trimmed === profile.name;
+  const isUnchanged = newName === profile.name;
   // Explicit empty check matches ProfileNameInput's isRequired validation
-  const isValid = trimmed !== "" && PROFILE_NAME_PATTERN.test(trimmed);
+  const isValid = newName !== "" && PROFILE_NAME_PATTERN.test(newName);
+
+  // Trim whitespace on input change to avoid user confusion
+  const handleNameChange = (value: string) => {
+    setNewName(value.trim());
+  };
 
   const handleSubmit = async () => {
     if (!isValid) {
@@ -49,9 +53,9 @@ export function RenameProfileModal({
     }
 
     try {
-      await renameProfile.mutateAsync({ name: profile.name, newName: trimmed });
+      await renameProfile.mutateAsync({ name: profile.name, newName });
       displaySuccessToast(
-        t(I18nKey.SETTINGS$PROFILE_RENAMED, { name: trimmed }),
+        t(I18nKey.SETTINGS$PROFILE_RENAMED, { name: newName }),
       );
       onClose();
     } catch (error) {
@@ -110,7 +114,7 @@ export function RenameProfileModal({
           testId="rename-profile-input"
           ruleTestId="rename-profile-rule"
           value={newName}
-          onChange={setNewName}
+          onChange={handleNameChange}
           isRequired
           onKeyDown={(e) => {
             if (e.key === "Enter" && !renameProfile.isPending && isValid) {

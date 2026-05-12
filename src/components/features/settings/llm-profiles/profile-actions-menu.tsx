@@ -1,6 +1,51 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
+
+interface MenuItemProps {
+  index: number;
+  label: string;
+  onClick: () => void;
+  onKeyDown: (e: React.KeyboardEvent, index: number) => void;
+  menuItemsRef: React.MutableRefObject<(HTMLButtonElement | null)[]>;
+  disabled?: boolean;
+  className?: string;
+  testId: string;
+}
+
+function MenuItem({
+  index,
+  label,
+  onClick,
+  onKeyDown,
+  menuItemsRef,
+  disabled,
+  className,
+  testId,
+}: MenuItemProps) {
+  return (
+    <button
+      ref={(el) => {
+        // eslint-disable-next-line no-param-reassign
+        menuItemsRef.current[index] = el;
+      }}
+      type="button"
+      onClick={onClick}
+      onKeyDown={(e) => onKeyDown(e, index)}
+      disabled={disabled}
+      className={cn(
+        "w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        className,
+      )}
+      role="menuitem"
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
 
 interface ProfileActionsMenuProps {
   onEdit: () => void;
@@ -88,59 +133,40 @@ export function ProfileActionsMenu({
       aria-orientation="vertical"
       data-testid="profile-actions-menu"
     >
-      <button
-        ref={(el) => {
-          menuItemsRef.current[0] = el;
-        }}
-        type="button"
+      <MenuItem
+        index={0}
+        label={t(I18nKey.SETTINGS$PROFILE_EDIT)}
         onClick={() => handleAction(onEdit)}
-        onKeyDown={(e) => handleKeyDown(e, 0)}
-        className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer"
-        role="menuitem"
-        data-testid="profile-edit"
-      >
-        {t(I18nKey.SETTINGS$PROFILE_EDIT)}
-      </button>
-      <button
-        ref={(el) => {
-          menuItemsRef.current[1] = el;
-        }}
-        type="button"
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        testId="profile-edit"
+      />
+      <MenuItem
+        index={1}
+        label={t(I18nKey.BUTTON$RENAME)}
         onClick={() => handleAction(onRename)}
-        onKeyDown={(e) => handleKeyDown(e, 1)}
-        className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer"
-        role="menuitem"
-        data-testid="profile-rename"
-      >
-        {t(I18nKey.BUTTON$RENAME)}
-      </button>
-      <button
-        ref={(el) => {
-          menuItemsRef.current[2] = el;
-        }}
-        type="button"
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        testId="profile-rename"
+      />
+      <MenuItem
+        index={2}
+        label={t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
         onClick={() => handleAction(onSetActive)}
-        onKeyDown={(e) => handleKeyDown(e, 2)}
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
         disabled={setActiveDisabled}
-        className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        role="menuitem"
-        data-testid="profile-set-active"
-      >
-        {t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
-      </button>
-      <button
-        ref={(el) => {
-          menuItemsRef.current[3] = el;
-        }}
-        type="button"
+        testId="profile-set-active"
+      />
+      <MenuItem
+        index={3}
+        label={t(I18nKey.BUTTON$DELETE)}
         onClick={() => handleAction(onDelete)}
-        onKeyDown={(e) => handleKeyDown(e, 3)}
-        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-tertiary cursor-pointer"
-        role="menuitem"
-        data-testid="profile-delete"
-      >
-        {t(I18nKey.BUTTON$DELETE)}
-      </button>
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        className="text-red-400"
+        testId="profile-delete"
+      />
     </div>
   );
 }

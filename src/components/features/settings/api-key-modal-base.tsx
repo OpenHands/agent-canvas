@@ -72,14 +72,19 @@ export function ApiKeyModalBase({
   if (!isOpen) return null;
 
   return (
-    <ModalBackdrop onClose={onClose} aria-label={title}>
+    <ModalBackdrop onClose={onClose}>
       <div
         ref={modalRef}
         tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary"
         style={{ width }}
       >
-        <h3 className="text-xl font-bold">{title}</h3>
+        <h3 id="modal-title" className="text-xl font-bold">
+          {title}
+        </h3>
         {children}
         <div className="w-full flex gap-2 mt-2">{footer}</div>
       </div>

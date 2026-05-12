@@ -161,4 +161,44 @@ describe("DeleteProfileModal", () => {
     // The BrandButton with variant="danger" should be rendered
     expect(deleteButton).toBeInTheDocument();
   });
+
+  describe("isPending state", () => {
+    it("prevents closing modal during deletion", async () => {
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.deleteProfile).mockImplementation(
+        () => new Promise(() => {}), // Never resolves
+      );
+      const handleClose = vi.fn();
+      renderModal(mockProfile, handleClose);
+
+      await user.click(screen.getByTestId("delete-profile-confirm"));
+      await user.click(screen.getByText("Cancel"));
+
+      expect(handleClose).not.toHaveBeenCalled();
+    });
+
+    it("disables Cancel button during deletion", async () => {
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.deleteProfile).mockImplementation(
+        () => new Promise(() => {}), // Never resolves
+      );
+      renderModal(mockProfile);
+
+      await user.click(screen.getByTestId("delete-profile-confirm"));
+
+      expect(screen.getByText("Cancel")).toBeDisabled();
+    });
+
+    it("disables Delete button during deletion", async () => {
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.deleteProfile).mockImplementation(
+        () => new Promise(() => {}), // Never resolves
+      );
+      renderModal(mockProfile);
+
+      await user.click(screen.getByTestId("delete-profile-confirm"));
+
+      expect(screen.getByTestId("delete-profile-confirm")).toBeDisabled();
+    });
+  });
 });

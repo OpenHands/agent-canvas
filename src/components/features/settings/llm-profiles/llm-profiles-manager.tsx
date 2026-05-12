@@ -39,7 +39,8 @@ export function LlmProfilesManager({
     try {
       await activateProfile.mutateAsync(name);
       displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_ACTIVATED, { name }));
-    } catch {
+    } catch (error) {
+      console.error("Failed to activate profile:", error);
       displayErrorToast(t(I18nKey.ERROR$GENERIC));
     }
   };

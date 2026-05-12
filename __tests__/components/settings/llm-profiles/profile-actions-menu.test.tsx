@@ -190,4 +190,62 @@ describe("ProfileActionsMenu", () => {
 
     expect(handleClose).not.toHaveBeenCalled();
   });
+
+  describe("keyboard navigation", () => {
+    it("focuses first item on mount", () => {
+      render(<ProfileActionsMenu {...defaultProps} />);
+      expect(screen.getByTestId("profile-edit")).toHaveFocus();
+    });
+
+    it("navigates down with ArrowDown key", async () => {
+      const user = userEvent.setup();
+      render(<ProfileActionsMenu {...defaultProps} />);
+
+      await user.keyboard("{ArrowDown}");
+      expect(screen.getByTestId("profile-rename")).toHaveFocus();
+    });
+
+    it("navigates up with ArrowUp key", async () => {
+      const user = userEvent.setup();
+      render(<ProfileActionsMenu {...defaultProps} />);
+
+      // Start at first item (Edit), go down to Rename, then back up
+      await user.keyboard("{ArrowDown}");
+      await user.keyboard("{ArrowUp}");
+      expect(screen.getByTestId("profile-edit")).toHaveFocus();
+    });
+
+    it("wraps focus from last to first item with ArrowDown", async () => {
+      const user = userEvent.setup();
+      render(<ProfileActionsMenu {...defaultProps} />);
+
+      // Navigate to the last item (Delete)
+      await user.keyboard("{ArrowDown}"); // Rename
+      await user.keyboard("{ArrowDown}"); // Set Active
+      await user.keyboard("{ArrowDown}"); // Delete
+      expect(screen.getByTestId("profile-delete")).toHaveFocus();
+
+      // Press down again to wrap to first
+      await user.keyboard("{ArrowDown}");
+      expect(screen.getByTestId("profile-edit")).toHaveFocus();
+    });
+
+    it("wraps focus from first to last item with ArrowUp", async () => {
+      const user = userEvent.setup();
+      render(<ProfileActionsMenu {...defaultProps} />);
+
+      // First item is focused (Edit), press up to wrap to last
+      await user.keyboard("{ArrowUp}");
+      expect(screen.getByTestId("profile-delete")).toHaveFocus();
+    });
+
+    it("closes menu when Tab is pressed", async () => {
+      const handleClose = vi.fn();
+      const user = userEvent.setup();
+      render(<ProfileActionsMenu {...defaultProps} onClose={handleClose} />);
+
+      await user.keyboard("{Tab}");
+      expect(handleClose).toHaveBeenCalled();
+    });
+  });
 });

@@ -10,6 +10,10 @@ interface BrandButtonProps {
   className?: string;
   onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   startContent?: React.ReactNode;
+  /** Accessible label for icon-only buttons */
+  ariaLabel?: string;
+  /** Indicates busy/loading state for screen readers */
+  "aria-busy"?: boolean;
 }
 
 export const BrandButton = forwardRef<
@@ -26,6 +30,8 @@ export const BrandButton = forwardRef<
     className,
     onClick,
     startContent,
+    ariaLabel,
+    "aria-busy": ariaBusy,
   },
   ref,
 ) {
@@ -39,6 +45,8 @@ export const BrandButton = forwardRef<
 
       type={type}
       onClick={onClick}
+      aria-label={ariaLabel}
+      aria-busy={ariaBusy}
       className={cn(
         "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 cursor-pointer",
         variant === "primary" && "bg-primary text-[#0D0F11]",
