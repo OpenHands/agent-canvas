@@ -7,10 +7,12 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { BackendStatusDot } from "./backend-status-dot";
+import { DeviceFlowAuth } from "./device-flow-auth";
 
 export type BackendFormMode = "add" | "edit";
 
@@ -230,6 +232,15 @@ export function BackendForm({
         placeholder="https://app.all-hands.dev"
         className="w-full"
       />
+
+      {/* Device Flow auth for OpenHands Cloud backends in add mode */}
+      {mode === "add" && kind === "cloud" && isOpenHandsCloudHost(host) && (
+        <DeviceFlowAuth
+          host={host}
+          onSuccess={setApiKey}
+          testIdRoot={testIdRoot}
+        />
+      )}
 
       <SettingsInput
         testId={`${testIdRoot}-api-key`}
