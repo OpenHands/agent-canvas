@@ -157,10 +157,10 @@ export default function MCPPage() {
 
   if (isLoading || !settings) {
     return (
-      <div
-        data-testid="mcp-page"
-        className="flex h-full gap-10 px-[14px]"
-      >
+    <div
+      data-testid="mcp-page"
+      className="flex h-full gap-10"
+    >
         <ExtensionsNavigation />
         <div className="flex h-full flex-1 items-center justify-center">
           <div className="h-8 w-8 rounded-full border-2 border-tertiary border-t-primary animate-spin" />
@@ -178,10 +178,10 @@ export default function MCPPage() {
   return (
     <div
       data-testid="mcp-page"
-      className="flex h-full gap-10 px-[14px]"
+      className="flex h-full gap-10"
     >
       <ExtensionsNavigation />
-      <main className="flex-1 min-w-0 overflow-auto custom-scrollbar-always pt-8 pb-12">
+      <main className="flex-1 min-w-0 overflow-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
         <div className="max-w-5xl flex flex-col gap-8">
         <header className="flex flex-col gap-2">
           <div className="flex items-end justify-between gap-4">
