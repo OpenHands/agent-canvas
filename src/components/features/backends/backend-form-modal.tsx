@@ -163,19 +163,21 @@ export function BackendForm({
   // In add mode, infer the kind from the host; in edit mode, the user
   // already chose one, so don't re-infer over their choice.
   const [touchedKind, setTouchedKind] = React.useState(mode === "edit");
+  // Track if user has explicitly selected "cloud" via radio button (vs initial default)
+  const [userSelectedCloud, setUserSelectedCloud] = React.useState(false);
 
-  // Auto-infer kind from host, but only upgrade to "cloud" - never downgrade
-  // from "cloud" to "local" when the user types a custom cloud host URL.
+  // Auto-infer kind from host. Special case: if user explicitly selected "cloud"
+  // via radio button, don't downgrade to "local" when they type a custom host.
   React.useEffect(() => {
     if (!touchedKind && host) {
       const inferred = inferKindFromHost(host);
-      // Only change kind if inferring "cloud" from a known host pattern,
-      // or if current kind is "local" (allow upgrade to cloud)
-      if (inferred === "cloud" || kind === "local") {
-        setKind(inferred);
+      // Only skip inference if user explicitly selected cloud AND we would downgrade
+      if (userSelectedCloud && inferred === "local") {
+        return; // Keep cloud when user explicitly chose it
       }
+      setKind(inferred);
     }
-  }, [host, touchedKind, kind]);
+  }, [host, touchedKind, userSelectedCloud]);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
@@ -315,6 +317,7 @@ export function BackendForm({
                 onChange={() => {
                   setKind("local");
                   setTouchedKind(true);
+                  setUserSelectedCloud(false);
                 }}
                 data-testid={`${testIdRoot}-kind-local`}
               />
@@ -328,6 +331,7 @@ export function BackendForm({
                 onChange={() => {
                   setKind("cloud");
                   setTouchedKind(true);
+                  setUserSelectedCloud(true);
                 }}
                 data-testid={`${testIdRoot}-kind-cloud`}
               />

@@ -1,13 +1,13 @@
 /**
  * OAuth 2.0 Device Flow client implementation (RFC 8628).
  *
- * Used for one-click authentication with OpenHands Cloud backends.
+ * Used for one-click authentication with cloud backends.
  * The flow allows users to authenticate in their browser while the
  * application polls for the resulting API key.
  *
- * For known OpenHands Cloud hosts, requests are proxied through the local
- * agent-server to avoid CORS issues. For self-hosted instances, direct
- * requests are made (assuming they have CORS configured).
+ * All device flow requests are proxied through the local agent-server's
+ * cloud-proxy endpoint to avoid CORS issues. Since a local agent-server
+ * is required to use the frontend, the proxy is always available.
  */
 
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
@@ -88,32 +88,10 @@ async function makeProxiedRequest(
 }
 
 /**
- * Make a direct request to the target host.
- * Used for self-hosted instances that have CORS configured.
- */
-async function makeDirectRequest(
-  url: string,
-  method: "GET" | "POST",
-  body?: unknown,
-  contentType?: string,
-  signal?: AbortSignal,
-): Promise<Response> {
-  return fetch(url, {
-    method,
-    headers: contentType ? { "Content-Type": contentType } : {},
-    body: body
-      ? contentType?.includes("form")
-        ? (body as BodyInit)
-        : JSON.stringify(body)
-      : undefined,
-    signal,
-  });
-}
-
-/**
  * Start the OAuth 2.0 Device Flow by requesting a device code.
+ * All requests are proxied through the local agent-server to avoid CORS issues.
  *
- * @param host - The OpenHands Cloud host URL (e.g., "https://app.all-hands.dev")
+ * @param host - The cloud backend host URL (e.g., "https://app.all-hands.dev")
  * @returns DeviceAuthorizationResponse with device_code, user_code, verification URLs, etc.
  * @throws DeviceFlowError if the request fails
  */
@@ -121,27 +99,15 @@ export async function startDeviceFlow(
   host: string,
 ): Promise<DeviceAuthorizationResponse> {
   const normalizedHost = host.replace(/\/+$/, "");
-  const useProxy = isOpenHandsCloudHost(host);
 
   try {
-    let response: Response;
-
-    if (useProxy) {
-      response = await makeProxiedRequest(
-        normalizedHost,
-        "POST",
-        "/oauth/device/authorize",
-        {},
-        "application/json",
-      );
-    } else {
-      response = await makeDirectRequest(
-        `${normalizedHost}/oauth/device/authorize`,
-        "POST",
-        {},
-        "application/json",
-      );
-    }
+    const response = await makeProxiedRequest(
+      normalizedHost,
+      "POST",
+      "/oauth/device/authorize",
+      {},
+      "application/json",
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -193,8 +159,9 @@ export interface PollOptions {
 
 /**
  * Poll for the API key after user authorization.
+ * All requests are proxied through the local agent-server to avoid CORS issues.
  *
- * @param host - The OpenHands Cloud host URL
+ * @param host - The cloud backend host URL
  * @param deviceCode - The device code from startDeviceFlow
  * @param options - Polling options including interval, timeout, and abort signal
  * @returns DeviceTokenResponse containing the access_token (API key)
@@ -206,7 +173,6 @@ export async function pollForToken(
   options: PollOptions,
 ): Promise<DeviceTokenResponse> {
   const normalizedHost = host.replace(/\/+$/, "");
-  const useProxy = isOpenHandsCloudHost(host);
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   let interval = options.interval * 1000; // Convert to milliseconds
   const startTime = Date.now();
@@ -218,28 +184,15 @@ export async function pollForToken(
     }
 
     try {
-      let response: Response;
-
-      if (useProxy) {
-        // For proxied requests, send the form data as a string in the body
-        // The proxy will forward it with the correct content type
-        response = await makeProxiedRequest(
-          normalizedHost,
-          "POST",
-          "/oauth/device/token",
-          `device_code=${encodeURIComponent(deviceCode)}`,
-          "application/x-www-form-urlencoded",
-        );
-      } else {
-        response = await fetch(`${normalizedHost}/oauth/device/token`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({ device_code: deviceCode }),
-          signal: options.signal,
-        });
-      }
+      // Send the form data as a string in the body
+      // The proxy will forward it with the correct content type
+      const response = await makeProxiedRequest(
+        normalizedHost,
+        "POST",
+        "/oauth/device/token",
+        `device_code=${encodeURIComponent(deviceCode)}`,
+        "application/x-www-form-urlencoded",
+      );
 
       if (response.ok) {
         const data = await response.json();

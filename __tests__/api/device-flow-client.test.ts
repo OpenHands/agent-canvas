@@ -18,10 +18,7 @@ vi.mock("../../src/api/backend-registry/auth", () => ({
   buildAuthHeaders: () => ({ "X-Session-API-Key": "test-api-key" }),
 }));
 
-// Use a non-cloud host for direct request tests
-const SELF_HOSTED_URL = "https://my-openhands-server.com";
-// Use a cloud host for proxy tests
-const CLOUD_HOST_URL = "https://app.all-hands.dev";
+const TEST_HOST_URL = "https://app.all-hands.dev";
 
 describe("device-flow-client", () => {
   beforeEach(() => {
@@ -57,347 +54,287 @@ describe("device-flow-client", () => {
   });
 
   describe("startDeviceFlow", () => {
-    describe("direct requests (self-hosted)", () => {
-      it("returns device authorization response on success", async () => {
-        const mockResponse = {
-          device_code: "device123",
-          user_code: "USER-1234",
-          verification_uri: `${SELF_HOSTED_URL}/device`,
-          verification_uri_complete: `${SELF_HOSTED_URL}/device?user_code=USER-1234`,
-          expires_in: 600,
-          interval: 5,
-        };
+    it("returns device authorization response on success", async () => {
+      const mockResponse = {
+        device_code: "device123",
+        user_code: "USER-1234",
+        verification_uri: `${TEST_HOST_URL}/device`,
+        verification_uri_complete: `${TEST_HOST_URL}/device?user_code=USER-1234`,
+        expires_in: 600,
+        interval: 5,
+      };
 
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockResponse),
-        });
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
 
-        const result = await startDeviceFlow(SELF_HOSTED_URL);
+      const result = await startDeviceFlow(TEST_HOST_URL);
 
-        expect(result).toEqual(mockResponse);
-        expect(fetch).toHaveBeenCalledWith(
-          `${SELF_HOSTED_URL}/oauth/device/authorize`,
-          expect.objectContaining({
-            method: "POST",
+      expect(result).toEqual(mockResponse);
+      // Should call the local proxy endpoint
+      expect(fetch).toHaveBeenCalledWith(
+        "http://localhost:18000/api/cloud-proxy",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            "X-Session-API-Key": "test-api-key",
           }),
-        );
-      });
-
-      it("normalizes host URL by removing trailing slashes", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              device_code: "dc",
-              user_code: "uc",
-              verification_uri: "v",
-              verification_uri_complete: "vc",
-              expires_in: 600,
-              interval: 5,
-            }),
-        });
-
-        await startDeviceFlow(`${SELF_HOSTED_URL}///`);
-
-        expect(fetch).toHaveBeenCalledWith(
-          `${SELF_HOSTED_URL}/oauth/device/authorize`,
-          expect.any(Object),
-        );
-      });
-
-      it("throws DeviceFlowError on HTTP error", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 500,
-          text: () => Promise.resolve("Internal Server Error"),
-        });
-
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          DeviceFlowError,
-        );
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          /Failed to start device flow.*500/,
-        );
-      });
-
-      it("throws DeviceFlowError on missing required fields", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              device_code: "dc",
-              // Missing other required fields
-            }),
-        });
-
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          DeviceFlowError,
-        );
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          /missing required fields/,
-        );
-      });
-
-      it("throws DeviceFlowError on network error", async () => {
-        global.fetch = vi.fn().mockRejectedValue(new Error("Network failed"));
-
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          DeviceFlowError,
-        );
-        await expect(startDeviceFlow(SELF_HOSTED_URL)).rejects.toThrow(
-          /Network failed/,
-        );
-      });
+        }),
+      );
     });
 
-    describe("proxied requests (OpenHands Cloud)", () => {
-      it("uses cloud proxy for known cloud hosts", async () => {
-        const mockResponse = {
-          device_code: "device123",
-          user_code: "USER-1234",
-          verification_uri: `${CLOUD_HOST_URL}/device`,
-          verification_uri_complete: `${CLOUD_HOST_URL}/device?user_code=USER-1234`,
-          expires_in: 600,
-          interval: 5,
-        };
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockResponse),
-        });
-
-        const result = await startDeviceFlow(CLOUD_HOST_URL);
-
-        expect(result).toEqual(mockResponse);
-        // Should call the local proxy endpoint, not the cloud host directly
-        expect(fetch).toHaveBeenCalledWith(
-          "http://localhost:18000/api/cloud-proxy",
-          expect.objectContaining({
-            method: "POST",
-            headers: expect.objectContaining({
-              "Content-Type": "application/json",
-              "X-Session-API-Key": "test-api-key",
-            }),
+    it("normalizes host URL by removing trailing slashes", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            device_code: "dc",
+            user_code: "uc",
+            verification_uri: "v",
+            verification_uri_complete: "vc",
+            expires_in: 600,
+            interval: 5,
           }),
-        );
       });
+
+      await startDeviceFlow(`${TEST_HOST_URL}///`);
+
+      // Verify the proxy body contains the normalized host
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const body = JSON.parse(fetchCall[1].body);
+      expect(body.host).toBe(TEST_HOST_URL);
+    });
+
+    it("throws DeviceFlowError on HTTP error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Internal Server Error"),
+      });
+
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        DeviceFlowError,
+      );
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        /Failed to start device flow.*500/,
+      );
+    });
+
+    it("throws DeviceFlowError on missing required fields", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            device_code: "dc",
+            // Missing other required fields
+          }),
+      });
+
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        DeviceFlowError,
+      );
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        /missing required fields/,
+      );
+    });
+
+    it("throws DeviceFlowError on network error", async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error("Network failed"));
+
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        DeviceFlowError,
+      );
+      await expect(startDeviceFlow(TEST_HOST_URL)).rejects.toThrow(
+        /Network failed/,
+      );
     });
   });
 
   describe("pollForToken", () => {
-    describe("direct requests (self-hosted)", () => {
-      it("returns token response on immediate success", async () => {
-        const mockTokenResponse = {
-          access_token: "api-key-123",
-          token_type: "Bearer",
-        };
+    it("returns token response on immediate success", async () => {
+      const mockTokenResponse = {
+        access_token: "api-key-123",
+        token_type: "Bearer",
+      };
 
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(mockTokenResponse),
-        });
-
-        const result = await pollForToken(SELF_HOSTED_URL, "device123", {
-          interval: 5,
-        });
-
-        expect(result).toEqual(mockTokenResponse);
-        expect(fetch).toHaveBeenCalledWith(
-          `${SELF_HOSTED_URL}/oauth/device/token`,
-          expect.objectContaining({
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          }),
-        );
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockTokenResponse),
       });
 
-      it("polls until authorization is complete", async () => {
-        const pendingResponse = {
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "authorization_pending",
-              error_description: "User hasn't authorized yet",
-            }),
-        };
-        const successResponse = {
-          ok: true,
-          status: 200,
-          json: () =>
-            Promise.resolve({
-              access_token: "api-key-123",
-              token_type: "Bearer",
-            }),
-        };
+      const result = await pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+      });
 
-        global.fetch = vi
-          .fn()
-          .mockResolvedValueOnce(pendingResponse)
-          .mockResolvedValueOnce(successResponse);
+      expect(result).toEqual(mockTokenResponse);
+      // Should call the local proxy endpoint
+      expect(fetch).toHaveBeenCalledWith(
+        "http://localhost:18000/api/cloud-proxy",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            "X-Session-API-Key": "test-api-key",
+          }),
+        }),
+      );
+    });
 
-        const pollPromise = pollForToken(SELF_HOSTED_URL, "device123", {
+    it("polls until authorization is complete", async () => {
+      const pendingResponse = {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "authorization_pending",
+            error_description: "User hasn't authorized yet",
+          }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(pendingResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 1,
+      });
+
+      // Advance past the first poll interval
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("increases interval on slow_down error", async () => {
+      const slowDownResponse = {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "slow_down",
+            interval: 10,
+          }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(slowDownResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+      });
+
+      // Advance by new interval (10 seconds)
+      await vi.advanceTimersByTimeAsync(10000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+    });
+
+    it("throws on expired_token error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "expired_token",
+          }),
+      });
+
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", { interval: 1 }),
+      ).rejects.toThrow(DeviceFlowError);
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", { interval: 1 }),
+      ).rejects.toThrow(/expired/i);
+    });
+
+    it("throws on access_denied error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "access_denied",
+          }),
+      });
+
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", { interval: 1 }),
+      ).rejects.toThrow(DeviceFlowError);
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", { interval: 1 }),
+      ).rejects.toThrow(/denied/i);
+    });
+
+    it("respects abort signal", async () => {
+      vi.useRealTimers(); // Use real timers for this test
+      const controller = new AbortController();
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "authorization_pending",
+          }),
+      });
+
+      // Pre-abort the controller
+      controller.abort();
+
+      // Now the promise should reject immediately with cancelled
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", {
           interval: 1,
-        });
-
-        // Advance past the first poll interval
-        await vi.advanceTimersByTimeAsync(1000);
-
-        const result = await pollPromise;
-        expect(result.access_token).toBe("api-key-123");
-        expect(fetch).toHaveBeenCalledTimes(2);
-      });
-
-      it("increases interval on slow_down error", async () => {
-        const slowDownResponse = {
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "slow_down",
-              interval: 10,
-            }),
-        };
-        const successResponse = {
-          ok: true,
-          status: 200,
-          json: () =>
-            Promise.resolve({
-              access_token: "api-key-123",
-              token_type: "Bearer",
-            }),
-        };
-
-        global.fetch = vi
-          .fn()
-          .mockResolvedValueOnce(slowDownResponse)
-          .mockResolvedValueOnce(successResponse);
-
-        const pollPromise = pollForToken(SELF_HOSTED_URL, "device123", {
-          interval: 5,
-        });
-
-        // Advance by new interval (10 seconds)
-        await vi.advanceTimersByTimeAsync(10000);
-
-        const result = await pollPromise;
-        expect(result.access_token).toBe("api-key-123");
-      });
-
-      it("throws on expired_token error", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "expired_token",
-            }),
-        });
-
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", { interval: 1 }),
-        ).rejects.toThrow(DeviceFlowError);
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", { interval: 1 }),
-        ).rejects.toThrow(/expired/i);
-      });
-
-      it("throws on access_denied error", async () => {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "access_denied",
-            }),
-        });
-
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", { interval: 1 }),
-        ).rejects.toThrow(DeviceFlowError);
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", { interval: 1 }),
-        ).rejects.toThrow(/denied/i);
-      });
-
-      it("respects abort signal", async () => {
-        vi.useRealTimers(); // Use real timers for this test
-        const controller = new AbortController();
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "authorization_pending",
-            }),
-        });
-
-        // Pre-abort the controller
-        controller.abort();
-
-        // Now the promise should reject immediately with cancelled
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", {
-            interval: 1,
-            signal: controller.signal,
-          }),
-        ).rejects.toThrow(/cancelled/i);
-      });
-
-      it("times out after specified duration", async () => {
-        vi.useRealTimers(); // Use real timers for this test
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: "authorization_pending",
-            }),
-        });
-
-        // Use very short timeout
-        await expect(
-          pollForToken(SELF_HOSTED_URL, "device123", {
-            interval: 0.01, // 10ms interval
-            timeout: 50, // 50ms timeout
-          }),
-        ).rejects.toThrow(/timeout/i);
-      }, 10000);
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow(/cancelled/i);
     });
 
-    describe("proxied requests (OpenHands Cloud)", () => {
-      it("uses cloud proxy for known cloud hosts", async () => {
-        const mockTokenResponse = {
-          access_token: "api-key-123",
-          token_type: "Bearer",
-        };
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(mockTokenResponse),
-        });
-
-        const result = await pollForToken(CLOUD_HOST_URL, "device123", {
-          interval: 5,
-        });
-
-        expect(result).toEqual(mockTokenResponse);
-        // Should call the local proxy endpoint, not the cloud host directly
-        expect(fetch).toHaveBeenCalledWith(
-          "http://localhost:18000/api/cloud-proxy",
-          expect.objectContaining({
-            method: "POST",
-            headers: expect.objectContaining({
-              "Content-Type": "application/json",
-              "X-Session-API-Key": "test-api-key",
-            }),
+    it("times out after specified duration", async () => {
+      vi.useRealTimers(); // Use real timers for this test
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "authorization_pending",
           }),
-        );
       });
-    });
+
+      // Use very short timeout
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", {
+          interval: 0.01, // 10ms interval
+          timeout: 50, // 50ms timeout
+        }),
+      ).rejects.toThrow(/timeout/i);
+    }, 10000);
   });
 });
