@@ -229,7 +229,7 @@ export function Sidebar() {
           />
           <SidebarNavLink
             to="/mcp"
-            label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
+            label={t(I18nKey.SIDEBAR$MCP_DIRECTORY)}
             testId="sidebar-mcp-link"
             disabled={linkDisabled}
             collapsed={collapsed}
