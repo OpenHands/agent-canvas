@@ -12,6 +12,7 @@ export default [
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("launch", "routes/launch.tsx"),
     route("skills", "routes/skills-settings.tsx"),
+    route("skills/plugins", "routes/skills-plugins.tsx"),
     route("mcp", "routes/mcp.tsx"),
     route("integrations", "routes/git-settings.tsx"),
     route("settings", "routes/settings.tsx", [

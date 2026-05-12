@@ -70,6 +70,16 @@ describe("SkillsSettingsScreen", () => {
       "skills-settings-description-badge",
     );
     expect(badge).toHaveTextContent("SETTINGS$SKILLS_DESCRIPTION");
+    expect(screen.getByText("Extensions")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-extensions-/skills")).toHaveTextContent(
+      "Skills",
+    );
+    expect(
+      screen.getByTestId("sidebar-extensions-/skills/plugins"),
+    ).toHaveTextContent("Plugins");
+    expect(screen.getByTestId("sidebar-extensions-/mcp")).toHaveTextContent(
+      "MCP Servers",
+    );
   });
 
   it("surfaces the YAML description and a friendly type label instead of the raw source path", async () => {
