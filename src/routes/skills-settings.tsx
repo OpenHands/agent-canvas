@@ -73,7 +73,7 @@ function SkillsSettingsScreen() {
           <h2 className="text-xl font-semibold leading-6 text-foreground">
             Skills
           </h2>
-          <div className="max-w-2xl text-sm text-muted">
+          <div className="max-w-2xl text-sm text-tertiary-light">
             Discover skills to add to your workspace. Open a card for prompts,
             curl, and install flows. Search from the sidebar to filter the list.
             Enable or disable default skills. Disabled skills will not be loaded

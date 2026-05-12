@@ -197,7 +197,7 @@ export default function MCPPage() {
               {t(I18nKey.MCP$ADD_CUSTOM)}
             </BrandButton>
           </div>
-          <div className="max-w-2xl text-sm text-muted">
+          <div className="max-w-2xl text-sm text-tertiary-light">
             {t(I18nKey.MCP$PAGE_DESCRIPTION)}
           </div>
         </div>
