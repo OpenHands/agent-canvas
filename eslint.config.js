@@ -79,13 +79,13 @@ export default [
   // Project-wide settings + React/TS/etc. rules for source files.
   {
     files: ["**/*.{ts,tsx,js,jsx,mjs,cjs}"],
-    // Don't fail (or even warn) when an existing
-    // `// eslint-disable-next-line ...` directive targets a rule that this
-    // config no longer enables. The codebase has ~50 such directives left
-    // over from the airbnb era; flagging them every commit is noise and
-    // they'll be cleaned up incrementally.
+    // Surface (but don't fail on) `// eslint-disable-next-line ...` directives
+    // that target rules this config no longer enables. The codebase has ~50
+    // such directives left over from the airbnb era; "warn" lets us clean
+    // them up incrementally instead of either failing CI on day one or
+    // letting new stale directives accumulate silently.
     linterOptions: {
-      reportUnusedDisableDirectives: "off",
+      reportUnusedDisableDirectives: "warn",
     },
     languageOptions: {
       ecmaVersion: "latest",
@@ -191,6 +191,13 @@ export default [
       // most likely to fire on this codebase.
       "import-x/prefer-default-export": "off",
       "import-x/no-extraneous-dependencies": "off",
+      // `import-x/no-unresolved` is redundant with the TypeScript compiler:
+      // `tsc` (run as `npm run typecheck` before `eslint`) already fails on
+      // unresolved imports with much better error messages, and the rule
+      // has known false positives with `paths`/exports-map resolution even
+      // when the typescript resolver is configured. Keeping it on duplicates
+      // tsc errors and produces noise on Vite's `?url` / `?worker` import
+      // suffixes that ESLint can't see through.
       "import-x/no-unresolved": "off",
       // These two fire a lot of false positives on TypeScript projects that
       // import a namespace and then call methods off it (`import api from
