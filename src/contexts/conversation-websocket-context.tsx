@@ -824,7 +824,7 @@ export function ConversationWebSocketProvider({
       const currentSocket =
         currentMode === "plan" ? planningAgentSocket : mainSocket;
 
-      if (!currentSocket || currentSocket.readyState !== WebSocket.OPEN) {
+      if (currentSocket?.readyState !== WebSocket.OPEN) {
         // WebSocket not connected - queue message via REST API
         // Message will be delivered automatically when conversation becomes ready
         if (!conversationId) {

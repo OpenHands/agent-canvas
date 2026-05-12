@@ -125,7 +125,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       // retry link instead of a permanently-pinned "Sending…" bubble.
       setTimeout(() => {
         const current = get().pendingMessages.find((m) => m.id === id);
-        if (current && current.status === "sending") {
+        if (current?.status === "sending") {
           get().markPendingMessageError(id, "Send timed out");
         }
       }, PENDING_MESSAGE_TIMEOUT_MS);
