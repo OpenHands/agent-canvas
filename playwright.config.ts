@@ -32,7 +32,7 @@ export default defineConfig({
   expect: {
     toHaveScreenshot: {
       /* Threshold for pixel comparison (0-1, lower = stricter) */
-      threshold: 0.2,
+      threshold: 0.01,
       /* Maximum allowed different pixels */
       maxDiffPixels: 100,
     },

@@ -120,36 +120,16 @@ async function dismissConsentModal(page: Page) {
 
 test.describe("UI Visual Snapshots", () => {
   test("Analytics consent modal renders correctly", async ({ page }) => {
-    // This test captures the consent modal - skip mocks so modal appears naturally
-    await page.addInitScript(() => {
-      window.localStorage.setItem("openhands-onboarded", "true");
-    });
-
-    // Mock file APIs to prevent proxy errors
-    await page.route("**/api/file/**", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ path: "/home", subdirs: [] }),
-      });
-    });
+    // Use setupMocks with showConsentModal=true to guarantee modal appears
+    await setupMocks(page, true);
 
     await page.goto("/conversations");
 
-    // Wait for either the consent modal or the home screen
+    // Wait for the consent modal to be visible
     const consentModal = page.getByRole("dialog", {
       name: "Help improve OpenHands",
     });
-    const homeScreen = page.getByTestId("home-screen");
-
-    // Try to wait for consent modal, but if it doesn't appear, skip the test
-    try {
-      await expect(consentModal).toBeVisible({ timeout: 5000 });
-    } catch {
-      // In mock mode, the modal may not appear - skip snapshot
-      test.skip(true, "Consent modal not shown in mock mode");
-      return;
-    }
+    await expect(consentModal).toBeVisible();
 
     // Snapshot the full page with the consent modal
     const rootLayout = page.getByTestId("root-layout");
