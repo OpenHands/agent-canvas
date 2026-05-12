@@ -2,10 +2,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import {
-  getAgentServerWorkingDir,
-  shouldLoadPublicSkills,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
@@ -295,7 +292,7 @@ function createAgentFromSettings(agentSettings: SettingsRecord) {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
-      load_public_skills: shouldLoadPublicSkills(),
+      load_public_skills: true,
       load_user_skills: true,
     },
   };
