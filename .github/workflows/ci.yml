@@ -40,7 +40,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -205,7 +205,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        run: npm ci --ignore-scripts
+        run: npm ci
 
       - name: Install uv
         if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
