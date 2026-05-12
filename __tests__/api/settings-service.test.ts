@@ -278,6 +278,113 @@ describe("SettingsService", () => {
     expect(settings.provider_tokens_set).toEqual({});
   });
 
+  it("pre-clears mcp_config before writing the new value on the local backend", async () => {
+    // The agent-server PATCH applies agent_settings_diff via deep-merge,
+    // which cannot remove name-keyed entries from mcp_config.mcpServers.
+    // saveSettings must compensate by sending a {mcp_config: null} PATCH
+    // first so the follow-up PATCH effectively replaces the field. Without
+    // this, deleting a server leaves stale mcpServers keys behind and
+    // shifted indices produce duplicate entries.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { mcp_config: null } },
+      {
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+        },
+      },
+    ]);
+  });
+
+  it("does not pre-clear when the mcp_config diff is already null on the local backend", async () => {
+    // When the caller is wiping mcp_config entirely (e.g. user removed the
+    // last server), a single PATCH already takes effect because null is
+    // not a dict and deep-merge replaces rather than recurses. A second
+    // clear would be wasted work.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: { mcp_config: null },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { mcp_config: null } },
+    ]);
+  });
+
+  it("does not pre-clear when the diff has no mcp_config on the local backend", async () => {
+    // A typical settings save (LLM model, condenser, …) must NOT incur the
+    // mcp_config pre-clear round-trip — that would needlessly drop the
+    // user's MCP servers if anything ever raced.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: { agent: "CodeActAgent" },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { agent: "CodeActAgent" } },
+    ]);
+  });
+
+  it("pre-clears mcp_config on the cloud backend before writing the new value", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(1, {
+      agent_settings_diff: { mcp_config: null },
+    });
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+  });
+
   it("lets the cloud response override locally-stored app preferences", async () => {
     // Arrange: localStorage holds a stale "fr" while the cloud is the
     // authoritative source and returns "ja".
@@ -297,5 +404,4 @@ describe("SettingsService", () => {
     // Assert: the server wins.
     expect(settings.language).toBe("ja");
   });
-
 });

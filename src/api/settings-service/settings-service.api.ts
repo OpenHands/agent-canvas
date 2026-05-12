@@ -355,6 +355,29 @@ class SettingsService {
 
     const isCloud = getActiveBackend().backend.kind === "cloud";
 
+    // The backend applies ``agent_settings_diff`` by deep-merging it into the
+    // existing ``agent_settings`` dict (see SDK
+    // ``openhands.agent_server.persistence.models._deep_merge``). That works
+    // for scalar fields but is wrong for ``mcp_config.mcpServers``, which is
+    // a name-keyed map: a diff that omits a server cannot remove it (stale
+    // key stays), and a diff whose key indices shift (e.g. after deleting
+    // index 0, the second server is renumbered) leaves the original keys
+    // behind as duplicates pointing to the wrong server config.
+    //
+    // The only way to make ``mcp_config`` behave like a replace through this
+    // API is to first null it out — ``null`` is not a dict, so deep-merge
+    // takes the else branch and sets the field to ``None`` outright — and
+    // then send the new value in a follow-up call. We do this for every
+    // ``mcp_config`` write, including adds (the wasted round-trip is
+    // negligible for this user action and avoids divergent code paths).
+    const agentDiff = payload.agent_settings_diff;
+    // Send a pre-clear PATCH when the diff sets ``mcp_config`` to a non-null
+    // value. A second PATCH below then writes the new value. Skipping the
+    // pre-clear when the caller is already clearing (``mcp_config: null``)
+    // avoids a pointless duplicate request.
+    const needsMcpPreClear =
+      !!agentDiff && "mcp_config" in agentDiff && agentDiff.mcp_config !== null;
+
     if (isCloud) {
       const hasCloudWork =
         !!payload.agent_settings_diff ||
@@ -363,6 +386,13 @@ class SettingsService {
         hasAppPreferences;
       if (!hasCloudWork) {
         return true;
+      }
+      if (needsMcpPreClear) {
+        await withRetry(() =>
+          saveCloudSettings({
+            agent_settings_diff: { mcp_config: null },
+          }),
+        );
       }
       await withRetry(() =>
         saveCloudSettings({
@@ -387,6 +417,13 @@ class SettingsService {
           clearCache();
         }
         return true;
+      }
+      if (needsMcpPreClear) {
+        await withRetry(() =>
+          new SettingsClient(getAgentServerClientOptions()).updateSettings({
+            agent_settings_diff: { mcp_config: null },
+          }),
+        );
       }
       await withRetry(() =>
         new SettingsClient(getAgentServerClientOptions()).updateSettings(
