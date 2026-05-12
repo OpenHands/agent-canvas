@@ -104,13 +104,21 @@ class EventService {
     if (active.kind === "cloud") {
       // Event *history* lives on the SaaS App API, not the runtime
       // sandbox. Path is singular `conversation` and v1-prefixed.
+      //
+      // Mirror the OpenHands SaaS frontend's request shape and send ONLY
+      // `limit`. The SaaS app-server's `search_events` has a server-side
+      // TypeError when filtering by `timestamp__lt` / `timestamp__gte`
+      // (it compares the stored `event.timestamp` str against the parsed
+      // datetime, which raises in Python 3 and surfaces as HTTP 500). The
+      // cloud frontend has never sent timestamp/sort/page filters here,
+      // so the broken path is untested; the safe contract is "limit
+      // only" until the server is fixed. `sort_order` and `page_id` are
+      // also dropped — neither is part of the proven-working shape, and
+      // older-event pagination is gated off in `useLoadOlderEvents` for
+      // cloud, so they have no caller to satisfy.
+      const cloudLimit = Math.min(limit, 100);
       const params = new URLSearchParams();
-      params.set("limit", String(limit));
-      if (options.pageId) params.set("page_id", options.pageId);
-      if (options.sortOrder) params.set("sort_order", options.sortOrder);
-      if (options.timestampGte)
-        params.set("timestamp__gte", options.timestampGte);
-      if (options.timestampLt) params.set("timestamp__lt", options.timestampLt);
+      params.set("limit", String(cloudLimit));
 
       const data = await callCloudProxy<EventSearchPage<OpenHandsEvent>>({
         backend: active,
