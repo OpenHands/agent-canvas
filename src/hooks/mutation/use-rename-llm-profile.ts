@@ -29,5 +29,7 @@ export function useRenameLlmProfile() {
         queryKey: SETTINGS_QUERY_KEYS.all,
       });
     },
+    // Consumers handle errors with try-catch and manual toasts; disable global toast
+    meta: { disableToast: true },
   });
 }

@@ -273,7 +273,7 @@ describe("LlmSettingsScreen", () => {
     expect(profileNameInput).toHaveValue("my_profile");
   });
 
-  it("fetches existing profile with encrypted mode when entering edit mode", async () => {
+  it("fetches existing profile data when entering edit mode", async () => {
     const user = userEvent.setup();
 
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(

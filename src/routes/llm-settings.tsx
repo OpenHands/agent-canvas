@@ -571,6 +571,10 @@ function LlmSettingsLocalView({
             name: originalProfileName,
             newName: targetName,
           });
+          // Update originalProfileName immediately after successful rename
+          // to prevent retry bug: if save fails below, retrying should use
+          // the new name (not the old name which no longer exists)
+          setOriginalProfileName(targetName);
         }
 
         // Check if user provided a new API key
