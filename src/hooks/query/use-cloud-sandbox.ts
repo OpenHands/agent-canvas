@@ -7,13 +7,7 @@ export const useCloudSandbox = (sandboxId: string | null | undefined) => {
   const isCloud = active.backend.kind === "cloud";
 
   return useQuery({
-    queryKey: [
-      "cloud",
-      "sandbox",
-      active.backend.id,
-      active.orgId,
-      sandboxId,
-    ],
+    queryKey: ["cloud", "sandbox", active.backend.id, active.orgId, sandboxId],
     queryFn: async () => {
       if (!sandboxId) return null;
       const [sandbox] = await batchGetCloudSandboxes([sandboxId]);
