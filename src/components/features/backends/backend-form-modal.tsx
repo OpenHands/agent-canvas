@@ -163,21 +163,13 @@ export function BackendForm({
   // In add mode, infer the kind from the host; in edit mode, the user
   // already chose one, so don't re-infer over their choice.
   const [touchedKind, setTouchedKind] = React.useState(mode === "edit");
-  // Track if user has explicitly selected "cloud" via radio button (vs initial default)
-  const [userSelectedCloud, setUserSelectedCloud] = React.useState(false);
 
-  // Auto-infer kind from host. Special case: if user explicitly selected "cloud"
-  // via radio button, don't downgrade to "local" when they type a custom host.
+  // Auto-infer kind from host when user hasn't explicitly selected a kind via radio
   React.useEffect(() => {
     if (!touchedKind && host) {
-      const inferred = inferKindFromHost(host);
-      // Only skip inference if user explicitly selected cloud AND we would downgrade
-      if (userSelectedCloud && inferred === "local") {
-        return; // Keep cloud when user explicitly chose it
-      }
-      setKind(inferred);
+      setKind(inferKindFromHost(host));
     }
-  }, [host, touchedKind, userSelectedCloud]);
+  }, [host, touchedKind]);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
@@ -317,7 +309,6 @@ export function BackendForm({
                 onChange={() => {
                   setKind("local");
                   setTouchedKind(true);
-                  setUserSelectedCloud(false);
                 }}
                 data-testid={`${testIdRoot}-kind-local`}
               />
@@ -331,7 +322,6 @@ export function BackendForm({
                 onChange={() => {
                   setKind("cloud");
                   setTouchedKind(true);
-                  setUserSelectedCloud(true);
                 }}
                 data-testid={`${testIdRoot}-kind-cloud`}
               />

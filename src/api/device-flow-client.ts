@@ -253,11 +253,17 @@ export async function pollForToken(
 
         case "slow_down":
           // Server asks us to poll less frequently
-          // Validate server-provided interval to prevent DoS
-          if (errorData.interval != null) {
+          // RFC 8628 Section 3.5: "the client MUST increase its polling interval by 5 seconds"
+          // Validate server-provided interval to prevent DoS (must be number, finite, positive)
+          if (
+            typeof errorData.interval === "number" &&
+            isFinite(errorData.interval) &&
+            errorData.interval > 0
+          ) {
             interval = Math.max(1, Math.min(errorData.interval, 30)) * 1000;
           } else {
-            interval = Math.min(interval * 2, MAX_INTERVAL_MS);
+            // RFC 8628 mandates incrementing by 5 seconds
+            interval = Math.min(interval + 5000, MAX_INTERVAL_MS);
           }
           break;
 
@@ -280,20 +286,28 @@ export async function pollForToken(
           );
       }
     } catch (error) {
-      // Network errors during polling should continue until timeout, not fail immediately
+      // DeviceFlowError means a definitive error (denied, expired, etc.) - rethrow
       if (error instanceof DeviceFlowError) {
         throw error;
       }
+      // User cancelled - rethrow
       if (error instanceof DOMException && error.name === "AbortError") {
         throw new DeviceFlowError("Authorization cancelled", "cancelled");
       }
-      throw new DeviceFlowError(
-        `Network error during token polling: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // Network errors during polling should continue until timeout, not fail immediately
+      // Brief network hiccups shouldn't abort 10-minute flows
+      console.warn("Network error during polling, retrying:", error);
     }
 
-    // Wait before next poll
-    await sleep(interval, options.signal);
+    // Wait before next poll (wrap in try-catch for consistent abort handling)
+    try {
+      await sleep(interval, options.signal);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new DeviceFlowError("Authorization cancelled", "cancelled");
+      }
+      throw error;
+    }
   }
 
   throw new DeviceFlowError(

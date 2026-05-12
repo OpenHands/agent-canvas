@@ -131,8 +131,12 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
           apiKey: tokenResponse.access_token,
         });
       } catch (error) {
+        // Early return if component unmounted or user cancelled
         if (abortController.signal.aborted) return;
 
+        // Defensive: handle cancellation errors that may slip through
+        // (currently pollForToken only throws "cancelled" when signal.aborted,
+        // which is caught above, but this guards against future changes)
         const isCancel =
           error instanceof DeviceFlowError && error.code === "cancelled";
         if (isCancel) {

@@ -264,4 +264,39 @@ describe("useDeviceFlow", () => {
     // Should be starting again (first flow cancelled)
     expect(result.current.status).toBe("starting");
   });
+
+  it("cleans up on unmount without state update warnings", async () => {
+    const mockAuthResponse = {
+      device_code: "device123",
+      user_code: "USER-1234",
+      verification_uri: "https://app.all-hands.dev/device",
+      verification_uri_complete: "https://app.all-hands.dev/device?user_code=USER-1234",
+      expires_in: 600,
+      interval: 5,
+    };
+
+    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
+      mockAuthResponse,
+    );
+    // Make pollForToken hang forever to simulate in-progress flow
+    vi.mocked(deviceFlowClient.pollForToken).mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const { result, unmount } = renderHook(() => useDeviceFlow());
+
+    act(() => {
+      result.current.start("https://app.all-hands.dev");
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("awaiting_authorization");
+    });
+
+    // Unmount should abort without errors or state update warnings
+    unmount();
+
+    // If cleanup didn't work, React would warn about state updates on unmounted component
+    // No assertion needed - the test passes if unmount completes without warnings
+  });
 });

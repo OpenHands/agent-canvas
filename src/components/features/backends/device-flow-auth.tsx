@@ -22,6 +22,19 @@ interface DeviceFlowAuthProps {
  * authentication. Displays status during the auth process and auto-opens
  * the browser for user authorization.
  */
+/**
+ * Validate that a URL is safe to open in a popup.
+ * Prevents XSS via javascript: URLs or other malicious schemes.
+ */
+function isValidVerificationUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function DeviceFlowAuth({
   host,
   onSuccess,
@@ -32,6 +45,13 @@ export function DeviceFlowAuth({
   const deviceFlow = useDeviceFlow();
   const popupRef = React.useRef<Window | null>(null);
 
+  // Close popup on unmount or when auth completes/errors
+  React.useEffect(() => {
+    return () => {
+      popupRef.current?.close();
+    };
+  }, []);
+
   // Update popup URL when verification URL becomes available
   React.useEffect(() => {
     if (
@@ -40,6 +60,11 @@ export function DeviceFlowAuth({
       popupRef.current &&
       !popupRef.current.closed
     ) {
+      // Validate URL before assigning to prevent XSS
+      if (!isValidVerificationUrl(deviceFlow.verificationUrl)) {
+        console.error("Invalid verification URL protocol");
+        return;
+      }
       try {
         popupRef.current.location.href = deviceFlow.verificationUrl;
       } catch {
@@ -57,10 +82,14 @@ export function DeviceFlowAuth({
   // Call onSuccess when authentication completes
   React.useEffect(() => {
     if (deviceFlow.status === "success" && deviceFlow.apiKey) {
-      onSuccess(deviceFlow.apiKey);
-      deviceFlow.reset();
+      try {
+        onSuccess(deviceFlow.apiKey);
+      } finally {
+        deviceFlow.reset();
+        popupRef.current?.close();
+      }
     }
-  }, [deviceFlow.status, deviceFlow.apiKey, onSuccess]);
+  }, [deviceFlow.status, deviceFlow.apiKey, deviceFlow.reset, onSuccess]);
 
   const handleStartAuth = () => {
     // Normalize and validate the host URL
@@ -140,19 +169,20 @@ export function DeviceFlowAuth({
           <p className="text-sm text-gray-300">
             {t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
           </p>
-          {deviceFlow.verificationUrl && (
-            <div className="text-xs text-gray-400">
-              <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
-              <a
-                href={deviceFlow.verificationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline break-all"
-              >
-                {deviceFlow.verificationUrl}
-              </a>
-            </div>
-          )}
+          {deviceFlow.verificationUrl &&
+            isValidVerificationUrl(deviceFlow.verificationUrl) && (
+              <div className="text-xs text-gray-400">
+                <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
+                <a
+                  href={deviceFlow.verificationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline break-all"
+                >
+                  {deviceFlow.verificationUrl}
+                </a>
+              </div>
+            )}
           <BrandButton
             type="button"
             variant="secondary"

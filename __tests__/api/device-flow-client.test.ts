@@ -355,5 +355,152 @@ describe("device-flow-client", () => {
         }),
       ).rejects.toThrow(/timeout/i);
     }, 10000);
+
+    it("caps slow_down interval at 30 seconds (DoS protection)", async () => {
+      const slowDownResponse = {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "slow_down",
+            interval: 999999, // Malicious server tries to DoS
+          }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(slowDownResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+      });
+
+      // Should use 30s max, not 999999s
+      await vi.advanceTimersByTimeAsync(30000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects non-numeric slow_down interval (type confusion protection)", async () => {
+      const slowDownResponse = {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "slow_down",
+            interval: "pwned", // Non-numeric value
+          }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(slowDownResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+      });
+
+      // With invalid interval, should use RFC 8628 default: current + 5s
+      // Starting interval is 5s, so next should be 10s (5000 + 5000 = 10000ms)
+      await vi.advanceTimersByTimeAsync(10000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+    });
+
+    it("increments interval by 5 seconds per RFC 8628 when slow_down has no interval", async () => {
+      const slowDownResponse = {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "slow_down",
+            // No interval field - RFC 8628 mandates +5s increment
+          }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(slowDownResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5, // 5 seconds initial
+      });
+
+      // RFC 8628: must increment by 5 seconds, so 5s -> 10s
+      await vi.advanceTimersByTimeAsync(10000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+    });
+
+    it("continues polling on network errors instead of failing immediately", async () => {
+      const networkError = new Error("Network failed");
+      const successResponse = {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            access_token: "api-key-123",
+            token_type: "Bearer",
+          }),
+      };
+
+      // First call fails with network error, second succeeds
+      global.fetch = vi
+        .fn()
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(successResponse);
+
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 1,
+      });
+
+      // Advance past the retry interval
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const result = await pollPromise;
+      expect(result.access_token).toBe("api-key-123");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Network error during polling, retrying:",
+        networkError,
+      );
+
+      consoleSpy.mockRestore();
+    });
   });
 });
