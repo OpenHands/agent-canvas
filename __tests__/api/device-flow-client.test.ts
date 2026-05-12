@@ -36,6 +36,7 @@ describe("device-flow-client", () => {
       expect(isOpenHandsCloudHost("https://staging.all-hands.dev")).toBe(true);
       expect(isOpenHandsCloudHost("app.all-hands.dev")).toBe(true);
       expect(isOpenHandsCloudHost("ALL-HANDS.DEV")).toBe(true);
+      expect(isOpenHandsCloudHost("all-hands.dev")).toBe(true);
     });
 
     it("returns true for openhands.dev domains", () => {
@@ -50,6 +51,24 @@ describe("device-flow-client", () => {
       expect(isOpenHandsCloudHost("https://my-openhands-server.com")).toBe(
         false,
       );
+    });
+
+    it("prevents substring matching attacks", () => {
+      // These should NOT be treated as trusted hosts
+      expect(isOpenHandsCloudHost("https://all-hands.dev.evil.com")).toBe(
+        false,
+      );
+      expect(isOpenHandsCloudHost("https://malicious-all-hands.dev")).toBe(
+        false,
+      );
+      expect(isOpenHandsCloudHost("https://evil.com/all-hands.dev")).toBe(
+        false,
+      );
+    });
+
+    it("returns false for invalid URLs", () => {
+      expect(isOpenHandsCloudHost("")).toBe(false);
+      expect(isOpenHandsCloudHost("not-a-url")).toBe(false);
     });
   });
 

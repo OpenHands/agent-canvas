@@ -48,11 +48,29 @@ const DEFAULT_TIMEOUT_MS = 600_000; // 10 minutes
 const MAX_INTERVAL_MS = 30_000; // 30 seconds max polling interval
 
 /**
- * Check if a host is a known OpenHands Cloud domain that requires proxying.
+ * Check if a host is a known OpenHands Cloud domain.
+ * Uses hostname extraction to prevent substring matching attacks.
  */
 export function isOpenHandsCloudHost(host: string): boolean {
-  const trimmed = host.trim().toLowerCase();
-  return trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev");
+  try {
+    // Extract hostname from URL or treat as hostname if no protocol
+    const trimmed = host.trim().toLowerCase();
+    const withProtocol = /^https?:\/\//i.test(trimmed)
+      ? trimmed
+      : `https://${trimmed}`;
+    const url = new URL(withProtocol);
+    const hostname = url.hostname;
+
+    // Check if hostname ends with known domains (exact suffix match)
+    return (
+      hostname.endsWith(".all-hands.dev") ||
+      hostname === "all-hands.dev" ||
+      hostname.endsWith(".openhands.dev") ||
+      hostname === "openhands.dev"
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -110,31 +128,32 @@ export async function startDeviceFlow(
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
+      // Avoid exposing sensitive server error details
       throw new DeviceFlowError(
-        `Failed to start device flow: ${response.status} ${errorText}`,
+        `Failed to start device flow: Server returned ${response.status}`,
       );
     }
 
     const data = await response.json();
 
-    // Validate required fields
-    if (
-      !data.device_code ||
-      !data.user_code ||
-      !data.verification_uri ||
-      !data.verification_uri_complete
-    ) {
+    // Validate required fields per RFC 8628 Section 3.2
+    // verification_uri_complete is OPTIONAL per RFC
+    if (!data.device_code || !data.user_code || !data.verification_uri) {
       throw new DeviceFlowError(
         "Invalid response from device authorization endpoint: missing required fields",
       );
     }
 
+    // Build verification_uri_complete if not provided (optional per RFC)
+    const verificationUriComplete =
+      data.verification_uri_complete ??
+      `${data.verification_uri}?user_code=${encodeURIComponent(data.user_code)}`;
+
     return {
       device_code: data.device_code,
       user_code: data.user_code,
       verification_uri: data.verification_uri,
-      verification_uri_complete: data.verification_uri_complete,
+      verification_uri_complete: verificationUriComplete,
       expires_in: data.expires_in ?? 600,
       interval: data.interval ?? 5,
     };
@@ -174,7 +193,7 @@ export async function pollForToken(
 ): Promise<DeviceTokenResponse> {
   const normalizedHost = host.replace(/\/+$/, "");
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-  let interval = options.interval * 1000; // Convert to milliseconds
+  let interval = Math.max(1, options.interval) * 1000; // At least 1 second
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeout) {
@@ -184,13 +203,17 @@ export async function pollForToken(
     }
 
     try {
-      // Send the form data as a string in the body
-      // The proxy will forward it with the correct content type
+      // RFC 8628 Section 3.4 requires grant_type parameter
+      const tokenRequestBody = new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: deviceCode,
+      }).toString();
+
       const response = await makeProxiedRequest(
         normalizedHost,
         "POST",
         "/oauth/device/token",
-        `device_code=${encodeURIComponent(deviceCode)}`,
+        tokenRequestBody,
         "application/x-www-form-urlencoded",
       );
 
@@ -227,8 +250,9 @@ export async function pollForToken(
 
         case "slow_down":
           // Server asks us to poll less frequently
+          // Validate server-provided interval to prevent DoS
           if (errorData.interval != null) {
-            interval = errorData.interval * 1000;
+            interval = Math.max(1, Math.min(errorData.interval, 30)) * 1000;
           } else {
             interval = Math.min(interval * 2, MAX_INTERVAL_MS);
           }
@@ -253,6 +277,7 @@ export async function pollForToken(
           );
       }
     } catch (error) {
+      // Network errors during polling should continue until timeout, not fail immediately
       if (error instanceof DeviceFlowError) {
         throw error;
       }

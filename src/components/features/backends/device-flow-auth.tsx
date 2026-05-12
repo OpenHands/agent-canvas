@@ -30,26 +30,29 @@ export function DeviceFlowAuth({
 }: DeviceFlowAuthProps) {
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
-  const browserOpenedRef = React.useRef(false);
+  const popupRef = React.useRef<Window | null>(null);
 
-  // Open browser when we transition to awaiting_authorization
+  // Update popup URL when verification URL becomes available
   React.useEffect(() => {
     if (
       deviceFlow.status === "awaiting_authorization" &&
       deviceFlow.verificationUrl &&
-      !browserOpenedRef.current
+      popupRef.current &&
+      !popupRef.current.closed
     ) {
-      browserOpenedRef.current = true;
-      window.open(deviceFlow.verificationUrl, "_blank", "noopener,noreferrer");
+      try {
+        popupRef.current.location.href = deviceFlow.verificationUrl;
+      } catch {
+        // Cross-origin error - popup was navigated away
+        // Open a new one as fallback
+        popupRef.current = window.open(
+          deviceFlow.verificationUrl,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }
     }
   }, [deviceFlow.status, deviceFlow.verificationUrl]);
-
-  // Reset browser opened flag when starting a new flow
-  React.useEffect(() => {
-    if (deviceFlow.status === "starting") {
-      browserOpenedRef.current = false;
-    }
-  }, [deviceFlow.status]);
 
   // Call onSuccess when authentication completes
   React.useEffect(() => {
@@ -57,14 +60,35 @@ export function DeviceFlowAuth({
       onSuccess(deviceFlow.apiKey);
       deviceFlow.reset();
     }
-  }, [deviceFlow.status, deviceFlow.apiKey, onSuccess, deviceFlow]);
+  }, [deviceFlow.status, deviceFlow.apiKey, onSuccess]);
 
   const handleStartAuth = () => {
-    // Normalize the host URL
+    // Normalize and validate the host URL
     const normalizedHost = host.trim().replace(/\/+$/, "");
     const fullHost = /^https?:\/\//i.test(normalizedHost)
       ? normalizedHost
       : `https://${normalizedHost}`;
+
+    // Validate URL before proceeding
+    try {
+      const url = new URL(fullHost);
+      // Check for URL manipulation attacks
+      if (url.username || url.password) {
+        throw new Error("Invalid URL format");
+      }
+    } catch {
+      return; // Invalid URL, don't proceed
+    }
+
+    // Open popup immediately on user click to avoid popup blocker
+    // Start with about:blank and update URL once we have verification URL
+    popupRef.current = window.open("about:blank", "_blank", "noopener");
+
+    if (!popupRef.current) {
+      // Popup was blocked - flow will still work, user can click manual link
+      // TODO: Show a message about popup being blocked
+    }
+
     deviceFlow.start(fullHost);
   };
 
@@ -90,6 +114,8 @@ export function DeviceFlowAuth({
         <div
           className="flex items-center gap-2 p-3 bg-base-tertiary rounded-lg"
           data-testid={`${testIdRoot}-auth-starting`}
+          role="status"
+          aria-live="polite"
         >
           <LoadingSpinner />
           <span className="text-sm text-gray-300">
@@ -102,6 +128,8 @@ export function DeviceFlowAuth({
         <div
           className="flex flex-col gap-3 p-4 bg-base-tertiary rounded-lg"
           data-testid={`${testIdRoot}-auth-awaiting`}
+          role="status"
+          aria-live="polite"
         >
           <div className="flex items-center gap-2">
             <LoadingSpinner />
@@ -141,6 +169,7 @@ export function DeviceFlowAuth({
         <div
           className="flex flex-col gap-3 p-4 bg-red-900/20 border border-red-700 rounded-lg"
           data-testid={`${testIdRoot}-auth-error`}
+          role="alert"
         >
           <p className="text-sm text-red-400">{deviceFlow.error}</p>
           <BrandButton
