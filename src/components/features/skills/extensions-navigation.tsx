@@ -19,7 +19,7 @@ const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
     end: true,
   },
   {
-    to: "/skills/plugins",
+    to: "/plugins",
     label: "Plugins",
     icon: <PuzzleIcon width={16} height={16} />,
     end: true,
