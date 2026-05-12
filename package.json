@@ -1,9 +1,21 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.6.0",
+  "version": "1.0.0-alpha.3",
+  "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenHands/agent-canvas"
+  },
+  "homepage": "https://github.com/OpenHands/agent-canvas#readme",
+  "bugs": {
+    "url": "https://github.com/OpenHands/agent-canvas/issues"
+  },
+  "bin": {
+    "agent-canvas": "bin/agent-canvas.mjs"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
@@ -75,7 +87,7 @@
     "prelint": "npm run make-i18n",
     "lint": "npm run typecheck && eslint src && prettier --check src/**/*.{ts,tsx}",
     "lint:fix": "eslint src --fix && prettier --write src/**/*.{ts,tsx}",
-    "prepare": "cd .. && husky frontend/.husky",
+    "prepare": "[ -d '../.git' ] && cd .. && husky frontend/.husky || true",
     "typecheck": "react-router typegen && tsc",
     "typecheck:staged": "react-router typegen && npx tsc --noEmit --skipLibCheck",
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
@@ -154,7 +166,10 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "bin",
+    "build",
+    "scripts"
   ],
   "exports": {
     ".": {

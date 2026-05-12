@@ -1,5 +1,4 @@
 import React from "react";
-import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useMatch, useNavigate } from "react-router";
 import { Plus, Settings } from "lucide-react";
@@ -12,7 +11,6 @@ import {
   useBackendsHealth,
   type BackendHealth,
 } from "#/hooks/query/use-backends-health";
-import { useSwitchCloudOrganization } from "#/hooks/mutation/use-switch-cloud-organization";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend } from "#/api/backend-registry/types";
 // Import the trigger helpers from the lightweight store, not the overlay
@@ -20,12 +18,9 @@ import type { Backend } from "#/api/backend-registry/types";
 // pull in the overlay's render code (the overlay is lazy-loaded from
 // `routes/root-layout.tsx`).
 import {
-  dismissEnvironmentSwitch,
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
-import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { getLastConversationId } from "#/api/backend-registry/last-conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
@@ -116,8 +111,6 @@ export function BackendSelector({
   const currentUserIds = useCloudCurrentUserId();
   // Probe each registered backend every 10s.
   const healthByBackendId = useBackendsHealth(backends);
-  const { mutateAsync: switchOrg, isPending: isSwitching } =
-    useSwitchCloudOrganization();
   const navigate = useNavigate();
   const conversationMatch = useMatch("/conversations/:conversationId");
   const automationDetailMatch = useMatch("/automations/:automationId");
@@ -126,11 +119,6 @@ export function BackendSelector({
     React.useState(false);
 
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
-
-  const firstLocalBackendId = React.useMemo(
-    () => backends.find((b) => b.kind === "local")?.id ?? null,
-    [backends],
-  );
 
   const options = React.useMemo(
     () =>
@@ -162,53 +150,25 @@ export function BackendSelector({
   // selecting that shape would drift from what the dropdown can render
   // (UI says "Local", APIs hit cloud). When we detect the drift, snap
   // the selection onto the personal-workspace org (or, lacking a /me
-  // result, the first org). Pre-switch the SaaS-side current_org BEFORE
-  // touching active state so queries refetch (via key change) only
-  // once and against the correct org context.
+  // result, the first org). The selection is recorded locally only;
+  // the SaaS request scope follows from the API key's bound org and the
+  // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
+  // org choice is never mutated as a side effect.
   React.useEffect(() => {
-    let cancelled = false;
+    if (active.backend.kind !== "cloud" || active.orgId) return;
+    const { backend } = active;
+    const entry = cloudOrgs[backend.id];
+    if (!entry || entry.orgs.length === 0) return;
 
-    if (active.backend.kind === "cloud" && !active.orgId) {
-      const { backend } = active;
-      const entry = cloudOrgs[backend.id];
-
-      if (entry && entry.orgs.length > 0) {
-        const userId = currentUserIds[backend.id]?.userId ?? null;
-        const personal = userId
-          ? entry.orgs.find((o) => o.id === userId)
-          : undefined;
-        const target = personal ?? entry.orgs[0];
-
-        if (target) {
-          const syncActiveOrg = async () => {
-            try {
-              await switchOrg({ orgId: target.id, backend });
-              if (!cancelled) {
-                setActive(backend.id, target.id);
-              }
-            } catch {
-              if (!cancelled && firstLocalBackendId) {
-                setActive(firstLocalBackendId, null);
-              }
-            }
-          };
-
-          syncActiveOrg();
-        }
-      }
+    const userId = currentUserIds[backend.id]?.userId ?? null;
+    const personal = userId
+      ? entry.orgs.find((o) => o.id === userId)
+      : undefined;
+    const target = personal ?? entry.orgs[0];
+    if (target) {
+      setActive(backend.id, target.id);
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    active,
-    firstLocalBackendId,
-    cloudOrgs,
-    currentUserIds,
-    setActive,
-    switchOrg,
-  ]);
+  }, [active, cloudOrgs, currentUserIds, setActive]);
 
   const openAddBackendModal = React.useCallback(() => {
     setAddBackendModalOpen(true);
@@ -276,25 +236,6 @@ export function BackendSelector({
             setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
           });
 
-          if (orgId && target.kind === "cloud") {
-            try {
-              await switchOrg({ orgId, backend: target });
-            } catch (error) {
-              dismissEnvironmentSwitch();
-
-              if (!axios.isAxiosError(error)) {
-                console.error("Unexpected error during org switch:", error);
-                displayErrorToast(t(I18nKey.ERROR$GENERIC));
-                return;
-              }
-
-              displayErrorToast(
-                retrieveAxiosErrorMessage(error) || t(I18nKey.ERROR$GENERIC),
-              );
-              return;
-            }
-          }
-
           // Compute where the user should land on the target backend.
           // The rule:
           //   - on `/conversations/:id`: jump to the target backend's
@@ -331,7 +272,7 @@ export function BackendSelector({
           setActive(target.id, orgId);
         }}
         placeholder={active.backend.name}
-        loading={someCloudLoading || isSwitching}
+        loading={someCloudLoading}
         options={options}
         className="bg-[#1F1F1F66] border-[#242424]"
       />

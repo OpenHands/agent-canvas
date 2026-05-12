@@ -3,6 +3,7 @@ import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import { useEventStore } from "#/stores/use-event-store";
 import { INITIAL_HISTORY_PAGE_SIZE } from "#/hooks/query/use-conversation-history";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 
 const getEventTimestamp = (event: OpenHandsEvent): string | undefined =>
@@ -25,27 +26,40 @@ interface UseLoadOlderEventsResult {
  * REST-side companion to `useConversationHistory`: paginates older events
  * (`timestamp < oldest known`) into the event store on demand. Used by the
  * chat scroll handler to lazily backfill history when the user scrolls up.
+ *
+ * Cloud-mode caveat: REST-side older-event pagination is **disabled** for
+ * cloud backends. The SaaS app-server's `search_events` 500s when called
+ * with `timestamp__lt` / `timestamp__gte` (compares stored event.timestamp
+ * `str` against the parsed `datetime` and raises `TypeError`). Until the
+ * server-side bug at `openhands/app_server/event/event_service_base.py`
+ * (lines ~101–103) is fixed, the hook reports `hasMore: false` from first
+ * render and `loadOlder` is a no-op for cloud — matching the OpenHands
+ * cloud frontend, which never paginates older events either.
  */
 export const useLoadOlderEvents = (
   conversationId?: string | null,
 ): UseLoadOlderEventsResult => {
   const { data: conversation } = useUserConversation(conversationId ?? null);
   const addEvents = useEventStore((state) => state.addEvents);
+  const isCloud = useActiveBackend().backend.kind === "cloud";
 
   const [isLoading, setIsLoading] = React.useState(false);
-  const [hasMore, setHasMore] = React.useState(true);
+  const [hasMore, setHasMore] = React.useState(!isCloud);
   const isLoadingRef = React.useRef(false);
-  const hasMoreRef = React.useRef(true);
+  const hasMoreRef = React.useRef(!isCloud);
 
-  // Reset the pagination cursor whenever we switch conversations.
+  // Reset the pagination cursor whenever we switch conversations or
+  // backends. Cloud backends never have more older events to fetch via
+  // REST (see top-of-file comment), so `hasMore` settles to `false`.
   React.useEffect(() => {
-    hasMoreRef.current = true;
+    hasMoreRef.current = !isCloud;
     isLoadingRef.current = false;
-    setHasMore(true);
+    setHasMore(!isCloud);
     setIsLoading(false);
-  }, [conversationId]);
+  }, [conversationId, isCloud]);
 
   const loadOlder = React.useCallback(async () => {
+    if (isCloud) return;
     if (!conversationId || isLoadingRef.current || !hasMoreRef.current) {
       return;
     }
@@ -108,6 +122,7 @@ export const useLoadOlderEvents = (
     conversation?.conversation_url,
     conversation?.session_api_key,
     addEvents,
+    isCloud,
   ]);
 
   return { isLoading, hasMore, loadOlder };
