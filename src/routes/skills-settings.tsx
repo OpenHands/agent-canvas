@@ -4,12 +4,27 @@ import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useSkills } from "#/hooks/query/use-skills";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
-import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { SkillCard } from "#/components/features/skills/skill-card";
+import { SkillsToolbar } from "#/components/features/skills/skills-toolbar";
+import type { SkillTypeFilter } from "#/components/features/skills/skill-type-filter";
 import { I18nKey } from "#/i18n/declaration";
-import {
-  displayErrorToast,
-} from "#/utils/custom-toast-handlers";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import type { SkillInfo } from "#/types/settings";
+
+function matchesSearch(skill: SkillInfo, query: string): boolean {
+  if (!query) return true;
+  const haystacks = [
+    skill.name,
+    skill.description ?? "",
+    skill.license ?? "",
+    skill.compatibility ?? "",
+    ...(skill.triggers ?? []),
+    ...(skill.allowed_tools ?? []),
+  ];
+  const lowered = query.toLowerCase();
+  return haystacks.some((value) => value.toLowerCase().includes(lowered));
+}
 
 function SkillsSettingsScreen() {
   const { t } = useTranslation("openhands");
@@ -18,10 +33,11 @@ function SkillsSettingsScreen() {
   const { data: settings, isLoading: settingsLoading } = useSettings();
   const { data: skills, isLoading: skillsLoading } = useSkills();
 
-  // Local state: set of skill names the user has toggled off
   const [disabledSet, setDisabledSet] = React.useState<Set<string>>(new Set());
   const [hasHydratedInitialSettings, setHasHydratedInitialSettings] =
     React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState<SkillTypeFilter>("all");
 
   // Sync local state with server settings when data first arrives
   React.useEffect(() => {
@@ -45,10 +61,7 @@ function SkillsSettingsScreen() {
 
   // Auto-save skill toggles once initial settings are loaded.
   React.useEffect(() => {
-    if (!hasHydratedInitialSettings) {
-      return;
-    }
-
+    if (!hasHydratedInitialSettings) return;
     saveSettings(
       { disabled_skills: Array.from(disabledSet) },
       {
@@ -62,33 +75,41 @@ function SkillsSettingsScreen() {
 
   const isLoading = settingsLoading || skillsLoading || !settings;
 
+  const filteredSkills = React.useMemo(() => {
+    if (!skills) return [];
+    return skills.filter(
+      (skill) =>
+        (typeFilter === "all" || skill.type === typeFilter) &&
+        matchesSearch(skill, searchQuery),
+    );
+  }, [skills, typeFilter, searchQuery]);
+
   return (
     <div
       data-testid="skills-settings-screen"
       className="flex h-full gap-10"
     >
       <ExtensionsNavigation />
-      <div className="flex-1 min-w-0 flex flex-col h-full overflow-auto custom-scrollbar-always pr-[14px] pt-8">
-        <div className="max-w-5xl flex flex-col gap-8">
-        <div className="min-w-0 space-y-1 mb-4">
-          <h2 className="text-xl font-semibold leading-6 text-foreground">
-            Skills
-          </h2>
-          <div className="max-w-2xl text-sm text-tertiary-light">
-            Discover skills to add to your workspace. Open a card for prompts,
-            curl, and install flows. Search from the sidebar to filter the list.
-            Enable or disable default skills. Disabled skills will not be loaded
-            into agent context.
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
+        <div className="max-w-5xl flex flex-col gap-6">
+          <div className="min-w-0 space-y-1">
+            <h2 className="text-xl font-semibold leading-6 text-foreground">
+              Skills
+            </h2>
+            <div className="max-w-2xl text-sm text-tertiary-light">
+              Discover skills to add to your workspace. Open a card for prompts,
+              curl, and install flows. Search from the sidebar to filter the
+              list. Enable or disable default skills. Disabled skills will not
+              be loaded into agent context.
+            </div>
           </div>
-        </div>
 
-        <div className="flex-1">
           {isLoading && (
             <div className="flex flex-col gap-4">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-8 w-64 rounded bg-tertiary animate-pulse"
+                  className="h-24 rounded-2xl bg-tertiary animate-pulse"
                 />
               ))}
             </div>
@@ -101,37 +122,33 @@ function SkillsSettingsScreen() {
           )}
 
           {!isLoading && skills && skills.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
-              {skills.map((skill) => (
-                <div
-                  key={skill.name}
-                  className="flex flex-col gap-2 rounded-xl border border-tertiary bg-base-secondary p-4 transition-colors hover:border-white/40 hover:bg-base-tertiary/30"
-                >
-                  <SettingsSwitch
-                    testId={`skill-toggle-${skill.name}`}
-                    isToggled={!disabledSet.has(skill.name)}
-                    onToggle={(enabled) => handleToggle(skill.name, enabled)}
-                    togglePosition="right"
-                  >
-                    {skill.name}
-                  </SettingsSwitch>
-                  {skill.triggers && skill.triggers.length > 0 && (
-                    <span className="text-xs text-neutral-500">
-                      {t(I18nKey.SETTINGS$SKILLS_TRIGGERS, {
-                        triggers: skill.triggers.join(", "),
-                        interpolation: { escapeValue: false },
-                      })}
-                    </span>
-                  )}
-                  <span className="text-xs text-neutral-500">
-                    {skill.source} / {skill.type}
-                  </span>
+            <>
+              <SkillsToolbar
+                search={searchQuery}
+                onSearchChange={setSearchQuery}
+                typeFilter={typeFilter}
+                onTypeFilterChange={setTypeFilter}
+                shown={filteredSkills.length}
+                total={skills.length}
+              />
+              {filteredSkills.length === 0 ? (
+                <p className="text-sm text-tertiary">
+                  {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredSkills.map((skill) => (
+                    <SkillCard
+                      key={skill.name}
+                      skill={skill}
+                      enabled={!disabledSet.has(skill.name)}
+                      onToggle={(enabled) => handleToggle(skill.name, enabled)}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
-        </div>
-
         </div>
       </div>
     </div>
