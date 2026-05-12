@@ -19,7 +19,7 @@ export function MarketplaceSearch({ value, onChange }: MarketplaceSearchProps) {
     <div
       data-testid="mcp-search"
       className={cn(
-        "relative flex items-center w-full",
+        "relative flex items-center w-1/2",
         "rounded-lg border border-tertiary bg-base-secondary",
         "focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/40",
         "transition-colors",
