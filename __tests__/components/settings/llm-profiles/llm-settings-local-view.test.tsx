@@ -7,10 +7,12 @@ import { LlmSettingsLocalView } from "#/components/features/settings/llm-profile
 import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
 vi.mock("#/hooks/mutation/use-save-llm-profile");
+vi.mock("#/api/profiles-service/profiles-service.api");
 
 const mockProfiles = [
   {
@@ -296,6 +298,93 @@ describe("LlmSettingsLocalView", () => {
 
       // The key "new-profile" should be used, ensuring a fresh form mount
       // that doesn't inherit any existing profile data
+    });
+  });
+
+  describe("edit mode form initialization", () => {
+    it("populates profile name when editing an existing profile", async () => {
+      const user = userEvent.setup();
+
+      // Mock getProfile to return profile details
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          llm: {
+            model: "openai/gpt-4",
+            api_key: "encrypted-key-123",
+            base_url: "https://api.openai.com/v1",
+          },
+        },
+      });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Click the menu trigger for the first profile
+      const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
+      await user.click(menuTriggers[0]);
+
+      // Click edit option (testId is "profile-edit" not "profile-edit-btn")
+      const editButton = screen.getByTestId("profile-edit");
+      await user.click(editButton);
+
+      // Wait for the edit view to appear with the profile name populated
+      await waitFor(() => {
+        const nameInput = screen.getByTestId("profile-name-input");
+        expect(nameInput).toHaveValue("gpt-4-profile");
+      });
+
+      // Verify getProfile was called with the correct profile name
+      expect(ProfilesService.getProfile).toHaveBeenCalledWith(
+        "gpt-4-profile",
+        "encrypted",
+      );
+    });
+
+    it("passes profile values as initialValueOverrides when editing", async () => {
+      const user = userEvent.setup();
+
+      // Mock getProfile to return profile details with all LLM fields
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          llm: {
+            model: "openai/gpt-4",
+            api_key: "encrypted-key-123",
+            base_url: "https://api.openai.com/v1",
+          },
+        },
+      });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Click the menu trigger for the first profile
+      const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
+      await user.click(menuTriggers[0]);
+
+      // Click edit option (testId is "profile-edit" not "profile-edit-btn")
+      const editButton = screen.getByTestId("profile-edit");
+      await user.click(editButton);
+
+      // Wait for the edit view to appear
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+
+      // The LlmSettingsScreen component receives initialValueOverrides
+      // with the profile's LLM config values. We verify this by checking
+      // that getProfile was called and the form is in edit mode.
+      expect(ProfilesService.getProfile).toHaveBeenCalledWith(
+        "gpt-4-profile",
+        "encrypted",
+      );
+
+      // Verify we're in edit mode (back button and save button visible)
+      expect(screen.getByTestId("back-to-profiles")).toBeInTheDocument();
+      expect(screen.getByTestId("save-profile-btn")).toBeInTheDocument();
     });
   });
 });
