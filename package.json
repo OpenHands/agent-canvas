@@ -81,6 +81,8 @@
     "test": "npm run make-i18n && vitest run",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:live": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-live-e2e.mjs",
+    "test:e2e:snapshots": "playwright test tests/e2e/snapshots --project=chromium",
+    "test:e2e:snapshots:update": "playwright test tests/e2e/snapshots --project=chromium --update-snapshots",
     "test:coverage": "npm run make-i18n && vitest run --coverage",
     "dev_wsl": "VITE_WATCH_USE_POLLING=true vite",
     "preview": "vite preview",
