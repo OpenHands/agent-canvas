@@ -182,7 +182,7 @@ export default function MCPPage() {
       <main className="flex-1 min-w-0 overflow-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
         <div className="max-w-5xl flex flex-col gap-6">
         <div className="min-w-0 space-y-1">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
             <h2 className="text-xl font-semibold leading-6 text-foreground">{t(I18nKey.SETTINGS$MCP_TITLE)}</h2>
             <BrandButton
               type="button"
