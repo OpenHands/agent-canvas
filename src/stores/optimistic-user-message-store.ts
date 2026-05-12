@@ -11,7 +11,7 @@ export type PendingUserMessageStatus = "sending" | "error";
  * Exported so tests can override it via vi.fakeTimers without hard-coding the
  * value.
  */
-export const PENDING_MESSAGE_TIMEOUT_MS = 60_000;
+export const PENDING_MESSAGE_TIMEOUT_MS = 150_000;
 
 export interface PendingUserMessage {
   id: string;
