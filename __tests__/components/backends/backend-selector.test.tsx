@@ -653,21 +653,32 @@ describe("BackendSelector", () => {
   });
 
   it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          const backend = ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
-          ctx.setActive(backend.id);
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
+    // Pre-seed the registry and active selection in localStorage so the
+    // initial render already reflects `Local 1` as active. Seeding via
+    // `TestSeed.onMount` instead would call `setActive` AFTER the first
+    // commit, causing the Dropdown's `key={activeValue-label}` to change
+    // and remount the dropdown — which races with the async health probe
+    // and intermittently drops the open-click state update.
+    const local1Id = "local-1-test-id";
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: local1Id,
+          name: "Local 1",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        },
+      ]),
     );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: local1Id, orgId: null }),
+    );
+    __resetActiveStoreForTests();
+
+    renderWithProviders(<BackendSelector />);
 
     let wrapper = screen.getByTestId("backend-selector");
     let input = wrapper.querySelector("input") as HTMLInputElement;
