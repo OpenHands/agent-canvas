@@ -258,6 +258,26 @@ describe("SettingsService", () => {
     });
   });
 
+  it("ignores any stale localStorage git-provider-tokens key (PAT layer removed)", async () => {
+    // Arrange: a previous version of the app may have written PATs to
+    // localStorage under this key. After removing the integrations page and
+    // the PAT layer, getSettings must not resurrect those stale tokens into
+    // provider_tokens_set — that would re-enable the removed flow.
+    window.localStorage.setItem(
+      "openhands-agent-server-git-provider-tokens",
+      JSON.stringify({
+        github: { token: "ghp_stale_xyz", host: "github.com" },
+        gitlab: { token: "glpat_stale_xyz", host: null },
+      }),
+    );
+
+    // Act
+    const settings = await SettingsService.getSettings();
+
+    // Assert
+    expect(settings.provider_tokens_set).toEqual({});
+  });
+
   it("lets the cloud response override locally-stored app preferences", async () => {
     // Arrange: localStorage holds a stale "fr" while the cloud is the
     // authoritative source and returns "ja".
@@ -278,28 +298,4 @@ describe("SettingsService", () => {
     expect(settings.language).toBe("ja");
   });
 
-  it("derives provider_tokens_set from locally stored git provider tokens", async () => {
-    // Arrange: simulate post-save state. SecretsService.addGitProvider writes to
-    // this localStorage key after the server PUT /api/settings/secrets succeeds.
-    // The agent-server API never returns provider_tokens_set, so the GUI must
-    // derive it from local state for useUserProviders to recognize the
-    // configured providers.
-    window.localStorage.setItem(
-      "openhands-agent-server-git-provider-tokens",
-      JSON.stringify({
-        github: { token: "ghp_test_123", host: "github.com" },
-        gitlab: { token: "glpat_test_456", host: null },
-      }),
-    );
-
-    // Act
-    const settings = await SettingsService.getSettings();
-
-    // Assert: each stored provider surfaces in provider_tokens_set with its host
-    // (or null), which is what consumers like useUserProviders read.
-    expect(settings.provider_tokens_set).toEqual({
-      github: "github.com",
-      gitlab: null,
-    });
-  });
 });

@@ -7,10 +7,6 @@ import {
   type NavigationContextValue,
 } from "#/context/navigation-context";
 
-vi.mock("#/hooks/query/use-git-user", () => ({
-  useGitUser: () => ({ data: undefined, isFetching: false }),
-}));
-
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
 }));

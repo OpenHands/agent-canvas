@@ -4,7 +4,6 @@ import { GitChange, GitChangeDiff } from "../open-hands.types";
 import AgentServerConversationService from "../conversation-service/agent-server-conversation-service.api";
 import { createRemoteWorkspace } from "../typescript-client";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
-import { ProviderHandler } from "../git-providers/provider-handler";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   getCloudInstallations,
@@ -39,23 +38,15 @@ class GitService {
     pageId?: string,
     installationId?: string,
   ): Promise<RepositoryPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_REPOSITORY_PAGE;
     }
-    if (isCloudActive()) {
-      return searchCloudRepositories({
-        provider: safeProvider(provider),
-        query: query || undefined,
-        limit,
-        pageId,
-        installationId,
-      });
-    }
-    return ProviderHandler.searchRepositories(safeProvider(provider), {
+    return searchCloudRepositories({
+      provider: safeProvider(provider),
       query: query || undefined,
-      installationId,
-      pageId,
       limit,
+      pageId,
+      installationId,
     });
   }
 
@@ -65,21 +56,14 @@ class GitService {
     limit = 30,
     installationId?: string,
   ): Promise<RepositoryPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_REPOSITORY_PAGE;
     }
-    if (isCloudActive()) {
-      return searchCloudRepositories({
-        provider: safeProvider(provider),
-        limit,
-        pageId,
-        installationId,
-      });
-    }
-    return ProviderHandler.searchRepositories(safeProvider(provider), {
-      installationId,
-      pageId,
+    return searchCloudRepositories({
+      provider: safeProvider(provider),
       limit,
+      pageId,
+      installationId,
     });
   }
 
@@ -90,23 +74,16 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<RepositoryPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_REPOSITORY_PAGE;
     }
     const installationId = installations[installationIndex];
     if (!installationId) return EMPTY_REPOSITORY_PAGE;
-    if (isCloudActive()) {
-      return searchCloudRepositories({
-        provider: safeProvider(provider),
-        installationId,
-        limit,
-        pageId,
-      });
-    }
-    return ProviderHandler.searchRepositories(safeProvider(provider), {
+    return searchCloudRepositories({
+      provider: safeProvider(provider),
       installationId,
-      pageId,
       limit,
+      pageId,
     });
   }
 
@@ -117,19 +94,11 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_BRANCH_PAGE;
     }
-    if (isCloudActive()) {
-      return getCloudRepositoryBranches({
-        provider: safeProvider(provider),
-        repository,
-        query: query || undefined,
-        pageId,
-        limit,
-      });
-    }
-    return ProviderHandler.getBranches(safeProvider(provider), {
+    return getCloudRepositoryBranches({
+      provider: safeProvider(provider),
       repository,
       query: query || undefined,
       pageId,
@@ -144,19 +113,11 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_BRANCH_PAGE;
     }
-    if (isCloudActive()) {
-      return getCloudRepositoryBranches({
-        provider: safeProvider(provider),
-        repository,
-        query,
-        pageId,
-        limit,
-      });
-    }
-    return ProviderHandler.getBranches(safeProvider(provider), {
+    return getCloudRepositoryBranches({
+      provider: safeProvider(provider),
       repository,
       query,
       pageId,
@@ -169,17 +130,11 @@ class GitService {
     pageId?: string,
     limit = 100,
   ): Promise<InstallationPage> {
-    if (isInvalidProvider(provider)) {
+    if (isInvalidProvider(provider) || !isCloudActive()) {
       return EMPTY_INSTALLATION_PAGE;
     }
-    if (isCloudActive()) {
-      return getCloudInstallations({
-        provider: safeProvider(provider),
-        pageId,
-        limit,
-      });
-    }
-    return ProviderHandler.getInstallations(safeProvider(provider), {
+    return getCloudInstallations({
+      provider: safeProvider(provider),
       pageId,
       limit,
     });
