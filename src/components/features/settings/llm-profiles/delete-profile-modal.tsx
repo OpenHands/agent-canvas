@@ -66,7 +66,7 @@ export function DeleteProfileModal({
       <BrandButton
         ref={cancelButtonRef}
         type="button"
-        variant="secondary"
+        variant="tertiary"
         className="grow"
         onClick={handleClose}
         isDisabled={deleteProfile.isPending}

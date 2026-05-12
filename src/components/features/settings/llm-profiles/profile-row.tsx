@@ -49,7 +49,7 @@ export function ProfileRow({
         ) : null}
         {isActive && (
           <span
-            className="text-xs bg-primary text-[#0D0F11] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap self-start sm:self-auto"
+            className="text-xs bg-success text-white font-semibold rounded-full px-2.5 py-0.5 whitespace-nowrap self-start sm:self-auto"
             data-testid="profile-active-badge"
           >
             {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}

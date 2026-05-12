@@ -86,7 +86,7 @@ export function RenameProfileModal({
       </BrandButton>
       <BrandButton
         type="button"
-        variant="secondary"
+        variant="tertiary"
         className="grow"
         onClick={handleClose}
         isDisabled={renameProfile.isPending}

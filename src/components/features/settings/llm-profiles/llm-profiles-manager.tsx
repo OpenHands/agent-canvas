@@ -59,7 +59,7 @@ export function LlmProfilesManager({
             <BrandButton
               testId="add-llm-profile"
               type="button"
-              variant="primary"
+              variant="secondary"
               className="ml-auto"
               onClick={onAddProfile}
             >
