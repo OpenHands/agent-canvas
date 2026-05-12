@@ -21,7 +21,7 @@ export const resetAutomationMockData = () => {
 
 export const AUTOMATION_HANDLERS = [
   // GET /api/automation/v1 — List automations
-  http.get("/api/automation/v1", async ({ request }) => {
+  http.get("*/api/automation/v1", async ({ request }) => {
     await delay(300);
 
     const url = new URL(request.url);
@@ -40,7 +40,7 @@ export const AUTOMATION_HANDLERS = [
   }),
 
   // GET /api/automation/v1/:id/runs — List automation runs
-  http.get("/api/automation/v1/:id/runs", async ({ params, request }) => {
+  http.get("*/api/automation/v1/:id/runs", async ({ params, request }) => {
     await delay(200);
 
     const id = params.id as string;
@@ -67,7 +67,7 @@ export const AUTOMATION_HANDLERS = [
   }),
 
   // GET /api/automation/v1/:id — Get automation detail
-  http.get("/api/automation/v1/:id", async ({ params }) => {
+  http.get("*/api/automation/v1/:id", async ({ params }) => {
     await delay(200);
 
     const automation = automations.get(params.id as string);
@@ -82,7 +82,7 @@ export const AUTOMATION_HANDLERS = [
   }),
 
   // PATCH /api/automation/v1/:id — Update automation (toggle enabled)
-  http.patch("/api/automation/v1/:id", async ({ params, request }) => {
+  http.patch("*/api/automation/v1/:id", async ({ params, request }) => {
     await delay(200);
 
     const id = params.id as string;
@@ -106,7 +106,7 @@ export const AUTOMATION_HANDLERS = [
   }),
 
   // DELETE /api/automation/v1/:id — Delete automation
-  http.delete("/api/automation/v1/:id", async ({ params }) => {
+  http.delete("*/api/automation/v1/:id", async ({ params }) => {
     await delay(200);
 
     const id = params.id as string;

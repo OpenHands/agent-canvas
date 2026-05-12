@@ -1,0 +1,94 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # Trusted publishing requires Node 22.14.0+ and npm 11.5.1+
+      # See: https://docs.npmjs.com/trusted-publishers/
+      - name: Set up Node.js for npm trusted publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify npm version supports trusted publishing
+        run: |
+          echo "Node version: $(node --version)"
+          echo "npm version: $(npm --version)"
+          NPM_VERSION=$(npm --version)
+          NPM_MAJOR=$(echo $NPM_VERSION | cut -d. -f1)
+          NPM_MINOR=$(echo $NPM_VERSION | cut -d. -f2)
+          if [ "$NPM_MAJOR" -lt 11 ] || ([ "$NPM_MAJOR" -eq 11 ] && [ "$NPM_MINOR" -lt 5 ]); then
+            echo "Error: npm 11.5.1+ required for trusted publishing, got $NPM_VERSION"
+            exit 1
+          fi
+          echo "✓ npm $NPM_VERSION meets trusted publishing requirements"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build app
+        run: npm run build
+
+      - name: Build library
+        run: npm run build:lib
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+      - name: Validate package version matches release tag
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Package version: $PACKAGE_VERSION"
+          echo "Release tag version: $TAG_VERSION"
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: package.json version ($PACKAGE_VERSION) doesn't match release tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "✓ Version $PACKAGE_VERSION matches release tag"
+
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$TAG_VERSION" == *"alpha"* ]]; then
+            echo "tag=alpha" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: alpha"
+          elif [[ "$TAG_VERSION" == *"beta"* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: beta"
+          elif [[ "$TAG_VERSION" == *"rc"* ]]; then
+            echo "tag=rc" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: rc"
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: latest"
+          fi
+
+      - name: Publish to npm with provenance
+        run: npm publish --access public --provenance --tag ${{ steps.npm-tag.outputs.tag }}

@@ -137,10 +137,7 @@ export function GitRepoDropdown({
       baseRepositories = repositories;
     }
     // If we have a selected repository and the input matches it exactly, show all repositories
-    else if (
-      selectedRepository &&
-      inputValue === selectedRepository.full_name
-    ) {
+    else if (inputValue === selectedRepository?.full_name) {
       baseRepositories = repositories;
     }
     // If no input value, show all repositories
@@ -298,7 +295,6 @@ export function GitRepoDropdown({
           )}
         </div>
         <input
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getInputProps({
             disabled,
             placeholder,

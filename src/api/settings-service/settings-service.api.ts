@@ -1,16 +1,11 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import {
-  Provider,
-  Settings,
-  SettingsSchema,
-  SettingsValue,
-} from "#/types/settings";
+import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import {
   extractAppPreferences,
   readStoredAppPreferences,
   writeStoredAppPreferences,
 } from "../app-preferences-store";
-import { getStoredGitProviders } from "../secrets-service";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -18,7 +13,7 @@ import {
   fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "../cloud/settings-service.api";
-import { createHttpClient, createSettingsClient } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 /**
  * Response from GET /api/settings
@@ -65,7 +60,6 @@ async function withRetry<T>(
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       return await fn();
     } catch (error) {
       if (attempt >= maxRetries - 1) {
@@ -73,7 +67,7 @@ async function withRetry<T>(
       }
 
       const delay = baseDelayMs * 2 ** attempt;
-      // eslint-disable-next-line no-await-in-loop
+
       await new Promise<void>((resolve) => {
         setTimeout(resolve, delay);
       });
@@ -138,17 +132,6 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     settings.conversation_settings ?? {},
   );
 
-  // The agent-server has no concept of provider_tokens_set; the GUI derives it
-  // from locally-stored git provider credentials so the UI knows which
-  // providers are configured after a save.
-  const storedProviders = getStoredGitProviders();
-  const derivedProviderTokensSet = Object.fromEntries(
-    Object.entries(storedProviders).map(([provider, value]) => [
-      provider,
-      value?.host ?? null,
-    ]),
-  ) as Partial<Record<Provider, string | null>>;
-
   // App-level user preferences (language, git identity, sound notifications,
   // analytics consent) live in localStorage in local mode. In cloud mode the
   // server response carries them and overrides the local cache.
@@ -161,7 +144,6 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
       ...(settings.provider_tokens_set ?? {}),
-      ...derivedProviderTokensSet,
     },
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
@@ -225,16 +207,11 @@ class SettingsService {
   static async fetchSettingsFromApi(
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<SettingsApiResponse> {
-    const headers: Record<string, string> = {};
-    if (exposeSecrets) {
-      headers["X-Expose-Secrets"] = exposeSecrets;
-    }
-
-    const response = await withRetry(() =>
-      createHttpClient().get<SettingsApiResponse>("/api/settings", { headers }),
-    );
-
-    return response.data;
+    return withRetry(() =>
+      new SettingsClient(getAgentServerClientOptions()).getSettings({
+        exposeSecrets,
+      }),
+    ) as Promise<SettingsApiResponse>;
   }
 
   /**
@@ -315,14 +292,18 @@ class SettingsService {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getAgentSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getAgentSchema()) as SettingsSchema;
   }
 
   static async getConversationSettingsSchema(): Promise<SettingsSchema> {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudConversationSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getConversationSchema()) as SettingsSchema;
   }
 
   /**
@@ -408,8 +389,7 @@ class SettingsService {
         return true;
       }
       await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>(
-          "/api/settings",
+        new SettingsClient(getAgentServerClientOptions()).updateSettings(
           localPayload,
         ),
       );

@@ -1,7 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
 import type { Backend } from "#/api/backend-registry/types";
-import { createServerClient } from "#/api/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
@@ -29,11 +30,13 @@ async function probeBackend(backend: Backend): Promise<true> {
     return true;
   }
 
-  await createServerClient({
-    host: backend.host,
-    sessionApiKey: backend.apiKey || null,
-    timeout: PROBE_TIMEOUT_MS,
-  }).getServerInfo();
+  await new ServerClient(
+    getAgentServerClientOptions({
+      host: backend.host,
+      sessionApiKey: backend.apiKey || null,
+      timeout: PROBE_TIMEOUT_MS,
+    }),
+  ).getServerInfo();
   return true;
 }
 

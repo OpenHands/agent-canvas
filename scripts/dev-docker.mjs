@@ -68,8 +68,11 @@ const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
 
 // Docker image for the agent-server.
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
-// Default tag used when OH_AGENT_SERVER_GIT_REF is not set. Update to upgrade.
-const DEFAULT_AGENT_SERVER_TAG = "0924962-python";
+// Default tag used when OH_AGENT_SERVER_GIT_REF is not set.
+// Should match DEFAULT_AGENT_SERVER_VERSION in dev-safe.mjs for consistency.
+// Format: {version}-python (e.g., 1.22.0-python) for released versions.
+// Note: The SDK build script strips the "v" prefix from semver release tags.
+const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
@@ -229,7 +232,6 @@ function startAgentServerDocker(config) {
       "/home/openhands/.openhands/agent-canvas/conversations",
     OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
     OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
-    TMUX_TMPDIR: "/home/openhands/.openhands/agent-canvas/tmux",
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.

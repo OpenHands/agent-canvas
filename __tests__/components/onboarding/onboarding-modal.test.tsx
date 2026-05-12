@@ -12,10 +12,12 @@ import { NavigationProvider } from "#/context/navigation-context";
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which itself
 // resolves through these two clients.
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(() => ({
-    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-  })),
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return {
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+    };
+  }),
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
@@ -96,26 +98,28 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(
-      screen.getByTestId("onboarding-slide-0").style.transform,
-    ).toBe("translateX(0%)");
-    expect(
-      screen.getByTestId("onboarding-slide-1").style.transform,
-    ).toBe("translateX(100%)");
-    expect(
-      screen.getByTestId("onboarding-slide-2").style.transform,
-    ).toBe("translateX(200%)");
-    expect(
-      screen.getByTestId("onboarding-slide-3").style.transform,
-    ).toBe("translateX(300%)");
+    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
+      "translateX(0%)",
+    );
+    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
+      "translateX(100%)",
+    );
+    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
+      "translateX(200%)",
+    );
+    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
+      "translateX(300%)",
+    );
 
     // Progress bar reflects step 1 of 4.
-    expect(
-      screen.getByTestId("onboarding-progress-step-0"),
-    ).toHaveAttribute("data-state", "current");
-    expect(
-      screen.getByTestId("onboarding-progress-step-1"),
-    ).toHaveAttribute("data-state", "upcoming");
+    expect(screen.getByTestId("onboarding-progress-step-0")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
+      "data-state",
+      "upcoming",
+    );
   });
 
   it("advances each step via the per-step Next button and reframes slide offsets", async () => {
@@ -134,21 +138,19 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(
-      screen.getByTestId("onboarding-slide-0").style.transform,
-    ).toBe("translateX(-100%)");
-    expect(
-      screen.getByTestId("onboarding-slide-1").style.transform,
-    ).toBe("translateX(0%)");
-    expect(
-      screen.getByTestId("onboarding-slide-2").style.transform,
-    ).toBe("translateX(100%)");
+    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
+      "translateX(-100%)",
+    );
+    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
+      "translateX(0%)",
+    );
+    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
+      "translateX(100%)",
+    );
 
     // Once the backend health probe resolves, step 1's Next is enabled.
     await waitFor(() =>
-      expect(
-        screen.getByTestId("onboarding-backend-next"),
-      ).not.toBeDisabled(),
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
     expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -170,9 +172,9 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(
-      screen.getByTestId("onboarding-slide-3").style.transform,
-    ).toBe("translateX(0%)");
+    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
+      "translateX(0%)",
+    );
   });
 
   it("Skip immediately closes the modal", async () => {
@@ -230,9 +232,7 @@ describe("OnboardingModal", () => {
 
     await user.click(screen.getByTestId("onboarding-agent-next"));
     await waitFor(() =>
-      expect(
-        screen.getByTestId("onboarding-backend-next"),
-      ).not.toBeDisabled(),
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
     await user.click(screen.getByTestId("onboarding-llm-next"));

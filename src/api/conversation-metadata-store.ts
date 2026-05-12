@@ -6,6 +6,15 @@ export interface ConversationMetadata {
   selected_repository: string | null;
   selected_branch: string | null;
   git_provider: Provider | null;
+  /**
+   * The local workspace path the user explicitly attached at conversation
+   * creation time. Distinct from `selected_repository` (which is set by
+   * the repo picker on the home page). Used by the Files tab to decide
+   * whether to default to diff view: if the user attached *anything*
+   * (repo or local workspace), we lean diff-first because there's a real
+   * git baseline to compare against.
+   */
+  selected_workspace?: string | null;
 }
 
 type StoredMetadata = Record<string, ConversationMetadata>;

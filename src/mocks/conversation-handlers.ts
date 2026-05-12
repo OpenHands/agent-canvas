@@ -69,7 +69,7 @@ function listConversationResponses(ids?: string[] | null) {
 }
 
 export const CONVERSATION_HANDLERS = [
-  http.get("/api/conversations/search", async ({ request }) => {
+  http.get("*/api/conversations/search", async ({ request }) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get("limit") ?? "20");
     const items = Array.from(CONVERSATIONS.values())
@@ -80,13 +80,13 @@ export const CONVERSATION_HANDLERS = [
     return HttpResponse.json({ items, next_page_id: null });
   }),
 
-  http.get("/api/conversations", async ({ request }) => {
+  http.get("*/api/conversations", async ({ request }) => {
     const url = new URL(request.url);
     const ids = url.searchParams.getAll("ids");
     return HttpResponse.json(listConversationResponses(ids));
   }),
 
-  http.get("/api/conversations/:conversationId", async ({ params }) => {
+  http.get("*/api/conversations/:conversationId", async ({ params }) => {
     const conversationId = params.conversationId as string;
     const conversation = CONVERSATIONS.get(conversationId);
     if (conversation) {
@@ -95,7 +95,7 @@ export const CONVERSATION_HANDLERS = [
     return HttpResponse.json(null, { status: 404 });
   }),
 
-  http.post("/api/conversations", async () => {
+  http.post("*/api/conversations", async () => {
     await delay();
     const conversation: MockConversation = {
       id: `${Math.floor(Math.random() * 100000)}`,
@@ -131,7 +131,7 @@ export const CONVERSATION_HANDLERS = [
     },
   ),
 
-  http.delete("/api/conversations/:conversationId", async ({ params }) => {
+  http.delete("*/api/conversations/:conversationId", async ({ params }) => {
     const conversationId = params.conversationId as string;
     if (CONVERSATIONS.has(conversationId)) {
       CONVERSATIONS.delete(conversationId);
@@ -140,40 +140,40 @@ export const CONVERSATION_HANDLERS = [
     return HttpResponse.json(null, { status: 404 });
   }),
 
-  http.get("/api/conversations/:conversationId/events/count", async () =>
+  http.get("*/api/conversations/:conversationId/events/count", async () =>
     HttpResponse.json(0),
   ),
 
-  http.get("/api/conversations/:conversationId/events/search", async () =>
+  http.get("*/api/conversations/:conversationId/events/search", async () =>
     HttpResponse.json({ items: [] }),
   ),
 
-  http.post("/api/conversations/:conversationId/events", async () =>
+  http.post("*/api/conversations/:conversationId/events", async () =>
     HttpResponse.json({ ok: true }),
   ),
 
-  http.post("/api/conversations/:conversationId/pause", async () =>
+  http.post("*/api/conversations/:conversationId/pause", async () =>
     HttpResponse.json({ success: true }),
   ),
 
-  http.post("/api/conversations/:conversationId/run", async () =>
+  http.post("*/api/conversations/:conversationId/run", async () =>
     HttpResponse.json({ success: true }),
   ),
 
-  http.post("/api/conversations/:conversationId/ask_agent", async () =>
+  http.post("*/api/conversations/:conversationId/ask_agent", async () =>
     HttpResponse.json({ response: "Mock agent response" }),
   ),
 
-  http.get("/api/vscode/url", async () => HttpResponse.json({ url: null })),
+  http.get("*/api/vscode/url", async () => HttpResponse.json({ url: null })),
 
-  http.post("/api/skills", async () => HttpResponse.json({ skills: [] })),
+  http.post("*/api/skills", async () => HttpResponse.json({ skills: [] })),
 
   http.post(
     "/api/v1/conversations/:conversationId/pending-messages",
     async () => HttpResponse.json({ id: "mock-pending-id", position: 0 }),
   ),
 
-  http.get("/api/conversations/:conversationId/microagents", async () => {
+  http.get("*/api/conversations/:conversationId/microagents", async () => {
     const response: GetMicroagentsResponse = {
       microagents: [
         {

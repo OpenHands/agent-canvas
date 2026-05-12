@@ -1,4 +1,5 @@
-import { createLlmMetadataClient } from "../typescript-client";
+import { LLMMetadataClient } from "@openhands/typescript-client/clients";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import type {
   LLMModel,
   LLMModelPage,
@@ -46,7 +47,7 @@ class ConfigService {
     params: SearchModelsParams = {},
     verifiedByProvider?: Record<string, string[]>,
   ): Promise<LLMModelPage> {
-    const llmClient = createLlmMetadataClient();
+    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
     const verifiedFetch =
       verifiedByProvider !== undefined
         ? Promise.resolve(verifiedByProvider)
@@ -96,7 +97,7 @@ class ConfigService {
     params: SearchProvidersParams = {},
     verifiedByProvider?: Record<string, string[]>,
   ): Promise<ProviderPage> {
-    const llmClient = createLlmMetadataClient();
+    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
     const verifiedFetch =
       verifiedByProvider !== undefined
         ? Promise.resolve(verifiedByProvider)

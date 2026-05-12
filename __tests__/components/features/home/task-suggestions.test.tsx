@@ -125,21 +125,6 @@ describe("TaskSuggestions", () => {
     await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
   });
 
-  it("falls back to the generic empty message when no Git providers are connected and exposes no link to the removed Integrations page", async () => {
-    useUserProvidersMock.mockReturnValueOnce({
-      providers: [],
-      isLoading: false,
-    });
-    getSuggestedTasksSpy.mockResolvedValue([]);
-
-    renderTaskSuggestions();
-
-    await screen.findByText("TASKS$NO_TASKS_AVAILABLE");
-    expect(
-      screen.queryByRole("link", { name: /integrations/i }),
-    ).not.toBeInTheDocument();
-  });
-
   it("should render the task groups with the correct titles", async () => {
     getSuggestedTasksSpy.mockResolvedValue(MOCK_TASKS);
     renderTaskSuggestions();

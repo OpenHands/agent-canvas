@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { createRemoteWorkspace } from "#/api/typescript-client";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { Provider } from "#/types/settings";
@@ -48,10 +49,12 @@ export const useLocalGitInfo = () => {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = createRemoteWorkspace({
-        conversationUrl,
-        sessionApiKey,
-      });
+      const workspace = new RemoteWorkspace(
+        getAgentServerClientOptions({
+          conversationUrl,
+          sessionApiKey,
+        }),
+      );
 
       const [remoteResult, branchResult] = await Promise.all([
         workspace.executeCommand("git remote get-url origin", workingDir, 10),

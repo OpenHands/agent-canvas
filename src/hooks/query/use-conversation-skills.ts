@@ -1,22 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { loadSkillsForConversation } from "#/api/agent-server-adapter";
 import { useConversationId } from "../use-conversation-id";
 import { useActiveConversation } from "./use-active-conversation";
 
 export const useConversationSkills = () => {
   const { conversationId } = useConversationId();
-  const executionStatus = useActiveConversation().data?.execution_status;
+  const activeConversation = useActiveConversation().data;
+  const executionStatus = activeConversation?.execution_status;
 
   return useQuery({
-    queryKey: ["conversation", conversationId, "skills"],
+    queryKey: ["conversation", conversationId, "skills", activeConversation],
     queryFn: async () => {
       if (!conversationId) {
         throw new Error("No conversation ID provided");
       }
 
-      // Check if V1 is enabled and use the appropriate API
-      const data =
-        await AgentServerConversationService.getSkills(conversationId);
+      const data = await loadSkillsForConversation(activeConversation);
       return data.skills;
     },
     enabled: !!executionStatus,

@@ -3,9 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { SkillsModal } from "#/components/features/conversation-panel/skills-modal";
-import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { loadSkillsForConversation } from "#/api/agent-server-adapter";
 import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
+
+vi.mock("#/api/agent-server-adapter", () => ({
+  loadSkillsForConversation: vi.fn(),
+}));
 
 // Mock the agent state hook
 vi.mock("#/hooks/use-agent-state", () => ({
@@ -54,8 +58,8 @@ describe("SkillsModal", () => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
-    // Setup default mock for getSkills (agent-server)
-    vi.spyOn(AgentServerConversationService, "getSkills").mockResolvedValue({
+    // Setup default mock for skills loading
+    vi.mocked(loadSkillsForConversation).mockResolvedValue({
       skills: mockSkills,
     });
 
@@ -83,7 +87,7 @@ describe("SkillsModal", () => {
   describe("Refresh Button Functionality", () => {
     it("should call refetch when refresh button is clicked", async () => {
       const user = userEvent.setup();
-      const refreshSpy = vi.spyOn(AgentServerConversationService, "getSkills");
+      const refreshSpy = vi.mocked(loadSkillsForConversation);
 
       renderWithProviders(<SkillsModal {...defaultProps} />);
 
@@ -102,7 +106,7 @@ describe("SkillsModal", () => {
 
   describe("Skills Display", () => {
     it("should display skills correctly", async () => {
-      vi.spyOn(AgentServerConversationService, "getSkills").mockResolvedValue({
+      vi.mocked(loadSkillsForConversation).mockResolvedValue({
         skills: mockSkills,
       });
 

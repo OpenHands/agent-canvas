@@ -6,6 +6,7 @@ src/i18n/declaration.ts
 node_modules/
 build/
 /.tmp/live-e2e-state/
+dist/
 
 
 /test-results/
@@ -17,3 +18,4 @@ build/
 .react-router/
 ralph/
 .vercel
+*.tgz

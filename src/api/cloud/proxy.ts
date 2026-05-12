@@ -1,5 +1,8 @@
 import axios from "axios";
-import { getEffectiveLocalBackend } from "../backend-registry/active-store";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+} from "../backend-registry/active-store";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
@@ -70,15 +73,29 @@ export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
   const local = getEffectiveLocalBackend();
+  // Send `X-Org-Id` so the upstream scopes per-request to the org the user
+  // selected locally, instead of the user's globally-shared
+  // `current_org_id` on the SaaS. Restricted to calls against the active
+  // backend: the selector also fans out per-backend bookkeeping calls
+  // (e.g. `getCloudOrganizations(b)`) that would otherwise carry the
+  // active backend's orgId across an unrelated API key, which the SaaS
+  // rejects when api_key_org_id and X-Org-Id disagree.
+  const active = getActiveBackend();
+  const orgIdHeader =
+    active.backend.id === req.backend.id && active.orgId
+      ? { "X-Org-Id": active.orgId }
+      : {};
   const upstreamHeaders = {
     ...buildUpstreamAuthHeaders(req),
+    ...orgIdHeader,
     ...(req.headers ?? {}),
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
 
   // Talk directly to the local agent-server, bypassing the global
-  // openHands axios interceptor (which would otherwise read host + auth
-  // from the active backend — wrong for this call).
+  // local agent-server client configuration (which would otherwise read host + auth
+  // from the active backend — wrong for this call: we need the local
+  // backend's host and session key explicitly, not the active one).
   const response = await axios.post<TResponse>(
     `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,
     {

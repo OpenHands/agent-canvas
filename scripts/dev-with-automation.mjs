@@ -38,7 +38,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -62,7 +62,7 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 // Default automation version (released PyPI version)
 // Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AUTOMATION_VERSION = "1.0.0a1";
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 
@@ -116,6 +116,8 @@ function parseArgs() {
     automationGitRef: null,
     automationRepo: null,
     verbose: false,
+    static: false,
+    staticDir: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -133,6 +135,12 @@ function parseArgs() {
       case "-v":
       case "--verbose":
         config.verbose = true;
+        break;
+      case "--static":
+        config.static = true;
+        break;
+      case "--static-dir":
+        config.staticDir = args[++i];
         break;
       case "-h":
       case "--help":
@@ -332,7 +340,6 @@ function checkPrerequisites() {
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
-    join(config.stateDir, "tmux"),
     join(config.stateDir, "conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
@@ -690,18 +697,34 @@ async function main(options = {}) {
     startAgentServer: startAgentServerOverride,
     extraPrereqs,
     viteWorkingDir,
+    staticMode: staticModeOverride,
+    staticDir: staticDirOverride,
   } = options;
 
   const args = parseArgs();
 
+  // Allow options to override CLI args (for bin/agent-canvas.mjs)
+  const useStaticMode = staticModeOverride ?? args.static;
+  const staticDir = staticDirOverride ?? args.staticDir ?? join(projectRoot, "build", "client");
+
+  const modeLabel = useStaticMode ? "(Static)" : "";
+  const titleWithMode = modeLabel ? `${bannerTitle} ${modeLabel}` : bannerTitle;
+
   console.log("");
-  console.log(`${c.cyan}${c.bold}${bannerTitle}${c.reset}`);
+  console.log(`${c.cyan}${c.bold}${titleWithMode}${c.reset}`);
   console.log("");
 
   // Setup phase
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites();
+
+  // In static mode, verify build exists
+  if (useStaticMode && !existsSync(staticDir)) {
+    logError(`Static directory not found: ${staticDir}`);
+    logError(`Run 'npm run build' first to create the static files.`);
+    process.exit(1);
+  }
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
@@ -737,8 +760,12 @@ async function main(options = {}) {
   // 3. Start automation backend
   startAutomationBackend(config);
 
-  // 4. Start Vite dev server (no proxy config needed - ingress handles routing)
-  startVite(config);
+  // 4. Start frontend server (Vite dev server OR static server)
+  if (useStaticMode) {
+    startStaticFrontend(config, staticDir);
+  } else {
+    startVite(config);
+  }
 
   // 5. Wait for services to be ready
   await delay(2000);
@@ -750,6 +777,35 @@ async function main(options = {}) {
   await delay(1000);
 
   printBanner(config);
+}
+
+function startStaticFrontend(config, staticDir) {
+  logService("static", `Starting on port ${config.vitePort}...`, c.magenta);
+  logService("static", `Serving from: ${staticDir}`, c.dim);
+
+  const staticServerScript = join(projectRoot, "scripts", "static-server.mjs");
+  spawnService(
+    "static",
+    "node",
+    [
+      staticServerScript,
+      "--dir", staticDir,
+      "--host", "0.0.0.0",
+      "--port", String(config.vitePort),
+      // Proxy routes to backends (same as ingress but for direct access to vitePort)
+      "--route", `/api/automation=http://localhost:${config.autoBackendPort}`,
+      "--route", `/api=http://localhost:${config.agentServerPort}`,
+      "--route", `/sockets=http://localhost:${config.agentServerPort}`,
+      "--route", `/server_info=http://localhost:${config.agentServerPort}`,
+      "--route", `/health=http://localhost:${config.agentServerPort}`,
+      "--route", `/ready=http://localhost:${config.agentServerPort}`,
+      "--route", `/alive=http://localhost:${config.agentServerPort}`,
+    ],
+    {
+      cwd: config.canvasPath,
+      color: c.magenta,
+    }
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -7,10 +7,11 @@ import {
   getVisibleSettingsSections,
   hasAdvancedSettingsOverrides,
   inferInitialView,
+  isValidSettingsSchema,
   SPECIALLY_RENDERED_KEYS,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { Settings } from "#/types/settings";
+import { Settings, SettingsSchema } from "#/types/settings";
 
 const BASE_SETTINGS: Settings = {
   ...DEFAULT_SETTINGS,
@@ -336,6 +337,42 @@ describe("sdk settings schema helpers", () => {
         litellm_extra_body: { metadata: { tier: "sample" } },
       },
       critic: { enabled: true, mode: "all_actions" },
+    });
+  });
+
+  describe("isValidSettingsSchema", () => {
+    it("accepts a schema with an array sections field", () => {
+      expect(
+        isValidSettingsSchema({
+          model_name: "AgentSettings",
+          sections: [],
+        }),
+      ).toBe(true);
+    });
+
+    it.each([
+      ["null", null],
+      ["undefined", undefined],
+      ["object without sections", { model_name: "AgentSettings" }],
+      [
+        "object with non-array sections",
+        { model_name: "AgentSettings", sections: "oops" },
+      ],
+    ])("rejects %s", (_label, value) => {
+      expect(isValidSettingsSchema(value as unknown as SettingsSchema)).toBe(
+        false,
+      );
+    });
+
+    it("makes getVisibleSettingsSections tolerate malformed schemas", () => {
+      // Regression test for the Vercel preview crash where the schema
+      // endpoint resolved with a truthy object that had no `sections`
+      // array, causing `.filter` to throw on undefined.
+      const malformed = {
+        model_name: "AgentSettings",
+      } as unknown as SettingsSchema;
+
+      expect(getVisibleSettingsSections(malformed, {}, "basic")).toEqual([]);
     });
   });
 });

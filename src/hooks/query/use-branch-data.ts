@@ -69,7 +69,7 @@ export function useBranchData(
     const shouldUseSearch =
       processedSearchInput &&
       searchData &&
-      !(selectedBranch && inputValue === selectedBranch.name);
+      !(inputValue === selectedBranch?.name);
 
     let branchesToUse = shouldUseSearch ? searchData : allBranches;
 

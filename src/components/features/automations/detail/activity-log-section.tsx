@@ -47,7 +47,7 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
         </div>
       )}
 
-      {!isLoading && data && data.runs.length === 0 && (
+      {!isLoading && data?.runs.length === 0 && (
         <p className="px-5 py-8 text-center text-sm text-content-muted">
           {t(I18nKey.AUTOMATIONS$DETAIL$NO_RUNS)}
         </p>
