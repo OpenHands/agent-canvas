@@ -51,10 +51,10 @@ export const remarkGithubAlerts: Plugin<[], Root> = () => (tree) => {
   visit(tree, "blockquote", (node) => {
     const block = node;
     const firstChild = block.children[0];
-    if (!firstChild || firstChild.type !== "paragraph") return;
+    if (firstChild?.type !== "paragraph") return;
     const paragraph = firstChild;
     const firstText = paragraph.children[0];
-    if (!firstText || firstText.type !== "text") return;
+    if (firstText?.type !== "text") return;
 
     const match = firstText.value.match(ALERT_REGEX);
     if (!match) return;
