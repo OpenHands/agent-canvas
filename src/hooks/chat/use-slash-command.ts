@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
-import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { useSkills } from "#/hooks/query/use-skills";
+import { SkillInfo } from "#/types/settings";
 import { Microagent } from "#/api/open-hands.types";
 import { BUILT_IN_COMMANDS } from "#/utils/constants";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 
-export type SlashCommandSkill = Skill | Microagent;
+export type SlashCommandSkill = SkillInfo | Microagent;
 
 export interface SlashCommandItem {
   skill: SlashCommandSkill;
@@ -32,7 +32,7 @@ function getCursorOffset(element: HTMLElement): number {
 export const useSlashCommand = (
   chatInputRef: React.RefObject<HTMLDivElement | null>,
 ) => {
-  const { data: skills, isLoading: isSkillsLoading } = useConversationSkills();
+  const { data: skills, isLoading: isSkillsLoading } = useSkills();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filterText, setFilterText] = useState("");

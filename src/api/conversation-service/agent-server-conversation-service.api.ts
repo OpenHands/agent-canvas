@@ -26,7 +26,6 @@ import {
   downloadTextFile,
   emptyHooksResponse,
   getDefaultConversationTitle,
-  loadSkillsForConversation,
   toAppConversation,
   toConversationPage,
 } from "../agent-server-adapter";
@@ -44,7 +43,6 @@ import {
 } from "../conversation-metadata-store";
 import type {
   GetHooksResponse,
-  GetSkillsResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -362,13 +360,6 @@ class AgentServerConversationService {
     );
 
     return response.data;
-  }
-
-  static async getSkills(conversationId: string): Promise<GetSkillsResponse> {
-    const [conversation] = await this.batchGetAppConversations([
-      conversationId,
-    ]);
-    return loadSkillsForConversation(conversation);
   }
 
   static async getHooks(conversationId: string): Promise<GetHooksResponse> {

@@ -10,12 +10,11 @@ import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
   GetHooksResponse,
-  GetSkillsResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { createHttpClient, createSkillsClient } from "./typescript-client";
+import { createHttpClient } from "./typescript-client";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -530,23 +529,6 @@ export async function downloadTextFile(path: string): Promise<string> {
   );
 
   return new TextDecoder().decode(response.data);
-}
-
-export async function loadSkillsForConversation(
-  conversation: AppConversation | null | undefined,
-): Promise<GetSkillsResponse> {
-  const projectDir =
-    conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
-
-  const response = await createSkillsClient().getSkills({
-    load_public: shouldLoadPublicSkills(),
-    load_user: true,
-    load_project: true,
-    load_org: false,
-    project_dir: projectDir,
-  });
-
-  return { skills: response.skills ?? [] };
 }
 
 export function emptyHooksResponse(): GetHooksResponse {

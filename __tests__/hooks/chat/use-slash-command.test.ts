@@ -19,8 +19,8 @@ const mockConversation = vi.hoisted(() => ({
   data: undefined as { conversation_version?: "V0" | "V1" } | undefined,
 }));
 
-vi.mock("#/hooks/query/use-conversation-skills", () => ({
-  useConversationSkills: () => mockSkills,
+vi.mock("#/hooks/query/use-skills", () => ({
+  useSkills: () => mockSkills,
 }));
 
 vi.mock("#/hooks/query/use-active-conversation", () => ({
