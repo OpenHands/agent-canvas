@@ -5,13 +5,19 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: "Update baseline snapshots"
+        type: boolean
+        default: false
 
 concurrency:
   group: snapshot-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   snapshot-tests:
@@ -22,6 +28,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
@@ -36,7 +44,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run snapshot tests
+        if: ${{ github.event.inputs.update_snapshots != 'true' }}
         run: npm run test:e2e:snapshots
+
+      - name: Update snapshots
+        if: ${{ github.event.inputs.update_snapshots == 'true' }}
+        run: npm run test:e2e:snapshots:update
+
+      - name: Commit updated snapshots
+        if: ${{ github.event.inputs.update_snapshots == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/e2e/__snapshots__/
+          git diff --staged --quiet || git commit -m "chore: update baseline snapshots [skip ci]"
+          git push
 
       - name: Upload snapshot diff artifacts
         if: failure()

@@ -24,12 +24,13 @@
 - Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baseline images in `tests/e2e/__snapshots__/`.
 - Run with `npm run test:e2e:snapshots`; update baselines after intentional UI changes with `npm run test:e2e:snapshots:update`.
 - CI runs snapshots via `.github/workflows/snapshot-tests.yml` on every PR/push to main; failures upload diff artifacts.
+- **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report with visual diffs.
 - Key patterns for writing snapshot tests:
   - Use `setupMocks(page, showConsentModal)` helper to configure API mocks consistently.
-  - Set `user_consents_to_analytics: false` in settings mock to hide the analytics consent modal (use `null` to show it).
-  - Set `openhands-onboarded` in localStorage via `page.addInitScript()` to skip onboarding.
+  - Use `dismissConsentModal(page)` after navigation to dismiss the analytics modal.
   - Use `animations: "disabled"` and `maxDiffPixelRatio: 0.01` in `toHaveScreenshot()` to reduce flakiness.
   - Target specific elements via `page.getByTestId()` rather than full-page screenshots when possible.
+- **Composing tests**: Use `test.step()` for iterative snapshots within a single test, or extract helper functions (like `navigateToSettings(page)`) to share setup across tests. For heavier reuse, use Playwright fixtures via `test.extend()`.
 - Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
 
 ## Live End-to-End Test Framework
