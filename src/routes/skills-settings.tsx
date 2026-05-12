@@ -136,7 +136,7 @@ function SkillsSettingsScreen() {
                   {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {filteredSkills.map((skill) => (
                     <SkillCard
                       key={skill.name}
