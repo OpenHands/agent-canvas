@@ -26,6 +26,7 @@ import {
 } from "#/components/features/backends/environment-switch-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { getLastConversationId } from "#/api/backend-registry/last-conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
@@ -294,8 +295,38 @@ export function BackendSelector({
             }
           }
 
-          if (conversationMatch) navigate("/conversations");
-          else if (automationDetailMatch) navigate("/automations");
+          // Compute where the user should land on the target backend.
+          // The rule:
+          //   - on `/conversations/:id`: jump to the target backend's
+          //     most recently selected conversation, or to
+          //     `/conversations` if it has none. Either way the URL
+          //     stops referring to the source backend's conversation
+          //     id, which avoids a "conversation not available" 404
+          //     once we re-key backend-scoped queries below.
+          //   - on `/automations/:id`: jump to the automations list
+          //     (automation ids are not portable across backends and
+          //     we don't currently remember a per-backend selection).
+          //   - on any other route (settings, /conversations,
+          //     /skills, …): stay on the same path.
+          //
+          // `await navigate(...)` waits for the router transition to
+          // commit before `setActive` notifies its listeners. Without
+          // that wait, react-router defers the URL change as a
+          // transition while `useSyncExternalStore`-based backend
+          // listeners run at sync priority — the conversation route
+          // would re-render once with `(newBackendId, oldConvoId)` and
+          // `useUserConversation` would fire a 404 against the new
+          // backend before unmounting.
+          let destination: string | null = null;
+          if (conversationMatch) {
+            const remembered = getLastConversationId(target.id, orgId);
+            destination = remembered
+              ? `/conversations/${remembered}`
+              : "/conversations";
+          } else if (automationDetailMatch) {
+            destination = "/automations";
+          }
+          if (destination) await navigate(destination);
 
           setActive(target.id, orgId);
         }}
