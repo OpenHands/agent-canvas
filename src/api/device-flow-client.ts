@@ -83,6 +83,7 @@ async function makeProxiedRequest(
   path: string,
   body?: unknown,
   contentType?: string,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const local = getEffectiveLocalBackend();
   const proxyUrl = `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`;
@@ -100,6 +101,7 @@ async function makeProxiedRequest(
       headers: contentType ? { "Content-Type": contentType } : {},
       body: body ?? null,
     }),
+    signal,
   });
 
   return response;
@@ -215,6 +217,7 @@ export async function pollForToken(
         "/oauth/device/token",
         tokenRequestBody,
         "application/x-www-form-urlencoded",
+        options.signal,
       );
 
       if (response.ok) {
