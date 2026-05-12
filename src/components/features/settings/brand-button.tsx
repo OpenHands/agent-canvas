@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "#/utils/utils";
 
 interface BrandButtonProps {
@@ -11,24 +12,31 @@ interface BrandButtonProps {
   startContent?: React.ReactNode;
 }
 
-export function BrandButton({
-  testId,
-  name,
-  children,
-  variant,
-  type,
-  isDisabled,
-  className,
-  onClick,
-  startContent,
-}: React.PropsWithChildren<BrandButtonProps>) {
+export const BrandButton = forwardRef<
+  HTMLButtonElement,
+  React.PropsWithChildren<BrandButtonProps>
+>(function BrandButton(
+  {
+    testId,
+    name,
+    children,
+    variant,
+    type,
+    isDisabled,
+    className,
+    onClick,
+    startContent,
+  },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       name={name}
       data-testid={testId}
       disabled={isDisabled}
-      // The type is alreadt passed as a prop to the button component
-      // eslint-disable-next-line react/button-has-type
+      // The type is already passed as a prop to the button component
+
       type={type}
       onClick={onClick}
       className={cn(
@@ -46,4 +54,4 @@ export function BrandButton({
       {children}
     </button>
   );
-}
+});
