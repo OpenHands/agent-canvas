@@ -8,12 +8,6 @@ import {
 } from "./cloud/secrets-service.api";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
-import { Provider, ProviderOptions, ProviderToken } from "#/types/settings";
-
-const normalizeHost = (host: string | null | undefined): string | null => {
-  const trimmed = typeof host === "string" ? host.trim() : "";
-  return trimmed.length > 0 ? trimmed : null;
-};
 
 /**
  * Retry helper for API calls with exponential backoff.
@@ -42,107 +36,6 @@ async function withRetry<T>(
 
   throw new Error("Retry attempts exhausted");
 }
-
-/**
- * Get the secret name for a git provider token.
- */
-function getGitProviderSecretName(provider: Provider): string {
-  return `GIT_PROVIDER_${provider.toUpperCase()}_TOKEN`;
-}
-
-// ============================================================================
-// Git Provider Token Storage (for frontend git API calls)
-// ============================================================================
-// Note: Git provider tokens need to be accessible from the frontend to make
-// direct API calls to GitHub/GitLab/etc. for repo search, branches, etc.
-// These are stored in localStorage for frontend use AND synced to the server
-// for agent runtime use.
-// ============================================================================
-
-const GIT_PROVIDER_STORAGE_KEY = "openhands-agent-server-git-provider-tokens";
-
-type StoredGitProviderTokens = Partial<Record<Provider, ProviderToken>>;
-
-const readStoredGitProviders = (): StoredGitProviderTokens => {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(GIT_PROVIDER_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed).flatMap(([provider, value]) => {
-        if (
-          !(provider in ProviderOptions) ||
-          !value ||
-          typeof value !== "object"
-        ) {
-          return [];
-        }
-
-        const token =
-          typeof (value as ProviderToken).token === "string"
-            ? (value as ProviderToken).token.trim()
-            : "";
-
-        if (!token) {
-          return [];
-        }
-
-        return [
-          [
-            provider,
-            {
-              token,
-              host: normalizeHost((value as ProviderToken).host),
-            },
-          ],
-        ];
-      }),
-    ) as StoredGitProviderTokens;
-  } catch {
-    return {};
-  }
-};
-
-const writeStoredGitProviders = (providers: StoredGitProviderTokens) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (Object.keys(providers).length === 0) {
-    window.localStorage.removeItem(GIT_PROVIDER_STORAGE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(
-    GIT_PROVIDER_STORAGE_KEY,
-    JSON.stringify(providers),
-  );
-};
-
-/**
- * Get stored git provider tokens for frontend API calls.
- * These are stored locally for making direct GitHub/GitLab API calls.
- */
-export const getStoredGitProviders = (): StoredGitProviderTokens =>
-  readStoredGitProviders();
-
-/**
- * Get a specific git provider token for frontend API calls.
- */
-export const getStoredGitProviderToken = (
-  provider: Provider,
-): ProviderToken | null => readStoredGitProviders()[provider] ?? null;
 
 export class SecretsService {
   /**
@@ -251,72 +144,5 @@ export class SecretsService {
       }
       throw error;
     }
-  }
-
-  /**
-   * Add or update git provider tokens.
-   * Stores tokens in both:
-   * 1. localStorage - for frontend git API calls (repo search, branches, etc.)
-   * 2. Agent server secrets API - for agent runtime use
-   *
-   * Both stores must succeed for the operation to complete successfully.
-   *
-   * @throws Error if the server API call fails after retries
-   */
-  static async addGitProvider(
-    providers: Partial<Record<Provider, ProviderToken>>,
-  ): Promise<void> {
-    const storedProviders = readStoredGitProviders();
-    const nextProviders: StoredGitProviderTokens = { ...storedProviders };
-
-    const entries = Object.entries(providers) as [Provider, ProviderToken][];
-
-    for (const [provider, value] of entries) {
-      const token = value.token.trim();
-      const host = normalizeHost(value.host);
-      const nextToken = token || nextProviders[provider]?.token;
-
-      if (nextToken) {
-        const secretName = getGitProviderSecretName(provider);
-        // eslint-disable-next-line no-await-in-loop
-        await this.createSecret(
-          secretName,
-          nextToken,
-          `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
-        );
-
-        // Only update localStorage after server storage succeeds
-        nextProviders[provider] = { token: nextToken, host };
-      }
-    }
-
-    // Update localStorage for frontend git API calls
-    writeStoredGitProviders(nextProviders);
-  }
-
-  /**
-   * Delete all git provider tokens from both localStorage and server.
-   */
-  static async deleteGitProviders(): Promise<void> {
-    const storedProviders = readStoredGitProviders();
-
-    // Delete each provider's secret from the server
-    await Promise.all(
-      (Object.keys(storedProviders) as Provider[]).map(async (provider) => {
-        const secretName = getGitProviderSecretName(provider);
-        try {
-          await this.deleteSecret(secretName);
-        } catch (error) {
-          // Log but continue - we still want to clear other providers
-          console.warn(
-            `Failed to delete git provider secret for ${provider}:`,
-            error,
-          );
-        }
-      }),
-    );
-
-    // Clear localStorage
-    writeStoredGitProviders({});
   }
 }

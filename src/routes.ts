@@ -13,7 +13,6 @@ export default [
     route("launch", "routes/launch.tsx"),
     route("skills", "routes/skills-settings.tsx"),
     route("mcp", "routes/mcp.tsx"),
-    route("integrations", "routes/git-settings.tsx"),
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
