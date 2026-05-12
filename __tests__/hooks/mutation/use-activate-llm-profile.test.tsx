@@ -65,7 +65,7 @@ describe("useActivateLlmProfile", () => {
       queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({
-      queryKey: SETTINGS_QUERY_KEYS.all,
+      queryKey: SETTINGS_QUERY_KEYS.personal(),
     });
 
     invalidateCacheSpy.mockRestore();

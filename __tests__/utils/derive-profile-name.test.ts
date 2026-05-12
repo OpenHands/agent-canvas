@@ -103,14 +103,25 @@ describe("deriveProfileNameFromModel", () => {
   });
 
   it("removes trailing dashes after truncation", () => {
-    // Create a model name that when truncated at 64 chars ends with dashes
-    const model = "a".repeat(60) + "----" + "b".repeat(10);
+    // Create a model name that when truncated at 64 chars ends with a dash
+    // 63 'a's + dash at position 64 + more chars that get truncated
+    const model = "a".repeat(63) + "-" + "b".repeat(10);
     const result = deriveProfileNameFromModel(`provider/${model}`);
+    expect(result.length).toBe(63); // Trailing dash removed
     expect(result.endsWith("-")).toBe(false);
+    expect(result).toBe("a".repeat(63));
   });
 
   it("returns 'default-profile' for empty input", () => {
     expect(deriveProfileNameFromModel("")).toBe("default-profile");
+  });
+
+  it("returns 'default-profile' when model name sanitizes to empty string", () => {
+    // Model names that only contain invalid characters
+    expect(deriveProfileNameFromModel("provider/@@@")).toBe("default-profile");
+    expect(deriveProfileNameFromModel("provider/---")).toBe("default-profile");
+    expect(deriveProfileNameFromModel("provider/!!!")).toBe("default-profile");
+    expect(deriveProfileNameFromModel("provider/   ")).toBe("default-profile");
   });
 
   it("handles trailing slash by falling back to full input", () => {

@@ -3,10 +3,8 @@
  *
  * Note: We mock ProfilesClient directly because the SDK's HttpClient uses
  * native fetch that MSW doesn't intercept reliably in Node.js test environments.
- * This approach still tests:
- * - ProfilesService correctly delegates to ProfilesClient methods
- * - Client cleanup (close) happens consistently
- * - Error propagation from the SDK
+ * This approach tests that ProfilesService correctly delegates to ProfilesClient
+ * methods and propagates errors from the SDK.
  *
  * For full integration testing, use browser-level tests with MSW.
  */
@@ -22,7 +20,6 @@ const {
   mockDeleteProfile,
   mockRenameProfile,
   mockActivateProfile,
-  mockClose,
 } = vi.hoisted(() => ({
   mockListProfiles: vi.fn(),
   mockGetProfile: vi.fn(),
@@ -30,7 +27,6 @@ const {
   mockDeleteProfile: vi.fn(),
   mockRenameProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
-  mockClose: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", () => ({
@@ -42,7 +38,6 @@ vi.mock("@openhands/typescript-client/clients", () => ({
       deleteProfile: mockDeleteProfile,
       renameProfile: mockRenameProfile,
       activateProfile: mockActivateProfile,
-      close: mockClose,
     };
   }),
 }));
@@ -62,7 +57,6 @@ describe("ProfilesService", () => {
     mockDeleteProfile.mockReset();
     mockRenameProfile.mockReset();
     mockActivateProfile.mockReset();
-    mockClose.mockReset();
     vi.mocked(ProfilesClient).mockClear();
   });
 
@@ -95,7 +89,6 @@ describe("ProfilesService", () => {
       const result = await ProfilesService.listProfiles();
 
       expect(mockListProfiles).toHaveBeenCalled();
-      expect(mockClose).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
       expect(result.profiles).toHaveLength(2);
     });
@@ -109,13 +102,12 @@ describe("ProfilesService", () => {
       expect(result.profiles).toEqual([]);
     });
 
-    it("closes client even on error", async () => {
+    it("propagates errors from the SDK", async () => {
       mockListProfiles.mockRejectedValue(new Error("Network error"));
 
       await expect(ProfilesService.listProfiles()).rejects.toThrow(
         "Network error",
       );
-      expect(mockClose).toHaveBeenCalled();
     });
   });
 
@@ -132,7 +124,6 @@ describe("ProfilesService", () => {
       const result = await ProfilesService.getProfile("my-profile");
 
       expect(mockGetProfile).toHaveBeenCalledWith("my-profile", {});
-      expect(mockClose).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
     });
 
@@ -169,7 +160,6 @@ describe("ProfilesService", () => {
       const result = await ProfilesService.saveProfile("new-profile", request);
 
       expect(mockSaveProfile).toHaveBeenCalledWith("new-profile", request);
-      expect(mockClose).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
     });
 
@@ -198,7 +188,6 @@ describe("ProfilesService", () => {
       const result = await ProfilesService.deleteProfile("old-profile");
 
       expect(mockDeleteProfile).toHaveBeenCalledWith("old-profile");
-      expect(mockClose).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
     });
   });
@@ -216,8 +205,10 @@ describe("ProfilesService", () => {
         "renamed-profile",
       );
 
-      expect(mockRenameProfile).toHaveBeenCalledWith("old-name", "renamed-profile");
-      expect(mockClose).toHaveBeenCalled();
+      expect(mockRenameProfile).toHaveBeenCalledWith(
+        "old-name",
+        "renamed-profile",
+      );
       expect(result).toEqual(mockResponse);
     });
   });
@@ -234,7 +225,6 @@ describe("ProfilesService", () => {
       const result = await ProfilesService.activateProfile("active-profile");
 
       expect(mockActivateProfile).toHaveBeenCalledWith("active-profile");
-      expect(mockClose).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
     });
   });

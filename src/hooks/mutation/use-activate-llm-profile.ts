@@ -19,9 +19,9 @@ export function useActivateLlmProfile() {
       await queryClient.invalidateQueries({
         queryKey: LLM_PROFILES_QUERY_KEYS.all,
       });
-      // Also invalidate settings since activating a profile changes agent_settings.llm
+      // Use personal() scope for consistency with other settings hooks
       await queryClient.invalidateQueries({
-        queryKey: SETTINGS_QUERY_KEYS.all,
+        queryKey: SETTINGS_QUERY_KEYS.personal(),
       });
     },
     // Consumers handle errors with try-catch and manual toasts; disable global toast

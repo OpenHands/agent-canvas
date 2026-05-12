@@ -95,7 +95,7 @@ describe("useRenameLlmProfile", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: SETTINGS_QUERY_KEYS.all,
+      queryKey: SETTINGS_QUERY_KEYS.personal(),
     });
   });
 

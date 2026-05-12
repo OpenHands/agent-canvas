@@ -112,7 +112,7 @@ describe("useSaveLlmProfile", () => {
       queryKey: LLM_PROFILES_QUERY_KEYS.all,
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: SETTINGS_QUERY_KEYS.all,
+      queryKey: SETTINGS_QUERY_KEYS.personal(),
     });
   });
 
