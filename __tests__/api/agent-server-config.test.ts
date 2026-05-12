@@ -62,6 +62,8 @@ describe("agent server config", () => {
   });
 
   it("defaults the working dir to the relative workspace path", () => {
+    vi.stubEnv("VITE_WORKING_DIR", "");
+
     expect(getAgentServerWorkingDir()).toBe(DEFAULT_WORKING_DIR);
   });
 

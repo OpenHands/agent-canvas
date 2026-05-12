@@ -1,8 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import AgentServerGitService from "#/api/git-service/agent-server-git-service.api";
 
 describe("mock conversation handlers", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_WORKING_DIR", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns adapted conversations for batch lookups", async () => {
     const [conversation] = await AgentServerConversationService.batchGetAppConversations([
       "1",
