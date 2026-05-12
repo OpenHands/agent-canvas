@@ -41,6 +41,7 @@ export function withWorkspaceCacheBuster(
   version: number,
 ): string | null {
   if (url === null) return null;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}v=${version}`;
 }

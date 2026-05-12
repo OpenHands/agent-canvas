@@ -19,11 +19,13 @@ interface UseResolvedWorkspacesResult {
  * effectively the user's projects root in the dockerized dev stack. We
  * surface its immediate subdirectories as workspaces automatically.
  *
- * In environments where `/projects` doesn't exist (e.g. dockerless dev),
- * the `searchSubdirs` call will fail and the implicit parent contributes
- * no entries. This is safe and intentional — the implicit parent stays
- * silent rather than user-visible.
+ * This is a development convenience only. Production previews may point at
+ * arbitrary remote agent servers that do not expose the file-browser endpoint;
+ * probing `/projects` there creates noisy 404s before the user has added any
+ * workspace parent explicitly.
  */
+const INCLUDE_IMPLICIT_WORKSPACE_PARENTS = import.meta.env.DEV;
+
 const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
 ];
@@ -49,7 +51,10 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     const seen = new Set(storedParents.map((p) => p.path));
     // Filter out implicit parents that conflict with user-added ones (by path)
     // so custom names/ids are preserved.
-    const extras = IMPLICIT_WORKSPACE_PARENTS.filter((p) => !seen.has(p.path));
+    const implicitParents = INCLUDE_IMPLICIT_WORKSPACE_PARENTS
+      ? IMPLICIT_WORKSPACE_PARENTS
+      : [];
+    const extras = implicitParents.filter((p) => !seen.has(p.path));
     return extras.length === 0 ? storedParents : [...storedParents, ...extras];
   }, [storedParents]);
 

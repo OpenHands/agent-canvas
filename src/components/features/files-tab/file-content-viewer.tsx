@@ -24,19 +24,17 @@ function getExtension(path: string): string {
 }
 
 /**
- * Renders the contents of a single workspace file. In `rich` mode we point
- * an iframe / <img> straight at the agent server's static workspace
- * fileserver for HTML / SVG / images / PDFs, so relative asset references
- * load naturally. In `plain` mode we always show the raw bytes as text (or
+ * Renders the contents of a single workspace file. In `rich` mode we render
+ * HTML / SVG / images / PDFs from the browser-renderable URL produced by the
+ * file-content hook. In `plain` mode we always show the raw bytes as text (or
  * a fallback message for binaries).
  */
 export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   const { t } = useTranslation("openhands");
   const query = useWorkspaceFileContent(path);
-  // Subscribe to the workspace mutation counter so the iframe / <img> src
-  // changes after every agent-side edit, forcing a fresh fetch even when
-  // the *path* hasn't moved (e.g. agent rewrote `style.css` referenced by
-  // the currently-displayed `index.html`).
+  // Subscribe to the workspace mutation counter so remote static URLs change
+  // after every agent-side edit. Blob/data preview URLs are already fresh and
+  // are passed through unchanged by the cache-buster helper.
   const mutationCounter = useWorkspaceMutationCounter((state) => state.count);
 
   if (query.isLoading) {
@@ -141,13 +139,11 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   // Text-like content.
   if (mimeType === "text/html" || HTML_LIKE_EXTS.has(getExtension(path))) {
-    // Sandbox the preview iframe: `allow-same-origin` keeps the frame on
-    // the workspace fileserver's origin so relative `<link href="…">`,
-    // `<img src="…">`, etc. continue to resolve, while the absence of
-    // `allow-scripts` means any `<script>` (or `onerror=…`, inline event
-    // handler, …) inside the previewed file is inert. This is exactly
-    // the safe-preview posture we want — users can look at their HTML
-    // without it executing in the canvas's context.
+    // Sandbox the preview iframe. The absence of `allow-scripts` means any
+    // `<script>` (or `onerror=…`, inline event handler, …) inside the
+    // previewed file is inert. This is exactly the safe-preview posture we
+    // want — users can look at their HTML without it executing in the
+    // canvas's context.
     return (
       <iframe
         title={path}

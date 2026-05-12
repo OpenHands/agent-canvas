@@ -179,6 +179,13 @@ class AutomationService {
         return response;
       }
 
+      if (!import.meta.env.VITE_AUTOMATION_API_KEY?.trim()) {
+        return {
+          status: "error",
+          message: "Automation backend is not configured",
+        };
+      }
+
       const { data } = await localAutomationAxios.get<AutomationHealthResponse>(
         path,
         { timeout: 5000 },
