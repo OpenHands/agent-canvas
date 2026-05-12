@@ -4,6 +4,12 @@ import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { I18nKey } from "#/i18n/declaration";
 import type { SkillInfo } from "#/types/settings";
 import { cn } from "#/utils/utils";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
+import ChevronDownIcon from "#/icons/chevron-down.svg?react";
+import CopyIcon from "#/icons/copy.svg?react";
 import { SkillTypeBadge } from "./skill-type-badge";
 
 interface SkillCardProps {
@@ -14,13 +20,36 @@ interface SkillCardProps {
 
 const DESCRIPTION_CLAMP_THRESHOLD = 220;
 
+function hasExpandableMetadata(skill: SkillInfo): boolean {
+  return Boolean(
+    skill.source ||
+    skill.license ||
+    skill.compatibility ||
+    (skill.allowed_tools && skill.allowed_tools.length > 0) ||
+    (skill.metadata && Object.keys(skill.metadata).length > 0),
+  );
+}
+
 export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
   const { t } = useTranslation("openhands");
   const [showFullDescription, setShowFullDescription] = React.useState(false);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const description = skill.description?.trim() || "";
   const isDescriptionClamped = description.length > DESCRIPTION_CLAMP_THRESHOLD;
   const showShowMoreButton = isDescriptionClamped;
+
+  const handleCopySource = async () => {
+    if (!skill.source) return;
+    try {
+      await navigator.clipboard.writeText(skill.source);
+      displaySuccessToast(t(I18nKey.SETTINGS$SKILLS_COPIED));
+    } catch {
+      displayErrorToast(t(I18nKey.ERROR$GENERIC));
+    }
+  };
+
+  const detailsAvailable = hasExpandableMetadata(skill);
 
   return (
     <article
@@ -107,6 +136,110 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
         </div>
       )}
 
+      {detailsAvailable && (
+        <div className="pt-2">
+          <button
+            type="button"
+            data-testid={`skill-details-toggle-${skill.name}`}
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between text-xs font-medium text-tertiary-light hover:text-white"
+          >
+            <span>{t(I18nKey.SETTINGS$SKILLS_DETAILS)}</span>
+            <ChevronDownIcon
+              className={cn(
+                "size-3.5 transition-transform",
+                detailsOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+
+          {detailsOpen && (
+            <dl
+              data-testid={`skill-details-${skill.name}`}
+              className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-[max-content_1fr]"
+            >
+              {skill.source && (
+                <>
+                  <dt className="text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_SOURCE)}
+                  </dt>
+                  <dd className="flex items-center gap-2 min-w-0">
+                    <code
+                      data-testid={`skill-source-${skill.name}`}
+                      className="block break-all rounded bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 font-mono text-[11px] text-white"
+                    >
+                      {skill.source}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopySource}
+                      aria-label={t(I18nKey.SETTINGS$SKILLS_COPY_PATH)}
+                      data-testid={`skill-copy-source-${skill.name}`}
+                      className="shrink-0 rounded p-1 text-tertiary-light hover:bg-[rgba(255,255,255,0.06)] hover:text-white"
+                    >
+                      <CopyIcon className="size-3.5" />
+                    </button>
+                  </dd>
+                </>
+              )}
+              {skill.license && (
+                <>
+                  <dt className="text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_LICENSE)}
+                  </dt>
+                  <dd className="text-white">{skill.license}</dd>
+                </>
+              )}
+              {skill.compatibility && (
+                <>
+                  <dt className="text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_COMPATIBILITY)}
+                  </dt>
+                  <dd className="text-white">{skill.compatibility}</dd>
+                </>
+              )}
+              {skill.allowed_tools && skill.allowed_tools.length > 0 && (
+                <>
+                  <dt className="text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_ALLOWED_TOOLS)}
+                  </dt>
+                  <dd className="flex flex-wrap gap-1">
+                    {skill.allowed_tools.map((tool) => (
+                      <span
+                        key={tool}
+                        className="inline-flex items-center rounded-md border border-tertiary px-1.5 py-0.5 font-mono text-[11px] text-tertiary-light"
+                      >
+                        {tool}
+                      </span>
+                    ))}
+                  </dd>
+                </>
+              )}
+              {skill.metadata && Object.keys(skill.metadata).length > 0 && (
+                <>
+                  <dt className="text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_METADATA)}
+                  </dt>
+                  <dd>
+                    <ul className="flex flex-col gap-0.5">
+                      {Object.entries(skill.metadata).map(([key, value]) => (
+                        <li key={key} className="flex gap-2">
+                          <span className="font-mono text-[11px] text-tertiary-light">
+                            {key}:
+                          </span>
+                          <span className="text-white">{value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </>
+              )}
+            </dl>
+          )}
+        </div>
+      )}
     </article>
   );
 }
