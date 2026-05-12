@@ -59,20 +59,14 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
         !enabled && "opacity-70",
       )}
     >
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <SettingsSwitch
-            testId={`skill-toggle-${skill.name}`}
-            isToggled={enabled}
-            onToggle={onToggle}
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            data-testid={`skill-name-${skill.name}`}
+            className="text-sm font-semibold text-white truncate"
           >
-            <span
-              data-testid={`skill-name-${skill.name}`}
-              className="text-sm font-semibold text-white"
-            >
-              {skill.name}
-            </span>
-          </SettingsSwitch>
+            {skill.name}
+          </span>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           <SkillTypeBadge type={skill.type} />
@@ -93,6 +87,11 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               {t(I18nKey.SETTINGS$SKILLS_DISABLE_MODEL_INVOCATION)}
             </span>
           )}
+          <SettingsSwitch
+            testId={`skill-toggle-${skill.name}`}
+            isToggled={enabled}
+            onToggle={onToggle}
+          />
         </div>
       </header>
 
