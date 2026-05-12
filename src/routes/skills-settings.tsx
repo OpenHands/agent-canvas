@@ -107,18 +107,19 @@ function SkillsSettingsScreen() {
                     testId={`skill-toggle-${skill.name}`}
                     isToggled={!disabledSet.has(skill.name)}
                     onToggle={(enabled) => handleToggle(skill.name, enabled)}
+                    togglePosition="right"
                   >
                     {skill.name}
                   </SettingsSwitch>
                   {skill.triggers && skill.triggers.length > 0 && (
-                    <span className="text-xs text-neutral-500 ml-14">
+                    <span className="text-xs text-neutral-500">
                       {t(I18nKey.SETTINGS$SKILLS_TRIGGERS, {
                         triggers: skill.triggers.join(", "),
                         interpolation: { escapeValue: false },
                       })}
                     </span>
                   )}
-                  <span className="text-xs text-neutral-500 ml-14">
+                  <span className="text-xs text-neutral-500">
                     {skill.source} / {skill.type}
                   </span>
                 </div>
