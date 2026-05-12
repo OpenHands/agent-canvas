@@ -21,16 +21,16 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task }: TaskCardProps) {
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
-  const handleLaunchConversation = () => {
-    setOptimisticUserMessage(t("TASK$ADDRESSING_TASK"));
-
-    return createConversation(
+  const handleLaunchConversation = () =>
+    createConversation(
       {
         repository: {
           name: task.repo,
@@ -40,11 +40,18 @@ export function TaskCard({ task }: TaskCardProps) {
       },
       {
         onSuccess: (data) => {
+          // Enqueue the pending message after the new conversation exists so
+          // it can be tagged with the conversation id and only show up in the
+          // target conversation's chat (not in whatever convo the user was
+          // looking at when they clicked the task).
+          enqueuePendingMessage({
+            conversationId: data.conversation_id,
+            text: t("TASK$ADDRESSING_TASK"),
+          });
           navigate(`/conversations/${data.conversation_id}`);
         },
       },
     );
-  };
 
   // Determine the correct URL format based on git provider
   let href: string;

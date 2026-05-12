@@ -12,7 +12,7 @@ npm run dev
 
 This is an alias for `npm run dev:safe`.
 
-It uses `uvx` to run a temporary `agent-server` installation for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates tmux state and conversation persistence by setting separate `TMUX_TMPDIR`, `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, so it does not collide with other local or cloud-backed OpenHands sessions.
+It uses `uvx` to run a temporary `agent-server` installation for this checkout on `127.0.0.1:18000` and points the frontend at it. It isolates conversation persistence by setting separate `OH_CONVERSATIONS_PATH`, `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, and places tmux sockets under `/tmp` (via `TMUX_TMPDIR`) to avoid filesystem-support issues with mounted volumes, so it does not collide with other local or cloud-backed OpenHands sessions.
 
 ### Environment Variables
 

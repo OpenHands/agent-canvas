@@ -85,10 +85,22 @@ describe("WorkspaceSelectionForm", () => {
     vi.restoreAllMocks();
     mockUseIsCreatingConversation.mockReturnValue(false);
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
+    // `useResolvedWorkspaces` always queries an implicit `/projects` parent
+    // (the dev:docker mount point). Default it to empty so tests that don't
+    // care about it don't hit a real network call. Tests that need specific
+    // behavior can replace this with their own spy.
+    vi.spyOn(FilesService, "searchSubdirs").mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({ home: "/Users/me" });
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [],
+      locations: [{ label: "/", path: "/" }],
+    });
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
       .mockImplementation(async (path: string) => {
@@ -218,6 +230,47 @@ describe("WorkspaceSelectionForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Implicit /projects parent surfaces workspaces automatically", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockImplementation(async (path: string) => {
+        if (path === "/projects") {
+          return {
+            items: [
+              { name: "agent-canvas", path: "/projects/agent-canvas" },
+              { name: "sdk", path: "/projects/sdk" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    const dropdownMenu = await screen.findByTestId("workspace-dropdown-menu");
+    await within(dropdownMenu).findByText("agent-canvas");
+    await within(dropdownMenu).findByText("sdk");
+
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
+  it("A stored /projects parent suppresses the implicit duplicate query", async () => {
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockResolvedValue({ items: [], next_page_id: null });
+
+    renderForm(
+      [],
+      [{ id: "custom-projects", name: "My Projects", path: "/projects" }],
+    );
+
+    await waitFor(() => expect(searchSpy).toHaveBeenCalledTimes(1));
+    expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
   it("Launch creates a v1 conversation with the selected workspace path as working_dir", async () => {
     const workspaces: LocalWorkspace[] = [
       { id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" },
@@ -282,7 +335,11 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add all subdirectories saves a workspace parent and lists its children dynamically", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({ home: "/Users/me" });
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [],
+      locations: [{ label: "/", path: "/" }],
+    });
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
       .mockImplementation(async (path: string) => {
@@ -341,14 +398,22 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Removing a workspace parent stops listing its children", async () => {
+    // Scope the mock to the user-added parent so the implicit `/projects`
+    // parent (always queried by `useResolvedWorkspaces`) doesn't also get
+    // these entries.
     const searchSpy = vi
       .spyOn(FilesService, "searchSubdirs")
-      .mockResolvedValue({
-        items: [
-          { name: "repoA", path: "/Users/me/dev/repoA" },
-          { name: "repoB", path: "/Users/me/dev/repoB" },
-        ],
-        next_page_id: null,
+      .mockImplementation(async (path: string) => {
+        if (path === "/Users/me/dev") {
+          return {
+            items: [
+              { name: "repoA", path: "/Users/me/dev/repoA" },
+              { name: "repoB", path: "/Users/me/dev/repoB" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
       });
 
     renderForm(
@@ -399,6 +464,47 @@ describe("WorkspaceSelectionForm", () => {
     ).not.toBeInTheDocument();
     expect(
       within(refreshedDropdown).queryByText("repoB"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Add Workspace sidebar renders backend-provided favorites dynamically and navigates into them on click", async () => {
+    // Arrange: backend reports a home with a custom favorite that did NOT
+    // exist in the old hardcoded list (Documents / Desktop / Downloads).
+    // This is the regression guard for the original 404-on-navigate bug.
+    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+      home: "/Users/me",
+      favorites: [{ label: "projects", path: "/Users/me/projects" }],
+      locations: [{ label: "/", path: "/" }],
+    });
+    const searchSpy = vi
+      .spyOn(FilesService, "searchSubdirs")
+      .mockImplementation(async (path: string) => {
+        if (path === "/Users/me/projects") {
+          return {
+            items: [{ name: "repo1", path: "/Users/me/projects/repo1" }],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    // Act: open the modal and click the dynamic favorite.
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await user.click(
+      await screen.findByTestId("folder-browser-sidebar-projects"),
+    );
+
+    // Assert: the dynamic favorite drove the navigation, and the previously
+    // hardcoded names are no longer present in the sidebar.
+    await screen.findByTestId("folder-browser-entry-repo1");
+    expect(searchSpy).toHaveBeenCalledWith("/Users/me/projects");
+    expect(
+      screen.queryByTestId("folder-browser-sidebar-documents"),
     ).not.toBeInTheDocument();
   });
 });

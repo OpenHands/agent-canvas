@@ -1,25 +1,33 @@
 import React from "react";
-import {
-  useRouteError,
-  isRouteErrorResponse,
-  Outlet,
-  useLocation,
-} from "react-router";
+import { useRouteError, isRouteErrorResponse, Outlet } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
-import { EnvironmentSwitchOverlay } from "#/components/features/backends/environment-switch-overlay";
-import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { AlertBanner } from "#/components/features/alerts/alert-banner";
-import { cn } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
+
+// Lazy-load components that are only rendered conditionally — keeps them out
+// of the root layout's eager dev/prod graph (and out of every page's first
+// paint) until the relevant condition triggers.
+const EnvironmentSwitchOverlay = React.lazy(
+  () => import("#/components/features/backends/environment-switch-overlay"),
+);
+const AnalyticsConsentFormModal = React.lazy(() =>
+  import("#/components/features/analytics/analytics-consent-form-modal").then(
+    (m) => ({ default: m.AnalyticsConsentFormModal }),
+  ),
+);
+const AlertBanner = React.lazy(() =>
+  import("#/components/features/alerts/alert-banner").then((m) => ({
+    default: m.AlertBanner,
+  })),
+);
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -56,7 +64,6 @@ export function ErrorBoundary() {
 
 export default function MainApp() {
   const appTitle = useAppTitle();
-  const { pathname } = useLocation();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
@@ -91,21 +98,11 @@ export default function MainApp() {
     );
   }
 
-  let rootLayoutPaddingClass = "p-0 md:p-3 md:pl-0";
-  if (pathname === "/" || pathname.startsWith("/automations")) {
-    rootLayoutPaddingClass = "p-0";
-  } else if (pathname.startsWith("/conversations")) {
-    rootLayoutPaddingClass = "p-0 md:pr-3";
-  }
-
   return (
     <ReactRouterNavigationProvider>
       <div
         data-testid="root-layout"
-        className={cn(
-          "h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden",
-          rootLayoutPaddingClass,
-        )}
+        className="h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden p-0"
       >
         <title>{appTitle}</title>
         <Sidebar />
@@ -116,12 +113,14 @@ export default function MainApp() {
               (config.data.faulty_models &&
                 config.data.faulty_models.length > 0) ||
               config.data.error_message) && (
-              <AlertBanner
-                maintenanceStartTime={config.data.maintenance_start_time}
-                faultyModels={config.data.faulty_models}
-                errorMessage={config.data.error_message}
-                updatedAt={config.data.updated_at}
-              />
+              <React.Suspense fallback={null}>
+                <AlertBanner
+                  maintenanceStartTime={config.data.maintenance_start_time}
+                  faultyModels={config.data.faulty_models}
+                  errorMessage={config.data.error_message}
+                  updatedAt={config.data.updated_at}
+                />
+              </React.Suspense>
             )}
           <div
             id="root-outlet"
@@ -132,14 +131,18 @@ export default function MainApp() {
         </div>
 
         {consentFormIsOpen && (
-          <AnalyticsConsentFormModal
-            onClose={() => {
-              setConsentFormIsOpen(false);
-            }}
-          />
+          <React.Suspense fallback={null}>
+            <AnalyticsConsentFormModal
+              onClose={() => {
+                setConsentFormIsOpen(false);
+              }}
+            />
+          </React.Suspense>
         )}
       </div>
-      <EnvironmentSwitchOverlay />
+      <React.Suspense fallback={null}>
+        <EnvironmentSwitchOverlay />
+      </React.Suspense>
     </ReactRouterNavigationProvider>
   );
 }

@@ -3,7 +3,6 @@ import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import InfoCircleIcon from "#/icons/info-circle.svg?react";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { BUNDLED_BACKEND_ID } from "#/api/backend-registry/types";
 import { useAllCloudOrganizations } from "#/hooks/query/use-cloud-organizations";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 
@@ -13,9 +12,6 @@ function useActiveBackendDisplayName(): string {
   const cloudOrgs = useAllCloudOrganizations();
   const userIds = useCloudCurrentUserId();
 
-  if (active.backend.id === BUNDLED_BACKEND_ID) {
-    return t(I18nKey.BACKEND$LOCAL_ROW);
-  }
   if (active.backend.kind !== "cloud" || !active.orgId) {
     return active.backend.name;
   }

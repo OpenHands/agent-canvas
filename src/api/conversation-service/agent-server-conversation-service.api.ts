@@ -127,11 +127,19 @@ class AgentServerConversationService {
     );
     const { data } = response;
 
-    if (metadata?.selected_repository) {
-      // The agent-server runtime has no concept of selected repo/branch, so
-      // persist the home-page selection client-side. toAppConversation
-      // reads the same store when the chat page hydrates the badges.
-      setStoredConversationMetadata(data.id, metadata);
+    if (metadata?.selected_repository || workingDirOverride) {
+      // The agent-server runtime has no concept of selected repo/branch/
+      // workspace, so persist the home-page selection client-side.
+      // `toAppConversation` reads the repo/branch fields back to hydrate
+      // the chat-page badges; `useHasAttachedSource` reads
+      // `selected_workspace` to default the Files tab to Diff mode when
+      // the user explicitly attached a local workspace.
+      setStoredConversationMetadata(data.id, {
+        selected_repository: metadata?.selected_repository ?? null,
+        selected_branch: metadata?.selected_branch ?? null,
+        git_provider: metadata?.git_provider ?? null,
+        selected_workspace: workingDirOverride ?? null,
+      });
     }
 
     return {
@@ -178,28 +186,13 @@ class AgentServerConversationService {
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<GetVSCodeUrlResponse> {
-    const active = getActiveBackend().backend;
-
-    // Cloud mode: route through the cloud-proxy to the runtime sandbox.
-    // The runtime exposes a SaaS-style endpoint at `/api/vscode/url`
-    // that returns `{ url }`; we map it back to `{ vscode_url }` to
-    // match the local response shape.
-    if (active.kind === "cloud" && conversationUrl) {
-      const data = await callCloudProxy<{ url: string | null }>({
-        backend: active,
-        method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
-        path: "/api/vscode/url",
-        authMode: "session-api-key",
-        sessionApiKey,
-      });
-      return { vscode_url: data?.url ?? null };
-    }
-
+    // Local-only path. Cloud conversations read the VSCode URL straight
+    // from the SaaS-computed `sandbox.exposed_urls` (see
+    // `useUnifiedVSCodeUrl` + `useCloudSandbox`); the runtime's own
+    // `/api/vscode/url` only knows its internal `localhost:8001`, which
+    // the user's browser can't reach.
     const workspaceDir =
       await this.resolveConversationWorkingDir(conversationId);
-    // Local mode: the typescript-client targets the local agent-server
-    // directly via the conversationUrl override.
     const vscodeUrl = await createVSCodeClient({
       conversationUrl,
       sessionApiKey,

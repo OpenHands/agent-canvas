@@ -1,38 +1,22 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import App from "#/root";
 import { server } from "#/mocks/node";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 const TRANSLATIONS: Record<string, string> = {
-  "SETTINGS$AGENT_SERVER_ONBOARDING_EYEBROW": "Get started",
-  "SETTINGS$AGENT_SERVER_ONBOARDING_TITLE": "Connect to your agent server",
-  "SETTINGS$AGENT_SERVER_ONBOARDING_DESCRIPTION":
-    "Agent Canvas needs an agent server before it can load conversations, tools, and settings. Start or choose a compatible server, then connect it here.",
-  "SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_TITLE":
-    "We couldn't reach the configured server",
-  "SETTINGS$AGENT_SERVER_UNAVAILABLE_STATUS_MESSAGE":
-    "Check the URL, confirm the server is running, and try again. You can also point Agent Canvas at a different deployment.",
-  "SETTINGS$AGENT_SERVER_OPEN_SETTINGS_PAGE": "Open full settings page",
-  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_HINT":
-    "If you need help starting or upgrading the server, see the",
-  "SETTINGS$AGENT_SERVER_SETUP_GUIDE_LINK": "setup instructions",
-  "SETTINGS$AGENT_SERVER_DETAILS_LABEL": "Details: {{details}}",
-  "SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE": "Connection details",
-  "SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_DESCRIPTION":
-    "Paste the agent server URL and optional session API key that Agent Canvas should use.",
-  "SETTINGS$AGENT_SERVER_URL": "Agent server URL",
-  "SETTINGS$AGENT_SERVER_URL_PLACEHOLDER": "https://agent.example.com",
-  "SETTINGS$AGENT_SERVER_API_KEY": "Session API key",
-  "SETTINGS$AGENT_SERVER_API_KEY_PLACEHOLDER":
-    "Enter the X-Session-API-Key value",
-  "SETTINGS$AGENT_SERVER_BROWSER_ONLY_NOTE":
-    "Saved only in this browser. Deployment defaults stay available until you override them here.",
-  "SETTINGS$AGENT_SERVER_RETRY_CONNECTION": "Retry connection",
-  "SETTINGS$SAVE_AND_RECONNECT": "Save and reconnect",
-  "COMMON$OPTIONAL": "Optional",
+  "BACKEND$MANAGE_TITLE": "Manage backends",
+  "BACKEND$MANAGE_EMPTY": "No backends yet.",
+  "BACKEND$ADD": "+ Add Backend",
+  "BACKEND$KIND_LOCAL": "Local",
+  "BACKEND$KIND_CLOUD": "Cloud",
+  "BACKEND$EDIT": "Edit",
+  "BACKEND$REMOVE": "Remove",
+  "HOME$DONE": "Done",
 };
 
 vi.mock("react-i18next", () => ({
@@ -70,12 +54,18 @@ const renderApp = (initialEntries: string[] = ["/"]) =>
           })
         }
       >
-        {children}
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
       </QueryClientProvider>
     ),
   });
 
 describe("App root agent-server availability guard", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+  });
+
+
   it("renders the routed page even when the connected server reports an old version", async () => {
     server.use(
       http.get("/server_info", () =>
@@ -108,11 +98,13 @@ describe("App root agent-server availability guard", () => {
     });
   });
 
-  it("shows the onboarding flow when the backend is unreachable", async () => {
+  it("shows the manage-backends modal when the backend is unreachable", async () => {
     let serverInfoRequests = 0;
 
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/server_info) when VITE_BACKEND_BASE_URL is configured.
     server.use(
-      http.get("/server_info", () => {
+      http.get("*/server_info", () => {
         serverInfoRequests += 1;
         return HttpResponse.error();
       }),
@@ -126,13 +118,15 @@ describe("App root agent-server availability guard", () => {
       ).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByRole("heading", { name: /connect to your agent server/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /setup instructions/i }),
-    ).toHaveAttribute("href", "https://github.com/OpenHands/agent-canvas");
-    expect(serverInfoRequests).toBe(1);
+    // The onboarding placeholder now hosts the Manage Backends modal
+    // directly so the user can edit/add a backend immediately. The
+    // modal additionally probes /server_info per registered backend
+    // for its status dot + version label, so the request count is
+    // bounded but greater than the single config probe.
+    await waitFor(() => {
+      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    });
+    expect(serverInfoRequests).toBeGreaterThanOrEqual(1);
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 

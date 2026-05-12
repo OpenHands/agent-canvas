@@ -2,7 +2,12 @@ import { createInstance, type i18n as I18nInstance } from "i18next";
 import Backend from "i18next-http-backend";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
-import translationDefinitions from "./translation.json";
+
+// Re-export so library consumers (`@openhands/agent-canvas/i18n`) keep working
+// without pulling the 1 MB `translation.json` into the app build. Rollup drops
+// this re-export when the consumer does not reference `translationResources`,
+// which is the case for the app entry that uses i18next-http-backend.
+export { translationResources, type TranslationResources } from "./resources";
 
 export const OPENHANDS_I18N_NAMESPACE = "openhands";
 
@@ -23,35 +28,6 @@ export const AvailableLanguages = [
   { label: "Türkçe", value: "tr" },
   { label: "Українська", value: "uk" },
 ] as const;
-
-type TranslationDefinitionMap = Record<string, Partial<Record<string, string>>>;
-export type TranslationResources = Record<string, Record<string, string>>;
-
-const buildTranslationResources = (
-  definitions: TranslationDefinitionMap,
-): TranslationResources => {
-  const resources: TranslationResources = {};
-
-  Object.entries(definitions).forEach(([key, translations]) => {
-    Object.entries(translations).forEach(([language, value]) => {
-      if (typeof value !== "string") {
-        return;
-      }
-
-      if (!resources[language]) {
-        resources[language] = {};
-      }
-
-      resources[language][key] = value;
-    });
-  });
-
-  return resources;
-};
-
-export const translationResources = buildTranslationResources(
-  translationDefinitions as TranslationDefinitionMap,
-);
 
 const initializationPromises = new WeakMap<I18nInstance, Promise<unknown>>();
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Services are the abstraction layer between frontend components and backend APIs. They encapsulate HTTP requests using the shared `openHands` axios instance and provide typed methods for each endpoint.
+Services are the abstraction layer between frontend components and backend APIs. They encapsulate HTTP requests using `createHttpClient()` from `@openhands/typescript-client` (wrapped in `src/api/typescript-client.ts`, which resolves the active backend's host + `X-Session-API-Key`) and provide typed methods for each endpoint.
 
 Each service is a plain object with async methods.
 
@@ -15,7 +15,7 @@ src/api/
 ├── feature-service/
 │   ├── feature-service.api.ts    # Service methods
 │   └── feature.types.ts          # Types and interfaces
-└── open-hands-axios.ts           # Shared axios instance
+└── typescript-client.ts          # `createHttpClient` + typed SDK clients
 ```
 
 ## Creating a Service
@@ -24,21 +24,23 @@ Use an object literal with named export. Use object destructuring for parameters
 
 ```typescript
 // feature-service/feature-service.api.ts
-import { openHands } from "../open-hands-axios";
+import { createHttpClient } from "../typescript-client";
 import { Feature, CreateFeatureParams } from "./feature.types";
 
 export const featureService = {
   getFeature: async ({ id }: { id: string }) => {
-    const { data } = await openHands.get<Feature>(`/api/features/${id}`);
-    return data;
+    const response = await createHttpClient().get<Feature>(
+      `/api/features/${id}`,
+    );
+    return response.data;
   },
 
   createFeature: async ({ name, description }: CreateFeatureParams) => {
-    const { data } = await openHands.post<Feature>("/api/features", {
+    const response = await createHttpClient().post<Feature>("/api/features", {
       name,
       description,
     });
-    return data;
+    return response.data;
   },
 };
 ```

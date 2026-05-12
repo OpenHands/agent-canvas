@@ -1,11 +1,10 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import {
-  Provider,
-  Settings,
-  SettingsSchema,
-  SettingsValue,
-} from "#/types/settings";
-import { getStoredGitProviders } from "../secrets-service";
+  extractAppPreferences,
+  readStoredAppPreferences,
+  writeStoredAppPreferences,
+} from "../app-preferences-store";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -60,7 +59,6 @@ async function withRetry<T>(
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       return await fn();
     } catch (error) {
       if (attempt >= maxRetries - 1) {
@@ -68,7 +66,7 @@ async function withRetry<T>(
       }
 
       const delay = baseDelayMs * 2 ** attempt;
-      // eslint-disable-next-line no-await-in-loop
+
       await new Promise<void>((resolve) => {
         setTimeout(resolve, delay);
       });
@@ -133,24 +131,18 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     settings.conversation_settings ?? {},
   );
 
-  // The agent-server has no concept of provider_tokens_set; the GUI derives it
-  // from locally-stored git provider credentials so the UI knows which
-  // providers are configured after a save.
-  const storedProviders = getStoredGitProviders();
-  const derivedProviderTokensSet = Object.fromEntries(
-    Object.entries(storedProviders).map(([provider, value]) => [
-      provider,
-      value?.host ?? null,
-    ]),
-  ) as Partial<Record<Provider, string | null>>;
+  // App-level user preferences (language, git identity, sound notifications,
+  // analytics consent) live in localStorage in local mode. In cloud mode the
+  // server response carries them and overrides the local cache.
+  const storedAppPrefs = readStoredAppPreferences();
 
   const merged = {
     ...deepClone(DEFAULT_SETTINGS),
+    ...storedAppPrefs,
     ...settings,
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
       ...(settings.provider_tokens_set ?? {}),
-      ...derivedProviderTokensSet,
     },
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
@@ -321,10 +313,23 @@ class SettingsService {
   static async saveSettings(
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
+    // Split app-level user-preference fields (language, git identity, sound
+    // notifications, analytics consent) off before building the diff payload.
+    // The local agent-server's PATCH /api/settings has no schema for these
+    // and Pydantic would drop them silently; persist them in localStorage
+    // instead, and forward them as flat top-level keys to the cloud POST.
+    const { extracted: appPreferences, rest } = extractAppPreferences(
+      settings as Record<string, unknown>,
+    );
+    const hasAppPreferences = Object.keys(appPreferences).length > 0;
+    if (hasAppPreferences) {
+      writeStoredAppPreferences(appPreferences);
+    }
+
     const payload: SettingsUpdateRequest = {};
 
     // Extract agent_settings_diff
-    const agentSettingsDiff = settings.agent_settings_diff as
+    const agentSettingsDiff = rest.agent_settings_diff as
       | Record<string, SettingsValue>
       | undefined;
     if (agentSettingsDiff && Object.keys(agentSettingsDiff).length > 0) {
@@ -332,7 +337,7 @@ class SettingsService {
     }
 
     // Extract conversation_settings_diff
-    const conversationSettingsDiff = settings.conversation_settings_diff as
+    const conversationSettingsDiff = rest.conversation_settings_diff as
       | Record<string, SettingsValue>
       | undefined;
     if (
@@ -343,32 +348,44 @@ class SettingsService {
     }
 
     // Extract disabled_skills (cloud-only — local agent-server has no skills concept)
-    const disabledSkills = settings.disabled_skills as string[] | undefined;
+    const disabledSkills = rest.disabled_skills as string[] | undefined;
     if (Array.isArray(disabledSkills)) {
       payload.disabled_skills = disabledSkills;
     }
 
-    // Only call API if we have something to update
-    if (
-      !payload.agent_settings_diff &&
-      !payload.conversation_settings_diff &&
-      payload.disabled_skills === undefined
-    ) {
-      return true;
-    }
+    const isCloud = getActiveBackend().backend.kind === "cloud";
 
-    if (getActiveBackend().backend.kind === "cloud") {
-      await withRetry(() => saveCloudSettings(payload));
+    if (isCloud) {
+      const hasCloudWork =
+        !!payload.agent_settings_diff ||
+        !!payload.conversation_settings_diff ||
+        payload.disabled_skills !== undefined ||
+        hasAppPreferences;
+      if (!hasCloudWork) {
+        return true;
+      }
+      await withRetry(() =>
+        saveCloudSettings({
+          ...payload,
+          ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
+        }),
+      );
     } else {
       // The local agent-server PATCH /api/settings rejects unknown fields and
       // requires at least one of the two diff fields. Strip disabled_skills
-      // and skip the request entirely if nothing else was changed.
+      // and skip the request entirely if no diffs remain. App preferences
+      // are persisted to localStorage above and never sent to this endpoint.
       const localPayload = { ...payload };
       delete localPayload.disabled_skills;
-      if (
-        !localPayload.agent_settings_diff &&
-        !localPayload.conversation_settings_diff
-      ) {
+      const hasLocalDiffs =
+        !!localPayload.agent_settings_diff ||
+        !!localPayload.conversation_settings_diff;
+      if (!hasLocalDiffs) {
+        if (hasAppPreferences) {
+          // The localStorage write changed user-visible settings; clear the
+          // in-memory cache so the next getSettings() re-derives from disk.
+          clearCache();
+        }
         return true;
       }
       await withRetry(() =>

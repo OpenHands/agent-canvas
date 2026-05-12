@@ -106,10 +106,31 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_repository: "octocat/hello-world",
       selected_branch: "main",
       git_provider: "github",
+      selected_workspace: null,
     });
   });
 
-  it("does not write metadata when no repository is selected", async () => {
+  it("stores the selected workspace path when only a workspace (no repo) is attached", async () => {
+    const { result } = renderHook(() => useCreateConversation(), { wrapper });
+
+    result.current.mutate({
+      query: "poke at this repo",
+      workingDir: "/home/me/code/some-project",
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // We persist the workspace path so `useHasAttachedSource` can default
+    // the Files tab to diff view even when no repo was picked.
+    expect(getStoredConversationMetadata("conv-new")).toEqual({
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      selected_workspace: "/home/me/code/some-project",
+    });
+  });
+
+  it("does not write metadata when neither a repository nor a workspace is attached", async () => {
     const { result } = renderHook(() => useCreateConversation(), { wrapper });
 
     result.current.mutate({ query: "scratch session" });

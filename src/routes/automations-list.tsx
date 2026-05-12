@@ -149,7 +149,7 @@ export default function AutomationsList() {
 
           {isError && !isLoading && <ErrorState onRetry={refetch} />}
 
-          {!isLoading && !isError && data && data.automations.length === 0 && (
+          {!isLoading && !isError && data?.automations.length === 0 && (
             <EmptyState />
           )}
 

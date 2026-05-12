@@ -5,6 +5,15 @@ import {
   getAgentServerFormDefaults,
   saveAgentServerConfig,
 } from "#/api/agent-server-config";
+import {
+  getRegisteredBackends,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import {
+  DEFAULT_LOCAL_BACKEND_ID,
+  DEFAULT_LOCAL_BACKEND_NAME,
+} from "#/api/backend-registry/default-backend";
+import type { Backend } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
 import { BrandButton } from "./brand-button";
 import { SettingsInput } from "./settings-input";
@@ -40,13 +49,50 @@ export function AgentServerConnectionForm({
     window.location.assign("/");
   };
 
+  const syncDefaultBackendInRegistry = () => {
+    const trimmedHost = baseUrl.trim();
+    if (!trimmedHost) return;
+
+    const trimmedKey = sessionApiKey.trim();
+    const current = getRegisteredBackends();
+    const defaultEntry: Backend = {
+      id: DEFAULT_LOCAL_BACKEND_ID,
+      name: DEFAULT_LOCAL_BACKEND_NAME,
+      host: trimmedHost,
+      apiKey: trimmedKey,
+      kind: "local",
+    };
+
+    const existingIndex = current.findIndex(
+      (b) => b.id === DEFAULT_LOCAL_BACKEND_ID,
+    );
+    if (existingIndex === -1) {
+      setRegisteredBackends([defaultEntry, ...current]);
+      return;
+    }
+
+    const next = current.slice();
+    next[existingIndex] = {
+      ...current[existingIndex],
+      host: trimmedHost,
+      apiKey: trimmedKey,
+    };
+    setRegisteredBackends(next);
+  };
+
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    // Persist to the legacy config so the next-session seed and any
+    // module-level fallbacks pick up the new values …
     saveAgentServerConfig({
       baseUrl,
       sessionApiKey,
     });
+
+    // … and propagate the change into the registry so the active-store
+    // snapshot reflects the new host/api key on this session too.
+    syncDefaultBackendInRegistry();
 
     reconnect();
   };

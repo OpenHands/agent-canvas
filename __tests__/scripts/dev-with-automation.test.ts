@@ -1,7 +1,8 @@
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { homedir } from "node:os";
+import { mkdtempSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -15,6 +16,7 @@ import {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
+import { resetPersistedSessionApiKeyCache } from "../../scripts/dev-safe.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -114,16 +116,38 @@ describe("buildAutomationCommand", () => {
 
 describe("buildConfig", () => {
   const servers: net.Server[] = [];
+  const keyDirs: string[] = [];
 
   afterEach(() => {
     for (const server of servers) {
       server.close();
     }
     servers.length = 0;
+    while (keyDirs.length > 0) {
+      const dir = keyDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+    resetPersistedSessionApiKeyCache();
   });
 
+  /**
+   * Build an env that points the persisted session-api-key file at a
+   * fresh temp dir, so tests don't write to the user's real
+   * ~/.openhands/agent-canvas/session-api-key.txt.
+   */
+  function envWithIsolatedKeyPath(
+    extra: Record<string, string> = {},
+  ): Record<string, string> {
+    const dir = mkdtempSync(path.join(tmpdir(), "buildconfig-key-"));
+    keyDirs.push(dir);
+    return {
+      OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
+      ...extra,
+    };
+  }
+
   it("builds default config with correct ports", async () => {
-    const config = await buildConfig({}, {});
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // Ports should be allocated (either defaults if free, or alternatives)
     expect(typeof config.ingressPort).toBe("number");
@@ -149,7 +173,10 @@ describe("buildConfig", () => {
   it("respects preferred port from args when available", async () => {
     // Use a high port unlikely to be busy
     const preferredPort = 19500;
-    const config = await buildConfig({ port: preferredPort }, {});
+    const config = await buildConfig(
+      { port: preferredPort },
+      envWithIsolatedKeyPath(),
+    );
 
     expect(config.ingressPort).toBe(preferredPort);
   });
@@ -168,7 +195,10 @@ describe("buildConfig", () => {
     });
 
     // Request the busy port
-    const config = await buildConfig({ port: busyPort }, {});
+    const config = await buildConfig(
+      { port: busyPort },
+      envWithIsolatedKeyPath(),
+    );
 
     // Should get a different port since busyPort is taken
     expect(config.ingressPort).not.toBe(busyPort);
@@ -176,7 +206,7 @@ describe("buildConfig", () => {
   });
 
   it("allocates valid ports for all services", async () => {
-    const config = await buildConfig({}, {});
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // All service ports should be valid
     expect(config.agentServerPort).toBeGreaterThan(0);
@@ -197,34 +227,40 @@ describe("buildConfig", () => {
   it("respects preferred PORT from env when available", async () => {
     // Use a high port unlikely to be busy
     const preferredPort = "19501";
-    const config = await buildConfig({}, { PORT: preferredPort });
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ PORT: preferredPort }),
+    );
 
     expect(config.ingressPort).toBe(19501);
   });
 
   it("args.port takes precedence over env.PORT", async () => {
     // Use high ports unlikely to be busy
-    const config = await buildConfig({ port: 19502 }, { PORT: "19599" });
+    const config = await buildConfig(
+      { port: 19502 },
+      envWithIsolatedKeyPath({ PORT: "19599" }),
+    );
 
     expect(config.ingressPort).toBe(19502);
   });
 
   it("applies automationGitRef from args to env", async () => {
-    const env: Record<string, string> = {};
+    const env = envWithIsolatedKeyPath();
     await buildConfig({ automationGitRef: "my-branch" }, env);
 
     expect(env.OH_AUTOMATION_GIT_REF).toBe("my-branch");
   });
 
   it("applies automationRepo from args to env", async () => {
-    const env: Record<string, string> = {};
+    const env = envWithIsolatedKeyPath();
     await buildConfig({ automationRepo: "https://example.com/repo" }, env);
 
     expect(env.OH_AUTOMATION_REPO).toBe("https://example.com/repo");
   });
 
   it("uses correct state directory path", async () => {
-    const config = await buildConfig({}, {});
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     expect(config.stateDir).toBe(
       path.join(homedir(), ".openhands", "agent-canvas"),
@@ -232,29 +268,46 @@ describe("buildConfig", () => {
   });
 
   it("passes verbose flag through", async () => {
-    const config = await buildConfig({ verbose: true }, {});
+    const config = await buildConfig({ verbose: true }, envWithIsolatedKeyPath());
 
     expect(config.verbose).toBe(true);
   });
 
   it("auto-generates random local API key by default", async () => {
-    const config = await buildConfig({}, {});
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // Default is a 64-char hex string (256-bit random key)
     expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
-    const config = await buildConfig({}, { AUTOMATION_LOCAL_API_KEY: "my-custom-key" });
+    const config = await buildConfig(
+      {},
+      envWithIsolatedKeyPath({ AUTOMATION_LOCAL_API_KEY: "my-custom-key" }),
+    );
 
     expect(config.localApiKey).toBe("my-custom-key");
   });
 
-  it("auto-generates random session API key by default", async () => {
-    const config = await buildConfig({}, {});
+  it("falls back to a freshly persisted session API key by default", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    // Default is a 64-char hex string (256-bit random key)
+    // Default is a 64-char hex string (256-bit random key) read from /
+    // written to OH_SESSION_API_KEY_PATH.
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("reuses the persisted session API key across calls (parity for dev:docker and dev:dangerously-dockerless restarts)", async () => {
+    const env = envWithIsolatedKeyPath();
+    const first = await buildConfig({}, env);
+
+    // Simulate a fresh process invocation (the file on disk should be
+    // what makes the key stable).
+    resetPersistedSessionApiKeyCache();
+
+    const second = await buildConfig({}, env);
+
+    expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
   it("reads sessionApiKey from SESSION_API_KEY", async () => {
@@ -316,7 +369,7 @@ describe("default constants", () => {
   });
 
   it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a1");
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a2");
   });
 
   it("has expected default backend port", () => {

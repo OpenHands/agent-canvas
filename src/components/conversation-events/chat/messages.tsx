@@ -1,11 +1,10 @@
 import React from "react";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { EventMessage } from "./event-message";
-import { ChatMessage } from "../../features/chat/chat-message";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { usePlanPreviewEvents } from "./hooks/use-plan-preview-events";
 import { groupEvents } from "./group-events";
-import { EventGroup, ThoughtEventMessage } from "./event-message-components";
+import { EventGroup } from "./event-message-components/event-group";
+import { ThoughtEventMessage } from "./event-message-components/thought-event-message";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";
 // import MemoryIcon from "#/icons/memory_icon.svg?react";
@@ -19,10 +18,6 @@ const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
 
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
-    const { getOptimisticUserMessage } = useOptimisticUserMessageStore();
-
-    const optimisticUserMessage = getOptimisticUserMessage();
-
     // Get the set of event IDs that should render PlanPreview
     // This ensures only one preview per user message "phase"
     const planPreviewEventIds = usePlanPreviewEvents(allEvents);
@@ -56,7 +51,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
 
     return (
       <>
-        {renderedItems.map((item) => {
+        {renderedItems.map((item, itemIndex) => {
           if (item.kind === "single") {
             // Thoughts for singles are also hoisted as their own "thought"
             // item, so suppress the inline render to avoid duplication.
@@ -72,19 +67,25 @@ export const Messages: React.FC<MessagesProps> = React.memo(
             );
           }
 
+          // A group is "finalized" once another rendered item appears after
+          // it, signalling the agent has moved on. While the group is still
+          // the live tail, it keeps showing the latest action title as its
+          // prominent summary.
+          const isFinalized = itemIndex < renderedItems.length - 1;
           const groupKey = item.events[0]?.id ?? `group-${item.startIndex}`;
           return (
-            <EventGroup key={groupKey} events={item.events}>
+            <EventGroup
+              key={groupKey}
+              events={item.events}
+              allEvents={allEvents}
+              isFinalized={isFinalized}
+            >
               {item.events.map((event, offset) =>
                 renderEventMessage(event, item.startIndex + offset, true),
               )}
             </EventGroup>
           );
         })}
-
-        {optimisticUserMessage && (
-          <ChatMessage type="user" message={optimisticUserMessage} />
-        )}
       </>
     );
   },

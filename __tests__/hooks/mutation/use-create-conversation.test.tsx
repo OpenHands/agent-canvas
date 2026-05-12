@@ -86,4 +86,55 @@ describe("useCreateConversation", () => {
       );
     });
   });
+
+  it("invalidates the conversation list and start-tasks queries on success", async () => {
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
+      {
+        id: "task-id",
+        created_by_user_id: null,
+        status: "READY",
+        detail: null,
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+        request: {
+          initial_message: null,
+          processors: [],
+          llm_model: null,
+          selected_repository: null,
+          selected_branch: null,
+          git_provider: "github",
+          suggested_task: null,
+          title: null,
+          trigger: null,
+          pr_number: [],
+          parent_conversation_id: null,
+          agent_type: "default",
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    );
+
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({});
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["user", "conversations"],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["start-tasks"],
+      });
+    });
+  });
 });

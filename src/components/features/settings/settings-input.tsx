@@ -54,7 +54,7 @@ export function SettingsInput({
       </div>
       <input
         data-testid={testId}
-        onChange={(e) => onChange && onChange(e.target.value)}
+        onChange={(e) => onChange?.(e.target.value)}
         name={name}
         disabled={isDisabled}
         type={type}

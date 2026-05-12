@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
-import ServerIcon from "#/icons/server.svg?react";
-import GitChanges from "#/icons/git_changes.svg?react";
+import DocumentIcon from "#/icons/document.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
@@ -19,10 +18,16 @@ import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useTaskList } from "#/hooks/use-task-list";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
+import { useAgentState } from "#/hooks/use-agent-state";
+import { AgentState } from "#/types/agent-state";
+import { Typography } from "#/ui/typography";
 
 export function ConversationTabs() {
   const { conversationId } = useConversationId();
-  const { setHasRightPanelToggled, setSelectedTab } = useConversationStore();
+  const { setHasRightPanelToggled, setSelectedTab, planContent } =
+    useConversationStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -30,6 +35,10 @@ export function ConversationTabs() {
     useConversationLocalStorageState(conversationId);
 
   const { hasTaskList } = useTaskList();
+  const { backend } = useActiveBackend();
+
+  const { handleBuildPlanClick } = useHandleBuildPlanClick();
+  const { curAgentState } = useAgentState();
 
   const {
     selectTab,
@@ -54,9 +63,9 @@ export function ConversationTabs() {
   useEffect(() => {
     const handlePanelVisibilityChange = () => {
       if (isRightPanelShown) {
-        // If no tab is selected, default to editor tab
+        // If no tab is selected, default to files tab
         if (!selectedTab) {
-          onTabChange("editor");
+          onTabChange("files");
         }
       }
     };
@@ -66,7 +75,18 @@ export function ConversationTabs() {
 
   const { t } = useTranslation("openhands");
 
+  // `files` is intentionally the leftmost tab — it's the primary entry
+  // point for inspecting agent output (workspace files + git diff).
   const tabs = [
+    {
+      tabValue: "files",
+      isActive: isTabActive("files"),
+      icon: DocumentIcon,
+      onClick: () => selectTab("files"),
+      tooltipContent: t(I18nKey.COMMON$FILES),
+      tooltipAriaLabel: t(I18nKey.COMMON$FILES),
+      label: t(I18nKey.COMMON$FILES),
+    },
     {
       tabValue: "planner",
       isActive: isTabActive("planner"),
@@ -75,15 +95,6 @@ export function ConversationTabs() {
       tooltipContent: t(I18nKey.COMMON$PLANNER),
       tooltipAriaLabel: t(I18nKey.COMMON$PLANNER),
       label: t(I18nKey.COMMON$PLANNER),
-    },
-    {
-      tabValue: "editor",
-      isActive: isTabActive("editor"),
-      icon: GitChanges,
-      onClick: () => selectTab("editor"),
-      tooltipContent: t(I18nKey.COMMON$CHANGES),
-      tooltipAriaLabel: t(I18nKey.COMMON$CHANGES),
-      label: t(I18nKey.COMMON$CHANGES),
     },
     {
       tabValue: "vscode",
@@ -105,15 +116,6 @@ export function ConversationTabs() {
       className: "pl-2",
     },
     {
-      tabValue: "served",
-      isActive: isTabActive("served"),
-      icon: ServerIcon,
-      onClick: () => selectTab("served"),
-      tooltipContent: t(I18nKey.COMMON$APP),
-      tooltipAriaLabel: t(I18nKey.COMMON$APP),
-      label: t(I18nKey.COMMON$APP),
-    },
-    {
       tabValue: "browser",
       isActive: isTabActive("browser"),
       icon: GlobeIcon,
@@ -125,7 +127,8 @@ export function ConversationTabs() {
   ];
 
   if (hasTaskList) {
-    tabs.unshift({
+    // Insert after `files` so the leftmost slot stays Files.
+    tabs.splice(1, 0, {
       tabValue: "tasklist",
       isActive: isTabActive("tasklist"),
       icon: DoubleCheckIcon,
@@ -136,10 +139,17 @@ export function ConversationTabs() {
     });
   }
 
-  // Filter out unpinned tabs
-  const visibleTabs = tabs.filter(
-    (tab) => !persistedState.unpinnedTabs.includes(tab.tabValue),
-  );
+  // Filter out unpinned tabs, and hide the VSCode tab on local backends
+  // (the agent-server's VSCode URL is only reachable in cloud deployments).
+  const visibleTabs = tabs.filter((tab) => {
+    if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
+    return !persistedState.unpinnedTabs.includes(tab.tabValue);
+  });
+
+  const isAgentRunning =
+    curAgentState === AgentState.RUNNING ||
+    curAgentState === AgentState.LOADING;
+  const isBuildDisabled = isAgentRunning || !planContent;
 
   return (
     <div
@@ -178,13 +188,32 @@ export function ConversationTabs() {
           </ChatActionTooltip>
         ),
       )}
+      {isTabActive("planner") && (
+        <button
+          type="button"
+          onClick={handleBuildPlanClick}
+          disabled={isBuildDisabled}
+          className={cn(
+            "flex items-center justify-center h-5 min-w-17 px-2 rounded bg-white transition-opacity",
+            isBuildDisabled
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:opacity-90 cursor-pointer",
+          )}
+          data-testid="planner-tab-build-button"
+        >
+          <Typography.Text className="text-black text-[11px] font-medium leading-5">
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            {t(I18nKey.COMMON$BUILD)} ⌘↩
+          </Typography.Text>
+        </button>
+      )}
       <div className="relative">
         <button
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className={cn(
             "p-1 pl-0 rounded-md cursor-pointer",
-            "text-[#9299AA] bg-[#0D0F11]",
+            "text-[#9299AA] bg-transparent hover:text-white",
           )}
           aria-label={t(I18nKey.COMMON$MORE_OPTIONS)}
         >

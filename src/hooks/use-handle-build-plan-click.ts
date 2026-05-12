@@ -3,6 +3,7 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 
 /**
  * Custom hook that encapsulates the logic for handling the Build button click.
@@ -13,7 +14,13 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 export const useHandleBuildPlanClick = () => {
   const { setConversationMode } = useConversationStore();
   const { send } = useSendMessage();
-  const { setOptimisticUserMessage } = useOptimisticUserMessageStore();
+  const { conversationId } = useOptionalConversationId();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
+  const markPendingMessageError = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageError,
+  );
 
   const handleBuildPlanClick = useCallback(
     (event?: React.MouseEvent<HTMLButtonElement> | KeyboardEvent) => {
@@ -26,12 +33,31 @@ export const useHandleBuildPlanClick = () => {
       // Create the build prompt to execute the plan
       const buildPrompt = `Execute the plan based on the .agents_tmp/PLAN.md file.`;
 
-      // Send the message to the code agent
+      // Show the prompt as a pending message and send it to the code agent.
+      // Skip the pending bubble if we somehow don't have a conversation id —
+      // the message still gets sent, just without the optimistic queue entry.
       const timestamp = new Date().toISOString();
-      send(createChatMessage(buildPrompt, [], [], timestamp));
-      setOptimisticUserMessage(buildPrompt);
+      const pendingId = conversationId
+        ? enqueuePendingMessage({
+            conversationId,
+            text: buildPrompt,
+            timestamp,
+          })
+        : null;
+      send(createChatMessage(buildPrompt, [], [], timestamp)).catch((error) => {
+        if (!pendingId) return;
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to send message";
+        markPendingMessageError(pendingId, errorMessage);
+      });
     },
-    [setConversationMode, send, setOptimisticUserMessage],
+    [
+      setConversationMode,
+      send,
+      conversationId,
+      enqueuePendingMessage,
+      markPendingMessageError,
+    ],
   );
 
   return { handleBuildPlanClick };

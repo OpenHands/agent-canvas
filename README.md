@@ -20,16 +20,21 @@ You can work with any agent (e.g. Claude Code, Codex) or connect directly to an 
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
+<img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
+
 ## Quickstart
 
 ### With Docker (recommended)
 
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - Docker
 
 Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+
+By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
 
 ```sh
 export PROJECT_PATH=/path/to/your/projects
@@ -46,7 +51,12 @@ Access the UI at [http://localhost:8000](http://localhost:8000)
 > [!WARNING]
 > This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
+Running without docker is great if you're running Agent Canvas on a VM. See [SELF_HOSTING.md](SELF_HOSTING.md) for details,
+especially with respect to security hardening. Notably, you can run the backend on _multiple different VMs_ and switch between
+them from the same Agent Canvas frontend!
+
 **Prerequisites**:
+
 - Node.js 22.12.x or later
 - `npm`
 - `uv` (for running the agent server via `uvx`)
@@ -76,6 +86,42 @@ You can run an Agent Server anywhere:
 The Agent Server is often paired with an [Automation Server](https://github.com/OpenHands/automation), which lets you set up agents that run on a schedule or in response to events.
 
 <img width="1456" height="1258" alt="image" src="https://github.com/user-attachments/assets/cb6de6f5-ac30-4d04-a76a-b5c259f0c163" />
+
+## npm Package
+
+Agent Canvas is also available as an npm package for embedding in your own applications:
+
+```bash
+npm install @openhands/agent-canvas
+```
+
+### Usage
+
+Import the full package or specific components:
+
+```typescript
+// Full package
+import { AgentServerUIProviders } from '@openhands/agent-canvas';
+
+// Individual component packages
+import { BrowserPanel } from '@openhands/agent-canvas/browser';
+import { ChatPanel } from '@openhands/agent-canvas/conversation';
+import { FileExplorer } from '@openhands/agent-canvas/files';
+import { TerminalPanel } from '@openhands/agent-canvas/terminal';
+```
+
+### Available Subpath Exports
+
+| Subpath | Description |
+|---------|-------------|
+| `@openhands/agent-canvas` | Main entry with providers and core components |
+| `@openhands/agent-canvas/browser` | Browser/preview panel components |
+| `@openhands/agent-canvas/conversation` | Chat interface and message components |
+| `@openhands/agent-canvas/files` | File explorer and editor components |
+| `@openhands/agent-canvas/settings` | Settings screens and forms |
+| `@openhands/agent-canvas/sidebar` | Sidebar navigation components |
+| `@openhands/agent-canvas/terminal` | Terminal emulator component |
+| `@openhands/agent-canvas/i18n` | Internationalization resources |
 
 ## More documentation
 

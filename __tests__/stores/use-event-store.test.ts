@@ -105,6 +105,67 @@ describe("useEventStore", () => {
     ]);
   });
 
+  it("should bulk-add events and sort them chronologically", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    const newest = {
+      id: "evt-newest",
+      timestamp: "2024-03-01T00:00:00Z",
+      source: "user",
+    } as any;
+    const middle = {
+      id: "evt-middle",
+      timestamp: "2024-02-01T00:00:00Z",
+      source: "user",
+    } as any;
+    const oldest = {
+      id: "evt-oldest",
+      timestamp: "2024-01-01T00:00:00Z",
+      source: "user",
+    } as any;
+
+    // Seed with the newest event, then bulk-prepend older ones (the
+    // pagination-on-scroll case). The store should re-sort chronologically.
+    act(() => {
+      result.current.addEvent(newest);
+      result.current.addEvents([oldest, middle]);
+    });
+
+    expect(result.current.events.map((e) => (e as any).id)).toEqual([
+      "evt-oldest",
+      "evt-middle",
+      "evt-newest",
+    ]);
+  });
+
+  it("should de-duplicate events on bulk add", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvent(mockUserMessageEvent);
+      result.current.addEvents([mockUserMessageEvent, mockActionEvent]);
+    });
+
+    expect(result.current.events).toHaveLength(2);
+  });
+
+  it("should apply action-to-observation UI replacement during bulk add", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvents([
+        mockUserMessageEvent,
+        mockActionEvent,
+        mockObservationEvent,
+      ]);
+    });
+
+    expect(result.current.uiEvents).toEqual([
+      mockUserMessageEvent,
+      mockObservationEvent,
+    ]);
+  });
+
   it("should clear all events when clearEvents is called", () => {
     const { result } = renderHook(() => useEventStore());
 

@@ -9,6 +9,7 @@ import { KeyStatusIcon } from "#/components/features/settings/key-status-icon";
 import {
   SdkSectionHeaderProps,
   SdkSectionPage,
+  SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
@@ -111,8 +112,23 @@ type EditMode = "none" | "add" | "edit";
 
 export function LlmSettingsScreen({
   scope = "personal",
+  onSaveSuccess: _onSaveSuccess,
+  initialValueOverrides: _initialValueOverrides,
+  embedded: _embedded,
+  hideSaveButton: _hideSaveButton,
+  onSaveControlChange: _onSaveControlChange,
 }: {
   scope?: SettingsScope;
+  /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
+  onSaveSuccess?: () => void;
+  /** Forwarded to {@link SdkSectionPage}. */
+  initialValueOverrides?: SettingsFormValues;
+  /** Forwarded to {@link SdkSectionPage}. */
+  embedded?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
   const { t } = useTranslation("openhands");
 

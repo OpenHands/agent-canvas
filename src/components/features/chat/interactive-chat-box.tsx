@@ -24,6 +24,7 @@ export function InteractiveChatBox({
   const {
     images,
     files,
+    uploadImagesAsFiles,
     addImages,
     addFiles,
     clearAllFiles,
@@ -141,7 +142,14 @@ export function InteractiveChatBox({
   const handleSubmit = useBtwInterceptor(
     conversation?.id ?? null,
     (message) => {
-      onSubmit(message, images, files);
+      // When the user opts in via the "upload as file" checkbox, route
+      // the attached images through the normal file-upload path instead
+      // of embedding them in the message sent to the LLM.
+      if (uploadImagesAsFiles) {
+        onSubmit(message, [], [...files, ...images]);
+      } else {
+        onSubmit(message, images, files);
+      }
       clearAllFiles();
     },
   );

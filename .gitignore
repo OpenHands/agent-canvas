@@ -2,8 +2,10 @@
 public/locales/**/*
 src/i18n/declaration.ts
 .env
+.envrc
 node_modules/
 build/
+dist/
 
 
 /test-results/
@@ -13,3 +15,4 @@ build/
 .react-router/
 ralph/
 .vercel
+*.tgz

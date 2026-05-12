@@ -275,6 +275,21 @@ export interface GrepObservation extends ObservationBase<"GrepObservation"> {
   truncated: boolean;
 }
 
+export interface InvokeSkillObservation extends ObservationBase<"InvokeSkillObservation"> {
+  /**
+   * Name of the skill this observation corresponds to.
+   */
+  skill_name: string;
+  /**
+   * Rendered skill content returned to the agent.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether the invocation resulted in an error.
+   */
+  is_error?: boolean;
+}
+
 export type Observation =
   | MCPToolObservation
   | FinishObservation
@@ -287,4 +302,5 @@ export type Observation =
   | TaskTrackerObservation
   | PlanningFileEditorObservation
   | GlobObservation
-  | GrepObservation;
+  | GrepObservation
+  | InvokeSkillObservation;

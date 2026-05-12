@@ -19,14 +19,16 @@ export function useResizablePanels({
     defaultLeftWidth,
   );
 
-  const [leftWidth, setLeftWidth] = useState(persistedWidth);
-  const [isDragging, setIsDragging] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
   const clampWidth = useCallback(
     (width: number) => Math.max(minLeftWidth, Math.min(maxLeftWidth, width)),
     [minLeftWidth, maxLeftWidth],
   );
+
+  // Clamp the persisted value on read so stale localStorage values from older
+  // min/max bounds (or other tabs) can't push the divider out of range.
+  const [leftWidth, setLeftWidth] = useState(() => clampWidth(persistedWidth));
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
