@@ -24,6 +24,7 @@
 - Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baseline images in `tests/e2e/__snapshots__/`.
 - Run with `npm run test:e2e:snapshots`; update baselines after intentional UI changes with `npm run test:e2e:snapshots:update`.
 - CI runs snapshots via `.github/workflows/snapshot-tests.yml` on every PR/push to main; failures upload diff artifacts.
+- **Updating snapshots in CI**: Snapshots must be generated in CI to avoid local/CI rendering differences. Run the workflow manually from Actions tab with "Update baseline snapshots" checked, or via CLI: `gh workflow run snapshot-tests.yml --ref <branch> -f update_snapshots=true`.
 - **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report with visual diffs.
 - Key patterns for writing snapshot tests:
   - Use `setupMocks(page, showConsentModal)` helper to configure API mocks consistently.
