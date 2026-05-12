@@ -111,11 +111,14 @@ export function DeviceFlowAuth({
 
     // Open popup immediately on user click to avoid popup blocker
     // Start with about:blank and update URL once we have verification URL
-    popupRef.current = window.open("about:blank", "_blank", "noopener");
+    // Note: We intentionally don't use "noopener" here because we need to
+    // maintain a reference to update the popup's location when the
+    // verification URL becomes available
+    popupRef.current = window.open("about:blank", "_blank");
 
     if (!popupRef.current) {
       // Popup was blocked - flow will still work, user can click manual link
-      // TODO: Show a message about popup being blocked
+      console.warn("Popup blocked - user will need to use manual link");
     }
 
     deviceFlow.start(fullHost);
