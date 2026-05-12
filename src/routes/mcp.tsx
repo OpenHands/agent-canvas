@@ -1,5 +1,6 @@
 import React from "react";
 import { AxiosError } from "axios";
+import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
@@ -156,12 +157,15 @@ export default function MCPPage() {
 
   if (isLoading || !settings) {
     return (
-      <main
+      <div
         data-testid="mcp-page"
-        className="h-full flex items-center justify-center"
+        className="flex h-full gap-10 px-[14px]"
       >
-        <div className="h-8 w-8 rounded-full border-2 border-tertiary border-t-primary animate-spin" />
-      </main>
+        <ExtensionsNavigation />
+        <div className="flex h-full flex-1 items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-tertiary border-t-primary animate-spin" />
+        </div>
+      </div>
     );
   }
 
@@ -172,11 +176,13 @@ export default function MCPPage() {
     : null;
 
   return (
-    <main
+    <div
       data-testid="mcp-page"
-      className="h-full overflow-auto custom-scrollbar-always px-6 md:px-10 pt-8 pb-12"
+      className="flex h-full gap-10 px-[14px]"
     >
-      <div className="max-w-5xl mx-auto flex flex-col gap-8">
+      <ExtensionsNavigation />
+      <main className="flex-1 min-w-0 overflow-auto custom-scrollbar-always pt-8 pb-12">
+        <div className="max-w-5xl flex flex-col gap-8">
         <header className="flex flex-col gap-2">
           <div className="flex items-end justify-between gap-4">
             <div className="flex flex-col gap-2">
@@ -225,35 +231,36 @@ export default function MCPPage() {
           onSelect={handleMarketplaceClick}
           query={searchQuery}
         />
-      </div>
+        </div>
 
-      {installEntry && (
-        <InstallServerModal
-          entry={installEntry}
-          existing={installExisting}
-          onClose={() => setInstallEntry(null)}
-        />
-      )}
+        {installEntry && (
+          <InstallServerModal
+            entry={installEntry}
+            existing={installExisting}
+            onClose={() => setInstallEntry(null)}
+          />
+        )}
 
-      {/* Custom (or non-marketplace) server editor — falls back to the
-          legacy MCPServerForm for full control. The empty-id sentinel
-          (`{ id: "", type: "sse" }`) means "add new". */}
-      {editingServer && (
-        <CustomServerEditor
-          server={editingServer}
-          existingServers={allServers}
-          onClose={() => setEditingServer(null)}
-        />
-      )}
+        {/* Custom (or non-marketplace) server editor — falls back to the
+            legacy MCPServerForm for full control. The empty-id sentinel
+            (`{ id: "", type: "sse" }`) means "add new". */}
+        {editingServer && (
+          <CustomServerEditor
+            server={editingServer}
+            existingServers={allServers}
+            onClose={() => setEditingServer(null)}
+          />
+        )}
 
-      {serverToDelete && (
-        <ConfirmationModal
-          text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
-          onCancel={() => setServerToDelete(null)}
-          onConfirm={handleConfirmDelete}
-          isConfirming={isDeleting || isSavingSettings}
-        />
-      )}
-    </main>
+        {serverToDelete && (
+          <ConfirmationModal
+            text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
+            onCancel={() => setServerToDelete(null)}
+            onConfirm={handleConfirmDelete}
+            isConfirming={isDeleting || isSavingSettings}
+          />
+        )}
+      </main>
+    </div>
   );
 }
