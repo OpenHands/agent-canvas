@@ -11831,22 +11831,22 @@
     "tr": "Yetenekler",
     "uk": "Навички"
   },
-  "SIDEBAR$INTEGRATIONS": {
-    "en": "Integrations",
-    "ja": "連携",
-    "zh-CN": "集成",
-    "zh-TW": "整合",
-    "ko-KR": "통합",
-    "no": "Integrasjoner",
-    "ar": "التكاملات",
-    "de": "Integrationen",
-    "fr": "Intégrations",
-    "it": "Integrazioni",
-    "pt": "Integrações",
-    "es": "Integraciones",
-    "ca": "Integracions",
-    "tr": "Entegrasyonlar",
-    "uk": "Інтеграції"
+  "SIDEBAR$MCP_DIRECTORY": {
+    "en": "MCP Directory",
+    "ja": "MCP Directory",
+    "zh-CN": "MCP Directory",
+    "zh-TW": "MCP Directory",
+    "ko-KR": "MCP Directory",
+    "no": "MCP Directory",
+    "ar": "MCP Directory",
+    "de": "MCP Directory",
+    "fr": "MCP Directory",
+    "it": "MCP Directory",
+    "pt": "MCP Directory",
+    "es": "MCP Directory",
+    "ca": "MCP Directory",
+    "tr": "MCP Directory",
+    "uk": "MCP Directory"
   },
   "MCP$PAGE_DESCRIPTION": {
     "en": "Add Model Context Protocol servers to expand what your agent can do. Click any server below to install it.",

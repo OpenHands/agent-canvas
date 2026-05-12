@@ -67,13 +67,14 @@ vi.mock("#/components/features/backends/backend-selector", () => ({
 }));
 
 vi.mock("#/components/features/sidebar/sidebar-conversation-list", () => ({
-  SidebarConversationList: () => <div data-testid="sidebar-conversation-list" />,
+  SidebarConversationList: () => (
+    <div data-testid="sidebar-conversation-list" />
+  ),
 }));
 
 vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [],
 }));
-
 
 function renderSidebar(currentPath: string) {
   const value: NavigationContextValue = {
@@ -101,7 +102,12 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it.each([["/conversations"], ["/automations"], ["/automations/abc-123"], ["/settings"]])(
+  it.each([
+    ["/conversations"],
+    ["/automations"],
+    ["/automations/abc-123"],
+    ["/settings"],
+  ])(
     "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
     (currentPath) => {
       renderSidebar(currentPath);
@@ -120,6 +126,17 @@ describe("Sidebar", () => {
 
     const settingsToggle = screen.getByTestId("sidebar-settings-toggle");
     expect(settingsToggle.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+  });
+
+  it("labels the MCP nav item as MCP Directory instead of Integrations", () => {
+    renderSidebar("/mcp");
+
+    expect(screen.getByRole("link", { name: "SIDEBAR$MCP_DIRECTORY" })).toBe(
+      screen.getByTestId("sidebar-mcp-link"),
+    );
+    expect(
+      screen.queryByRole("link", { name: "SIDEBAR$INTEGRATIONS" }),
+    ).not.toBeInTheDocument();
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {
@@ -170,6 +187,7 @@ describe("Sidebar", () => {
       "sidebar-conversations-link",
       "sidebar-automations-link",
       "sidebar-skills-link",
+      "sidebar-mcp-link",
       "sidebar-settings-toggle",
     ]) {
       const link = screen.getByTestId(testId);
