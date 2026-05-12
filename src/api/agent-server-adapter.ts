@@ -377,13 +377,6 @@ export interface StartConversationOptions {
    * The actual values are fetched at runtime via LookupSecret.
    */
   customSecrets?: Array<{ name: string; description?: string }>;
-  /**
-   * Whether to request a dedicated git worktree for the conversation.
-   * Defaults to true. Set to false for local-only workspaces that aren't
-   * git repos (or have no commits), where `git worktree add HEAD` would
-   * fail and prevent the conversation from starting.
-   */
-  worktree?: boolean;
 }
 
 export function buildStartConversationRequest(
@@ -423,7 +416,7 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
-    worktree: options.worktree ?? true,
+    worktree: true,
   };
 
   // Add secrets_encrypted flag if secrets are encrypted
@@ -505,7 +498,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
-  worktree?: boolean;
 }): Promise<Record<string, unknown>> {
   // Import SecretsService dynamically to avoid circular dependencies
   const { SecretsService } = await import("./secrets-service");

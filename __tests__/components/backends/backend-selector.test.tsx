@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRoutesStub, MemoryRouter } from "react-router";
+import { createRoutesStub, MemoryRouter, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAxiosError } from "test-utils";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
@@ -420,6 +420,127 @@ describe("BackendSelector", () => {
     await user.click(screen.getByText("Local 1"));
 
     expect(await screen.findByTestId("home")).toBeInTheDocument();
+  });
+
+  it("jumps to the target backend's most recently selected conversation when switching from a conversation route", async () => {
+    // Pre-seed two local backends and the per-backend "last selected"
+    // slot for the target. The BackendSelector reads the remembered
+    // slot synchronously during `onChange`, so the localStorage write
+    // has to happen before the snapshot is rebuilt.
+    const sourceBackendId = "source-local";
+    const targetBackendId = "target-local";
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: sourceBackendId,
+          name: "Source Local",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        },
+        {
+          id: targetBackendId,
+          name: "Local 1",
+          host: "http://localhost:9001",
+          apiKey: "k",
+          kind: "local",
+        },
+      ]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: sourceBackendId, orgId: null }),
+    );
+    window.localStorage.setItem(
+      "openhands-last-conversation-by-backend",
+      JSON.stringify({ [targetBackendId]: "remembered-convo" }),
+    );
+    // Reset the in-memory snapshot so the seeded localStorage is read.
+    __resetActiveStoreForTests();
+
+    // One conversation route that renders the BackendSelector for the
+    // initial id and a probe div for the remembered id so we can
+    // observe the navigation target.
+    function ConversationRoute() {
+      const { conversationId } = useParams<{ conversationId: string }>();
+      if (conversationId === "remembered-convo") {
+        return <div data-testid="convo-route">{conversationId}</div>;
+      }
+      return <BackendSelector />;
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/conversations/:conversationId", Component: ConversationRoute },
+      { path: "/conversations", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/conversations/old-convo-on-A"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    const convo = await screen.findByTestId("convo-route");
+    expect(convo).toHaveTextContent("remembered-convo");
+    // The home route should never have been visited.
+    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
+  });
+
+  it("stays on the current page when switching backends from a non-conversation route", async () => {
+    function SettingsRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <div data-testid="settings-route" />
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/settings", Component: SettingsRoute },
+      { path: "/conversations", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/settings"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    // The settings route is still in the DOM after the switch — no
+    // redirect to /conversations or anywhere else.
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-route")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 
   it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {

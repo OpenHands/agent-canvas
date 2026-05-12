@@ -627,6 +627,35 @@ describe("SdkSectionPage", () => {
     });
   });
 
+  it("renders the schema-unavailable fallback instead of crashing when the schema is malformed", async () => {
+    // Simulates the production failure mode we hit on Vercel previews:
+    // the frontend points at a host that does not serve
+    // `/api/settings/agent-schema`, so the schema query resolves with a
+    // truthy object that nevertheless has no `sections` array. The page
+    // must surface this as the existing "schema unavailable" message
+    // instead of throwing
+    // `Cannot read properties of undefined (reading 'filter')` and
+    // letting React Router escalate to a full-screen error.
+    const malformedSchema = {
+      model_name: "AgentSettings",
+      // `sections` deliberately omitted to mimic an SPA shell that
+      // happened to parse into a non-schema object.
+    } as unknown as NonNullable<Settings["agent_settings_schema"]>;
+
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ agent_settings_schema: malformedSchema }),
+    );
+
+    renderSdkSectionPage({ sectionKeys: ["llm"] });
+
+    expect(
+      await screen.findByText("SETTINGS$SDK_SCHEMA_UNAVAILABLE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sdk-section-settings-screen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("allows saving custom payloads when only external state is dirty", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
     const saveSettingsSpy = vi

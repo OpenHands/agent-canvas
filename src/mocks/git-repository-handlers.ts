@@ -44,7 +44,7 @@ const MOCK_REPOSITORIES = {
 const MOCK_BRANCHES = generateMockBranches(25);
 
 export const GIT_REPOSITORY_HANDLERS = [
-  http.get("/api/user/repositories", async ({ request }) => {
+  http.get("*/api/user/repositories", async ({ request }) => {
     await delay(500); // Simulate network delay
 
     const url = new URL(request.url);
@@ -129,7 +129,7 @@ export const GIT_REPOSITORY_HANDLERS = [
     return HttpResponse.json(responseRepos);
   }),
 
-  http.get("/api/user/search/repositories", async ({ request }) => {
+  http.get("*/api/user/search/repositories", async ({ request }) => {
     await delay(300); // Simulate network delay
 
     const url = new URL(request.url);
@@ -173,7 +173,7 @@ export const GIT_REPOSITORY_HANDLERS = [
   }),
 
   // Repository branches endpoint
-  http.get("/api/user/repository/branches", async ({ request }) => {
+  http.get("*/api/user/repository/branches", async ({ request }) => {
     await delay(300);
 
     const url = new URL(request.url);
@@ -205,7 +205,7 @@ export const GIT_REPOSITORY_HANDLERS = [
   }),
 
   // Search repository branches endpoint
-  http.get("/api/user/search/branches", async ({ request }) => {
+  http.get("*/api/user/search/branches", async ({ request }) => {
     await delay(200);
 
     const url = new URL(request.url);
@@ -230,9 +230,9 @@ export const GIT_REPOSITORY_HANDLERS = [
     return HttpResponse.json(limitedBranches);
   }),
 
-  http.get("/api/git/changes", async () => HttpResponse.json([])),
+  http.get("*/api/git/changes", async () => HttpResponse.json([])),
 
-  http.get("/api/git/diff", async () =>
+  http.get("*/api/git/diff", async () =>
     HttpResponse.json({ original: "", modified: "" }),
   ),
 ];

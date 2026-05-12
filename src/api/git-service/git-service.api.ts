@@ -17,6 +17,21 @@ const safeProvider = (value: string): Provider => value as Provider;
 
 const isCloudActive = () => getActiveBackend().backend.kind === "cloud";
 
+/**
+ * Guard against null/undefined provider values that would result in
+ * invalid API requests (e.g., "?provider=undefined"). Returns true
+ * if the provider is falsy and the request should be skipped.
+ */
+const isInvalidProvider = (provider: string | null | undefined): boolean =>
+  !provider || provider === "undefined" || provider === "null";
+
+const EMPTY_REPOSITORY_PAGE: RepositoryPage = { items: [], next_page_id: null };
+const EMPTY_BRANCH_PAGE: BranchPage = { items: [], next_page_id: null };
+const EMPTY_INSTALLATION_PAGE: InstallationPage = {
+  items: [],
+  next_page_id: null,
+};
+
 class GitService {
   static async searchGitRepositories(
     query: string,
@@ -25,6 +40,9 @@ class GitService {
     pageId?: string,
     installationId?: string,
   ): Promise<RepositoryPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_REPOSITORY_PAGE;
+    }
     if (isCloudActive()) {
       return searchCloudRepositories({
         provider: safeProvider(provider),
@@ -48,6 +66,9 @@ class GitService {
     limit = 30,
     installationId?: string,
   ): Promise<RepositoryPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_REPOSITORY_PAGE;
+    }
     if (isCloudActive()) {
       return searchCloudRepositories({
         provider: safeProvider(provider),
@@ -70,8 +91,11 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<RepositoryPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_REPOSITORY_PAGE;
+    }
     const installationId = installations[installationIndex];
-    if (!installationId) return { items: [], next_page_id: null };
+    if (!installationId) return EMPTY_REPOSITORY_PAGE;
     if (isCloudActive()) {
       return searchCloudRepositories({
         provider: safeProvider(provider),
@@ -94,6 +118,9 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_BRANCH_PAGE;
+    }
     if (isCloudActive()) {
       return getCloudRepositoryBranches({
         provider: safeProvider(provider),
@@ -118,6 +145,9 @@ class GitService {
     pageId?: string,
     limit = 30,
   ): Promise<BranchPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_BRANCH_PAGE;
+    }
     if (isCloudActive()) {
       return getCloudRepositoryBranches({
         provider: safeProvider(provider),
@@ -140,6 +170,9 @@ class GitService {
     pageId?: string,
     limit = 100,
   ): Promise<InstallationPage> {
+    if (isInvalidProvider(provider)) {
+      return EMPTY_INSTALLATION_PAGE;
+    }
     if (isCloudActive()) {
       return getCloudInstallations({
         provider: safeProvider(provider),

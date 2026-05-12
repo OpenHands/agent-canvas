@@ -29,10 +29,10 @@ const apiKeys = new Map<string, ApiKey>(
 
 export const API_KEYS_HANDLERS = [
   // GET /api/keys - List all API keys
-  http.get("/api/keys", () => HttpResponse.json(Array.from(apiKeys.values()))),
+  http.get("*/api/keys", () => HttpResponse.json(Array.from(apiKeys.values()))),
 
   // POST /api/keys - Create a new API key
-  http.post("/api/keys", async ({ request }) => {
+  http.post("*/api/keys", async ({ request }) => {
     const body = (await request.json()) as { name: string };
 
     if (!body?.name?.trim()) {
@@ -62,7 +62,7 @@ export const API_KEYS_HANDLERS = [
   }),
 
   // DELETE /api/keys/:id - Delete an API key
-  http.delete("/api/keys/:id", ({ params }) => {
+  http.delete("*/api/keys/:id", ({ params }) => {
     const { id } = params;
 
     if (typeof id === "string" && apiKeys.has(id)) {
@@ -74,14 +74,14 @@ export const API_KEYS_HANDLERS = [
   }),
 
   // GET /api/keys/llm/byor - Get LLM API key
-  http.get("/api/keys/llm/byor", () =>
+  http.get("*/api/keys/llm/byor", () =>
     HttpResponse.json({
       key: "sk-mock-llm-api-key-1234567890abcdef",
     }),
   ),
 
   // POST /api/keys/llm/byor/refresh - Refresh LLM API key
-  http.post("/api/keys/llm/byor/refresh", () =>
+  http.post("*/api/keys/llm/byor/refresh", () =>
     HttpResponse.json({
       key: `sk-mock-llm-refreshed-${Math.random().toString(36).slice(2, 14)}`,
     }),

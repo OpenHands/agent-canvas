@@ -137,10 +137,7 @@ export function GitRepoDropdown({
       baseRepositories = repositories;
     }
     // If we have a selected repository and the input matches it exactly, show all repositories
-    else if (
-      selectedRepository &&
-      inputValue === selectedRepository.full_name
-    ) {
+    else if (inputValue === selectedRepository?.full_name) {
       baseRepositories = repositories;
     }
     // If no input value, show all repositories

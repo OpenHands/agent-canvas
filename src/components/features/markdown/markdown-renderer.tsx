@@ -11,6 +11,8 @@ import { paragraph } from "./paragraph";
 import { anchor } from "./anchor";
 import { h1, h2, h3, h4, h5, h6 } from "./headings";
 import { table, th, td } from "./table";
+import { blockquote } from "./blockquote";
+import { remarkGithubAlerts } from "./remark-github-alerts";
 
 // Build a sanitize schema that extends rehype-sanitize's defaults with a
 // few markdown-friendly additions. The defaults strip `<script>`, event
@@ -144,6 +146,7 @@ export function MarkdownRenderer({
     table,
     th,
     td,
+    blockquote,
     ...(includeStandard && {
       a: anchor,
       p: paragraph,
@@ -173,7 +176,7 @@ export function MarkdownRenderer({
     <div data-testid="markdown-renderer">
       <Markdown
         components={components}
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={[remarkGithubAlerts, remarkGfm, remarkBreaks]}
         rehypePlugins={rehypePlugins}
       >
         {markdownContent}

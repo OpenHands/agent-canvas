@@ -305,23 +305,25 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
-      // Only request a per-conversation git worktree when the user has
-      // attached a real repository. Local-only workspaces (no
-      // `selected_repository`) may not be git checkouts, in which case
-      // `git worktree add HEAD` on the server fails and the conversation
-      // never starts.
-      worktree: !!metadata?.selected_repository,
     });
 
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).createConversation<DirectConversationInfo>(payload);
 
-    if (metadata?.selected_repository) {
-      // The agent-server runtime has no concept of selected repo/branch, so
-      // persist the home-page selection client-side. toAppConversation
-      // reads the same store when the chat page hydrates the badges.
-      setStoredConversationMetadata(data.id, metadata);
+    if (metadata?.selected_repository || workingDirOverride) {
+      // The agent-server runtime has no concept of selected repo/branch/
+      // workspace, so persist the home-page selection client-side.
+      // `toAppConversation` reads the repo/branch fields back to hydrate
+      // the chat-page badges; `useHasAttachedSource` reads
+      // `selected_workspace` to default the Files tab to Diff mode when
+      // the user explicitly attached a local workspace.
+      setStoredConversationMetadata(data.id, {
+        selected_repository: metadata?.selected_repository ?? null,
+        selected_branch: metadata?.selected_branch ?? null,
+        git_provider: metadata?.git_provider ?? null,
+        selected_workspace: workingDirOverride ?? null,
+      });
     }
 
     return {

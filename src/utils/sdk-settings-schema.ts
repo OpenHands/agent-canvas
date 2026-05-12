@@ -123,7 +123,26 @@ const VIEW_PROMINENCES: Record<SettingsView, Set<SettingProminence>> = {
   all: new Set<SettingProminence>(["critical", "major", "minor"]),
 };
 
+/**
+ * True when `schema` looks like a usable `SettingsSchema` — i.e. an
+ * object with an array `sections` field. Guards every helper in this
+ * module against malformed/empty schema responses (e.g. when the
+ * frontend ends up pointing at a host that does not actually serve
+ * `/api/settings/agent-schema`, such as an unconfigured Vercel preview
+ * origin that returns the React Router SPA shell for arbitrary
+ * `/api/*` paths). Without this check, `schema.sections.filter(...)`
+ * inside `SdkSectionPage` blows up with
+ * `Cannot read properties of undefined (reading 'filter')` and React
+ * Router escalates to a full-screen error page.
+ */
+export function isValidSettingsSchema(
+  schema: SettingsSchema | null | undefined,
+): schema is SettingsSchema {
+  return !!schema && Array.isArray((schema as SettingsSchema).sections);
+}
+
 function getSchemaFields(schema: SettingsSchema): SettingsFieldSchema[] {
+  if (!isValidSettingsSchema(schema)) return [];
   return schema.sections.flatMap((section) => section.fields);
 }
 
@@ -527,6 +546,7 @@ export function getVisibleSettingsSections(
   view: SettingsView,
   excludeKeys: Set<string> = SPECIALLY_RENDERED_KEYS,
 ): SettingsSectionSchema[] {
+  if (!isValidSettingsSchema(schema)) return [];
   return schema.sections
     .map((section) => ({
       ...section,

@@ -207,9 +207,11 @@ describe("SettingsService", () => {
   it("excludes app-level fields from the local PATCH body when mixed with diffs", async () => {
     // Arrange: capture the PATCH body the local agent-server would receive.
     // The handler must echo a valid response so saveSettings does not throw.
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/api/...) when VITE_BACKEND_BASE_URL is configured.
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
-      http.patch("/api/settings", async ({ request }) => {
+      http.patch("*/api/settings", async ({ request }) => {
         patchBodies.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json({
           agent_settings: {},

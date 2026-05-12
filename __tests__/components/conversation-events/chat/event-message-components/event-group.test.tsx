@@ -117,7 +117,55 @@ describe("EventGroup", () => {
     expect(screen.getByText(/ACTION_MESSAGE\$RUN/)).toBeInTheDocument();
   });
 
-  it("hides the success indicator while running and shows it when done", () => {
+  it("keeps showing the latest completed action's title while the group is still the live tail", () => {
+    // All observations -> nothing in flight, but the group has not been
+    // "moved past" yet, so we expect the latest observation's title to keep
+    // showing as the prominent summary alongside the completed count.
+    const events = [
+      makeBashObservation("o1", "a1", "ls"),
+      makeBashObservation("o2", "a2", "pwd"),
+      makeBashObservation("o3", "a3", "whoami"),
+    ];
+
+    renderWithProviders(
+      <EventGroup events={events}>
+        <div>child</div>
+      </EventGroup>,
+    );
+
+    // Latest observation's title is still in the summary line.
+    expect(screen.getByText(/OBSERVATION_MESSAGE\$RUN/)).toBeInTheDocument();
+    // ...next to the completed count.
+    expect(
+      screen.getByText("EVENT_GROUP$ACTIONS_COMPLETED"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the latest action title once the group is finalized", () => {
+    const events = [
+      makeBashObservation("o1", "a1", "ls"),
+      makeBashObservation("o2", "a2", "pwd"),
+      makeBashObservation("o3", "a3", "whoami"),
+    ];
+
+    renderWithProviders(
+      <EventGroup events={events} isFinalized>
+        <div>child</div>
+      </EventGroup>,
+    );
+
+    expect(
+      screen.getByText("EVENT_GROUP$ACTIONS_COMPLETED"),
+    ).toBeInTheDocument();
+    // Once moved past, we collapse to just the count — the per-action title
+    // and the success check both go away.
+    expect(
+      screen.queryByText(/OBSERVATION_MESSAGE\$RUN/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
+  });
+
+  it("shows a spinner while running and the success indicator when done", () => {
     const running = [
       makeBashObservation("o1", "a1", "ls"),
       makeBashAction("a2", "pwd"),
@@ -128,6 +176,7 @@ describe("EventGroup", () => {
         <div>child</div>
       </EventGroup>,
     );
+    expect(screen.getByTestId("spinner-icon")).toBeInTheDocument();
     expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
 
     const done = [
@@ -139,6 +188,7 @@ describe("EventGroup", () => {
         <div>child</div>
       </EventGroup>,
     );
+    expect(screen.queryByTestId("spinner-icon")).not.toBeInTheDocument();
     expect(screen.getByTestId("status-icon")).toBeInTheDocument();
   });
 

@@ -11848,6 +11848,72 @@
     "tr": "Entegrasyonlar",
     "uk": "Інтеграції"
   },
+  "MCP$PAGE_DESCRIPTION": {
+    "en": "Add Model Context Protocol servers to expand what your agent can do. Click any server below to install it."
+  },
+  "MCP$INSTALLED_TITLE": {
+    "en": "Installed"
+  },
+  "MCP$INSTALLED_EMPTY_TITLE": {
+    "en": "No MCP servers installed yet."
+  },
+  "MCP$INSTALLED_EMPTY_HINT": {
+    "en": "Pick one from the marketplace below to get started."
+  },
+  "MCP$MARKETPLACE_TITLE": {
+    "en": "Marketplace"
+  },
+  "MCP$MARKETPLACE_DESCRIPTION": {
+    "en": "Well-known MCP servers, ready to install with a single click."
+  },
+  "MCP$SEARCH_PLACEHOLDER": {
+    "en": "Search MCP servers"
+  },
+  "MCP$SEARCH_CLEAR": {
+    "en": "Clear search"
+  },
+  "MCP$SEARCH_EMPTY": {
+    "en": "No matches for your search."
+  },
+  "MCP$INSTALLED_BADGE": {
+    "en": "Installed"
+  },
+  "MCP$INSTALL_BUTTON": {
+    "en": "Install"
+  },
+  "MCP$VIEW_DOCS": {
+    "en": "View documentation →"
+  },
+  "MCP$INSTALL_SUCCESS": {
+    "en": "MCP server saved."
+  },
+  "MCP$REMOVE_SUCCESS": {
+    "en": "MCP server removed."
+  },
+  "MCP$EDIT_SERVER_ARIA": {
+    "en": "Edit {{name}}"
+  },
+  "MCP$DELETE_SERVER_ARIA": {
+    "en": "Remove {{name}}"
+  },
+  "MCP$ERROR_FIELD_REQUIRED": {
+    "en": "This field is required."
+  },
+  "MCP$ADD_CUSTOM": {
+    "en": "Add custom server"
+  },
+  "MCP$ADD_CUSTOM_TITLE": {
+    "en": "Add custom MCP server"
+  },
+  "MCP$EDIT_CUSTOM_TITLE": {
+    "en": "Edit MCP server"
+  },
+  "MCP$COMMAND_LABEL": {
+    "en": "Command"
+  },
+  "MCP$TRANSPORT_BUILTIN": {
+    "en": "Built-in"
+  },
   "SIDEBAR$NEW_CONVERSATION": {
     "en": "New Conversation",
     "ja": "新しい会話",
@@ -21530,6 +21596,346 @@
     "uk": "Тригери: {{triggers}}",
     "ca": "Activadors: {{triggers}}"
   },
+  "SETTINGS$SKILLS_SEARCH_PLACEHOLDER": {
+    "en": "Search skills by name, description, or trigger",
+    "ja": "名前、説明、トリガーでスキルを検索",
+    "zh-CN": "按名称、描述或触发器搜索技能",
+    "zh-TW": "依名稱、描述或觸發器搜尋技能",
+    "ko-KR": "이름, 설명 또는 트리거로 스킬 검색",
+    "no": "Søk etter ferdigheter etter navn, beskrivelse eller utløser",
+    "ar": "ابحث في المهارات بالاسم أو الوصف أو المشغل",
+    "de": "Fähigkeiten nach Name, Beschreibung oder Auslöser suchen",
+    "fr": "Rechercher des compétences par nom, description ou déclencheur",
+    "it": "Cerca competenze per nome, descrizione o trigger",
+    "pt": "Pesquisar habilidades por nome, descrição ou gatilho",
+    "es": "Buscar habilidades por nombre, descripción o disparador",
+    "tr": "Yetenekleri ada, açıklamaya veya tetikleyiciye göre arayın",
+    "uk": "Шукати навички за назвою, описом або тригером",
+    "ca": "Cerca habilitats per nom, descripció o activador"
+  },
+  "SETTINGS$SKILLS_TYPE_ALL": {
+    "en": "All",
+    "ja": "すべて",
+    "zh-CN": "全部",
+    "zh-TW": "全部",
+    "ko-KR": "전체",
+    "no": "Alle",
+    "ar": "الكل",
+    "de": "Alle",
+    "fr": "Tout",
+    "it": "Tutti",
+    "pt": "Todos",
+    "es": "Todos",
+    "tr": "Tümü",
+    "uk": "Усі",
+    "ca": "Tot"
+  },
+  "SETTINGS$SKILLS_TYPE_AGENTSKILLS": {
+    "en": "Auto-discovery",
+    "ja": "自動検出",
+    "zh-CN": "自动发现",
+    "zh-TW": "自動探索",
+    "ko-KR": "자동 검색",
+    "no": "Automatisk oppdaging",
+    "ar": "اكتشاف تلقائي",
+    "de": "Automatische Erkennung",
+    "fr": "Auto-découverte",
+    "it": "Rilevamento automatico",
+    "pt": "Descoberta automática",
+    "es": "Descubrimiento automático",
+    "tr": "Otomatik keşif",
+    "uk": "Автовиявлення",
+    "ca": "Descoberta automàtica"
+  },
+  "SETTINGS$SKILLS_TYPE_KNOWLEDGE": {
+    "en": "Trigger-based",
+    "ja": "トリガーベース",
+    "zh-CN": "基于触发",
+    "zh-TW": "基於觸發",
+    "ko-KR": "트리거 기반",
+    "no": "Utløserbasert",
+    "ar": "قائم على المشغل",
+    "de": "Auslösergesteuert",
+    "fr": "Basé sur déclencheurs",
+    "it": "Basato su trigger",
+    "pt": "Baseado em gatilhos",
+    "es": "Basado en disparadores",
+    "tr": "Tetikleyici tabanlı",
+    "uk": "На основі тригерів",
+    "ca": "Basat en activadors"
+  },
+  "SETTINGS$SKILLS_TYPE_REPO": {
+    "en": "Always active",
+    "ja": "常時有効",
+    "zh-CN": "始终激活",
+    "zh-TW": "永遠啟用",
+    "ko-KR": "항상 활성",
+    "no": "Alltid aktiv",
+    "ar": "نشط دائمًا",
+    "de": "Immer aktiv",
+    "fr": "Toujours actif",
+    "it": "Sempre attivo",
+    "pt": "Sempre ativo",
+    "es": "Siempre activo",
+    "tr": "Her zaman etkin",
+    "uk": "Завжди активний",
+    "ca": "Sempre actiu"
+  },
+  "SETTINGS$SKILLS_VERSION": {
+    "en": "v{{version}}",
+    "ja": "v{{version}}",
+    "zh-CN": "v{{version}}",
+    "zh-TW": "v{{version}}",
+    "ko-KR": "v{{version}}",
+    "no": "v{{version}}",
+    "ar": "v{{version}}",
+    "de": "v{{version}}",
+    "fr": "v{{version}}",
+    "it": "v{{version}}",
+    "pt": "v{{version}}",
+    "es": "v{{version}}",
+    "tr": "v{{version}}",
+    "uk": "v{{version}}",
+    "ca": "v{{version}}"
+  },
+  "SETTINGS$SKILLS_LICENSE": {
+    "en": "License",
+    "ja": "ライセンス",
+    "zh-CN": "许可证",
+    "zh-TW": "授權條款",
+    "ko-KR": "라이선스",
+    "no": "Lisens",
+    "ar": "الترخيص",
+    "de": "Lizenz",
+    "fr": "Licence",
+    "it": "Licenza",
+    "pt": "Licença",
+    "es": "Licencia",
+    "tr": "Lisans",
+    "uk": "Ліцензія",
+    "ca": "Llicència"
+  },
+  "SETTINGS$SKILLS_COMPATIBILITY": {
+    "en": "Compatibility",
+    "ja": "互換性",
+    "zh-CN": "兼容性",
+    "zh-TW": "相容性",
+    "ko-KR": "호환성",
+    "no": "Kompatibilitet",
+    "ar": "التوافق",
+    "de": "Kompatibilität",
+    "fr": "Compatibilité",
+    "it": "Compatibilità",
+    "pt": "Compatibilidade",
+    "es": "Compatibilidad",
+    "tr": "Uyumluluk",
+    "uk": "Сумісність",
+    "ca": "Compatibilitat"
+  },
+  "SETTINGS$SKILLS_ALLOWED_TOOLS": {
+    "en": "Allowed tools",
+    "ja": "許可されたツール",
+    "zh-CN": "允许的工具",
+    "zh-TW": "允許的工具",
+    "ko-KR": "허용된 도구",
+    "no": "Tillatte verktøy",
+    "ar": "الأدوات المسموح بها",
+    "de": "Erlaubte Tools",
+    "fr": "Outils autorisés",
+    "it": "Strumenti consentiti",
+    "pt": "Ferramentas permitidas",
+    "es": "Herramientas permitidas",
+    "tr": "İzin verilen araçlar",
+    "uk": "Дозволені інструменти",
+    "ca": "Eines permeses"
+  },
+  "SETTINGS$SKILLS_SOURCE": {
+    "en": "Source",
+    "ja": "ソース",
+    "zh-CN": "来源",
+    "zh-TW": "來源",
+    "ko-KR": "출처",
+    "no": "Kilde",
+    "ar": "المصدر",
+    "de": "Quelle",
+    "fr": "Source",
+    "it": "Origine",
+    "pt": "Origem",
+    "es": "Origen",
+    "tr": "Kaynak",
+    "uk": "Джерело",
+    "ca": "Origen"
+  },
+  "SETTINGS$SKILLS_METADATA": {
+    "en": "Metadata",
+    "ja": "メタデータ",
+    "zh-CN": "元数据",
+    "zh-TW": "中繼資料",
+    "ko-KR": "메타데이터",
+    "no": "Metadata",
+    "ar": "البيانات الوصفية",
+    "de": "Metadaten",
+    "fr": "Métadonnées",
+    "it": "Metadati",
+    "pt": "Metadados",
+    "es": "Metadatos",
+    "tr": "Üst veri",
+    "uk": "Метадані",
+    "ca": "Metadades"
+  },
+  "SETTINGS$SKILLS_SHOW_MORE": {
+    "en": "Show more",
+    "ja": "もっと見る",
+    "zh-CN": "显示更多",
+    "zh-TW": "顯示更多",
+    "ko-KR": "더 보기",
+    "no": "Vis mer",
+    "ar": "عرض المزيد",
+    "de": "Mehr anzeigen",
+    "fr": "Voir plus",
+    "it": "Mostra di più",
+    "pt": "Mostrar mais",
+    "es": "Mostrar más",
+    "tr": "Daha fazla göster",
+    "uk": "Показати більше",
+    "ca": "Mostra més"
+  },
+  "SETTINGS$SKILLS_SHOW_LESS": {
+    "en": "Show less",
+    "ja": "折りたたむ",
+    "zh-CN": "显示更少",
+    "zh-TW": "顯示較少",
+    "ko-KR": "간단히 보기",
+    "no": "Vis mindre",
+    "ar": "عرض أقل",
+    "de": "Weniger anzeigen",
+    "fr": "Voir moins",
+    "it": "Mostra meno",
+    "pt": "Mostrar menos",
+    "es": "Mostrar menos",
+    "tr": "Daha az göster",
+    "uk": "Показати менше",
+    "ca": "Mostra menys"
+  },
+  "SETTINGS$SKILLS_DETAILS": {
+    "en": "Details",
+    "ja": "詳細",
+    "zh-CN": "详细信息",
+    "zh-TW": "詳細資訊",
+    "ko-KR": "세부 정보",
+    "no": "Detaljer",
+    "ar": "التفاصيل",
+    "de": "Details",
+    "fr": "Détails",
+    "it": "Dettagli",
+    "pt": "Detalhes",
+    "es": "Detalles",
+    "tr": "Ayrıntılar",
+    "uk": "Деталі",
+    "ca": "Detalls"
+  },
+  "SETTINGS$SKILLS_NO_MATCH": {
+    "en": "No skills match your search.",
+    "ja": "検索に一致するスキルがありません。",
+    "zh-CN": "没有匹配您搜索的技能。",
+    "zh-TW": "沒有符合搜尋的技能。",
+    "ko-KR": "검색과 일치하는 스킬이 없습니다.",
+    "no": "Ingen ferdigheter samsvarer med søket ditt.",
+    "ar": "لا توجد مهارات تطابق بحثك.",
+    "de": "Keine Fähigkeiten stimmen mit Ihrer Suche überein.",
+    "fr": "Aucune compétence ne correspond à votre recherche.",
+    "it": "Nessuna competenza corrisponde alla tua ricerca.",
+    "pt": "Nenhuma habilidade corresponde à sua pesquisa.",
+    "es": "Ninguna habilidad coincide con tu búsqueda.",
+    "tr": "Aramanızla eşleşen yetenek yok.",
+    "uk": "Жодна навичка не відповідає вашому пошуку.",
+    "ca": "Cap habilitat coincideix amb la cerca."
+  },
+  "SETTINGS$SKILLS_COUNT": {
+    "en": "Showing {{shown}} of {{total}}",
+    "ja": "{{total}}件中{{shown}}件を表示",
+    "zh-CN": "显示 {{total}} 项中的 {{shown}} 项",
+    "zh-TW": "顯示 {{total}} 項中的 {{shown}} 項",
+    "ko-KR": "{{total}}개 중 {{shown}}개 표시",
+    "no": "Viser {{shown}} av {{total}}",
+    "ar": "عرض {{shown}} من {{total}}",
+    "de": "Zeige {{shown}} von {{total}}",
+    "fr": "Affichage de {{shown}} sur {{total}}",
+    "it": "Mostrando {{shown}} di {{total}}",
+    "pt": "Mostrando {{shown}} de {{total}}",
+    "es": "Mostrando {{shown}} de {{total}}",
+    "tr": "{{total}} öğeden {{shown}} tanesi gösteriliyor",
+    "uk": "Показано {{shown}} з {{total}}",
+    "ca": "Mostrant {{shown}} de {{total}}"
+  },
+  "SETTINGS$SKILLS_NO_DESCRIPTION": {
+    "en": "No description provided.",
+    "ja": "説明はありません。",
+    "zh-CN": "未提供描述。",
+    "zh-TW": "未提供描述。",
+    "ko-KR": "설명이 제공되지 않았습니다.",
+    "no": "Ingen beskrivelse oppgitt.",
+    "ar": "لا يوجد وصف.",
+    "de": "Keine Beschreibung angegeben.",
+    "fr": "Aucune description fournie.",
+    "it": "Nessuna descrizione fornita.",
+    "pt": "Nenhuma descrição fornecida.",
+    "es": "No se proporcionó descripción.",
+    "tr": "Açıklama sağlanmadı.",
+    "uk": "Опис не надано.",
+    "ca": "No s'ha proporcionat cap descripció."
+  },
+  "SETTINGS$SKILLS_DISABLE_MODEL_INVOCATION": {
+    "en": "Model invocation off",
+    "ja": "モデル呼び出しオフ",
+    "zh-CN": "已关闭模型调用",
+    "zh-TW": "已關閉模型呼叫",
+    "ko-KR": "모델 호출 꺼짐",
+    "no": "Modellanrop av",
+    "ar": "استدعاء النموذج معطل",
+    "de": "Modellaufruf aus",
+    "fr": "Invocation modèle désactivée",
+    "it": "Invocazione modello disattivata",
+    "pt": "Invocação de modelo desativada",
+    "es": "Invocación del modelo desactivada",
+    "tr": "Model çağrısı kapalı",
+    "uk": "Виклик моделі вимкнено",
+    "ca": "Invocació del model desactivada"
+  },
+  "SETTINGS$SKILLS_COPY_PATH": {
+    "en": "Copy source path",
+    "ja": "ソースパスをコピー",
+    "zh-CN": "复制源路径",
+    "zh-TW": "複製來源路徑",
+    "ko-KR": "원본 경로 복사",
+    "no": "Kopier kildebane",
+    "ar": "نسخ مسار المصدر",
+    "de": "Quellpfad kopieren",
+    "fr": "Copier le chemin source",
+    "it": "Copia percorso origine",
+    "pt": "Copiar caminho de origem",
+    "es": "Copiar ruta de origen",
+    "tr": "Kaynak yolunu kopyala",
+    "uk": "Копіювати шлях джерела",
+    "ca": "Copia el camí d'origen"
+  },
+  "SETTINGS$SKILLS_COPIED": {
+    "en": "Path copied",
+    "ja": "パスをコピーしました",
+    "zh-CN": "已复制路径",
+    "zh-TW": "已複製路徑",
+    "ko-KR": "경로가 복사됨",
+    "no": "Bane kopiert",
+    "ar": "تم نسخ المسار",
+    "de": "Pfad kopiert",
+    "fr": "Chemin copié",
+    "it": "Percorso copiato",
+    "pt": "Caminho copiado",
+    "es": "Ruta copiada",
+    "tr": "Yol kopyalandı",
+    "uk": "Шлях скопійовано",
+    "ca": "Camí copiat"
+  },
   "HOOKS_MODAL$TITLE": {
     "en": "Available Hooks",
     "ja": "利用可能なフック",
@@ -23418,21 +23824,21 @@
     "ca": "{{count}} accions completades"
   },
   "EVENT_GROUP$ACTIONS_PROGRESS": {
-    "en": "{{completed}} of {{total}} actions",
-    "ja": "{{total}} 件中 {{completed}} 件のアクション",
-    "zh-CN": "{{total}} 个操作中的 {{completed}} 个",
-    "zh-TW": "{{total}} 個動作中的 {{completed}} 個",
-    "ko-KR": "{{total}}개 중 {{completed}}개 작업",
-    "no": "{{completed}} av {{total}} handlinger",
-    "it": "{{completed}} di {{total}} azioni",
-    "pt": "{{completed}} de {{total}} ações",
-    "es": "{{completed}} de {{total}} acciones",
-    "ar": "{{completed}} من أصل {{total}} إجراء",
-    "fr": "{{completed}} sur {{total}} actions",
-    "tr": "{{total}} eylemden {{completed}} tanesi",
-    "de": "{{completed}} von {{total}} Aktionen",
-    "uk": "{{completed}} з {{total}} дій",
-    "ca": "{{completed}} de {{total}} accions"
+    "en": "{{completed}}/{{total}} actions completed",
+    "ja": "{{completed}}/{{total}} 件のアクションが完了しました",
+    "zh-CN": "已完成 {{completed}}/{{total}} 个操作",
+    "zh-TW": "已完成 {{completed}}/{{total}} 個動作",
+    "ko-KR": "{{completed}}/{{total}}개의 작업이 완료되었습니다",
+    "no": "{{completed}}/{{total}} handlinger fullført",
+    "it": "{{completed}}/{{total}} azioni completate",
+    "pt": "{{completed}}/{{total}} ações concluídas",
+    "es": "{{completed}}/{{total}} acciones completadas",
+    "ar": "اكتمل {{completed}}/{{total}} من الإجراءات",
+    "fr": "{{completed}}/{{total}} actions terminées",
+    "tr": "{{completed}}/{{total}} eylem tamamlandı",
+    "de": "{{completed}}/{{total}} Aktionen abgeschlossen",
+    "uk": "Виконано дій: {{completed}}/{{total}}",
+    "ca": "{{completed}}/{{total}} accions completades"
   },
   "EVENT_GROUP$EXPAND": {
     "en": "Expand actions",

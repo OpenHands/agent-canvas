@@ -12,12 +12,14 @@ export default [
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("launch", "routes/launch.tsx"),
     route("skills", "routes/skills-settings.tsx"),
+    route("mcp", "routes/mcp.tsx"),
     route("integrations", "routes/git-settings.tsx"),
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
-      route("mcp", "routes/mcp-settings.tsx"),
+      // Legacy entry: redirects to /mcp (preserves old bookmarks).
+      route("mcp", "routes/mcp-settings-redirect.tsx"),
       route("app", "routes/app-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),

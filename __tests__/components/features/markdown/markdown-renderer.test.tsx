@@ -62,7 +62,7 @@ describe("MarkdownRenderer", () => {
   });
 
   it("strips <script> tags via rehype-sanitize", () => {
-    const md = 'Hello<script>window.__pwn = true;</script> world';
+    const md = "Hello<script>window.__pwn = true;</script> world";
     const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
     expect(container.querySelector("script")).toBeNull();
     // The text content surrounding the script must still be there.
@@ -110,15 +110,13 @@ describe("MarkdownRenderer", () => {
     // schema deliberately omits `style` from the allowed attribute list
     // so the sanitizer drops it.
     const md =
-      '<div style="background:url(\'https://attacker.example/exfil\')">x</div>';
+      "<div style=\"background:url('https://attacker.example/exfil')\">x</div>";
     const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
     const div = container.querySelector("div");
     expect(div).not.toBeNull();
     // The style attribute must be gone (or at minimum not contain the
     // attacker URL).
-    expect(div?.getAttribute("style") ?? "").not.toMatch(
-      /attacker\.example/i,
-    );
+    expect(div?.getAttribute("style") ?? "").not.toMatch(/attacker\.example/i);
     expect(div?.getAttribute("style")).toBeNull();
   });
 
@@ -177,6 +175,92 @@ describe("MarkdownRenderer", () => {
     // <mark> should not be parsed; the text should still appear.
     expect(container.querySelector("mark")).toBeNull();
     expect(container.textContent).toContain("world");
+  });
+
+  describe("GitHub-style alert blockquotes", () => {
+    const ALERT_CASES: Array<{ marker: string; label: string }> = [
+      { marker: "NOTE", label: "Note" },
+      { marker: "TIP", label: "Tip" },
+      { marker: "IMPORTANT", label: "Important" },
+      { marker: "WARNING", label: "Warning" },
+      { marker: "CAUTION", label: "Caution" },
+    ];
+
+    it.each(ALERT_CASES)(
+      "renders the $marker alert with title and body",
+      ({ marker, label }) => {
+        const md = [`> [!${marker}]`, "> Body content for the alert."].join(
+          "\n",
+        );
+        const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+
+        const alert = screen.getByTestId(
+          `markdown-alert-${marker.toLowerCase()}`,
+        );
+        expect(alert).not.toBeNull();
+        // Title label must appear and the original `[!TYPE]` marker must not.
+        expect(alert.textContent).toContain(label);
+        expect(alert.textContent).toContain("Body content for the alert.");
+        expect(alert.textContent).not.toContain(`[!${marker}]`);
+        // The styled alert is rendered as a <div>, not a <blockquote>.
+        expect(container.querySelector("blockquote")).toBeNull();
+      },
+    );
+
+    it("accepts the marker with lowercase casing", () => {
+      const md = ["> [!warning]", "> mixed-case body"].join("\n");
+      render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+      const alert = screen.getByTestId("markdown-alert-warning");
+      expect(alert.textContent).toContain("Warning");
+      expect(alert.textContent).toContain("mixed-case body");
+    });
+
+    it("renders the linked-issue example end-to-end", () => {
+      // The exact snippet from the bug report.
+      const md = [
+        "> [!WARNING]",
+        "> This project is in sandbox phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).",
+      ].join("\n");
+
+      render(<MarkdownRenderer includeStandard>{md}</MarkdownRenderer>);
+
+      const alert = screen.getByTestId("markdown-alert-warning");
+      expect(alert.textContent).toContain("Warning");
+      expect(alert.textContent).toContain("This project is in sandbox phase.");
+      expect(alert.textContent).not.toContain("[!WARNING]");
+      // The inline link inside the alert body still renders as an anchor.
+      const link = alert.querySelector("a");
+      expect(link?.getAttribute("href")).toBe(
+        "https://github.com/OpenHands/incubator-program",
+      );
+    });
+
+    it("leaves regular blockquotes (no [!TYPE] marker) as <blockquote>", () => {
+      const md = ["> Just a normal quote.", "> Second line."].join("\n");
+      const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+      expect(container.querySelector("blockquote")).not.toBeNull();
+      expect(screen.queryByTestId(/^markdown-alert-/)).toBeNull();
+    });
+
+    it("does not treat unknown alert types as alerts", () => {
+      const md = ["> [!UNKNOWN]", "> body"].join("\n");
+      const { container } = render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+      expect(screen.queryByTestId(/^markdown-alert-/)).toBeNull();
+      // Falls back to a regular blockquote that still contains the literal
+      // marker text so the user can see what they wrote.
+      const bq = container.querySelector("blockquote");
+      expect(bq).not.toBeNull();
+      expect(bq?.textContent).toContain("[!UNKNOWN]");
+    });
+
+    it("survives rehype-sanitize (className passes through unchanged)", () => {
+      // Regression guard: if a future schema change strips className from
+      // the blockquote, the renderer would fall back to a plain blockquote
+      // and the test-id would disappear.
+      const md = ["> [!WARNING]", "> sanitized body"].join("\n");
+      render(<MarkdownRenderer>{md}</MarkdownRenderer>);
+      expect(screen.getByTestId("markdown-alert-warning")).not.toBeNull();
+    });
   });
 });
 
