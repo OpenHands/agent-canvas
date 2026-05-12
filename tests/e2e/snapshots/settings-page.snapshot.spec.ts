@@ -125,14 +125,18 @@ test.describe("UI Visual Snapshots", () => {
 
     await page.goto("/conversations");
 
-    // Wait for the consent modal to be visible
+    // Wait for the page to stabilize - root layout must be visible first
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    // Wait for the consent modal (lazy-loaded) with extended timeout
     const consentModal = page.getByRole("dialog", {
       name: "Help improve OpenHands",
     });
-    await expect(consentModal).toBeVisible();
+    await expect(consentModal).toBeVisible({ timeout: 10000 });
 
     // Snapshot the full page with the consent modal
-    const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toHaveScreenshot("analytics-consent-modal.png", {
       maxDiffPixelRatio: 0.01,
       animations: "disabled",
