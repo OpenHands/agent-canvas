@@ -7,7 +7,6 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
-import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
@@ -233,25 +232,64 @@ export function BackendForm({
         className="w-full"
       />
 
-      {/* Device Flow auth for OpenHands Cloud backends in add mode */}
-      {mode === "add" && kind === "cloud" && isOpenHandsCloudHost(host) && (
-        <DeviceFlowAuth
-          host={host}
-          onSuccess={setApiKey}
-          testIdRoot={testIdRoot}
-        />
+      {/* Device Flow auth for cloud backends in add mode */}
+      {mode === "add" && kind === "cloud" && host.trim().length > 0 && (
+        <div className="flex flex-col gap-3">
+          <DeviceFlowAuth
+            host={host}
+            onSuccess={setApiKey}
+            testIdRoot={testIdRoot}
+          />
+
+          {/* Divider with "or" */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-gray-600" />
+            <span className="text-xs text-gray-500 uppercase">
+              {t(I18nKey.BACKEND$LOGIN_OR)}
+            </span>
+            <div className="flex-1 border-t border-gray-600" />
+          </div>
+
+          {/* Manual API key section */}
+          <div className="flex flex-col gap-2">
+            <SettingsInput
+              testId={`${testIdRoot}-api-key`}
+              name={`${testIdRoot}-api-key`}
+              type="password"
+              label={t(I18nKey.BACKEND$KEY_LABEL)}
+              value={apiKey}
+              onChange={setApiKey}
+              placeholder=""
+              className="w-full"
+            />
+            <p className="text-xs text-gray-400">
+              {t(I18nKey.BACKEND$KEY_DOCS_HINT)}{" "}
+              <a
+                href="https://docs.openhands.dev/openhands/usage/settings/api-keys-settings"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                {t(I18nKey.BACKEND$KEY_DOCS_LINK)}
+              </a>
+            </p>
+          </div>
+        </div>
       )}
 
-      <SettingsInput
-        testId={`${testIdRoot}-api-key`}
-        name={`${testIdRoot}-api-key`}
-        type="password"
-        label={t(I18nKey.BACKEND$KEY_LABEL)}
-        value={apiKey}
-        onChange={setApiKey}
-        placeholder=""
-        className="w-full"
-      />
+      {/* Regular API key input for non-cloud or edit mode */}
+      {(mode === "edit" || kind !== "cloud" || host.trim().length === 0) && (
+        <SettingsInput
+          testId={`${testIdRoot}-api-key`}
+          name={`${testIdRoot}-api-key`}
+          type="password"
+          label={t(I18nKey.BACKEND$KEY_LABEL)}
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder=""
+          className="w-full"
+        />
+      )}
 
       {mode === "edit" && backend ? (
         <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />

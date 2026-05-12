@@ -150,16 +150,6 @@ export function DeviceFlowAuth({
           </BrandButton>
         </div>
       )}
-
-      {deviceFlow.status !== "idle" && deviceFlow.status !== "success" && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 border-t border-gray-600" />
-          <span className="text-xs text-gray-500">
-            {t(I18nKey.BACKEND$LOGIN_OR_MANUAL)}
-          </span>
-          <div className="flex-1 border-t border-gray-600" />
-        </div>
-      )}
     </div>
   );
 }
