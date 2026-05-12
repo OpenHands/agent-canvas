@@ -76,6 +76,8 @@ jobs:
         id: npm-tag
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          # Temporary until the first stable release; see cleanup issue:
+          # https://github.com/OpenHands/agent-canvas/issues/395
           if [[ "$TAG_VERSION" == *"alpha"* ]]; then
             echo "tag=alpha" >> $GITHUB_OUTPUT
             echo "also_latest=true" >> $GITHUB_OUTPUT
