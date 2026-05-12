@@ -7,38 +7,28 @@ interface InstalledServersSectionProps {
   /** Already-filtered list — search filtering happens upstream. */
   servers: MCPServerConfig[];
   /**
-   * Tavily has a virtual "installed" card when search_api_key is set
-   * on the backend. Pass `true` when it matches the current search.
-   */
-  tavilyBuiltinInstalled?: boolean;
-  /**
-   * True iff there is at least one installed server (or the Tavily
-   * builtin) before applying the search filter. Lets the section
-   * differentiate "nothing installed yet" from "no installed servers
-   * match the current search".
+   * True iff there is at least one installed server before applying
+   * the search filter. Lets the section differentiate "nothing
+   * installed yet" from "no installed servers match the current
+   * search".
    */
   hasAnyInstalled: boolean;
   /** Current search query — empty string means no filter applied. */
   query?: string;
   onEdit: (server: MCPServerConfig) => void;
   onDelete: (serverId: string) => void;
-  onConfigureTavilyBuiltin?: () => void;
-  onRemoveTavilyBuiltin?: () => void;
 }
 
 export function InstalledServersSection({
   servers,
-  tavilyBuiltinInstalled,
   hasAnyInstalled,
   query = "",
   onEdit,
   onDelete,
-  onConfigureTavilyBuiltin,
-  onRemoveTavilyBuiltin,
 }: InstalledServersSectionProps) {
   const { t } = useTranslation("openhands");
 
-  const isEmpty = servers.length === 0 && !tavilyBuiltinInstalled;
+  const isEmpty = servers.length === 0;
 
   if (isEmpty) {
     // Filter narrowed everything out — vs. nothing was installed in
@@ -75,14 +65,6 @@ export function InstalledServersSection({
       data-testid="mcp-installed-list"
       className="grid gap-3 grid-cols-1 md:grid-cols-2"
     >
-      {tavilyBuiltinInstalled && (
-        <InstalledServerCard
-          catalogIdOverride="tavily"
-          server={{ id: "tavily-builtin", type: "shttp" }}
-          onEdit={() => onConfigureTavilyBuiltin?.()}
-          onDelete={() => onRemoveTavilyBuiltin?.()}
-        />
-      )}
       {servers.map((server) => (
         <InstalledServerCard
           key={server.id}

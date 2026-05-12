@@ -8,7 +8,6 @@ import { BackendSyncedSettingsBadge } from "#/components/features/settings/backe
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
-import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import {
@@ -20,11 +19,10 @@ import {
   findCatalogEntryForServer,
   findInstalledMatch,
   installedServerMatchesQuery,
-  marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
 import { MCPConfig } from "#/types/settings";
-import { ExistingInstall, MCPServerConfig } from "#/types/mcp-server";
+import { MCPServerConfig } from "#/types/mcp-server";
 import {
   InstalledServersSection,
   MarketplaceSearch,
@@ -59,19 +57,11 @@ function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
   ];
 }
 
-// Looked up lazily inside the component so we don't crash at module
-// load if the catalog ever drops Tavily.
-function getTavilyEntry(): MarketplaceEntry | undefined {
-  return MCP_MARKETPLACE.find((e) => e.id === "tavily");
-}
-
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
   const { mutate: deleteMcpServer, isPending: isDeleting } =
     useDeleteMcpServer();
-  const { mutate: saveSettings, isPending: isSavingSettings } =
-    useSaveSettings();
   const activeBackend = useActiveBackend();
   const backendKind = activeBackend.backend.kind;
 
@@ -80,16 +70,14 @@ export default function MCPPage() {
   const [editingServer, setEditingServer] =
     React.useState<MCPServerConfig | null>(null);
   const [serverToDelete, setServerToDelete] =
-    React.useState<ExistingInstall | null>(null);
+    React.useState<MCPServerConfig | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  const tavilyEntry = getTavilyEntry();
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
-  const tavilyBuiltinInstalled = !!settings?.search_api_key_set;
 
   const isInstalled = (entry: MarketplaceEntry) =>
-    !!findInstalledMatch(entry.template, allServers, settings);
+    !!findInstalledMatch(entry.template, allServers);
 
   // Filter installed servers by the search query. We pair each server
   // with its catalog entry (if any) so the search can match friendly
@@ -102,10 +90,6 @@ export default function MCPPage() {
       searchQuery,
     ),
   );
-  const tavilyVisibleAfterSearch =
-    tavilyBuiltinInstalled &&
-    !!tavilyEntry &&
-    marketplaceEntryMatchesQuery(tavilyEntry, searchQuery);
 
   const handleMarketplaceClick = (entry: MarketplaceEntry) => {
     setInstallEntry(entry);
@@ -117,32 +101,16 @@ export default function MCPPage() {
 
   const handleDeleteClick = (serverId: string) => {
     const target = allServers.find((s) => s.id === serverId);
-    if (target) setServerToDelete({ kind: "mcp", server: target });
+    if (target) setServerToDelete(target);
   };
 
   const handleConfirmDelete = () => {
     if (!serverToDelete) return;
-    if (serverToDelete.kind === "tavily-builtin") {
-      saveSettings(
-        { search_api_key: "" },
-        {
-          onSuccess: () => {
-            displaySuccessToast(t(I18nKey.MCP$REMOVE_SUCCESS));
-            setServerToDelete(null);
-          },
-          onError: (err) => {
-            const message = retrieveAxiosErrorMessage(err as AxiosError);
-            displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
-          },
-        },
-      );
-      return;
-    }
     // Pass the full server config — useDeleteMcpServer re-resolves its
     // position against the fresh settings at mutation time, so a
     // background refresh between this click and confirm cannot point
     // us at the wrong index.
-    deleteMcpServer(serverToDelete.server, {
+    deleteMcpServer(serverToDelete, {
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.MCP$REMOVE_SUCCESS));
         setServerToDelete(null);
@@ -164,12 +132,6 @@ export default function MCPPage() {
       </main>
     );
   }
-
-  // Existing match for the install modal — drives Add vs Edit and the
-  // optional "Remove" affordance for already-installed catalog entries.
-  const installExisting = installEntry
-    ? findInstalledMatch(installEntry.template, allServers, settings)
-    : null;
 
   return (
     <main
@@ -205,17 +167,10 @@ export default function MCPPage() {
           </h2>
           <InstalledServersSection
             servers={filteredInstalledServers}
-            tavilyBuiltinInstalled={tavilyVisibleAfterSearch}
-            hasAnyInstalled={allServers.length > 0 || tavilyBuiltinInstalled}
+            hasAnyInstalled={allServers.length > 0}
             query={searchQuery}
             onEdit={handleEdit}
             onDelete={handleDeleteClick}
-            onConfigureTavilyBuiltin={
-              tavilyEntry ? () => setInstallEntry(tavilyEntry) : undefined
-            }
-            onRemoveTavilyBuiltin={() =>
-              setServerToDelete({ kind: "tavily-builtin" })
-            }
           />
         </section>
 
@@ -230,7 +185,6 @@ export default function MCPPage() {
       {installEntry && (
         <InstallServerModal
           entry={installEntry}
-          existing={installExisting}
           onClose={() => setInstallEntry(null)}
         />
       )}
@@ -251,7 +205,7 @@ export default function MCPPage() {
           text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
           onCancel={() => setServerToDelete(null)}
           onConfirm={handleConfirmDelete}
-          isConfirming={isDeleting || isSavingSettings}
+          isConfirming={isDeleting}
         />
       )}
     </main>

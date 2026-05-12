@@ -24,8 +24,6 @@ export function MarketplaceCard({
         return "HTTP";
       case "sse":
         return "SSE";
-      case "tavily-builtin":
-        return t(I18nKey.MCP$TRANSPORT_BUILTIN);
       default:
         return "";
     }

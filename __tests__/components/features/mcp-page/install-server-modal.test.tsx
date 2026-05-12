@@ -69,7 +69,13 @@ describe("InstallServerModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("installs Tavily by writing search_api_key", async () => {
+  it("installs Tavily as a stdio MCP server with TAVILY_API_KEY env", async () => {
+    // Tavily was previously a fake `kind: "tavily-builtin"` template
+    // that called saveSettings({ search_api_key }) — but that field
+    // was dropped on the floor in both local and cloud save paths, so
+    // installing Tavily silently did nothing. It's now a regular
+    // stdio MCP entry (`npx -y tavily-mcp` + TAVILY_API_KEY) that
+    // goes through the same mcp_config write as every other entry.
     const tavily = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -80,14 +86,26 @@ describe("InstallServerModal", () => {
 
     await screen.findByTestId("mcp-install-modal");
 
-    fireEvent.change(screen.getByTestId("mcp-install-field-search_api_key"), {
+    // Submit with no key fails the required-field check.
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+    await waitFor(() => expect(saveSpy).not.toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("mcp-install-field-TAVILY_API_KEY"), {
       target: { value: "tvly-secret" },
     });
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
-    expect(saveSpy.mock.calls[0][0]).toEqual({
-      search_api_key: "tvly-secret",
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    expect(sent.mcp_config.mcpServers).toMatchObject({
+      tavily: {
+        command: "npx",
+        args: ["-y", "tavily-mcp"],
+        env: { TAVILY_API_KEY: "tvly-secret" },
+      },
     });
     expect(onClose).toHaveBeenCalled();
   });
@@ -128,23 +146,6 @@ describe("InstallServerModal", () => {
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
-  });
-
-  it("renders an inline error when Tavily submit is clicked with no key", async () => {
-    const tavily = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
-    const saveSpy = vi
-      .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(true);
-
-    renderWith(<InstallServerModal entry={tavily} onClose={vi.fn()} />);
-    await screen.findByTestId("mcp-install-modal");
-
-    fireEvent.click(screen.getByTestId("mcp-install-submit"));
-
-    // Error state set in handleTavilySubmit must actually render
-    // (previously it was set but never displayed).
-    await screen.findByText("MCP$ERROR_FIELD_REQUIRED");
-    expect(saveSpy).not.toHaveBeenCalled();
   });
 
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
