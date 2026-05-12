@@ -19,15 +19,15 @@ const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
     end: true,
   },
   {
-    to: "/plugins",
-    label: "Plugins",
-    icon: <PuzzleIcon width={16} height={16} />,
-    end: true,
-  },
-  {
     to: "/mcp",
     label: "MCP Servers",
     icon: <ServerProcessIcon width={16} height={16} />,
+    end: true,
+  },
+  {
+    to: "/plugins",
+    label: "Plugins",
+    icon: <PuzzleIcon width={16} height={16} />,
     end: true,
   },
 ];
