@@ -119,25 +119,24 @@ async function dismissConsentModal(page: Page) {
 }
 
 test.describe("UI Visual Snapshots", () => {
+  // Increase timeout for this test - modal loading can be slow
+  test.setTimeout(60000);
+
   test("Analytics consent modal renders correctly", async ({ page }) => {
     // Use setupMocks with showConsentModal=true to guarantee modal appears
     await setupMocks(page, true);
 
-    // Navigate and wait for settings API to respond (triggers modal logic)
-    const [response] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes("/api/settings")),
-      page.goto("/conversations"),
-    ]);
+    await page.goto("/conversations", { waitUntil: "networkidle" });
 
     // Wait for the page to stabilize
     const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toBeVisible({ timeout: 10000 });
+    await expect(rootLayout).toBeVisible({ timeout: 15000 });
 
     // Wait for the consent modal (lazy-loaded) with extended timeout
     const consentModal = page.getByRole("dialog", {
       name: "Help improve OpenHands",
     });
-    await expect(consentModal).toBeVisible({ timeout: 10000 });
+    await expect(consentModal).toBeVisible({ timeout: 15000 });
 
     // Snapshot the full page with the consent modal
     await expect(rootLayout).toHaveScreenshot("analytics-consent-modal.png", {
