@@ -13,12 +13,21 @@ export interface LocalGitInfo {
   remoteUrl: string | null;
 }
 
+const EMPTY_LOCAL_GIT_INFO: LocalGitInfo = {
+  repository: null,
+  branch: null,
+  provider: null,
+  remoteUrl: null,
+};
+
 /**
  * For local-workspace conversations (no `selected_repository` recorded on the
  * conversation), shell out via the agent server's bash-execute endpoint to
  * read `git remote get-url origin` and the current branch from the
- * conversation's working directory. Falls back to the working-dir basename
- * when the dir is not a git checkout.
+ * conversation's working directory.
+ *
+ * Returns `null` fields when the working dir is not a git checkout — callers
+ * should treat that the same as "no repo detected".
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
@@ -59,12 +68,11 @@ export const useLocalGitInfo = () => {
         branchResult.exit_code === 0 ? branchResult.stdout.trim() : "";
       const branch = rawBranch && rawBranch !== "HEAD" ? rawBranch : null;
 
+      if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
+
       const parsedRemote = parseGitRemoteUrl(remoteUrl);
-      // Fall back to the working-dir basename so the repo button shows a
-      // name even when there's no `origin` remote or no git at all.
-      const folderName = workingDir?.split("/").filter(Boolean).pop() ?? null;
       return {
-        repository: parsedRemote?.repository ?? folderName,
+        repository: parsedRemote?.repository ?? null,
         provider: parsedRemote?.provider ?? null,
         remoteUrl: remoteUrl || null,
         branch,
