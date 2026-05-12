@@ -135,6 +135,11 @@ export function Sidebar() {
     collapsed ? I18nKey.SIDEBAR$EXPAND : I18nKey.SIDEBAR$COLLAPSE,
   );
 
+  const isExtensionsActive =
+    currentPath.startsWith("/skills") ||
+    currentPath === "/plugins" ||
+    currentPath === "/mcp";
+
   return (
     <SidebarCollapseContext.Provider value={collapsed}>
       <aside
@@ -223,6 +228,7 @@ export function Sidebar() {
             testId="sidebar-skills-link"
             disabled={linkDisabled}
             collapsed={collapsed}
+            forceActive={isExtensionsActive}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
