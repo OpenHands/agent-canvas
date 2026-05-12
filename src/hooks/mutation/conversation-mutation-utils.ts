@@ -1,6 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
+import { ConversationClient } from "@openhands/typescript-client/clients";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { pauseCloudSandbox } from "#/api/cloud/conversation-service.api";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
@@ -44,11 +46,9 @@ export const pauseConversation = async (conversationId: string) => {
     return { success: true };
   }
 
-  return AgentServerConversationService.pauseConversation(
-    conversationId,
-    conversationUrl,
-    sessionApiKey,
-  );
+  return new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).pauseConversation(conversationId);
 };
 
 /**
@@ -60,22 +60,17 @@ export const askAgent = async (
 ): Promise<{ response: string }> => {
   const { conversationUrl, sessionApiKey } =
     await fetchConversationData(conversationId);
-  return AgentServerConversationService.askAgent(
-    conversationId,
-    conversationUrl,
-    question,
-    sessionApiKey,
-  );
+  return new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).askAgent(conversationId, question);
 };
 
 export const resumeConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey } =
     await fetchConversationData(conversationId);
-  return AgentServerConversationService.resumeConversation(
-    conversationId,
-    conversationUrl,
-    sessionApiKey,
-  );
+  return new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).runConversation(conversationId);
 };
 
 export const updateConversationExecutionStatusInCache = (

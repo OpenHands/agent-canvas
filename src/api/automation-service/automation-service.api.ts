@@ -21,7 +21,7 @@ export interface AutomationHealthResponse {
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
 // That sidecar authenticates via its own `VITE_AUTOMATION_API_KEY` Bearer
 // token — NOT the agent-server's `X-Session-API-Key` — so we cannot reuse
-// the shared `createHttpClient()` instance for these calls.
+// the default local agent-server client for these calls.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {

@@ -360,7 +360,7 @@ describe("FilesTab", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the static workspace URL as the iframe src for HTML files", async () => {
+  it("uses the browser preview URL as the iframe src for HTML files", async () => {
     useHasAttachedSourceMock.mockReturnValue({
       hasAttachedSource: false,
       isLoading: false,
@@ -369,8 +369,7 @@ describe("FilesTab", () => {
       data: ["index.html"],
       isLoading: false,
     });
-    const staticUrl =
-      "http://localhost:3000/api/conversations/abc/workspace/index.html";
+    const staticUrl = "blob:preview-url";
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "index.html",
@@ -387,18 +386,14 @@ describe("FilesTab", () => {
 
     const iframe = await screen.findByTestId("file-content-viewer-iframe");
     expect(iframe).toBeInTheDocument();
-    // The iframe src starts with the workspace static URL and carries the
-    // mutation-counter cache-buster (`?v=<n>`) so browser-cached responses
-    // are invalidated whenever the agent edits a file.
-    expect(iframe.getAttribute("src")).toMatch(
-      new RegExp(`^${staticUrl.replace(/[/.]/g, "\\$&")}\\?v=\\d+$`),
-    );
-    // The iframe is sandboxed with `allow-same-origin` only: relative
-    // asset refs (CSS, images) load from the workspace fileserver
-    // origin, but `<script>` / inline event handlers inside the
-    // previewed file are inert. We deliberately do NOT add
-    // `allow-scripts` — a workspace HTML file's scripts must not run in
-    // the canvas's context.
+    // The iframe src uses the hook-provided browser preview URL directly;
+    // mutation freshness is handled by the hook's query key, not by mutating
+    // Blob URLs with cache-buster query params.
+    expect(iframe).toHaveAttribute("src", staticUrl);
+    // The iframe is sandboxed with `allow-same-origin` only: `<script>` /
+    // inline event handlers inside the previewed file are inert. We deliberately
+    // do NOT add `allow-scripts` — a workspace HTML file's scripts must not run
+    // in the canvas's context.
     expect(iframe).toHaveAttribute("sandbox", "allow-same-origin");
   });
 

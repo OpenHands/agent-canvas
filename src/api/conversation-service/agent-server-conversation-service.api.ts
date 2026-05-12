@@ -1,3 +1,9 @@
+import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationClient,
+  FileClient,
+  VSCodeClient,
+} from "@openhands/typescript-client/clients";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -23,18 +29,13 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
-  downloadTextFile,
   emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  createHttpClient,
-  createRemoteWorkspace,
-  createVSCodeClient,
-} from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -48,20 +49,209 @@ import type {
   AppConversationPage,
   AppConversationStartRequest,
   AppConversationStartTask,
+  MetricsSnapshot,
   RuntimeConversationInfo,
   SendMessageRequest,
   SendMessageResponse,
 } from "./agent-server-conversation-service.types";
+
+const DEFAULT_CONVERSATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+const INVALID_CONVERSATION_RESPONSE_MESSAGE =
+  "Unable to load conversations because the selected agent server returned " +
+  "data this UI does not understand. Check the backend URL/session key and " +
+  "update the agent server if needed.";
+
+function invalidConversationResponse(): Error {
+  return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" ? value : 0;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function readTimestamp(
+  item: Record<string, unknown>,
+  snakeKey: "created_at" | "updated_at",
+  camelKey: "createdAt" | "updatedAt",
+): string {
+  const value = item[snakeKey] ?? item[camelKey];
+  return typeof value === "string" && value.trim()
+    ? value
+    : DEFAULT_CONVERSATION_TIMESTAMP;
+}
+
+function normalizeTokenUsage(
+  value: unknown,
+): NonNullable<MetricsSnapshot["accumulated_token_usage"]> | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    prompt_tokens: numberOrZero(value.prompt_tokens),
+    completion_tokens: numberOrZero(value.completion_tokens),
+    cache_read_tokens: numberOrZero(value.cache_read_tokens),
+    cache_write_tokens: numberOrZero(value.cache_write_tokens),
+    context_window: numberOrZero(value.context_window),
+    per_turn_token: numberOrZero(value.per_turn_token),
+  };
+}
+
+function normalizeMetrics(value: unknown): MetricsSnapshot | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    accumulated_cost: numberOrNull(value.accumulated_cost),
+    max_budget_per_task: numberOrNull(value.max_budget_per_task),
+    accumulated_token_usage: normalizeTokenUsage(value.accumulated_token_usage),
+  };
+}
+
+function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
+  if (!isRecord(value)) return null;
+  const llm = isRecord(value.llm)
+    ? { model: stringOrNull(value.llm.model) }
+    : null;
+  return { llm };
+}
+
+function normalizeWorkspace(
+  value: unknown,
+): DirectConversationInfo["workspace"] {
+  if (!isRecord(value)) return null;
+  return { working_dir: stringOrNull(value.working_dir) };
+}
+
+function normalizeAbsolutePath(path: string): string | null {
+  if (!path.startsWith("/")) return null;
+
+  const segments: string[] = [];
+  for (const segment of path.split("/")) {
+    if (segment && segment !== ".") {
+      if (segment === "..") {
+        if (!segments.length) return null;
+        segments.pop();
+      } else {
+        segments.push(segment);
+      }
+    }
+  }
+
+  return `/${segments.join("/")}`;
+}
+
+function requirePathInsideDirectory(path: string, directory: string): string {
+  const normalizedPath = normalizeAbsolutePath(path);
+  const normalizedDirectory = normalizeAbsolutePath(directory);
+
+  if (
+    !normalizedPath ||
+    !normalizedDirectory ||
+    (normalizedPath !== normalizedDirectory &&
+      !normalizedPath.startsWith(`${normalizedDirectory}/`))
+  ) {
+    throw new Error("Conversation file path must stay inside the workspace");
+  }
+
+  return normalizedPath;
+}
+
+function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
+  if (!isRecord(item) || typeof item.id !== "string" || !item.id.trim()) {
+    throw invalidConversationResponse();
+  }
+
+  return {
+    id: item.id.trim(),
+    title: stringOrNull(item.title),
+    created_at: readTimestamp(item, "created_at", "createdAt"),
+    updated_at: readTimestamp(item, "updated_at", "updatedAt"),
+    execution_status: stringOrNull(item.execution_status),
+    metrics: normalizeMetrics(item.metrics),
+    agent: normalizeAgent(item.agent),
+    workspace: normalizeWorkspace(item.workspace),
+  };
+}
+
+function requireDirectConversationItems(
+  items: unknown,
+): DirectConversationInfo[] {
+  if (!Array.isArray(items)) {
+    throw invalidConversationResponse();
+  }
+  return items.map(requireDirectConversationInfo);
+}
+
+function requireConversationSearchPage(page: unknown): {
+  items: DirectConversationInfo[];
+  next_page_id: string | null;
+} {
+  if (Array.isArray(page)) {
+    return {
+      items: requireDirectConversationItems(page),
+      next_page_id: null,
+    };
+  }
+
+  if (!isRecord(page)) {
+    throw invalidConversationResponse();
+  }
+
+  return {
+    items: requireDirectConversationItems(page.items),
+    next_page_id:
+      typeof page.next_page_id === "string" ? page.next_page_id : null,
+  };
+}
+
+const RUNTIME_STATUSES = new Set<string>([
+  "idle",
+  "running",
+  "paused",
+  "waiting_for_confirmation",
+  "finished",
+  "error",
+  "stuck",
+]);
+
+function toRuntimeStatus(
+  status: DirectConversationInfo["execution_status"],
+): RuntimeConversationInfo["status"] {
+  const nextStatus = status ?? "idle";
+  return (
+    RUNTIME_STATUSES.has(nextStatus) ? nextStatus : "idle"
+  ) as RuntimeConversationInfo["status"];
+}
+
+function requireAppConversation(
+  conversation: AppConversation | null | undefined,
+  conversationId: string,
+): AppConversation {
+  if (!conversation) {
+    throw new Error(`Conversation ${conversationId} was not found`);
+  }
+  return conversation;
+}
 
 class AgentServerConversationService {
   static async sendMessage(
     conversationId: string,
     message: SendMessageRequest,
   ): Promise<SendMessageResponse> {
-    await createHttpClient().post(
-      `/api/conversations/${conversationId}/events`,
+    await new ConversationClient(getAgentServerClientOptions()).sendEvent(
+      conversationId,
+      message,
       {
-        ...message,
         run: true,
       },
     );
@@ -119,11 +309,9 @@ class AgentServerConversationService {
       workingDir,
     });
 
-    const response = await createHttpClient().post<DirectConversationInfo>(
-      "/api/conversations",
-      payload,
-    );
-    const { data } = response;
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).createConversation<DirectConversationInfo>(payload);
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/
@@ -170,15 +358,6 @@ class AgentServerConversationService {
     return null;
   }
 
-  static async searchStartTasks(
-    limit: number = 100,
-  ): Promise<AppConversationStartTask[]> {
-    if (limit < 0) {
-      return [];
-    }
-    return [];
-  }
-
   static async getVSCodeUrl(
     conversationId: string,
     conversationUrl: string | null | undefined,
@@ -191,10 +370,14 @@ class AgentServerConversationService {
     // the user's browser can't reach.
     const workspaceDir =
       await this.resolveConversationWorkingDir(conversationId);
-    const vscodeUrl = await createVSCodeClient({
-      conversationUrl,
-      sessionApiKey,
-    }).getUrl({
+    // Local mode: the typescript-client targets the local agent-server
+    // directly via the conversationUrl override.
+    const vscodeUrl = await new VSCodeClient(
+      getAgentServerClientOptions({
+        conversationUrl,
+        sessionApiKey,
+      }),
+    ).getUrl({
       baseUrl:
         typeof window !== "undefined" ? window.location.origin : undefined,
       workspaceDir,
@@ -212,43 +395,6 @@ class AgentServerConversationService {
     return conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
   }
 
-  static async pauseConversation(
-    conversationId: string,
-    _conversationUrl: string | null | undefined,
-    sessionApiKey?: string | null,
-  ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/pause`, {});
-
-    return response.data;
-  }
-
-  static async askAgent(
-    conversationId: string,
-    _conversationUrl: string | null | undefined,
-    question: string,
-    sessionApiKey?: string | null,
-  ): Promise<{ response: string }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      response: string;
-    }>(`/api/conversations/${conversationId}/ask_agent`, { question });
-
-    return response.data;
-  }
-
-  static async resumeConversation(
-    conversationId: string,
-    _conversationUrl: string | null | undefined,
-    sessionApiKey?: string | null,
-  ): Promise<{ success: boolean }> {
-    const response = await createHttpClient({ sessionApiKey }).post<{
-      success: boolean;
-    }>(`/api/conversations/${conversationId}/run`, {});
-
-    return response.data;
-  }
-
   static async batchGetAppConversations(
     ids: string[],
   ): Promise<(AppConversation | null)[]> {
@@ -258,27 +404,13 @@ class AgentServerConversationService {
       return batchGetCloudConversations(ids);
     }
 
-    const response = await createHttpClient().get<
-      (DirectConversationInfo | null)[]
-    >("/api/conversations", { params: { ids } });
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).getConversations<DirectConversationInfo>(ids);
 
-    return response.data.map((item) => (item ? toAppConversation(item) : null));
-  }
-
-  static async uploadFile(
-    _conversationUrl: string | null | undefined,
-    sessionApiKey: string | null | undefined,
-    file: File,
-    path?: string,
-  ): Promise<void> {
-    const uploadPath = path || `/workspace/${file.name}`;
-    await createRemoteWorkspace({ sessionApiKey }).fileUpload(file, uploadPath);
-  }
-
-  static async getConversationConfig(
-    conversationId: string,
-  ): Promise<{ runtime_id: string }> {
-    return { runtime_id: conversationId };
+    return requireDirectConversationItems(data).map((item) =>
+      toAppConversation(item),
+    );
   }
 
   static async updateConversationPublicFlag(
@@ -306,8 +438,10 @@ class AgentServerConversationService {
     } else {
       removeStoredConversationMetadata(conversationId);
     }
-    const results = await this.batchGetAppConversations([conversationId]);
-    return results[0] as AppConversation;
+    const [conversation] = await this.batchGetAppConversations([
+      conversationId,
+    ]);
+    return requireAppConversation(conversation, conversationId);
   }
 
   static async readConversationFile(
@@ -318,18 +452,19 @@ class AgentServerConversationService {
       // Cloud SaaS exposes a per-conversation file endpoint; the sandbox
       // working dir is fixed (`/workspace/project`), so PLAN.md lives at
       // a known absolute path. Mirrors OpenHands' readConversationFile.
-      return readCloudConversationFile(
-        conversationId,
+      const path = requirePathInsideDirectory(
         filePath ?? "/workspace/project/.agents_tmp/PLAN.md",
+        "/workspace/project",
       );
-    }
-
-    if (filePath) {
-      return downloadTextFile(filePath);
+      return readCloudConversationFile(conversationId, path);
     }
 
     const workingDir = await this.resolveConversationWorkingDir(conversationId);
-    return downloadTextFile(`${workingDir}/.agents_tmp/PLAN.md`);
+    const path = requirePathInsideDirectory(
+      filePath ?? `${workingDir}/.agents_tmp/PLAN.md`,
+      workingDir,
+    );
+    return new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
   }
 
   static async downloadConversation(conversationId: string): Promise<Blob> {
@@ -337,14 +472,9 @@ class AgentServerConversationService {
       return downloadCloudConversation(conversationId);
     }
 
-    const response = await createHttpClient().get<Blob>(
-      `/api/file/download-trajectory/${conversationId}`,
-      {
-        responseType: "blob",
-      },
+    return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
+      conversationId,
     );
-
-    return response.data;
   }
 
   static async getHooks(conversationId: string): Promise<GetHooksResponse> {
@@ -369,7 +499,7 @@ class AgentServerConversationService {
     // the conversation's runtime URL — same pattern as getVSCodeUrl. Local
     // mode forwards conversationUrl so the host explicitly resolves to the
     // conversation's runtime instead of falling back to the active backend.
-    const data: RawRuntime =
+    const response =
       active.kind === "cloud" && conversationUrl
         ? await callCloudProxy<RawRuntime>({
             backend: active,
@@ -379,46 +509,25 @@ class AgentServerConversationService {
             authMode: "session-api-key",
             sessionApiKey,
           })
-        : (
-            await createHttpClient({
+        : await new ConversationClient(
+            getAgentServerClientOptions({
               conversationUrl,
               sessionApiKey,
-            }).get<RawRuntime>(`/api/conversations/${conversationId}`)
-          ).data;
+            }),
+          ).getConversation<RawRuntime>(conversationId);
+    const data = requireDirectConversationInfo(response);
+    const stats = isRecord(response) ? response.stats : null;
 
     return {
       id: data.id,
       title: data.title?.trim()
         ? data.title
         : getDefaultConversationTitle(data.id),
-      metrics: data.metrics
-        ? {
-            accumulated_cost: data.metrics.accumulated_cost ?? null,
-            max_budget_per_task: data.metrics.max_budget_per_task ?? null,
-            accumulated_token_usage: data.metrics.accumulated_token_usage
-              ? {
-                  prompt_tokens:
-                    data.metrics.accumulated_token_usage.prompt_tokens ?? 0,
-                  completion_tokens:
-                    data.metrics.accumulated_token_usage.completion_tokens ?? 0,
-                  cache_read_tokens:
-                    data.metrics.accumulated_token_usage.cache_read_tokens ?? 0,
-                  cache_write_tokens:
-                    data.metrics.accumulated_token_usage.cache_write_tokens ??
-                    0,
-                  context_window:
-                    data.metrics.accumulated_token_usage.context_window ?? 0,
-                  per_turn_token:
-                    data.metrics.accumulated_token_usage.per_turn_token ?? 0,
-                }
-              : null,
-          }
-        : null,
+      metrics: normalizeMetrics(data.metrics),
       created_at: data.created_at,
       updated_at: data.updated_at,
-      status:
-        (data.execution_status as RuntimeConversationInfo["status"]) ?? "idle",
-      stats: data.stats ?? { usage_to_metrics: {} },
+      status: toRuntimeStatus(data.execution_status),
+      stats: isRecord(stats) ? stats : { usage_to_metrics: {} },
     };
   }
 
@@ -430,25 +539,24 @@ class AgentServerConversationService {
       return searchCloudConversations(limit, pageId);
     }
 
-    const response = await createHttpClient().get<{
-      items: DirectConversationInfo[];
-      next_page_id: string | null;
-    }>("/api/conversations/search", {
-      params: {
-        limit,
-        page_id: pageId,
-        sort_order: "UPDATED_AT_DESC",
-      },
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).searchConversations({
+      limit,
+      page_id: pageId,
+      sort_order: ConversationSortOrder.UPDATED_AT_DESC,
     });
 
-    return toConversationPage(response.data);
+    return toConversationPage(requireConversationSearchPage(data));
   }
 
   static async deleteConversation(conversationId: string): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
       await deleteCloudConversation(conversationId);
     } else {
-      await createHttpClient().delete(`/api/conversations/${conversationId}`);
+      await new ConversationClient(
+        getAgentServerClientOptions(),
+      ).deleteConversation(conversationId);
     }
     removeStoredConversationMetadata(conversationId);
   }
@@ -457,13 +565,15 @@ class AgentServerConversationService {
     conversationId: string,
     title: string,
   ): Promise<AppConversation> {
-    await createHttpClient().patch(`/api/conversations/${conversationId}`, {
+    await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).updateConversation(conversationId, {
       title,
     });
     const [conversation] = await this.batchGetAppConversations([
       conversationId,
     ]);
-    return conversation as AppConversation;
+    return requireAppConversation(conversation, conversationId);
   }
 }
 

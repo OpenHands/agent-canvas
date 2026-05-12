@@ -1,5 +1,12 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { sharedConversationService } from "#/api/shared-conversation-service.api";
+import { SharedClient } from "@openhands/typescript-client/clients";
+import type { OpenHandsEvent } from "#/types/agent-server/core";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+
+interface SharedEventPage {
+  items: OpenHandsEvent[];
+  next_page_id: string | null;
+}
 
 export const useSharedConversationEvents = (conversationId?: string) =>
   useInfiniteQuery({
@@ -8,11 +15,13 @@ export const useSharedConversationEvents = (conversationId?: string) =>
       if (!conversationId) {
         throw new Error("Conversation ID is required");
       }
-      return sharedConversationService.getSharedConversationEvents(
-        conversationId,
-        100,
-        pageParam,
-      );
+      return new SharedClient(getAgentServerClientOptions()).searchSharedEvents(
+        {
+          conversationId,
+          limit: 100,
+          pageId: pageParam,
+        },
+      ) as Promise<SharedEventPage>;
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next_page_id ?? undefined,
