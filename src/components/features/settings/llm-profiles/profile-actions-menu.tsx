@@ -72,6 +72,11 @@ export function ProfileActionsMenu({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, currentIndex: number) => {
+      // Tab should close the menu per WAI-ARIA menu button practices
+      if (e.key === "Tab") {
+        onClose();
+        return;
+      }
       // Use dynamic item count based on actual menu items
       const itemCount = menuItemsRef.current.filter(Boolean).length;
       if (e.key === "ArrowDown") {
@@ -84,7 +89,7 @@ export function ProfileActionsMenu({
         menuItemsRef.current[prevIndex]?.focus();
       }
     },
-    [],
+    [onClose],
   );
 
   return (

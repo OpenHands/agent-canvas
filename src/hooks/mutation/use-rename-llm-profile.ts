@@ -15,9 +15,8 @@ export function useRenameLlmProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, newName }: RenameLlmProfileVariables) => {
-      await ProfilesService.renameProfile(name, newName);
-    },
+    mutationFn: ({ name, newName }: RenameLlmProfileVariables) =>
+      ProfilesService.renameProfile(name, newName),
     onSuccess: async () => {
       // Invalidate SettingsService internal cache to ensure fresh settings
       // (backend references in agent_settings may change when renaming active profile)

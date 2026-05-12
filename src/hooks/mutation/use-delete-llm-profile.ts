@@ -10,9 +10,7 @@ export function useDeleteLlmProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (name: string) => {
-      await ProfilesService.deleteProfile(name);
-    },
+    mutationFn: (name: string) => ProfilesService.deleteProfile(name),
     onSuccess: async () => {
       // Invalidate the SettingsService internal cache so getSettingsForConversation
       // fetches fresh settings after the profile is deleted (backend may have

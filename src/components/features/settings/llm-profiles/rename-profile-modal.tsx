@@ -35,7 +35,8 @@ export function RenameProfileModal({
 
   const trimmed = newName.trim();
   const isUnchanged = trimmed === profile.name;
-  const isValid = PROFILE_NAME_PATTERN.test(trimmed);
+  // Explicit empty check matches ProfileNameInput's isRequired validation
+  const isValid = trimmed !== "" && PROFILE_NAME_PATTERN.test(trimmed);
 
   const handleSubmit = async () => {
     if (!isValid) {

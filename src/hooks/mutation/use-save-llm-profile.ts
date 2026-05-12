@@ -17,9 +17,8 @@ export function useSaveLlmProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, request }: SaveLlmProfileVariables) => {
-      await ProfilesService.saveProfile(name, request);
-    },
+    mutationFn: ({ name, request }: SaveLlmProfileVariables) =>
+      ProfilesService.saveProfile(name, request),
     onSuccess: async () => {
       // Invalidate SettingsService internal cache to ensure fresh settings
       // for new conversations (especially if saving the active profile)
