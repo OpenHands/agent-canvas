@@ -158,6 +158,65 @@ describe("AgentServerConversationService", () => {
         `/state/workspaces/${secondHex}`,
       );
     });
+
+    describe("worktree gating", () => {
+      beforeEach(() => {
+        mockGetSettings.mockResolvedValue({
+          agent_settings: { llm: { model: "gpt-4o" } },
+          conversation_settings: {},
+        });
+        mockGetSettingsForConversation.mockResolvedValue({
+          agentSettings: { llm: { model: "gpt-4o" } },
+          conversationSettings: {},
+          secretsEncrypted: true,
+        });
+        mockHttpPost.mockResolvedValue({
+          data: {
+            id: "ignored-server-id",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+          },
+        });
+      });
+
+      const lastPayload = () => {
+        const calls = mockHttpPost.mock.calls;
+        return calls[calls.length - 1]![1] as { worktree: boolean };
+      };
+
+      it("requests a worktree when the user attached a git-provider repo", async () => {
+        await AgentServerConversationService.createConversation(
+          undefined,
+          undefined,
+          undefined,
+          {
+            selected_repository: "octo/repo",
+            selected_branch: "main",
+            git_provider: "github",
+          },
+        );
+
+        expect(lastPayload().worktree).toBe(true);
+      });
+
+      it("requests a worktree when the user picked a local workspace folder (workingDirOverride only)", async () => {
+        await AgentServerConversationService.createConversation(
+          undefined,
+          undefined,
+          undefined,
+          null,
+          "/some/local/workspace",
+        );
+
+        expect(lastPayload().worktree).toBe(true);
+      });
+
+      it("opts out of the worktree for the default ephemeral workspace (no repo, no override)", async () => {
+        await AgentServerConversationService.createConversation();
+
+        expect(lastPayload().worktree).toBe(false);
+      });
+    });
   });
 
   describe("downloadConversation local branch", () => {

@@ -119,12 +119,15 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
-      // Only request a per-conversation git worktree when the user has
-      // attached a real repository. Local-only workspaces (no
-      // `selected_repository`) may not be git checkouts, in which case
-      // `git worktree add HEAD` on the server fails and the conversation
-      // never starts.
-      worktree: !!metadata?.selected_repository,
+      // Request a per-conversation git worktree for any real working
+      // tree the user attached — either a git-provider repo
+      // (`selected_repository`) or a locally-picked workspace folder
+      // (`workingDirOverride`). The only case that opts out is the
+      // default ephemeral workspace, where neither is set and
+      // `workingDir` falls back to `buildConversationWorkingDir(conversationId)`:
+      // that dir isn't a git repo, so `git worktree add HEAD` on the
+      // server would fail and the conversation would never start.
+      worktree: !!(metadata?.selected_repository || workingDirOverride),
     });
 
     const response = await createHttpClient().post<DirectConversationInfo>(
