@@ -126,11 +126,17 @@ test.describe("UI Visual Snapshots", () => {
     const homeScreen = page.getByTestId("home-screen");
     await expect(homeScreen).toBeVisible();
 
-    // Wait for any loading states to resolve
+    // Ensure no consent modal is showing
+    const consentModal = page.getByRole("dialog", {
+      name: "Help improve OpenHands",
+    });
+    await expect(consentModal).toHaveCount(0);
+
     await page.waitForLoadState("networkidle");
 
-    // Take a snapshot of the home screen
-    await expect(homeScreen).toHaveScreenshot("home-screen.png", {
+    // Snapshot full layout for consistency
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toHaveScreenshot("home-screen.png", {
       maxDiffPixelRatio: 0.01,
       animations: "disabled",
     });
@@ -141,13 +147,17 @@ test.describe("UI Visual Snapshots", () => {
 
     await page.goto("/settings");
 
-    // Wait for the root layout to be visible (settings is nested)
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toBeVisible();
 
+    // Ensure no consent modal is showing
+    const consentModal = page.getByRole("dialog", {
+      name: "Help improve OpenHands",
+    });
+    await expect(consentModal).toHaveCount(0);
+
     await page.waitForLoadState("networkidle");
 
-    // Snapshot the main content area
     await expect(rootLayout).toHaveScreenshot("settings-page.png", {
       maxDiffPixelRatio: 0.01,
       animations: "disabled",
@@ -161,6 +171,12 @@ test.describe("UI Visual Snapshots", () => {
 
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toBeVisible();
+
+    // Ensure no consent modal is showing
+    const consentModal = page.getByRole("dialog", {
+      name: "Help improve OpenHands",
+    });
+    await expect(consentModal).toHaveCount(0);
 
     await page.waitForLoadState("networkidle");
 
