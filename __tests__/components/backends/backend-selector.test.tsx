@@ -18,7 +18,6 @@ import {
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import {
   __resetEnvironmentSwitchOverlayForTests,
-  ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   EnvironmentSwitchOverlay,
 } from "#/components/features/backends/environment-switch-overlay";
 
@@ -105,12 +104,7 @@ beforeEach(() => {
   });
 });
 
-afterEach(async () => {
-  if (document.body.hasAttribute("data-environment-switching")) {
-    await new Promise((resolve) => {
-      setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS + 20);
-    });
-  }
+afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();

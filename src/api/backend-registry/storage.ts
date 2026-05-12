@@ -1,12 +1,4 @@
-import {
-  getAgentServerBaseUrl,
-  getAgentServerSessionApiKey,
-  isStaleImplicitBrowserOriginBackendUrl,
-} from "../agent-server-config";
-import {
-  DEFAULT_LOCAL_BACKEND_ID,
-  makeDefaultLocalBackend,
-} from "./default-backend";
+import { makeDefaultLocalBackend } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -27,21 +19,6 @@ function isValidBackend(value: unknown): value is Backend {
     typeof v.apiKey === "string" &&
     isValidKind(v.kind)
   );
-}
-
-function migrateStaleDefaultBackend(backend: Backend): Backend {
-  if (
-    backend.id !== DEFAULT_LOCAL_BACKEND_ID ||
-    !isStaleImplicitBrowserOriginBackendUrl(backend.host)
-  ) {
-    return backend;
-  }
-
-  return {
-    ...backend,
-    host: getAgentServerBaseUrl(),
-    apiKey: getAgentServerSessionApiKey() ?? backend.apiKey,
-  };
 }
 
 export function writeStoredBackends(backends: Backend[]): void {
@@ -70,7 +47,7 @@ export function readStoredBackends(): Backend[] {
 
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    const valid = parsed.filter(isValidBackend).map(migrateStaleDefaultBackend);
+    const valid = parsed.filter(isValidBackend);
 
     // If the stored array is empty (or everything in it failed validation),
     // re-seed with the default Local backend so the user always has a
@@ -82,10 +59,6 @@ export function readStoredBackends(): Backend[] {
       const seeded = [makeDefaultLocalBackend()];
       writeStoredBackends(seeded);
       return seeded;
-    }
-
-    if (JSON.stringify(valid) !== JSON.stringify(parsed)) {
-      writeStoredBackends(valid);
     }
 
     return valid;

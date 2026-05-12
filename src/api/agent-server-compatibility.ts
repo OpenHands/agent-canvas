@@ -58,18 +58,12 @@ export async function loadAgentServerInfo() {
   // backend when that backend is cloud, because cloud SaaS hosts don't
   // expose /api/server_info and would fail with a CORS error besides.
   const local = getEffectiveLocalBackend();
-  const host = local.host.trim();
   let serverInfo: AgentServerInfo;
-
-  if (!host) {
-    clearCachedAgentServerInfo();
-    throw new AgentServerUnavailableError("No agent server URL configured.");
-  }
 
   try {
     serverInfo = (await new ServerClient(
       getAgentServerClientOptions({
-        host,
+        host: local.host,
         sessionApiKey: local.apiKey || null,
         timeout: AGENT_SERVER_INFO_TIMEOUT_MS,
       }),

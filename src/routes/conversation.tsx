@@ -28,37 +28,6 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
 
-function getConversationLoadErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "string" && error.trim()) return error;
-  return "Unable to load conversation.";
-}
-
-function ConversationLoadError({ error }: { error: unknown }) {
-  const { t } = useTranslation("openhands");
-  const message = getConversationLoadErrorMessage(error);
-
-  return (
-    <main
-      data-testid="conversation-load-error"
-      className="flex min-h-screen w-full items-center justify-center bg-base px-6 text-white"
-    >
-      <section className="max-w-2xl rounded-2xl border border-danger/40 bg-tertiary p-8 shadow-xl">
-        <p className="mb-3 text-sm font-medium uppercase tracking-wide text-danger">
-          {t(I18nKey.CONVERSATION$LOAD_ERROR_LABEL)}
-        </p>
-        <h1 className="mb-4 text-2xl font-semibold text-white">
-          {t(I18nKey.CONVERSATION$LOAD_ERROR_TITLE)}
-        </h1>
-        <p className="text-sm leading-6 text-neutral-300">{message}</p>
-        <p className="mt-4 text-sm leading-6 text-neutral-400">
-          {t(I18nKey.CONVERSATION$LOAD_ERROR_HINT)}
-        </p>
-      </section>
-    </main>
-  );
-}
-
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
@@ -69,9 +38,10 @@ function AppContent() {
   // The conversationId in the URL belongs to whichever backend was
   // active when the route first mounted. If the user switches backends
   // while this route is still mounted, the id is meaningless under the
-  // new backend — ignore missing-conversation handling while the
-  // BackendSelector's redirect navigates away. Mirrors the same guard in
-  // `routes/automation-detail.tsx`.
+  // new backend — disable the active-conversation fetch (and its 404
+  // toast) so we don't fire a request that the BackendSelector's
+  // redirect will immediately navigate away from anyway. Mirrors the
+  // same guard in `routes/automation-detail.tsx`.
   const active = useActiveBackend();
   const mountedBackendId = React.useRef(active.backend.id);
   const mountedOrgId = React.useRef(active.orgId);
@@ -79,12 +49,7 @@ function AppContent() {
     mountedBackendId.current !== active.backend.id ||
     mountedOrgId.current !== active.orgId;
 
-  const {
-    data: conversation,
-    error: conversationError,
-    isError: conversationIsError,
-    isFetched,
-  } = useActiveConversation();
+  const { data: conversation, isFetched } = useActiveConversation();
   const { data: isAuthed } = useIsAuthed();
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
@@ -125,7 +90,7 @@ function AppContent() {
   }, [isTask, taskStatus, taskDetail, t]);
 
   React.useEffect(() => {
-    if (!isFetched || !isAuthed || conversationIsError) return;
+    if (!isFetched || !isAuthed) return;
     // The BackendSelector is in the middle of redirecting us away from
     // this route — don't toast/navigate based on a 404 that's just
     // "this id doesn't exist on the new backend".
@@ -140,7 +105,6 @@ function AppContent() {
     }
   }, [
     conversation,
-    conversationIsError,
     isFetched,
     isAuthed,
     navigate,
@@ -161,10 +125,6 @@ function AppContent() {
     if (conversationId.startsWith("task-")) return;
     setLastConversationId(active.backend.id, active.orgId, conversationId);
   }, [conversationId, backendChanged, active.backend.id, active.orgId]);
-
-  if (conversationIsError && !backendChanged) {
-    return <ConversationLoadError error={conversationError} />;
-  }
 
   const content = (
     <EventHandler>

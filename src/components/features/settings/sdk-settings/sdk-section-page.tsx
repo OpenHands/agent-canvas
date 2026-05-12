@@ -25,7 +25,6 @@ import {
   hasMinorSettings,
   inferInitialView,
   isValidSettingsSchema,
-  normalizeSettingsSchema,
   SettingsDirtyState,
   SettingsFormValues,
   type SettingsValueSource,
@@ -210,10 +209,7 @@ export function SdkSectionPage({
     settingsSource === "conversation_settings"
       ? conversationSchemaQuery
       : agentSchemaQuery;
-  const schema = React.useMemo(
-    () => normalizeSettingsSchema(activeSchemaQuery.data),
-    [activeSchemaQuery.data],
-  );
+  const schema = activeSchemaQuery.data;
   const isSchemaLoading = activeSchemaQuery.isLoading;
   const isReadOnly = false;
 

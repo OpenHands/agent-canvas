@@ -85,12 +85,6 @@ function getConfiguredSessionApiKey(): string | null {
   return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
 }
 
-const LOCAL_BACKEND_HOSTS = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
-
-function isProxyCapableBrowserOrigin(hostname: string): boolean {
-  return hostname.endsWith(".prod-runtime.all-hands.dev");
-}
-
 function shouldUseProxyOrigin(baseUrl: string): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -98,12 +92,11 @@ function shouldUseProxyOrigin(baseUrl: string): boolean {
 
   try {
     const configuredUrl = new URL(baseUrl);
+    const localHosts = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
     const browserHostname = window.location.hostname;
 
     return (
-      LOCAL_BACKEND_HOSTS.has(configuredUrl.hostname) &&
-      !LOCAL_BACKEND_HOSTS.has(browserHostname) &&
-      isProxyCapableBrowserOrigin(browserHostname)
+      localHosts.has(configuredUrl.hostname) && !localHosts.has(browserHostname)
     );
   } catch {
     return false;
@@ -139,36 +132,15 @@ export function saveAgentServerConfig(config: AgentServerFormDefaults): void {
   });
 }
 
-function shouldUseTestBrowserOriginFallback(): boolean {
-  if (import.meta.env.MODE !== "test" || typeof window === "undefined") {
-    return false;
-  }
-
-  const hostname = window.location.hostname ?? "";
-  return !hostname.endsWith(".vercel.app");
-}
-
 export function getAgentServerBaseUrl(): string {
   const configuredUrl = resolveAgentServerBaseUrl(getConfiguredBaseUrl());
   if (configuredUrl) return configuredUrl;
 
-  if (shouldUseTestBrowserOriginFallback()) {
+  if (typeof window !== "undefined") {
     return window.location.origin;
   }
 
-  return "";
-}
-
-export function isStaleImplicitBrowserOriginBackendUrl(host: string): boolean {
-  if (typeof window === "undefined") return false;
-
-  const normalizedHost = normalizeBaseUrl(host);
-  if (!normalizedHost) return false;
-
-  return (
-    normalizedHost === window.location.origin &&
-    !isProxyCapableBrowserOrigin(window.location.hostname)
-  );
+  return "http://127.0.0.1:8000";
 }
 
 export function getAgentServerSessionApiKey(): string | null {

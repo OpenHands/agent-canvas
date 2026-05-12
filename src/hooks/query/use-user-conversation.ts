@@ -42,7 +42,6 @@ export const useUserConversation = (
     },
     enabled: !!cid && !cid.startsWith("task-"),
     retry: false,
-    meta: { disableToast: true },
     refetchInterval,
     staleTime: FIVE_MINUTES,
     gcTime: FIFTEEN_MINUTES,

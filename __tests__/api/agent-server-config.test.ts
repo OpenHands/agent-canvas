@@ -30,39 +30,14 @@ afterEach(() => {
 });
 
 describe("agent server config", () => {
-  it("leaves the backend URL unset instead of using the browser origin when no backend URL is configured", () => {
-    mockWindowLocation(
-      "https://agent-canvas-git-branch-openhands.vercel.app/settings",
-    );
-
-    expect(getAgentServerFormDefaults().baseUrl).toBe("");
-    expect(getAgentServerBaseUrl()).toBe("");
-  });
-
-  it("uses the browser origin when an All Hands runtime browser is pointed at localhost backend config", () => {
-    mockWindowLocation(
-      "https://work-1-myjhyjagmjgtbhwk.prod-runtime.all-hands.dev/settings",
-    );
+  it("uses the browser origin when a remote browser is pointed at localhost backend config", () => {
+    mockWindowLocation("https://work-1.example.dev/settings");
     window.localStorage.setItem(
       AGENT_SERVER_CONFIG_STORAGE_KEY,
       JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
     );
 
-    expect(getAgentServerBaseUrl()).toBe(
-      "https://work-1-myjhyjagmjgtbhwk.prod-runtime.all-hands.dev",
-    );
-  });
-
-  it("does not rewrite localhost backend config to the Vercel preview origin", () => {
-    mockWindowLocation(
-      "https://agent-canvas-git-branch-openhands.vercel.app/settings",
-    );
-    window.localStorage.setItem(
-      AGENT_SERVER_CONFIG_STORAGE_KEY,
-      JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
-    );
-
-    expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
+    expect(getAgentServerBaseUrl()).toBe("https://work-1.example.dev");
   });
 
   it("preserves a non-local backend URL from stored config", () => {
