@@ -5,7 +5,7 @@
   "private": false,
   "type": "module",
   "bin": {
-    "agent-canvas": "./bin/agent-canvas.mjs"
+    "agent-canvas": "bin/agent-canvas.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -72,5 +72,23 @@ jobs:
           fi
           echo "✓ Version $PACKAGE_VERSION matches release tag"
 
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$TAG_VERSION" == *"alpha"* ]]; then
+            echo "tag=alpha" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: alpha"
+          elif [[ "$TAG_VERSION" == *"beta"* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: beta"
+          elif [[ "$TAG_VERSION" == *"rc"* ]]; then
+            echo "tag=rc" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: rc"
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: latest"
+          fi
+
       - name: Publish to npm with provenance
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --tag ${{ steps.npm-tag.outputs.tag }}
