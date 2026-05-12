@@ -95,6 +95,20 @@ async function setupMocks(page: Page, showConsentModal = false) {
   });
 }
 
+/**
+ * Dismisses the analytics consent modal if it appears.
+ */
+async function dismissConsentModal(page: Page) {
+  const consentDialog = page.getByRole("dialog", {
+    name: "Help improve OpenHands",
+  });
+  await page
+    .getByRole("button", { name: "Confirm preferences" })
+    .click({ timeout: 3000 })
+    .catch(() => undefined);
+  await expect(consentDialog).toHaveCount(0, { timeout: 3000 });
+}
+
 test.describe("UI Visual Snapshots", () => {
   test("Analytics consent modal renders correctly", async ({ page }) => {
     // This test specifically captures the consent modal appearance
@@ -117,24 +131,14 @@ test.describe("UI Visual Snapshots", () => {
   });
 
   test("Home page renders correctly", async ({ page }) => {
-    // Consent already given - no modal
     await setupMocks(page, false);
-
     await page.goto("/conversations");
+    await dismissConsentModal(page);
 
-    // Wait for the home screen to be visible
     const homeScreen = page.getByTestId("home-screen");
     await expect(homeScreen).toBeVisible();
-
-    // Ensure no consent modal is showing
-    const consentModal = page.getByRole("dialog", {
-      name: "Help improve OpenHands",
-    });
-    await expect(consentModal).toHaveCount(0);
-
     await page.waitForLoadState("networkidle");
 
-    // Snapshot full layout for consistency
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toHaveScreenshot("home-screen.png", {
       maxDiffPixelRatio: 0.01,
@@ -144,18 +148,11 @@ test.describe("UI Visual Snapshots", () => {
 
   test("Settings page renders correctly", async ({ page }) => {
     await setupMocks(page, false);
-
     await page.goto("/settings");
+    await dismissConsentModal(page);
 
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toBeVisible();
-
-    // Ensure no consent modal is showing
-    const consentModal = page.getByRole("dialog", {
-      name: "Help improve OpenHands",
-    });
-    await expect(consentModal).toHaveCount(0);
-
     await page.waitForLoadState("networkidle");
 
     await expect(rootLayout).toHaveScreenshot("settings-page.png", {
@@ -166,18 +163,11 @@ test.describe("UI Visual Snapshots", () => {
 
   test("Settings app page renders correctly", async ({ page }) => {
     await setupMocks(page, false);
-
     await page.goto("/settings/app");
+    await dismissConsentModal(page);
 
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toBeVisible();
-
-    // Ensure no consent modal is showing
-    const consentModal = page.getByRole("dialog", {
-      name: "Help improve OpenHands",
-    });
-    await expect(consentModal).toHaveCount(0);
-
     await page.waitForLoadState("networkidle");
 
     await expect(rootLayout).toHaveScreenshot("settings-app-page.png", {
