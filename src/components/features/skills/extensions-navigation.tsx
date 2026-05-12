@@ -8,6 +8,7 @@ interface ExtensionNavItem {
   label: string;
   icon: React.ReactElement;
   end?: boolean;
+  comingSoon?: boolean;
 }
 
 const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
@@ -64,6 +65,7 @@ const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
       </svg>
     ),
     end: true,
+    comingSoon: true,
   },
 ];
 
@@ -96,6 +98,11 @@ export function ExtensionsNavigation() {
               {item.icon}
             </span>
             <span className="truncate">{item.label}</span>
+            {item.comingSoon && (
+              <span className="ml-auto shrink-0 rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[#8C8C8C]">
+                Soon
+              </span>
+            )}
           </NavigationLink>
         ))}
       </div>
