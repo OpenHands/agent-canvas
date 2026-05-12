@@ -4,12 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoutesStub } from "react-router";
 import SettingsScreen, { clientLoader } from "#/routes/settings";
 import OptionService from "#/api/option-service/option-service.api";
-import {
-  __resetActiveStoreForTests,
-  setActiveSelection,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
-import type { Backend } from "#/api/backend-registry/types";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { getFirstAvailablePath } from "#/utils/settings-utils";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -22,14 +17,6 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
       ["/settings", "/settings/app"].includes(item.to),
     ).map((item) => ({ type: "item", item })),
 }));
-
-const cloudBackend: Backend = {
-  id: "prod",
-  name: "Production",
-  host: "https://app.all-hands.dev",
-  apiKey: "bearer-token",
-  kind: "cloud",
-};
 
 describe("settings route", () => {
   beforeEach(() => {
@@ -75,20 +62,6 @@ describe("settings route", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/settings/app");
-  });
-
-  it("redirects /integrations to /conversations when the active backend is cloud", async () => {
-    setRegisteredBackends([cloudBackend]);
-    setActiveSelection({ backendId: cloudBackend.id });
-
-    const { clientLoader: integrationsLoader } = await import(
-      "#/routes/git-settings"
-    );
-
-    const response = integrationsLoader() as Response;
-
-    expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/conversations");
   });
 
   it("does not redirect unrelated removed nested paths through the settings loader", async () => {

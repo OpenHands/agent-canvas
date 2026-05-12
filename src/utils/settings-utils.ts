@@ -57,15 +57,6 @@ export function isSettingsPageHidden(
   return false;
 }
 
-// Top-level pages that only make sense against a local agent-server.
-// Hidden from navigation and blocked at the route loader when the active
-// backend is a cloud SaaS environment.
-export const LOCAL_ONLY_SETTINGS_PATHS = new Set<string>(["/integrations"]);
-
-export function isLocalOnlySettingsPath(path: string): boolean {
-  return LOCAL_ONLY_SETTINGS_PATHS.has(path);
-}
-
 export function getFirstAvailablePath(
   featureFlags: WebClientFeatureFlags | undefined,
 ): string | null {

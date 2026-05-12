@@ -26,10 +26,6 @@ vi.mock("#/hooks/use-sync-posthog-consent", () => ({
   useSyncPostHogConsent: () => {},
 }));
 
-vi.mock("#/hooks/query/use-cloud-git-user", () => ({
-  useCloudGitUser: () => ({ data: undefined, isLoading: false }),
-}));
-
 vi.mock("#/hooks/use-app-title", () => ({
   useAppTitle: () => "OpenHands",
 }));
