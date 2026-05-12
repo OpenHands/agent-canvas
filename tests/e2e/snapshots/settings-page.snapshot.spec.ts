@@ -123,12 +123,15 @@ test.describe("UI Visual Snapshots", () => {
     // Use setupMocks with showConsentModal=true to guarantee modal appears
     await setupMocks(page, true);
 
-    await page.goto("/conversations");
+    // Navigate and wait for settings API to respond (triggers modal logic)
+    const [response] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes("/api/settings")),
+      page.goto("/conversations"),
+    ]);
 
-    // Wait for the page to stabilize - root layout must be visible first
+    // Wait for the page to stabilize
     const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await expect(rootLayout).toBeVisible({ timeout: 10000 });
 
     // Wait for the consent modal (lazy-loaded) with extended timeout
     const consentModal = page.getByRole("dialog", {
