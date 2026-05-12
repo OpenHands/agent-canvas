@@ -407,11 +407,13 @@ class SettingsService {
         }
         return true;
       }
-      await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>(
-          "/api/settings",
-          localPayload,
-        ),
+      await withRetry(
+        () =>
+          createHttpClient().patch<SettingsApiResponse>(
+            "/api/settings",
+            localPayload,
+          ),
+        1,
       );
     }
 

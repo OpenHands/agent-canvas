@@ -132,6 +132,7 @@ export default function MCPPage() {
           onError: (err) => {
             const message = retrieveAxiosErrorMessage(err as AxiosError);
             displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+            setServerToDelete(null);
           },
         },
       );
@@ -149,6 +150,7 @@ export default function MCPPage() {
       onError: (err) => {
         const message = retrieveAxiosErrorMessage(err as AxiosError);
         displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+        setServerToDelete(null);
       },
     });
   };
