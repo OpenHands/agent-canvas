@@ -78,7 +78,8 @@ export async function callCloudProxy<TResponse = unknown>(
 
   // Talk directly to the local agent-server, bypassing the global
   // local agent-server client configuration (which would otherwise read host + auth
-  // from the active backend — wrong for this call).
+  // from the active backend — wrong for this call: we need the local
+  // backend's host and session key explicitly, not the active one).
   const response = await axios.post<TResponse>(
     `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`,
     {
