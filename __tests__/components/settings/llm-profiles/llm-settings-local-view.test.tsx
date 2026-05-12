@@ -306,15 +306,14 @@ describe("LlmSettingsLocalView", () => {
       const user = userEvent.setup();
 
       // Mock getProfile to return profile details
+      // Note: API returns llm config directly in config, not nested under config.llm
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
         api_key_set: true,
         config: {
-          llm: {
-            model: "openai/gpt-4",
-            api_key: "encrypted-key-123",
-            base_url: "https://api.openai.com/v1",
-          },
+          model: "openai/gpt-4",
+          api_key: "encrypted-key-123",
+          base_url: "https://api.openai.com/v1",
         },
       });
 
@@ -345,15 +344,14 @@ describe("LlmSettingsLocalView", () => {
       const user = userEvent.setup();
 
       // Mock getProfile to return profile details with all LLM fields
+      // Note: API returns llm config directly in config, not nested under config.llm
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
         api_key_set: true,
         config: {
-          llm: {
-            model: "openai/gpt-4",
-            api_key: "encrypted-key-123",
-            base_url: "https://api.openai.com/v1",
-          },
+          model: "openai/gpt-4",
+          api_key: "encrypted-key-123",
+          base_url: "https://api.openai.com/v1",
         },
       });
 

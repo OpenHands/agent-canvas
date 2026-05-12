@@ -91,30 +91,16 @@ export function LlmSettingsLocalView() {
           "encrypted",
         );
 
-        // Profile config contains llm settings as nested object
-        // The config structure is: { llm: { model, api_key, base_url } }
-        const llmConfig = (detail.config?.llm ?? {}) as Record<string, unknown>;
-
-        // Debug: log the fetched profile data
-
-        console.log("[LlmSettingsLocalView] Edit profile fetched:", {
-          profileName: profile.name,
-          detailConfig: detail.config,
-          llmConfig,
-        });
+        // Profile config contains llm settings directly at the top level
+        // The structure is: { model, api_key, base_url, ... }
+        // (NOT nested under a "llm" key)
+        const config = (detail.config ?? {}) as Record<string, unknown>;
 
         const initialValues: SettingsFormValues = {
-          "llm.model": (llmConfig.model as string) ?? "",
-          "llm.api_key": (llmConfig.api_key as string) ?? "",
-          "llm.base_url": (llmConfig.base_url as string) ?? "",
+          "llm.model": (config.model as string) ?? "",
+          "llm.api_key": (config.api_key as string) ?? "",
+          "llm.base_url": (config.base_url as string) ?? "",
         };
-
-        // Debug: log the parsed initial values
-
-        console.log(
-          "[LlmSettingsLocalView] Parsed initialValues:",
-          initialValues,
-        );
 
         setEditingProfile({ profile, initialValues });
         setProfileName(profile.name);
