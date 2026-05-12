@@ -4,7 +4,6 @@ import { ExtensionsNavigation } from "#/components/features/skills/extensions-na
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
@@ -197,7 +196,6 @@ export default function MCPPage() {
           <div className="max-w-2xl text-sm text-tertiary-light">
             {t(I18nKey.MCP$PAGE_DESCRIPTION)}
           </div>
-          <BackendSyncedSettingsBadge />
         </div>
 
         <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />

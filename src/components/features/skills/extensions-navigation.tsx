@@ -1,6 +1,7 @@
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { cn } from "#/utils/utils";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
+import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 
 interface ExtensionNavItem {
   to: string;
@@ -97,6 +98,9 @@ export function ExtensionsNavigation() {
             <span className="truncate">{item.label}</span>
           </NavigationLink>
         ))}
+      </div>
+      <div className="px-2 pt-3">
+        <BackendSyncedSettingsBadge />
       </div>
     </aside>
   );
