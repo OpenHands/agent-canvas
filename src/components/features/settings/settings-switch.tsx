@@ -52,7 +52,7 @@ export function SettingsSwitch({
     <StyledSwitchComponent isToggled={controlledIsToggled ?? isToggled} />
   );
 
-  const label = (
+  const label = (children || isBeta) ? (
     <div className="flex items-center gap-1">
       <span className="text-sm">{children}</span>
       {isBeta && (
@@ -61,7 +61,7 @@ export function SettingsSwitch({
         </span>
       )}
     </div>
-  );
+  ) : null;
 
   return (
     <label
