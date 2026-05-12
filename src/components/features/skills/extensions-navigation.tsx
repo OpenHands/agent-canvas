@@ -100,7 +100,7 @@ export function ExtensionsNavigation() {
             <span className="truncate">{item.label}</span>
             {item.comingSoon && (
               <span className="ml-auto shrink-0 rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[#8C8C8C]">
-                Soon
+                Coming Soon
               </span>
             )}
           </NavigationLink>
