@@ -1,9 +1,18 @@
 {
   "name": "@openhands/agent-canvas",
   "version": "1.0.0-alpha.2",
+  "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenHands/agent-canvas"
+  },
+  "homepage": "https://github.com/OpenHands/agent-canvas#readme",
+  "bugs": {
+    "url": "https://github.com/OpenHands/agent-canvas/issues"
+  },
   "bin": {
     "agent-canvas": "bin/agent-canvas.mjs"
   },
