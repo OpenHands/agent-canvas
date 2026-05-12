@@ -20,6 +20,7 @@ import {
   __resetEnvironmentSwitchOverlayForTests,
   EnvironmentSwitchOverlay,
 } from "#/components/features/backends/environment-switch-overlay";
+import { ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS } from "#/components/features/backends/environment-switch-store";
 
 import {
   getCloudOrganizations,
@@ -102,7 +103,21 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof createServerClient>);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // When a test selects a dropdown option, BackendSelector's onChange
+  // calls `triggerEnvironmentSwitch` and then awaits a real-time
+  // `setTimeout(..., ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS)` before
+  // running `setActive`. `userEvent.click` does NOT await that async
+  // handler, so the trailing `setActive` can land AFTER the test ends,
+  // re-polluting `localStorage` during a later test. The body's
+  // `data-environment-switching` attribute is set while the switch is
+  // in flight; wait it out before clearing storage so the in-flight
+  // `setActive` writes BEFORE we wipe state.
+  if (document.body.hasAttribute("data-environment-switching")) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS + 20);
+    });
+  }
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();
