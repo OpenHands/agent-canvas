@@ -18,6 +18,7 @@ import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import MessageIcon from "#/icons/message.svg?react";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
+import PuzzleIcon from "#/icons/puzzle.svg?react";
 import CogIcon from "#/icons/cog.svg?react";
 
 // The LLM settings modal is only mounted when the settings query 404s and
@@ -227,6 +228,14 @@ export function Sidebar() {
             icon={<SparkleIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
           <SidebarNavLink
+            to="/mcp"
+            label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
+            testId="sidebar-mcp-link"
+            disabled={linkDisabled}
+            collapsed={collapsed}
+            icon={<PuzzleIcon width={ICON_SIZE} height={ICON_SIZE} />}
+          />
+          <SidebarNavLink
             to="/automations"
             label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
             testId="sidebar-automations-link"
@@ -234,17 +243,6 @@ export function Sidebar() {
             collapsed={collapsed}
             icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
-          {/*
-            Integrations tab is currently hidden because it isn't working yet.
-            The underlying route and logic are still wired up — devs are
-            welcome to uncomment this block and experiment.
-          */}
-          {/* <SidebarNavLink
-            to="/integrations"
-            label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
-            testId="sidebar-integrations-link"
-            disabled={linkDisabled}
-          /> */}
           <div className="hidden md:flex flex-col gap-0.5">
             {collapsed ? (
               // Collapsed: render Settings as a single icon link to /settings

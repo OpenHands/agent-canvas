@@ -52,17 +52,6 @@ export const useTracking = () => {
     });
   };
 
-  const trackGitProviderConnected = ({
-    providers,
-  }: {
-    providers: string[];
-  }) => {
-    posthog.capture("git_provider_connected", {
-      providers,
-      ...commonProperties,
-    });
-  };
-
   const trackUserSignupCompleted = () => {
     posthog.capture("user_signup_completed", {
       signup_timestamp: new Date().toISOString(),
@@ -76,7 +65,6 @@ export const useTracking = () => {
     trackPushButtonClick,
     trackPullButtonClick,
     trackCreatePrButtonClick,
-    trackGitProviderConnected,
     trackUserSignupCompleted,
   };
 };

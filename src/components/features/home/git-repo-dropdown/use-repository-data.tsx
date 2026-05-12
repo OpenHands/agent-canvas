@@ -67,7 +67,7 @@ export function useRepositoryData(
     const shouldUseSearch =
       processedSearchInput &&
       searchData &&
-      !(selectedRepository && inputValue === selectedRepository.full_name);
+      !(inputValue === selectedRepository?.full_name);
 
     if (shouldUseSearch) {
       return searchData;

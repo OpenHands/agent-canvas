@@ -1,3 +1,4 @@
+import { SkillsClient } from "@openhands/typescript-client/clients";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,13 +8,14 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import SkillsService from "#/api/skills-service";
 
-const { mockGetSkills, mockCreateSkillsClient } = vi.hoisted(() => ({
+const { mockGetSkills } = vi.hoisted(() => ({
   mockGetSkills: vi.fn(),
-  mockCreateSkillsClient: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createSkillsClient: mockCreateSkillsClient,
+vi.mock("@openhands/typescript-client/clients", () => ({
+  SkillsClient: vi.fn(function SkillsClientMock() {
+    return { getSkills: mockGetSkills };
+  }),
 }));
 
 const localBackend: Backend = {
@@ -30,8 +32,7 @@ beforeEach(() => {
   setRegisteredBackends([localBackend]);
   setActiveSelection({ backendId: localBackend.id });
   mockGetSkills.mockReset();
-  mockCreateSkillsClient.mockReset();
-  mockCreateSkillsClient.mockReturnValue({ getSkills: mockGetSkills });
+  vi.mocked(SkillsClient).mockClear();
 });
 
 afterEach(() => {

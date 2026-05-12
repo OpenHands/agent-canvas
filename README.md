@@ -97,6 +97,42 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 
 <img width="1456" height="1258" alt="image" src="https://github.com/user-attachments/assets/cb6de6f5-ac30-4d04-a76a-b5c259f0c163" />
 
+## npm Package
+
+Agent Canvas is also available as an npm package for embedding in your own applications:
+
+```bash
+npm install @openhands/agent-canvas
+```
+
+### Usage
+
+Import the full package or specific components:
+
+```typescript
+// Full package
+import { AgentServerUIProviders } from '@openhands/agent-canvas';
+
+// Individual component packages
+import { BrowserPanel } from '@openhands/agent-canvas/browser';
+import { ChatPanel } from '@openhands/agent-canvas/conversation';
+import { FileExplorer } from '@openhands/agent-canvas/files';
+import { TerminalPanel } from '@openhands/agent-canvas/terminal';
+```
+
+### Available Subpath Exports
+
+| Subpath | Description |
+|---------|-------------|
+| `@openhands/agent-canvas` | Main entry with providers and core components |
+| `@openhands/agent-canvas/browser` | Browser/preview panel components |
+| `@openhands/agent-canvas/conversation` | Chat interface and message components |
+| `@openhands/agent-canvas/files` | File explorer and editor components |
+| `@openhands/agent-canvas/settings` | Settings screens and forms |
+| `@openhands/agent-canvas/sidebar` | Sidebar navigation components |
+| `@openhands/agent-canvas/terminal` | Terminal emulator component |
+| `@openhands/agent-canvas/i18n` | Internationalization resources |
+
 ## More documentation
 
 For contributor and developer workflows, including frontend-only mode, mock mode, environment variables, and build/test commands, see [DEVELOPMENT.md](./DEVELOPMENT.md).

@@ -1,3 +1,4 @@
+import { SkillsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -9,13 +10,12 @@ import {
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
-  GetHooksResponse,
   GetSkillsResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { createHttpClient, createSkillsClient } from "./typescript-client";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -377,13 +377,6 @@ export interface StartConversationOptions {
    * The actual values are fetched at runtime via LookupSecret.
    */
   customSecrets?: Array<{ name: string; description?: string }>;
-  /**
-   * Whether to request a dedicated git worktree for the conversation.
-   * Defaults to true. Set to false for local-only workspaces that aren't
-   * git repos (or have no commits), where `git worktree add HEAD` would
-   * fail and prevent the conversation from starting.
-   */
-  worktree?: boolean;
 }
 
 export function buildStartConversationRequest(
@@ -423,7 +416,7 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
-    worktree: options.worktree ?? true,
+    worktree: true,
   };
 
   // Add secrets_encrypted flag if secrets are encrypted
@@ -505,7 +498,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
-  worktree?: boolean;
 }): Promise<Record<string, unknown>> {
   // Import SecretsService dynamically to avoid circular dependencies
   const { SecretsService } = await import("./secrets-service");
@@ -528,25 +520,15 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   });
 }
 
-export async function downloadTextFile(path: string): Promise<string> {
-  const response = await createHttpClient().get<ArrayBuffer>(
-    "/api/file/download",
-    {
-      params: { path },
-      responseType: "arrayBuffer",
-    },
-  );
-
-  return new TextDecoder().decode(response.data);
-}
-
 export async function loadSkillsForConversation(
   conversation: AppConversation | null | undefined,
 ): Promise<GetSkillsResponse> {
   const projectDir =
     conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
 
-  const response = await createSkillsClient().getSkills({
+  const response = await new SkillsClient(
+    getAgentServerClientOptions(),
+  ).getSkills({
     load_public: shouldLoadPublicSkills(),
     load_user: true,
     load_project: true,
@@ -555,8 +537,4 @@ export async function loadSkillsForConversation(
   });
 
   return { skills: response.skills ?? [] };
-}
-
-export function emptyHooksResponse(): GetHooksResponse {
-  return { hooks: [] };
 }

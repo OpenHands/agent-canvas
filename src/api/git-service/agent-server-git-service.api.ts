@@ -1,9 +1,10 @@
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import type { GitChange, GitChangeDiff } from "../open-hands.types";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
-import { createRemoteWorkspace } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 interface AgentServerGitChange {
   status: string;
@@ -68,10 +69,9 @@ class AgentServerGitService {
       }));
     }
 
-    const changes = await createRemoteWorkspace({
-      conversationUrl,
-      sessionApiKey,
-    }).gitChanges(path, { ref: "HEAD" });
+    const changes = await new RemoteWorkspace(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).gitChanges(path, { ref: "HEAD" });
 
     if (!Array.isArray(changes)) {
       throw new Error(
@@ -114,10 +114,9 @@ class AgentServerGitService {
       } as GitChangeDiff;
     }
 
-    const diff = (await createRemoteWorkspace({
-      conversationUrl,
-      sessionApiKey,
-    }).gitDiff(path, { ref: "HEAD" })) as GitChangeDiff & { diff?: string };
+    const diff = (await new RemoteWorkspace(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).gitDiff(path, { ref: "HEAD" })) as GitChangeDiff & { diff?: string };
 
     return {
       modified: diff.modified ?? "",

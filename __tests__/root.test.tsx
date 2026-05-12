@@ -101,8 +101,10 @@ describe("App root agent-server availability guard", () => {
   it("shows the manage-backends modal when the backend is unreachable", async () => {
     let serverInfoRequests = 0;
 
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/server_info) when VITE_BACKEND_BASE_URL is configured.
     server.use(
-      http.get("/server_info", () => {
+      http.get("*/server_info", () => {
         serverInfoRequests += 1;
         return HttpResponse.error();
       }),

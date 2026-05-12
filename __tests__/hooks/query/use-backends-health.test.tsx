@@ -1,3 +1,4 @@
+import { ServerClient } from "@openhands/typescript-client/clients";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -9,8 +10,10 @@ import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 const getServerInfoMock = vi.fn();
 const getCurrentCloudApiKeyMock = vi.fn();
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: () => ({ getServerInfo: getServerInfoMock }),
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return { getServerInfo: getServerInfoMock };
+  }),
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
@@ -38,14 +41,13 @@ function wrapper({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
 beforeEach(() => {
   getServerInfoMock.mockReset();
   getCurrentCloudApiKeyMock.mockReset();
+  vi.mocked(ServerClient).mockClear();
 });
 
 afterEach(() => {

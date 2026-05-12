@@ -1,9 +1,20 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConversationClient } from "@openhands/typescript-client/clients";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import React from "react";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
+
+const { runConversationMock } = vi.hoisted(() => ({
+  runConversationMock: vi.fn(),
+}));
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ConversationClient: vi.fn(function ConversationClientMock() {
+    return { runConversation: runConversationMock };
+  }),
+}));
 
 describe("useResumeConversation", () => {
   let queryClient: QueryClient;
@@ -16,6 +27,8 @@ describe("useResumeConversation", () => {
       },
     });
     vi.restoreAllMocks();
+    runConversationMock.mockReset().mockResolvedValue({ success: true });
+    vi.mocked(ConversationClient).mockClear();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -48,10 +61,6 @@ describe("useResumeConversation", () => {
         updated_at: new Date().toISOString(),
       },
     ]);
-    vi.spyOn(AgentServerConversationService, "resumeConversation").mockResolvedValue({
-      success: true,
-    });
-
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useResumeConversation(), { wrapper });

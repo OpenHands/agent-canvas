@@ -1,12 +1,13 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
-import { createServerClient } from "#/api/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { BackendStatusDot } from "./backend-status-dot";
@@ -55,11 +56,13 @@ function BackendStatusBadge({
   const { data: version } = useQuery({
     queryKey: ["backend-version", backend.host, backend.apiKey],
     queryFn: async () => {
-      const info = await createServerClient({
-        host: backend.host,
-        sessionApiKey: backend.apiKey || null,
-        timeout: 5000,
-      }).getServerInfo();
+      const info = await new ServerClient(
+        getAgentServerClientOptions({
+          host: backend.host,
+          sessionApiKey: backend.apiKey || null,
+          timeout: 5000,
+        }),
+      ).getServerInfo();
       return info.version ?? null;
     },
     retry: false,

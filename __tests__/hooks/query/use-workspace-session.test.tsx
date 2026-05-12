@@ -1,4 +1,5 @@
 import React from "react";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,24 +9,18 @@ import {
   useWorkspaceSession,
 } from "#/hooks/query/use-workspace-session";
 
-// We mock the workspace factory rather than the lower-level HttpClient:
+// We mock the SDK workspace rather than the lower-level HttpClient:
 // that's where our wiring contract lives (we hand the typescript-client a
 // conversation id and trust it to do the right POST + return a base URL).
 const startWorkspaceSessionMock = vi.fn();
-const createRemoteWorkspaceMock = vi.fn();
 
-vi.mock("#/api/typescript-client", async (importOriginal) => {
-  const real = await importOriginal<typeof import("#/api/typescript-client")>();
-  return {
-    ...real,
-    createRemoteWorkspace: (...args: unknown[]) => {
-      createRemoteWorkspaceMock(...args);
-      return {
-        startWorkspaceSession: startWorkspaceSessionMock,
-      };
-    },
-  };
-});
+vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
+  RemoteWorkspace: vi.fn(function RemoteWorkspaceMock() {
+    return {
+      startWorkspaceSession: startWorkspaceSessionMock,
+    };
+  }),
+}));
 
 const useActiveConversationMock = vi.fn();
 vi.mock("#/hooks/query/use-active-conversation", () => ({
@@ -65,7 +60,7 @@ function flushScheduler(ms = 10): Promise<void> {
 
 beforeEach(() => {
   startWorkspaceSessionMock.mockReset();
-  createRemoteWorkspaceMock.mockReset();
+  vi.mocked(RemoteWorkspace).mockClear();
   useActiveConversationMock.mockReset();
   useRuntimeIsReadyMock.mockReset();
   useRuntimeIsReadyMock.mockReturnValue(true);
@@ -98,10 +93,11 @@ describe("useWorkspaceSession", () => {
       );
     });
 
-    expect(createRemoteWorkspaceMock).toHaveBeenCalledTimes(1);
-    expect(createRemoteWorkspaceMock).toHaveBeenCalledWith({
-      conversationUrl: "https://agent.example.com/api/conversations/conv-1",
-      sessionApiKey: "key-abc",
+    expect(RemoteWorkspace).toHaveBeenCalledTimes(1);
+    expect(RemoteWorkspace).toHaveBeenCalledWith({
+      host: "http://agent.example.com",
+      apiKey: "key-abc",
+      workingDir: "workspace/project",
     });
     expect(startWorkspaceSessionMock).toHaveBeenCalledTimes(1);
     expect(startWorkspaceSessionMock).toHaveBeenCalledWith("conv-1");
