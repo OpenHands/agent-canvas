@@ -19,6 +19,19 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## Visual Snapshot Testing
+
+- Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baseline images in `tests/e2e/__snapshots__/`.
+- Run with `npm run test:e2e:snapshots`; update baselines after intentional UI changes with `npm run test:e2e:snapshots:update`.
+- CI runs snapshots via `.github/workflows/snapshot-tests.yml` on every PR/push to main; failures upload diff artifacts.
+- Key patterns for writing snapshot tests:
+  - Use `setupMocks(page, showConsentModal)` helper to configure API mocks consistently.
+  - Set `user_consents_to_analytics: false` in settings mock to hide the analytics consent modal (use `null` to show it).
+  - Set `openhands-onboarded` in localStorage via `page.addInitScript()` to skip onboarding.
+  - Use `animations: "disabled"` and `maxDiffPixelRatio: 0.01` in `toHaveScreenshot()` to reduce flakiness.
+  - Target specific elements via `page.getByTestId()` rather than full-page screenshots when possible.
+- Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
+
 ## Live End-to-End Test Framework
 
 - The live QA path is intentionally separate from ordinary mocked Playwright coverage. If ordinary browser tests are added, keep them outside `tests/e2e/live/` so `playwright.config.ts` can run them while ignoring `**/live/**`; live LLM-backed tests must never run as part of `npm run test:e2e`.
