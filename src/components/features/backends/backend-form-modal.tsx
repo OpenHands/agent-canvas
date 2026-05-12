@@ -164,11 +164,18 @@ export function BackendForm({
   // already chose one, so don't re-infer over their choice.
   const [touchedKind, setTouchedKind] = React.useState(mode === "edit");
 
+  // Auto-infer kind from host, but only upgrade to "cloud" - never downgrade
+  // from "cloud" to "local" when the user types a custom cloud host URL.
   React.useEffect(() => {
     if (!touchedKind && host) {
-      setKind(inferKindFromHost(host));
+      const inferred = inferKindFromHost(host);
+      // Only change kind if inferring "cloud" from a known host pattern,
+      // or if current kind is "local" (allow upgrade to cloud)
+      if (inferred === "cloud" || kind === "local") {
+        setKind(inferred);
+      }
     }
-  }, [host, touchedKind]);
+  }, [host, touchedKind, kind]);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
