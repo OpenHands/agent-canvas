@@ -4,7 +4,14 @@
  * Used for one-click authentication with OpenHands Cloud backends.
  * The flow allows users to authenticate in their browser while the
  * application polls for the resulting API key.
+ *
+ * For known OpenHands Cloud hosts, requests are proxied through the local
+ * agent-server to avoid CORS issues. For self-hosted instances, direct
+ * requests are made (assuming they have CORS configured).
  */
+
+import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import { buildAuthHeaders } from "./backend-registry/auth";
 
 export class DeviceFlowError extends Error {
   constructor(
@@ -41,6 +48,69 @@ const DEFAULT_TIMEOUT_MS = 600_000; // 10 minutes
 const MAX_INTERVAL_MS = 30_000; // 30 seconds max polling interval
 
 /**
+ * Check if a host is a known OpenHands Cloud domain that requires proxying.
+ */
+export function isOpenHandsCloudHost(host: string): boolean {
+  const trimmed = host.trim().toLowerCase();
+  return trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev");
+}
+
+/**
+ * Make a proxied request through the local agent-server's cloud-proxy endpoint.
+ * This avoids CORS issues when calling OpenHands Cloud endpoints.
+ */
+async function makeProxiedRequest(
+  upstreamHost: string,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown,
+  contentType?: string,
+): Promise<Response> {
+  const local = getEffectiveLocalBackend();
+  const proxyUrl = `${local.host.replace(/\/+$/, "")}/api/cloud-proxy`;
+
+  const response = await fetch(proxyUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAuthHeaders(local),
+    },
+    body: JSON.stringify({
+      host: upstreamHost,
+      method,
+      path,
+      headers: contentType ? { "Content-Type": contentType } : {},
+      body: body ?? null,
+    }),
+  });
+
+  return response;
+}
+
+/**
+ * Make a direct request to the target host.
+ * Used for self-hosted instances that have CORS configured.
+ */
+async function makeDirectRequest(
+  url: string,
+  method: "GET" | "POST",
+  body?: unknown,
+  contentType?: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return fetch(url, {
+    method,
+    headers: contentType ? { "Content-Type": contentType } : {},
+    body: body
+      ? contentType?.includes("form")
+        ? (body as BodyInit)
+        : JSON.stringify(body)
+      : undefined,
+    signal,
+  });
+}
+
+/**
  * Start the OAuth 2.0 Device Flow by requesting a device code.
  *
  * @param host - The OpenHands Cloud host URL (e.g., "https://app.all-hands.dev")
@@ -50,16 +120,28 @@ const MAX_INTERVAL_MS = 30_000; // 30 seconds max polling interval
 export async function startDeviceFlow(
   host: string,
 ): Promise<DeviceAuthorizationResponse> {
-  const url = `${host.replace(/\/+$/, "")}/oauth/device/authorize`;
+  const normalizedHost = host.replace(/\/+$/, "");
+  const useProxy = isOpenHandsCloudHost(host);
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
+    let response: Response;
+
+    if (useProxy) {
+      response = await makeProxiedRequest(
+        normalizedHost,
+        "POST",
+        "/oauth/device/authorize",
+        {},
+        "application/json",
+      );
+    } else {
+      response = await makeDirectRequest(
+        `${normalizedHost}/oauth/device/authorize`,
+        "POST",
+        {},
+        "application/json",
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -123,7 +205,8 @@ export async function pollForToken(
   deviceCode: string,
   options: PollOptions,
 ): Promise<DeviceTokenResponse> {
-  const url = `${host.replace(/\/+$/, "")}/oauth/device/token`;
+  const normalizedHost = host.replace(/\/+$/, "");
+  const useProxy = isOpenHandsCloudHost(host);
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   let interval = options.interval * 1000; // Convert to milliseconds
   const startTime = Date.now();
@@ -135,14 +218,28 @@ export async function pollForToken(
     }
 
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({ device_code: deviceCode }),
-        signal: options.signal,
-      });
+      let response: Response;
+
+      if (useProxy) {
+        // For proxied requests, send the form data as a string in the body
+        // The proxy will forward it with the correct content type
+        response = await makeProxiedRequest(
+          normalizedHost,
+          "POST",
+          "/oauth/device/token",
+          `device_code=${encodeURIComponent(deviceCode)}`,
+          "application/x-www-form-urlencoded",
+        );
+      } else {
+        response = await fetch(`${normalizedHost}/oauth/device/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ device_code: deviceCode }),
+          signal: options.signal,
+        });
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -222,14 +319,6 @@ export async function pollForToken(
     "Timeout waiting for authorization. Please try again.",
     "timeout",
   );
-}
-
-/**
- * Check if a host is a known OpenHands Cloud domain that supports device flow.
- */
-export function isOpenHandsCloudHost(host: string): boolean {
-  const trimmed = host.trim().toLowerCase();
-  return trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev");
 }
 
 /**
