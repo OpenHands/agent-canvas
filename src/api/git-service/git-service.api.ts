@@ -1,8 +1,9 @@
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { RepositoryPage, BranchPage, InstallationPage } from "#/types/git";
 import { Provider } from "#/types/settings";
 import { GitChange, GitChangeDiff } from "../open-hands.types";
 import AgentServerConversationService from "../conversation-service/agent-server-conversation-service.api";
-import { createRemoteWorkspace } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
@@ -145,10 +146,9 @@ class GitService {
       await AgentServerConversationService.resolveConversationWorkingDir(
         conversationId,
       );
-    const changes = await createRemoteWorkspace({ workingDir }).gitChanges(
-      workingDir,
-      { ref: "HEAD" },
-    );
+    const changes = await new RemoteWorkspace(
+      getAgentServerClientOptions({ workingDir }),
+    ).gitChanges(workingDir, { ref: "HEAD" });
 
     return changes.map((change) => ({
       path: change.path,
@@ -164,7 +164,9 @@ class GitService {
     _conversationId: string,
     path: string,
   ): Promise<GitChangeDiff> {
-    const diff = await createRemoteWorkspace().gitDiff(path, { ref: "HEAD" });
+    const diff = await new RemoteWorkspace(
+      getAgentServerClientOptions(),
+    ).gitDiff(path, { ref: "HEAD" });
 
     return {
       modified: diff.modified ?? "",

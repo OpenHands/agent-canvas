@@ -1,3 +1,4 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { getActiveBackend } from "./backend-registry/active-store";
 import {
   createCloudSecret,
@@ -5,36 +6,8 @@ import {
   fetchCloudSecrets,
   updateCloudSecret,
 } from "./cloud/secrets-service.api";
-import { createHttpClient } from "./typescript-client";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
-
-/**
- * Response from GET /api/settings/secrets (agent-server API)
- */
-interface SecretsListResponse {
-  secrets: Array<{
-    name: string;
-    description?: string;
-  }>;
-}
-
-/**
- * Request for PUT /api/settings/secrets (agent-server API)
- * This is an upsert operation - creates or updates by name.
- */
-interface CreateSecretRequest {
-  name: string;
-  value: string;
-  description?: string;
-}
-
-/**
- * Response from PUT /api/settings/secrets (agent-server API)
- */
-interface CreateSecretResponse {
-  name: string;
-  description?: string;
-}
 
 /**
  * Retry helper for API calls with exponential backoff.
@@ -78,9 +51,9 @@ export class SecretsService {
         return await withRetry(() => fetchCloudSecrets());
       }
       const response = await withRetry(() =>
-        createHttpClient().get<SecretsListResponse>("/api/settings/secrets"),
+        new SettingsClient(getAgentServerClientOptions()).listSecrets(),
       );
-      return response.data.secrets.map((s) => ({
+      return response.secrets.map((s) => ({
         name: s.name,
         description: s.description,
       }));
@@ -109,11 +82,11 @@ export class SecretsService {
       return;
     }
     await withRetry(() =>
-      createHttpClient().put<CreateSecretResponse>("/api/settings/secrets", {
+      new SettingsClient(getAgentServerClientOptions()).upsertSecret({
         name,
         value,
         description,
-      } satisfies CreateSecretRequest),
+      }),
     );
   }
 
@@ -157,9 +130,7 @@ export class SecretsService {
         return;
       }
       await withRetry(() =>
-        createHttpClient().delete<{ deleted: boolean }>(
-          `/api/settings/secrets/${encodeURIComponent(name)}`,
-        ),
+        new SettingsClient(getAgentServerClientOptions()).deleteSecret(name),
       );
     } catch (error) {
       // 404 means secret doesn't exist - treat as successful deletion

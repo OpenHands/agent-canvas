@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { FileUploadSuccessResponse } from "#/api/open-hands.types";
 
 interface UploadFilesVariables {
@@ -27,12 +28,9 @@ export const useConversationUploadFiles = () =>
         try {
           // Upload to /workspace/{filename}
           const filePath = `/workspace/${file.name}`;
-          await AgentServerConversationService.uploadFile(
-            conversationUrl,
-            sessionApiKey,
-            file,
-            filePath,
-          );
+          await new RemoteWorkspace(
+            getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+          ).fileUpload(file, filePath);
           return { success: true as const, fileName: file.name, filePath };
         } catch (error) {
           return {

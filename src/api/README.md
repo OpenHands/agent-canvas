@@ -2,7 +2,9 @@
 
 ## Overview
 
-Services are the abstraction layer between frontend components and backend APIs. They encapsulate HTTP requests using `createHttpClient()` from `@openhands/typescript-client` (wrapped in `src/api/typescript-client.ts`, which resolves the active backend's host + `X-Session-API-Key`) and provide typed methods for each endpoint.
+Services are the abstraction layer between frontend components and backend APIs. Local agent-server API access should use `@openhands/typescript-client` classes directly, with shared connection options from `src/api/agent-server-client-options.ts` for the active local backend host, session API key, and workspace defaults.
+
+Cloud-specific APIs should use the cloud service modules/proxy helpers instead of local agent-server clients.
 
 Each service is a plain object with async methods.
 
@@ -12,42 +14,35 @@ Each service lives in its own directory:
 
 ```
 src/api/
-├── feature-service/
-│   ├── feature-service.api.ts    # Service methods
-│   └── feature.types.ts          # Types and interfaces
-└── typescript-client.ts          # `createHttpClient` + typed SDK clients
+└── feature-service/
+    ├── feature-service.api.ts    # Service methods
+    └── feature.types.ts          # Types and interfaces
 ```
 
 ## Creating a Service
 
-Use an object literal with named export. Use object destructuring for parameters to make calls self-documenting.
+Use an object literal with named export. Use object destructuring for parameters to make calls self-documenting. Prefer typed `@openhands/typescript-client` classes over generic HTTP calls. If a needed endpoint is missing, add it to `@openhands/typescript-client` first.
 
 ```typescript
 // feature-service/feature-service.api.ts
-import { createHttpClient } from "../typescript-client";
+import { FeatureClient } from "@openhands/typescript-client/clients";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { Feature, CreateFeatureParams } from "./feature.types";
 
 export const featureService = {
-  getFeature: async ({ id }: { id: string }) => {
-    const response = await createHttpClient().get<Feature>(
-      `/api/features/${id}`,
-    );
-    return response.data;
+  getFeature: async ({ id }: { id: string }): Promise<Feature> => {
+    return new FeatureClient(getAgentServerClientOptions()).getFeature(id);
   },
 
-  createFeature: async ({ name, description }: CreateFeatureParams) => {
-    const response = await createHttpClient().post<Feature>("/api/features", {
-      name,
-      description,
-    });
-    return response.data;
+  createFeature: async (params: CreateFeatureParams): Promise<Feature> => {
+    return new FeatureClient(getAgentServerClientOptions()).createFeature(params);
   },
 };
 ```
 
 ### Types
 
-Define types in a separate file within the same directory:
+Define app-specific types in a separate file within the same directory when the TypeScript client models are not sufficient:
 
 ```typescript
 // feature-service/feature.types.ts
@@ -69,12 +64,14 @@ export interface CreateFeatureParams {
 > **Don't call services directly in components.** Wrap them in TanStack Query hooks.
 >
 > Why? TanStack Query provides:
+>
 > - **Caching** - Avoid redundant network requests
 > - **Deduplication** - Multiple components requesting the same data share one request
 > - **Loading/error states** - Built-in `isLoading`, `isError`, `data` states
 > - **Background refetching** - Data stays fresh automatically
 >
 > Hooks location:
+>
 > - `src/hooks/query/` for data fetching (`useQuery`)
 > - `src/hooks/mutation/` for writes/updates (`useMutation`)
 
@@ -93,9 +90,9 @@ export const useFeature = (id: string) => {
 
 ## Naming Conventions
 
-| Item | Convention | Example |
-|------|------------|---------|
-| Directory | `feature-service/` | `secrets-service/` |
+| Item         | Convention               | Example                  |
+| ------------ | ------------------------ | ------------------------ |
+| Directory    | `feature-service/`       | `secrets-service/`       |
 | Service file | `feature-service.api.ts` | `secrets-service.api.ts` |
-| Types file | `feature.types.ts` | `secrets.types.ts` |
-| Export name | `featureService` | `secretsService` |
+| Types file   | `feature.types.ts`       | `secrets.types.ts`       |
+| Export name  | `featureService`         | `secretsService`         |

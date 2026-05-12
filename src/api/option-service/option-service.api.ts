@@ -1,10 +1,11 @@
+import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { loadAgentServerInfo } from "../agent-server-compatibility";
-import { createLlmMetadataClient } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { ModelsResponse, WebClientConfig } from "./option.types";
 
 class OptionService {
   static async getModels(): Promise<ModelsResponse> {
-    const llmClient = createLlmMetadataClient();
+    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
     const [models, verifiedByProvider, providers] = await Promise.all([
       llmClient.getModels(),
       llmClient.getVerifiedModels(),
@@ -24,10 +25,6 @@ class OptionService {
         verifiedProviders,
       default_model: verifiedModels[0] ?? models?.[0] ?? "",
     };
-  }
-
-  static async getSecurityAnalyzers(): Promise<string[]> {
-    return ["llm", "pattern", "policy_rail"];
   }
 
   static async getConfig(): Promise<WebClientConfig> {

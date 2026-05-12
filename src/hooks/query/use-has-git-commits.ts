@@ -1,6 +1,7 @@
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { useQuery } from "@tanstack/react-query";
 
-import { createRemoteWorkspace } from "#/api/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 
@@ -44,10 +45,12 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = createRemoteWorkspace({
-        conversationUrl,
-        sessionApiKey,
-      });
+      const workspace = new RemoteWorkspace(
+        getAgentServerClientOptions({
+          conversationUrl,
+          sessionApiKey,
+        }),
+      );
 
       // `git rev-parse --verify HEAD` exits 0 iff HEAD resolves to a
       // real commit. Returns non-zero in three cases that all collapse

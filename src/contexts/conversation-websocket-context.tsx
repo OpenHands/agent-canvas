@@ -7,6 +7,8 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { ConversationClient } from "@openhands/typescript-client/clients";
+
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
@@ -44,7 +46,7 @@ import type {
   SendMessageRequest,
 } from "#/api/conversation-service/agent-server-conversation-service.types";
 import EventService from "#/api/event-service/event-service.api";
-import PendingMessageService from "#/api/pending-message-service/pending-message-service.api";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useConversationStore } from "#/stores/conversation-store";
 import { trackError } from "#/utils/error-handler";
 import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-file";
@@ -834,10 +836,14 @@ export function ConversationWebSocketProvider({
         }
 
         try {
-          await PendingMessageService.queueMessage(conversationId, {
-            role: "user",
-            content: message.content,
-          });
+          await new ConversationClient(getAgentServerClientOptions()).sendEvent(
+            conversationId,
+            {
+              role: "user",
+              content: message.content,
+            },
+            { run: true },
+          );
           // Message queued successfully - it will be delivered when ready
           // Return queued: true so caller knows not to show optimistic UI
           return { queued: true };

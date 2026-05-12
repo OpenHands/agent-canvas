@@ -20,13 +20,14 @@ import {
   __resetEnvironmentSwitchOverlayForTests,
   EnvironmentSwitchOverlay,
 } from "#/components/features/backends/environment-switch-overlay";
+import { ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS } from "#/components/features/backends/environment-switch-store";
 
+import { ServerClient } from "@openhands/typescript-client/clients";
 import {
   getCloudOrganizations,
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
-import { createServerClient } from "#/api/typescript-client";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
@@ -34,8 +35,8 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
   getCurrentCloudApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(),
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -93,16 +94,32 @@ beforeEach(() => {
   // Default the local-server health probe to "connected" so the
   // existing label-focused tests aren't surprised by a red indicator;
   // tests that assert on the disconnected state override this.
-  vi.mocked(createServerClient).mockReset();
-  vi.mocked(createServerClient).mockReturnValue({
-    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-    // The dropdown only invokes getServerInfo on the returned client;
-    // the rest of the ServerClient surface is unused here, so a
-    // partial cast is sufficient.
-  } as unknown as ReturnType<typeof createServerClient>);
+  vi.mocked(ServerClient).mockReset();
+  vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+    return {
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      // The dropdown only invokes getServerInfo on the returned client;
+      // the rest of the ServerClient surface is unused here, so a
+      // partial cast is sufficient.
+    } as unknown as ServerClient;
+  });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // When a test selects a dropdown option, BackendSelector's onChange
+  // calls `triggerEnvironmentSwitch` and then awaits a real-time
+  // `setTimeout(..., ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS)` before
+  // running `setActive`. `userEvent.click` does NOT await that async
+  // handler, so the trailing `setActive` can land AFTER the test ends,
+  // re-polluting `localStorage` during a later test. The body's
+  // `data-environment-switching` attribute is set while the switch is
+  // in flight; wait it out before clearing storage so the in-flight
+  // `setActive` writes BEFORE we wipe state.
+  if (document.body.hasAttribute("data-environment-switching")) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS + 20);
+    });
+  }
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();
@@ -796,9 +813,11 @@ describe("BackendSelector", () => {
 
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(
         <TestSeed
@@ -830,9 +849,11 @@ describe("BackendSelector", () => {
     });
 
     it("flips the status dot to red when the local probe fails", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(<BackendSelector />);
 

@@ -1,3 +1,7 @@
+import {
+  ConversationClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,21 +11,35 @@ import { getStoredConversationMetadata } from "#/api/conversation-metadata-store
 
 const {
   mockHttpPost,
-  mockCreateHttpClient,
+  mockConversationClient,
+  mockSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
   mockHttpPost: vi.fn(),
-  mockCreateHttpClient: vi.fn(),
+  mockConversationClient: vi.fn(),
+  mockSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createHttpClient: mockCreateHttpClient,
-  createRemoteWorkspace: vi.fn(),
-  createVSCodeClient: vi.fn(),
-}));
+vi.mock("@openhands/typescript-client/clients", async () => {
+  const actual = await vi.importActual<
+    typeof import("@openhands/typescript-client/clients")
+  >("@openhands/typescript-client/clients");
+  return {
+    ...actual,
+    ConversationClient: vi.fn(function ConversationClientMock() {
+      return mockConversationClient();
+    }),
+    SettingsClient: vi.fn(function SettingsClientMock() {
+      return mockSettingsClient();
+    }),
+    VSCodeClient: vi.fn(function VSCodeClientMock() {
+      return { getUrl: vi.fn() };
+    }),
+  };
+});
 
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
@@ -57,7 +75,6 @@ describe("useCreateConversation persists selected repository metadata", () => {
   beforeEach(() => {
     window.localStorage.clear();
     mockHttpPost.mockReset();
-    mockCreateHttpClient.mockReset();
     mockGetSettings.mockReset();
     mockGetSettingsForConversation.mockReset();
     mockGetSettings.mockResolvedValue({
@@ -69,11 +86,17 @@ describe("useCreateConversation persists selected repository metadata", () => {
       conversationSettings: {},
       secretsEncrypted: true,
     });
-    mockCreateHttpClient.mockReturnValue({
-      get: vi.fn(),
-      post: mockHttpPost,
-      patch: vi.fn(),
-      delete: vi.fn(),
+    mockConversationClient.mockReset();
+    vi.mocked(ConversationClient).mockClear();
+    vi.mocked(SettingsClient).mockClear();
+    mockConversationClient.mockReturnValue({
+      createConversation: async (payload: unknown) => {
+        const response = await mockHttpPost("/api/conversations", payload);
+        return response.data;
+      },
+    });
+    mockSettingsClient.mockReturnValue({
+      listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
     });
     mockHttpPost.mockResolvedValue({
       data: {

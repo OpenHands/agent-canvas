@@ -1,3 +1,4 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import {
@@ -12,7 +13,7 @@ import {
   fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "../cloud/settings-service.api";
-import { createHttpClient, createSettingsClient } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 /**
  * Response from GET /api/settings
@@ -207,16 +208,11 @@ class SettingsService {
   static async fetchSettingsFromApi(
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<SettingsApiResponse> {
-    const headers: Record<string, string> = {};
-    if (exposeSecrets) {
-      headers["X-Expose-Secrets"] = exposeSecrets;
-    }
-
-    const response = await withRetry(() =>
-      createHttpClient().get<SettingsApiResponse>("/api/settings", { headers }),
-    );
-
-    return response.data;
+    return withRetry(() =>
+      new SettingsClient(getAgentServerClientOptions()).getSettings({
+        exposeSecrets,
+      }),
+    ) as Promise<SettingsApiResponse>;
   }
 
   /**
@@ -297,14 +293,18 @@ class SettingsService {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getAgentSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getAgentSchema()) as SettingsSchema;
   }
 
   static async getConversationSettingsSchema(): Promise<SettingsSchema> {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudConversationSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getConversationSchema()) as SettingsSchema;
   }
 
   /**
@@ -390,8 +390,7 @@ class SettingsService {
         return true;
       }
       await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>(
-          "/api/settings",
+        new SettingsClient(getAgentServerClientOptions()).updateSettings(
           localPayload,
         ),
       );
