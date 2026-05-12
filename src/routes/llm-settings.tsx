@@ -36,6 +36,7 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LlmProfilesListView } from "#/components/features/settings/llm-profiles/llm-profiles-list-view";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -110,14 +111,7 @@ function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
 
 type EditMode = "none" | "add" | "edit";
 
-export function LlmSettingsScreen({
-  scope = "personal",
-  onSaveSuccess: _onSaveSuccess,
-  initialValueOverrides: _initialValueOverrides,
-  embedded: _embedded,
-  hideSaveButton: _hideSaveButton,
-  onSaveControlChange: _onSaveControlChange,
-}: {
+interface LlmSettingsScreenProps {
   scope?: SettingsScope;
   /** Optional hook fired after a successful save (e.g. advance an onboarding step). */
   onSaveSuccess?: () => void;
@@ -129,7 +123,209 @@ export function LlmSettingsScreen({
   hideSaveButton?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
-}) {
+}
+
+/**
+ * Cloud mode LLM settings - renders the original simple form without profiles.
+ * Cloud backend does not support LLM profiles yet.
+ */
+function LlmSettingsCloudView({
+  scope = "personal",
+  onSaveSuccess,
+  initialValueOverrides,
+  embedded,
+  hideSaveButton,
+  onSaveControlChange,
+}: LlmSettingsScreenProps) {
+  const { t } = useTranslation("openhands");
+  const { data: settings } = useSettings(scope);
+  const { data: schema } = useAgentSettingsSchema(
+    settings?.agent_settings_schema,
+  );
+
+  const defaultModel = String(
+    (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
+      "",
+  );
+
+  const getInitialView = React.useCallback(
+    (
+      currentSettings: Settings,
+      filteredSchema: SettingsSchema,
+    ): SettingsView => {
+      const schemaView = inferInitialView(currentSettings, filteredSchema);
+      if (schemaView !== "basic") {
+        return schemaView;
+      }
+
+      const currentModel = currentSettings.llm_model ?? "";
+      const trimmedBaseUrl = currentSettings.llm_base_url?.trim() ?? "";
+      const hasCustomBaseUrl =
+        trimmedBaseUrl.length > 0 &&
+        !isProviderDefaultBaseUrl(currentModel, trimmedBaseUrl);
+
+      return hasCustomBaseUrl ? "all" : "basic";
+    },
+    [],
+  );
+
+  const buildHeader = React.useCallback(
+    ({ values, isDisabled, view, onChange }: SdkSectionHeaderProps) => {
+      const modelValue =
+        typeof values["llm.model"] === "string" ? values["llm.model"] : "";
+      const baseUrlValue =
+        typeof values["llm.base_url"] === "string"
+          ? values["llm.base_url"]
+          : "";
+      const showOpenHandsApiKeyHelp = modelValue.startsWith("openhands/");
+
+      const renderApiKeyInput = (testId: string, helpTestId: string) => (
+        <>
+          <SettingsInput
+            testId={testId}
+            label={t(I18nKey.SETTINGS_FORM$API_KEY)}
+            type="password"
+            className="w-full"
+            value={
+              typeof values["llm.api_key"] === "string"
+                ? values["llm.api_key"]
+                : ""
+            }
+            placeholder={settings?.llm_api_key_set ? "<hidden>" : ""}
+            onChange={(value) => onChange("llm.api_key", value)}
+            isDisabled={isDisabled}
+            startContent={
+              settings?.llm_api_key_set ? (
+                <KeyStatusIcon isSet={settings.llm_api_key_set} />
+              ) : undefined
+            }
+          />
+
+          <HelpLink
+            testId={helpTestId}
+            text={t(I18nKey.SETTINGS$DONT_KNOW_API_KEY)}
+            linkText={t(I18nKey.SETTINGS$CLICK_FOR_INSTRUCTIONS)}
+            href="https://docs.openhands.dev/usage/local-setup#getting-an-api-key"
+          />
+        </>
+      );
+
+      return (
+        <div className="flex flex-col gap-6">
+          {view === "basic" ? (
+            <div
+              className="flex flex-col gap-6"
+              data-testid="llm-settings-form-basic"
+            >
+              <ModelSelector
+                currentModel={modelValue || undefined}
+                currentBaseUrl={baseUrlValue || undefined}
+                onChange={(provider, model) => {
+                  const nextModel = buildModelId(provider, model);
+                  onChange("llm.model", nextModel ?? "");
+                }}
+                wrapperClassName="!flex-col !gap-6"
+                isDisabled={isDisabled}
+              />
+
+              {showOpenHandsApiKeyHelp ? (
+                <OpenHandsApiKeyHelp testId="openhands-api-key-help" />
+              ) : null}
+
+              {renderApiKeyInput(
+                "llm-api-key-input",
+                "llm-api-key-help-anchor",
+              )}
+            </div>
+          ) : (
+            <div
+              className="flex flex-col gap-6"
+              data-testid="llm-settings-form-advanced"
+            >
+              <SettingsInput
+                testId="llm-custom-model-input"
+                label={t(I18nKey.SETTINGS$CUSTOM_MODEL)}
+                type="text"
+                className="w-full"
+                value={modelValue}
+                placeholder={defaultModel}
+                onChange={(value) => onChange("llm.model", value)}
+                isDisabled={isDisabled}
+              />
+
+              {showOpenHandsApiKeyHelp ? (
+                <OpenHandsApiKeyHelp testId="openhands-api-key-help-2" />
+              ) : null}
+
+              <SettingsInput
+                testId="base-url-input"
+                label={t(I18nKey.SETTINGS$BASE_URL)}
+                type="text"
+                className="w-full"
+                value={baseUrlValue}
+                placeholder="https://api.openai.com"
+                onChange={(value) => onChange("llm.base_url", value)}
+                isDisabled={isDisabled}
+              />
+
+              {renderApiKeyInput(
+                "llm-api-key-input",
+                "llm-api-key-help-anchor-advanced",
+              )}
+            </div>
+          )}
+        </div>
+      );
+    },
+    [defaultModel, settings?.llm_api_key_set, t],
+  );
+
+  const buildPayload = React.useCallback(
+    (
+      basePayload: Record<string, unknown>,
+      context: {
+        values: Record<string, string | boolean>;
+        view: SettingsView;
+      },
+    ) => {
+      const agentSettings = structuredClone(basePayload);
+      const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
+
+      if (context.view === "basic") {
+        llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
+        agentSettings.llm = llm;
+      }
+
+      return { agent_settings_diff: agentSettings };
+    },
+    [schema],
+  );
+
+  return (
+    <SdkSectionPage
+      scope={scope}
+      sectionKeys={["llm"]}
+      excludeKeys={LLM_EXCLUDED_KEYS}
+      header={buildHeader}
+      buildPayload={buildPayload}
+      getInitialView={getInitialView}
+      forceShowAdvancedView
+      allowAllView
+      onSaveSuccess={onSaveSuccess}
+      initialValueOverrides={initialValueOverrides}
+      embedded={embedded}
+      hideSaveButton={hideSaveButton}
+      onSaveControlChange={onSaveControlChange}
+      testId="llm-settings-screen"
+    />
+  );
+}
+
+/**
+ * Local mode LLM settings - renders the profile management UI.
+ * Profiles are only available in local agent-server mode.
+ */
+function LlmSettingsLocalView({ scope = "personal" }: LlmSettingsScreenProps) {
   const { t } = useTranslation("openhands");
 
   const { data: settings } = useSettings(scope);
@@ -507,6 +703,22 @@ export function LlmSettingsScreen({
       />
     </div>
   );
+}
+
+/**
+ * Main LLM settings screen that switches between cloud and local mode views.
+ * - Cloud mode: Simple form without profiles (cloud doesn't support profiles yet)
+ * - Local mode: Profile management UI with list and edit views
+ */
+export function LlmSettingsScreen(props: LlmSettingsScreenProps) {
+  const { backend } = useActiveBackend();
+  const isCloud = backend.kind === "cloud";
+
+  if (isCloud) {
+    return <LlmSettingsCloudView {...props} />;
+  }
+
+  return <LlmSettingsLocalView {...props} />;
 }
 
 export default LlmSettingsScreen;
