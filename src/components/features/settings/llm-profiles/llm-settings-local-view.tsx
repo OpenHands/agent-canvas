@@ -257,11 +257,18 @@ export function LlmSettingsLocalView() {
         isRequired
       />
 
-      {/* LLM Settings Form */}
+      {/* LLM Settings Form - key ensures form remounts when switching profiles */}
       <LlmSettingsScreen
+        key={viewMode === "edit" ? editingProfile?.profile.name : "new-profile"}
         embedded
         hideSaveButton
-        initialValueOverrides={editingProfile?.initialValues}
+        initialValueOverrides={
+          viewMode === "create"
+            ? // Create mode: start with empty fields for a fresh profile
+              { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
+            : // Edit mode: use the existing profile values
+              editingProfile?.initialValues
+        }
         onSaveControlChange={handleSaveControlChange}
       />
 
