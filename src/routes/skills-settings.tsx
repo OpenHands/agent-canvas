@@ -101,9 +101,12 @@ function SkillsSettingsScreen() {
           )}
 
           {!isLoading && skills && skills.length > 0 && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               {skills.map((skill) => (
-                <div key={skill.name} className="flex flex-col gap-0.5">
+                <div
+                  key={skill.name}
+                  className="flex flex-col gap-2 rounded-xl border border-tertiary bg-base-secondary p-4 transition-colors hover:border-primary/60 hover:bg-base-tertiary/30"
+                >
                   <SettingsSwitch
                     testId={`skill-toggle-${skill.name}`}
                     isToggled={!disabledSet.has(skill.name)}
