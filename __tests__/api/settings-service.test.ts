@@ -385,6 +385,179 @@ describe("SettingsService", () => {
     });
   });
 
+  it("rolls back to the previous mcp_config when the second cloud PATCH fails", async () => {
+    // Reviewer-flagged data-loss scenario: the pre-clear succeeds, then
+    // the write fails (validation error, transient outage, etc.). The
+    // service must attempt to restore the previous mcp_config so the
+    // user isn't silently left with an empty MCP setup.
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    const previousMcpConfig = {
+      mcpServers: { existing: { url: "https://old.example" } },
+    };
+    mockFetchCloudSettings.mockResolvedValue({
+      agent_settings: { mcp_config: previousMcpConfig },
+    });
+
+    // Pre-clear succeeds, second write fails on all retries, rollback
+    // succeeds. withRetry runs three attempts by default — return the
+    // failure deterministically so the rollback path is exercised.
+    mockSaveCloudSettings.mockImplementation(
+      (args: { agent_settings_diff?: { mcp_config?: unknown } }) => {
+        const mcp = args?.agent_settings_diff?.mcp_config;
+        if (mcp === null) return Promise.resolve(undefined); // pre-clear
+        // The full payload from the user contains the *new* mcp_config.
+        // Distinguish it from the rollback (which writes the previous
+        // value) by object identity on mcpServers.
+        if (
+          mcp &&
+          typeof mcp === "object" &&
+          "mcpServers" in (mcp as Record<string, unknown>) &&
+          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+        ) {
+          return Promise.reject(new Error("validation failed"));
+        }
+        return Promise.resolve(undefined); // rollback succeeds
+      },
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toThrow("validation failed");
+
+    // 3 attempts for the failed write (default withRetry retries) +
+    // 1 pre-clear + 1 rollback = 5 calls total. Last call MUST be the
+    // rollback with the previous mcp_config.
+    const lastCallArgs =
+      mockSaveCloudSettings.mock.calls[
+        mockSaveCloudSettings.mock.calls.length - 1
+      ][0];
+    expect(lastCallArgs).toEqual({
+      agent_settings_diff: { mcp_config: previousMcpConfig },
+    });
+  });
+
+  it("rolls back to the previous mcp_config when the second local PATCH fails", async () => {
+    // Same scenario as the cloud test but for the local agent-server
+    // path. We assert the rollback PATCH is the final request observed.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    const previousMcpServers = {
+      existing: { url: "https://old.example" },
+    };
+    let getCount = 0;
+    server.use(
+      http.get("*/api/settings", () => {
+        getCount += 1;
+        return HttpResponse.json({
+          agent_settings: { mcp_config: { mcpServers: previousMcpServers } },
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+      http.patch("*/api/settings", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        patchBodies.push(body);
+        const agentDiff = body.agent_settings_diff as
+          | { mcp_config?: unknown }
+          | undefined;
+        const mcp = agentDiff?.mcp_config;
+        // Pre-clear (mcp_config: null) and rollback (mcp_config: previous)
+        // both succeed; only the "new" write fails.
+        if (
+          mcp &&
+          typeof mcp === "object" &&
+          "mcpServers" in (mcp as Record<string, unknown>) &&
+          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+        ) {
+          return HttpResponse.json(
+            { error: "validation failed" },
+            { status: 400 },
+          );
+        }
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    // Snapshot fetch must have happened before any destructive PATCH.
+    expect(getCount).toBeGreaterThanOrEqual(1);
+
+    // Final PATCH is the rollback, restoring the previous mcp_config.
+    const last = patchBodies[patchBodies.length - 1];
+    expect(last).toEqual({
+      agent_settings_diff: { mcp_config: { mcpServers: previousMcpServers } },
+    });
+    // And we must have done the pre-clear too.
+    expect(patchBodies[0]).toEqual({
+      agent_settings_diff: { mcp_config: null },
+    });
+  });
+
+  it("does not attempt rollback when the snapshot fetch returned no mcp_config", async () => {
+    // First-time install: there's nothing to roll back to. The original
+    // error must still propagate but we must not send a bogus rollback
+    // PATCH (e.g. `mcp_config: undefined`) that the backend would reject.
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    mockFetchCloudSettings.mockResolvedValue({ agent_settings: {} });
+    mockSaveCloudSettings.mockImplementation(
+      (args: { agent_settings_diff?: { mcp_config?: unknown } }) => {
+        if (args?.agent_settings_diff?.mcp_config === null) {
+          return Promise.resolve(undefined);
+        }
+        return Promise.reject(new Error("validation failed"));
+      },
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toThrow("validation failed");
+
+    // 1 pre-clear + 3 failed write attempts = 4 calls. No rollback
+    // attempt because the snapshot was empty. Critically, we never
+    // send `mcp_config: undefined` as a "rollback" since that would
+    // be backend-rejected or, worse, silently no-op.
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(4);
+    const sentMcpValues = mockSaveCloudSettings.mock.calls.map(
+      (call) =>
+        (call[0] as { agent_settings_diff?: { mcp_config?: unknown } })
+          ?.agent_settings_diff?.mcp_config,
+    );
+    // Every call's mcp_config is either the pre-clear null or the
+    // exact new value the caller asked us to write — no implicit
+    // rollback target leaked through.
+    for (const mcp of sentMcpValues) {
+      const isPreClear = mcp === null;
+      const isNewWrite =
+        !!mcp &&
+        typeof mcp === "object" &&
+        "mcpServers" in (mcp as Record<string, unknown>) &&
+        !!(mcp as { mcpServers: Record<string, unknown> }).mcpServers.new;
+      expect(isPreClear || isNewWrite).toBe(true);
+    }
+  });
+
   it("lets the cloud response override locally-stored app preferences", async () => {
     // Arrange: localStorage holds a stale "fr" while the cloud is the
     // authoritative source and returns "ja".

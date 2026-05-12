@@ -378,6 +378,40 @@ class SettingsService {
     const needsMcpPreClear =
       !!agentDiff && "mcp_config" in agentDiff && agentDiff.mcp_config !== null;
 
+    // The pre-clear is destructive: if the follow-up write fails after the
+    // clear succeeds, the user's MCP config is left empty. Snapshot the
+    // previous value (in raw SDK shape, NOT the GUI's parsed MCPConfig)
+    // before pre-clearing so we can attempt a best-effort rollback. The
+    // original write error is always re-thrown to the caller regardless
+    // of rollback success — the GUI's react-query mutations surface that
+    // as an error toast so the user knows to retry.
+    //
+    // Snapshot must be the SDK shape (``{ mcpServers: { name: cfg }}``)
+    // because that is what the backend expects on the rollback PATCH.
+    // ``SettingsService.getSettings`` returns a GUI Settings object whose
+    // ``mcp_config`` is typed as the parsed frontend MCPConfig and
+    // defaults to empty arrays when nothing is installed, so it is not
+    // suitable for round-tripping back to the backend.
+    let mcpConfigSnapshot: unknown = undefined;
+    if (needsMcpPreClear) {
+      try {
+        if (isCloud) {
+          const raw = (await fetchCloudSettings()) as {
+            agent_settings?: { mcp_config?: unknown };
+          };
+          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+        } else {
+          const raw = (await SettingsService.fetchSettingsFromApi()) as {
+            agent_settings?: { mcp_config?: unknown };
+          };
+          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+        }
+      } catch {
+        // Snapshot failed (network blip, etc.). Continue without rollback
+        // ability — the original write error will still surface.
+      }
+    }
+
     if (isCloud) {
       const hasCloudWork =
         !!payload.agent_settings_diff ||
@@ -394,12 +428,31 @@ class SettingsService {
           }),
         );
       }
-      await withRetry(() =>
-        saveCloudSettings({
-          ...payload,
-          ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
-        }),
-      );
+      try {
+        await withRetry(() =>
+          saveCloudSettings({
+            ...payload,
+            ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
+          }),
+        );
+      } catch (err) {
+        if (needsMcpPreClear && mcpConfigSnapshot) {
+          // Best-effort rollback. We deliberately do not wrap in withRetry:
+          // the user's session is already in a degraded state and we want
+          // to surface the original error promptly. Swallowing the restore
+          // error preserves the original failure context for the caller.
+          try {
+            await saveCloudSettings({
+              agent_settings_diff: {
+                mcp_config: mcpConfigSnapshot as SettingsValue,
+              },
+            });
+          } catch {
+            // Rollback failed; the original error takes precedence.
+          }
+        }
+        throw err;
+      }
     } else {
       // The local agent-server PATCH /api/settings rejects unknown fields and
       // requires at least one of the two diff fields. Strip disabled_skills
@@ -425,11 +478,29 @@ class SettingsService {
           }),
         );
       }
-      await withRetry(() =>
-        new SettingsClient(getAgentServerClientOptions()).updateSettings(
-          localPayload,
-        ),
-      );
+      try {
+        await withRetry(() =>
+          new SettingsClient(getAgentServerClientOptions()).updateSettings(
+            localPayload,
+          ),
+        );
+      } catch (err) {
+        if (needsMcpPreClear && mcpConfigSnapshot) {
+          // See cloud branch above for rationale.
+          try {
+            await new SettingsClient(
+              getAgentServerClientOptions(),
+            ).updateSettings({
+              agent_settings_diff: {
+                mcp_config: mcpConfigSnapshot as SettingsValue,
+              },
+            });
+          } catch {
+            // Rollback failed; the original error takes precedence.
+          }
+        }
+        throw err;
+      }
     }
 
     // Invalidate cache after successful save
