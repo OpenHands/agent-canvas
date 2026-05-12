@@ -232,13 +232,14 @@ export function BackendForm({
         className="w-full"
       />
 
-      {/* Device Flow auth for cloud backends in add mode */}
-      {mode === "add" && kind === "cloud" && host.trim().length > 0 && (
+      {/* Device Flow auth for cloud backends in add mode - always visible */}
+      {mode === "add" && kind === "cloud" && (
         <div className="flex flex-col gap-3">
           <DeviceFlowAuth
             host={host}
             onSuccess={setApiKey}
             testIdRoot={testIdRoot}
+            isDisabled={host.trim().length === 0}
           />
 
           {/* Divider with "or" */}
@@ -278,7 +279,7 @@ export function BackendForm({
       )}
 
       {/* Regular API key input for non-cloud or edit mode */}
-      {(mode === "edit" || kind !== "cloud" || host.trim().length === 0) && (
+      {(mode === "edit" || kind !== "cloud") && (
         <SettingsInput
           testId={`${testIdRoot}-api-key`}
           name={`${testIdRoot}-api-key`}

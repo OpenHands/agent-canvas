@@ -11,6 +11,8 @@ interface DeviceFlowAuthProps {
   onSuccess: (apiKey: string) => void;
   /** Test ID prefix for the component */
   testIdRoot: string;
+  /** Whether the login button should be disabled (e.g., when no host is entered) */
+  isDisabled?: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export function DeviceFlowAuth({
   host,
   onSuccess,
   testIdRoot,
+  isDisabled = false,
 }: DeviceFlowAuthProps) {
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
@@ -77,6 +80,7 @@ export function DeviceFlowAuth({
           onClick={handleStartAuth}
           testId={`${testIdRoot}-login-button`}
           className="w-full"
+          isDisabled={isDisabled}
         >
           🔑 {t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
         </BrandButton>
