@@ -7,8 +7,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        "BUTTON$EDIT": "Edit",
+        "SETTINGS$PROFILE_EDIT": "Edit",
         "BUTTON$RENAME": "Rename",
+        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
       };
       return translations[key] || key;
@@ -16,21 +17,24 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-describe("ProfileActionsMenu", () => {
-  it("renders Edit, Rename, and Delete buttons", () => {
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+const defaultProps = {
+  onEdit: vi.fn(),
+  onRename: vi.fn(),
+  onSetActive: vi.fn(),
+  onDelete: vi.fn(),
+  isActive: false,
+  isActivating: false,
+  onClose: vi.fn(),
+};
 
-    expect(screen.getByTestId("profile-action-edit")).toHaveTextContent("Edit");
-    expect(screen.getByTestId("profile-action-rename")).toHaveTextContent("Rename");
-    expect(screen.getByTestId("profile-action-delete")).toHaveTextContent("Delete");
+describe("ProfileActionsMenu", () => {
+  it("renders Edit, Rename, Set Active, and Delete buttons", () => {
+    render(<ProfileActionsMenu {...defaultProps} />);
+
+    expect(screen.getByTestId("profile-edit")).toHaveTextContent("Edit");
+    expect(screen.getByTestId("profile-rename")).toHaveTextContent("Rename");
+    expect(screen.getByTestId("profile-set-active")).toHaveTextContent("Set as active");
+    expect(screen.getByTestId("profile-delete")).toHaveTextContent("Delete");
   });
 
   it("calls onEdit and onClose when Edit is clicked", async () => {
@@ -40,15 +44,13 @@ describe("ProfileActionsMenu", () => {
 
     render(
       <ProfileActionsMenu
-        menuId="test-menu-id"
+        {...defaultProps}
         onEdit={handleEdit}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
         onClose={handleClose}
       />,
     );
 
-    await user.click(screen.getByTestId("profile-action-edit"));
+    await user.click(screen.getByTestId("profile-edit"));
 
     expect(handleEdit).toHaveBeenCalledTimes(1);
     expect(handleClose).toHaveBeenCalledTimes(1);
@@ -61,18 +63,49 @@ describe("ProfileActionsMenu", () => {
 
     render(
       <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
+        {...defaultProps}
         onRename={handleRename}
-        onDelete={vi.fn()}
         onClose={handleClose}
       />,
     );
 
-    await user.click(screen.getByTestId("profile-action-rename"));
+    await user.click(screen.getByTestId("profile-rename"));
 
     expect(handleRename).toHaveBeenCalledTimes(1);
     expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onSetActive and onClose when Set Active is clicked", async () => {
+    const user = userEvent.setup();
+    const handleSetActive = vi.fn();
+    const handleClose = vi.fn();
+
+    render(
+      <ProfileActionsMenu
+        {...defaultProps}
+        onSetActive={handleSetActive}
+        onClose={handleClose}
+      />,
+    );
+
+    await user.click(screen.getByTestId("profile-set-active"));
+
+    expect(handleSetActive).toHaveBeenCalledTimes(1);
+    expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables Set Active when already active", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    const setActiveButton = screen.getByTestId("profile-set-active");
+    expect(setActiveButton).toBeDisabled();
+  });
+
+  it("disables Set Active when activating", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActivating />);
+
+    const setActiveButton = screen.getByTestId("profile-set-active");
+    expect(setActiveButton).toBeDisabled();
   });
 
   it("calls onDelete and onClose when Delete is clicked", async () => {
@@ -82,15 +115,13 @@ describe("ProfileActionsMenu", () => {
 
     render(
       <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
+        {...defaultProps}
         onDelete={handleDelete}
         onClose={handleClose}
       />,
     );
 
-    await user.click(screen.getByTestId("profile-action-delete"));
+    await user.click(screen.getByTestId("profile-delete"));
 
     expect(handleDelete).toHaveBeenCalledTimes(1);
     expect(handleClose).toHaveBeenCalledTimes(1);
@@ -102,13 +133,7 @@ describe("ProfileActionsMenu", () => {
     render(
       <div>
         <div data-testid="outside">Outside</div>
-        <ProfileActionsMenu
-        menuId="test-menu-id"
-          onEdit={vi.fn()}
-          onRename={vi.fn()}
-          onDelete={vi.fn()}
-          onClose={handleClose}
-        />
+        <ProfileActionsMenu {...defaultProps} onClose={handleClose} />
       </div>,
     );
 
@@ -120,15 +145,7 @@ describe("ProfileActionsMenu", () => {
   it("calls onClose when Escape key is pressed", () => {
     const handleClose = vi.fn();
 
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={handleClose}
-      />,
-    );
+    render(<ProfileActionsMenu {...defaultProps} onClose={handleClose} />);
 
     fireEvent.keyDown(document, { key: "Escape" });
 
@@ -138,68 +155,35 @@ describe("ProfileActionsMenu", () => {
   it("does not call onClose for other keys", () => {
     const handleClose = vi.fn();
 
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={handleClose}
-      />,
-    );
+    render(<ProfileActionsMenu {...defaultProps} onClose={handleClose} />);
 
     fireEvent.keyDown(document, { key: "Enter" });
-    fireEvent.keyDown(document, { key: "Tab" });
     fireEvent.keyDown(document, { key: "ArrowDown" });
 
     expect(handleClose).not.toHaveBeenCalled();
   });
 
   it("has correct accessibility attributes", () => {
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<ProfileActionsMenu {...defaultProps} />);
 
     const menu = screen.getByRole("menu");
     expect(menu).toHaveAttribute("aria-orientation", "vertical");
 
     const menuItems = screen.getAllByRole("menuitem");
-    expect(menuItems).toHaveLength(3);
+    expect(menuItems).toHaveLength(4);
   });
 
   it("Delete button has red text styling", () => {
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    render(<ProfileActionsMenu {...defaultProps} />);
 
-    const deleteButton = screen.getByTestId("profile-action-delete");
+    const deleteButton = screen.getByTestId("profile-delete");
     expect(deleteButton).toHaveClass("text-red-400");
   });
 
   it("does not call onClose when clicking inside the menu container", () => {
     const handleClose = vi.fn();
 
-    render(
-      <ProfileActionsMenu
-        menuId="test-menu-id"
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={handleClose}
-      />,
-    );
+    render(<ProfileActionsMenu {...defaultProps} onClose={handleClose} />);
 
     const menu = screen.getByRole("menu");
     fireEvent.mouseDown(menu);

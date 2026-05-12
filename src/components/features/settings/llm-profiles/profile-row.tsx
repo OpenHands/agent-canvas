@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileActionsMenu } from "./profile-actions-menu";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
@@ -7,21 +7,25 @@ import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 
 interface ProfileRowProps {
   profile: ProfileInfo;
+  isActive: boolean;
+  onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
   onDelete: (profile: ProfileInfo) => void;
+  isActivating: boolean;
 }
 
 export function ProfileRow({
   profile,
+  isActive,
+  onActivate,
   onEdit,
   onRename,
   onDelete,
+  isActivating,
 }: ProfileRowProps) {
   const { t } = useTranslation("openhands");
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div
@@ -43,24 +47,20 @@ export function ProfileRow({
             {profile.model}
           </span>
         ) : null}
-        {profile.api_key_set && (
+        {isActive && (
           <span
-            className="text-xs bg-green-600/20 text-green-400 font-medium rounded-full px-2 py-0.5 whitespace-nowrap self-start sm:self-auto"
-            data-testid="profile-api-key-badge"
+            className="text-xs bg-primary text-[#0D0F11] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap self-start sm:self-auto"
+            data-testid="profile-active-badge"
           >
-            {t(I18nKey.SETTINGS$PROFILE_API_KEY_SET)}
+            {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
           </span>
         )}
       </div>
       <div className="relative shrink-0">
         <button
-          ref={triggerRef}
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label={`${t(I18nKey.SETTINGS$PROFILE_MENU)} for ${profile.name}`}
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          aria-controls={menuOpen ? menuId : undefined}
+          aria-label={t(I18nKey.SETTINGS$PROFILE_MENU)}
           className="cursor-pointer text-gray-300 hover:text-white p-2 border border-tertiary rounded-md"
           data-testid="profile-menu-trigger"
         >
@@ -68,11 +68,12 @@ export function ProfileRow({
         </button>
         {menuOpen && (
           <ProfileActionsMenu
-            menuId={menuId}
-            triggerRef={triggerRef}
             onEdit={() => onEdit(profile)}
             onRename={() => onRename(profile)}
+            onSetActive={() => onActivate(profile.name)}
             onDelete={() => onDelete(profile)}
+            isActive={isActive}
+            isActivating={isActivating}
             onClose={() => setMenuOpen(false)}
           />
         )}

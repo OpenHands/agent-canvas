@@ -5,6 +5,3 @@ export { ProfileActionsMenu } from "./profile-actions-menu";
 export { RenameProfileModal } from "./rename-profile-modal";
 export { DeleteProfileModal } from "./delete-profile-modal";
 export { ProfileNameInput } from "./profile-name-input";
-export { LlmProfilesListView } from "./llm-profiles-list-view";
-export { ProfileListRow } from "./profile-list-row";
-export { ProfileListActionsMenu } from "./profile-list-actions-menu";

@@ -8,18 +8,24 @@ interface ProfilesBodyProps {
   isLoading: boolean;
   loadError: Error | null;
   profiles: ProfileInfo[];
+  active: string | null;
+  onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
   onDelete: (profile: ProfileInfo) => void;
+  isActivating: boolean;
 }
 
 export function ProfilesBody({
   isLoading,
   loadError,
   profiles,
+  active,
+  onActivate,
   onEdit,
   onRename,
   onDelete,
+  isActivating,
 }: ProfilesBodyProps) {
   const { t } = useTranslation("openhands");
 
@@ -53,9 +59,12 @@ export function ProfilesBody({
         <ProfileRow
           key={profile.name}
           profile={profile}
+          isActive={profile.name === active}
+          onActivate={onActivate}
           onEdit={onEdit}
           onRename={onRename}
           onDelete={onDelete}
+          isActivating={isActivating}
         />
       ))}
     </div>

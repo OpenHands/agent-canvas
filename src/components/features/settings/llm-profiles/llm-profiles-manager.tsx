@@ -6,6 +6,11 @@ import { DeleteProfileModal } from "./delete-profile-modal";
 import { ProfilesBody } from "./profiles-body";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
 interface LlmProfilesManagerProps {
@@ -19,6 +24,7 @@ export function LlmProfilesManager({
 }: LlmProfilesManagerProps) {
   const { t } = useTranslation("openhands");
   const { data, isLoading, error } = useLlmProfiles();
+  const activateProfile = useActivateLlmProfile();
   const [profileToRename, setProfileToRename] = useState<ProfileInfo | null>(
     null,
   );
@@ -27,6 +33,16 @@ export function LlmProfilesManager({
   );
 
   const profiles = data?.profiles ?? [];
+  const active = data?.active_profile ?? null;
+
+  const handleActivate = async (name: string) => {
+    try {
+      await activateProfile.mutateAsync(name);
+      displaySuccessToast(t(I18nKey.SETTINGS$PROFILE_ACTIVATED, { name }));
+    } catch {
+      displayErrorToast(t(I18nKey.ERROR$GENERIC));
+    }
+  };
 
   const handleEdit = (profile: ProfileInfo) => {
     onEditProfile?.(profile);
@@ -56,9 +72,12 @@ export function LlmProfilesManager({
           isLoading={isLoading}
           loadError={error ?? null}
           profiles={profiles}
+          active={active}
+          onActivate={handleActivate}
           onEdit={handleEdit}
           onRename={setProfileToRename}
           onDelete={setProfileToDelete}
+          isActivating={activateProfile.isPending}
         />
       </div>
 

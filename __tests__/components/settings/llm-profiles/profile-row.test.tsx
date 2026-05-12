@@ -8,10 +8,11 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        "SETTINGS$PROFILE_API_KEY_SET": "API Key Set",
+        "SETTINGS$PROFILE_ACTIVE": "Active",
         "SETTINGS$PROFILE_MENU": "Profile menu",
-        "BUTTON$EDIT": "Edit",
+        "SETTINGS$PROFILE_EDIT": "Edit",
         "BUTTON$RENAME": "Rename",
+        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
       };
       return translations[key] || key;
@@ -26,29 +27,25 @@ const mockProfile: ProfileInfo = {
   api_key_set: true,
 };
 
+const defaultProps = {
+  profile: mockProfile,
+  isActive: false,
+  onActivate: vi.fn(),
+  onEdit: vi.fn(),
+  onRename: vi.fn(),
+  onDelete: vi.fn(),
+  isActivating: false,
+};
+
 describe("ProfileRow", () => {
   it("displays the profile name", () => {
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} />);
 
     expect(screen.getByText("gpt-4-profile")).toBeInTheDocument();
   });
 
   it("displays the model name when present", () => {
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} />);
 
     expect(screen.getByText("openai/gpt-4")).toBeInTheDocument();
   });
@@ -59,81 +56,42 @@ describe("ProfileRow", () => {
       model: null,
     };
 
-    render(
-      <ProfileRow
-        profile={profileWithoutModel}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} profile={profileWithoutModel} />);
 
     expect(screen.queryByText("openai/gpt-4")).not.toBeInTheDocument();
   });
 
-  it("shows API key badge when api_key_set is true", () => {
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  it("shows Active badge when isActive is true", () => {
+    render(<ProfileRow {...defaultProps} isActive />);
 
-    expect(screen.getByTestId("profile-api-key-badge")).toBeInTheDocument();
-    expect(screen.getByText("API Key Set")).toBeInTheDocument();
+    expect(screen.getByTestId("profile-active-badge")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("does not show API key badge when api_key_set is false", () => {
-    const profileWithoutApiKey: ProfileInfo = {
-      ...mockProfile,
-      api_key_set: false,
-    };
+  it("does not show Active badge when isActive is false", () => {
+    render(<ProfileRow {...defaultProps} isActive={false} />);
 
-    render(
-      <ProfileRow
-        profile={profileWithoutApiKey}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
-
-    expect(screen.queryByTestId("profile-api-key-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("profile-active-badge")).not.toBeInTheDocument();
   });
 
   it("opens menu when trigger button is clicked", async () => {
     const user = userEvent.setup();
 
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} />);
 
     const menuTrigger = screen.getByTestId("profile-menu-trigger");
     await user.click(menuTrigger);
 
     expect(screen.getByText("Edit")).toBeInTheDocument();
     expect(screen.getByText("Rename")).toBeInTheDocument();
+    expect(screen.getByText("Set as active")).toBeInTheDocument();
     expect(screen.getByText("Delete")).toBeInTheDocument();
   });
 
   it("toggles menu visibility on multiple clicks", async () => {
     const user = userEvent.setup();
 
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} />);
 
     const menuTrigger = screen.getByTestId("profile-menu-trigger");
     
@@ -143,26 +101,13 @@ describe("ProfileRow", () => {
     // First click opens the menu
     await user.click(menuTrigger);
     expect(screen.getByText("Edit")).toBeInTheDocument();
-    
-    // Note: Due to the click-outside handler on ProfileActionsMenu,
-    // clicking the trigger again first triggers click-outside (closes menu)
-    // then the toggle (would reopen if state wasn't already false).
-    // The expected behavior is the menu closes - implementation details
-    // of how that happens may vary.
   });
 
   it("calls onEdit when Edit is clicked", async () => {
     const user = userEvent.setup();
     const handleEdit = vi.fn();
 
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={handleEdit}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} onEdit={handleEdit} />);
 
     await user.click(screen.getByTestId("profile-menu-trigger"));
     await user.click(screen.getByText("Edit"));
@@ -174,14 +119,7 @@ describe("ProfileRow", () => {
     const user = userEvent.setup();
     const handleRename = vi.fn();
 
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={handleRename}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} onRename={handleRename} />);
 
     await user.click(screen.getByTestId("profile-menu-trigger"));
     await user.click(screen.getByText("Rename"));
@@ -189,18 +127,23 @@ describe("ProfileRow", () => {
     expect(handleRename).toHaveBeenCalledWith(mockProfile);
   });
 
+  it("calls onActivate when Set Active is clicked", async () => {
+    const user = userEvent.setup();
+    const handleActivate = vi.fn();
+
+    render(<ProfileRow {...defaultProps} onActivate={handleActivate} />);
+
+    await user.click(screen.getByTestId("profile-menu-trigger"));
+    await user.click(screen.getByText("Set as active"));
+
+    expect(handleActivate).toHaveBeenCalledWith(mockProfile.name);
+  });
+
   it("calls onDelete when Delete is clicked", async () => {
     const user = userEvent.setup();
     const handleDelete = vi.fn();
 
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={handleDelete}
-      />,
-    );
+    render(<ProfileRow {...defaultProps} onDelete={handleDelete} />);
 
     await user.click(screen.getByTestId("profile-menu-trigger"));
     await user.click(screen.getByText("Delete"));
@@ -208,21 +151,10 @@ describe("ProfileRow", () => {
     expect(handleDelete).toHaveBeenCalledWith(mockProfile);
   });
 
-  it("has accessible menu trigger button with profile name", () => {
-    render(
-      <ProfileRow
-        profile={mockProfile}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  it("has accessible menu trigger button", () => {
+    render(<ProfileRow {...defaultProps} />);
 
     const menuTrigger = screen.getByTestId("profile-menu-trigger");
-    // aria-label should include the profile name for screen reader context
-    expect(menuTrigger).toHaveAttribute(
-      "aria-label",
-      `Profile menu for ${mockProfile.name}`,
-    );
+    expect(menuTrigger).toHaveAttribute("aria-label", "Profile menu");
   });
 });

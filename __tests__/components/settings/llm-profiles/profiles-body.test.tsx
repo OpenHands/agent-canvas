@@ -9,11 +9,12 @@ vi.mock("react-i18next", () => ({
       const translations: Record<string, string> = {
         "SETTINGS$PROFILES_LOAD_ERROR": "Failed to load profiles",
         "SETTINGS$PROFILES_EMPTY": "No profiles saved yet",
-        "SETTINGS$PROFILE_API_KEY_SET": "API Key Set",
+        "SETTINGS$PROFILE_ACTIVE": "Active",
         "SETTINGS$PROFILE_MENU": "Profile menu",
         "SETTINGS$PROFILE_EDIT": "Edit",
-        "SETTINGS$PROFILE_RENAME": "Rename",
-        "SETTINGS$PROFILE_DELETE": "Delete",
+        "BUTTON$RENAME": "Rename",
+        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
+        "BUTTON$DELETE": "Delete",
       };
       return translations[key] || key;
     },
@@ -35,18 +36,21 @@ const mockProfiles: ProfileInfo[] = [
   },
 ];
 
+const defaultProps = {
+  isLoading: false,
+  loadError: null,
+  profiles: mockProfiles,
+  active: "gpt-4-profile",
+  onActivate: vi.fn(),
+  onEdit: vi.fn(),
+  onRename: vi.fn(),
+  onDelete: vi.fn(),
+  isActivating: false,
+};
+
 describe("ProfilesBody", () => {
   it("shows loading spinner when isLoading is true", () => {
-    render(
-      <ProfilesBody
-        isLoading={true}
-        loadError={null}
-        profiles={[]}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfilesBody {...defaultProps} isLoading profiles={[]} />);
 
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
@@ -54,12 +58,9 @@ describe("ProfilesBody", () => {
   it("shows error message when loadError is present", () => {
     render(
       <ProfilesBody
-        isLoading={false}
+        {...defaultProps}
         loadError={new Error("Network error")}
         profiles={[]}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
 
@@ -67,31 +68,13 @@ describe("ProfilesBody", () => {
   });
 
   it("shows empty state when profiles array is empty", () => {
-    render(
-      <ProfilesBody
-        isLoading={false}
-        loadError={null}
-        profiles={[]}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfilesBody {...defaultProps} profiles={[]} />);
 
     expect(screen.getByText("No profiles saved yet")).toBeInTheDocument();
   });
 
   it("renders a list of profiles", () => {
-    render(
-      <ProfilesBody
-        isLoading={false}
-        loadError={null}
-        profiles={mockProfiles}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfilesBody {...defaultProps} />);
 
     expect(screen.getByText("gpt-4-profile")).toBeInTheDocument();
     expect(screen.getByText("openai/gpt-4")).toBeInTheDocument();
@@ -100,46 +83,27 @@ describe("ProfilesBody", () => {
   });
 
   it("renders profile rows for each profile", () => {
-    render(
-      <ProfilesBody
-        isLoading={false}
-        loadError={null}
-        profiles={mockProfiles}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+    render(<ProfilesBody {...defaultProps} />);
 
     const rows = screen.getAllByTestId("profile-row");
     expect(rows).toHaveLength(2);
   });
 
-  it("shows API key badge only for profiles with api_key_set", () => {
-    render(
-      <ProfilesBody
-        isLoading={false}
-        loadError={null}
-        profiles={mockProfiles}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  it("shows Active badge for the active profile", () => {
+    render(<ProfilesBody {...defaultProps} active="gpt-4-profile" />);
 
-    const badges = screen.getAllByTestId("profile-api-key-badge");
+    // Only the active profile should have the badge
+    const badges = screen.getAllByTestId("profile-active-badge");
     expect(badges).toHaveLength(1);
   });
 
   it("loading state takes priority over error", () => {
     render(
       <ProfilesBody
-        isLoading={true}
+        {...defaultProps}
+        isLoading
         loadError={new Error("Error")}
         profiles={[]}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
 
@@ -150,12 +114,9 @@ describe("ProfilesBody", () => {
   it("error state takes priority over empty state", () => {
     render(
       <ProfilesBody
-        isLoading={false}
+        {...defaultProps}
         loadError={new Error("Error")}
         profiles={[]}
-        onEdit={vi.fn()}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
 

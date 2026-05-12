@@ -3,22 +3,22 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 
 interface ProfileActionsMenuProps {
-  /** Unique ID for the menu, used for aria-controls */
-  menuId: string;
-  /** Ref to the trigger button for focus restoration */
-  triggerRef?: React.RefObject<HTMLButtonElement | null>;
   onEdit: () => void;
   onRename: () => void;
+  onSetActive: () => void;
   onDelete: () => void;
+  isActive: boolean;
+  isActivating: boolean;
   onClose: () => void;
 }
 
 export function ProfileActionsMenu({
-  menuId,
-  triggerRef,
   onEdit,
   onRename,
+  onSetActive,
   onDelete,
+  isActive,
+  isActivating,
   onClose,
 }: ProfileActionsMenuProps) {
   const { t } = useTranslation("openhands");
@@ -33,23 +33,13 @@ export function ProfileActionsMenu({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      // Don't close if clicking inside menu or on the trigger button
-      // This prevents the toggle-reopen issue when clicking trigger to close
       if (menuRef.current && !menuRef.current.contains(target)) {
-        if (triggerRef?.current?.contains(target)) {
-          // Click on trigger - let the toggle handler in parent handle it
-          return;
-        }
-        // Restore focus to trigger button when closing
-        triggerRef?.current?.focus();
         onClose();
       }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        // Restore focus to trigger button when closing via Escape
-        triggerRef?.current?.focus();
         onClose();
       }
     };
@@ -61,23 +51,19 @@ export function ProfileActionsMenu({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [onClose, triggerRef]);
+  }, [onClose]);
 
   const handleAction = (action: () => void) => {
     action();
-    // Restore focus to trigger button after action
-    triggerRef?.current?.focus();
     onClose();
   };
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, currentIndex: number) => {
-      // Tab should close the menu per WAI-ARIA menu button practices
       if (e.key === "Tab") {
         onClose();
         return;
       }
-      // Use dynamic item count based on actual menu items
       const itemCount = menuItemsRef.current.filter(Boolean).length;
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -92,13 +78,15 @@ export function ProfileActionsMenu({
     [onClose],
   );
 
+  const setActiveDisabled = isActive || isActivating;
+
   return (
     <div
       ref={menuRef}
-      id={menuId}
-      className="absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-tertiary rounded-md shadow-lg py-1 min-w-[140px]"
+      className="absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-tertiary rounded-md shadow-lg py-1 min-w-[160px]"
       role="menu"
       aria-orientation="vertical"
+      data-testid="profile-actions-menu"
     >
       <button
         ref={(el) => {
@@ -109,9 +97,9 @@ export function ProfileActionsMenu({
         onKeyDown={(e) => handleKeyDown(e, 0)}
         className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer"
         role="menuitem"
-        data-testid="profile-action-edit"
+        data-testid="profile-edit"
       >
-        {t(I18nKey.BUTTON$EDIT)}
+        {t(I18nKey.SETTINGS$PROFILE_EDIT)}
       </button>
       <button
         ref={(el) => {
@@ -122,7 +110,7 @@ export function ProfileActionsMenu({
         onKeyDown={(e) => handleKeyDown(e, 1)}
         className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer"
         role="menuitem"
-        data-testid="profile-action-rename"
+        data-testid="profile-rename"
       >
         {t(I18nKey.BUTTON$RENAME)}
       </button>
@@ -131,11 +119,25 @@ export function ProfileActionsMenu({
           menuItemsRef.current[2] = el;
         }}
         type="button"
-        onClick={() => handleAction(onDelete)}
+        onClick={() => handleAction(onSetActive)}
         onKeyDown={(e) => handleKeyDown(e, 2)}
+        disabled={setActiveDisabled}
+        className="w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        role="menuitem"
+        data-testid="profile-set-active"
+      >
+        {t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
+      </button>
+      <button
+        ref={(el) => {
+          menuItemsRef.current[3] = el;
+        }}
+        type="button"
+        onClick={() => handleAction(onDelete)}
+        onKeyDown={(e) => handleKeyDown(e, 3)}
         className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-tertiary cursor-pointer"
         role="menuitem"
-        data-testid="profile-action-delete"
+        data-testid="profile-delete"
       >
         {t(I18nKey.BUTTON$DELETE)}
       </button>

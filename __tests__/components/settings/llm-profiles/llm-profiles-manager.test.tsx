@@ -16,21 +16,26 @@ vi.mock("react-i18next", () => ({
         "SETTINGS$ADD_LLM_PROFILE": "Add LLM Profile",
         "SETTINGS$PROFILES_LOAD_ERROR": "Failed to load profiles",
         "SETTINGS$PROFILES_EMPTY": "No profiles saved yet",
-        "SETTINGS$PROFILE_API_KEY_SET": "API Key Set",
+        "SETTINGS$PROFILE_ACTIVE": "Active",
         "SETTINGS$PROFILE_MENU": "Profile menu",
+        "SETTINGS$PROFILE_EDIT": "Edit",
+        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "SETTINGS$PROFILE_RENAME_TITLE": "Rename Profile",
         "SETTINGS$PROFILE_DELETE_TITLE": "Delete Profile",
         "SETTINGS$PROFILE_DELETE_CONFIRMATION": params?.name
           ? `Are you sure you want to delete "${params.name}"?`
           : "Are you sure you want to delete this profile?",
+        "SETTINGS$PROFILE_ACTIVATED": params?.name
+          ? `Profile "${params.name}" activated`
+          : "Profile activated",
         "SETTINGS$PROFILE_NAME_LABEL": "Profile Name",
         "SETTINGS$PROFILE_NAME_PLACEHOLDER": "Enter profile name",
         "SETTINGS$PROFILE_NAME_RULE":
           "1-64 chars, start with alphanumeric, then alphanumerics or . _ -",
-        "BUTTON$EDIT": "Edit",
         "BUTTON$RENAME": "Rename",
         "BUTTON$DELETE": "Delete",
         "BUTTON$CANCEL": "Cancel",
+        "ERROR$GENERIC": "An error occurred",
       };
       return translations[key] || key;
     },
