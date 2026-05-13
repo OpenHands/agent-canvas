@@ -70,6 +70,12 @@ npm run dev:dangerously-dockerless
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
 
+If you're not actively developing on agent-canvas and just want to run it locally, use the static build instead (faster loads, no hot reload):
+
+```sh
+npm run dev:static
+```
+
 # Architecture
 
 Agent Canvas is powered by the [OpenHands Agent Server](https://github.com/OpenHands/software-agent-sdk/tree/main/openhands-agent-server/openhands/agent_server), a REST API for running multiple agents on a single machine. Each Agent Server runs on a single host/port; the Agent Canvas can connect to multiple Agent Servers and easily flip between them.
