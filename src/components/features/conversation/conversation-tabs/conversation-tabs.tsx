@@ -18,7 +18,6 @@ import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { useTaskList } from "#/hooks/use-task-list";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -35,7 +34,6 @@ export function ConversationTabs() {
     useConversationLocalStorageState(conversationId);
 
   const { hasTaskList } = useTaskList();
-  const { backend } = useActiveBackend();
 
   const { handleBuildPlanClick } = useHandleBuildPlanClick();
   const { curAgentState } = useAgentState();
@@ -139,12 +137,12 @@ export function ConversationTabs() {
     });
   }
 
-  // Filter out unpinned tabs, and hide the VSCode tab on local backends
-  // (the agent-server's VSCode URL is only reachable in cloud deployments).
-  const visibleTabs = tabs.filter((tab) => {
-    if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
-    return !persistedState.unpinnedTabs.includes(tab.tabValue);
-  });
+  // Filter out unpinned tabs. The VS Code tab is always shown regardless
+  // of backend kind — the tab content itself handles the "not configured"
+  // state for local backends that don't have VS Code available.
+  const visibleTabs = tabs.filter(
+    (tab) => !persistedState.unpinnedTabs.includes(tab.tabValue),
+  );
 
   const isAgentRunning =
     curAgentState === AgentState.RUNNING ||

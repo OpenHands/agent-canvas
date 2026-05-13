@@ -3,18 +3,23 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useUnifiedVSCodeUrl } from "#/hooks/query/use-unified-vscode-url";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { RUNTIME_STARTING_STATES } from "#/types/agent-state";
 import { VSCODE_IN_NEW_TAB } from "#/utils/feature-flags";
 import { WaitingForRuntimeMessage } from "#/components/features/chat/waiting-for-runtime-message";
+import { VSCodeNotConfigured } from "#/components/features/conversation/conversation-tabs/vscode-not-configured";
 
 function VSCodeTab() {
   const { t } = useTranslation("openhands");
   const { data, isLoading, error } = useUnifiedVSCodeUrl();
   const { curAgentState } = useAgentState();
+  const { backend } = useActiveBackend();
   const isRuntimeStarting = RUNTIME_STARTING_STATES.includes(curAgentState);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
   const [isCrossProtocol, setIsCrossProtocol] = useState(false);
   const [iframeError, setIframeError] = useState<string | null>(null);
+
+  const isLocalBackend = backend.kind !== "cloud";
 
   useEffect(() => {
     if (data?.url) {
@@ -52,6 +57,12 @@ function VSCodeTab() {
   }
 
   if (error || data?.error || !data?.url || iframeError) {
+    // Local backend without VS Code: show setup guidance instead of a
+    // generic error so the user knows how to enable it.
+    if (isLocalBackend) {
+      return <VSCodeNotConfigured />;
+    }
+
     return (
       <div className="w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light">
         {iframeError ||

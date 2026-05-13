@@ -11,6 +11,8 @@ export function VSCodeTooltipContent() {
   const { data, refetch } = useUnifiedVSCodeUrl();
   const isRuntimeStarting = RUNTIME_STARTING_STATES.includes(curAgentState);
 
+  const hasVSCodeUrl = !!data?.url;
+
   const handleVSCodeClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -30,7 +32,7 @@ export function VSCodeTooltipContent() {
   return (
     <div className="flex items-center gap-2">
       <span>{t(I18nKey.COMMON$CODE)}</span>
-      {!isRuntimeStarting ? (
+      {!isRuntimeStarting && hasVSCodeUrl ? (
         <FaExternalLinkAlt
           className="w-3 h-3 text-inherit cursor-pointer"
           onClick={handleVSCodeClick}
