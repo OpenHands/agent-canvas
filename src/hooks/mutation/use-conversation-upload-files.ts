@@ -7,6 +7,7 @@ interface UploadFilesVariables {
   conversationUrl: string | null | undefined;
   sessionApiKey: string | null | undefined;
   files: File[];
+  workingDir?: string | null;
 }
 
 /**
@@ -21,13 +22,16 @@ export const useConversationUploadFiles = () =>
     mutationFn: async (
       variables: UploadFilesVariables,
     ): Promise<FileUploadSuccessResponse> => {
-      const { conversationUrl, sessionApiKey, files } = variables;
+      const { conversationUrl, sessionApiKey, files, workingDir } = variables;
+
+      // Resolve the upload directory: use the conversation's current
+      // working directory when available, falling back to /workspace.
+      const uploadDir = workingDir?.replace(/\/+$/, "") || "/workspace";
 
       // Upload all files in parallel
       const uploadPromises = files.map(async (file) => {
+        const filePath = `${uploadDir}/${file.name}`;
         try {
-          // Upload to /workspace/{filename}
-          const filePath = `/workspace/${file.name}`;
           await new RemoteWorkspace(
             getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
           ).fileUpload(file, filePath);
@@ -36,7 +40,7 @@ export const useConversationUploadFiles = () =>
           return {
             success: false as const,
             fileName: file.name,
-            filePath: `/workspace/${file.name}`,
+            filePath,
             error: error instanceof Error ? error.message : "Unknown error",
           };
         }

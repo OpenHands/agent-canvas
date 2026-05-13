@@ -1,6 +1,5 @@
 import { UploadedFile } from "./uploaded-file";
 import { UploadedImage } from "./uploaded-image";
-import { UploadAsFileCheckbox } from "./upload-as-file-checkbox";
 import { useConversationStore } from "#/stores/conversation-store";
 
 export function UploadedFiles() {
@@ -12,8 +11,6 @@ export function UploadedFiles() {
     removeFile,
     removeImage,
   } = useConversationStore();
-
-  const hasImages = images.length > 0 || loadingImages.length > 0;
 
   const handleRemoveFile = (index: number) => {
     removeFile(index);
@@ -85,7 +82,6 @@ export function UploadedFiles() {
         })}
       </div>
 
-      {hasImages && <UploadAsFileCheckbox />}
     </div>
   );
 }

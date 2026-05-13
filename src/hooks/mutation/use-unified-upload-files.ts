@@ -23,11 +23,12 @@ export const useUnifiedUploadFiles = () => {
     ): Promise<FileUploadSuccessResponse> => {
       const { files } = variables;
 
-      // Use conversation URL and session API key
+      // Use conversation URL, session API key, and working directory
       return conversationUpload.mutateAsync({
         conversationUrl: conversation?.conversation_url,
         sessionApiKey: conversation?.session_api_key,
         files,
+        workingDir: conversation?.workspace?.working_dir,
       });
     },
     meta: {
