@@ -4,6 +4,12 @@ import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage";
+import {
+  __resetHealthStoreForTests,
+  getBackendHealthEntry,
+  recordBackendFailure,
+} from "#/api/backend-registry/health-store";
 import {
   ActiveBackendProvider,
   useActiveBackendContext,
@@ -23,11 +29,13 @@ function makeWrapper(queryClient = new QueryClient()) {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  __resetHealthStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  __resetHealthStoreForTests();
 });
 
 describe("ActiveBackendProvider", () => {
@@ -154,5 +162,68 @@ describe("ActiveBackendProvider", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => render(<HookConsumer />)).toThrow(/ActiveBackendProvider/);
     errorSpy.mockRestore();
+  });
+
+  it("updateBackend re-arms health polling when host or apiKey changes but leaves cosmetic edits alone", () => {
+    // Arrange — register a backend that has hit the failure cap.
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    let id = "";
+    act(() => {
+      id = result.current.addBackend({
+        name: "Stale",
+        host: "http://localhost:9000",
+        apiKey: "old-key",
+        kind: "local",
+      }).id;
+    });
+    for (let i = 0; i < MAX_CONSECUTIVE_FAILURES; i += 1) {
+      recordBackendFailure(id, new Error("timeout"));
+    }
+    expect(getBackendHealthEntry(id)?.disabled).toBe(true);
+
+    // Act — renaming is cosmetic; it must NOT silently re-enable
+    // polling against an unreachable backend.
+    act(() => {
+      result.current.updateBackend(id, { name: "Renamed" });
+    });
+    expect(getBackendHealthEntry(id)?.disabled).toBe(true);
+
+    // Act — changing host is the explicit "fix the config" signal and
+    // must clear the entry so polling resumes.
+    act(() => {
+      result.current.updateBackend(id, { host: "http://localhost:9001" });
+    });
+
+    // Assert
+    expect(getBackendHealthEntry(id)).toBeNull();
+  });
+
+  it("removeBackend drops the backend's persisted health entry", () => {
+    // Arrange
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+    let id = "";
+    act(() => {
+      id = result.current.addBackend({
+        name: "Doomed",
+        host: "http://localhost:9000",
+        apiKey: "k",
+        kind: "local",
+      }).id;
+    });
+    recordBackendFailure(id, new Error("boom"));
+    expect(getBackendHealthEntry(id)).not.toBeNull();
+
+    // Act
+    act(() => {
+      result.current.removeBackend(id);
+    });
+
+    // Assert
+    expect(getBackendHealthEntry(id)).toBeNull();
   });
 });

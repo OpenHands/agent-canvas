@@ -6,21 +6,13 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
 import { MarketplaceEntry } from "#/constants/mcp-marketplace";
-import {
-  ExistingInstall,
-  MCPServerConfig,
-  isMcpInstall,
-} from "#/types/mcp-server";
+import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
-import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
-import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
-  /** Existing install (if any) — drives Edit vs Add. */
-  existing?: ExistingInstall | null;
   onClose: () => void;
 }
 
@@ -40,31 +32,29 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
     }
   } else if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
     values.api_key = "";
-  } else if (entry.template.kind === "tavily-builtin") {
-    values.search_api_key = "";
   }
   return { values, errors: {} };
 }
 
+// The marketplace install modal is intentionally add-only: clicking
+// a catalog tile always appends a new server (the user might want
+// two Slack workspaces, two Postgres connections, etc.) even when
+// one of the same template kind is already installed. Editing an
+// existing server is reached via the installed-server-card's edit
+// button, which opens `CustomServerEditor` instead.
 export function InstallServerModal({
   entry,
-  existing,
   onClose,
 }: InstallServerModalProps) {
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
-  const { mutate: updateMcpServer, isPending: isUpdating } =
-    useUpdateMcpServer();
-  const { mutate: saveSettings, isPending: isSavingSettings } =
-    useSaveSettings();
 
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
   );
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
-  const isEditing = !!existing;
-  const isPending = isAdding || isUpdating || isSavingSettings;
+  const isPending = isAdding;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -74,60 +64,24 @@ export function InstallServerModal({
     setGlobalError(null);
   };
 
-  // ------------------------------------------------------------------
-  // Shared add-or-update plumbing. Every per-template handler funnels
-  // through this to keep success/error handling consistent (single
-  // toast + single error path), and to centralize the "create new vs.
-  // update existing" branching.
-  // ------------------------------------------------------------------
   const submitServer = (payload: MCPServerConfig) => {
-    const onSuccess = () => {
-      displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
-      onClose();
-    };
-    const onError = (err: unknown) => {
-      const message = retrieveAxiosErrorMessage(err as AxiosError);
-      setGlobalError(message || t(I18nKey.ERROR$GENERIC));
-    };
-    if (isMcpInstall(existing)) {
-      updateMcpServer(
-        { serverId: existing.server.id, server: payload },
-        { onSuccess, onError },
-      );
-    } else {
-      addMcpServer(payload, { onSuccess, onError });
-    }
+    addMcpServer(payload, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const message = retrieveAxiosErrorMessage(err as AxiosError);
+        setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+      },
+    });
   };
 
   // ------------------------------------------------------------------
   // Per-template submit handlers. Each is small and self-contained:
   // validate user input, build the payload, then hand off to
-  // submitServer / saveSettings.
+  // submitServer.
   // ------------------------------------------------------------------
-  const handleTavilySubmit = () => {
-    const key = state.values.search_api_key?.trim() ?? "";
-    if (!key && !isEditing) {
-      setState((prev) => ({
-        ...prev,
-        errors: { search_api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
-      }));
-      return;
-    }
-    saveSettings(
-      { search_api_key: key },
-      {
-        onSuccess: () => {
-          displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
-          onClose();
-        },
-        onError: (err) => {
-          const message = retrieveAxiosErrorMessage(err as AxiosError);
-          setGlobalError(message || t(I18nKey.ERROR$GENERIC));
-        },
-      },
-    );
-  };
-
   const handleHttpServerSubmit = () => {
     // TS narrows this branch to shttp|sse; the equality guard is a
     // runtime/defensive belt to make the helper safe in isolation.
@@ -142,9 +96,8 @@ export function InstallServerModal({
       }));
       return;
     }
-    const existingMcp = isMcpInstall(existing) ? existing.server : null;
     const payload: MCPServerConfig = {
-      id: existingMcp?.id ?? `${entry.template.kind}-${Date.now()}`,
+      id: `${entry.template.kind}-${Date.now()}`,
       type: entry.template.kind,
       url: entry.template.url,
       ...(apiKey && { api_key: apiKey }),
@@ -188,9 +141,8 @@ export function InstallServerModal({
       }
     }
 
-    const existingMcp = isMcpInstall(existing) ? existing.server : null;
     const payload: MCPServerConfig = {
-      id: existingMcp?.id ?? `stdio-${Date.now()}`,
+      id: `stdio-${Date.now()}`,
       type: "stdio",
       name: stdio.serverName,
       command: stdio.command,
@@ -203,7 +155,6 @@ export function InstallServerModal({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setGlobalError(null);
-    if (entry.template.kind === "tavily-builtin") return handleTavilySubmit();
     if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
       return handleHttpServerSubmit();
     }
@@ -211,32 +162,6 @@ export function InstallServerModal({
   };
 
   const renderFields = () => {
-    if (entry.template.kind === "tavily-builtin") {
-      return (
-        <div className="flex flex-col gap-1">
-          <SettingsInput
-            testId="mcp-install-field-search_api_key"
-            name="search_api_key"
-            type="password"
-            label={t(I18nKey.SETTINGS$SEARCH_API_KEY)}
-            value={state.values.search_api_key ?? ""}
-            onChange={(v) => setValue("search_api_key", v)}
-            placeholder="tvly-..."
-            className="w-full"
-          />
-          {/* `handleTavilySubmit` sets this error on submit when the
-              key is empty; render it inline so the user actually sees
-              the validation failure (previously the state was set but
-              never displayed). */}
-          {state.errors.search_api_key && (
-            <p className="text-xs text-red-500">
-              {state.errors.search_api_key}
-            </p>
-          )}
-        </div>
-      );
-    }
-
     if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
       const apiKeyOptional = entry.template.apiKeyOptional ?? false;
       return (
@@ -392,11 +317,9 @@ export function InstallServerModal({
             testId="mcp-install-submit"
             className="w-full text-center"
           >
-            {(() => {
-              if (isPending) return t(I18nKey.SETTINGS$SAVING);
-              if (isEditing) return t(I18nKey.SETTINGS$MCP_SAVE_SERVER);
-              return t(I18nKey.MCP$INSTALL_BUTTON);
-            })()}
+            {isPending
+              ? t(I18nKey.SETTINGS$SAVING)
+              : t(I18nKey.MCP$INSTALL_BUTTON)}
           </BrandButton>
           <BrandButton
             type="button"

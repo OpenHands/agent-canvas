@@ -75,14 +75,6 @@ export interface MarketplaceField {
 
 export type MarketplaceTemplate =
   | {
-      kind: "tavily-builtin";
-      // Tavily has first-class support inside the agent server: it
-      // reads `search_api_key` and registers a Tavily MCP server
-      // automatically. The marketplace card maps to that flow rather
-      // than a manual MCP entry to keep it consistent with the legacy
-      // "Built-in search" setting.
-    }
-  | {
       kind: "shttp";
       url: string;
       apiKeyOptional?: boolean;
@@ -218,15 +210,29 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Tavily",
     description:
       "Production-grade web search optimized for LLM agents. Free tier available.",
-    docsUrl: "https://tavily.com/",
+    docsUrl: "https://github.com/tavily-ai/tavily-mcp",
     // Tavily isn't in the simple-icons set; use a search glyph on
     // their brand blue tile so the marketplace stays icon-consistent.
     logo: <Search className={LOGO} strokeWidth={2.5} />,
     iconBg: "#2563EB",
     keywords: ["search", "web", "browsing", "research"],
     installHint:
-      "Paste your Tavily API key. OpenHands wires up the Tavily MCP server automatically.",
-    template: { kind: "tavily-builtin" },
+      "Paste your Tavily API key — the official tavily-mcp package runs via npx.",
+    template: {
+      kind: "stdio",
+      serverName: "tavily",
+      command: "npx",
+      args: ["-y", "tavily-mcp"],
+      envFields: [
+        {
+          key: "TAVILY_API_KEY",
+          label: "Tavily API key",
+          type: "password",
+          placeholder: "tvly-...",
+          required: true,
+        },
+      ],
+    },
   },
 
   // -- Hosted, first-party --------------------------------------------

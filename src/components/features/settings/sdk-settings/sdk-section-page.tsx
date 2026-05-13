@@ -271,7 +271,6 @@ export function SdkSectionPage({
     return { ...base, ...initialValueOverrides };
     // overridesSignature keeps the memo reactive without depending on
     // a (potentially recreated) object reference each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, filteredSchema, settingsSource, overridesSignature]);
 
   const initialView = React.useMemo(() => {
@@ -323,7 +322,6 @@ export function SdkSectionPage({
     // initialValueOverrides is intentionally tracked via
     // overridesSignature on initialValues; including the object ref
     // here would re-fire the effect every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues, initialView]);
 
   const visibleSections = React.useMemo(() => {
@@ -415,7 +413,6 @@ export function SdkSectionPage({
       isSaving: isPending,
       isDirty: saveControlIsDirty,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, saveControlIsDirty]);
 
   if (isLoading || isFetching || isSchemaLoading) {

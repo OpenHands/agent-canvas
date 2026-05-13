@@ -166,9 +166,26 @@ describe("MCPPage", () => {
     expect(sent.mcp_config).toBeNull();
   });
 
-  it("badges Tavily as installed when search_api_key_set is true", async () => {
+  it("badges Tavily as installed when the persisted mcp_config contains it", async () => {
+    // Tavily is now a regular stdio MCP entry (it used to claim to be
+    // a built-in driven by search_api_key, but that field was never
+    // forwarded to either backend). Installation status comes from
+    // the same mcp_config lookup as every other entry.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({ search_api_key_set: true }),
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              tavily: {
+                command: "npx",
+                args: ["-y", "tavily-mcp"],
+                env: { TAVILY_API_KEY: "tvly-secret" },
+              },
+            },
+          },
+        },
+      }),
     );
 
     renderPage();
@@ -178,5 +195,74 @@ describe("MCPPage", () => {
       screen.getByTestId("mcp-marketplace-installed-tavily"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("mcp-installed-list")).toBeInTheDocument();
+  });
+
+  it("opens the install modal in add-only mode for a marketplace tile that's already installed", async () => {
+    // Regression test: clicking an installed marketplace tile must
+    // open a fresh "Install" modal so the user can add a second
+    // instance (e.g. a second Slack workspace). Previously this
+    // coerced into edit mode and `Save changes` overwrote the
+    // existing entry, so the second instance never landed and the
+    // first one got clobbered.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              slack: {
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-slack"],
+                env: { SLACK_BOT_TOKEN: "xoxb-old", SLACK_TEAM_ID: "T01" },
+              },
+            },
+          },
+        },
+      }),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderPage();
+
+    const tile = await screen.findByTestId("mcp-marketplace-card-slack");
+    // The tile shows the Installed badge but the click should still
+    // open an add-flow modal — not jump to an edit form.
+    expect(
+      screen.getByTestId("mcp-marketplace-installed-slack"),
+    ).toBeInTheDocument();
+    fireEvent.click(tile);
+
+    await screen.findByTestId("mcp-install-modal");
+    // Action label confirms add-only semantics (no `Save changes`).
+    expect(screen.getByTestId("mcp-install-submit")).toHaveTextContent(
+      "MCP$INSTALL_BUTTON",
+    );
+
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_BOT_TOKEN"), {
+      target: { value: "xoxb-new" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"), {
+      target: { value: "T02" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    // The original Slack entry is preserved AND a second one is added
+    // alongside it (suffix-collided name comes from the per-base
+    // uniqueness logic in toSdkMcpConfig).
+    expect(Object.keys(sent.mcp_config.mcpServers).sort()).toEqual([
+      "slack",
+      "slack_1",
+    ]);
+    expect(sent.mcp_config.mcpServers).toMatchObject({
+      slack: { env: { SLACK_BOT_TOKEN: "xoxb-old" } },
+      slack_1: { env: { SLACK_BOT_TOKEN: "xoxb-new", SLACK_TEAM_ID: "T02" } },
+    });
   });
 });

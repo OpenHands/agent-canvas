@@ -24,10 +24,7 @@ describe("findInstalledMatch", () => {
         args: ["-y", "@modelcontextprotocol/server-slack"],
       },
     ]);
-    expect(result).toEqual({
-      kind: "mcp",
-      server: expect.objectContaining({ id: "stdio-0" }),
-    });
+    expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
   it("does not match a different stdio name", () => {
@@ -43,17 +40,21 @@ describe("findInstalledMatch", () => {
     expect(result).toBeNull();
   });
 
-  it("returns the tavily-builtin variant when search_api_key_set", () => {
-    expect(
-      findInstalledMatch(tavilyEntry.template, [], {
-        search_api_key_set: true,
-      }),
-    ).toEqual({ kind: "tavily-builtin" });
-    expect(
-      findInstalledMatch(tavilyEntry.template, [], {
-        search_api_key_set: false,
-      }),
-    ).toBeNull();
+  it("matches Tavily as a stdio server by name", () => {
+    // Tavily lives in the catalog as a stdio MCP entry (the previous
+    // tavily-builtin / search_api_key flow never persisted anywhere
+    // and silently dropped the key); confirm the now-uniform match.
+    const result = findInstalledMatch(tavilyEntry.template, [
+      {
+        id: "stdio-0",
+        type: "stdio",
+        name: "tavily",
+        command: "npx",
+        args: ["-y", "tavily-mcp"],
+        env: { TAVILY_API_KEY: "tvly-secret" },
+      },
+    ]);
+    expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
   it("matches SSE servers loosely on URL", () => {
@@ -64,10 +65,7 @@ describe("findInstalledMatch", () => {
         url: "https://mcp.linear.app/sse/",
       },
     ]);
-    expect(result).toEqual({
-      kind: "mcp",
-      server: expect.objectContaining({ id: "sse-0" }),
-    });
+    expect(result).toEqual(expect.objectContaining({ id: "sse-0" }));
   });
 
   it("returns null when servers carry malformed urls (defensive)", () => {

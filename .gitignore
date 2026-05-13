@@ -5,11 +5,14 @@ src/i18n/declaration.ts
 .envrc
 node_modules/
 build/
+/.tmp/live-e2e-state/
 dist/
 
 
 /test-results/
+/test-results-live/
 /playwright-report/
+/playwright-report-live/
 /blob-report/
 /playwright/.cache/
 .react-router/
