@@ -112,7 +112,20 @@ class EventService {
     if (active.kind === "cloud") {
       // Event *history* lives on the SaaS App API, not the runtime
       // sandbox. Path is singular `conversation` and v1-prefixed.
+      //
+      // Full pagination params (sort_order, page_id, timestamp filters)
+      // require the server-side fix from OpenHands/OpenHands#14399. If
+      // the cloud backend hasn't been updated yet, the timestamp filters
+      // trigger a 500 (str-vs-datetime comparison). We attempt the full
+      // request first and fall back to a limit-only request on failure.
       const cloudLimit = Math.min(limit, 100);
+      const hasFilterParams = !!(
+        options.sortOrder ||
+        options.pageId ||
+        options.timestampGte ||
+        options.timestampLt
+      );
+
       const params = new URLSearchParams();
       params.set("limit", String(cloudLimit));
       if (options.sortOrder) params.set("sort_order", options.sortOrder);
@@ -122,15 +135,32 @@ class EventService {
       if (options.timestampLt)
         params.set("timestamp__lt", options.timestampLt);
 
-      const data = await callCloudProxy<EventSearchPage<OpenHandsEvent>>({
-        backend: active,
-        method: "GET",
-        path: `/api/v1/conversation/${conversationId}/events/search?${params.toString()}`,
-      });
-      return {
-        items: data?.items ?? [],
-        next_page_id: data?.next_page_id ?? null,
-      };
+      const doCloudSearch = (searchParams: URLSearchParams) =>
+        callCloudProxy<EventSearchPage<OpenHandsEvent>>({
+          backend: active,
+          method: "GET",
+          path: `/api/v1/conversation/${conversationId}/events/search?${searchParams.toString()}`,
+        });
+
+      try {
+        const data = await doCloudSearch(params);
+        return {
+          items: data?.items ?? [],
+          next_page_id: data?.next_page_id ?? null,
+        };
+      } catch (err) {
+        if (!hasFilterParams) throw err;
+
+        // Server may not support timestamp/sort filters yet — retry
+        // with limit-only so the initial history load still works.
+        const fallbackParams = new URLSearchParams();
+        fallbackParams.set("limit", String(cloudLimit));
+        const data = await doCloudSearch(fallbackParams);
+        return {
+          items: data?.items ?? [],
+          next_page_id: data?.next_page_id ?? null,
+        };
+      }
     }
 
     const page = await new RemoteEventsList(
