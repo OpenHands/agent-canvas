@@ -92,6 +92,20 @@ describe("GitControlBarRepoButton", () => {
     });
   });
 
+  describe("when only a workspace name is provided", () => {
+    it("should display the workspace name as the button text", () => {
+      render(
+        <GitControlBarRepoButton
+          selectedRepository={null}
+          gitProvider={null}
+          workspaceName="test"
+        />,
+      );
+
+      expect(screen.getByText("test")).toBeInTheDocument();
+    });
+  });
+
   describe("when no repository is connected", () => {
     it("should render as a button with 'No Repo Connected' text", () => {
       render(
