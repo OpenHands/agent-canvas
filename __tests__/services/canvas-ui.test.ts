@@ -1,9 +1,16 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { handleCanvasUIAction } from "#/services/canvas-ui";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useFilesTabStore } from "#/stores/files-tab-store";
+import type { CanvasUIAction } from "#/types/agent-server/core";
 import { isCanvasUIActionEvent } from "#/types/agent-server/type-guards";
+
+// Helper: build a CanvasUIAction without repeating the literal `kind`
+// discriminator in every test case.
+function action(overrides: Partial<CanvasUIAction>): CanvasUIAction {
+  return { kind: "CanvasUIAction", ...overrides } as CanvasUIAction;
+}
 
 describe("handleCanvasUIAction", () => {
   beforeEach(() => {
@@ -19,10 +26,9 @@ describe("handleCanvasUIAction", () => {
   });
 
   it("navigate_to_file selects the files tab, reveals the panel, and sets selectedPath", () => {
-    handleCanvasUIAction({
-      command: "navigate_to_file",
-      path: "docs/intro.html",
-    });
+    handleCanvasUIAction(
+      action({ command: "navigate_to_file", path: "docs/intro.html" }),
+    );
 
     const conv = useConversationStore.getState();
     expect(conv.selectedTab).toBe("files");
@@ -31,33 +37,41 @@ describe("handleCanvasUIAction", () => {
   });
 
   it("show_preview selects the files tab and the requested path", () => {
-    handleCanvasUIAction({
-      command: "show_preview",
-      path: "report.html",
-    });
+    handleCanvasUIAction(
+      action({ command: "show_preview", path: "report.html" }),
+    );
 
     expect(useConversationStore.getState().selectedTab).toBe("files");
     expect(useFilesTabStore.getState().selectedPath).toBe("report.html");
   });
 
   it("open_tab switches to a valid tab without touching selectedPath", () => {
-    handleCanvasUIAction({ command: "open_tab", tab: "terminal" });
+    handleCanvasUIAction(action({ command: "open_tab", tab: "terminal" }));
 
     expect(useConversationStore.getState().selectedTab).toBe("terminal");
     expect(useFilesTabStore.getState().selectedPath).toBeNull();
   });
 
-  it("open_tab ignores unknown tab values", () => {
-    handleCanvasUIAction({ command: "open_tab", tab: "not_a_tab" });
+  it("open_tab ignores unknown tab values and surfaces a warning for debuggability", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    expect(useConversationStore.getState().selectedTab).toBeNull();
-    expect(useConversationStore.getState().isRightPanelShown).toBe(false);
+    try {
+      handleCanvasUIAction(action({ command: "open_tab", tab: "not_a_tab" }));
+
+      expect(useConversationStore.getState().selectedTab).toBeNull();
+      expect(useConversationStore.getState().isRightPanelShown).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("not_a_tab"),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("navigate_to_file leaves selectedPath alone when no path is supplied", () => {
     useFilesTabStore.setState({ selectedPath: "previous.txt" });
 
-    handleCanvasUIAction({ command: "navigate_to_file", path: null });
+    handleCanvasUIAction(action({ command: "navigate_to_file", path: null }));
 
     expect(useFilesTabStore.getState().selectedPath).toBe("previous.txt");
     expect(useConversationStore.getState().selectedTab).toBe("files");

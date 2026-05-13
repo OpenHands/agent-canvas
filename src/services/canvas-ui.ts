@@ -3,6 +3,7 @@ import {
   useConversationStore,
 } from "#/stores/conversation-store";
 import { useFilesTabStore } from "#/stores/files-tab-store";
+import type { CanvasUIAction } from "#/types/agent-server/core";
 
 const VALID_TABS: ReadonlySet<ConversationTab> = new Set<ConversationTab>([
   "files",
@@ -12,12 +13,6 @@ const VALID_TABS: ReadonlySet<ConversationTab> = new Set<ConversationTab>([
   "planner",
   "tasklist",
 ]);
-
-export interface CanvasUIActionPayload {
-  command: "navigate_to_file" | "open_tab" | "show_preview";
-  path?: string | null;
-  tab?: string | null;
-}
 
 // Mirrors src/hooks/use-select-conversation-tab.ts so a non-React caller (the
 // WebSocket dispatch) gets the same "reveal the right panel if collapsed"
@@ -35,7 +30,7 @@ function isValidTab(value: string): value is ConversationTab {
   return VALID_TABS.has(value as ConversationTab);
 }
 
-export function handleCanvasUIAction(action: CanvasUIActionPayload): void {
+export function handleCanvasUIAction(action: CanvasUIAction): void {
   switch (action.command) {
     case "navigate_to_file":
     case "show_preview":
@@ -47,6 +42,13 @@ export function handleCanvasUIAction(action: CanvasUIActionPayload): void {
     case "open_tab":
       if (action.tab && isValidTab(action.tab)) {
         navigateToTab(action.tab);
+      } else if (action.tab) {
+        // Surface unknown tab names so they're diagnosable from the browser
+        // console rather than failing silently. Valid tabs are listed in
+        // VALID_TABS above and mirror ConversationTab.
+        console.warn(
+          `[canvas_ui] Ignoring open_tab with unknown tab: ${action.tab}`,
+        );
       }
       return;
   }

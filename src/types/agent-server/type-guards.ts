@@ -9,6 +9,7 @@ import {
   TerminalObservation,
   BrowserObservation,
   BrowserNavigateAction,
+  CanvasUIAction,
 } from "./core";
 import { AgentErrorEvent } from "./core/events/observation-event";
 import { MessageEvent } from "./core/events/message-event";
@@ -157,11 +158,13 @@ export const isBrowserNavigateActionEvent = (
  * Type guard for the canvas_ui custom tool's ActionEvent.
  *
  * The tool is injected via tool_module_qualnames (see canvas_ui_tool.py and
- * agent-server-adapter.ts). Its Python action class isn't part of the
- * SDK-generated Action union, so we discriminate on tool_name rather than
- * action.kind.
+ * agent-server-adapter.ts). We discriminate on tool_name (which we control
+ * via register_tool("canvas_ui", ...)). The predicate narrows the event so
+ * the call site can read `event.action.command` etc. without further casts.
  */
-export const isCanvasUIActionEvent = (event: OpenHandsEvent): boolean =>
+export const isCanvasUIActionEvent = (
+  event: OpenHandsEvent,
+): event is ActionEvent<CanvasUIAction> =>
   isActionEvent(event) && event.tool_name === "canvas_ui";
 
 /**

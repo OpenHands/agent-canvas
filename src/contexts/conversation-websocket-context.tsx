@@ -35,10 +35,7 @@ import {
   isBrowserNavigateActionEvent,
   isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
-import {
-  CanvasUIActionPayload,
-  handleCanvasUIAction,
-} from "#/services/canvas-ui";
+import { handleCanvasUIAction } from "#/services/canvas-ui";
 import { ConversationStateUpdateEventStats } from "#/types/agent-server/core/events/conversation-state-event";
 import type {
   ConversationErrorEvent,
@@ -505,9 +502,7 @@ export function ConversationWebSocketProvider({
           // executes server-side as a no-op; the actual UI change happens
           // here on the client.
           if (isCanvasUIActionEvent(event)) {
-            handleCanvasUIAction(
-              (event as unknown as { action: CanvasUIActionPayload }).action,
-            );
+            handleCanvasUIAction(event.action);
           }
         }
       } catch (error) {
