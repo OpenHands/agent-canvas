@@ -33,7 +33,12 @@ import {
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
+  isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
+import {
+  CanvasUIActionPayload,
+  handleCanvasUIAction,
+} from "#/services/canvas-ui";
 import { ConversationStateUpdateEventStats } from "#/types/agent-server/core/events/conversation-state-event";
 import type {
   ConversationErrorEvent,
@@ -493,6 +498,16 @@ export function ConversationWebSocketProvider({
           // Handle BrowserNavigateAction events - update browser store with URL
           if (isBrowserNavigateActionEvent(event)) {
             useBrowserStore.getState().setUrl(event.action.url);
+          }
+
+          // Handle canvas_ui custom-tool ActionEvents - drive the frontend
+          // (navigate to a file, switch tabs, show a preview). The tool
+          // executes server-side as a no-op; the actual UI change happens
+          // here on the client.
+          if (isCanvasUIActionEvent(event)) {
+            handleCanvasUIAction(
+              (event as unknown as { action: CanvasUIActionPayload }).action,
+            );
           }
         }
       } catch (error) {

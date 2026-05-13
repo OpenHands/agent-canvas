@@ -154,6 +154,17 @@ export const isBrowserNavigateActionEvent = (
   isActionEvent(event) && event.action.kind === "BrowserNavigateAction";
 
 /**
+ * Type guard for the canvas_ui custom tool's ActionEvent.
+ *
+ * The tool is injected via tool_module_qualnames (see canvas_ui_tool.py and
+ * agent-server-adapter.ts). Its Python action class isn't part of the
+ * SDK-generated Action union, so we discriminate on tool_name rather than
+ * action.kind.
+ */
+export const isCanvasUIActionEvent = (event: OpenHandsEvent): boolean =>
+  isActionEvent(event) && event.tool_name === "canvas_ui";
+
+/**
  * Type guard function to check if an event is a system prompt event
  */
 export const isSystemPromptEvent = (

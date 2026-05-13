@@ -13,9 +13,7 @@ const {
   mockIsAgentServerToolAvailable,
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
-  mockGetAgentServerWorkingDir: vi.fn(
-    () => "/workspace/project/agent-canvas",
-  ),
+  mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
   mockIsAgentServerToolAvailable: vi.fn(() => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
     id: "default-local",
@@ -107,6 +105,7 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
+      { name: "canvas_ui", params: {} },
       { name: "browser_tool_set", params: {} },
     ]);
     expect(payload.agent.agent_context).toEqual({
@@ -120,7 +119,6 @@ describe("buildStartConversationRequest", () => {
     expect(payload.max_iterations).toBe(123);
     expect(payload.initial_message.content[0]?.text).toBe("hello");
   });
-
 
   it("omits browser_tool_set when the server does not advertise browser support", () => {
     mockIsAgentServerToolAvailable.mockReturnValue(false);
@@ -143,6 +141,7 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
+      { name: "canvas_ui", params: {} },
     ]);
   });
 
@@ -235,7 +234,11 @@ describe("buildStartConversationRequest", () => {
     }) as Record<string, unknown>;
 
     expect(payload.hook_config).toEqual({ on_start: [] });
+    // Canvas-UI tool is auto-injected; user-supplied entries are merged in
+    // alongside it. The dedicated canvas_ui describe block below pins the
+    // exact merge semantics.
     expect(payload.tool_module_qualnames).toEqual({
+      canvas_ui: "canvas_ui_tool",
       demo_tool: "pkg.tools.demo",
     });
     expect(payload.agent_definitions).toEqual([
@@ -291,6 +294,34 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
+  describe("canvas_ui tool injection", () => {
+    it("always registers canvas_ui_tool in tool_module_qualnames, even when no user settings supply qualnames", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+      }) as { tool_module_qualnames: Record<string, string> };
+
+      expect(payload.tool_module_qualnames).toMatchObject({
+        canvas_ui: "canvas_ui_tool",
+      });
+    });
+
+    it("merges user-supplied tool_module_qualnames alongside canvas_ui_tool without dropping either side", () => {
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          conversation_settings: {
+            ...DEFAULT_SETTINGS.conversation_settings,
+            tool_module_qualnames: { my_tool: "my_package.my_tool" },
+          },
+        },
+      }) as { tool_module_qualnames: Record<string, string> };
+
+      expect(payload.tool_module_qualnames).toEqual({
+        canvas_ui: "canvas_ui_tool",
+        my_tool: "my_package.my_tool",
+      });
+    });
+  });
 });
 
 describe("getDefaultConversationTitle", () => {

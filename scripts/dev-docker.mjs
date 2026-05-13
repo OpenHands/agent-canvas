@@ -66,6 +66,15 @@ import { validateLocalAgentServerPath } from "./dev-safe.mjs";
 // Path inside the container where OH_AGENT_SERVER_LOCAL_PATH is bind-mounted.
 const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
 
+// Host directory containing Agent-Canvas-specific Python tools (e.g. the
+// canvas_ui tool). Mounted read-only into the container and added to
+// sys.path via OH_EXTRA_PYTHON_PATH so the agent-server can import the
+// modules listed in `tool_module_qualnames`.
+const CONTAINER_CANVAS_TOOLS_DIR = "/canvas-tools";
+const HOST_CANVAS_TOOLS_DIR = fileURLToPath(
+  new URL("../tools", import.meta.url),
+);
+
 // Docker image for the agent-server.
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Default tag used when OH_AGENT_SERVER_GIT_REF is not set.
@@ -217,6 +226,12 @@ function startAgentServerDocker(config) {
     "--init",
     "-v",
     `${process.env.PROJECT_PATH}:/projects`,
+    // Read-only mount of the Agent-Canvas tools directory. Coupled with
+    // OH_EXTRA_PYTHON_PATH below so the agent-server can import
+    // canvas_ui_tool when the conversation request lists it under
+    // tool_module_qualnames.
+    "-v",
+    `${HOST_CANVAS_TOOLS_DIR}:${CONTAINER_CANVAS_TOOLS_DIR}:ro`,
   ];
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
@@ -264,6 +279,9 @@ function startAgentServerDocker(config) {
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Make the mounted canvas-tools directory importable so the agent-server
+    // can resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
+    OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
   };
   for (const [k, v] of Object.entries(containerEnv)) {
     dockerArgs.push("-e", `${k}=${v}`);
@@ -320,10 +338,12 @@ if (isMainModule) {
 
 export {
   AGENT_SERVER_REPO,
+  CONTAINER_CANVAS_TOOLS_DIR,
   CONTAINER_LOCAL_SDK_DIR,
   CONTAINER_NAME,
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
+  HOST_CANVAS_TOOLS_DIR,
   checkDockerPrereqs,
   isDockerPermissionDenied,
   resolveAgentServerImage,
