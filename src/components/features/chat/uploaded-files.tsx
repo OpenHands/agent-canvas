@@ -81,7 +81,6 @@ export function UploadedFiles() {
           );
         })}
       </div>
-
     </div>
   );
 }
