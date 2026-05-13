@@ -25379,5 +25379,8 @@
     "de": "Löschen",
     "uk": "Видалити",
     "ca": "Suprimeix"
+  },
+  "CHAT_INTERFACE$FETCHING_OLDER_MESSAGES": {
+    "en": "Fetching older messages…"
   }
 }
