@@ -13,6 +13,9 @@ import {
   buildNpmScriptCommand,
   buildAgentServerCommand,
   formatMissingUvxGuidance,
+  formatMissingFrontendDependenciesGuidance,
+  getMissingFrontendDependencyBins,
+  validateFrontendDependencies,
   validateLocalAgentServerPath,
   findFreePort,
   findFreePorts,
@@ -215,6 +218,66 @@ describe("buildSafeDevConfigAsync", () => {
     expect(config.backendPort).not.toBe(busyPort);
     expect(typeof config.backendPort).toBe("number");
     expect(config.backendPort).toBeGreaterThan(0);
+  });
+});
+
+describe("frontend dependency preflight", () => {
+  let tempRoot: string | null = null;
+
+  afterEach(() => {
+    if (tempRoot) {
+      rmSync(tempRoot, { recursive: true, force: true });
+      tempRoot = null;
+    }
+  });
+
+  function makeTempRoot(): string {
+    tempRoot = mkdtempSync(path.join(tmpdir(), "frontend-deps-"));
+    return tempRoot;
+  }
+
+  function writeBin(root: string, name: string): void {
+    const binDir = path.join(root, "node_modules", ".bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(path.join(binDir, name), "#!/bin/sh\n");
+  }
+
+  it("reports required npm binaries when node_modules has not been installed", () => {
+    const root = makeTempRoot();
+
+    expect(getMissingFrontendDependencyBins(root, "linux")).toEqual([
+      "cross-env",
+      "react-router",
+    ]);
+  });
+
+  it("passes when required npm binary shims exist", () => {
+    const root = makeTempRoot();
+    writeBin(root, "cross-env");
+    writeBin(root, "react-router");
+
+    expect(getMissingFrontendDependencyBins(root, "linux")).toEqual([]);
+    expect(() => validateFrontendDependencies(root, "linux")).not.toThrow();
+  });
+
+  it("accepts Windows command shims", () => {
+    const root = makeTempRoot();
+    writeBin(root, "cross-env.cmd");
+    writeBin(root, "react-router.cmd");
+
+    expect(getMissingFrontendDependencyBins(root, "win32")).toEqual([]);
+  });
+
+  it("formats an actionable npm ci message", () => {
+    const guidance = formatMissingFrontendDependenciesGuidance(
+      ["cross-env"],
+      "/workspace/project/agent-canvas",
+    );
+
+    expect(guidance).toContain("Frontend dependencies are not installed");
+    expect(guidance).toContain("Missing npm binaries: cross-env");
+    expect(guidance).toContain("npm ci");
+    expect(guidance).toContain("/workspace/project/agent-canvas");
   });
 });
 

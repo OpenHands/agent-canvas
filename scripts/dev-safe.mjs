@@ -33,6 +33,7 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default agent-server version (released PyPI version)
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AGENT_SERVER_VERSION = "1.22.0";
+const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**
  * Generate a cryptographically secure random API key.
@@ -248,6 +249,56 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
     "- npm run dev:frontend   # use an already running backend",
     "- npm run dev:mock       # run the frontend with mock APIs",
   ].join("\n");
+}
+
+function npmBinCandidates(binName, platform = process.platform) {
+  const candidates = [binName];
+  if (platform === "win32") {
+    candidates.push(`${binName}.cmd`, `${binName}.ps1`);
+  }
+  return candidates;
+}
+
+export function getMissingFrontendDependencyBins(
+  cwd = process.cwd(),
+  platform = process.platform,
+) {
+  const binDir = path.join(cwd, "node_modules", ".bin");
+  return FRONTEND_REQUIRED_BINS.filter(
+    (binName) =>
+      !npmBinCandidates(binName, platform).some((candidate) =>
+        existsSync(path.join(binDir, candidate)),
+      ),
+  );
+}
+
+export function formatMissingFrontendDependenciesGuidance(
+  missingBins,
+  cwd = process.cwd(),
+) {
+  const missingList = missingBins.join(", ");
+  return [
+    "Frontend dependencies are not installed or are incomplete.",
+    "",
+    `Missing npm binaries: ${missingList}`,
+    "",
+    "Run this from the repository root:",
+    "  npm ci",
+    "",
+    `Repository root: ${cwd}`,
+  ].join("\n");
+}
+
+export function validateFrontendDependencies(
+  cwd = process.cwd(),
+  platform = process.platform,
+) {
+  const missingBins = getMissingFrontendDependencyBins(cwd, platform);
+  if (missingBins.length > 0) {
+    throw new Error(
+      formatMissingFrontendDependenciesGuidance(missingBins, cwd),
+    );
+  }
 }
 
 /**
@@ -616,6 +667,8 @@ function spawnProcess(command, args, options) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  validateFrontendDependencies();
+  console.log("Frontend dependencies found.");
   console.log("Allocating ports...");
 
   // Use async config builder with dynamic port allocation

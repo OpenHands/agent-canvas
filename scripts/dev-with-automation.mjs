@@ -53,6 +53,7 @@ import {
   formatMissingUvxGuidance,
   generateRandomApiKey,
   findFreePorts,
+  validateFrontendDependencies,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -321,7 +322,7 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites() {
+function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
   logStep("1/2", "Checking prerequisites...");
 
   if (!commandExists("uvx")) {
@@ -335,6 +336,16 @@ function checkPrerequisites() {
     process.exit(1);
   }
   logSuccess("npm found");
+
+  if (checkFrontendDependencies) {
+    try {
+      validateFrontendDependencies(projectRoot);
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    logSuccess("frontend dependencies found");
+  }
 }
 
 function ensureDirectories(config) {
@@ -717,7 +728,7 @@ async function main(options = {}) {
   // Setup phase
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
-  checkPrerequisites();
+  checkPrerequisites({ checkFrontendDependencies: !useStaticMode });
 
   // In static mode, verify build exists
   if (useStaticMode && !existsSync(staticDir)) {
