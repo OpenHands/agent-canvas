@@ -41,19 +41,15 @@ Before you begin, make sure you have the following:
 
 You'll need an API key to connect Agent Canvas to an AI model. Choose one of these options:
 
-#### Option A: OpenHands Cloud (Easiest)
+#### Option A: OpenHands Cloud
 
 **Recommended for new users.** A single OpenHands API key gives you access to most major AI models (Claude, GPT-4, Gemini, and more) without needing separate accounts with each provider.
 
 1. Go to [OpenHands Cloud API Keys](https://app.all-hands.dev/settings/api-keys)
-2. Create an account or log in
-3. Click **Create API Key**
-4. Give it a name (e.g., "Agent Canvas") and save it
-5. **Copy the key immediately** — you won't be able to see it again
+2. Log in with your GitHub or GitLab account
+3. Click to Copy your OpenHands LLM Key and save it
 
-> 💡 **Tip:** If you didn't save your API key, no problem! Just delete the old one and click **Create API Key** again to generate a new one.
-
-> 📝 **Note:** OpenHands Cloud has two different API keys. For now, you only need the **LLM API key**. We'll use the other one (REST API key) later in this guide. See the [Glossary](#openhands-llm-api-key-vs-openhands-rest-api-key) if you're confused about the difference.
+> 📝 **Note:** You will need to purchase $10 in OpenHands Cloud credits before generating an OpenHands LLM Key. You can use MiniMax M2.5 without using your OpenHands credits after that.
 
 #### Option B: Direct Provider API Key
 
