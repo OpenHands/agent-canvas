@@ -35,7 +35,7 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBe("wss://example.com:8080/sockets/events/conv-123");
     });
 
-    it("should extract host and port from conversation URL", () => {
+    it("should use wss:// for external hosts even when page is HTTP (Safari compatibility)", () => {
       vi.stubGlobal("location", {
         protocol: "http:",
         host: "localhost:3000",
@@ -46,7 +46,21 @@ describe("buildWebSocketUrl", () => {
         "http://agent-server.com:9000/api/conversations/conv-456",
       );
 
-      expect(result).toBe("ws://agent-server.com:9000/sockets/events/conv-456");
+      expect(result).toBe("wss://agent-server.com:9000/sockets/events/conv-456");
+    });
+
+    it("should use ws:// for localhost when page is HTTP", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "conv-456",
+        "http://127.0.0.1:9000/api/conversations/conv-456",
+      );
+
+      expect(result).toBe("ws://127.0.0.1:9000/sockets/events/conv-456");
     });
   });
 
@@ -79,7 +93,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", null);
 
-      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is undefined", () => {
@@ -90,7 +104,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", undefined);
 
-      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is relative path", () => {
@@ -104,7 +118,7 @@ describe("buildWebSocketUrl", () => {
         "/api/conversations/conv-123",
       );
 
-      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is invalid", () => {
@@ -115,7 +129,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", "not-a-valid-url");
 
-      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
     });
   });
 
@@ -145,22 +159,22 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBeNull();
     });
 
-    it("should handle conversation URLs with non-standard ports", () => {
+    it("should handle conversation URLs with non-standard ports on external hosts", () => {
       const result = buildWebSocketUrl(
         "conv-123",
         "http://example.com:12345/api/conversations/conv-123",
       );
 
-      expect(result).toBe("ws://example.com:12345/sockets/events/conv-123");
+      expect(result).toBe("wss://example.com:12345/sockets/events/conv-123");
     });
 
-    it("should handle conversation URLs without port (default port)", () => {
+    it("should handle conversation URLs without port (default port) on external hosts", () => {
       const result = buildWebSocketUrl(
         "conv-123",
         "http://example.com/api/conversations/conv-123",
       );
 
-      expect(result).toBe("ws://example.com/sockets/events/conv-123");
+      expect(result).toBe("wss://example.com/sockets/events/conv-123");
     });
 
     it("should handle conversation IDs with special characters", () => {
@@ -182,6 +196,58 @@ describe("buildWebSocketUrl", () => {
 
       expect(result).toBe("ws://localhost:8080/sockets/events/conv-123");
       expect(result).not.toContain("?");
+    });
+  });
+
+  describe("Safari compatibility - external host detection", () => {
+    it("should use wss:// for prod-runtime.all-hands.dev domains", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:8000",
+      });
+
+      // Use obviously fake IDs that follow the format pattern
+      const fakeConversationId = "00000000deadbeef0000000000000000";
+      const fakeRuntimeHost = "faketesthost.prod-runtime.all-hands.dev";
+
+      const result = buildWebSocketUrl(
+        fakeConversationId,
+        `http://${fakeRuntimeHost}/api/conversations/${fakeConversationId}`,
+      );
+
+      expect(result).toBe(
+        `wss://${fakeRuntimeHost}/sockets/events/${fakeConversationId}`,
+      );
+    });
+
+    it("should use ws:// for ::1 (IPv6 localhost)", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "[::1]:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "test-conv-ipv6",
+        "http://[::1]:8080/api/conversations/test-conv-ipv6",
+      );
+
+      expect(result).toBe("ws://[::1]:8080/sockets/events/test-conv-ipv6");
+    });
+
+    it("should use ws:// for .localhost subdomains", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "app.localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "test-conv-localhost-subdomain",
+        "http://api.localhost:8080/api/conversations/test-conv-localhost-subdomain",
+      );
+
+      expect(result).toBe(
+        "ws://api.localhost:8080/sockets/events/test-conv-localhost-subdomain",
+      );
     });
   });
 });
