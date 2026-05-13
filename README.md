@@ -65,7 +65,6 @@ them from the same Agent Canvas frontend!
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-npm run build  # required for Safari
 npm run dev:dangerously-dockerless
 ```
 
