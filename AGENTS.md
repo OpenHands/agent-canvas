@@ -33,6 +33,8 @@
   - Target specific elements via `page.getByTestId()` rather than full-page screenshots when possible.
 - **Composing tests**: Use `test.step()` for iterative snapshots within a single test, or extract helper functions (like `navigateToSettings(page)`) to share setup across tests. For heavier reuse, use Playwright fixtures via `test.extend()`.
 - Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
+- **Conversation page snapshot tests**: The dev server uses MSW service workers for API mocking. For conversation-page tests, rely on MSW's pre-defined mock conversations (IDs "1", "2", "3" in `src/mocks/conversation-handlers.ts`) rather than fighting Playwright route interception. MSW's service worker intercepts requests before Playwright `page.route()` can; Playwright route interceptors only see requests that escape the service worker. Stub WebSocket via `page.addInitScript()` and inject events into the Zustand store via the exposed `window.__OH_EVENT_STORE__` API. Use `test.describe.configure({ mode: "serial" })` for conversation tests since the WebSocket stub + heavier page setup can cause intermittent failures in parallel mode.
+- **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Always regenerate baselines in CI after adding new snapshot tests: trigger the "Snapshot Tests" workflow manually with `update_snapshots=true`. The workflow commits updated baselines with `[skip ci]`, so push an empty commit afterward to trigger a fresh CI run that validates against the new baselines.
 
 ## Live End-to-End Test Framework
 
