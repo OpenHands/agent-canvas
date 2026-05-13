@@ -33,9 +33,8 @@ export function RenameProfileModal({
 
   if (!profile) return null;
 
-  const trimmedName = newName.trim();
-  const isUnchanged = trimmedName === profile.name;
   const isValid = isProfileNameValid(newName, { isRequired: true });
+  const isUnchanged = newName === profile.name;
 
   const handleSubmit = async () => {
     if (!isValid) {
@@ -48,12 +47,9 @@ export function RenameProfileModal({
     }
 
     try {
-      await renameProfile.mutateAsync({
-        name: profile.name,
-        newName: trimmedName,
-      });
+      await renameProfile.mutateAsync({ name: profile.name, newName });
       displaySuccessToast(
-        t(I18nKey.SETTINGS$PROFILE_RENAMED, { name: trimmedName }),
+        t(I18nKey.SETTINGS$PROFILE_RENAMED, { name: newName }),
       );
       onClose();
     } catch (error) {

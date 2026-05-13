@@ -1,12 +1,10 @@
 import { cn } from "#/utils/utils";
 
-type BrandBadgeProps = React.HTMLAttributes<HTMLSpanElement>;
-
 export function BrandBadge({
   children,
   className,
   ...rest
-}: React.PropsWithChildren<BrandBadgeProps>) {
+}: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       className={cn(

@@ -60,17 +60,17 @@ export function LlmSettingsLocalView() {
     [profilesData],
   );
 
-  // Validate profile name
+  // Validate profile name. The shared validator rejects any whitespace, so
+  // duplicate checks below compare the raw value directly.
   const isNameValid = useMemo(() => {
     if (!isProfileNameValid(profileName, { isRequired: true })) return false;
-    const trimmed = profileName.trim();
     // In create mode, check for duplicates
-    if (viewMode === "create" && existingNames.has(trimmed)) return false;
+    if (viewMode === "create" && existingNames.has(profileName)) return false;
     // In edit mode, name can match current profile name
     if (
       viewMode === "edit" &&
-      trimmed !== editingProfile?.profile.name &&
-      existingNames.has(trimmed)
+      profileName !== editingProfile?.profile.name &&
+      existingNames.has(profileName)
     ) {
       return false;
     }
