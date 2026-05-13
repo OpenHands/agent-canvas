@@ -16,7 +16,6 @@ import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
 
 const DOCKER_PROJECTS_PATH = "/projects";
-const SHOULD_SURFACE_DOCKER_PROJECTS = import.meta.env.DEV;
 
 interface FolderBrowserModalProps {
   isOpen: boolean;
@@ -87,7 +86,7 @@ function getParentPath(path: string): string | null {
 function shouldDefaultToDockerProjects(
   homeData: HomeDirectoryResponse | undefined,
 ): boolean {
-  return SHOULD_SURFACE_DOCKER_PROJECTS && homeData?.home === "/home/openhands";
+  return homeData?.home === "/home/openhands";
 }
 
 export function FolderBrowserModal({
@@ -161,8 +160,7 @@ export function FolderBrowserModal({
   // returns no favorites (the only contents are hidden credential dirs).
   // In that case there's nothing useful for the user to browse, so we
   // surface the OH_MOUNT_HOST_HOME=1 opt-in instead of the generic empty
-  // state. Off in production / non-Docker dev because favorites are
-  // populated there.
+  // state when the user navigates back to the container home.
   const showHostHomeHint =
     homeData?.home === "/home/openhands" &&
     (homeData?.favorites?.length ?? 0) === 0 &&
