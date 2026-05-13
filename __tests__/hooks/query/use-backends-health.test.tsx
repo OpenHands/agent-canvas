@@ -240,4 +240,36 @@ describe("useBackendsHealth", () => {
     );
     expect(getServerInfoMock).toHaveBeenCalled();
   });
+
+  it("re-probes a persisted-disabled backend when explicitly asked and clears the stale health entry on success", async () => {
+    window.localStorage.setItem(
+      BACKEND_HEALTH_STORAGE_KEY,
+      JSON.stringify({
+        [localBackend.id]: {
+          consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+          lastError: "Network Error",
+          lastFailureAt: Date.now(),
+          disabled: true,
+        },
+      }),
+    );
+    __resetHealthStoreForTests();
+    getServerInfoMock.mockResolvedValue({ version: "1.18.0" });
+
+    const { result } = renderHook(
+      () => useBackendsHealth([localBackend], { probeDisabledOnce: true }),
+      {
+        wrapper,
+      },
+    );
+
+    await waitFor(() =>
+      expect(result.current[localBackend.id]).toMatchObject({
+        isConnected: true,
+        disabled: false,
+      }),
+    );
+    expect(getServerInfoMock).toHaveBeenCalled();
+    expect(window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY)).toBeNull();
+  });
 });
