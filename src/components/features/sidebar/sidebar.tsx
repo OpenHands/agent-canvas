@@ -19,6 +19,7 @@ import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { AddBackendModal } from "#/components/features/backends/add-backend-modal";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
+import AutomationsIcon from "#/icons/automations.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
 
 // The LLM settings modal is only mounted when the settings query 404s and
