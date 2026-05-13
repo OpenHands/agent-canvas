@@ -62,6 +62,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { startSetupServer, DEFAULT_PORT as SETUP_SERVER_PORT } from "./setup-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -588,6 +589,7 @@ function startIngress(config) {
     [
       ingressScript,
       "--port", config.ingressPort.toString(),
+      "--route", `/setup=http://127.0.0.1:${SETUP_SERVER_PORT}`,
       "--route", `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route", `/api=http://localhost:${config.agentServerPort}`,
       "--route", `/sockets=http://localhost:${config.agentServerPort}`,
@@ -837,6 +839,12 @@ async function main(options = {}) {
   // 6. Start ingress proxy (routes traffic to all backends)
   startIngress(config);
 
+  // 7. Start setup server (lets the frontend manage Docker lifecycle)
+  startSetupServer({
+    port: SETUP_SERVER_PORT,
+    sessionApiKey: config.sessionApiKey,
+  });
+
   // Wait for ingress to start
   await delay(1000);
 
@@ -895,6 +903,7 @@ export {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
   DEFAULT_AUTOMATION_API_KEY_PATH,
+  SETUP_SERVER_PORT,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
