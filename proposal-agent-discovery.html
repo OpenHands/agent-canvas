@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal — Auto-Discover Agent Conversations (#405)</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e;
+    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --purple: #bc8cff; --orange: #db6d28;
+    --pink: #f778ba; --cyan: #56d4dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.7; padding: 2rem 1rem;
+  }
+  .container { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--text-dim); font-size: 1rem; margin-bottom: 0.5rem; }
+  .prereq {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.25);
+    border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.82rem;
+    color: var(--accent); margin-bottom: 2.5rem;
+  }
+  .prereq a { color: var(--accent); text-decoration: underline; }
+  h2 {
+    font-size: 1.3rem; margin: 2.5rem 0 1rem;
+    padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: var(--bg);
+    font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+  }
+  h3 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  p, li { margin-bottom: 0.6rem; }
+  ul, ol { padding-left: 1.4rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;
+  }
+  code {
+    background: rgba(110,118,129,0.2); padding: 0.15rem 0.4rem;
+    border-radius: 4px; font-size: 0.88em;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+  }
+  .tag {
+    display: inline-block; padding: 0.15rem 0.5rem;
+    border-radius: 4px; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    vertical-align: middle; margin-right: 0.3rem;
+  }
+  .tag.new    { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag.sdk    { background: rgba(86,212,221,0.15); color: var(--cyan); }
+  .tag.fe     { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag.before { background: rgba(248,81,73,0.12); color: var(--red); }
+  .tag.after  { background: rgba(63,185,80,0.12); color: var(--green); }
+
+  .vs { display: flex; gap: 1rem; margin: 1.2rem 0; }
+  .vs > div { flex: 1; }
+  @media (max-width: 700px) { .vs { flex-direction: column; } }
+
+  /* ─── Mockup chrome ─── */
+  .mockup {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin: 1.4rem 0;
+  }
+  .mockup-bar {
+    background: #21262d; padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--text-dim);
+  }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .mockup-body { padding: 1.5rem 2rem; }
+  .mockup-body h4 { font-size: 1.15rem; margin-bottom: 0.3rem; color: white; }
+  .mockup-body .step-label { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.8rem; }
+
+  /* ─── Agent cards ─── */
+  .agent-card {
+    display: flex; align-items: start; gap: 0.9rem;
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin-bottom: 0.7rem;
+    transition: border-color 0.15s;
+  }
+  .agent-card.selected { border-color: var(--green); background: rgba(63,185,80,0.04); }
+  .agent-card.disabled { opacity: 0.45; }
+  .agent-icon {
+    width: 38px; height: 38px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0; font-weight: 700; color: white;
+  }
+  .agent-meta { flex: 1; }
+  .agent-name { font-weight: 600; font-size: 0.95rem; }
+  .agent-desc { font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; }
+  .agent-badges { display: flex; gap: 0.3rem; margin-top: 0.3rem; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.45rem;
+    border-radius: 4px; font-size: 0.68rem; font-weight: 600;
+  }
+  .badge.auto { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge.manual { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge.backend { background: rgba(88,166,255,0.12); color: var(--accent); }
+
+  .agent-check {
+    width: 20px; height: 20px; border-radius: 4px;
+    border: 2px solid var(--border); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.7rem; color: transparent; flex-shrink: 0; margin-top: 0.2rem;
+  }
+  .agent-card.selected .agent-check { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
+
+  .mock-btn {
+    display: inline-block; padding: 0.45rem 1.2rem;
+    border-radius: 8px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer;
+  }
+  .mock-btn.primary { background: var(--accent); color: #000; }
+  .mock-btn.secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .mock-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+
+  .progress-bar { display: flex; gap: 4px; margin-bottom: 1rem; }
+  .progress-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
+  .progress-seg.done { background: var(--accent); }
+  .progress-seg.current { background: var(--accent); opacity: 0.6; }
+
+  /* ─── Conversation sidebar mockup ─── */
+  .sidebar-mockup {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; width: 280px; padding: 0.8rem; margin: 1rem 0;
+  }
+  .sidebar-mockup h5 { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .convo-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.45rem 0.5rem; border-radius: 6px; margin-bottom: 0.3rem;
+    font-size: 0.82rem; cursor: pointer;
+  }
+  .convo-row:hover { background: rgba(255,255,255,0.04); }
+  .convo-row.active { background: rgba(88,166,255,0.1); }
+  .convo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .convo-agent-tag {
+    font-size: 0.62rem; font-weight: 700; padding: 0.05rem 0.35rem;
+    border-radius: 3px; flex-shrink: 0; letter-spacing: 0.02em;
+  }
+
+  /* ─── Sequence / architecture diagram ─── */
+  .arch {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.5rem; margin: 1.2rem 0;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.78rem; line-height: 1.7; white-space: pre; overflow-x: auto;
+    color: var(--text-dim);
+  }
+  .arch .hi { color: var(--accent); }
+  .arch .gr { color: var(--green); }
+  .arch .pu { color: var(--purple); }
+  .arch .ye { color: var(--yellow); }
+  .arch .or { color: var(--orange); }
+  .arch .cy { color: var(--cyan); }
+  .arch .pk { color: var(--pink); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.86rem; }
+  th, td { padding: 0.5rem 0.8rem; text-align: left; border: 1px solid var(--border); }
+  th { background: var(--surface2); font-weight: 600; }
+  td { background: var(--surface); }
+
+  .summary-box {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.08));
+    border: 1px solid rgba(88,166,255,0.3); border-radius: 8px;
+    padding: 1.4rem; margin: 2rem 0;
+  }
+  .summary-box h3 { color: var(--accent); margin-bottom: 0.6rem; }
+  .summary-box ul { padding-left: 1.2rem; }
+  .summary-box li { margin-bottom: 0.4rem; }
+
+  .issue-ref {
+    display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600;
+    background: rgba(88,166,255,0.1); color: var(--accent);
+    text-decoration: none; border: 1px solid rgba(88,166,255,0.3);
+  }
+  .issue-ref:hover { background: rgba(88,166,255,0.2); }
+
+  .callout {
+    border-left: 3px solid var(--yellow); background: rgba(210,153,34,0.06);
+    padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0;
+    font-size: 0.88rem;
+  }
+  .callout strong { color: var(--yellow); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Proposal — <span>Auto-Discover Agent Conversations</span></h1>
+<p class="subtitle">Replace the hard-coded "Choose Agent" step with dynamic discovery from connected backends</p>
+
+<div class="prereq">
+  Builds on top of
+  <a href="https://github.com/OpenHands/agent-canvas/pull/421">PR #421</a> (mini setup server + multi-select backend)
+  &nbsp;·&nbsp;
+  <a href="https://github.com/OpenHands/agent-canvas/issues/405">#405</a>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">1</span> Problem</h2>
+
+<div class="vs">
+  <div class="card">
+    <h3><span class="tag before">Current</span> Hard-coded agent list</h3>
+    <ul>
+      <li>Onboarding Step 0 shows three agents: <strong>OpenHands</strong> (enabled), Claude Code & Codex (disabled with "coming soon")</li>
+      <li>The list is a static <code>AGENT_OPTIONS</code> array in <code>choose-agent-step.tsx</code></li>
+      <li>Adding a new agent = code change + redeploy</li>
+      <li>Each backend already knows what agent it runs (<code>/server_info</code> returns <code>title</code>), but we never ask</li>
+      <li>No way to see which agent a conversation belongs to</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: rgba(63,185,80,0.3);">
+    <h3><span class="tag after">Proposed</span> Auto-discovered from backends</h3>
+    <ul>
+      <li>After selecting backends (Step 1 from PR #421), canvas queries each one for agent info</li>
+      <li>Agents are listed dynamically — if a backend is connected, its agent appears</li>
+      <li>No code change needed when a new agent type is supported</li>
+      <li>Conversations are tagged with their agent, visible in sidebar</li>
+      <li>CLI-started sessions can be discovered and resumed in the canvas</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">2</span> User Experience Changes</h2>
+
+<h3>2a. Onboarding: "Choose Agent" becomes dynamic</h3>
+
+<div class="vs">
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag before">Before</span> Static radio list</p>
+    <div class="mockup" style="max-width:400px;">
+      <div class="mockup-bar">
+        <span class="mockup-dot" style="background:#ff5f57;"></span>
+        <span class="mockup-dot" style="background:#febc2e;"></span>
+        <span class="mockup-dot" style="background:#28c840;"></span>
+        <span style="margin-left:auto;">Step 1 / 4</span>
+      </div>
+      <div class="mockup-body" style="padding:1rem 1.3rem;">
+        <h4 style="font-size:1rem;">Choose your agent</h4>
+        <p style="font-size:0.78rem;color:var(--text-dim);">Pick the agent you'd like to work with.</p>
+        <div style="margin-top:0.8rem;">
+          <div class="agent-card selected" style="padding:0.6rem 0.8rem;">
+            <div class="agent-icon" style="background:#3b82f6; width:30px; height:30px; font-size:0.8rem;">OH</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem;">OpenHands</div>
+              <div class="agent-desc">Full-featured coding agent</div>
+            </div>
+            <div class="agent-check">&check;</div>
+          </div>
+          <div class="agent-card disabled" style="padding:0.6rem 0.8rem;">
+            <div class="agent-icon" style="background:#e67e22; width:30px; height:30px; font-size:0.8rem;">CC</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem;">Claude Code</div>
+              <div class="agent-desc">Coming soon</div>
+            </div>
+            <div class="agent-check"></div>
+          </div>
+          <div class="agent-card disabled" style="padding:0.6rem 0.8rem;">
+            <div class="agent-icon" style="background:#10b981; width:30px; height:30px; font-size:0.8rem;">CX</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem;">Codex</div>
+              <div class="agent-desc">Coming soon</div>
+            </div>
+            <div class="agent-check"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag after">After</span> Auto-discovered from backends</p>
+    <div class="mockup" style="max-width:400px;">
+      <div class="mockup-bar">
+        <span class="mockup-dot" style="background:#ff5f57;"></span>
+        <span class="mockup-dot" style="background:#febc2e;"></span>
+        <span class="mockup-dot" style="background:#28c840;"></span>
+        <span style="margin-left:auto;">Step 1 / 4</span>
+      </div>
+      <div class="mockup-body" style="padding:1rem 1.3rem;">
+        <h4 style="font-size:1rem;">Available agents</h4>
+        <p style="font-size:0.78rem;color:var(--text-dim);">Discovered from your connected backends.</p>
+        <div style="margin-top:0.8rem;">
+          <div class="agent-card selected" style="padding:0.6rem 0.8rem;">
+            <div class="agent-icon" style="background:#3b82f6; width:30px; height:30px; font-size:0.8rem;">OH</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem;">OpenHands <span style="font-weight:400;color:var(--text-dim);font-size:0.75rem;">v1.22.0</span></div>
+              <div class="agent-desc">Full-featured coding agent</div>
+              <div class="agent-badges">
+                <span class="badge auto">auto-discovered</span>
+                <span class="badge backend">Local :18000</span>
+              </div>
+            </div>
+            <div class="agent-check">&check;</div>
+          </div>
+          <div class="agent-card" style="padding:0.6rem 0.8rem;">
+            <div class="agent-icon" style="background:#3b82f6; width:30px; height:30px; font-size:0.8rem;">OH</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem;">OpenHands <span style="font-weight:400;color:var(--text-dim);font-size:0.75rem;">v1.22.0</span></div>
+              <div class="agent-desc">Sandboxed environment</div>
+              <div class="agent-badges">
+                <span class="badge auto">auto-discovered</span>
+                <span class="badge backend">Docker :18002</span>
+              </div>
+            </div>
+            <div class="agent-check"></div>
+          </div>
+          <div class="agent-card" style="padding:0.6rem 0.8rem; border-style:dashed;">
+            <div class="agent-icon" style="background:var(--border); width:30px; height:30px; font-size:0.7rem;">+</div>
+            <div class="agent-meta">
+              <div class="agent-name" style="font-size:0.85rem; color:var(--text-dim);">Add external agent…</div>
+              <div class="agent-desc">Connect to a remote ACP-compatible agent</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>Key difference:</strong> The agent list is no longer a build-time constant. Each connected backend is queried
+  via <code>GET /server_info</code> (already exists) plus a new <code>GET /api/agents</code> endpoint.
+  If a user adds a Docker backend running Claude Code tomorrow, it just appears in the list.
+</div>
+
+<!-- ──────────────────────────────────────────────── -->
+<h3>2b. Conversation sidebar: agent tags</h3>
+
+<p>Each conversation displays a small tag showing which agent + backend it's running on. This matters when multiple agents are available simultaneously.</p>
+
+<div class="vs">
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag before">Before</span></p>
+    <div class="sidebar-mockup">
+      <h5>Conversations</h5>
+      <div class="convo-row active">
+        <div class="convo-dot" style="background:var(--green);"></div>
+        <span>Fix login bug</span>
+      </div>
+      <div class="convo-row">
+        <div class="convo-dot" style="background:var(--text-dim);"></div>
+        <span>Refactor auth module</span>
+      </div>
+      <div class="convo-row">
+        <div class="convo-dot" style="background:var(--text-dim);"></div>
+        <span>Add unit tests</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag after">After</span></p>
+    <div class="sidebar-mockup">
+      <h5>Conversations</h5>
+      <div class="convo-row active">
+        <div class="convo-dot" style="background:var(--green);"></div>
+        <span style="flex:1;">Fix login bug</span>
+        <span class="convo-agent-tag" style="background:rgba(59,130,246,0.15);color:#79b8ff;">OH</span>
+      </div>
+      <div class="convo-row">
+        <div class="convo-dot" style="background:var(--text-dim);"></div>
+        <span style="flex:1;">Refactor auth module</span>
+        <span class="convo-agent-tag" style="background:rgba(59,130,246,0.15);color:#79b8ff;">OH</span>
+      </div>
+      <div class="convo-row">
+        <div class="convo-dot" style="background:var(--yellow);"></div>
+        <span style="flex:1;">Add unit tests</span>
+        <span class="convo-agent-tag" style="background:rgba(230,126,34,0.15);color:#f0a76e;">CC</span>
+      </div>
+      <div class="convo-row" style="border-top:1px dashed var(--border); margin-top:0.3rem; padding-top:0.5rem;">
+        <div class="convo-dot" style="background:var(--purple);"></div>
+        <span style="flex:1; color:var(--text-dim); font-style:italic;">CLI session (resume?)</span>
+        <span class="convo-agent-tag" style="background:rgba(188,140,255,0.15);color:var(--purple);">OH</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────── -->
+<h3>2c. Session discovery: resume CLI-started sessions</h3>
+
+<p>If a user ran <code>openhands</code> from the terminal and later opens the canvas, we can discover and resume those sessions:</p>
+
+<div class="card">
+  <ol style="font-size:0.88rem;">
+    <li>Canvas queries each backend's <code>GET /api/sessions</code> (new endpoint)</li>
+    <li>Backend returns ACP sessions started in the same <code>cwd</code> (workspace)</li>
+    <li>Sessions not already tracked as canvas conversations appear as "resumable" in the sidebar</li>
+    <li>Clicking one creates a new canvas conversation that attaches to the existing ACP session</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">3</span> Discovery Flow</h2>
+
+<div class="arch"><span class="ye">Onboarding Step 0 loads…</span>
+
+  <span class="gr">Frontend</span>                          <span class="cy">Backend (Local :18000)</span>         <span class="cy">Backend (Docker :18002)</span>
+    │                                     │                                │
+    │─── <span class="hi">GET /server_info</span> ──────────────▶│                                │
+    │◀── { title: "OpenHands",            │                                │
+    │     version: "1.22.0", … } ─────────│                                │
+    │                                     │                                │
+    │─── <span class="hi">GET /api/agents</span> ───────────────▶│                                │
+    │◀── [{ id: "openhands",              │                                │
+    │      name: "OpenHands",             │                                │
+    │      version: "1.22.0",             │                                │
+    │      <span class="pu">capabilities</span>: {                │                                │
+    │        list_sessions: true,          │                                │
+    │        resume_session: true          │                                │
+    │      } }] ──────────────────────────│                                │
+    │                                     │                                │
+    │─── <span class="hi">GET /server_info</span> ────────────────────────────────────────────────▶│
+    │◀── { title: "OpenHands",                                             │
+    │     version: "1.22.0", … } ──────────────────────────────────────────│
+    │                                                                      │
+    │─── <span class="hi">GET /api/agents</span> ─────────────────────────────────────────────────▶│
+    │◀── [{ id: "openhands", … }] ─────────────────────────────────────────│
+    │
+    │  <span class="ye">Merge + deduplicate → show agent list with backend badges</span>
+    │
+    ▼
+
+<span class="ye">Later — session discovery (background poll):</span>
+
+  <span class="gr">Frontend</span>                          <span class="cy">Backend (Local :18000)</span>
+    │                                     │
+    │─── <span class="hi">GET /api/sessions?cwd=/projects</span>─▶│
+    │◀── [{ session_id: "abc-123",        │
+    │      agent_id: "openhands",         │
+    │      status: "paused",              │
+    │      title: "Fix login bug",        │
+    │      created_at: "…" }] ────────────│
+    │                                     │
+    │  <span class="ye">Diff against known canvas conversations</span>
+    │  <span class="ye">Show untracked sessions as "resumable" in sidebar</span>
+    ▼</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">4</span> SDK-Side Requirements</h2>
+
+<p>These are the additions needed in <a href="https://github.com/OpenHands/software-agent-sdk" style="color:var(--accent);">software-agent-sdk</a> to make discovery work.</p>
+
+<table>
+  <tr>
+    <th>#</th>
+    <th>What</th>
+    <th>Where</th>
+    <th>Details</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td><span class="tag sdk">SDK</span> <code>GET /api/agents</code> endpoint</td>
+    <td>agent-server HTTP router</td>
+    <td>
+      Returns an array of agent descriptors registered with this server.<br>
+      Response: <code>[{ id, name, version, description, icon_url?, capabilities }]</code><br>
+      Initially returns exactly one entry (the OpenHands agent). Extensible for multi-agent servers later.
+    </td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><span class="tag sdk">SDK</span> <code>AgentDescriptor</code> type</td>
+    <td><code>openhands/sdk/types.py</code></td>
+    <td>
+      Pydantic model:<br>
+      <code>id: str</code> — unique agent ID (e.g. <code>"openhands"</code>)<br>
+      <code>name: str</code> — display name<br>
+      <code>version: str</code> — semver<br>
+      <code>description: str | None</code><br>
+      <code>icon_url: str | None</code> — optional icon<br>
+      <code>capabilities: AgentCapabilities</code>
+    </td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><span class="tag sdk">SDK</span> <code>AgentCapabilities</code> type</td>
+    <td><code>openhands/sdk/types.py</code></td>
+    <td>
+      <code>list_sessions: bool = False</code> — can the agent list existing sessions?<br>
+      <code>resume_session: bool = False</code> — can the agent resume a paused session?<br>
+      <code>file_access: bool = True</code> — does the agent read/write the workspace?<br>
+      <code>browser_tools: bool = False</code> — does the agent support browser actions?
+    </td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><span class="tag sdk">SDK</span> <code>GET /api/sessions</code> endpoint</td>
+    <td>agent-server HTTP router</td>
+    <td>
+      Optional — only available if <code>capabilities.list_sessions = true</code>.<br>
+      Query params: <code>?cwd=/path</code> — filter sessions by workspace dir.<br>
+      Response: <code>[{ session_id, agent_id, status, title?, created_at, updated_at }]</code><br>
+      This wraps the ACP <code>list_sessions(cwd)</code> call that already exists but is never used.
+    </td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><span class="tag sdk">SDK</span> <code>POST /api/sessions/{id}/resume</code> endpoint</td>
+    <td>agent-server HTTP router</td>
+    <td>
+      Optional — only available if <code>capabilities.resume_session = true</code>.<br>
+      Resumes a paused ACP session. Canvas creates a conversation that wraps this session.<br>
+      This wraps the ACP <code>resume_session(cwd, id)</code> call that already exists but is never used.
+    </td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><span class="tag sdk">SDK</span> Extend <code>ServerInfo</code></td>
+    <td><code>/server_info</code> response</td>
+    <td>
+      Add optional <code>agents_url: str | None</code> field pointing to the <code>/api/agents</code> endpoint.<br>
+      This lets the frontend know at health-check time whether agent discovery is available, before making extra calls.
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <th>#</th>
+    <th>What</th>
+    <th>Where</th>
+    <th>Details</th>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td><span class="tag fe">Frontend</span> <code>AgentDescriptor</code> TypeScript type</td>
+    <td><code>@openhands/typescript-client</code></td>
+    <td>
+      Mirror of the Python type. Added to <code>types/base.ts</code> and exported.<br>
+      <code>interface AgentDescriptor { id: string; name: string; version: string; description?: string; icon_url?: string; capabilities: AgentCapabilities; }</code>
+    </td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td><span class="tag fe">Frontend</span> <code>ServerClient.getAgents()</code></td>
+    <td><code>@openhands/typescript-client</code></td>
+    <td>
+      <code>async getAgents(): Promise&lt;AgentDescriptor[]&gt;</code><br>
+      Calls <code>GET /api/agents</code>. Falls back to <code>[]</code> on 404 for older servers.
+    </td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td><span class="tag fe">Frontend</span> <code>ServerClient.getSessions(cwd)</code></td>
+    <td><code>@openhands/typescript-client</code></td>
+    <td>
+      <code>async getSessions(cwd: string): Promise&lt;SessionInfo[]&gt;</code><br>
+      Calls <code>GET /api/sessions?cwd=…</code>. Only called if the agent reports <code>list_sessions: true</code>.
+    </td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td><span class="tag fe">Frontend</span> <code>useDiscoveredAgents</code> hook</td>
+    <td><code>agent-canvas</code></td>
+    <td>
+      React Query hook that polls all connected backends' <code>/api/agents</code>.<br>
+      Merges results, deduplicates by agent ID, and annotates each entry with its source backend.<br>
+      Replaces the static <code>AGENT_OPTIONS</code> array in the onboarding step.
+    </td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td><span class="tag fe">Frontend</span> <code>useDiscoverableSessions</code> hook</td>
+    <td><code>agent-canvas</code></td>
+    <td>
+      Background poll of <code>/api/sessions</code> for each backend that supports it.<br>
+      Diffs against known conversations to surface "resumable" entries in sidebar.
+    </td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td><span class="tag fe">Frontend</span> Agent tag in conversation metadata</td>
+    <td><code>agent-canvas</code></td>
+    <td>
+      Store <code>agentId</code> + <code>backendId</code> in <code>ConversationMetadata</code> when creating a conversation.<br>
+      Display as colored tag in the conversation sidebar rows.
+    </td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2><span class="num">5</span> Implementation Phases</h2>
+
+<div class="card">
+  <h3>Phase A — Agent discovery <span class="tag sdk">SDK</span> <span class="tag fe">Frontend</span></h3>
+  <ol style="font-size:0.88rem;">
+    <li>Add <code>AgentDescriptor</code> + <code>AgentCapabilities</code> types to SDK</li>
+    <li>Implement <code>GET /api/agents</code> in agent-server (returns single OpenHands agent initially)</li>
+    <li>Add optional <code>agents_url</code> to <code>/server_info</code> response</li>
+    <li>Add <code>AgentDescriptor</code> type + <code>getAgents()</code> to typescript-client</li>
+    <li>Create <code>useDiscoveredAgents</code> hook in agent-canvas</li>
+    <li>Replace static <code>ChooseAgentStep</code> with dynamic version</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3>Phase B — Session discovery <span class="tag sdk">SDK</span> <span class="tag fe">Frontend</span></h3>
+  <ol style="font-size:0.88rem;">
+    <li>Implement <code>GET /api/sessions</code> wrapping ACP <code>list_sessions(cwd)</code></li>
+    <li>Implement <code>POST /api/sessions/{id}/resume</code> wrapping ACP <code>resume_session(cwd, id)</code></li>
+    <li>Add <code>getSessions()</code> to typescript-client</li>
+    <li>Create <code>useDiscoverableSessions</code> hook</li>
+    <li>Add "resumable session" rows to conversation sidebar</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3>Phase C — Agent tags <span class="tag fe">Frontend</span></h3>
+  <ol style="font-size:0.88rem;">
+    <li>Extend <code>ConversationMetadata</code> with <code>agentId</code> / <code>backendId</code></li>
+    <li>Store agent info when creating / resuming conversations</li>
+    <li>Render agent tag in conversation sidebar rows</li>
+    <li>Add agent filter to conversation search (stretch goal)</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">6</span> Data Flow — Full Picture</h2>
+
+<div class="arch"><span class="ye">End-to-end data flow after Phase A + B + C:</span>
+
+<span class="gr">┌──────────────────────────────────────────────────────────────────┐</span>
+<span class="gr">│  agent-canvas (browser)                                          │</span>
+<span class="gr">│                                                                  │</span>
+<span class="gr">│  ┌─────────────────────┐   ┌──────────────────────────────┐     │</span>
+<span class="gr">│  │ useDiscoveredAgents  │   │ useDiscoverableSessions      │     │</span>
+<span class="gr">│  │  polls /api/agents   │   │  polls /api/sessions?cwd=… │     │</span>
+<span class="gr">│  └────────┬────────────┘   └──────────────┬───────────────┘     │</span>
+<span class="gr">│           │                               │                      │</span>
+<span class="gr">│           ▼                               ▼                      │</span>
+<span class="gr">│  ┌─────────────────┐            ┌──────────────────┐            │</span>
+<span class="gr">│  │ Choose Agent     │            │ Conversation      │            │</span>
+<span class="gr">│  │ Step (dynamic)   │            │ Sidebar (tags +   │            │</span>
+<span class="gr">│  │                  │            │ resume prompts)   │            │</span>
+<span class="gr">│  └─────────────────┘            └──────────────────┘            │</span>
+<span class="gr">└──────────────────────┬──────────────────────┬───────────────────┘</span>
+                       │                      │
+                  <span class="hi">/api/agents</span>          <span class="hi">/api/sessions</span>
+                       │                      │
+         ┌─────────────┴──────────────────────┴─────────────┐
+         │                                                   │
+<span class="cy">┌────────▼─────────┐                          ┌─────────▼──────────┐</span>
+<span class="cy">│ Local backend     │                          │ Docker backend      │</span>
+<span class="cy">│ :18000            │                          │ :18002              │</span>
+<span class="cy">│                   │                          │                     │</span>
+<span class="cy">│ AgentDescriptor:  │                          │ AgentDescriptor:    │</span>
+<span class="cy">│  id: "openhands"  │                          │  id: "openhands"    │</span>
+<span class="cy">│  caps: {list,     │                          │  caps: {list,       │</span>
+<span class="cy">│         resume}   │                          │         resume}     │</span>
+<span class="cy">│                   │                          │                     │</span>
+<span class="cy">│ ACP Sessions:     │                          │ ACP Sessions:       │</span>
+<span class="cy">│  list_sessions()  │                          │  list_sessions()    │</span>
+<span class="cy">│  resume_session() │                          │  resume_session()   │</span>
+<span class="cy">└───────────────────┘                          └─────────────────────┘</span></div>
+
+<!-- ================================================================== -->
+<h2><span class="num">7</span> Open Questions</h2>
+
+<div class="card">
+  <ol>
+    <li><strong>Deduplication strategy:</strong> If Local and Docker both report the same agent (OpenHands), should the UI show them as one agent with two backends, or two separate entries? Current proposal: two entries, each tagged with its backend. Feedback welcome.</li>
+    <li><strong>Icon delivery:</strong> Should <code>AgentDescriptor.icon_url</code> be an absolute URL, a data URI, or an icon key that the frontend maps to a local asset? Leaning toward icon key for now (simpler, no CORS).</li>
+    <li><strong>Session resumption semantics:</strong> When the canvas creates a conversation wrapping an existing ACP session, should it replay the full event history or just show a "resumed from CLI" marker and start fresh? Leaning toward full replay for continuity.</li>
+    <li><strong>Polling vs. SSE for session discovery:</strong> Polling is simpler for v1. Worth adding Server-Sent Events later if we want instant detection of new CLI sessions.</li>
+    <li><strong>Auth for <code>/api/agents</code> and <code>/api/sessions</code>:</strong> Should these endpoints require the session API key? Probably yes — same auth as all other agent-server endpoints.</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<div class="summary-box">
+  <h3>Summary</h3>
+  <ul>
+    <li><strong>SDK adds 3 endpoints:</strong> <code>/api/agents</code>, <code>/api/sessions</code>, <code>/api/sessions/{id}/resume</code></li>
+    <li><strong>SDK adds 2 types:</strong> <code>AgentDescriptor</code>, <code>AgentCapabilities</code></li>
+    <li><strong>SDK extends:</strong> <code>ServerInfo</code> with optional <code>agents_url</code></li>
+    <li><strong>typescript-client adds:</strong> <code>getAgents()</code>, <code>getSessions()</code>, TypeScript mirrors of new types</li>
+    <li><strong>agent-canvas adds:</strong> <code>useDiscoveredAgents</code>, <code>useDiscoverableSessions</code> hooks; dynamic agent step; conversation agent tags</li>
+    <li><strong>3 phases:</strong> (A) Agent discovery → (B) Session discovery → (C) Agent tags</li>
+  </ul>
+  <p style="margin-top:0.8rem; font-size:0.88rem;">
+    Related issues:
+    <a class="issue-ref" href="https://github.com/OpenHands/agent-canvas/issues/405">agent-canvas #405</a>
+    <a class="issue-ref" href="https://github.com/OpenHands/software-agent-sdk/issues/3236">software-agent-sdk #3236</a>
+    <a class="issue-ref" href="https://github.com/OpenHands/agent-canvas/issues/348">agent-canvas #348</a>
+  </p>
+</div>
+
+</div>
+</body>
+</html>
