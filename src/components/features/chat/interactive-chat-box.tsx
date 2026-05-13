@@ -141,10 +141,9 @@ export function InteractiveChatBox({
   const handleSubmit = useBtwInterceptor(
     conversation?.id ?? null,
     (message) => {
-      // Always route attached images through the file-upload path so
-      // they are saved to the workspace instead of being base64-embedded
-      // in the LLM message.
-      onSubmit(message, [], [...files, ...images]);
+      // Images are base64-embedded for the LLM (vision); non-image files
+      // are uploaded to the workspace.
+      onSubmit(message, images, files);
       clearAllFiles();
     },
   );
