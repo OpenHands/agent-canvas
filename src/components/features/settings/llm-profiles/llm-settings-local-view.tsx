@@ -14,7 +14,10 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
-import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
+import {
+  deriveProfileNameFromModel,
+  isProfileNameValid,
+} from "#/utils/derive-profile-name";
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
 import { SettingsFormValues } from "#/utils/sdk-settings-schema";
 import { ArrowLeft } from "lucide-react";
@@ -57,12 +60,10 @@ export function LlmSettingsLocalView() {
     [profilesData],
   );
 
-  // Validate profile name
+  // Validate profile name. The shared validator rejects any whitespace, so
+  // duplicate checks below compare the raw value directly.
   const isNameValid = useMemo(() => {
-    if (!profileName.trim()) return false;
-    // Check pattern
-    const pattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-    if (!pattern.test(profileName)) return false;
+    if (!isProfileNameValid(profileName, { isRequired: true })) return false;
     // In create mode, check for duplicates
     if (viewMode === "create" && existingNames.has(profileName)) return false;
     // In edit mode, name can match current profile name
@@ -266,9 +267,7 @@ export function LlmSettingsLocalView() {
           <ArrowLeft size={20} />
         </button>
         <h2 className="text-base font-semibold text-white">
-          {viewMode === "create"
-            ? t(I18nKey.SETTINGS$CREATE_PROFILE)
-            : t(I18nKey.SETTINGS$EDIT_PROFILE)}
+          {t(I18nKey.SETTINGS$BACK_TO_LLM_PROFILES_LIST)}
         </h2>
       </div>
 
