@@ -22,9 +22,14 @@ export type BackendHealthMap = Record<string, BackendHealthEntry>;
 function isValidEntry(value: unknown): value is BackendHealthEntry {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<BackendHealthEntry>;
+  // localStorage is user-writable. Reject anything outside the range
+  // our own writer produces — a tampered `-1` would never reach the
+  // cap and would defeat the whole disable mechanism, and a giant
+  // value would clutter the UI for no reason.
   return (
-    typeof v.consecutiveFailures === "number" &&
-    Number.isFinite(v.consecutiveFailures) &&
+    Number.isInteger(v.consecutiveFailures) &&
+    (v.consecutiveFailures as number) >= 0 &&
+    (v.consecutiveFailures as number) <= MAX_CONSECUTIVE_FAILURES &&
     (v.lastError === null || typeof v.lastError === "string") &&
     (v.lastFailureAt === null || typeof v.lastFailureAt === "number") &&
     typeof v.disabled === "boolean"
