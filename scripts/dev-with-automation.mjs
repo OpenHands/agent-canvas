@@ -840,10 +840,21 @@ async function main(options = {}) {
   startIngress(config);
 
   // 7. Start setup server (lets the frontend manage Docker lifecycle)
-  startSetupServer({
-    port: SETUP_SERVER_PORT,
-    sessionApiKey: config.sessionApiKey,
-  });
+  try {
+    const setupServer = startSetupServer({
+      port: SETUP_SERVER_PORT,
+      sessionApiKey: config.sessionApiKey,
+    });
+    setupServer.on("error", (err) => {
+      logService("setup", `Failed to start: ${err.message}`, c.red);
+    });
+  } catch (err) {
+    logService(
+      "setup",
+      `Failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      c.red,
+    );
+  }
 
   // Wait for ingress to start
   await delay(1000);

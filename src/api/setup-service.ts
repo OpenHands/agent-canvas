@@ -30,28 +30,52 @@ function getBaseUrl(): string {
   return window.location.origin;
 }
 
+async function fetchSetupJson<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 10_000,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      ...init,
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const error = (data as Partial<DockerStartError>).error;
+      throw new Error(error || `HTTP ${res.status}`);
+    }
+
+    return data as T;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export async function getSetupStatus(): Promise<SetupStatus> {
-  const res = await fetch(`${getBaseUrl()}/setup/status`);
-  if (!res.ok) throw new Error(`Setup status failed: ${res.status}`);
-  return res.json();
+  return fetchSetupJson<SetupStatus>("/setup/status");
 }
 
 export async function startDockerBackend(
   projectPath: string,
 ): Promise<DockerStartResult> {
-  const res = await fetch(`${getBaseUrl()}/setup/docker`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ projectPath }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error((data as DockerStartError).error);
-  return data as DockerStartResult;
+  return fetchSetupJson<DockerStartResult>(
+    "/setup/docker",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectPath }),
+    },
+    60_000,
+  );
 }
 
 export async function stopDockerBackend(): Promise<void> {
-  const res = await fetch(`${getBaseUrl()}/setup/docker`, {
+  await fetchSetupJson<{ status: string }>("/setup/docker", {
     method: "DELETE",
   });
-  if (!res.ok) throw new Error(`Stop Docker failed: ${res.status}`);
 }

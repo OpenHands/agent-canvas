@@ -14,6 +14,7 @@ import { cn } from "#/utils/utils";
 import {
   getSetupStatus,
   startDockerBackend,
+  stopDockerBackend,
   type SetupStatus,
 } from "#/api/setup-service";
 
@@ -37,24 +38,34 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
   const [projectPath, setProjectPath] = React.useState("");
   const [dockerState, setDockerState] = React.useState<DockerState>("idle");
   const [dockerError, setDockerError] = React.useState<string | null>(null);
-  const [_setupStatus, setSetupStatus] = React.useState<SetupStatus | null>(
+  const [setupStatus, setSetupStatus] = React.useState<SetupStatus | null>(
     null,
   );
+  const [setupAvailable, setSetupAvailable] = React.useState(true);
 
   // Check Docker availability on mount
   React.useEffect(() => {
     getSetupStatus()
-      .then(setSetupStatus)
+      .then((status) => {
+        setSetupStatus(status);
+        setSetupAvailable(true);
+      })
       .catch(() => {
-        // Setup server not available — that's fine, just can't use Docker
+        setSetupAvailable(false);
       });
   }, []);
 
   const handleDockerToggle = React.useCallback(() => {
+    if (dockerSelected && dockerState === "running") {
+      stopDockerBackend().catch((err) => {
+        console.error("Failed to stop Docker backend", err);
+      });
+    }
+
     setDockerSelected((prev) => !prev);
     setDockerError(null);
     setDockerState("idle");
-  }, []);
+  }, [dockerSelected, dockerState]);
 
   const handleStartDocker = React.useCallback(async () => {
     if (!projectPath.trim()) {
@@ -103,6 +114,14 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
 
   const canProceed =
     localSelected || (dockerSelected && dockerState === "running");
+  const dockerStartDisabled = !setupAvailable;
+  const dockerAvailabilityWarning = !setupAvailable
+    ? t(I18nKey.ONBOARDING$CHOOSE_BACKEND_SETUP_UNAVAILABLE)
+    : setupStatus && !setupStatus.dockerInstalled
+      ? t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_NOT_INSTALLED)
+      : setupStatus && !setupStatus.dockerRunning
+        ? t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_NOT_RUNNING)
+        : null;
 
   return (
     <div
@@ -123,6 +142,7 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
         type="button"
         data-testid="choose-backend-local"
         data-selected={localSelected}
+        aria-pressed={localSelected}
         onClick={() => setLocalSelected((prev) => !prev)}
         className={cn(
           "relative flex flex-col gap-2 rounded-xl border px-4 py-3 text-left transition-colors",
@@ -177,31 +197,28 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
         <button
           type="button"
           onClick={handleDockerToggle}
-          className="flex items-center justify-between"
+          aria-pressed={dockerSelected}
+          className="flex flex-col gap-2 text-left"
         >
-          <div className="flex items-center gap-2">
-            <Container className="size-4 text-primary" aria-hidden />
-            <span className="text-sm font-semibold text-primary">
-              {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_TAG)}
-            </span>
-            <span className="text-base font-medium text-white">
-              {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_TITLE)}
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Container className="size-4 text-primary" aria-hidden />
+              <span className="text-sm font-semibold text-primary">
+                {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_TAG)}
+              </span>
+              <span className="text-base font-medium text-white">
+                {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_TITLE)}
+              </span>
+            </div>
+            {dockerSelected && (
+              <Check className="size-4 shrink-0 text-primary" aria-hidden />
+            )}
           </div>
-          {dockerSelected && (
-            <Check className="size-4 shrink-0 text-primary" aria-hidden />
-          )}
-        </button>
 
-        <button
-          type="button"
-          onClick={handleDockerToggle}
-          className="text-left"
-        >
           <p className="text-xs text-gray-400">
             {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_DESC)}
           </p>
-          <div className="flex flex-col gap-0.5 text-xs text-gray-400 mt-1">
+          <div className="flex flex-col gap-0.5 text-xs text-gray-400">
             <span>
               <span className="text-green-400">{"\u2713"}</span>{" "}
               {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_PROS)}
@@ -212,6 +229,13 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
             </span>
           </div>
         </button>
+
+        {dockerAvailabilityWarning && (
+          <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{dockerAvailabilityWarning}</span>
+          </div>
+        )}
 
         {dockerSelected && (
           <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3">
@@ -239,6 +263,7 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
                 testId="choose-backend-docker-start"
                 type="button"
                 variant="secondary"
+                isDisabled={dockerStartDisabled}
                 onClick={handleStartDocker}
               >
                 {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_START_BTN)}

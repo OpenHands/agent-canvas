@@ -26161,5 +26161,22 @@
     "ca": "Checking Docker availability…",
     "tr": "Checking Docker availability…",
     "uk": "Checking Docker availability…"
+  },
+  "ONBOARDING$CHOOSE_BACKEND_SETUP_UNAVAILABLE": {
+    "en": "Docker controls are unavailable because the setup server is not running.",
+    "ja": "Docker controls are unavailable because the setup server is not running.",
+    "zh-CN": "Docker controls are unavailable because the setup server is not running.",
+    "zh-TW": "Docker controls are unavailable because the setup server is not running.",
+    "ko-KR": "Docker controls are unavailable because the setup server is not running.",
+    "no": "Docker controls are unavailable because the setup server is not running.",
+    "ar": "Docker controls are unavailable because the setup server is not running.",
+    "de": "Docker controls are unavailable because the setup server is not running.",
+    "fr": "Docker controls are unavailable because the setup server is not running.",
+    "it": "Docker controls are unavailable because the setup server is not running.",
+    "pt": "Docker controls are unavailable because the setup server is not running.",
+    "es": "Docker controls are unavailable because the setup server is not running.",
+    "ca": "Docker controls are unavailable because the setup server is not running.",
+    "tr": "Docker controls are unavailable because the setup server is not running.",
+    "uk": "Docker controls are unavailable because the setup server is not running."
   }
 }

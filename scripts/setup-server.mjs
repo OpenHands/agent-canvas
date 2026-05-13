@@ -24,7 +24,7 @@ import { createServer } from "node:http";
 import { spawnSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
 
 const DEFAULT_PORT = 18099;
@@ -36,6 +36,7 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 
 // Track the running Docker process
 let dockerProcess = null;
+let shutdownHandlersRegistered = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Docker Detection
@@ -70,9 +71,28 @@ function isDockerBackendRunning() {
 // Docker Lifecycle
 // ═══════════════════════════════════════════════════════════════════════════
 
+function getAgentServerImage() {
+  const gitRef = process.env.OH_AGENT_SERVER_GIT_REF;
+  if (gitRef && !/^[a-zA-Z0-9._-]+$/.test(gitRef)) {
+    throw new Error("Invalid OH_AGENT_SERVER_GIT_REF format");
+  }
+
+  const tag = gitRef ? `${gitRef}-python` : DEFAULT_AGENT_SERVER_TAG;
+  return `${AGENT_SERVER_REPO}:${tag}`;
+}
+
+function getDockerBackendEndpoint() {
+  return { host: "http://localhost", port: DOCKER_BACKEND_PORT };
+}
+
 function startDockerBackend(projectPath, options = {}) {
   const { sessionApiKey } = options;
-  const image = `${AGENT_SERVER_REPO}:${process.env.OH_AGENT_SERVER_GIT_REF ? `${process.env.OH_AGENT_SERVER_GIT_REF}-python` : DEFAULT_AGENT_SERVER_TAG}`;
+
+  if (dockerProcess || isDockerBackendRunning()) {
+    return getDockerBackendEndpoint();
+  }
+
+  const image = getAgentServerImage();
 
   // Best-effort cleanup of any leftover container
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
@@ -81,7 +101,8 @@ function startDockerBackend(projectPath, options = {}) {
   const dockerArgs = [
     "run",
     "--rm",
-    "--name", CONTAINER_NAME,
+    "--name",
+    CONTAINER_NAME,
     "--init",
     "-v", `${projectPath}:/projects`,
     "-p", `${DOCKER_BACKEND_PORT}:8000`,
@@ -120,11 +141,16 @@ function startDockerBackend(projectPath, options = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  dockerProcess.on("error", (err) => {
+    console.error("[setup-server] Docker spawn failed:", err);
+    dockerProcess = null;
+  });
+
   dockerProcess.on("exit", () => {
     dockerProcess = null;
   });
 
-  return { host: "http://localhost", port: DOCKER_BACKEND_PORT };
+  return getDockerBackendEndpoint();
 }
 
 function stopDockerBackend() {
@@ -188,8 +214,16 @@ async function handleStartDocker(req, res, serverOptions) {
       return;
     }
 
-    if (!existsSync(projectPath)) {
-      sendJson(res, 400, { error: `Path does not exist: ${projectPath}` });
+    if (!isAbsolute(projectPath)) {
+      sendJson(res, 400, { error: "projectPath must be an absolute path" });
+      return;
+    }
+
+    const resolvedProjectPath = resolve(projectPath);
+    if (!existsSync(resolvedProjectPath)) {
+      sendJson(res, 400, {
+        error: `Path does not exist: ${resolvedProjectPath}`,
+      });
       return;
     }
 
@@ -203,12 +237,13 @@ async function handleStartDocker(req, res, serverOptions) {
 
     if (!isDockerRunning()) {
       sendJson(res, 400, {
-        error: "Docker daemon is not running. Start Docker Desktop and try again.",
+        error:
+          "Docker daemon is not running. Start Docker Desktop and try again.",
       });
       return;
     }
 
-    const result = startDockerBackend(projectPath, {
+    const result = startDockerBackend(resolvedProjectPath, {
       sessionApiKey: serverOptions?.sessionApiKey,
     });
 
@@ -259,13 +294,19 @@ function startSetupServer(options = {}) {
     }
   });
 
+  server.on("error", (err) => {
+    console.error("[setup-server] Failed:", err);
+  });
+
   server.listen(port, "127.0.0.1", () => {
     console.log(`[setup-server] Listening on http://127.0.0.1:${port}`);
   });
 
-  // Cleanup on shutdown
-  process.on("SIGTERM", () => stopDockerBackend());
-  process.on("SIGINT", () => stopDockerBackend());
+  if (!shutdownHandlersRegistered) {
+    shutdownHandlersRegistered = true;
+    process.on("SIGTERM", () => stopDockerBackend());
+    process.on("SIGINT", () => stopDockerBackend());
+  }
 
   return server;
 }
