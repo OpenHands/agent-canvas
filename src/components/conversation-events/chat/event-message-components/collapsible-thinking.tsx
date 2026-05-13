@@ -36,9 +36,7 @@ export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
         aria-label={
-          expanded
-            ? t(I18nKey.THINKING$COLLAPSE)
-            : t(I18nKey.THINKING$EXPAND)
+          expanded ? t(I18nKey.THINKING$COLLAPSE) : t(I18nKey.THINKING$EXPAND)
         }
         data-testid="collapsible-thinking-toggle"
         className="w-full flex items-center gap-2 text-left cursor-pointer"

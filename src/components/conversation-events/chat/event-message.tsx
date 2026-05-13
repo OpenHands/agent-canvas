@@ -129,7 +129,6 @@ const renderUserMessageWithSkillReady = (
   }
 };
 
-/* eslint-disable react/jsx-props-no-spreading */
 export function EventMessage({
   event,
   messages,
@@ -200,9 +199,7 @@ export function EventMessage({
     const reasoningContent = getReasoningContent(event);
     return (
       <>
-        {reasoningContent && (
-          <CollapsibleThinking content={reasoningContent} />
-        )}
+        {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
         {!suppressThought && (
           <ThoughtEventMessage
             event={event}
@@ -262,9 +259,7 @@ export function EventMessage({
 
     return (
       <>
-        {reasoningContent && (
-          <CollapsibleThinking content={reasoningContent} />
-        )}
+        {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
         {shouldShowThought && (
           <ThoughtEventMessage
             event={correspondingAction}
