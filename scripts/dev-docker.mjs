@@ -110,6 +110,40 @@ function suggestDockerless() {
   logError("Note: this runs the agent with full access to your filesystem.");
 }
 
+function isDockerPermissionDenied(stderr) {
+  const normalized = stderr.toLowerCase();
+  return (
+    normalized.includes("permission denied") &&
+    (normalized.includes("docker.sock") ||
+      normalized.includes("docker api") ||
+      normalized.includes("/var/run/docker") ||
+      normalized.includes("/run/docker"))
+  );
+}
+
+function logDockerInfoFailure(stderr) {
+  if (isDockerPermissionDenied(stderr)) {
+    logError(
+      "docker is installed and the daemon may be running, but this user cannot access the Docker API.",
+    );
+    if (stderr) {
+      logError(`  ${stderr.split("\n")[0]}`);
+    }
+    logError(
+      "On Linux, add your user to the docker group, then log out and back in:",
+    );
+    logError("  sudo usermod -aG docker $USER");
+    logError("Verify with: docker info");
+    return;
+  }
+
+  logError("docker is installed but the daemon does not appear to be running.");
+  if (stderr) {
+    logError(`  ${stderr.split("\n")[0]}`);
+  }
+  logError("Start Docker (e.g. open Docker Desktop) and try again.");
+}
+
 /**
  * Check that the docker CLI is on PATH AND that the docker daemon is
  * actually responding. `commandExists("docker")` only verifies the binary is
@@ -132,14 +166,8 @@ function checkDockerPrereqs(config) {
     timeout: 10_000,
   });
   if (info.status !== 0) {
-    logError(
-      "docker is installed but the daemon does not appear to be running.",
-    );
     const stderr = info.stderr ? info.stderr.toString().trim() : "";
-    if (stderr) {
-      logError(`  ${stderr.split("\n")[0]}`);
-    }
-    logError("Start Docker (e.g. open Docker Desktop) and try again.");
+    logDockerInfoFailure(stderr);
     suggestDockerless();
     process.exit(1);
   }
@@ -297,6 +325,7 @@ export {
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,
 };

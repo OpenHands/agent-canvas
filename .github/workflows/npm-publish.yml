@@ -76,19 +76,32 @@ jobs:
         id: npm-tag
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          # Temporary until the first stable release; see cleanup issue:
+          # https://github.com/OpenHands/agent-canvas/issues/395
           if [[ "$TAG_VERSION" == *"alpha"* ]]; then
             echo "tag=alpha" >> $GITHUB_OUTPUT
-            echo "Publishing with tag: alpha"
+            echo "also_latest=true" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: alpha (also updating latest)"
           elif [[ "$TAG_VERSION" == *"beta"* ]]; then
             echo "tag=beta" >> $GITHUB_OUTPUT
-            echo "Publishing with tag: beta"
+            echo "also_latest=true" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: beta (also updating latest)"
           elif [[ "$TAG_VERSION" == *"rc"* ]]; then
             echo "tag=rc" >> $GITHUB_OUTPUT
-            echo "Publishing with tag: rc"
+            echo "also_latest=true" >> $GITHUB_OUTPUT
+            echo "Publishing with tag: rc (also updating latest)"
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "also_latest=false" >> $GITHUB_OUTPUT
             echo "Publishing with tag: latest"
           fi
 
       - name: Publish to npm with provenance
         run: npm publish --access public --provenance --tag ${{ steps.npm-tag.outputs.tag }}
+
+      - name: Also tag as latest for prerelease versions
+        if: steps.npm-tag.outputs.also_latest == 'true'
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "Adding 'latest' tag to @openhands/agent-canvas@$PACKAGE_VERSION"
+          npm dist-tag add @openhands/agent-canvas@$PACKAGE_VERSION latest

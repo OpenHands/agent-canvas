@@ -478,6 +478,7 @@ function startAutomationBackend(config) {
       cwd: config.stateDir,
       env: {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+        AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
         AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
