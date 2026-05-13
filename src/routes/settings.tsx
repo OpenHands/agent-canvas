@@ -6,10 +6,16 @@ import OptionService from "#/api/option-service/option-service.api";
 import { queryClient } from "#/query-client-config";
 import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
-import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
+import {
+  QUERY_KEYS,
+  CONFIG_CACHE_OPTIONS,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
+import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
+import { getSettingsQueryFn } from "#/hooks/query/use-settings";
 import {
   getFirstAvailablePath,
   isSettingsPageHidden,
@@ -31,6 +37,33 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
     const fallbackPath = getFirstAvailablePath(featureFlags);
     if (fallbackPath && fallbackPath !== pathname) {
       return redirect(fallbackPath);
+    }
+  }
+
+  // ACP guard: the LLM / Condenser pages have no useful content while an
+  // external ACP subprocess is driving conversations. Bounce them to
+  // ``/settings/agent``. Driven by the same ``disabledByAcp`` flag the nav
+  // hook uses for greying out, so the list of redirected paths and the
+  // greyed-out paths can never drift apart.
+  //
+  // Doing the redirect in the loader (instead of a per-route ``useEffect``)
+  // prevents the one-frame flash of LLM content before the guard fires.
+  // Fall through silently on settings-fetch errors (unauthed, network,
+  // local agent-server not running) — better to render the page than
+  // redirect-loop on a missing payload.
+  const currentNavItem = OSS_NAV_ITEMS.find((item) => item.to === pathname);
+  if (currentNavItem?.disabledByAcp) {
+    try {
+      const personalSettings = await queryClient.fetchQuery({
+        queryKey: SETTINGS_QUERY_KEYS.byScope("personal"),
+        queryFn: () => getSettingsQueryFn("personal"),
+        staleTime: 1000 * 60 * 5,
+      });
+      if (personalSettings?.agent_settings?.agent_kind === "acp") {
+        return redirect("/settings/agent");
+      }
+    } catch {
+      // Settings unfetchable — let the page render.
     }
   }
 

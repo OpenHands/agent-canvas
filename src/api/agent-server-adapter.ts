@@ -134,11 +134,28 @@ export function toConversationPage(data: {
 
 type SettingsRecord = Record<string, unknown>;
 
-const AGENT_SETTINGS_METADATA_KEYS = new Set([
-  "schema_version",
-  "agent_kind",
-  "agent",
-]);
+// Keys we strip before forwarding ``agent_settings`` into the OpenHands
+// ``Agent`` payload. ``agent_kind`` is *not* in this set — it is read by
+// ``buildStartConversationRequest`` to decide whether to build an
+// ``Agent`` or an ``ACPAgent`` payload, and stripped on the LLM branch.
+const AGENT_SETTINGS_METADATA_KEYS = new Set(["schema_version", "agent"]);
+
+const ACP_SETTINGS_KEYS = [
+  "acp_command",
+  "acp_args",
+  "acp_env",
+  "acp_model",
+  "acp_session_mode",
+  "acp_prompt_timeout",
+] as const;
+
+/**
+ * Conversation-tag key under which the ACP provider key (e.g. ``"codex"``,
+ * ``"claude-code"``) is stored. The agent-server validates tag keys against
+ * ``^[a-z0-9]+$``, so the snake_case ``acp_server`` form is unusable —
+ * keep this aligned with the validator regex.
+ */
+export const ACP_SERVER_TAG_KEY = "acpserver";
 
 const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
   "schema_version",
@@ -272,6 +289,13 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   const condenser = buildCondenserConfig(llm, agentSettings.condenser);
 
   AGENT_SETTINGS_METADATA_KEYS.forEach((key) => delete agentSettings[key]);
+  // Drop fields that only apply to the ACP path; do not let them leak into
+  // an OpenHands Agent payload where pydantic would reject extras.
+  delete agentSettings.agent_kind;
+  delete agentSettings.acp_server;
+  for (const key of ACP_SETTINGS_KEYS) {
+    delete agentSettings[key];
+  }
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
@@ -291,7 +315,35 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   };
 }
 
-function createAgentFromSettings(agentSettings: SettingsRecord) {
+function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
+  const agentSettings = toRecord(settings.agent_settings);
+
+  // Only forward fields the ACPAgent model knows about. Everything else
+  // (``llm``, ``condenser``, ``mcp_config``, ``agent``, ``schema_version``,
+  // ``tools``, ``agent_kind``) is irrelevant on this path; the agent-server
+  // would either ignore it or reject it as a pydantic extra. ``acp_server``
+  // is a UI bookkeeping field — it does not belong in the agent payload
+  // either, but we surface it on the conversation tags instead (see
+  // ``buildStartConversationRequest``).
+  const payload: SettingsRecord = {};
+  for (const key of ACP_SETTINGS_KEYS) {
+    if (agentSettings[key] !== undefined && agentSettings[key] !== null) {
+      payload[key] = agentSettings[key];
+    }
+  }
+  return payload;
+}
+
+function createAgentFromSettings(
+  agentSettings: SettingsRecord,
+  options: { acp?: boolean } = {},
+) {
+  if (options.acp) {
+    return {
+      kind: "ACPAgent",
+      ...agentSettings,
+    };
+  }
   return {
     kind: "Agent",
     ...agentSettings,
@@ -300,6 +352,17 @@ function createAgentFromSettings(agentSettings: SettingsRecord) {
       load_user_skills: true,
     },
   };
+}
+
+function isAcpAgent(settings: Settings): boolean {
+  const agentSettings = toRecord(settings.agent_settings);
+  return agentSettings.agent_kind === "acp";
+}
+
+function getAcpServerTag(settings: Settings): string | undefined {
+  const agentSettings = toRecord(settings.agent_settings);
+  const value = agentSettings.acp_server;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function buildConfiguredConversationSettings(options: {
@@ -387,8 +450,14 @@ export function buildStartConversationRequest(
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
 
-  const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
-  const agent = createAgentFromSettings(agentSettings);
+  const acpMode = isAcpAgent(sourceAgentSettings);
+  const agentSettings = acpMode
+    ? buildConfiguredAcpAgentSettings(sourceAgentSettings)
+    : buildConfiguredAgentSettings(sourceAgentSettings);
+  const agent = createAgentFromSettings(agentSettings, { acp: acpMode });
+  const acpServerTag = acpMode
+    ? getAcpServerTag(sourceAgentSettings)
+    : undefined;
 
   // For conversation settings, merge encrypted settings if provided
   const sourceConversationOptions = options.encryptedConversationSettings
@@ -418,6 +487,18 @@ export function buildStartConversationRequest(
     autotitle: true,
     worktree: true,
   };
+
+  // Stamp the ACP provider key onto the conversation so the chip can render
+  // a brand name from a single source of truth. The tag is purely
+  // informational — frontend looks it up against ``ACP_PROVIDERS``; the
+  // agent-server treats it as an opaque string.
+  //
+  // Tag *keys* must match ``^[a-z0-9]+$`` per agent-server validation —
+  // ``acp_server`` would be rejected with a 422. ``acpserver`` flattens
+  // the snake_case original into the allowed shape.
+  if (acpServerTag) {
+    payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
+  }
 
   // Add secrets_encrypted flag if secrets are encrypted
   if (options.secretsEncrypted) {

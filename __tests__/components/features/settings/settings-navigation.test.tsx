@@ -6,11 +6,16 @@ import { SettingsNavigation } from "#/components/features/settings/settings-navi
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 
+const llmItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings")!;
+const condenserItem = OSS_NAV_ITEMS.find(
+  (item) => item.to === "/settings/condenser",
+)!;
+
 const baseItems: SettingsNavRenderedItem[] = [
   { type: "header", text: "SETTINGS$TITLE" as never },
-  { type: "item", item: OSS_NAV_ITEMS[0] },
+  { type: "item", item: llmItem },
   { type: "divider" },
-  { type: "item", item: OSS_NAV_ITEMS[1] },
+  { type: "item", item: condenserItem },
 ];
 
 describe("SettingsNavigation", () => {

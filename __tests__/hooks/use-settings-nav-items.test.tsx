@@ -5,9 +5,14 @@ import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { WebClientConfig } from "#/api/option-service/option.types";
 
 const useConfigMock = vi.fn();
+const useSettingsMock = vi.fn();
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => useSettingsMock(),
 }));
 
 const createConfig = (
@@ -27,9 +32,18 @@ const createConfig = (
   updated_at: new Date().toISOString(),
 });
 
+const openHandsSettings = {
+  agent_settings: { agent_kind: "openhands" },
+};
+
+const acpClaudeCodeSettings = {
+  agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
+};
+
 describe("useSettingsNavItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useSettingsMock.mockReturnValue({ data: openHandsSettings });
   });
 
   it("returns the OSS settings items in order", () => {
@@ -71,5 +85,71 @@ describe("useSettingsNavItems", () => {
     // MCP was elevated to a top-level /mcp nav entry; it must no
     // longer appear as a Settings sub-page.
     expect(paths).not.toContain("/settings/mcp");
+  });
+
+  it("disables LLM + Condenser when the active agent_kind is acp", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useSettingsMock.mockReturnValue({ data: acpClaudeCodeSettings });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const byPath = new Map(
+      result.current
+        .filter((item) => item.type === "item")
+        .map(
+          (item) =>
+            [item.type === "item" ? item.item.to : "", item] as const,
+        ),
+    );
+
+    const llm = byPath.get("/settings");
+    expect(llm?.type).toBe("item");
+    if (llm?.type === "item") {
+      expect(llm.disabled).toBe(true);
+      expect(llm.disabledAgentName).toBe("Claude Code");
+    }
+
+    const condenser = byPath.get("/settings/condenser");
+    expect(condenser?.type).toBe("item");
+    if (condenser?.type === "item") {
+      expect(condenser.disabled).toBe(true);
+    }
+
+    // Items without `disabledByAcp` stay enabled.
+    const secrets = byPath.get("/settings/secrets");
+    if (secrets?.type === "item") {
+      expect(secrets.disabled).toBeUndefined();
+    }
+
+    // The agent-settings entry itself is not gated.
+    const agent = byPath.get("/settings/agent");
+    if (agent?.type === "item") {
+      expect(agent.disabled).toBeUndefined();
+    }
+  });
+
+  it("falls back to 'ACP Agent' when the saved acp_server is unknown", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useSettingsMock.mockReturnValue({
+      data: { agent_settings: { agent_kind: "acp", acp_server: "custom" } },
+    });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const llm = result.current.find(
+      (r) => r.type === "item" && r.item.to === "/settings",
+    );
+    if (llm?.type === "item") {
+      expect(llm.disabledAgentName).toBe("ACP Agent");
+    }
+  });
+
+  it("leaves all items enabled when agent_kind is openhands", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    for (const rendered of result.current) {
+      if (rendered.type === "item") {
+        expect(rendered.disabled).toBeFalsy();
+      }
+    }
   });
 });

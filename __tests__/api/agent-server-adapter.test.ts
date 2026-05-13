@@ -336,3 +336,98 @@ describe("toAppConversation", () => {
     expect(result.title).toBe("My real title");
   });
 });
+
+describe("buildStartConversationRequest — ACP discriminator", () => {
+  it("builds an ACPAgent payload when agent_kind is 'acp'", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@zed-industries/claude-code-acp"],
+          acp_model: "claude-opus-4-5",
+          // These fields are LLM-only and must NOT leak into the ACP payload.
+          agent: "CodeActAgent",
+          llm: { model: "gpt-4", api_key: "should-not-appear" },
+          condenser: { enabled: true, max_size: 240 },
+          mcp_config: {
+            mcpServers: { fake: { command: "x", args: [] } },
+          },
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & {
+        kind: string;
+        acp_command?: string[];
+        acp_model?: string | null;
+        llm?: unknown;
+        condenser?: unknown;
+        tools?: unknown;
+        agent_context?: unknown;
+      };
+      tags?: Record<string, string>;
+    };
+
+    expect(payload.agent.kind).toBe("ACPAgent");
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@zed-industries/claude-code-acp",
+    ]);
+    expect(payload.agent.acp_model).toBe("claude-opus-4-5");
+    // LLM-only fields must not leak into the ACPAgent payload.
+    expect(payload.agent.llm).toBeUndefined();
+    expect(payload.agent.condenser).toBeUndefined();
+    expect(payload.agent.tools).toBeUndefined();
+    expect(payload.agent.agent_context).toBeUndefined();
+    // Conversation tags carry the ACP provider key for chip rendering.
+    // Agent-server validates tag keys against ``^[a-z0-9]+$``, so the
+    // snake_case ``acp_server`` form would be rejected — we use the
+    // flattened ``acpserver`` form instead.
+    expect(payload.tags).toEqual({ acpserver: "claude-code" });
+  });
+
+  it("does not include ACP fields in the OpenHands Agent payload", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+          llm: { model: "gpt-4" },
+          acp_command: ["npx", "leftover"],
+          acp_server: "claude-code",
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { kind: string };
+      tags?: Record<string, string>;
+    };
+
+    expect(payload.agent.kind).toBe("Agent");
+    expect(payload.agent.acp_command).toBeUndefined();
+    expect(payload.agent.acp_server).toBeUndefined();
+    expect(payload.agent.agent_kind).toBeUndefined();
+    expect(payload.tags).toBeUndefined();
+  });
+
+  it("omits acp_model when the user clears it (null)", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: ["./bin/my-agent"],
+          acp_model: null,
+        },
+      },
+    }) as { agent: Record<string, unknown> };
+
+    expect((payload.agent as { kind: string }).kind).toBe("ACPAgent");
+    expect(payload.agent.acp_model).toBeUndefined();
+  });
+});

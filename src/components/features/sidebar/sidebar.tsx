@@ -113,7 +113,7 @@ export function Sidebar() {
                 label={t(rendered.item.text as I18nKey)}
                 end
                 testId={`sidebar-settings-flyout-${rendered.item.to}`}
-                disabled={linkDisabled}
+                disabled={linkDisabled || rendered.disabled}
                 icon={
                   navIcon
                     ? React.cloneElement(
@@ -307,7 +307,7 @@ export function Sidebar() {
                           end
                           indent
                           testId={`sidebar-settings-${rendered.item.to}`}
-                          disabled={linkDisabled}
+                          disabled={linkDisabled || rendered.disabled}
                           icon={
                             navIcon
                               ? React.cloneElement(
