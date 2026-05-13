@@ -257,6 +257,12 @@ export default defineConfig(({ mode }) => {
       strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
+      // Prevent Safari from caching stale module references after npm install.
+      // Without this, Safari shows a blank screen after fresh installs because
+      // it tries to load cached dep URLs that no longer exist.
+      headers: {
+        "Cache-Control": "no-store",
+      },
       proxy: {
         "/api": {
           target: API_URL,
