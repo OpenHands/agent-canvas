@@ -37,6 +37,10 @@ function normalizeHost(host: string): string {
   return `https://${trimmed}`;
 }
 
+const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.openhands.dev";
+const OPENHANDS_CLOUD_DOCS_URL =
+  "https://docs.openhands.dev/openhands/usage/cloud/openhands-cloud";
+
 /**
  * Live status row for the edit form: shows a connection dot, a
  * "Local"/"Cloud" label, and the agent server's reported version when
@@ -187,7 +191,9 @@ export function BackendForm({
     backend?.kind ?? (mode === "edit" ? "local" : "cloud");
 
   const [name, setName] = React.useState(backend?.name ?? "");
-  const [host, setHost] = React.useState(backend?.host ?? "");
+  const [host, setHost] = React.useState(
+    backend?.host ?? (mode === "add" ? DEFAULT_OPENHANDS_CLOUD_HOST : ""),
+  );
   const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
   const [kind, setKind] = React.useState<BackendKind>(initialKind);
   // In add mode, infer the kind from the host; in edit mode, the user
@@ -252,20 +258,36 @@ export function BackendForm({
         className="w-full"
       />
 
-      <SettingsInput
-        testId={`${testIdRoot}-host`}
-        name={`${testIdRoot}-host`}
-        type="text"
-        label={t(I18nKey.BACKEND$HOST_LABEL)}
-        value={host}
-        onChange={setHost}
-        placeholder="https://app.all-hands.dev"
-        className="w-full"
-      />
+      <div className="flex flex-col gap-2">
+        <SettingsInput
+          testId={`${testIdRoot}-host`}
+          name={`${testIdRoot}-host`}
+          type="text"
+          label={t(I18nKey.BACKEND$HOST_LABEL)}
+          value={host}
+          onChange={setHost}
+          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+          className="w-full"
+        />
+        <p className="text-xs leading-5 text-gray-400">
+          {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
+          <a
+            href={OPENHANDS_CLOUD_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:underline"
+          >
+            {t(I18nKey.BACKEND$HOST_DOCS_LINK)}
+          </a>
+        </p>
+      </div>
 
       {/* Device Flow auth for cloud backends in add mode - always visible */}
       {mode === "add" && kind === "cloud" && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 rounded-lg border border-tertiary bg-base-tertiary/40 p-3">
+          <p className="text-sm text-gray-300">
+            {t(I18nKey.BACKEND$AUTH_METHOD_HELPER)}
+          </p>
           <DeviceFlowAuth
             host={host}
             onSuccess={setApiKey}

@@ -46,6 +46,23 @@ describe("AddBackendModal", () => {
     expect(row.className).toContain("grid-cols-2");
   });
 
+  it("prefills the OpenHands Cloud host and enables login immediately", () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("add-backend-host")).toHaveValue(
+      "https://app.openhands.dev",
+    );
+    expect(screen.getByTestId("add-backend-kind-cloud")).toBeChecked();
+    expect(screen.getByTestId("add-backend-login-button")).not.toBeDisabled();
+    expect(screen.getByText("BACKEND$HOST_HELPER")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "BACKEND$HOST_DOCS_LINK" }),
+    ).toHaveAttribute(
+      "href",
+      "https://docs.openhands.dev/openhands/usage/cloud/openhands-cloud",
+    );
+  });
+
   it("disables submit until all fields are filled", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
@@ -59,17 +76,11 @@ describe("AddBackendModal", () => {
     await user.type(screen.getByTestId("add-backend-name"), "Production");
     expect(submit).toBeDisabled();
 
-    await user.type(
-      screen.getByTestId("add-backend-host"),
-      "https://app.all-hands.dev",
-    );
-    expect(submit).toBeDisabled();
-
     await user.type(screen.getByTestId("add-backend-api-key"), "secret-key");
     expect(submit).not.toBeDisabled();
   });
 
-  it("infers cloud kind from an all-hands.dev host", async () => {
+  it("infers local kind from a localhost host", async () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
     const cloudRadio = screen.getByTestId(
@@ -80,11 +91,11 @@ describe("AddBackendModal", () => {
     ) as HTMLInputElement;
 
     fireEvent.change(screen.getByTestId("add-backend-host"), {
-      target: { value: "https://app.all-hands.dev" },
+      target: { value: "http://127.0.0.1:18002" },
     });
 
-    expect(cloudRadio.checked).toBe(true);
-    expect(localRadio.checked).toBe(false);
+    expect(cloudRadio.checked).toBe(false);
+    expect(localRadio.checked).toBe(true);
   });
 
   it("allows submitting a local backend with a blank API key", async () => {
@@ -93,6 +104,7 @@ describe("AddBackendModal", () => {
 
     const user = userEvent.setup();
     await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.clear(screen.getByTestId("add-backend-host"));
     await user.type(
       screen.getByTestId("add-backend-host"),
       "http://127.0.0.1:18002",
@@ -126,10 +138,6 @@ describe("AddBackendModal", () => {
     const user = userEvent.setup();
 
     await user.type(screen.getByTestId("add-backend-name"), "Cloud");
-    await user.type(
-      screen.getByTestId("add-backend-host"),
-      "https://app.all-hands.dev",
-    );
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "token");
@@ -142,6 +150,7 @@ describe("AddBackendModal", () => {
 
     const user = userEvent.setup();
     await user.type(screen.getByTestId("add-backend-name"), "Local 1");
+    await user.clear(screen.getByTestId("add-backend-host"));
     await user.type(
       screen.getByTestId("add-backend-host"),
       "http://localhost:9000",
