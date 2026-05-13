@@ -34,7 +34,7 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
 
-By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
+By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off. Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
 
 ```sh
 export PROJECT_PATH=/path/to/your/projects
@@ -42,6 +42,16 @@ git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
 npm run dev:docker
+```
+
+Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway and the logs include a Vite error like `'C:\Program' is not recognized`, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
+
+```powershell
+$env:PROJECT_PATH = "/path/to/your/projects"
+git clone https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+npm install
+node --env-file-if-exists=.env .\scripts\dev-docker.mjs
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
@@ -69,6 +79,12 @@ npm run dev:dangerously-dockerless
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
+
+If you're not actively developing on agent-canvas and just want to run it locally, use the static build instead (faster loads, no hot reload):
+
+```sh
+npm run dev:static
+```
 
 # Architecture
 

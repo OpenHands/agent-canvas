@@ -20,6 +20,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 
 interface GitControlBarProps {
   onSuggestionsClick: (value: string) => void;
@@ -69,6 +70,19 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     localGitInfo?.provider) as Provider;
   const selectedBranch =
     conversationBranch || localGitInfo?.branch || undefined;
+
+  // For folder-only conversations (no remote repo), surface the basename of
+  // the originally attached workspace path so the button reads e.g. "test"
+  // rather than "No Repo Connected". `selected_workspace` is recorded at
+  // conversation creation; we prefer it over `workspace.working_dir` because
+  // the latter may point at a worktree subdir.
+  const storedMetadata = conversation?.id
+    ? getStoredConversationMetadata(conversation.id)
+    : null;
+  const workspacePath = storedMetadata?.selected_workspace ?? null;
+  const workspaceName = workspacePath
+    ? workspacePath.replace(/\/+$/, "").split("/").pop() || null
+    : null;
 
   // Keep git actions (pull/push/PR) gated on the conversation actually being
   // associated with a known git provider — local-only repos shouldn't enable
@@ -148,6 +162,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
         <GitControlBarRepoButton
           selectedRepository={selectedRepository}
           gitProvider={gitProvider}
+          workspaceName={workspaceName}
           onClick={() => setIsOpenRepoModalOpen(true)}
           disabled={!isConversationReady}
         />
