@@ -28,9 +28,10 @@ interface UseLoadOlderEventsResult {
  *
  * Server dependency: cloud pagination requires the timestamp comparison
  * fix from OpenHands/OpenHands#14399. The `EventService.searchEvents`
- * cloud path includes a fallback that retries with limit-only params if
- * the full request fails, so older-event pages will gracefully degrade
- * to a no-op on unpatched backends rather than surfacing errors.
+ * cloud path includes a fallback that returns an empty page to stop
+ * pagination if the full request fails, so older-event pages will
+ * gracefully degrade to a no-op on unpatched backends rather than
+ * surfacing errors.
  */
 export const useLoadOlderEvents = (
   conversationId?: string | null,
