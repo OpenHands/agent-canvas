@@ -122,11 +122,10 @@ export default defineConfig(({ mode }) => {
       : appBuildConfig,
     copyPublicDir: !isLibraryBuild,
     optimizeDeps: {
-      // Force re-bundling deps on every server start. This prevents Safari from
-      // loading stale cached module URLs that point to old dep hashes after
-      // npm install. Without this, Safari shows blank screens requiring manual
-      // cache clear.
-      force: true,
+      // Disable discovery of new deps at runtime. All deps must be listed in
+      // `include`. This prevents Vite from returning 504s while optimizing
+      // newly-discovered deps - Safari doesn't retry like Chrome does.
+      noDiscovery: true,
       include: [
         // Pre-bundle client entry dependencies so the first page load does not 504
         // with Vite's "Outdated Optimize Dep" before hydration finishes.
