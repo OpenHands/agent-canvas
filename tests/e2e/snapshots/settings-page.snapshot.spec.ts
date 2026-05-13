@@ -190,4 +190,25 @@ test.describe("UI Visual Snapshots", () => {
       animations: "disabled",
     });
   });
+
+  test("Add backend modal renders correctly", async ({ page }) => {
+    await setupMocks(page, false);
+    await page.goto("/conversations");
+    await dismissConsentModal(page);
+
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toBeVisible();
+
+    const backendSelector = page.getByTestId("backend-selector");
+    await backendSelector.getByTestId("dropdown-trigger").click();
+    await page.getByTestId("add-backend-menu-item").click();
+
+    const addBackendModal = page.getByTestId("add-backend-modal");
+    await expect(addBackendModal).toBeVisible();
+
+    await expect(addBackendModal).toHaveScreenshot("add-backend-modal.png", {
+      maxDiffPixelRatio: 0.01,
+      animations: "disabled",
+    });
+  });
 });
