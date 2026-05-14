@@ -29,15 +29,14 @@
  *     reload / process restart, matching the non-Docker dev loop.
  *
  * Optional credential mounts (only mounted when the host path exists):
- *   - ~/.openhands -> /openhands-home/.openhands  (persistence)
- *   - ~/.claude    -> /openhands-home/.claude     (Claude credentials)
- *   - ~/.codex     -> /openhands-home/.codex      (Codex credentials)
- *   - ~/.ssh       -> /openhands-home/.ssh        (git/ssh access)
- *   - ~/.cache/agent-canvas/docker-home -> /openhands-home
+ *   - ~/.openhands -> /home/openhands/.openhands  (persistence)
+ *   - ~/.claude    -> /home/openhands/.claude     (Claude credentials)
+ *   - ~/.codex     -> /home/openhands/.codex      (Codex credentials)
+ *   - ~/.ssh       -> /home/openhands/.ssh        (git/ssh access)
  *
  * Optional host home mount (opt-in):
  *   Set `OH_MOUNT_HOST_HOME=1` to bind-mount your entire host home onto
- *   the container user's home at `/openhands-home`. This lets the
+ *   the container user's home at `/home/openhands`. This lets the
  *   "Add Workspace" file browser navigate your real host filesystem
  *   (and credentials/persistence dirs above are picked up automatically
  *   as subpaths). Off by default so the container stays isolated from
@@ -50,7 +49,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -79,7 +78,7 @@ const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Note: The SDK build script strips the "v" prefix from semver release tags.
 const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
-const CONTAINER_HOME_DIR = "/openhands-home";
+const CONTAINER_HOME_DIR = "/home/openhands";
 const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
@@ -164,6 +163,19 @@ function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
   return userSpec ? ["--user", userSpec] : [];
 }
 
+function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
+  if (!userSpec) {
+    return [];
+  }
+
+  const [uid, gid] = userSpec.split(":");
+  if (!uid || !gid) {
+    return [];
+  }
+
+  return ["--tmpfs", `${CONTAINER_HOME_DIR}:uid=${uid},gid=${gid},mode=700`];
+}
+
 /**
  * Check that the docker CLI is on PATH AND that the docker daemon is
  * actually responding. `commandExists("docker")` only verifies the binary is
@@ -229,8 +241,9 @@ function startAgentServerDocker(config) {
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
 
   const home = homedir();
+  const userSpec = getHostDockerUserSpec();
   const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
-  dockerArgs.push(...getDockerUserArgs());
+  dockerArgs.push(...getDockerUserArgs(userSpec));
   dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
@@ -249,9 +262,7 @@ function startAgentServerDocker(config) {
   if (process.env.OH_MOUNT_HOST_HOME === "1") {
     dockerArgs.push("-v", `${home}:${CONTAINER_HOME_DIR}`);
   } else {
-    const dockerHome = join(home, ".cache", "agent-canvas", "docker-home");
-    mkdirSync(dockerHome, { recursive: true });
-    dockerArgs.push("-v", `${dockerHome}:${CONTAINER_HOME_DIR}`);
+    dockerArgs.push(...getDockerHomeTmpfsArgs(userSpec));
 
     const optionalMounts = [
       [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
@@ -278,7 +289,8 @@ function startAgentServerDocker(config) {
     OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
     OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
     OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
-    XDG_CACHE_HOME: `${CONTAINER_OPENHANDS_DIR}/cache`,
+    XDG_CACHE_HOME: `${CONTAINER_HOME_DIR}/.cache`,
+    XDG_CONFIG_HOME: `${CONTAINER_HOME_DIR}/.config`,
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
@@ -348,6 +360,7 @@ export {
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
   isDockerPermissionDenied,
