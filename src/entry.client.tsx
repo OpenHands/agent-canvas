@@ -13,6 +13,7 @@ import {
 } from "./components/providers";
 import { waitForI18n } from "./i18n";
 import { shouldStartMockWorker } from "./mocks/should-start-mock-worker";
+import { startStaticBuildRefreshWatcher } from "./utils/static-build-refresh";
 
 async function prepareApp() {
   await waitForI18n();
@@ -41,6 +42,7 @@ async function prepareApp() {
 
 prepareApp().then(() =>
   startTransition(() => {
+    startStaticBuildRefreshWatcher();
     hydrateRoot(
       document,
       <StrictMode>
