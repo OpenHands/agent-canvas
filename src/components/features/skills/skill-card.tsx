@@ -55,31 +55,25 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
     <article
       data-testid={`skill-card-${skill.name}`}
       className={cn(
-        "flex flex-col gap-3 rounded-2xl border border-border bg-surface-card p-4 transition-colors hover:border-border-hover",
+        "flex flex-col gap-3 rounded-xl border border-tertiary bg-base-secondary p-4 transition-colors hover:border-white/40 hover:bg-base-tertiary/30",
         !enabled && "opacity-70",
       )}
     >
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <SettingsSwitch
-            testId={`skill-toggle-${skill.name}`}
-            isToggled={enabled}
-            onToggle={onToggle}
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span
+            data-testid={`skill-name-${skill.name}`}
+            className="text-sm font-semibold text-white truncate"
           >
-            <span
-              data-testid={`skill-name-${skill.name}`}
-              className="text-sm font-semibold text-white"
-            >
-              {skill.name}
-            </span>
-          </SettingsSwitch>
+            {skill.name}
+          </span>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           <SkillTypeBadge type={skill.type} />
           {skill.version && (
             <span
               data-testid={`skill-version-${skill.name}`}
-              className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-content-muted"
+              className="inline-flex items-center rounded-full border border-tertiary px-2 py-0.5 text-[11px] font-medium text-tertiary-light"
             >
               {t(I18nKey.SETTINGS$SKILLS_VERSION, { version: skill.version })}
             </span>
@@ -93,6 +87,11 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               {t(I18nKey.SETTINGS$SKILLS_DISABLE_MODEL_INVOCATION)}
             </span>
           )}
+          <SettingsSwitch
+            testId={`skill-toggle-${skill.name}`}
+            isToggled={enabled}
+            onToggle={onToggle}
+          />
         </div>
       </header>
 
@@ -100,17 +99,13 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
         {description ? (
           <p
             className={cn(
-              "whitespace-pre-wrap text-content-muted leading-5",
+              "whitespace-pre-wrap text-tertiary-light leading-5",
               !showFullDescription && isDescriptionClamped && "line-clamp-3",
             )}
           >
             {description}
           </p>
-        ) : (
-          <p className="italic text-content-muted">
-            {t(I18nKey.SETTINGS$SKILLS_NO_DESCRIPTION)}
-          </p>
-        )}
+        ) : null}
         {showShowMoreButton && (
           <button
             type="button"
@@ -133,7 +128,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
           {skill.triggers.map((trigger) => (
             <span
               key={trigger}
-              className="inline-flex items-center rounded-md border border-border bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 font-mono text-[11px] text-content-muted"
+              className="inline-flex items-center rounded-md border border-tertiary bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 text-[11px] text-tertiary-light"
             >
               {trigger}
             </span>
@@ -142,13 +137,13 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
       )}
 
       {detailsAvailable && (
-        <div className="border-t border-border pt-2">
+        <div className="pt-2">
           <button
             type="button"
             data-testid={`skill-details-toggle-${skill.name}`}
             aria-expanded={detailsOpen}
             onClick={() => setDetailsOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between text-xs font-medium text-content-muted hover:text-white"
+            className="flex w-full items-center justify-between text-xs font-medium text-tertiary-light hover:text-white"
           >
             <span>{t(I18nKey.SETTINGS$SKILLS_DETAILS)}</span>
             <ChevronDownIcon
@@ -167,7 +162,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
             >
               {skill.source && (
                 <>
-                  <dt className="text-content-muted">
+                  <dt className="text-tertiary-light">
                     {t(I18nKey.SETTINGS$SKILLS_SOURCE)}
                   </dt>
                   <dd className="flex items-center gap-2 min-w-0">
@@ -182,7 +177,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
                       onClick={handleCopySource}
                       aria-label={t(I18nKey.SETTINGS$SKILLS_COPY_PATH)}
                       data-testid={`skill-copy-source-${skill.name}`}
-                      className="shrink-0 rounded p-1 text-content-muted hover:bg-[rgba(255,255,255,0.06)] hover:text-white"
+                      className="shrink-0 rounded p-1 text-tertiary-light hover:bg-[rgba(255,255,255,0.06)] hover:text-white"
                     >
                       <CopyIcon className="size-3.5" />
                     </button>
@@ -191,7 +186,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               )}
               {skill.license && (
                 <>
-                  <dt className="text-content-muted">
+                  <dt className="text-tertiary-light">
                     {t(I18nKey.SETTINGS$SKILLS_LICENSE)}
                   </dt>
                   <dd className="text-white">{skill.license}</dd>
@@ -199,7 +194,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               )}
               {skill.compatibility && (
                 <>
-                  <dt className="text-content-muted">
+                  <dt className="text-tertiary-light">
                     {t(I18nKey.SETTINGS$SKILLS_COMPATIBILITY)}
                   </dt>
                   <dd className="text-white">{skill.compatibility}</dd>
@@ -207,14 +202,14 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               )}
               {skill.allowed_tools && skill.allowed_tools.length > 0 && (
                 <>
-                  <dt className="text-content-muted">
+                  <dt className="text-tertiary-light">
                     {t(I18nKey.SETTINGS$SKILLS_ALLOWED_TOOLS)}
                   </dt>
                   <dd className="flex flex-wrap gap-1">
                     {skill.allowed_tools.map((tool) => (
                       <span
                         key={tool}
-                        className="inline-flex items-center rounded-md border border-border px-1.5 py-0.5 font-mono text-[11px] text-content-muted"
+                        className="inline-flex items-center rounded-md border border-tertiary px-1.5 py-0.5 font-mono text-[11px] text-tertiary-light"
                       >
                         {tool}
                       </span>
@@ -224,14 +219,14 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
               )}
               {skill.metadata && Object.keys(skill.metadata).length > 0 && (
                 <>
-                  <dt className="text-content-muted">
+                  <dt className="text-tertiary-light">
                     {t(I18nKey.SETTINGS$SKILLS_METADATA)}
                   </dt>
                   <dd>
                     <ul className="flex flex-col gap-0.5">
                       {Object.entries(skill.metadata).map(([key, value]) => (
                         <li key={key} className="flex gap-2">
-                          <span className="font-mono text-[11px] text-content-muted">
+                          <span className="font-mono text-[11px] text-tertiary-light">
                             {key}:
                           </span>
                           <span className="text-white">{value}</span>

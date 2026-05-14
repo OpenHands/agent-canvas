@@ -35,7 +35,6 @@ export async function fetchCloudSkills(): Promise<SkillInfo[]> {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    // eslint-disable-next-line no-await-in-loop
     const page = await callCloudProxy<CloudSkillsPage>({
       backend,
       method: "GET",

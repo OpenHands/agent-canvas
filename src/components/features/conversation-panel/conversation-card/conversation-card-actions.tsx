@@ -34,7 +34,7 @@ export function ConversationCardActions({
   const isActive = isExecutionActive(executionStatus);
 
   return (
-    <div className="group">
+    <div className="relative">
       <button
         data-testid="ellipsis-button"
         type="button"
@@ -52,8 +52,10 @@ export function ConversationCardActions({
       </button>
       <div
         className={cn(
-          "relative opacity-0 invisible group-hover:opacity-100 group-hover:visible",
-          contextMenuOpen && "opacity-100 visible",
+          "relative",
+          contextMenuOpen
+            ? "opacity-100 visible z-[60]"
+            : "opacity-0 invisible pointer-events-none",
         )}
       >
         <ConversationCardContextMenu

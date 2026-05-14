@@ -38,7 +38,7 @@ export function MarketplaceCard({
         "group flex flex-col text-left",
         "rounded-xl border border-tertiary bg-base-secondary",
         "p-4 gap-3 cursor-pointer",
-        "hover:border-primary/60 hover:bg-base-tertiary/30 transition-colors",
+        "hover:border-white/40 hover:bg-base-tertiary/30 transition-colors",
         "focus:outline-none focus:ring-2 focus:ring-primary/60",
       )}
     >

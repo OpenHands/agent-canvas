@@ -64,6 +64,11 @@ let activeQueryClient: QueryClient | null = null;
 export const getDefaultQueryClient = () => {
   if (!defaultQueryClient) {
     defaultQueryClient = createAgentServerQueryClient();
+    if (import.meta.env.DEV || import.meta.env.VITE_MOCK_API === "true") {
+      (
+        window as unknown as { __OH_QUERY_CLIENT__?: typeof defaultQueryClient }
+      ).__OH_QUERY_CLIENT__ = defaultQueryClient;
+    }
   }
 
   return defaultQueryClient;

@@ -34,14 +34,9 @@ export function MarketplaceSection({
       data-testid="mcp-marketplace-section"
       className="flex flex-col gap-3"
     >
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold">
-          {t(I18nKey.MCP$MARKETPLACE_TITLE)}
-        </h2>
-        <p className="text-xs text-tertiary-alt">
-          {t(I18nKey.MCP$MARKETPLACE_DESCRIPTION)}
-        </p>
-      </div>
+      <h2 className="text-base font-semibold text-foreground">
+        {t(I18nKey.MCP$LIBRARY_TITLE)}
+      </h2>
 
       {visibleEntries.length === 0 ? (
         <div
@@ -55,7 +50,7 @@ export function MarketplaceSection({
       ) : (
         <div
           data-testid="mcp-marketplace-grid"
-          className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          className="grid gap-3 grid-cols-1 md:grid-cols-2"
         >
           {visibleEntries.map((entry) => (
             <MarketplaceCard

@@ -14,7 +14,6 @@ export {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
   dismissEnvironmentSwitch,
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   __resetEnvironmentSwitchOverlayForTests,
 } from "./environment-switch-store";
 

@@ -12,6 +12,8 @@ interface SettingsSwitchProps {
   isToggled?: boolean;
   isBeta?: boolean;
   isDisabled?: boolean;
+  /** Whether the toggle sits before or after the label. Defaults to "left". */
+  togglePosition?: "left" | "right";
 }
 
 export function SettingsSwitch({
@@ -23,6 +25,7 @@ export function SettingsSwitch({
   isToggled: controlledIsToggled,
   isBeta,
   isDisabled,
+  togglePosition = "left",
 }: React.PropsWithChildren<SettingsSwitchProps>) {
   const { t } = useTranslation("openhands");
   const [isToggled, setIsToggled] = React.useState(defaultIsToggled ?? false);
@@ -33,25 +36,24 @@ export function SettingsSwitch({
     onToggle?.(value);
   };
 
-  return (
-    <label
-      className={cn(
-        "flex items-center gap-2 w-fit",
-        isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-      )}
-    >
-      <input
-        hidden
-        data-testid={testId}
-        name={name}
-        type="checkbox"
-        onChange={(e) => handleToggle(e.target.checked)}
-        checked={controlledIsToggled ?? isToggled}
-        disabled={isDisabled}
-      />
+  const input = (
+    <input
+      hidden
+      data-testid={testId}
+      name={name}
+      type="checkbox"
+      onChange={(e) => handleToggle(e.target.checked)}
+      checked={controlledIsToggled ?? isToggled}
+      disabled={isDisabled}
+    />
+  );
 
-      <StyledSwitchComponent isToggled={controlledIsToggled ?? isToggled} />
+  const toggle = (
+    <StyledSwitchComponent isToggled={controlledIsToggled ?? isToggled} />
+  );
 
+  const label =
+    children || isBeta ? (
       <div className="flex items-center gap-1">
         <span className="text-sm">{children}</span>
         {isBeta && (
@@ -60,6 +62,28 @@ export function SettingsSwitch({
           </span>
         )}
       </div>
+    ) : null;
+
+  return (
+    <label
+      className={cn(
+        "flex items-center gap-2",
+        togglePosition === "right" ? "w-full justify-between" : "w-fit",
+        isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+      )}
+    >
+      {input}
+      {togglePosition === "right" ? (
+        <>
+          {label}
+          {toggle}
+        </>
+      ) : (
+        <>
+          {toggle}
+          {label}
+        </>
+      )}
     </label>
   );
 }

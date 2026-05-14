@@ -35,7 +35,7 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBe("wss://example.com:8080/sockets/events/conv-123");
     });
 
-    it("should use wss:// for external hosts even when page is HTTP (Safari compatibility)", () => {
+    it("should use ws:// for external HTTP hosts when page is HTTP", () => {
       vi.stubGlobal("location", {
         protocol: "http:",
         host: "localhost:3000",
@@ -46,7 +46,23 @@ describe("buildWebSocketUrl", () => {
         "http://agent-server.com:9000/api/conversations/conv-456",
       );
 
-      expect(result).toBe("wss://agent-server.com:9000/sockets/events/conv-456");
+      expect(result).toBe("ws://agent-server.com:9000/sockets/events/conv-456");
+    });
+
+    it("should use wss:// for external HTTPS hosts when page is HTTP", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "conv-456",
+        "https://agent-server.com:9000/api/conversations/conv-456",
+      );
+
+      expect(result).toBe(
+        "wss://agent-server.com:9000/sockets/events/conv-456",
+      );
     });
 
     it("should use ws:// for localhost when page is HTTP", () => {
@@ -93,7 +109,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", null);
 
-      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is undefined", () => {
@@ -104,7 +120,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", undefined);
 
-      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is relative path", () => {
@@ -118,7 +134,7 @@ describe("buildWebSocketUrl", () => {
         "/api/conversations/conv-123",
       );
 
-      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
     });
 
     it("should use window.location.host when conversation URL is invalid", () => {
@@ -129,7 +145,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl("conv-123", "not-a-valid-url");
 
-      expect(result).toBe("wss://fallback-host:4000/sockets/events/conv-123");
+      expect(result).toBe("ws://fallback-host:4000/sockets/events/conv-123");
     });
   });
 
@@ -165,7 +181,7 @@ describe("buildWebSocketUrl", () => {
         "http://example.com:12345/api/conversations/conv-123",
       );
 
-      expect(result).toBe("wss://example.com:12345/sockets/events/conv-123");
+      expect(result).toBe("ws://example.com:12345/sockets/events/conv-123");
     });
 
     it("should handle conversation URLs without port (default port) on external hosts", () => {
@@ -174,7 +190,7 @@ describe("buildWebSocketUrl", () => {
         "http://example.com/api/conversations/conv-123",
       );
 
-      expect(result).toBe("wss://example.com/sockets/events/conv-123");
+      expect(result).toBe("ws://example.com/sockets/events/conv-123");
     });
 
     it("should handle conversation IDs with special characters", () => {
@@ -199,8 +215,8 @@ describe("buildWebSocketUrl", () => {
     });
   });
 
-  describe("Safari compatibility - external host detection", () => {
-    it("should use wss:// for prod-runtime.all-hands.dev domains", () => {
+  describe("protocol selection for external hosts", () => {
+    it("should use wss:// for HTTPS prod-runtime.all-hands.dev domains", () => {
       vi.stubGlobal("location", {
         protocol: "http:",
         host: "localhost:8000",
@@ -212,7 +228,7 @@ describe("buildWebSocketUrl", () => {
 
       const result = buildWebSocketUrl(
         fakeConversationId,
-        `http://${fakeRuntimeHost}/api/conversations/${fakeConversationId}`,
+        `https://${fakeRuntimeHost}/api/conversations/${fakeConversationId}`,
       );
 
       expect(result).toBe(

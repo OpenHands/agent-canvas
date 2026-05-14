@@ -42,7 +42,6 @@ export function DropdownItem<T>({
   });
 
   return (
-    // eslint-disable-next-line react/jsx-props-no-spreading
     <li key={getItemKey(item)} {...itemProps}>
       <div className="flex items-center gap-2">
         {renderIcon?.(item)}

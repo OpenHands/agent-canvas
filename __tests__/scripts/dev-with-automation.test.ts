@@ -404,6 +404,8 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--port");
     expect(output).toContain("--automation-ref");
     expect(output).toContain("--automation-repo");
+    expect(output).toContain("--static");
+    expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");

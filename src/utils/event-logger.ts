@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 /**
  * A utility class for logging events. This class will only log events in development mode.
  */

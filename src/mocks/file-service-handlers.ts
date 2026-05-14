@@ -39,6 +39,14 @@ const shouldReturnDockerProjectMock =
   typeof import.meta.env.MODE === "string" && import.meta.env.MODE !== "test";
 
 export const FILE_SERVICE_HANDLERS = [
+  http.all("*/api/bash/execute_bash_command", async () =>
+    HttpResponse.json({
+      command: "",
+      exit_code: 0,
+      output: "",
+    }),
+  ),
+
   http.get("*/api/file/home", async () =>
     HttpResponse.json(MOCK_FILE_BROWSER_HOME),
   ),
@@ -46,14 +54,24 @@ export const FILE_SERVICE_HANDLERS = [
   http.get("*/api/file/search_subdirs", async ({ request }) => {
     const url = new URL(request.url);
     const path = url.searchParams.get("path") ?? "";
+    const items = shouldReturnDockerProjectMock
+      ? (MOCK_SUBDIRECTORIES_BY_PATH[path] ?? [])
+      : [];
 
     return HttpResponse.json({
-      items: shouldReturnDockerProjectMock
-        ? (MOCK_SUBDIRECTORIES_BY_PATH[path] ?? [])
-        : [],
+      path,
+      items,
+      subdirs: items,
       next_page_id: null,
     });
   }),
+
+  http.get("*/api/file/:path", async ({ params }) =>
+    HttpResponse.json({
+      path: `/${params.path?.toString() ?? "home"}`,
+      subdirs: [],
+    }),
+  ),
 
   http.get(
     "/api/conversations/:conversationId/list-files",

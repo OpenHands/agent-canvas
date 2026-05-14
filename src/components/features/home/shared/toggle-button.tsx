@@ -18,7 +18,6 @@ export function ToggleButton({
 }: ToggleButtonProps) {
   return (
     <button
-      // eslint-disable-next-line react/jsx-props-no-spreading
       {...getToggleButtonProps({
         disabled,
         className: cn(
