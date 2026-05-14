@@ -46,19 +46,12 @@ describe("AddBackendModal", () => {
     expect(row.className).toContain("grid-cols-2");
   });
 
-  it("starts with an empty host and shows cloud helper text and login button", () => {
+  it("starts with an empty host and shows the login button for cloud backends", () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
     expect(screen.getByTestId("add-backend-host")).toHaveValue("");
     expect(screen.getByTestId("add-backend-kind-cloud")).toBeChecked();
     expect(screen.getByTestId("add-backend-login-button")).not.toBeDisabled();
-    expect(screen.getByText("BACKEND$HOST_HELPER")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "BACKEND$HOST_DOCS_LINK" }),
-    ).toHaveAttribute(
-      "href",
-      "https://docs.openhands.dev/openhands/usage/cloud/openhands-cloud",
-    );
   });
 
   it("disables submit until all fields are filled", async () => {

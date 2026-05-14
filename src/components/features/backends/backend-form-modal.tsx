@@ -38,8 +38,6 @@ function normalizeHost(host: string): string {
 }
 
 const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.openhands.dev";
-const OPENHANDS_CLOUD_DOCS_URL =
-  "https://docs.openhands.dev/openhands/usage/cloud/openhands-cloud";
 
 /**
  * Live status row for the edit form: shows a connection dot, a
@@ -271,57 +269,27 @@ export function BackendForm({
             : "flex flex-col gap-4"
         }
       >
-        <div className="flex flex-col gap-2">
-          <SettingsInput
-            testId={`${testIdRoot}-host`}
-            name={`${testIdRoot}-host`}
-            type="text"
-            label={t(I18nKey.BACKEND$HOST_LABEL)}
-            value={host}
-            onChange={setHost}
-            placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-            className="w-full"
-          />
-          {mode === "add" && kind === "cloud" && (
-            <p className="text-xs leading-5 text-gray-400">
-              {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
-              <a
-                href={OPENHANDS_CLOUD_DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                {t(I18nKey.BACKEND$HOST_DOCS_LINK)}
-              </a>
-            </p>
-          )}
-        </div>
+        <SettingsInput
+          testId={`${testIdRoot}-host`}
+          name={`${testIdRoot}-host`}
+          type="text"
+          label={t(I18nKey.BACKEND$HOST_LABEL)}
+          value={host}
+          onChange={setHost}
+          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+          className="w-full"
+        />
 
-        <div className="flex flex-col gap-2">
-          <SettingsInput
-            testId={`${testIdRoot}-api-key`}
-            name={`${testIdRoot}-api-key`}
-            type="password"
-            label={t(I18nKey.BACKEND$KEY_LABEL)}
-            value={apiKey}
-            onChange={setApiKey}
-            placeholder=""
-            className="w-full"
-          />
-          {mode === "add" && kind === "cloud" && (
-            <p className="text-xs text-gray-400">
-              {t(I18nKey.BACKEND$KEY_DOCS_HINT)}{" "}
-              <a
-                href="https://docs.openhands.dev/openhands/usage/settings/api-keys-settings"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                {t(I18nKey.BACKEND$KEY_DOCS_LINK)}
-              </a>
-            </p>
-          )}
-        </div>
+        <SettingsInput
+          testId={`${testIdRoot}-api-key`}
+          name={`${testIdRoot}-api-key`}
+          type="password"
+          label={t(I18nKey.BACKEND$KEY_LABEL)}
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder=""
+          className="w-full"
+        />
 
         {/* Device Flow login for cloud backends in add mode */}
         {mode === "add" && kind === "cloud" && (
