@@ -44,7 +44,9 @@ npm install
 npm run dev:docker
 ```
 
-Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway and the logs include a Vite error like `'C:\Program' is not recognized`, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
+This serves a static production build of the frontend behind the local ingress proxy. That is the recommended mode for normal use, remote access, and tunnels such as ngrok because it avoids Vite hot-reload restarts and large dev-module request bursts. If you are developing the Agent Canvas frontend itself and want live reload, use `npm run dev:docker:dynamic` instead.
+
+Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
 
 ```powershell
 $env:PROJECT_PATH = "/path/to/your/projects"
@@ -80,10 +82,10 @@ npm run dev:dangerously-dockerless
 
 Access the UI at [http://localhost:8000](http://localhost:8000)
 
-If you're not actively developing on agent-canvas and just want to run it locally, use the static build instead (faster loads, no hot reload):
+This also serves a static production build for stability. If you are developing the Agent Canvas frontend itself and want live reload, use the dynamic dockerless command instead:
 
 ```sh
-npm run dev:static
+npm run dev:dangerously-dockerless:dynamic
 ```
 
 # Architecture
