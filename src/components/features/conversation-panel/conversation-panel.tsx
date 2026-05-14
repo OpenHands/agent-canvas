@@ -105,13 +105,8 @@ export function ConversationPanel({
     string | null
   >(null);
 
-  const {
-    data,
-    isFetching,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = usePaginatedConversations();
+  const { data, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    usePaginatedConversations();
 
   // Fetch in-progress start tasks
   const { data: startTasks } = useStartTasks();
@@ -318,7 +313,7 @@ export function ConversationPanel({
           )}
         >
           <span className="text-sm font-medium text-neutral-400">
-            Conversations
+            {t(I18nKey.SIDEBAR$CONVERSATIONS)}
           </span>
           <div ref={olderFilterMenuRef} className="relative ml-auto">
             <button

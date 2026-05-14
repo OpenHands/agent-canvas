@@ -15,6 +15,8 @@ describe("ConversationCardSkeleton", () => {
     expect(
       screen.getByTestId("conversation-card-skeleton-compact"),
     ).toBeInTheDocument();
-    expect(screen.queryByTestId("conversation-card-skeleton")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("conversation-card-skeleton"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -154,9 +154,7 @@ export function ConversationCard({
                 contextMenuOpen && "opacity-0",
               )}
             >
-              <time>
-                {formatTimeDelta(lastUpdatedAt ?? createdAt)}
-              </time>
+              <time>{formatTimeDelta(lastUpdatedAt ?? createdAt)}</time>
             </p>
           )}
 

@@ -143,6 +143,7 @@ export function Sidebar() {
 
   return (
     <SidebarCollapseContext.Provider value={collapsed}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the aside acts as a hit-area for the collapsed rail; nested controls handle their own keyboard interactions. */}
       <aside
         aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
         data-collapsed={collapsed ? "true" : "false"}
