@@ -6,8 +6,13 @@ import { test, expect, Page } from "@playwright/test";
  *   - /settings/condenser     (Schema-driven condenser form)
  *
  * MSW provides the default settings (confirmation_mode: false) so the first
- * verification snapshot shows the toggle in the OFF position.  Toggling it
- * on reveals the Security Analyzer dropdown — captured in the second snapshot.
+ * verification snapshot shows the toggle in the OFF position with a dimmed
+ * Save Changes button.  Toggling it ON reveals the Security Analyzer dropdown
+ * and enables Save Changes — captured in the second snapshot.
+ *
+ * Three snapshots, not four: there is no separate "dirty" snapshot because
+ * clicking the toggle IS the dirty action — the "ON" snapshot already captures
+ * the dirty/enabled-Save-Changes state.
  */
 
 async function dismissConsentModal(page: Page) {
@@ -86,30 +91,6 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toHaveScreenshot(
       "verification-settings-on.png",
-      { animations: "disabled", maxDiffPixelRatio: 0.01 },
-    );
-  });
-
-  test("verification settings dirty — Save button enabled after toggle", async ({
-    page,
-  }) => {
-    await setupMocks(page);
-    await page.goto("/settings/verification");
-    await dismissConsentModal(page);
-    await waitForVerificationPage(page);
-
-    // Click the visible label wrapper to mark the form dirty
-    await page
-      .locator(`label:has([data-testid="confirmation-mode-toggle"])`)
-      .click();
-
-    // Save button should now be enabled
-    const saveButton = page.getByRole("button", { name: "Save Changes" });
-    await expect(saveButton).toBeEnabled({ timeout: 5_000 });
-
-    const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toHaveScreenshot(
-      "verification-settings-dirty.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
     );
   });
