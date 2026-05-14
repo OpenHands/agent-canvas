@@ -258,64 +258,84 @@ export function BackendForm({
         className="w-full"
       />
 
-      <div className="flex flex-col gap-2">
-        <SettingsInput
-          testId={`${testIdRoot}-host`}
-          name={`${testIdRoot}-host`}
-          type="text"
-          label={t(I18nKey.BACKEND$HOST_LABEL)}
-          value={host}
-          onChange={setHost}
-          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-          className="w-full"
-        />
-        <p className="text-xs leading-5 text-gray-400">
-          {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
-          <a
-            href={OPENHANDS_CLOUD_DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            {t(I18nKey.BACKEND$HOST_DOCS_LINK)}
-          </a>
-        </p>
-      </div>
-
-      {/* Device Flow auth for cloud backends in add mode - always visible */}
-      {mode === "add" && kind === "cloud" && (
-        <div className="flex flex-col gap-3 rounded-lg border border-tertiary bg-base-tertiary/40 p-3">
-          <p className="text-sm text-gray-300">
-            {t(I18nKey.BACKEND$AUTH_METHOD_HELPER)}
-          </p>
-          <DeviceFlowAuth
-            host={host}
-            onSuccess={setApiKey}
-            testIdRoot={testIdRoot}
-            isDisabled={host.trim().length === 0}
+      {/*
+       * Connection box: In cloud-add mode, host + auth + API key are
+       * grouped visually in a bordered card. In other modes the wrapper
+       * is unstyled so the inputs sit flush with the rest of the form.
+       *
+       * The host input is always rendered in the same DOM position so it
+       * is never unmounted when kind flips mid-keystroke.
+       */}
+      <div
+        className={
+          mode === "add" && kind === "cloud"
+            ? "flex flex-col gap-3 rounded-lg border border-tertiary bg-base-tertiary/40 p-3"
+            : "flex flex-col gap-4"
+        }
+      >
+        <div className="flex flex-col gap-2">
+          <SettingsInput
+            testId={`${testIdRoot}-host`}
+            name={`${testIdRoot}-host`}
+            type="text"
+            label={t(I18nKey.BACKEND$HOST_LABEL)}
+            value={host}
+            onChange={setHost}
+            placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+            className="w-full"
           />
+          {mode === "add" && kind === "cloud" && (
+            <p className="text-xs leading-5 text-gray-400">
+              {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
+              <a
+                href={OPENHANDS_CLOUD_DOCS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                {t(I18nKey.BACKEND$HOST_DOCS_LINK)}
+              </a>
+            </p>
+          )}
+        </div>
 
-          {/* Divider with "or" */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 border-t border-gray-600" />
-            <span className="text-xs text-gray-500 uppercase">
-              {t(I18nKey.BACKEND$LOGIN_OR)}
-            </span>
-            <div className="flex-1 border-t border-gray-600" />
-          </div>
-
-          {/* Manual API key section */}
-          <div className="flex flex-col gap-2">
-            <SettingsInput
-              testId={`${testIdRoot}-api-key`}
-              name={`${testIdRoot}-api-key`}
-              type="password"
-              label={t(I18nKey.BACKEND$KEY_LABEL)}
-              value={apiKey}
-              onChange={setApiKey}
-              placeholder=""
-              className="w-full"
+        {/* Device Flow auth for cloud backends in add mode */}
+        {mode === "add" && kind === "cloud" && (
+          <>
+            <p className="text-sm text-gray-300">
+              {t(I18nKey.BACKEND$AUTH_METHOD_HELPER)}
+            </p>
+            <DeviceFlowAuth
+              host={host}
+              onSuccess={setApiKey}
+              testIdRoot={testIdRoot}
+              isDisabled={host.trim().length === 0}
             />
+
+            {/* Divider with "or" */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-600" />
+              <span className="text-xs text-gray-500 uppercase">
+                {t(I18nKey.BACKEND$LOGIN_OR)}
+              </span>
+              <div className="flex-1 border-t border-gray-600" />
+            </div>
+          </>
+        )}
+
+        {/* API key input — always rendered, with docs hint in cloud-add mode */}
+        <div className="flex flex-col gap-2">
+          <SettingsInput
+            testId={`${testIdRoot}-api-key`}
+            name={`${testIdRoot}-api-key`}
+            type="password"
+            label={t(I18nKey.BACKEND$KEY_LABEL)}
+            value={apiKey}
+            onChange={setApiKey}
+            placeholder=""
+            className="w-full"
+          />
+          {mode === "add" && kind === "cloud" && (
             <p className="text-xs text-gray-400">
               {t(I18nKey.BACKEND$KEY_DOCS_HINT)}{" "}
               <a
@@ -327,23 +347,9 @@ export function BackendForm({
                 {t(I18nKey.BACKEND$KEY_DOCS_LINK)}
               </a>
             </p>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Regular API key input for non-cloud or edit mode */}
-      {(mode === "edit" || kind !== "cloud") && (
-        <SettingsInput
-          testId={`${testIdRoot}-api-key`}
-          name={`${testIdRoot}-api-key`}
-          type="password"
-          label={t(I18nKey.BACKEND$KEY_LABEL)}
-          value={apiKey}
-          onChange={setApiKey}
-          placeholder=""
-          className="w-full"
-        />
-      )}
+      </div>
 
       {mode === "edit" && backend ? (
         <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
