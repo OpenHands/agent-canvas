@@ -78,6 +78,11 @@ const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Note: The SDK build script strips the "v" prefix from semver release tags.
 const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
+
+// Keep the in-container home at the path advertised by the agent-server
+// image. The default isolated-home launch overlays this path with tmpfs
+// before mounting ~/.openhands below it, so OH_PERSISTENCE_DIR can stay at
+// the conventional $HOME/.openhands instead of inventing a second home root.
 const CONTAINER_HOME_DIR = "/home/openhands";
 const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
 
@@ -163,6 +168,22 @@ function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
   return userSpec ? ["--user", userSpec] : [];
 }
 
+/**
+ * When `docker run --user <host uid>:<host gid>` is set, the process no
+ * longer runs as the image's `openhands` user. The image home directory is
+ * owned by that image user and has mode 0700, so the mapped host user cannot
+ * enter `/home/openhands` unless we replace or mutate it.
+ *
+ * We deliberately use a tmpfs overlay instead of:
+ * - chown/chmod: would require starting the container as root and adding a
+ *   wrapper just to repair the image home before dropping privileges.
+ * - a custom home path: would make OH_PERSISTENCE_DIR stop looking like the
+ *   normal $HOME/.openhands location and make future path reasoning harder.
+ *
+ * Cache/config writes that libraries place under $HOME stay ephemeral in this
+ * tmpfs. The only persisted default-home state is the explicit
+ * ~/.openhands -> /home/openhands/.openhands bind mount below.
+ */
 function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
   if (!userSpec) {
     return [];
@@ -289,8 +310,6 @@ function startAgentServerDocker(config) {
     OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
     OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
     OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
-    XDG_CACHE_HOME: `${CONTAINER_HOME_DIR}/.cache`,
-    XDG_CONFIG_HOME: `${CONTAINER_HOME_DIR}/.config`,
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
