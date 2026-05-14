@@ -1,4 +1,5 @@
 import { ActionEvent, OpenHandsEvent } from "#/types/agent-server/core";
+import { ThinkingBlock } from "#/types/agent-server/core/base/event";
 import {
   isActionEvent,
   isObservationEvent,
@@ -16,6 +17,28 @@ export const getActionThoughtText = (action: ActionEvent): string =>
     .filter((t) => t.type === "text")
     .map((t) => t.text)
     .join("\n");
+
+/**
+ * Extracts extended thinking / reasoning content from an `ActionEvent`.
+ *
+ * Prefers `reasoning_content` (a plain string produced by many reasoning
+ * models). Falls back to the text from `thinking_blocks` (Anthropic
+ * extended thinking). Returns an empty string when neither is available.
+ */
+export const getReasoningContent = (action: ActionEvent): string => {
+  if (action.reasoning_content) {
+    return action.reasoning_content;
+  }
+
+  if (action.thinking_blocks?.length) {
+    return action.thinking_blocks
+      .filter((b): b is ThinkingBlock => b.type === "thinking")
+      .map((b) => b.thinking)
+      .join("\n\n");
+  }
+
+  return "";
+};
 
 export const hasNonEmptyThought = (action: ActionEvent): boolean =>
   getActionThoughtText(action).trim().length > 0;

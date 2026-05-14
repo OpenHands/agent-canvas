@@ -21,16 +21,17 @@ import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
-import { ChatMessage } from "../../features/chat/chat-message";
 import { PlanPreview } from "../../features/chat/plan-preview";
 import { ErrorEventMessage } from "./event-message-components/error-event-message";
 import { UserAssistantEventMessage } from "./event-message-components/user-assistant-event-message";
 import { FinishEventMessage } from "./event-message-components/finish-event-message";
 import { GenericEventMessageWrapper } from "./event-message-components/generic-event-message-wrapper";
 import { ThoughtEventMessage } from "./event-message-components/thought-event-message";
+import { CollapsibleThinking } from "./event-message-components/collapsible-thinking";
 import { HookExecutionEventMessage } from "./event-message-components/hook-execution-event-message";
 import { createSkillReadyEvent } from "./event-content-helpers/create-skill-ready-event";
 import { shouldShowPlanPreview } from "./hooks/use-plan-preview-events";
+import { getReasoningContent } from "./event-thought-helpers";
 
 interface EventMessageProps {
   event: OpenHandsEvent & { isFromPlanningAgent?: boolean };
@@ -128,7 +129,6 @@ const renderUserMessageWithSkillReady = (
   }
 };
 
-/* eslint-disable react/jsx-props-no-spreading */
 export function EventMessage({
   event,
   messages,
@@ -186,24 +186,20 @@ export function EventMessage({
     );
   }
 
-  // ThinkAction - render the thought as a normal chat message (not a collapsible block)
-  // The thought content IS the action, so we use event.action.thought directly
-  // instead of event.thought (which contains the raw tool call text).
+  // ThinkAction - render the thought inside a collapsible section so it
+  // doesn't dominate the chat, especially when the thinking language
+  // (usually English) differs from the conversation language.
   if (isActionEvent(event) && event.action.kind === "ThinkAction") {
     const thinkAction = event as ActionEvent<ThinkAction>;
-    return (
-      <ChatMessage
-        type="agent"
-        message={thinkAction.action.thought}
-        isFromPlanningAgent={isFromPlanningAgent}
-      />
-    );
+    return <CollapsibleThinking content={thinkAction.action.thought} />;
   }
 
   // Action events - render thought + action (will be replaced by thought + observation)
   if (isActionEvent(event)) {
+    const reasoningContent = getReasoningContent(event);
     return (
       <>
+        {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
         {!suppressThought && (
           <ThoughtEventMessage
             event={event}
@@ -256,8 +252,14 @@ export function EventMessage({
       isActionEvent(correspondingAction) &&
       correspondingAction.action.kind !== "ThinkAction";
 
+    const reasoningContent =
+      correspondingAction && isActionEvent(correspondingAction)
+        ? getReasoningContent(correspondingAction)
+        : "";
+
     return (
       <>
+        {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
         {shouldShowThought && (
           <ThoughtEventMessage
             event={correspondingAction}
