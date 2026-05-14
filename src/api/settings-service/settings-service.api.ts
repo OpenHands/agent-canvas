@@ -1,16 +1,11 @@
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import {
-  Provider,
-  Settings,
-  SettingsSchema,
-  SettingsValue,
-} from "#/types/settings";
+import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import {
   extractAppPreferences,
   readStoredAppPreferences,
   writeStoredAppPreferences,
 } from "../app-preferences-store";
-import { getStoredGitProviders } from "../secrets-service";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -18,7 +13,7 @@ import {
   fetchCloudSettingsSchema,
   saveCloudSettings,
 } from "../cloud/settings-service.api";
-import { createHttpClient, createSettingsClient } from "../typescript-client";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 /**
  * Response from GET /api/settings
@@ -65,7 +60,6 @@ async function withRetry<T>(
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     try {
-      // eslint-disable-next-line no-await-in-loop
       return await fn();
     } catch (error) {
       if (attempt >= maxRetries - 1) {
@@ -73,7 +67,7 @@ async function withRetry<T>(
       }
 
       const delay = baseDelayMs * 2 ** attempt;
-      // eslint-disable-next-line no-await-in-loop
+
       await new Promise<void>((resolve) => {
         setTimeout(resolve, delay);
       });
@@ -138,17 +132,6 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     settings.conversation_settings ?? {},
   );
 
-  // The agent-server has no concept of provider_tokens_set; the GUI derives it
-  // from locally-stored git provider credentials so the UI knows which
-  // providers are configured after a save.
-  const storedProviders = getStoredGitProviders();
-  const derivedProviderTokensSet = Object.fromEntries(
-    Object.entries(storedProviders).map(([provider, value]) => [
-      provider,
-      value?.host ?? null,
-    ]),
-  ) as Partial<Record<Provider, string | null>>;
-
   // App-level user preferences (language, git identity, sound notifications,
   // analytics consent) live in localStorage in local mode. In cloud mode the
   // server response carries them and overrides the local cache.
@@ -161,7 +144,6 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
       ...(settings.provider_tokens_set ?? {}),
-      ...derivedProviderTokensSet,
     },
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
@@ -225,16 +207,11 @@ class SettingsService {
   static async fetchSettingsFromApi(
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<SettingsApiResponse> {
-    const headers: Record<string, string> = {};
-    if (exposeSecrets) {
-      headers["X-Expose-Secrets"] = exposeSecrets;
-    }
-
-    const response = await withRetry(() =>
-      createHttpClient().get<SettingsApiResponse>("/api/settings", { headers }),
-    );
-
-    return response.data;
+    return withRetry(() =>
+      new SettingsClient(getAgentServerClientOptions()).getSettings({
+        exposeSecrets,
+      }),
+    ) as Promise<SettingsApiResponse>;
   }
 
   /**
@@ -315,14 +292,18 @@ class SettingsService {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getAgentSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getAgentSchema()) as SettingsSchema;
   }
 
   static async getConversationSettingsSchema(): Promise<SettingsSchema> {
     if (getActiveBackend().backend.kind === "cloud") {
       return (await fetchCloudConversationSettingsSchema()) as SettingsSchema;
     }
-    return (await createSettingsClient().getConversationSchema()) as SettingsSchema;
+    return (await new SettingsClient(
+      getAgentServerClientOptions(),
+    ).getConversationSchema()) as SettingsSchema;
   }
 
   /**
@@ -374,6 +355,63 @@ class SettingsService {
 
     const isCloud = getActiveBackend().backend.kind === "cloud";
 
+    // The backend applies ``agent_settings_diff`` by deep-merging it into the
+    // existing ``agent_settings`` dict (see SDK
+    // ``openhands.agent_server.persistence.models._deep_merge``). That works
+    // for scalar fields but is wrong for ``mcp_config.mcpServers``, which is
+    // a name-keyed map: a diff that omits a server cannot remove it (stale
+    // key stays), and a diff whose key indices shift (e.g. after deleting
+    // index 0, the second server is renumbered) leaves the original keys
+    // behind as duplicates pointing to the wrong server config.
+    //
+    // The only way to make ``mcp_config`` behave like a replace through this
+    // API is to first null it out — ``null`` is not a dict, so deep-merge
+    // takes the else branch and sets the field to ``None`` outright — and
+    // then send the new value in a follow-up call. We do this for every
+    // ``mcp_config`` write, including adds (the wasted round-trip is
+    // negligible for this user action and avoids divergent code paths).
+    const agentDiff = payload.agent_settings_diff;
+    // Send a pre-clear PATCH when the diff sets ``mcp_config`` to a non-null
+    // value. A second PATCH below then writes the new value. Skipping the
+    // pre-clear when the caller is already clearing (``mcp_config: null``)
+    // avoids a pointless duplicate request.
+    const needsMcpPreClear =
+      !!agentDiff && "mcp_config" in agentDiff && agentDiff.mcp_config !== null;
+
+    // The pre-clear is destructive: if the follow-up write fails after the
+    // clear succeeds, the user's MCP config is left empty. Snapshot the
+    // previous value (in raw SDK shape, NOT the GUI's parsed MCPConfig)
+    // before pre-clearing so we can attempt a best-effort rollback. The
+    // original write error is always re-thrown to the caller regardless
+    // of rollback success — the GUI's react-query mutations surface that
+    // as an error toast so the user knows to retry.
+    //
+    // Snapshot must be the SDK shape (``{ mcpServers: { name: cfg }}``)
+    // because that is what the backend expects on the rollback PATCH.
+    // ``SettingsService.getSettings`` returns a GUI Settings object whose
+    // ``mcp_config`` is typed as the parsed frontend MCPConfig and
+    // defaults to empty arrays when nothing is installed, so it is not
+    // suitable for round-tripping back to the backend.
+    let mcpConfigSnapshot: unknown = undefined;
+    if (needsMcpPreClear) {
+      try {
+        if (isCloud) {
+          const raw = (await fetchCloudSettings()) as {
+            agent_settings?: { mcp_config?: unknown };
+          };
+          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+        } else {
+          const raw = (await SettingsService.fetchSettingsFromApi()) as {
+            agent_settings?: { mcp_config?: unknown };
+          };
+          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+        }
+      } catch {
+        // Snapshot failed (network blip, etc.). Continue without rollback
+        // ability — the original write error will still surface.
+      }
+    }
+
     if (isCloud) {
       const hasCloudWork =
         !!payload.agent_settings_diff ||
@@ -383,12 +421,38 @@ class SettingsService {
       if (!hasCloudWork) {
         return true;
       }
-      await withRetry(() =>
-        saveCloudSettings({
-          ...payload,
-          ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
-        }),
-      );
+      if (needsMcpPreClear) {
+        await withRetry(() =>
+          saveCloudSettings({
+            agent_settings_diff: { mcp_config: null },
+          }),
+        );
+      }
+      try {
+        await withRetry(() =>
+          saveCloudSettings({
+            ...payload,
+            ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
+          }),
+        );
+      } catch (err) {
+        if (needsMcpPreClear && mcpConfigSnapshot) {
+          // Best-effort rollback. We deliberately do not wrap in withRetry:
+          // the user's session is already in a degraded state and we want
+          // to surface the original error promptly. Swallowing the restore
+          // error preserves the original failure context for the caller.
+          try {
+            await saveCloudSettings({
+              agent_settings_diff: {
+                mcp_config: mcpConfigSnapshot as SettingsValue,
+              },
+            });
+          } catch {
+            // Rollback failed; the original error takes precedence.
+          }
+        }
+        throw err;
+      }
     } else {
       // The local agent-server PATCH /api/settings rejects unknown fields and
       // requires at least one of the two diff fields. Strip disabled_skills
@@ -407,12 +471,36 @@ class SettingsService {
         }
         return true;
       }
-      await withRetry(() =>
-        createHttpClient().patch<SettingsApiResponse>(
-          "/api/settings",
-          localPayload,
-        ),
-      );
+      if (needsMcpPreClear) {
+        await withRetry(() =>
+          new SettingsClient(getAgentServerClientOptions()).updateSettings({
+            agent_settings_diff: { mcp_config: null },
+          }),
+        );
+      }
+      try {
+        await withRetry(() =>
+          new SettingsClient(getAgentServerClientOptions()).updateSettings(
+            localPayload,
+          ),
+        );
+      } catch (err) {
+        if (needsMcpPreClear && mcpConfigSnapshot) {
+          // See cloud branch above for rationale.
+          try {
+            await new SettingsClient(
+              getAgentServerClientOptions(),
+            ).updateSettings({
+              agent_settings_diff: {
+                mcp_config: mcpConfigSnapshot as SettingsValue,
+              },
+            });
+          } catch {
+            // Rollback failed; the original error takes precedence.
+          }
+        }
+        throw err;
+      }
     }
 
     // Invalidate cache after successful save

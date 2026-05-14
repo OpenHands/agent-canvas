@@ -1,38 +1,39 @@
-import { getAgentServerWorkingDir } from "../agent-server-config";
+import { VSCodeClient } from "@openhands/typescript-client/clients";
+import { HttpClient } from "@openhands/typescript-client/client/http-client";
+import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import {
   GetVSCodeUrlResponse,
   GetTrajectoryResponse,
   FileUploadSuccessResponse,
 } from "../open-hands.types";
+import { getAgentServerWorkingDir } from "../agent-server-config";
 import {
-  createRemoteEventsList,
-  createRemoteWorkspace,
-  createVSCodeClient,
-} from "../typescript-client";
+  getAgentServerClientOptions,
+  getAgentServerHttpClientOptions,
+} from "../agent-server-client-options";
 import { AppConversation } from "./agent-server-conversation-service.types";
 
 const FILE_UPLOAD_CONCURRENCY = 5;
 
+function getSafeUploadFileName(fileName: string): string {
+  const parts = fileName.split(/[\\/]+/).filter(Boolean);
+  const safeName = parts[parts.length - 1];
+
+  if (!safeName || safeName === "." || safeName === "..") {
+    throw new Error("Invalid file name");
+  }
+
+  return safeName;
+}
+
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
-
-  static getCurrentConversation(): AppConversation | null {
-    return this.currentConversation;
-  }
 
   static setCurrentConversation(
     currentConversation: AppConversation | null,
   ): void {
     this.currentConversation = currentConversation;
-  }
-
-  static getConversationUrl(conversationId: string): string {
-    if (this.currentConversation?.id === conversationId) {
-      if (this.currentConversation.conversation_url) {
-        return this.currentConversation.conversation_url;
-      }
-    }
-    return `/api/conversations/${conversationId}`;
   }
 
   private static getClientOverrides() {
@@ -49,8 +50,8 @@ class ConversationService {
         ? (this.currentConversation?.workspace?.working_dir ??
           getAgentServerWorkingDir())
         : getAgentServerWorkingDir();
-    const vscodeUrl = await createVSCodeClient(
-      this.getClientOverrides(),
+    const vscodeUrl = await new VSCodeClient(
+      getAgentServerClientOptions(this.getClientOverrides()),
     ).getUrl({
       baseUrl:
         typeof window !== "undefined" ? window.location.origin : undefined,
@@ -63,9 +64,11 @@ class ConversationService {
   static async getTrajectory(
     conversationId: string,
   ): Promise<GetTrajectoryResponse> {
-    const page = await createRemoteEventsList(
+    const page = await new RemoteEventsList(
+      new HttpClient(
+        getAgentServerHttpClientOptions(this.getClientOverrides()),
+      ),
       conversationId,
-      this.getClientOverrides(),
     ).search({ limit: 10000 });
 
     return { trajectory: page.items ?? [] };
@@ -75,11 +78,14 @@ class ConversationService {
     _conversationId: string,
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
-    const workspace = createRemoteWorkspace(this.getClientOverrides());
+    const workspace = new RemoteWorkspace(
+      getAgentServerClientOptions(this.getClientOverrides()),
+    );
     const uploadFile = async (file: File) => {
       try {
-        await workspace.fileUpload(file, `/workspace/${file.name}`);
-        return { uploadedFile: file.name, skippedFile: null };
+        const safeName = getSafeUploadFileName(file.name);
+        await workspace.fileUpload(file, `/workspace/${safeName}`);
+        return { uploadedFile: safeName, skippedFile: null };
       } catch (error) {
         return {
           uploadedFile: null,
@@ -98,7 +104,7 @@ class ConversationService {
       index += FILE_UPLOAD_CONCURRENCY
     ) {
       const batch = files.slice(index, index + FILE_UPLOAD_CONCURRENCY);
-      // eslint-disable-next-line no-await-in-loop
+
       results.push(...(await Promise.all(batch.map(uploadFile))));
     }
 

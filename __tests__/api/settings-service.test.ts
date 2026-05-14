@@ -207,9 +207,11 @@ describe("SettingsService", () => {
   it("excludes app-level fields from the local PATCH body when mixed with diffs", async () => {
     // Arrange: capture the PATCH body the local agent-server would receive.
     // The handler must echo a valid response so saveSettings does not throw.
+    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
+    // http://127.0.0.1:8000/api/...) when VITE_BACKEND_BASE_URL is configured.
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
-      http.patch("/api/settings", async ({ request }) => {
+      http.patch("*/api/settings", async ({ request }) => {
         patchBodies.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json({
           agent_settings: {},
@@ -256,6 +258,306 @@ describe("SettingsService", () => {
     });
   });
 
+  it("ignores any stale localStorage git-provider-tokens key (PAT layer removed)", async () => {
+    // Arrange: a previous version of the app may have written PATs to
+    // localStorage under this key. After removing the integrations page and
+    // the PAT layer, getSettings must not resurrect those stale tokens into
+    // provider_tokens_set — that would re-enable the removed flow.
+    window.localStorage.setItem(
+      "openhands-agent-server-git-provider-tokens",
+      JSON.stringify({
+        github: { token: "ghp_stale_xyz", host: "github.com" },
+        gitlab: { token: "glpat_stale_xyz", host: null },
+      }),
+    );
+
+    // Act
+    const settings = await SettingsService.getSettings();
+
+    // Assert
+    expect(settings.provider_tokens_set).toEqual({});
+  });
+
+  it("pre-clears mcp_config before writing the new value on the local backend", async () => {
+    // The agent-server PATCH applies agent_settings_diff via deep-merge,
+    // which cannot remove name-keyed entries from mcp_config.mcpServers.
+    // saveSettings must compensate by sending a {mcp_config: null} PATCH
+    // first so the follow-up PATCH effectively replaces the field. Without
+    // this, deleting a server leaves stale mcpServers keys behind and
+    // shifted indices produce duplicate entries.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { mcp_config: null } },
+      {
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+        },
+      },
+    ]);
+  });
+
+  it("does not pre-clear when the mcp_config diff is already null on the local backend", async () => {
+    // When the caller is wiping mcp_config entirely (e.g. user removed the
+    // last server), a single PATCH already takes effect because null is
+    // not a dict and deep-merge replaces rather than recurses. A second
+    // clear would be wasted work.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: { mcp_config: null },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { mcp_config: null } },
+    ]);
+  });
+
+  it("does not pre-clear when the diff has no mcp_config on the local backend", async () => {
+    // A typical settings save (LLM model, condenser, …) must NOT incur the
+    // mcp_config pre-clear round-trip — that would needlessly drop the
+    // user's MCP servers if anything ever raced.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: { agent: "CodeActAgent" },
+    });
+
+    expect(patchBodies).toEqual([
+      { agent_settings_diff: { agent: "CodeActAgent" } },
+    ]);
+  });
+
+  it("pre-clears mcp_config on the cloud backend before writing the new value", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(1, {
+      agent_settings_diff: { mcp_config: null },
+    });
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+      },
+    });
+  });
+
+  it("rolls back to the previous mcp_config when the second cloud PATCH fails", async () => {
+    // Reviewer-flagged data-loss scenario: the pre-clear succeeds, then
+    // the write fails (validation error, transient outage, etc.). The
+    // service must attempt to restore the previous mcp_config so the
+    // user isn't silently left with an empty MCP setup.
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    const previousMcpConfig = {
+      mcpServers: { existing: { url: "https://old.example" } },
+    };
+    mockFetchCloudSettings.mockResolvedValue({
+      agent_settings: { mcp_config: previousMcpConfig },
+    });
+
+    // Pre-clear succeeds, second write fails on all retries, rollback
+    // succeeds. withRetry runs three attempts by default — return the
+    // failure deterministically so the rollback path is exercised.
+    mockSaveCloudSettings.mockImplementation(
+      (args: { agent_settings_diff?: { mcp_config?: unknown } }) => {
+        const mcp = args?.agent_settings_diff?.mcp_config;
+        if (mcp === null) return Promise.resolve(undefined); // pre-clear
+        // The full payload from the user contains the *new* mcp_config.
+        // Distinguish it from the rollback (which writes the previous
+        // value) by object identity on mcpServers.
+        if (
+          mcp &&
+          typeof mcp === "object" &&
+          "mcpServers" in (mcp as Record<string, unknown>) &&
+          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+        ) {
+          return Promise.reject(new Error("validation failed"));
+        }
+        return Promise.resolve(undefined); // rollback succeeds
+      },
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toThrow("validation failed");
+
+    // 3 attempts for the failed write (default withRetry retries) +
+    // 1 pre-clear + 1 rollback = 5 calls total. Last call MUST be the
+    // rollback with the previous mcp_config.
+    const lastCallArgs =
+      mockSaveCloudSettings.mock.calls[
+        mockSaveCloudSettings.mock.calls.length - 1
+      ][0];
+    expect(lastCallArgs).toEqual({
+      agent_settings_diff: { mcp_config: previousMcpConfig },
+    });
+  });
+
+  it("rolls back to the previous mcp_config when the second local PATCH fails", async () => {
+    // Same scenario as the cloud test but for the local agent-server
+    // path. We assert the rollback PATCH is the final request observed.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    const previousMcpServers = {
+      existing: { url: "https://old.example" },
+    };
+    let getCount = 0;
+    server.use(
+      http.get("*/api/settings", () => {
+        getCount += 1;
+        return HttpResponse.json({
+          agent_settings: { mcp_config: { mcpServers: previousMcpServers } },
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+      http.patch("*/api/settings", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        patchBodies.push(body);
+        const agentDiff = body.agent_settings_diff as
+          | { mcp_config?: unknown }
+          | undefined;
+        const mcp = agentDiff?.mcp_config;
+        // Pre-clear (mcp_config: null) and rollback (mcp_config: previous)
+        // both succeed; only the "new" write fails.
+        if (
+          mcp &&
+          typeof mcp === "object" &&
+          "mcpServers" in (mcp as Record<string, unknown>) &&
+          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+        ) {
+          return HttpResponse.json(
+            { error: "validation failed" },
+            { status: 400 },
+          );
+        }
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+        });
+      }),
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    // Snapshot fetch must have happened before any destructive PATCH.
+    expect(getCount).toBeGreaterThanOrEqual(1);
+
+    // Final PATCH is the rollback, restoring the previous mcp_config.
+    const last = patchBodies[patchBodies.length - 1];
+    expect(last).toEqual({
+      agent_settings_diff: { mcp_config: { mcpServers: previousMcpServers } },
+    });
+    // And we must have done the pre-clear too.
+    expect(patchBodies[0]).toEqual({
+      agent_settings_diff: { mcp_config: null },
+    });
+  });
+
+  it("does not attempt rollback when the snapshot fetch returned no mcp_config", async () => {
+    // First-time install: there's nothing to roll back to. The original
+    // error must still propagate but we must not send a bogus rollback
+    // PATCH (e.g. `mcp_config: undefined`) that the backend would reject.
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    mockFetchCloudSettings.mockResolvedValue({ agent_settings: {} });
+    mockSaveCloudSettings.mockImplementation(
+      (args: { agent_settings_diff?: { mcp_config?: unknown } }) => {
+        if (args?.agent_settings_diff?.mcp_config === null) {
+          return Promise.resolve(undefined);
+        }
+        return Promise.reject(new Error("validation failed"));
+      },
+    );
+
+    await expect(
+      SettingsService.saveSettings({
+        agent_settings_diff: {
+          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+        },
+      }),
+    ).rejects.toThrow("validation failed");
+
+    // 1 pre-clear + 3 failed write attempts = 4 calls. No rollback
+    // attempt because the snapshot was empty. Critically, we never
+    // send `mcp_config: undefined` as a "rollback" since that would
+    // be backend-rejected or, worse, silently no-op.
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(4);
+    const sentMcpValues = mockSaveCloudSettings.mock.calls.map(
+      (call) =>
+        (call[0] as { agent_settings_diff?: { mcp_config?: unknown } })
+          ?.agent_settings_diff?.mcp_config,
+    );
+    // Every call's mcp_config is either the pre-clear null or the
+    // exact new value the caller asked us to write — no implicit
+    // rollback target leaked through.
+    for (const mcp of sentMcpValues) {
+      const isPreClear = mcp === null;
+      const isNewWrite =
+        !!mcp &&
+        typeof mcp === "object" &&
+        "mcpServers" in (mcp as Record<string, unknown>) &&
+        !!(mcp as { mcpServers: Record<string, unknown> }).mcpServers.new;
+      expect(isPreClear || isNewWrite).toBe(true);
+    }
+  });
+
   it("lets the cloud response override locally-stored app preferences", async () => {
     // Arrange: localStorage holds a stale "fr" while the cloud is the
     // authoritative source and returns "ja".
@@ -274,30 +576,5 @@ describe("SettingsService", () => {
 
     // Assert: the server wins.
     expect(settings.language).toBe("ja");
-  });
-
-  it("derives provider_tokens_set from locally stored git provider tokens", async () => {
-    // Arrange: simulate post-save state. SecretsService.addGitProvider writes to
-    // this localStorage key after the server PUT /api/settings/secrets succeeds.
-    // The agent-server API never returns provider_tokens_set, so the GUI must
-    // derive it from local state for useUserProviders to recognize the
-    // configured providers.
-    window.localStorage.setItem(
-      "openhands-agent-server-git-provider-tokens",
-      JSON.stringify({
-        github: { token: "ghp_test_123", host: "github.com" },
-        gitlab: { token: "glpat_test_456", host: null },
-      }),
-    );
-
-    // Act
-    const settings = await SettingsService.getSettings();
-
-    // Assert: each stored provider surfaces in provider_tokens_set with its host
-    // (or null), which is what consumers like useUserProviders read.
-    expect(settings.provider_tokens_set).toEqual({
-      github: "github.com",
-      gitlab: null,
-    });
   });
 });

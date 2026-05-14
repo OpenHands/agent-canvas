@@ -23,9 +23,9 @@ import { useAllCloudOrganizations } from "./use-cloud-organizations";
  * active environment, while still supporting the personal-workspace
  * label across non-active backends in the dropdown.
  *
- * `useSwitchCloudOrganization.onSuccess` invalidates
- * `["cloud-current-user"]`, so picking a different org refetches `/me`
- * with the new active orgId.
+ * The query key includes `active.orgId`, so picking a different org
+ * via `setActive` re-keys this query and refetches `/me` with the new
+ * active orgId.
  */
 export function useCloudCurrentUserId(): Record<
   string,

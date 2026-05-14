@@ -7,10 +7,6 @@ import {
   type NavigationContextValue,
 } from "#/context/navigation-context";
 
-vi.mock("#/hooks/query/use-git-user", () => ({
-  useGitUser: () => ({ data: undefined, isFetching: false }),
-}));
-
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
 }));
@@ -155,18 +151,22 @@ vi.mock("#/components/features/backends/manage-backends-modal", () => ({
   ),
 }));
 
-vi.mock("#/components/features/conversation-panel/new-conversation-button", () => ({
-  NewConversationButton: () => <div data-testid="new-conversation-button" />,
-}));
+vi.mock(
+  "#/components/features/conversation-panel/new-conversation-button",
+  () => ({
+    NewConversationButton: () => <div data-testid="new-conversation-button" />,
+  }),
+);
 
 vi.mock("#/components/features/sidebar/sidebar-conversation-list", () => ({
-  SidebarConversationList: () => <div data-testid="sidebar-conversation-list" />,
+  SidebarConversationList: () => (
+    <div data-testid="sidebar-conversation-list" />
+  ),
 }));
 
 vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [],
 }));
-
 
 function renderSidebar(currentPath: string) {
   const navigate = vi.fn();
@@ -197,7 +197,12 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it.each([["/conversations"], ["/automations"], ["/automations/abc-123"], ["/settings"]])(
+  it.each([
+    ["/conversations"],
+    ["/automations"],
+    ["/automations/abc-123"],
+    ["/settings"],
+  ])(
     "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
     (currentPath) => {
       renderSidebar(currentPath);
@@ -213,6 +218,17 @@ describe("Sidebar", () => {
 
     const conversationsLink = screen.getByTestId("sidebar-conversations-link");
     expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+  });
+
+  it("labels the MCP nav item as MCP Directory instead of Integrations", () => {
+    renderSidebar("/mcp");
+
+    expect(screen.getByRole("link", { name: "SIDEBAR$MCP_DIRECTORY" })).toBe(
+      screen.getByTestId("sidebar-mcp-link"),
+    );
+    expect(
+      screen.queryByRole("link", { name: "SIDEBAR$INTEGRATIONS" }),
+    ).not.toBeInTheDocument();
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {

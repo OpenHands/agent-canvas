@@ -44,12 +44,6 @@ function makePage(
 // --------------------
 // Mocks
 // --------------------
-vi.mock("#/api/open-hands-axios", () => ({
-  openHands: {
-    get: vi.fn(),
-  },
-}));
-
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
 

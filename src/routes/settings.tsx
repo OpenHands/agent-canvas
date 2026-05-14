@@ -47,13 +47,11 @@ function SettingsScreen() {
     const currentRenderedItem = navItems.find(
       (item) => item.type === "item" && item.item.to === location.pathname,
     );
-    if (currentRenderedItem && currentRenderedItem.type === "item") {
+    if (currentRenderedItem?.type === "item") {
       return currentRenderedItem.item.text;
     }
     const firstItem = navItems.find((item) => item.type === "item");
-    return firstItem && firstItem.type === "item"
-      ? firstItem.item.text
-      : "SETTINGS$TITLE";
+    return firstItem?.type === "item" ? firstItem.item.text : "SETTINGS$TITLE";
   }, [navItems, location.pathname]);
 
   const routeHandle = matches.find((m) => m.pathname === location.pathname)

@@ -81,7 +81,7 @@ export const MOCK_TASKS = [...TASKS_1, ...TASKS_2];
 
 export const TASK_SUGGESTIONS_HANDLERS = [
   // Current endpoint with pagination
-  http.get("/api/v1/git/suggested-tasks/search", async ({ request }) => {
+  http.get("*/api/v1/git/suggested-tasks/search", async ({ request }) => {
     const url = new URL(request.url);
     const limit = url.searchParams.get("limit");
     const pageId = url.searchParams.get("page_id");

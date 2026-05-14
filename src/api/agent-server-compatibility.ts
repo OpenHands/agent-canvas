@@ -1,9 +1,8 @@
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { HttpError } from "@openhands/typescript-client/client/http-client";
+import type { ServerInfo as BaseServerInfo } from "@openhands/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
-import {
-  createServerClient,
-  type ServerInfo as BaseServerInfo,
-} from "#/api/typescript-client";
 
 const AGENT_SERVER_INFO_TIMEOUT_MS = 5000;
 
@@ -62,11 +61,13 @@ export async function loadAgentServerInfo() {
   let serverInfo: AgentServerInfo;
 
   try {
-    serverInfo = (await createServerClient({
-      host: local.host,
-      sessionApiKey: local.apiKey || null,
-      timeout: AGENT_SERVER_INFO_TIMEOUT_MS,
-    }).getServerInfo()) as AgentServerInfo;
+    serverInfo = (await new ServerClient(
+      getAgentServerClientOptions({
+        host: local.host,
+        sessionApiKey: local.apiKey || null,
+        timeout: AGENT_SERVER_INFO_TIMEOUT_MS,
+      }),
+    ).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
     if (error instanceof HttpError) {

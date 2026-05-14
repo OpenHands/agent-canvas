@@ -68,8 +68,11 @@ const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
 
 // Docker image for the agent-server.
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
-// Default tag used when OH_AGENT_SERVER_GIT_REF is not set. Update to upgrade.
-const DEFAULT_AGENT_SERVER_TAG = "0924962-python";
+// Default tag used when OH_AGENT_SERVER_GIT_REF is not set.
+// Should match DEFAULT_AGENT_SERVER_VERSION in dev-safe.mjs for consistency.
+// Format: {version}-python (e.g., 1.22.0-python) for released versions.
+// Note: The SDK build script strips the "v" prefix from semver release tags.
+const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
@@ -107,6 +110,40 @@ function suggestDockerless() {
   logError("Note: this runs the agent with full access to your filesystem.");
 }
 
+function isDockerPermissionDenied(stderr) {
+  const normalized = stderr.toLowerCase();
+  return (
+    normalized.includes("permission denied") &&
+    (normalized.includes("docker.sock") ||
+      normalized.includes("docker api") ||
+      normalized.includes("/var/run/docker") ||
+      normalized.includes("/run/docker"))
+  );
+}
+
+function logDockerInfoFailure(stderr) {
+  if (isDockerPermissionDenied(stderr)) {
+    logError(
+      "docker is installed and the daemon may be running, but this user cannot access the Docker API.",
+    );
+    if (stderr) {
+      logError(`  ${stderr.split("\n")[0]}`);
+    }
+    logError(
+      "On Linux, add your user to the docker group, then log out and back in:",
+    );
+    logError("  sudo usermod -aG docker $USER");
+    logError("Verify with: docker info");
+    return;
+  }
+
+  logError("docker is installed but the daemon does not appear to be running.");
+  if (stderr) {
+    logError(`  ${stderr.split("\n")[0]}`);
+  }
+  logError("Start Docker (e.g. open Docker Desktop) and try again.");
+}
+
 /**
  * Check that the docker CLI is on PATH AND that the docker daemon is
  * actually responding. `commandExists("docker")` only verifies the binary is
@@ -129,14 +166,8 @@ function checkDockerPrereqs(config) {
     timeout: 10_000,
   });
   if (info.status !== 0) {
-    logError(
-      "docker is installed but the daemon does not appear to be running.",
-    );
     const stderr = info.stderr ? info.stderr.toString().trim() : "";
-    if (stderr) {
-      logError(`  ${stderr.split("\n")[0]}`);
-    }
-    logError("Start Docker (e.g. open Docker Desktop) and try again.");
+    logDockerInfoFailure(stderr);
     suggestDockerless();
     process.exit(1);
   }
@@ -229,7 +260,6 @@ function startAgentServerDocker(config) {
       "/home/openhands/.openhands/agent-canvas/conversations",
     OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
     OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
-    TMUX_TMPDIR: "/home/openhands/.openhands/agent-canvas/tmux",
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
@@ -295,6 +325,7 @@ export {
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,
 };

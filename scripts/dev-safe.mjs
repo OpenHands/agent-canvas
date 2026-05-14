@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -32,7 +32,7 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default agent-server version (released PyPI version)
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.21.1";
+const DEFAULT_AGENT_SERVER_VERSION = "1.22.0";
 
 /**
  * Generate a cryptographically secure random API key.
@@ -260,7 +260,7 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.21.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -497,7 +497,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendPort,
     vscodePort,
     stateDir,
-    tmuxTmpDir: path.join(stateDir, "tmux"),
+    tmuxTmpDir: path.join(tmpdir(), "openhands-agent-canvas-tmux"),
     conversationsPath,
     workspacesPath,
     bashEventsDir: path.join(stateDir, "bash_events"),

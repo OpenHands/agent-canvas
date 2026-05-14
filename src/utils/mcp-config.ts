@@ -41,7 +41,6 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
-    // eslint-disable-next-line no-continue
     if (!serverConfig || typeof serverConfig !== "object") continue;
 
     const url = serverConfig.url as string | undefined;
@@ -89,15 +88,23 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 /**
  * Convert the frontend MCPConfig format back to the SDK { mcpServers: { ... } }
  * shape expected by agent_settings.mcp_config on the backend.
+ *
+ * Names are only suffixed (``_1``, ``_2``, …) when an earlier entry has
+ * already claimed the bare base name. We intentionally do NOT use a single
+ * monotonic counter across server types: that would, for example, rename a
+ * stdio server "myname" to "myname_1" the moment any sse/shttp entry is
+ * persisted ahead of it, and shift the suffix on every save as the count
+ * of other server types changes. With per-base collision suffixing,
+ * unrelated entries keep their human-meaningful names stable across edits.
  */
 export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
   const mcpServers: Record<string, SdkMcpServerConfig> = {};
-  let counter = 0;
 
-  const nextName = (base: string): string => {
-    const name = counter === 0 ? base : `${base}_${counter}`;
-    counter += 1;
-    return name;
+  const reserve = (base: string): string => {
+    if (!(base in mcpServers)) return base;
+    let i = 1;
+    while (`${base}_${i}` in mcpServers) i += 1;
+    return `${base}_${i}`;
   };
 
   for (const entry of config.sse_servers) {
@@ -109,7 +116,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       if (entry.api_key) server.auth = entry.api_key;
     }
     server.transport = "sse";
-    mcpServers[nextName("sse")] = server;
+    mcpServers[reserve("sse")] = server;
   }
 
   for (const entry of config.shttp_servers) {
@@ -121,7 +128,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       if (entry.api_key) server.auth = entry.api_key;
       if (entry.timeout != null) server.timeout = entry.timeout;
     }
-    mcpServers[nextName("shttp")] = server;
+    mcpServers[reserve("shttp")] = server;
   }
 
   for (const entry of config.stdio_servers) {
@@ -130,7 +137,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     };
     if (entry.args) server.args = entry.args;
     if (entry.env) server.env = entry.env;
-    mcpServers[nextName(entry.name || "stdio")] = server;
+    mcpServers[reserve(entry.name || "stdio")] = server;
   }
 
   return Object.keys(mcpServers).length > 0 ? { mcpServers } : null;

@@ -2,15 +2,18 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
 import { WorkspaceSelectionForm } from "../../../../src/components/features/home/workspace-selection-form";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-import FilesService from "#/api/files-service/files-service.api";
 import { useWorkspacesStore } from "#/stores/workspaces-store";
 import { LocalWorkspace } from "#/types/workspace";
 
 const mockNavigate = vi.fn();
 const mockUseIsCreatingConversation = vi.fn();
+
+const { mockSearchSubdirectories, mockGetHome } = vi.hoisted(() => ({
+  mockSearchSubdirectories: vi.fn(),
+  mockGetHome: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -35,6 +38,21 @@ vi.mock("#/hooks/use-tracking", () => ({
     trackLoginButtonClick: vi.fn(),
   }),
 }));
+
+vi.mock("@openhands/typescript-client/clients", async () => {
+  const actual = await vi.importActual<
+    typeof import("@openhands/typescript-client/clients")
+  >("@openhands/typescript-client/clients");
+  return {
+    ...actual,
+    FileClient: vi.fn(function FileClientMock() {
+      return {
+        searchSubdirectories: mockSearchSubdirectories,
+        getHome: mockGetHome,
+      };
+    }),
+  };
+});
 
 mockUseIsCreatingConversation.mockReturnValue(false);
 
@@ -82,46 +100,46 @@ function renderForm(
 describe("WorkspaceSelectionForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.restoreAllMocks();
+    mockSearchSubdirectories.mockReset();
+    mockGetHome.mockReset();
     mockUseIsCreatingConversation.mockReturnValue(false);
+    mockGetHome.mockResolvedValue({ home: "/Users/me" });
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
     // `useResolvedWorkspaces` always queries an implicit `/projects` parent
     // (the dev:docker mount point). Default it to empty so tests that don't
     // care about it don't hit a real network call. Tests that need specific
     // behavior can replace this with their own spy.
-    vi.spyOn(FilesService, "searchSubdirs").mockResolvedValue({
+    mockSearchSubdirectories.mockResolvedValue({
       items: [],
       next_page_id: null,
     });
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({
-      home: "/Users/me",
-      favorites: [],
-      locations: [{ label: "/", path: "/" }],
+
+    mockGetHome.mockResolvedValue({ home: "/Users/me" });
+    const searchSpy = mockSearchSubdirectories;
+
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me") {
+        return {
+          items: [{ name: "dev", path: "/Users/me/dev" }],
+          next_page_id: null,
+        };
+      }
+      if (path === "/Users/me/dev") {
+        return {
+          items: [
+            { name: "repo1", path: "/Users/me/dev/repo1" },
+            { name: "repo2", path: "/Users/me/dev/repo2" },
+            { name: "repo3", path: "/Users/me/dev/repo3" },
+          ],
+          next_page_id: null,
+        };
+      }
+      throw new Error(`unexpected path ${path}`);
     });
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockImplementation(async (path: string) => {
-        if (path === "/Users/me") {
-          return {
-            items: [{ name: "dev", path: "/Users/me/dev" }],
-            next_page_id: null,
-          };
-        }
-        if (path === "/Users/me/dev") {
-          return {
-            items: [
-              { name: "repo1", path: "/Users/me/dev/repo1" },
-              { name: "repo2", path: "/Users/me/dev/repo2" },
-              { name: "repo3", path: "/Users/me/dev/repo3" },
-            ],
-            next_page_id: null,
-          };
-        }
-        throw new Error(`unexpected path ${path}`);
-      });
+
 
     // Pre-seed one workspace to verify dedup
     renderForm([{ id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" }]);
@@ -231,20 +249,20 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Implicit /projects parent surfaces workspaces automatically", async () => {
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockImplementation(async (path: string) => {
-        if (path === "/projects") {
-          return {
-            items: [
-              { name: "agent-canvas", path: "/projects/agent-canvas" },
-              { name: "sdk", path: "/projects/sdk" },
-            ],
-            next_page_id: null,
-          };
-        }
-        return { items: [], next_page_id: null };
-      });
+    const searchSpy = mockSearchSubdirectories;
+
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/projects") {
+        return {
+          items: [
+            { name: "agent-canvas", path: "/projects/agent-canvas" },
+            { name: "sdk", path: "/projects/sdk" },
+          ],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
 
     renderForm();
     const user = userEvent.setup();
@@ -258,9 +276,10 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("A stored /projects parent suppresses the implicit duplicate query", async () => {
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockResolvedValue({ items: [], next_page_id: null });
+    const searchSpy = mockSearchSubdirectories.mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
 
     renderForm(
       [],
@@ -319,9 +338,7 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("disables the workspace dropdown while parent workspaces are loading", async () => {
-    vi.spyOn(FilesService, "searchSubdirs").mockReturnValue(
-      new Promise(() => {}) as never,
-    );
+    mockSearchSubdirectories.mockReturnValue(new Promise(() => {}) as never);
 
     renderForm(
       [],
@@ -335,31 +352,29 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add all subdirectories saves a workspace parent and lists its children dynamically", async () => {
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({
-      home: "/Users/me",
-      favorites: [],
-      locations: [{ label: "/", path: "/" }],
+
+    mockGetHome.mockResolvedValue({ home: "/Users/me" });
+    const searchSpy = mockSearchSubdirectories;
+
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me") {
+        return {
+          items: [{ name: "dev", path: "/Users/me/dev" }],
+          next_page_id: null,
+        };
+      }
+      if (path === "/Users/me/dev") {
+        return {
+          items: [
+            { name: "repo1", path: "/Users/me/dev/repo1" },
+            { name: "repo2", path: "/Users/me/dev/repo2" },
+          ],
+          next_page_id: null,
+        };
+      }
+      throw new Error(`unexpected path ${path}`);
     });
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockImplementation(async (path: string) => {
-        if (path === "/Users/me") {
-          return {
-            items: [{ name: "dev", path: "/Users/me/dev" }],
-            next_page_id: null,
-          };
-        }
-        if (path === "/Users/me/dev") {
-          return {
-            items: [
-              { name: "repo1", path: "/Users/me/dev/repo1" },
-              { name: "repo2", path: "/Users/me/dev/repo2" },
-            ],
-            next_page_id: null,
-          };
-        }
-        throw new Error(`unexpected path ${path}`);
-      });
+
 
     renderForm();
     const user = userEvent.setup();
@@ -401,20 +416,20 @@ describe("WorkspaceSelectionForm", () => {
     // Scope the mock to the user-added parent so the implicit `/projects`
     // parent (always queried by `useResolvedWorkspaces`) doesn't also get
     // these entries.
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockImplementation(async (path: string) => {
-        if (path === "/Users/me/dev") {
-          return {
-            items: [
-              { name: "repoA", path: "/Users/me/dev/repoA" },
-              { name: "repoB", path: "/Users/me/dev/repoB" },
-            ],
-            next_page_id: null,
-          };
-        }
-        return { items: [], next_page_id: null };
-      });
+    const searchSpy = mockSearchSubdirectories;
+
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me/dev") {
+        return {
+          items: [
+            { name: "repoA", path: "/Users/me/dev/repoA" },
+            { name: "repoB", path: "/Users/me/dev/repoB" },
+          ],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
 
     renderForm(
       [],
@@ -471,22 +486,21 @@ describe("WorkspaceSelectionForm", () => {
     // Arrange: backend reports a home with a custom favorite that did NOT
     // exist in the old hardcoded list (Documents / Desktop / Downloads).
     // This is the regression guard for the original 404-on-navigate bug.
-    vi.spyOn(FilesService, "getHome").mockResolvedValue({
+    mockGetHome.mockResolvedValue({
       home: "/Users/me",
       favorites: [{ label: "projects", path: "/Users/me/projects" }],
       locations: [{ label: "/", path: "/" }],
     });
-    const searchSpy = vi
-      .spyOn(FilesService, "searchSubdirs")
-      .mockImplementation(async (path: string) => {
-        if (path === "/Users/me/projects") {
-          return {
-            items: [{ name: "repo1", path: "/Users/me/projects/repo1" }],
-            next_page_id: null,
-          };
-        }
-        return { items: [], next_page_id: null };
-      });
+    const searchSpy = mockSearchSubdirectories;
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me/projects") {
+        return {
+          items: [{ name: "repo1", path: "/Users/me/projects/repo1" }],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
 
     renderForm();
     const user = userEvent.setup();

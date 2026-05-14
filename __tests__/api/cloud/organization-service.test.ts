@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCloudOrganizations,
   getCurrentCloudApiKey,
-  switchCloudOrganization,
 } from "#/api/cloud/organization-service.api";
 import type { Backend } from "#/api/backend-registry/types";
 
@@ -103,19 +102,5 @@ describe("cloud organization-service via local proxy", () => {
     vi.mocked(axios.post).mockRejectedValueOnce(error);
 
     await expect(getCurrentCloudApiKey(cloudBackend)).rejects.toBe(error);
-  });
-
-  it("switchCloudOrganization posts to the org-switch path through the proxy", async () => {
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
-
-    await switchCloudOrganization("org-2", cloudBackend);
-
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
-      method: "POST",
-      path: "/api/organizations/org-2/switch",
-      headers: { Authorization: "Bearer bearer-token" },
-    });
   });
 });

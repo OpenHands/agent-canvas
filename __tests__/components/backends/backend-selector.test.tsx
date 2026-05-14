@@ -8,9 +8,8 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRoutesStub, MemoryRouter } from "react-router";
+import { createRoutesStub, MemoryRouter, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAxiosError } from "test-utils";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
   ActiveBackendProvider,
@@ -21,29 +20,23 @@ import {
   __resetEnvironmentSwitchOverlayForTests,
   EnvironmentSwitchOverlay,
 } from "#/components/features/backends/environment-switch-overlay";
+import { ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS } from "#/components/features/backends/environment-switch-store";
 
+import { ServerClient } from "@openhands/typescript-client/clients";
 import {
   getCloudOrganizations,
-  switchCloudOrganization,
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
-import { createServerClient } from "#/api/typescript-client";
-import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
-  switchCloudOrganization: vi.fn().mockResolvedValue(undefined),
   getCloudOrganizationMe: vi.fn(),
   getCurrentCloudApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(),
-}));
-
-vi.mock("#/utils/custom-toast-handlers", () => ({
-  displayErrorToast: vi.fn(),
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -85,8 +78,6 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();
-  vi.mocked(switchCloudOrganization).mockReset();
-  vi.mocked(switchCloudOrganization).mockResolvedValue(undefined);
   vi.mocked(getCloudOrganizationMe).mockReset();
   vi.mocked(getCloudOrganizationMe).mockResolvedValue({
     orgId: "",
@@ -103,17 +94,32 @@ beforeEach(() => {
   // Default the local-server health probe to "connected" so the
   // existing label-focused tests aren't surprised by a red indicator;
   // tests that assert on the disconnected state override this.
-  vi.mocked(createServerClient).mockReset();
-  vi.mocked(createServerClient).mockReturnValue({
-    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-    // The dropdown only invokes getServerInfo on the returned client;
-    // the rest of the ServerClient surface is unused here, so a
-    // partial cast is sufficient.
-  } as unknown as ReturnType<typeof createServerClient>);
-  vi.mocked(displayErrorToast).mockReset();
+  vi.mocked(ServerClient).mockReset();
+  vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+    return {
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      // The dropdown only invokes getServerInfo on the returned client;
+      // the rest of the ServerClient surface is unused here, so a
+      // partial cast is sufficient.
+    } as unknown as ServerClient;
+  });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // When a test selects a dropdown option, BackendSelector's onChange
+  // calls `triggerEnvironmentSwitch` and then awaits a real-time
+  // `setTimeout(..., ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS)` before
+  // running `setActive`. `userEvent.click` does NOT await that async
+  // handler, so the trailing `setActive` can land AFTER the test ends,
+  // re-polluting `localStorage` during a later test. The body's
+  // `data-environment-switching` attribute is set while the switch is
+  // in flight; wait it out before clearing storage so the in-flight
+  // `setActive` writes BEFORE we wipe state.
+  if (document.body.hasAttribute("data-environment-switching")) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS + 20);
+    });
+  }
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();
@@ -158,7 +164,7 @@ describe("BackendSelector", () => {
     expect(screen.getByText("Production")).toBeInTheDocument();
   });
 
-  it("expands a cloud backend into one row per org and fires switch-org on select", async () => {
+  it("expands a cloud backend into one row per org and records the org locally without calling SaaS /switch", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
         { id: "org-personal", name: "Personal" },
@@ -167,15 +173,16 @@ describe("BackendSelector", () => {
       currentOrgId: "org-personal",
     });
 
+    let cloudId = "";
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
+          cloudId = ctx.addBackend({
             name: "Production",
             host: "https://app.all-hands.dev",
             apiKey: "bearer-key",
             kind: "cloud",
-          });
+          }).id;
         }}
       >
         <BackendSelector />
@@ -191,15 +198,15 @@ describe("BackendSelector", () => {
 
     await user.click(screen.getByText("Production – Acme Inc"));
 
+    // Selecting an org row updates the active selection locally only —
+    // it must never trigger the SaaS-mutating /switch call that used to
+    // leak the local-UI choice into the cloud UI's `current_org_id`.
     await waitFor(() => {
-      expect(switchCloudOrganization).toHaveBeenCalled();
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-active-backend") ?? "null",
+      );
+      expect(stored).toEqual({ backendId: cloudId, orgId: "org-2" });
     });
-    // The selector now passes an explicit backend so /switch lands on
-    // the right cloud BEFORE the active selection flips.
-    expect(switchCloudOrganization).toHaveBeenCalledWith(
-      "org-2",
-      expect.objectContaining({ host: "https://app.all-hands.dev" }),
-    );
   });
 
   it("filters each cloud backend's org rows to the org its API key is bound to", async () => {
@@ -304,7 +311,7 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("self-heals (cloud, null) → (cloud, personal-workspace org) once orgs + /me resolve", async () => {
+  it("self-heals (cloud, null) → (cloud, personal-workspace org) locally once orgs + /me resolve", async () => {
     const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
@@ -337,16 +344,10 @@ describe("BackendSelector", () => {
       </TestSeed>,
     );
 
-    // After orgs + /me resolve, the selector should have snapped the
-    // selection onto the personal-workspace org and fired switchOrg.
-    await waitFor(() => {
-      expect(switchCloudOrganization).toHaveBeenCalled();
-    });
-    expect(switchCloudOrganization).toHaveBeenCalledWith(
-      personalOrgId,
-      expect.objectContaining({ host: "https://app.all-hands.dev" }),
-    );
-
+    // After orgs + /me resolve, the selector snaps the active selection
+    // onto the personal-workspace org locally — without round-tripping
+    // /switch on the SaaS (which would have mutated the cloud UI's
+    // user.current_org_id as a side effect).
     await waitFor(() => {
       const stored = JSON.parse(
         window.localStorage.getItem("openhands-active-backend") ?? "null",
@@ -420,6 +421,127 @@ describe("BackendSelector", () => {
     expect(await screen.findByTestId("home")).toBeInTheDocument();
   });
 
+  it("jumps to the target backend's most recently selected conversation when switching from a conversation route", async () => {
+    // Pre-seed two local backends and the per-backend "last selected"
+    // slot for the target. The BackendSelector reads the remembered
+    // slot synchronously during `onChange`, so the localStorage write
+    // has to happen before the snapshot is rebuilt.
+    const sourceBackendId = "source-local";
+    const targetBackendId = "target-local";
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: sourceBackendId,
+          name: "Source Local",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        },
+        {
+          id: targetBackendId,
+          name: "Local 1",
+          host: "http://localhost:9001",
+          apiKey: "k",
+          kind: "local",
+        },
+      ]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: sourceBackendId, orgId: null }),
+    );
+    window.localStorage.setItem(
+      "openhands-last-conversation-by-backend",
+      JSON.stringify({ [targetBackendId]: "remembered-convo" }),
+    );
+    // Reset the in-memory snapshot so the seeded localStorage is read.
+    __resetActiveStoreForTests();
+
+    // One conversation route that renders the BackendSelector for the
+    // initial id and a probe div for the remembered id so we can
+    // observe the navigation target.
+    function ConversationRoute() {
+      const { conversationId } = useParams<{ conversationId: string }>();
+      if (conversationId === "remembered-convo") {
+        return <div data-testid="convo-route">{conversationId}</div>;
+      }
+      return <BackendSelector />;
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/conversations/:conversationId", Component: ConversationRoute },
+      { path: "/conversations", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/conversations/old-convo-on-A"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    const convo = await screen.findByTestId("convo-route");
+    expect(convo).toHaveTextContent("remembered-convo");
+    // The home route should never have been visited.
+    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
+  });
+
+  it("stays on the current page when switching backends from a non-conversation route", async () => {
+    function SettingsRoute() {
+      return (
+        <TestSeed
+          onMount={(ctx) => {
+            ctx.addBackend({
+              name: "Local 1",
+              host: "http://localhost:9000",
+              apiKey: "k",
+              kind: "local",
+            });
+          }}
+        >
+          <div data-testid="settings-route" />
+          <BackendSelector />
+        </TestSeed>
+      );
+    }
+    function HomeRoute() {
+      return <div data-testid="home" />;
+    }
+    const RouterStub = createRoutesStub([
+      { path: "/settings", Component: SettingsRoute },
+      { path: "/conversations", Component: HomeRoute },
+    ]);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>
+          <RouterStub initialEntries={["/settings"]} />
+        </ActiveBackendProvider>
+      </QueryClientProvider>,
+    );
+
+    const user = await openDropdown();
+    await user.click(screen.getByText("Local 1"));
+
+    // The settings route is still in the DOM after the switch — no
+    // redirect to /conversations or anywhere else.
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-route")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
+  });
+
   it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {
     // Arrange — selector and overlay are rendered in independent trees
     // so the selector can be torn down without taking the overlay with
@@ -469,147 +591,6 @@ describe("BackendSelector", () => {
     expect(
       screen.queryByTestId("manage-backends-modal"),
     ).not.toBeInTheDocument();
-  });
-
-  it("shows an error toast, dismisses the overlay, and does not switch to the failing cloud backend", async () => {
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      createAxiosError(500, "Server Error", { message: "switch failed" }),
-    );
-
-    let productionId = "";
-    let activeLocalId = "";
-    renderWithProviders(
-      <>
-        <TestSeed
-          onMount={(ctx) => {
-            activeLocalId = ctx.addBackend({
-              name: "Active Local",
-              host: "http://localhost:9000",
-              apiKey: "local-key",
-              kind: "local",
-            }).id;
-            ctx.setActive(activeLocalId, null);
-            productionId = ctx.addBackend({
-              name: "Production",
-              host: "https://app.all-hands.dev",
-              apiKey: "bearer-key",
-              kind: "cloud",
-            }).id;
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-        <EnvironmentSwitchOverlay />
-      </>,
-    );
-
-    const initialSelection = JSON.parse(
-      window.localStorage.getItem("openhands-active-backend") ?? "null",
-    );
-
-    const user = await openDropdown();
-    await waitFor(() => {
-      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText("Production – Acme Inc"));
-
-    await waitFor(() => {
-      expect(displayErrorToast).toHaveBeenCalledWith("switch failed");
-    });
-    expect(
-      screen.queryByTestId("environment-switch-overlay"),
-    ).not.toBeInTheDocument();
-
-    const stored = JSON.parse(
-      window.localStorage.getItem("openhands-active-backend") ?? "null",
-    );
-    expect(initialSelection?.backendId).toBe(activeLocalId);
-    expect(stored?.backendId).not.toBe(productionId);
-    expect(stored?.orgId ?? null).toBeNull();
-  });
-
-  it("shows a generic error toast instead of throwing on unexpected org switch errors", async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      new Error("unexpected failure"),
-    );
-
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
-    );
-
-    const user = await openDropdown();
-    await waitFor(() => {
-      expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText("Production – Acme Inc"));
-
-    await waitFor(() => {
-      expect(displayErrorToast).toHaveBeenCalledWith("ERROR$GENERIC");
-    });
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Unexpected error during org switch:",
-      expect.any(Error),
-    );
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("falls back to the first registered local backend when malformed cloud self-heal fails", async () => {
-    vi.mocked(getCloudOrganizations).mockResolvedValue({
-      items: [{ id: "org-2", name: "Acme Inc" }],
-      currentOrgId: "org-2",
-    });
-    vi.mocked(switchCloudOrganization).mockRejectedValueOnce(
-      createAxiosError(500, "Server Error", { message: "switch failed" }),
-    );
-
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          const production = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
-          ctx.setActive(production.id, null);
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
-    );
-
-    await waitFor(() => {
-      const stored = JSON.parse(
-        window.localStorage.getItem("openhands-active-backend") ?? "null",
-      );
-      // The seeded default-local backend is the first registered local.
-      expect(stored?.backendId).toBe("default-local");
-      expect(stored?.orgId ?? null).toBeNull();
-    });
   });
 
   it("renders the backend footer actions and opens/closes the add modal", async () => {
@@ -689,21 +670,32 @@ describe("BackendSelector", () => {
   });
 
   it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
-    renderWithProviders(
-      <TestSeed
-        onMount={(ctx) => {
-          const backend = ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
-          ctx.setActive(backend.id);
-        }}
-      >
-        <BackendSelector />
-      </TestSeed>,
+    // Pre-seed the registry and active selection in localStorage so the
+    // initial render already reflects `Local 1` as active. Seeding via
+    // `TestSeed.onMount` instead would call `setActive` AFTER the first
+    // commit, causing the Dropdown's `key={activeValue-label}` to change
+    // and remount the dropdown — which races with the async health probe
+    // and intermittently drops the open-click state update.
+    const local1Id = "local-1-test-id";
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: local1Id,
+          name: "Local 1",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        },
+      ]),
     );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: local1Id, orgId: null }),
+    );
+    __resetActiveStoreForTests();
+
+    renderWithProviders(<BackendSelector />);
 
     let wrapper = screen.getByTestId("backend-selector");
     let input = wrapper.querySelector("input") as HTMLInputElement;
@@ -825,9 +817,11 @@ describe("BackendSelector", () => {
 
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(
         <TestSeed
@@ -859,9 +853,11 @@ describe("BackendSelector", () => {
     });
 
     it("flips the status dot to red when the local probe fails", async () => {
-      vi.mocked(createServerClient).mockReturnValue({
-        getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-      } as unknown as ReturnType<typeof createServerClient>);
+      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
+        return {
+          getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+        } as unknown as ServerClient;
+      });
 
       renderWithProviders(<BackendSelector />);
 

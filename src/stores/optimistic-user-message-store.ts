@@ -11,7 +11,7 @@ export type PendingUserMessageStatus = "sending" | "error";
  * Exported so tests can override it via vi.fakeTimers without hard-coding the
  * value.
  */
-export const PENDING_MESSAGE_TIMEOUT_MS = 60_000;
+export const PENDING_MESSAGE_TIMEOUT_MS = 150_000;
 
 export interface PendingUserMessage {
   id: string;
@@ -125,7 +125,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       // retry link instead of a permanently-pinned "Sending…" bubble.
       setTimeout(() => {
         const current = get().pendingMessages.find((m) => m.id === id);
-        if (current && current.status === "sending") {
+        if (current?.status === "sending") {
           get().markPendingMessageError(id, "Send timed out");
         }
       }, PENDING_MESSAGE_TIMEOUT_MS);

@@ -1,15 +1,17 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ServerClient } from "@openhands/typescript-client/clients";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
-import { createServerClient } from "#/api/typescript-client";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { BackendStatusDot } from "./backend-status-dot";
+import { DeviceFlowAuth } from "./device-flow-auth";
 
 export type BackendFormMode = "add" | "edit";
 
@@ -50,21 +52,27 @@ function BackendStatusBadge({
 }) {
   const { t } = useTranslation("openhands");
   const healthByBackendId = useBackendsHealth([backend]);
-  const isConnected = healthByBackendId[backend.id]?.isConnected ?? null;
+  const health = healthByBackendId[backend.id];
+  const isConnected = health?.isConnected ?? null;
+  const disabled = health?.disabled === true;
+  const consecutiveFailures = health?.consecutiveFailures ?? 0;
+  const lastError = health?.lastError ?? null;
 
   const { data: version } = useQuery({
     queryKey: ["backend-version", backend.host, backend.apiKey],
     queryFn: async () => {
-      const info = await createServerClient({
-        host: backend.host,
-        sessionApiKey: backend.apiKey || null,
-        timeout: 5000,
-      }).getServerInfo();
+      const info = await new ServerClient(
+        getAgentServerClientOptions({
+          host: backend.host,
+          sessionApiKey: backend.apiKey || null,
+          timeout: 5000,
+        }),
+      ).getServerInfo();
       return info.version ?? null;
     },
     retry: false,
     staleTime: 60_000,
-    enabled: backend.kind === "local",
+    enabled: backend.kind === "local" && !disabled,
   });
 
   let statusLabel: string;
@@ -82,23 +90,49 @@ function BackendStatusBadge({
       : t(I18nKey.BACKEND$KIND_LOCAL);
 
   return (
-    <div
-      data-testid={`${testIdRoot}-status`}
-      className="flex items-center gap-3 text-sm"
-    >
-      <BackendStatusDot isConnected={isConnected} />
-      <span className="text-white" data-testid={`${testIdRoot}-status-label`}>
-        {statusLabel}
-      </span>
-      <span className="text-tertiary-alt">·</span>
-      <span className="text-gray-300">{kindLabel}</span>
-      {version ? (
-        <span
-          className="text-xs text-gray-400"
-          data-testid={`${testIdRoot}-version`}
-        >
-          {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
+    <div className="flex flex-col gap-2">
+      <div
+        data-testid={`${testIdRoot}-status`}
+        className="flex items-center gap-3 text-sm"
+      >
+        <BackendStatusDot isConnected={isConnected} />
+        <span className="text-white" data-testid={`${testIdRoot}-status-label`}>
+          {statusLabel}
         </span>
+        <span className="text-tertiary-alt">·</span>
+        <span className="text-gray-300">{kindLabel}</span>
+        {version ? (
+          <span
+            className="text-xs text-gray-400"
+            data-testid={`${testIdRoot}-version`}
+          >
+            {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
+          </span>
+        ) : null}
+      </div>
+
+      {disabled ? (
+        <div
+          data-testid={`${testIdRoot}-status-error`}
+          className="flex flex-col gap-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm"
+        >
+          <span className="font-semibold text-red-300">
+            {t(I18nKey.BACKEND$HEALTH_FAILED_TITLE)}
+          </span>
+          <span className="text-xs text-gray-300">
+            {t(I18nKey.BACKEND$HEALTH_FAILED_DETAIL, {
+              count: consecutiveFailures,
+            })}
+          </span>
+          {lastError ? (
+            <span
+              data-testid={`${testIdRoot}-status-error-message`}
+              className="text-xs text-red-300 whitespace-pre-wrap break-words"
+            >
+              {lastError}
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -160,6 +194,7 @@ export function BackendForm({
   // already chose one, so don't re-infer over their choice.
   const [touchedKind, setTouchedKind] = React.useState(mode === "edit");
 
+  // Auto-infer kind from host when user hasn't explicitly selected a kind via radio
   React.useEffect(() => {
     if (!touchedKind && host) {
       setKind(inferKindFromHost(host));
@@ -228,16 +263,65 @@ export function BackendForm({
         className="w-full"
       />
 
-      <SettingsInput
-        testId={`${testIdRoot}-api-key`}
-        name={`${testIdRoot}-api-key`}
-        type="password"
-        label={t(I18nKey.BACKEND$KEY_LABEL)}
-        value={apiKey}
-        onChange={setApiKey}
-        placeholder=""
-        className="w-full"
-      />
+      {/* Device Flow auth for cloud backends in add mode - always visible */}
+      {mode === "add" && kind === "cloud" && (
+        <div className="flex flex-col gap-3">
+          <DeviceFlowAuth
+            host={host}
+            onSuccess={setApiKey}
+            testIdRoot={testIdRoot}
+            isDisabled={host.trim().length === 0}
+          />
+
+          {/* Divider with "or" */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-gray-600" />
+            <span className="text-xs text-gray-500 uppercase">
+              {t(I18nKey.BACKEND$LOGIN_OR)}
+            </span>
+            <div className="flex-1 border-t border-gray-600" />
+          </div>
+
+          {/* Manual API key section */}
+          <div className="flex flex-col gap-2">
+            <SettingsInput
+              testId={`${testIdRoot}-api-key`}
+              name={`${testIdRoot}-api-key`}
+              type="password"
+              label={t(I18nKey.BACKEND$KEY_LABEL)}
+              value={apiKey}
+              onChange={setApiKey}
+              placeholder=""
+              className="w-full"
+            />
+            <p className="text-xs text-gray-400">
+              {t(I18nKey.BACKEND$KEY_DOCS_HINT)}{" "}
+              <a
+                href="https://docs.openhands.dev/openhands/usage/settings/api-keys-settings"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                {t(I18nKey.BACKEND$KEY_DOCS_LINK)}
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Regular API key input for non-cloud or edit mode */}
+      {(mode === "edit" || kind !== "cloud") && (
+        <SettingsInput
+          testId={`${testIdRoot}-api-key`}
+          name={`${testIdRoot}-api-key`}
+          type="password"
+          label={t(I18nKey.BACKEND$KEY_LABEL)}
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder=""
+          className="w-full"
+        />
+      )}
 
       {mode === "edit" && backend ? (
         <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />

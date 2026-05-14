@@ -1,3 +1,8 @@
+import {
+  ConversationClient,
+  FileClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import axios from "axios";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
@@ -14,27 +19,42 @@ const {
   mockHttpGet,
   mockHttpPost,
   mockHttpDelete,
-  mockFileUpload,
-  mockCreateHttpClient,
-  mockCreateRemoteWorkspace,
+  mockConversationClient,
+  mockFileClient,
+  mockSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
   mockHttpDelete: vi.fn(),
-  mockFileUpload: vi.fn(),
-  mockCreateHttpClient: vi.fn(),
-  mockCreateRemoteWorkspace: vi.fn(),
+  mockConversationClient: vi.fn(),
+  mockFileClient: vi.fn(),
+  mockSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
 
-vi.mock("#/api/typescript-client", () => ({
-  createHttpClient: mockCreateHttpClient,
-  createRemoteWorkspace: mockCreateRemoteWorkspace,
-  createVSCodeClient: vi.fn(),
-}));
+vi.mock("@openhands/typescript-client/clients", async () => {
+  const actual = await vi.importActual<
+    typeof import("@openhands/typescript-client/clients")
+  >("@openhands/typescript-client/clients");
+  return {
+    ...actual,
+    ConversationClient: vi.fn(function ConversationClientMock() {
+      return mockConversationClient();
+    }),
+    FileClient: vi.fn(function FileClientMock() {
+      return mockFileClient();
+    }),
+    SettingsClient: vi.fn(function SettingsClientMock() {
+      return mockSettingsClient();
+    }),
+    VSCodeClient: vi.fn(function VSCodeClientMock() {
+      return { getUrl: vi.fn() };
+    }),
+  };
+});
 
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
@@ -61,16 +81,50 @@ describe("AgentServerConversationService", () => {
     mockHttpGet.mockReset();
     mockHttpPost.mockReset();
     mockHttpDelete.mockReset();
-    mockFileUpload.mockReset();
+    vi.mocked(ConversationClient).mockClear();
+    vi.mocked(FileClient).mockClear();
+    vi.mocked(SettingsClient).mockClear();
 
-    mockCreateHttpClient.mockReturnValue({
-      get: mockHttpGet,
-      post: mockHttpPost,
-      patch: vi.fn(),
-      delete: mockHttpDelete,
+    mockConversationClient.mockReturnValue({
+      createConversation: async (payload: unknown) => {
+        const response = await mockHttpPost("/api/conversations", payload);
+        return response.data;
+      },
+      getConversations: async (conversationIds: string[]) => {
+        const response = await mockHttpGet("/api/conversations", {
+          params: { ids: conversationIds },
+        });
+        return response.data;
+      },
+      deleteConversation: async (conversationId: string) => {
+        const response = await mockHttpDelete(
+          `/api/conversations/${conversationId}`,
+        );
+        return response.data;
+      },
+      searchConversations: vi.fn(),
+      getConversation: vi.fn(),
+      sendEvent: vi.fn(),
+      updateConversation: vi.fn(),
     });
-    mockCreateRemoteWorkspace.mockReturnValue({
-      fileUpload: mockFileUpload,
+    mockFileClient.mockReturnValue({
+      downloadTextFile: async (path: string) => {
+        const response = await mockHttpGet("/api/file/download", {
+          params: { path },
+          responseType: "arrayBuffer",
+        });
+        return new TextDecoder().decode(response.data);
+      },
+      downloadTrajectory: async (conversationId: string) => {
+        const response = await mockHttpGet(
+          `/api/file/download-trajectory/${conversationId}`,
+          { responseType: "blob" },
+        );
+        return response.data;
+      },
+    });
+    mockSettingsClient.mockReturnValue({
+      listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
     });
   });
 
@@ -99,6 +153,16 @@ describe("AgentServerConversationService", () => {
         await AgentServerConversationService.readConversationFile("conv-123");
 
       expect(content).toBe("# PLAN content");
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
+      expect(FileClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
       expect(mockHttpGet).toHaveBeenCalledWith(
         "/api/file/download",
         expect.objectContaining({
@@ -107,6 +171,39 @@ describe("AgentServerConversationService", () => {
           },
           responseType: "arrayBuffer",
         }),
+      );
+    });
+
+    it("rejects explicit file paths outside the conversation workspace", async () => {
+      mockHttpGet.mockImplementation((url: string) => {
+        if (url === "/api/conversations") {
+          return Promise.resolve({
+            data: [
+              {
+                id: "conv-123",
+                created_at: "2024-01-01",
+                updated_at: "2024-01-01",
+                workspace: {
+                  working_dir: "/workspace/project/agent-canvas/conv-123",
+                },
+              },
+            ],
+          });
+        }
+        return Promise.resolve({ data: new ArrayBuffer(0) });
+      });
+
+      await expect(
+        AgentServerConversationService.readConversationFile(
+          "conv-123",
+          "/workspace/project/agent-canvas/other/PLAN.md",
+        ),
+      ).rejects.toThrow(
+        "Conversation file path must stay inside the workspace",
+      );
+      expect(mockHttpGet).not.toHaveBeenCalledWith(
+        "/api/file/download",
+        expect.anything(),
       );
     });
   });
@@ -133,6 +230,11 @@ describe("AgentServerConversationService", () => {
       await AgentServerConversationService.createConversation();
       await AgentServerConversationService.createConversation();
 
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
       expect(mockHttpPost).toHaveBeenCalledTimes(2);
       const [firstCall, secondCall] = mockHttpPost.mock.calls;
       const firstPayload = firstCall[1] as {
@@ -208,6 +310,105 @@ describe("AgentServerConversationService", () => {
     });
   });
 
+  describe("conversation update fallbacks", () => {
+    it("throws a useful error when repository update cannot reload the conversation", async () => {
+      mockHttpGet.mockResolvedValue({ data: [] });
+
+      await expect(
+        AgentServerConversationService.updateConversationRepository(
+          "missing-conv",
+          "OpenHands/agent-canvas",
+        ),
+      ).rejects.toThrow("Conversation missing-conv was not found");
+    });
+
+    it("throws a useful error when title update cannot reload the conversation", async () => {
+      mockHttpGet.mockResolvedValue({ data: [] });
+
+      await expect(
+        AgentServerConversationService.updateConversationTitle(
+          "missing-conv",
+          "New title",
+        ),
+      ).rejects.toThrow("Conversation missing-conv was not found");
+    });
+
+    it("normalizes conversation list items with missing timestamps", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-no-timestamps",
+            title: "Conversation without timestamps",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-no-timestamps",
+        ]);
+
+      expect(conversation).toMatchObject({
+        id: "conv-no-timestamps",
+        created_at: "1970-01-01T00:00:00.000Z",
+        updated_at: "1970-01-01T00:00:00.000Z",
+      });
+    });
+
+    it("throws a user-friendly error for unusable conversation list responses", async () => {
+      mockHttpGet.mockResolvedValue({ data: [{ title: "missing id" }] });
+
+      await expect(
+        AgentServerConversationService.batchGetAppConversations(["missing-id"]),
+      ).rejects.toThrow(
+        "Unable to load conversations because the selected agent server returned",
+      );
+    });
+
+    it("sanitizes malformed optional conversation fields", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-malformed-fields",
+            title: "Conversation with malformed fields",
+            metrics: {
+              accumulated_cost: "1.23",
+              max_budget_per_task: 10,
+              accumulated_token_usage: {
+                prompt_tokens: "123",
+                completion_tokens: 4,
+              },
+            },
+            agent: "not an agent object",
+            workspace: "not a workspace object",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-malformed-fields",
+        ]);
+
+      expect(conversation?.metrics).toEqual({
+        accumulated_cost: null,
+        max_budget_per_task: 10,
+        accumulated_token_usage: {
+          prompt_tokens: 0,
+          completion_tokens: 4,
+          cache_read_tokens: 0,
+          cache_write_tokens: 0,
+          context_window: 0,
+          per_turn_token: 0,
+        },
+      });
+      expect(conversation?.llm_model).toBeTruthy();
+      expect(conversation?.workspace?.working_dir).toBe(
+        "/workspace/project/agent-canvas",
+      );
+    });
+  });
+
   describe("cloud branches", () => {
     const cloudBackend: Backend = {
       id: "prod",
@@ -276,7 +477,9 @@ describe("AgentServerConversationService", () => {
 
       // Act
       const content =
-        await AgentServerConversationService.readConversationFile("conv-cloud-1");
+        await AgentServerConversationService.readConversationFile(
+          "conv-cloud-1",
+        );
 
       // Assert
       expect(content).toBe("# PLAN content");
@@ -286,60 +489,6 @@ describe("AgentServerConversationService", () => {
       expect(upstream.path).toBe(
         "/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md",
       );
-    });
-  });
-
-  describe("uploadFile", () => {
-    it("uses query params for file upload path", async () => {
-      const file = new File(["test content"], "test.txt", {
-        type: "text/plain",
-      });
-      const uploadPath = "/workspace/custom/path.txt";
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "test-api-key",
-        file,
-        uploadPath,
-      );
-
-      expect(mockCreateRemoteWorkspace).toHaveBeenCalledWith({
-        sessionApiKey: "test-api-key",
-      });
-      expect(mockFileUpload).toHaveBeenCalledWith(file, uploadPath);
-    });
-
-    it("uses default workspace path when no path provided", async () => {
-      const file = new File(["test content"], "myfile.txt", {
-        type: "text/plain",
-      });
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "test-api-key",
-        file,
-      );
-
-      expect(mockFileUpload).toHaveBeenCalledWith(
-        file,
-        "/workspace/myfile.txt",
-      );
-    });
-
-    it("passes through the selected session key for uploads", async () => {
-      const file = new File(["test content"], "test.txt", {
-        type: "text/plain",
-      });
-
-      await AgentServerConversationService.uploadFile(
-        "http://localhost:54928/api/conversations/conv-123",
-        "my-session-key",
-        file,
-      );
-
-      expect(mockCreateRemoteWorkspace).toHaveBeenCalledWith({
-        sessionApiKey: "my-session-key",
-      });
     });
   });
 });

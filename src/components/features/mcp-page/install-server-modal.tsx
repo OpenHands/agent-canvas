@@ -1,0 +1,337 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+import { AxiosError } from "axios";
+import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { SettingsInput } from "#/components/features/settings/settings-input";
+import { I18nKey } from "#/i18n/declaration";
+import { MarketplaceEntry } from "#/constants/mcp-marketplace";
+import { MCPServerConfig } from "#/types/mcp-server";
+import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
+import { displaySuccessToast } from "#/utils/custom-toast-handlers";
+import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+
+interface InstallServerModalProps {
+  entry: MarketplaceEntry;
+  onClose: () => void;
+}
+
+interface FieldState {
+  values: Record<string, string>;
+  errors: Record<string, string | null>;
+}
+
+function makeInitialState(entry: MarketplaceEntry): FieldState {
+  const values: Record<string, string> = {};
+  if (entry.template.kind === "stdio") {
+    for (const field of entry.template.envFields ?? []) {
+      values[field.key] = "";
+    }
+    for (const field of entry.template.argFields ?? []) {
+      values[field.key] = "";
+    }
+  } else if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+    values.api_key = "";
+  }
+  return { values, errors: {} };
+}
+
+// The marketplace install modal is intentionally add-only: clicking
+// a catalog tile always appends a new server (the user might want
+// two Slack workspaces, two Postgres connections, etc.) even when
+// one of the same template kind is already installed. Editing an
+// existing server is reached via the installed-server-card's edit
+// button, which opens `CustomServerEditor` instead.
+export function InstallServerModal({
+  entry,
+  onClose,
+}: InstallServerModalProps) {
+  const { t } = useTranslation("openhands");
+  const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
+
+  const [state, setState] = React.useState<FieldState>(() =>
+    makeInitialState(entry),
+  );
+  const [globalError, setGlobalError] = React.useState<string | null>(null);
+
+  const isPending = isAdding;
+
+  const setValue = (key: string, value: string) => {
+    setState((prev) => ({
+      values: { ...prev.values, [key]: value },
+      errors: { ...prev.errors, [key]: null },
+    }));
+    setGlobalError(null);
+  };
+
+  const submitServer = (payload: MCPServerConfig) => {
+    addMcpServer(payload, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+        onClose();
+      },
+      onError: (err: unknown) => {
+        const message = retrieveAxiosErrorMessage(err as AxiosError);
+        setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+      },
+    });
+  };
+
+  // ------------------------------------------------------------------
+  // Per-template submit handlers. Each is small and self-contained:
+  // validate user input, build the payload, then hand off to
+  // submitServer.
+  // ------------------------------------------------------------------
+  const handleHttpServerSubmit = () => {
+    // TS narrows this branch to shttp|sse; the equality guard is a
+    // runtime/defensive belt to make the helper safe in isolation.
+    if (entry.template.kind !== "shttp" && entry.template.kind !== "sse") {
+      return;
+    }
+    const apiKey = state.values.api_key?.trim() ?? "";
+    if (!entry.template.apiKeyOptional && !apiKey) {
+      setState((prev) => ({
+        ...prev,
+        errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
+      }));
+      return;
+    }
+    const payload: MCPServerConfig = {
+      id: `${entry.template.kind}-${Date.now()}`,
+      type: entry.template.kind,
+      url: entry.template.url,
+      ...(apiKey && { api_key: apiKey }),
+    };
+    submitServer(payload);
+  };
+
+  const handleStdioSubmit = () => {
+    if (entry.template.kind !== "stdio") return;
+    const stdio = entry.template;
+    const errors: Record<string, string | null> = {};
+
+    for (const field of stdio.envFields ?? []) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        errors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
+    for (const field of stdio.argFields ?? []) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        errors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setState((prev) => ({ ...prev, errors }));
+      return;
+    }
+
+    const env: Record<string, string> = {};
+    for (const field of stdio.envFields ?? []) {
+      const v = state.values[field.key]?.trim();
+      if (v) env[field.key] = v;
+    }
+    const extraArgs: string[] = [];
+    for (const field of stdio.argFields ?? []) {
+      const v = state.values[field.key]?.trim();
+      if (v) {
+        // Filesystem-style multi-token input: split on whitespace.
+        for (const token of v.split(/\s+/)) {
+          if (token) extraArgs.push(token);
+        }
+      }
+    }
+
+    const payload: MCPServerConfig = {
+      id: `stdio-${Date.now()}`,
+      type: "stdio",
+      name: stdio.serverName,
+      command: stdio.command,
+      args: [...stdio.args, ...extraArgs],
+      ...(Object.keys(env).length > 0 && { env }),
+    };
+    submitServer(payload);
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setGlobalError(null);
+    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+      return handleHttpServerSubmit();
+    }
+    return handleStdioSubmit();
+  };
+
+  const renderFields = () => {
+    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+      const apiKeyOptional = entry.template.apiKeyOptional ?? false;
+      return (
+        <>
+          <SettingsInput
+            testId="mcp-install-field-url"
+            name="url"
+            type="url"
+            label={t(I18nKey.SETTINGS$MCP_URL)}
+            value={entry.template.url}
+            onChange={() => {}}
+            isDisabled
+            className="w-full"
+          />
+          <div className="flex flex-col gap-1">
+            <SettingsInput
+              testId="mcp-install-field-api_key"
+              name="api_key"
+              type="password"
+              label={t(I18nKey.SETTINGS$MCP_API_KEY)}
+              value={state.values.api_key ?? ""}
+              onChange={(v) => setValue("api_key", v)}
+              placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
+              showOptionalTag={apiKeyOptional}
+              required={!apiKeyOptional}
+              className="w-full"
+            />
+            {state.errors.api_key && (
+              <p className="text-xs text-red-500">{state.errors.api_key}</p>
+            )}
+          </div>
+        </>
+      );
+    }
+
+    const stdio = entry.template;
+    return (
+      <>
+        <SettingsInput
+          testId="mcp-install-field-command-readonly"
+          name="command-readonly"
+          type="text"
+          label={t(I18nKey.MCP$COMMAND_LABEL)}
+          value={`${stdio.command} ${stdio.args.join(" ")}`.trim()}
+          onChange={() => {}}
+          isDisabled
+          className="w-full"
+        />
+        {(stdio.envFields ?? []).map((field) => (
+          <div key={field.key} className="flex flex-col gap-1">
+            <SettingsInput
+              testId={`mcp-install-field-${field.key}`}
+              name={field.key}
+              type={field.type === "password" ? "password" : "text"}
+              label={field.label}
+              value={state.values[field.key] ?? ""}
+              onChange={(v) => setValue(field.key, v)}
+              placeholder={field.placeholder}
+              required={field.required}
+              showOptionalTag={!field.required}
+              className="w-full"
+            />
+            {field.helperText && (
+              <p className="text-xs text-tertiary-alt">{field.helperText}</p>
+            )}
+            {state.errors[field.key] && (
+              <p className="text-xs text-red-500">{state.errors[field.key]}</p>
+            )}
+          </div>
+        ))}
+        {(stdio.argFields ?? []).map((field) => (
+          <div key={field.key} className="flex flex-col gap-1">
+            <SettingsInput
+              testId={`mcp-install-field-${field.key}`}
+              name={field.key}
+              type={field.type === "password" ? "password" : "text"}
+              label={field.label}
+              value={state.values[field.key] ?? ""}
+              onChange={(v) => setValue(field.key, v)}
+              placeholder={field.placeholder}
+              required={field.required}
+              showOptionalTag={!field.required}
+              className="w-full"
+            />
+            {field.helperText && (
+              <p className="text-xs text-tertiary-alt">{field.helperText}</p>
+            )}
+            {state.errors[field.key] && (
+              <p className="text-xs text-red-500">{state.errors[field.key]}</p>
+            )}
+          </div>
+        ))}
+      </>
+    );
+  };
+
+  return (
+    <ModalBackdrop onClose={onClose} aria-label={entry.name}>
+      <form
+        data-testid="mcp-install-modal"
+        data-marketplace-id={entry.id}
+        onSubmit={handleSubmit}
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
+      >
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
+            style={{
+              backgroundColor: entry.iconBg,
+              color: entry.iconColor ?? "#FFFFFF",
+            }}
+          >
+            {entry.logo}
+          </span>
+          <div className="flex flex-col flex-1">
+            <h2 className="text-lg font-semibold">{entry.name}</h2>
+            <p className="text-xs text-tertiary-alt">{entry.description}</p>
+          </div>
+        </div>
+
+        {entry.installHint && (
+          <p className="text-xs text-content-2">{entry.installHint}</p>
+        )}
+
+        {entry.docsUrl && (
+          <a
+            href={entry.docsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-primary hover:underline self-start"
+          >
+            {t(I18nKey.MCP$VIEW_DOCS)}
+          </a>
+        )}
+
+        <div className="flex flex-col gap-3">{renderFields()}</div>
+
+        {globalError && (
+          <p
+            data-testid="mcp-install-modal-error"
+            className="text-sm text-red-500"
+          >
+            {globalError}
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <BrandButton
+            type="submit"
+            variant="primary"
+            isDisabled={isPending}
+            testId="mcp-install-submit"
+            className="w-full text-center"
+          >
+            {isPending
+              ? t(I18nKey.SETTINGS$SAVING)
+              : t(I18nKey.MCP$INSTALL_BUTTON)}
+          </BrandButton>
+          <BrandButton
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            testId="mcp-install-cancel"
+            className="w-full text-center"
+          >
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+        </div>
+      </form>
+    </ModalBackdrop>
+  );
+}

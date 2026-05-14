@@ -4,17 +4,25 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import {
+  BACKEND_HEALTH_STORAGE_KEY,
+  MAX_CONSECUTIVE_FAILURES,
+} from "#/api/backend-registry/health-storage";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import { __resetHealthStoreForTests } from "#/api/backend-registry/health-store";
 import {
   ActiveBackendProvider,
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 
-vi.mock("#/api/typescript-client", () => ({
-  createServerClient: vi.fn(() => ({
-    getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-  })),
+const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.18.0" });
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return { getServerInfo: getServerInfoMock };
+  }),
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
@@ -53,11 +61,13 @@ function TestSeed({
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  __resetHealthStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  __resetHealthStoreForTests();
 });
 
 describe("ManageBackendsModal", () => {
@@ -80,9 +90,30 @@ describe("ManageBackendsModal", () => {
 
     await user.click(screen.getByTestId("manage-backends-add"));
 
-    expect(
-      await screen.findByTestId("add-backend-modal"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
+  });
+
+  it("re-checks a disabled backend on open and clears stale persisted health when it recovers", async () => {
+    window.localStorage.setItem(
+      BACKEND_HEALTH_STORAGE_KEY,
+      JSON.stringify({
+        [DEFAULT_LOCAL_BACKEND_ID]: {
+          consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+          lastError: "Network Error",
+          lastFailureAt: Date.now(),
+          disabled: true,
+        },
+      }),
+    );
+    __resetHealthStoreForTests();
+
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY),
+      ).toBeNull();
+    });
   });
 
   it("opens an edit form pre-filled with the row's backend, and persists changes via updateBackend", async () => {
@@ -109,11 +140,15 @@ describe("ManageBackendsModal", () => {
     );
 
     await screen.findByTestId("edit-backend-modal");
-    const nameInput = screen.getByTestId("edit-backend-name") as HTMLInputElement;
+    const nameInput = screen.getByTestId(
+      "edit-backend-name",
+    ) as HTMLInputElement;
     expect(nameInput.value).toBe("Acme Local");
 
     // Update the host and save.
-    const hostInput = screen.getByTestId("edit-backend-host") as HTMLInputElement;
+    const hostInput = screen.getByTestId(
+      "edit-backend-host",
+    ) as HTMLInputElement;
     await user.clear(hostInput);
     await user.type(hostInput, "http://localhost:9999");
 

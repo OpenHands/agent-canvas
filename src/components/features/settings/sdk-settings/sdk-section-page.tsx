@@ -24,6 +24,7 @@ import {
   hasAdvancedSettings,
   hasMinorSettings,
   inferInitialView,
+  isValidSettingsSchema,
   SettingsDirtyState,
   SettingsFormValues,
   type SettingsValueSource,
@@ -226,9 +227,15 @@ export function SdkSectionPage({
     [sectionKeysSignature],
   );
 
-  // Build a filtered schema containing only the requested sections
+  // Build a filtered schema containing only the requested sections.
+  // `isValidSettingsSchema` guards against truthy-but-malformed schema
+  // responses (e.g. when the deployment is pointed at a host that does
+  // not serve `/api/settings/agent-schema` and returns an SPA shell
+  // that parses into an object without a `sections` array). Without
+  // the guard, `schema.sections.filter(...)` would throw and React
+  // Router would escalate the crash to a full-screen error.
   const filteredSchema = React.useMemo(() => {
-    if (!schema) return null;
+    if (!isValidSettingsSchema(schema)) return null;
     const sectionSet = new Set(stableSectionKeys);
     return {
       ...schema,
@@ -264,7 +271,6 @@ export function SdkSectionPage({
     return { ...base, ...initialValueOverrides };
     // overridesSignature keeps the memo reactive without depending on
     // a (potentially recreated) object reference each render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, filteredSchema, settingsSource, overridesSignature]);
 
   const initialView = React.useMemo(() => {
@@ -316,7 +322,6 @@ export function SdkSectionPage({
     // initialValueOverrides is intentionally tracked via
     // overridesSignature on initialValues; including the object ref
     // here would re-fire the effect every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues, initialView]);
 
   const visibleSections = React.useMemo(() => {
@@ -408,7 +413,6 @@ export function SdkSectionPage({
       isSaving: isPending,
       isDirty: saveControlIsDirty,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, saveControlIsDirty]);
 
   if (isLoading || isFetching || isSchemaLoading) {

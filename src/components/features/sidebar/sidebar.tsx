@@ -1,6 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Plus, Server, Settings } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Server,
+  Settings,
+} from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
 import { getErrorStatus, useSettings } from "#/hooks/query/use-settings";
@@ -61,7 +67,9 @@ export function Sidebar() {
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const [collapsedBackendPopoverOpen, setCollapsedBackendPopoverOpen] =
     React.useState(false);
-  const collapsedBackendCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const collapsedBackendCloseTimer = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   // Lifted out of BackendSelector so opening these modals from the
   // collapsed-sidebar popover doesn't lose state when the popover unmounts
   // (cursor moving toward the modal triggers onMouseLeave -> close).
@@ -69,8 +77,8 @@ export function Sidebar() {
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
   const [collapsedRailHovered, setCollapsedRailHovered] = React.useState(false);
-  const collapsedBackendPopoverRef = useClickOutsideElement<HTMLDivElement>(() =>
-    setCollapsedBackendPopoverOpen(false),
+  const collapsedBackendPopoverRef = useClickOutsideElement<HTMLDivElement>(
+    () => setCollapsedBackendPopoverOpen(false),
   );
   const settingsErrorStatus = getErrorStatus(settingsError);
 
@@ -263,17 +271,6 @@ export function Sidebar() {
             collapsed={collapsed}
             icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
           />
-          {/*
-            Integrations tab is currently hidden because it isn't working yet.
-            The underlying route and logic are still wired up — devs are
-            welcome to uncomment this block and experiment.
-          */}
-          {/* <SidebarNavLink
-            to="/integrations"
-            label={t(I18nKey.SIDEBAR$INTEGRATIONS)}
-            testId="sidebar-integrations-link"
-            disabled={linkDisabled}
-          /> */}
         </nav>
 
         <SidebarConversationList />
