@@ -18,7 +18,7 @@ interface DeviceFlowAuthProps {
 /**
  * Device Flow authentication UI component.
  *
- * Shows a "Login with OpenHands" button that initiates OAuth 2.0 Device Flow
+ * Shows a "Login with OpenHands Cloud" button that initiates OAuth 2.0 Device Flow
  * authentication. Displays status during the auth process and auto-opens
  * the browser for user authorization.
  */
