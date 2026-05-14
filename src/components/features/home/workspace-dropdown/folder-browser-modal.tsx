@@ -129,14 +129,14 @@ export function FolderBrowserModal({
   const parent = currentPath ? getParentPath(currentPath) : null;
 
   // Signal that we're inside the dev:docker container without the host
-  // home mounted: the agent server reports `/home/openhands` as home and
+  // home mounted: the agent server reports its container home and
   // returns no favorites (the only contents are hidden credential dirs).
   // In that case there's nothing useful for the user to browse, so we
   // surface the OH_MOUNT_HOST_HOME=1 opt-in instead of the generic empty
   // state. Off in production / non-Docker dev because favorites are
   // populated there.
   const showHostHomeHint =
-    homeData?.home === "/home/openhands" &&
+    ["/home/openhands", "/openhands-home"].includes(homeData?.home ?? "") &&
     (homeData?.favorites?.length ?? 0) === 0 &&
     currentPath === homeData?.home &&
     !isLoading &&

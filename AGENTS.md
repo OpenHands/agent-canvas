@@ -149,6 +149,7 @@
   - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
   - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
   - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
+  - The container runs as the host UID/GID when Node exposes `process.getuid()` / `process.getgid()`. Its container home is `/openhands-home`, backed by a host-owned cache directory, with persistence at `/openhands-home/.openhands`, so host-owned bind mounts remain writable.
 - Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden

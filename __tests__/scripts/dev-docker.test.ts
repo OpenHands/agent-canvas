@@ -1,15 +1,45 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTAINER_HOME_DIR,
+  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
+  getDockerUserArgs,
+  getHostDockerUserSpec,
   isDockerPermissionDenied,
 } from "../../scripts/dev-docker.mjs";
 
 describe("CONTAINER_WORKSPACES_DIR", () => {
   it("points at the dockerized agent-server's in-container persistence dir so the working_dir the GUI sends is one the container can mkdir (regression guard for the host-path leak that caused 500 on POST /api/conversations)", () => {
     expect(CONTAINER_WORKSPACES_DIR).toBe(
-      "/home/openhands/.openhands/agent-canvas/workspaces",
+      "/openhands-home/.openhands/agent-canvas/workspaces",
     );
+  });
+});
+
+describe("docker host user", () => {
+  it("uses the current host uid/gid when the platform exposes them", () => {
+    if (
+      typeof process.getuid !== "function" ||
+      typeof process.getgid !== "function"
+    ) {
+      expect(getHostDockerUserSpec()).toBeNull();
+      return;
+    }
+
+    expect(getHostDockerUserSpec()).toBe(
+      `${process.getuid()}:${process.getgid()}`,
+    );
+  });
+
+  it("keeps docker home paths under a host-user-accessible directory", () => {
+    expect(CONTAINER_HOME_DIR).toBe("/openhands-home");
+    expect(CONTAINER_OPENHANDS_DIR).toBe("/openhands-home/.openhands");
+  });
+
+  it("adds --user when a host uid/gid is available", () => {
+    expect(getDockerUserArgs("1000:1000")).toEqual(["--user", "1000:1000"]);
+    expect(getDockerUserArgs(null)).toEqual([]);
   });
 });
 

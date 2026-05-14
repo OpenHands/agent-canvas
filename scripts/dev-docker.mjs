@@ -29,14 +29,15 @@
  *     reload / process restart, matching the non-Docker dev loop.
  *
  * Optional credential mounts (only mounted when the host path exists):
- *   - ~/.openhands -> /home/openhands/.openhands  (persistence)
- *   - ~/.claude    -> /home/openhands/.claude     (Claude credentials)
- *   - ~/.codex     -> /home/openhands/.codex      (Codex credentials)
- *   - ~/.ssh       -> /home/openhands/.ssh        (git/ssh access)
+ *   - ~/.openhands -> /openhands-home/.openhands  (persistence)
+ *   - ~/.claude    -> /openhands-home/.claude     (Claude credentials)
+ *   - ~/.codex     -> /openhands-home/.codex      (Codex credentials)
+ *   - ~/.ssh       -> /openhands-home/.ssh        (git/ssh access)
+ *   - ~/.cache/agent-canvas/docker-home -> /openhands-home
  *
  * Optional host home mount (opt-in):
  *   Set `OH_MOUNT_HOST_HOME=1` to bind-mount your entire host home onto
- *   the container user's home at `/home/openhands`. This lets the
+ *   the container user's home at `/openhands-home`. This lets the
  *   "Add Workspace" file browser navigate your real host filesystem
  *   (and credentials/persistence dirs above are picked up automatically
  *   as subpaths). Off by default so the container stays isolated from
@@ -49,7 +50,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -78,6 +79,8 @@ const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 // Note: The SDK build script strips the "v" prefix from semver release tags.
 const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
+const CONTAINER_HOME_DIR = "/openhands-home";
+const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
 
 // Default secret key matches dev-safe.mjs so persisted settings stay
 // decryptable across docker / non-docker runs.
@@ -89,8 +92,7 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // dir (which is `~/.openhands` on the host, mounted in below). The frontend
 // receives this via VITE_WORKING_DIR so the working_dir it sends to the
 // agent-server is one the container can actually mkdir.
-const CONTAINER_WORKSPACES_DIR =
-  "/home/openhands/.openhands/agent-canvas/workspaces";
+const CONTAINER_WORKSPACES_DIR = `${CONTAINER_OPENHANDS_DIR}/agent-canvas/workspaces`;
 
 /**
  * Resolve the docker image to use based on environment.
@@ -146,6 +148,20 @@ function logDockerInfoFailure(stderr) {
     logError(`  ${stderr.split("\n")[0]}`);
   }
   logError("Start Docker (e.g. open Docker Desktop) and try again.");
+}
+
+function getHostDockerUserSpec() {
+  if (
+    typeof process.getuid !== "function" ||
+    typeof process.getgid !== "function"
+  ) {
+    return null;
+  }
+  return `${process.getuid()}:${process.getgid()}`;
+}
+
+function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
+  return userSpec ? ["--user", userSpec] : [];
 }
 
 /**
@@ -213,15 +229,9 @@ function startAgentServerDocker(config) {
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
 
   const home = homedir();
-  const dockerArgs = [
-    "run",
-    "--rm",
-    "--name",
-    CONTAINER_NAME,
-    "--init",
-    "-v",
-    `${process.env.PROJECT_PATH}:/projects`,
-  ];
+  const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
+  dockerArgs.push(...getDockerUserArgs());
+  dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
   // rw so editable installs can write their .dist-info into each package
@@ -237,13 +247,17 @@ function startAgentServerDocker(config) {
   // filesystem (those credential subpaths come along automatically as
   // part of the same mount).
   if (process.env.OH_MOUNT_HOST_HOME === "1") {
-    dockerArgs.push("-v", `${home}:/home/openhands`);
+    dockerArgs.push("-v", `${home}:${CONTAINER_HOME_DIR}`);
   } else {
+    const dockerHome = join(home, ".cache", "agent-canvas", "docker-home");
+    mkdirSync(dockerHome, { recursive: true });
+    dockerArgs.push("-v", `${dockerHome}:${CONTAINER_HOME_DIR}`);
+
     const optionalMounts = [
-      [join(home, ".openhands"), "/home/openhands/.openhands"],
-      [join(home, ".claude"), "/home/openhands/.claude"],
-      [join(home, ".codex"), "/home/openhands/.codex"],
-      [join(home, ".ssh"), "/home/openhands/.ssh"],
+      [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
+      [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
+      [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
+      [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
     ];
     for (const [src, dest] of optionalMounts) {
       if (existsSync(src)) {
@@ -260,10 +274,11 @@ function startAgentServerDocker(config) {
   // These mirror buildAgentServerEnv() from dev-safe.mjs but use paths
   // that exist inside the container (under the mounted ~/.openhands).
   const containerEnv = {
-    OH_CONVERSATIONS_PATH:
-      "/home/openhands/.openhands/agent-canvas/conversations",
-    OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
-    OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
+    HOME: CONTAINER_HOME_DIR,
+    OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
+    OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
+    OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
+    XDG_CACHE_HOME: `${CONTAINER_OPENHANDS_DIR}/cache`,
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
@@ -326,11 +341,15 @@ if (isMainModule) {
 
 export {
   AGENT_SERVER_REPO,
+  CONTAINER_HOME_DIR,
   CONTAINER_LOCAL_SDK_DIR,
   CONTAINER_NAME,
+  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  getDockerUserArgs,
+  getHostDockerUserSpec,
   isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,
