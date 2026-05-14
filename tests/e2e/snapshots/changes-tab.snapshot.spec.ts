@@ -142,6 +142,21 @@ test.describe("Changes Tab Visual Snapshots", () => {
 
     await navigateAndWaitForFilesTab(page);
 
+    // Pin the RandomTip section to a fixed height so the flex-1 container
+    // above it is deterministic across runs.  RandomTip renders a randomly
+    // selected tip whose text can vary in line count, causing different
+    // layout heights between the baseline-generation run and verification run.
+    // The class combination ".text-m.bg-tertiary.p-4" is unique to this element
+    // in changes-tab.tsx (confirmed by grep).  Hiding the content removes the
+    // visual variable; the fixed height keeps the surrounding flex layout stable.
+    await page.addStyleTag({
+      content: `.text-m.bg-tertiary.p-4 {
+        height: 80px !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+      }`,
+    });
+
     // Wait for the initial (non-empty) render to settle before mutating state.
     await expect(
       page.locator('[data-testid="file-diff-viewer-outer"]').first(),
@@ -168,19 +183,8 @@ test.describe("Changes Tab Visual Snapshots", () => {
       page.getByText("OpenHands hasn't made any changes yet"),
     ).toBeVisible({ timeout: 10_000 });
 
-    // Screenshot the EmptyChangesMessage area (icon + "no changes" text) rather
-    // than the full files-tab panel.  The panel's bottom section contains a
-    // RandomTip whose text changes on every render; targeting just the central
-    // flex container avoids that instability without modifying source files.
-    //
-    // DOM path from the "no changes" <span>:
-    //   span → EmptyChangesMessage root div → div.flex-1 (center container)
-    // The center container holds ONLY the icon + text, not the RandomTip.
-    const emptyMsg = page
-      .getByTestId("files-tab")
-      .getByText("OpenHands hasn't made any changes yet");
-    const centerContainer = emptyMsg.locator("../.."); // flex-1 center div
-    await expect(centerContainer).toHaveScreenshot("changes-empty.png", {
+    const filesTab = page.getByTestId("files-tab");
+    await expect(filesTab).toHaveScreenshot("changes-empty.png", {
       animations: "disabled",
       maxDiffPixelRatio: 0.01,
     });
