@@ -183,8 +183,18 @@ test.describe("Changes Tab Visual Snapshots", () => {
       page.getByText("OpenHands hasn't made any changes yet"),
     ).toBeVisible({ timeout: 10_000 });
 
-    const filesTab = page.getByTestId("files-tab");
-    await expect(filesTab).toHaveScreenshot("changes-empty.png", {
+    // Screenshot the diff-content div (direct child of files-tab when diff view
+    // is enabled) rather than the full files-tab.  This avoids capturing any
+    // adjacent-panel artefacts that may bleed into the outer element's bounding
+    // box during CI rendering, while still showing the full empty-state UI.
+    //
+    // DOM path: main[data-testid="files-tab"]  >  div.flex-1.min-h-0  >  main
+    // The inner <main> rendered by GitChanges is the safest stable target.
+    const changesContent = page
+      .getByTestId("files-tab")
+      .locator("> div")
+      .last();
+    await expect(changesContent).toHaveScreenshot("changes-empty.png", {
       animations: "disabled",
       maxDiffPixelRatio: 0.01,
     });
