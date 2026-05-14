@@ -46,12 +46,10 @@ describe("AddBackendModal", () => {
     expect(row.className).toContain("grid-cols-2");
   });
 
-  it("prefills the OpenHands Cloud host and enables login immediately", () => {
+  it("starts with an empty host and shows cloud helper text and login button", () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
-    expect(screen.getByTestId("add-backend-host")).toHaveValue(
-      "https://app.openhands.dev",
-    );
+    expect(screen.getByTestId("add-backend-host")).toHaveValue("");
     expect(screen.getByTestId("add-backend-kind-cloud")).toBeChecked();
     expect(screen.getByTestId("add-backend-login-button")).not.toBeDisabled();
     expect(screen.getByText("BACKEND$HOST_HELPER")).toBeInTheDocument();
@@ -74,6 +72,12 @@ describe("AddBackendModal", () => {
 
     const user = userEvent.setup();
     await user.type(screen.getByTestId("add-backend-name"), "Production");
+    expect(submit).toBeDisabled();
+
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://app.openhands.dev",
+    );
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "secret-key");
@@ -138,6 +142,10 @@ describe("AddBackendModal", () => {
     const user = userEvent.setup();
 
     await user.type(screen.getByTestId("add-backend-name"), "Cloud");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://app.openhands.dev",
+    );
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "token");
