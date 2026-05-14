@@ -33,6 +33,7 @@ export function CustomChatInput({
   className = "",
   buttonClassName = "",
 }: CustomChatInputProps) {
+  const [canSubmit, setCanSubmit] = React.useState(false);
   const {
     submittedMessage,
     clearAllFiles,
@@ -77,6 +78,11 @@ export function CustomChatInput({
     saveDraft,
   } = useChatInputLogic();
 
+  const syncCanSubmit = React.useCallback(() => {
+    const text = chatInputRef.current?.innerText ?? "";
+    setCanSubmit(text.trim().length > 0);
+  }, [chatInputRef]);
+
   const {
     fileInputRef,
     chatContainerRef,
@@ -109,6 +115,10 @@ export function CustomChatInput({
     onSubmit,
     resetManualResize,
   );
+  const handleSubmitAndSync = React.useCallback(() => {
+    handleSubmit();
+    syncCanSubmit();
+  }, [handleSubmit, syncCanSubmit]);
 
   const { handleInput, handlePaste, handleKeyDown, handleBlur, handleFocus } =
     useChatInputEvents(
@@ -139,6 +149,9 @@ export function CustomChatInput({
     },
     [setShouldHideSuggestions, clearAllFiles],
   );
+  useEffect(() => {
+    syncCanSubmit();
+  }, [syncCanSubmit]);
   return (
     <div className={`w-full ${className}`}>
       {/* Hidden file input */}
@@ -161,12 +174,13 @@ export function CustomChatInput({
           chatContainerRef={chatContainerRef}
           isDragOver={isDragOver}
           disabled={isDisabled}
+          canSubmit={canSubmit}
           isNewConversationPending={isNewConversationPending}
           showButton={showButton}
           buttonClassName={buttonClassName}
           chatInputRef={chatInputRef}
           handleFileIconClick={handleFileIconClick}
-          handleSubmit={handleSubmit}
+          handleSubmit={handleSubmitAndSync}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -174,16 +188,18 @@ export function CustomChatInput({
             handleInput();
             updateSlashMenu();
             saveDraft();
+            syncCanSubmit();
           }}
           onPaste={handlePaste}
           onKeyDown={(e) => {
             if (handleSlashKeyDown(e)) return;
-            handleKeyDown(e, isDisabled, handleSubmit);
+            handleKeyDown(e, isDisabled, handleSubmitAndSync);
           }}
           onFocus={handleFocus}
           onBlur={() => {
             handleBlur();
             closeSlashMenu();
+            syncCanSubmit();
           }}
           isSlashMenuOpen={isSlashMenuOpen}
           slashItems={slashItems}

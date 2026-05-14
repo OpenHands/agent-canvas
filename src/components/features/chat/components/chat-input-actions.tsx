@@ -13,6 +13,7 @@ import { cn } from "#/utils/utils";
 
 interface ChatInputActionsProps {
   disabled: boolean;
+  canSubmit?: boolean;
   onAddFileClick?: () => void;
   showButton?: boolean;
   buttonClassName?: string;
@@ -21,6 +22,7 @@ interface ChatInputActionsProps {
 
 export function ChatInputActions({
   disabled,
+  canSubmit = true,
   onAddFileClick = () => {},
   showButton = true,
   buttonClassName = "",
@@ -67,9 +69,9 @@ export function ChatInputActions({
         />
         {showButton && (
           <ChatSendButton
-            buttonClassName={cn(buttonClassName, "translate-y-[3px]")}
+            buttonClassName={buttonClassName}
             handleSubmit={handleSubmit}
-            disabled={disabled}
+            disabled={disabled || !canSubmit}
           />
         )}
       </div>
