@@ -4,9 +4,9 @@ import TerminalIcon from "#/icons/terminal.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
 import DocumentIcon from "#/icons/document.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
-import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
+import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
 import { cn } from "#/utils/utils";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { ConversationTabNav } from "./conversation-tab-nav";
@@ -206,17 +206,10 @@ export function ConversationTabs() {
         </button>
       )}
       <div className="relative">
-        <button
-          type="button"
+        <EllipsisButton
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className={cn(
-            "p-1 pl-0 rounded-md cursor-pointer",
-            "text-[#9299AA] bg-transparent hover:text-white",
-          )}
-          aria-label={t(I18nKey.COMMON$MORE_OPTIONS)}
-        >
-          <ThreeDotsVerticalIcon className={cn("w-5 h-5 text-inherit")} />
-        </button>
+          ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+        />
         <ConversationTabsContextMenu
           isOpen={isMenuOpen}
           onClose={() => setIsMenuOpen(false)}
