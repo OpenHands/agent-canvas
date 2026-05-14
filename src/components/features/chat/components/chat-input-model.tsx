@@ -1,9 +1,14 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenu } from "#/ui/context-menu";
+import { Divider } from "#/ui/divider";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 const MODEL_LABEL_MAX_CHARS = 10;
 
@@ -15,6 +20,7 @@ function truncateModelLabel(model: string): string {
 }
 
 export function ChatInputModel() {
+  const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
 
@@ -60,12 +66,30 @@ export function ChatInputModel() {
           ref={popoverRef}
           testId="chat-input-llm-model-popover"
           position="top"
-          alignment="right"
+          alignment="left"
           spacing="none"
-          className="z-[60] mb-2 max-w-[320px] p-3"
+          className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
         >
-          <li className="text-xs leading-5 text-white break-all">
-            {conversation.llm_model}
+          <li className="text-sm">
+            <div className="p-2 leading-5 text-white break-all">
+              {conversation.llm_model}
+            </div>
+          </li>
+          <Divider />
+          <li className="text-sm">
+            <NavigationLink
+              to="/settings"
+              onClick={() => setIsPopoverOpen(false)}
+              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+            >
+              <SettingsGearIcon
+                width={16}
+                height={16}
+                className="shrink-0"
+                aria-hidden
+              />
+              <span>{t(I18nKey.SETTINGS$LLM_SETTINGS)}</span>
+            </NavigationLink>
           </li>
         </ContextMenu>
       )}
