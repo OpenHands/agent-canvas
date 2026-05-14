@@ -152,6 +152,7 @@ export default function MCPPage() {
                 type="button"
                 variant="secondary"
                 testId="mcp-add-custom-server"
+                className="flex-shrink-0 whitespace-nowrap"
                 onClick={() => setEditingServer({ id: "", type: "sse" })}
               >
                 {t(I18nKey.MCP$ADD_CUSTOM)}
