@@ -269,16 +269,30 @@ export function BackendForm({
             : "flex flex-col gap-4"
         }
       >
-        <SettingsInput
-          testId={`${testIdRoot}-host`}
-          name={`${testIdRoot}-host`}
-          type="text"
-          label={t(I18nKey.BACKEND$HOST_LABEL)}
-          value={host}
-          onChange={setHost}
-          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-          className="w-full"
-        />
+        <div className="flex flex-col gap-2">
+          <SettingsInput
+            testId={`${testIdRoot}-host`}
+            name={`${testIdRoot}-host`}
+            type="text"
+            label={t(I18nKey.BACKEND$HOST_LABEL)}
+            value={host}
+            onChange={setHost}
+            placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+            className="w-full"
+          />
+          <p className="text-xs leading-5 text-gray-400">
+            {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
+            <a
+              href="https://github.com/All-Hands-AI/OpenHands-Cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              {t(I18nKey.BACKEND$SELF_HOSTED_CLOUD_LINK)}
+            </a>
+            .
+          </p>
+        </div>
 
         <SettingsInput
           testId={`${testIdRoot}-api-key`}
