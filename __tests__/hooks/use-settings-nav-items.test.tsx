@@ -68,8 +68,6 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/agent-server");
     expect(paths).not.toContain("/settings/integrations");
     expect(paths).not.toContain("/settings/skills");
-    // MCP was elevated to a top-level /mcp nav entry; it must no
-    // longer appear as a Settings sub-page.
     expect(paths).not.toContain("/settings/mcp");
   });
 });

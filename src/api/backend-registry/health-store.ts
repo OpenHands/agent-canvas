@@ -45,7 +45,10 @@ export function subscribeBackendHealth(listener: Listener): () => void {
  */
 export function recordBackendFailure(id: string, error: unknown): void {
   const prev = healthMap[id];
-  const consecutiveFailures = (prev?.consecutiveFailures ?? 0) + 1;
+  const consecutiveFailures = Math.min(
+    (prev?.consecutiveFailures ?? 0) + 1,
+    MAX_CONSECUTIVE_FAILURES,
+  );
   const disabled =
     prev?.disabled === true || consecutiveFailures >= MAX_CONSECUTIVE_FAILURES;
 

@@ -168,6 +168,42 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
         },
       ],
     },
+    {
+      key: "condenser",
+      label: "Condenser",
+      fields: [
+        {
+          description:
+            "Enable the default LLM-based condenser to summarize long conversation histories.",
+          key: "condenser.enable_default_condenser",
+          label: "Enable default condenser",
+          section: "condenser",
+          section_label: "Condenser",
+          value_type: "boolean",
+          default: true,
+          choices: [],
+          depends_on: [],
+          prominence: "critical",
+          secret: false,
+          required: true,
+        },
+        {
+          description:
+            "Maximum number of tokens the condenser keeps after summarization. Leave blank for unlimited.",
+          key: "condenser.condenser_max_size",
+          label: "Condenser max size",
+          section: "condenser",
+          section_label: "Condenser",
+          value_type: "integer",
+          default: null,
+          choices: [],
+          depends_on: [],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
+      ],
+    },
   ],
 };
 
@@ -256,6 +292,10 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
       ...(llmDefaults ?? {}),
       api_key: null,
       model: DEFAULT_MODEL,
+    },
+    condenser: {
+      enable_default_condenser: true,
+      condenser_max_size: null,
     },
   },
   conversation_settings_schema: MOCK_CONVERSATION_SETTINGS_SCHEMA,

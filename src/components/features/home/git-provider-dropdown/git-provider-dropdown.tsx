@@ -168,7 +168,6 @@ export function GitProviderDropdown({
         )}
 
         <input
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getInputProps({
             disabled,
             placeholder,

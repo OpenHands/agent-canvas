@@ -112,7 +112,9 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
 export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
   const { t } = useTranslation("openhands");
   const { backends, removeBackend } = useActiveBackendContext();
-  const healthByBackendId = useBackendsHealth(backends);
+  const healthByBackendId = useBackendsHealth(backends, {
+    probeDisabledOnce: true,
+  });
   const [pendingRemoval, setPendingRemoval] =
     React.useState<PendingRemoval | null>(null);
   const [editingBackend, setEditingBackend] = React.useState<Backend | null>(

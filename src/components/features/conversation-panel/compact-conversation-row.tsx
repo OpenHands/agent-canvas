@@ -17,6 +17,7 @@ interface CompactConversationRowProps {
   workspaceWorkingDir?: string | null;
   isActive?: boolean;
   onClose?: () => void;
+  showRepositoryMetadata?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function CompactConversationRow({
   workspaceWorkingDir,
   isActive = false,
   onClose,
+  showRepositoryMetadata = true,
 }: CompactConversationRowProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -54,6 +56,7 @@ export function CompactConversationRow({
         createdAt={createdAt}
         executionStatus={executionStatus}
         workspaceWorkingDir={workspaceWorkingDir}
+        showRepositoryMetadata={showRepositoryMetadata}
       />
     </div>
   );

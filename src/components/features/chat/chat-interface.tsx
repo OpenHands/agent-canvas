@@ -324,7 +324,6 @@ export function ChatInterface() {
     }
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderableEvents.length, hasPendingUserMessages, scrollDomToBottom]);
 
   // Auto-load older events when the chat content doesn't overflow the
@@ -386,7 +385,7 @@ export function ChatInterface() {
   return (
     <ScrollProvider value={scrollProviderValue}>
       <div
-        className="h-full flex flex-col justify-between pr-0 md:pr-4 relative"
+        className="h-full flex flex-col justify-between pl-0 md:pl-4 pr-0 md:pr-4 relative"
         data-testid="chat-interface"
       >
         {!hasSubstantiveAgentActions &&

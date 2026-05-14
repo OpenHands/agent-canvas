@@ -63,7 +63,6 @@ export function GenericDropdownMenu<T>({
     return (
       <div className="relative">
         <ul
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getMenuProps({
             ref: menuRef,
             className: "hidden",
@@ -84,7 +83,6 @@ export function GenericDropdownMenu<T>({
         )}
       >
         <ul
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getMenuProps({
             ref: menuRef,
             className: cn(
