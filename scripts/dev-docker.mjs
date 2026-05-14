@@ -1,8 +1,10 @@
 /**
  * Dockerized Development Stack
  *
- * Same as `dev-with-automation.mjs` (Vite + ingress + automation backend),
- * but runs the agent-server inside a Docker container instead of via `uvx`.
+ * Same as `dev-with-automation.mjs`, but runs the agent-server inside a Docker
+ * container instead of via `uvx`. The default frontend is a static production
+ * build for stability over tunnels and slow networks; pass `--dynamic` for the
+ * Vite dev server with live reload.
  *
  * The agent-server image listens on port 8000 inside the container; we map
  * it to the host's `agentServerPort` (default 18000) so the ingress proxy
@@ -42,6 +44,7 @@
  *
  * Usage:
  *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
+ *   PROJECT_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
  *   OH_AGENT_SERVER_GIT_REF=main PROJECT_PATH=... npm run dev:docker
  */
 
@@ -62,6 +65,7 @@ import {
   spawnService,
 } from "./dev-with-automation.mjs";
 import { validateLocalAgentServerPath } from "./dev-safe.mjs";
+import { buildFrontend } from "./static-build.mjs";
 
 // Path inside the container where OH_AGENT_SERVER_LOCAL_PATH is bind-mounted.
 const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
@@ -309,6 +313,8 @@ if (isMainModule) {
     extraPrereqs: checkDockerPrereqs,
     startAgentServer: startAgentServerDocker,
     viteWorkingDir: CONTAINER_WORKSPACES_DIR,
+    defaultStaticMode: true,
+    buildStaticFrontend: buildFrontend,
   }).catch((err) => {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {

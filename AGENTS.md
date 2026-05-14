@@ -135,7 +135,7 @@
 - `BackendSelector`'s cloud-org switch paths should never rethrow from the dropdown `onChange` handler: unexpected non-Axios failures need a generic error toast instead of an unhandled promise rejection, and the malformed `(cloud backend, null org)` self-heal path should fall back to the bundled backend if `/switch` fails.
 - `NewConversationButton` should support keyboard dismissal (`Escape`) for its inline popover, while still keeping the popover open when its modal children (`FolderBrowserModal`, `ManageWorkspacesModal`) are active.
 
-- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install uv, optional `.env`, run `npm run dev`).
+- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install prerequisites, optional `.env`, run `npm run dev:docker` or `npm run dev:dangerously-dockerless`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
@@ -144,7 +144,7 @@
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.22.0` for agent-server SDK libraries
-- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`. The default image uses versioned release tags:
+- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`, and serves a static frontend build by default for stable user/tunnel access. Use `npm run dev:docker:dynamic` or `node scripts/dev-docker.mjs --dynamic` for the Vite dev server. The default image uses versioned release tags:
   - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.0-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
   - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
   - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
@@ -154,11 +154,11 @@
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
   - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
-- `npm run dev` now runs the full stack with automation by default (via `dev:automation`). Use `npm run dev:minimal` for agent-server + Vite only.
-- `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), Vite dev server, and ingress proxy. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
+- `npm run dev` now runs the Docker full stack with automation and a static frontend by default (via `dev:docker`). `npm run dev:dangerously-dockerless` does the same without Docker through the `dev-static.mjs` launcher. Use `npm run dev:docker:dynamic` or `npm run dev:dangerously-dockerless:dynamic` for Vite/HMR.
+- `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), frontend server, and ingress proxy. It defaults to Vite when run directly, supports `--static` for an existing build, and supports `--dynamic` so wrappers that default static can opt back into Vite. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
-  - `/*` (default) → Vite dev server (:3001)
+  - `/*` (default) → frontend server (:3001), either Vite or static depending on launcher mode
   - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a2`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
