@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
@@ -66,17 +66,19 @@ describe("SkillsSettingsScreen", () => {
 
     renderSkillsSettingsScreen();
 
-    const badge = await screen.findByTestId(
-      "skills-settings-description-badge",
+    const description = await screen.findByTestId(
+      "skills-settings-description",
     );
-    expect(badge).toHaveTextContent("SETTINGS$SKILLS_DESCRIPTION");
+    expect(description).toHaveTextContent(
+      "Discover skills to add to your workspace",
+    );
     expect(screen.getByText("Extensions")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-extensions-/skills")).toHaveTextContent(
       "Skills",
     );
-    expect(
-      screen.getByTestId("sidebar-extensions-/skills/plugins"),
-    ).toHaveTextContent("Plugins");
+    expect(screen.getByTestId("sidebar-extensions-/plugins")).toHaveTextContent(
+      "Plugins",
+    );
     expect(screen.getByTestId("sidebar-extensions-/mcp")).toHaveTextContent(
       "MCP Servers",
     );
@@ -176,16 +178,15 @@ describe("SkillsSettingsScreen", () => {
   });
 
   it("shows an empty-state message when no skills match the current filters", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([buildSkill()]);
+    const skill = buildSkill();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
 
     renderSkillsSettingsScreen();
-    await screen.findByTestId("skill-card-deno");
+    await screen.findByTestId(`skill-card-${skill.name}`);
 
-    await user.type(
-      screen.getByTestId("skills-search-input"),
-      "no-such-skill-xyz",
-    );
+    fireEvent.change(screen.getByTestId("skills-search-input"), {
+      target: { value: "no-such-skill-xyz" },
+    });
 
     expect(screen.getByTestId("skills-no-match")).toBeInTheDocument();
   });

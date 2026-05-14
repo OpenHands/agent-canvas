@@ -96,7 +96,10 @@ function SkillsSettingsScreen() {
             <h2 className="text-xl font-semibold leading-6 text-foreground">
               Skills
             </h2>
-            <div className="max-w-2xl text-sm text-tertiary-light">
+            <div
+              data-testid="skills-settings-description"
+              className="max-w-2xl text-sm text-tertiary-light"
+            >
               Discover skills to add to your workspace. Open a card for prompts,
               curl, and install flows. Search from the sidebar to filter the
               list. Enable or disable default skills. Disabled skills will not
@@ -132,7 +135,10 @@ function SkillsSettingsScreen() {
                 total={skills.length}
               />
               {filteredSkills.length === 0 ? (
-                <p className="text-sm text-tertiary">
+                <p
+                  data-testid="skills-no-match"
+                  className="text-sm text-tertiary"
+                >
                   {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
                 </p>
               ) : (
