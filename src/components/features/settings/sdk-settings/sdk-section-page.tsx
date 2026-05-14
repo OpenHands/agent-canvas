@@ -469,8 +469,11 @@ export function SdkSectionPage({
           onChange: handleFieldChange,
         })}
 
-        {visibleSections.map((section) => (
-          <section key={section.key} className="flex flex-col gap-4">
+        {visibleSections.map((section, sectionIndex) => (
+          <section
+            key={`${section.key}-${sectionIndex}`}
+            className="flex flex-col gap-4"
+          >
             <div className="grid gap-4 xl:grid-cols-2">
               {section.fields.map((field) => (
                 <SchemaField
