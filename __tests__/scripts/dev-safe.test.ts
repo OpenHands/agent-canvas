@@ -21,6 +21,8 @@ import {
   findFreePorts,
   getOrCreatePersistedSessionApiKey,
   resetPersistedSessionApiKeyCache,
+  parseDevSafeArgs,
+  SANDBOX_MODES,
 } from "../../scripts/dev-safe.mjs";
 import {
   mkdtempSync,
@@ -296,7 +298,7 @@ describe("formatMissingUvxGuidance", () => {
     expect(guidance).toContain(
       "https://docs.astral.sh/uv/getting-started/installation/",
     );
-    expect(guidance).toContain("npm run dev:frontend");
+    expect(guidance).toContain("npm run dev:canvas");
     expect(guidance).toContain("npm run dev:mock");
   });
 });
@@ -687,6 +689,92 @@ describe("buildNpmScriptCommand", () => {
       command: "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
     });
+  });
+});
+
+describe("parseDevSafeArgs", () => {
+  it("returns all-false defaults when no arguments are provided", () => {
+    const args = parseDevSafeArgs([]);
+    expect(args.backendOnly).toBe(false);
+    expect(args.frontendOnly).toBe(false);
+    expect(args.frontendRequireSessionKey).toBe(false);
+    expect(args.sandbox).toBeNull();
+  });
+
+  it("parses --backend-only flag", () => {
+    const args = parseDevSafeArgs(["--backend-only"]);
+    expect(args.backendOnly).toBe(true);
+    expect(args.frontendOnly).toBe(false);
+    expect(args.frontendRequireSessionKey).toBe(false);
+    expect(args.sandbox).toBeNull();
+  });
+
+  it("parses --frontend-only flag", () => {
+    const args = parseDevSafeArgs(["--frontend-only"]);
+    expect(args.backendOnly).toBe(false);
+    expect(args.frontendOnly).toBe(true);
+    expect(args.frontendRequireSessionKey).toBe(false);
+    expect(args.sandbox).toBeNull();
+  });
+
+  it("parses --frontend-require-session-key flag", () => {
+    const args = parseDevSafeArgs(["--frontend-require-session-key"]);
+    expect(args.backendOnly).toBe(false);
+    expect(args.frontendOnly).toBe(false);
+    expect(args.frontendRequireSessionKey).toBe(true);
+    expect(args.sandbox).toBeNull();
+  });
+
+  it("parses --sandbox dangerously-none", () => {
+    const args = parseDevSafeArgs(["--sandbox", "dangerously-none"]);
+    expect(args.sandbox).toBe(SANDBOX_MODES.DANGEROUSLY_NONE);
+    expect(args.sandbox).toBe("dangerously-none");
+  });
+
+  it("parses --sandbox docker", () => {
+    const args = parseDevSafeArgs(["--sandbox", "docker"]);
+    expect(args.sandbox).toBe(SANDBOX_MODES.DOCKER);
+    expect(args.sandbox).toBe("docker");
+  });
+
+  it("handles combination of flags", () => {
+    const args = parseDevSafeArgs([
+      "--backend-only",
+      "--sandbox",
+      "docker",
+      "--frontend-require-session-key",
+    ]);
+    expect(args.backendOnly).toBe(true);
+    expect(args.frontendOnly).toBe(false);
+    expect(args.frontendRequireSessionKey).toBe(true);
+    expect(args.sandbox).toBe("docker");
+  });
+
+  it("ignores unknown flags silently", () => {
+    const args = parseDevSafeArgs(["--unknown-flag", "--another-unknown"]);
+    expect(args.backendOnly).toBe(false);
+    expect(args.frontendOnly).toBe(false);
+    expect(args.frontendRequireSessionKey).toBe(false);
+    expect(args.sandbox).toBeNull();
+  });
+
+  it("handles flags in any order", () => {
+    const args = parseDevSafeArgs([
+      "--frontend-require-session-key",
+      "--backend-only",
+    ]);
+    expect(args.backendOnly).toBe(true);
+    expect(args.frontendRequireSessionKey).toBe(true);
+  });
+});
+
+describe("SANDBOX_MODES", () => {
+  it("exports DANGEROUSLY_NONE as 'dangerously-none'", () => {
+    expect(SANDBOX_MODES.DANGEROUSLY_NONE).toBe("dangerously-none");
+  });
+
+  it("exports DOCKER as 'docker'", () => {
+    expect(SANDBOX_MODES.DOCKER).toBe("docker");
   });
 });
 

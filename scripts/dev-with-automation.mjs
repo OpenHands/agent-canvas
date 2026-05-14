@@ -121,6 +121,9 @@ function parseArgs() {
     dynamic: false,
     staticDir: null,
     skipBuild: false,
+    backendOnly: false,
+    frontendOnly: false,
+    frontendRequireSessionKey: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -151,6 +154,15 @@ function parseArgs() {
       case "--skip-build":
         config.skipBuild = true;
         break;
+      case "--backend-only":
+        config.backendOnly = true;
+        break;
+      case "--frontend-only":
+        config.frontendOnly = true;
+        break;
+      case "--frontend-require-session-key":
+        config.frontendRequireSessionKey = true;
+        break;
       case "-h":
       case "--help":
         showHelp();
@@ -170,17 +182,21 @@ Uses a standalone ingress proxy to route traffic.
 
 USAGE:
   node scripts/dev-with-automation.mjs [options]
+  npm run dev:full [-- options]
 
 OPTIONS:
-  -p, --port <port>           Ingress port (default: 8000)
-  --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
-  --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
-  --static                    Serve an existing production build instead of Vite
-  --static-dir <dir>          Static build directory (default: build/)
-  --skip-build                Reuse build/ when the launcher builds static assets
-  --dynamic                   Force Vite dev server when a wrapper defaults static
-  -v, --verbose               Show detailed output
-  -h, --help                  Show this help
+  -p, --port <port>              Ingress port (default: 8000)
+  --automation-ref <ref>         Git ref for automation (branch/tag/SHA)
+  --automation-repo <url>        Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
+  --static                       Serve an existing production build instead of Vite
+  --static-dir <dir>             Static build directory (default: build/)
+  --skip-build                   Reuse build/ when the launcher builds static assets
+  --dynamic                      Force Vite dev server when a wrapper defaults static
+  --backend-only                 Only start agent-server + automation; skip the frontend
+  --frontend-only                Only start the frontend; skip agent-server + automation
+  --frontend-require-session-key Don't auto-inject VITE_SESSION_API_KEY into the frontend
+  -v, --verbose                  Show detailed output
+  -h, --help                     Show this help
 
 ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
@@ -334,14 +350,19 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
+function checkPrerequisites({
+  checkFrontendDependencies = true,
+  checkUvx = true,
+} = {}) {
   logStep("1/2", "Checking prerequisites...");
 
-  if (!commandExists("uvx")) {
-    console.error(formatMissingUvxGuidance(projectRoot));
-    process.exit(1);
+  if (checkUvx) {
+    if (!commandExists("uvx")) {
+      console.error(formatMissingUvxGuidance(projectRoot));
+      process.exit(1);
+    }
+    logSuccess("uvx found");
   }
-  logSuccess("uvx found");
 
   if (!commandExists("npm")) {
     logError("npm is required but not found");
@@ -576,26 +597,28 @@ function startIngress(config) {
   );
 }
 
-function startVite(config) {
+function startVite(config, { requireSessionKey = false } = {}) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
-  const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  const frontendCommand = buildNpmScriptCommand("dev:canvas");
+
+  const frontendEnv = {
+    // Point Vite at the ingress (so client-side fetches work)
+    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    VITE_FRONTEND_PORT: config.vitePort.toString(),
+    // Automation API key for frontend to authenticate with automation backend
+    VITE_AUTOMATION_API_KEY: config.localApiKey,
+  };
+  if (!requireSessionKey) {
+    // Session API key for frontend to authenticate with agent-server
+    frontendEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
+  }
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
-    env: {
-      // Point Vite at the ingress (so client-side fetches work)
-      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-      VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key for frontend to authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
-      // Automation API key for frontend to authenticate with automation backend
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Session API key for agent-server auth (when SESSION_API_KEY is set)
-      ...(config.sessionApiKey && { VITE_SESSION_API_KEY: config.sessionApiKey }),
-    },
+    env: frontendEnv,
     color: c.magenta,
   });
 }
@@ -729,6 +752,11 @@ async function main(options = {}) {
 
   const args = parseArgs();
 
+  if (args.backendOnly && args.frontendOnly) {
+    logError("--backend-only and --frontend-only are mutually exclusive.");
+    process.exit(1);
+  }
+
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
   const useStaticMode =
     staticModeOverride ??
@@ -747,8 +775,13 @@ async function main(options = {}) {
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
   checkPrerequisites({
+    // In --frontend-only mode we're not starting the backend, so uvx isn't needed.
+    checkUvx: !args.frontendOnly,
+    // Skip frontend dep check in backend-only mode; require it otherwise unless
+    // we're in static mode without a launcher-managed build.
     checkFrontendDependencies:
-      !useStaticMode || typeof buildStaticFrontend === "function",
+      !args.backendOnly &&
+      (!useStaticMode || typeof buildStaticFrontend === "function"),
   });
 
   // Build config with dynamic port allocation
@@ -764,7 +797,7 @@ async function main(options = {}) {
   }
 
   // In static mode, verify build exists after any launcher-managed build.
-  if (useStaticMode && !existsSync(staticDir)) {
+  if (!args.backendOnly && useStaticMode && !existsSync(staticDir)) {
     logError(`Static directory not found: ${staticDir}`);
     logError(`Run 'npm run build' first to create the static files.`);
     process.exit(1);
@@ -773,44 +806,55 @@ async function main(options = {}) {
   // Start services phase
   logStep("2/2", "Starting services...");
 
-  // 1. Start agent-server first (other services depend on it)
-  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
-  agentServerStarter(config);
+  if (!args.frontendOnly) {
+    // 1. Start agent-server first (other services depend on it)
+    const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+    agentServerStarter(config);
 
-  // Wait for agent-server to be ready (60s timeout for slow systems)
-  const agentServerReady = await waitForService(
-    "agent-server",
-    `http://localhost:${config.agentServerPort}/server_info`,
-    60000  // 60 second timeout for initial startup
-  );
+    // Wait for agent-server to be ready (60s timeout for slow systems)
+    const agentServerReady = await waitForService(
+      "agent-server",
+      `http://localhost:${config.agentServerPort}/server_info`,
+      60000, // 60 second timeout for initial startup
+    );
 
-  // 2. Seed automation API key into agent-server secrets
-  // This makes the key available to agents during conversations
-  // Note: seedAutomationSecret has its own retry logic if server is still warming up
-  if (agentServerReady) {
-    await seedAutomationSecret(config);
-  } else {
-    logService("secrets", "Skipping secret seeding - agent-server not ready", c.yellow);
+    // 2. Seed automation API key into agent-server secrets
+    // This makes the key available to agents during conversations
+    // Note: seedAutomationSecret has its own retry logic if server is still warming up
+    if (agentServerReady) {
+      await seedAutomationSecret(config);
+    } else {
+      logService(
+        "secrets",
+        "Skipping secret seeding - agent-server not ready",
+        c.yellow,
+      );
+    }
+
+    // 3. Start automation backend
+    startAutomationBackend(config);
   }
 
-  // 3. Start automation backend
-  startAutomationBackend(config);
-
-  // 4. Start frontend server (Vite dev server OR static server)
-  if (useStaticMode) {
-    startStaticFrontend(config, staticDir);
-  } else {
-    startVite(config);
+  if (!args.backendOnly) {
+    // 4. Start frontend server (Vite dev server OR static server)
+    if (useStaticMode) {
+      startStaticFrontend(config, staticDir);
+    } else {
+      startVite(config, { requireSessionKey: args.frontendRequireSessionKey });
+    }
   }
 
   // 5. Wait for services to be ready
   await delay(2000);
 
   // 6. Start ingress proxy (routes traffic to all backends)
-  startIngress(config);
+  // Skip ingress in frontend-only mode since there's no backend to route to.
+  if (!args.frontendOnly) {
+    startIngress(config);
 
-  // Wait for ingress to start
-  await delay(1000);
+    // Wait for ingress to start
+    await delay(1000);
+  }
 
   printBanner(config);
 }

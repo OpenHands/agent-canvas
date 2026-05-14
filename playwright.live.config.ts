@@ -67,7 +67,7 @@ export default defineConfig({
         "VITE_DO_NOT_TRACK=1",
         "VITE_ENABLE_BROWSER_TOOLS=false",
         envAssignment("VITE_FRONTEND_PORT", liveE2EFrontendPort),
-        "npm run dev:minimal",
+        "npm run dev:server",
       ].join(" "),
     url: liveE2EFrontendURL,
     timeout: 120_000,

@@ -189,7 +189,7 @@ function validateEnvironment() {
   if (!commandExists("uvx")) {
     errors.push(
       [
-        "Missing `uvx`, which `npm run dev:minimal` uses to start the real Agent Server.",
+        "Missing `uvx`, which `npm run dev:server` uses to start the real Agent Server.",
         "Install uv with: `curl -LsSf https://astral.sh/uv/install.sh | sh`.",
       ].join(" "),
     );

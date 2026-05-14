@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   existsSync,
@@ -34,6 +34,26 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AGENT_SERVER_VERSION = "1.22.0";
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
+
+// Docker constants (for --sandbox docker)
+const DOCKER_AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
+// Default Docker tag — keep in sync with DEFAULT_AGENT_SERVER_VERSION
+const DOCKER_DEFAULT_TAG = "1.22.0-python";
+const DOCKER_CONTAINER_NAME = "agent-canvas-dev-agent-server";
+// Workspace directory inside the agent-server container (used as VITE_WORKING_DIR
+// when running in Docker so the frontend sends paths the container can resolve).
+const DOCKER_CONTAINER_WORKSPACES_DIR =
+  "/home/openhands/.openhands/agent-canvas/workspaces";
+
+/**
+ * Valid values for the --sandbox CLI flag.
+ */
+export const SANDBOX_MODES = {
+  /** Run the agent-server directly via uvx (no container). */
+  DANGEROUSLY_NONE: "dangerously-none",
+  /** Run the agent-server inside a Docker container. Requires PROJECT_PATH. */
+  DOCKER: "docker",
+};
 
 /**
  * Generate a cryptographically secure random API key.
@@ -246,7 +266,7 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
     `See the local Quickstart for details: ${readmePath}`,
     "",
     "Other options:",
-    "- npm run dev:frontend   # use an already running backend",
+    "- npm run dev:canvas     # use an already running backend",
     "- npm run dev:mock       # run the frontend with mock APIs",
   ].join("\n");
 }
@@ -628,6 +648,263 @@ export function validateLocalAgentServerPath(localPath) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CLI argument parsing
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Parse CLI arguments for dev-safe.mjs / `npm run dev:server`.
+ *
+ * Supported flags:
+ *   --backend-only                 Start agent-server only; skip the frontend.
+ *   --frontend-only                Start the frontend only; skip the agent-server.
+ *   --frontend-require-session-key Don't auto-inject VITE_SESSION_API_KEY.
+ *   --sandbox <mode>               Sandbox mode: "dangerously-none" (default) or "docker".
+ *   -h, --help                     Print help and exit.
+ *
+ * @param {string[]} argv - Arguments to parse (defaults to process.argv.slice(2))
+ * @returns {{ backendOnly: boolean, frontendOnly: boolean, frontendRequireSessionKey: boolean, sandbox: string | null }}
+ */
+export function parseDevSafeArgs(argv = process.argv.slice(2)) {
+  const args = {
+    backendOnly: false,
+    frontendOnly: false,
+    frontendRequireSessionKey: false,
+    sandbox: null,
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    switch (argv[i]) {
+      case "--backend-only":
+        args.backendOnly = true;
+        break;
+      case "--frontend-only":
+        args.frontendOnly = true;
+        break;
+      case "--frontend-require-session-key":
+        args.frontendRequireSessionKey = true;
+        break;
+      case "--sandbox":
+        args.sandbox = argv[++i];
+        break;
+      case "-h":
+      case "--help":
+        printDevSafeHelp();
+        process.exit(0);
+        break;
+      default:
+        // Unknown flags are silently ignored for forward-compatibility.
+        break;
+    }
+  }
+
+  return args;
+}
+
+function printDevSafeHelp() {
+  console.log(`
+Agent Canvas — Agent-Server + Frontend Dev Stack
+
+Runs the agent-server (via uvx or Docker) and the Vite frontend dev server
+together, isolated from any other OpenHands sessions.
+
+USAGE:
+  node scripts/dev-safe.mjs [options]
+  npm run dev:server [-- options]
+
+OPTIONS:
+  --backend-only                 Only start the agent-server; skip the frontend.
+  --frontend-only                Only start the frontend; skip the agent-server.
+                                 Useful when the backend is already running.
+  --frontend-require-session-key Don't auto-inject VITE_SESSION_API_KEY into
+                                 the frontend. Users must configure it manually.
+  --sandbox <mode>               Sandbox for the agent-server:
+                                   dangerously-none  uvx directly on the host (default)
+                                   docker            Docker container (requires PROJECT_PATH)
+  -h, --help                     Show this help.
+
+ENVIRONMENT VARIABLES:
+  OH_CANVAS_SAFE_BACKEND_PORT  Agent-server port (default: 18000)
+  OH_CANVAS_SAFE_VSCODE_PORT   VS Code sidecar port (default: backend + 1)
+  OH_CANVAS_SAFE_STATE_DIR     Base directory for isolated server state
+  VITE_WORKING_DIR             Workspace path for new conversations
+  OH_AGENT_SERVER_GIT_REF      Git ref for agent-server SDK (overrides version)
+  OH_AGENT_SERVER_VERSION      Specific PyPI version for agent-server
+  OH_AGENT_SERVER_LOCAL_PATH   Path to a local software-agent-sdk checkout
+  OH_SECRET_KEY                Secret key for settings encryption
+  PROJECT_PATH                 Required for --sandbox docker: host directory to mount
+
+ACCESS POINTS (default):
+  Agent server:  http://127.0.0.1:18000
+  Frontend:      http://localhost:3001/
+`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Docker helpers (used when --sandbox docker is specified)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve the Docker image tag to use.
+ * OH_AGENT_SERVER_GIT_REF overrides the default pinned tag.
+ */
+function resolveDockerAgentServerImage(env = process.env) {
+  const gitRef = env.OH_AGENT_SERVER_GIT_REF;
+  const tag = gitRef ? `${gitRef}-python` : DOCKER_DEFAULT_TAG;
+  return `${DOCKER_AGENT_SERVER_REPO}:${tag}`;
+}
+
+/**
+ * Verify that Docker is available and the daemon is running, and that
+ * PROJECT_PATH is set. Throws an Error with a human-readable message on
+ * any failure so the caller can print it and exit cleanly.
+ */
+function checkDockerPrerequisites(env = process.env) {
+  const hasDocker = spawnSync("docker", ["--version"], {
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  if (hasDocker.status !== 0 || hasDocker.error) {
+    throw new Error(
+      "docker is required for --sandbox docker but was not found on PATH.\n" +
+        "Install Docker: https://docs.docker.com/get-docker/\n" +
+        "Or use --sandbox dangerously-none to run without Docker.",
+    );
+  }
+
+  const daemonCheck = spawnSync("docker", ["info"], {
+    stdio: ["ignore", "ignore", "pipe"],
+    timeout: 10_000,
+  });
+  if (daemonCheck.status !== 0) {
+    const stderr = daemonCheck.stderr
+      ? daemonCheck.stderr.toString().trim()
+      : "";
+    const isPermDenied =
+      stderr.toLowerCase().includes("permission denied") &&
+      (stderr.toLowerCase().includes("docker.sock") ||
+        stderr.toLowerCase().includes("docker api") ||
+        stderr.toLowerCase().includes("/var/run/docker") ||
+        stderr.toLowerCase().includes("/run/docker"));
+    if (isPermDenied) {
+      throw new Error(
+        "Docker is installed but this user cannot access the Docker API.\n" +
+          "On Linux, add your user to the docker group:\n" +
+          "  sudo usermod -aG docker $USER  # then log out and back in",
+      );
+    }
+    throw new Error(
+      "Docker is installed but the daemon does not appear to be running.\n" +
+        "Start Docker (e.g. open Docker Desktop) and try again.",
+    );
+  }
+
+  if (!env.PROJECT_PATH) {
+    throw new Error(
+      "PROJECT_PATH is required for --sandbox docker.\n" +
+        "Set it to the directory containing your projects:\n" +
+        "  export PROJECT_PATH=/path/to/your/projects",
+    );
+  }
+}
+
+/**
+ * Start the agent-server inside a Docker container.
+ * Returns the child process (same shape as spawnProcess).
+ *
+ * @param {ReturnType<typeof buildSafeDevConfig>} config
+ * @returns {import("node:child_process").ChildProcess}
+ */
+function startDockerAgentServer(config) {
+  const image = resolveDockerAgentServerImage();
+  const localSdkPath = process.env.OH_AGENT_SERVER_LOCAL_PATH;
+  const CONTAINER_LOCAL_SDK_DIR = "/agent-server-src";
+
+  if (localSdkPath) {
+    validateLocalAgentServerPath(localSdkPath);
+  }
+
+  console.log(`- Starting agent-server in Docker (image: ${image})...`);
+  if (localSdkPath) {
+    console.log(
+      `- Using local SDK source: ${localSdkPath} (mounted at ${CONTAINER_LOCAL_SDK_DIR})`,
+    );
+  }
+
+  // Clean up any leftover container from a previous run.
+  spawnSync("docker", ["rm", "-f", DOCKER_CONTAINER_NAME], {
+    stdio: "ignore",
+  });
+
+  const home = homedir();
+  const dockerArgs = [
+    "run",
+    "--rm",
+    "--name",
+    DOCKER_CONTAINER_NAME,
+    "--init",
+    "-v",
+    `${process.env.PROJECT_PATH}:/projects`,
+    "-p",
+    `${config.backendPort}:8000`,
+  ];
+
+  if (localSdkPath) {
+    dockerArgs.push("-v", `${localSdkPath}:${CONTAINER_LOCAL_SDK_DIR}`);
+  }
+
+  if (process.env.OH_MOUNT_HOST_HOME === "1") {
+    dockerArgs.push("-v", `${home}:/home/openhands`);
+  } else {
+    const optionalMounts = [
+      [path.join(home, ".openhands"), "/home/openhands/.openhands"],
+      [path.join(home, ".claude"), "/home/openhands/.claude"],
+      [path.join(home, ".codex"), "/home/openhands/.codex"],
+      [path.join(home, ".ssh"), "/home/openhands/.ssh"],
+    ];
+    for (const [src, dest] of optionalMounts) {
+      if (existsSync(src)) {
+        dockerArgs.push("-v", `${src}:${dest}`);
+      }
+    }
+  }
+
+  const containerEnv = {
+    OH_CONVERSATIONS_PATH:
+      "/home/openhands/.openhands/agent-canvas/conversations",
+    OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
+    OH_BASH_EVENTS_DIR:
+      "/home/openhands/.openhands/agent-canvas/bash_events",
+    OH_SECRET_KEY: config.secretKey,
+    OH_SESSION_API_KEYS_0: config.sessionApiKey,
+  };
+  for (const [k, v] of Object.entries(containerEnv)) {
+    dockerArgs.push("-e", `${k}=${v}`);
+  }
+
+  if (localSdkPath) {
+    dockerArgs.push("--entrypoint", "/bin/sh");
+  }
+
+  dockerArgs.push(image);
+
+  if (localSdkPath) {
+    const installCmd = [
+      "uv pip install",
+      "--python /agent-server/.venv/bin/python",
+      "--reinstall",
+      `-e ${CONTAINER_LOCAL_SDK_DIR}/openhands-sdk`,
+      `-e ${CONTAINER_LOCAL_SDK_DIR}/openhands-tools`,
+      `-e ${CONTAINER_LOCAL_SDK_DIR}/openhands-workspace`,
+      `-e ${CONTAINER_LOCAL_SDK_DIR}/openhands-agent-server`,
+    ].join(" ");
+    const runCmd =
+      "exec /agent-server/.venv/bin/python -m openhands.agent_server --host 0.0.0.0 --port 8000";
+    dockerArgs.push("-c", `${installCmd} && ${runCmd}`);
+  }
+
+  return spawnProcess("docker", dockerArgs, {});
+}
+
 async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   const startedAt = Date.now();
 
@@ -666,29 +943,62 @@ function spawnProcess(command, args, options) {
 }
 
 async function main() {
-  console.log("Starting isolated agent-server + frontend dev stack...");
-  validateFrontendDependencies();
-  console.log("Frontend dependencies found.");
+  const args = parseDevSafeArgs();
+
+  if (args.backendOnly && args.frontendOnly) {
+    console.error(
+      "Error: --backend-only and --frontend-only are mutually exclusive.",
+    );
+    process.exit(1);
+  }
+
+  const sandboxMode = args.sandbox ?? SANDBOX_MODES.DANGEROUSLY_NONE;
+
+  if (sandboxMode === SANDBOX_MODES.DOCKER) {
+    try {
+      checkDockerPrerequisites();
+    } catch (error) {
+      console.error(
+        `docker sandbox error: ${error instanceof Error ? error.message : error}`,
+      );
+      process.exit(1);
+    }
+  }
+
+  const modeLabel = args.backendOnly
+    ? "agent-server only"
+    : args.frontendOnly
+      ? "frontend only"
+      : "agent-server + frontend";
+  console.log(`Starting ${modeLabel} dev stack...`);
+
+  if (!args.backendOnly) {
+    validateFrontendDependencies();
+    console.log("Frontend dependencies found.");
+  }
   console.log("Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
 
-  if (process.env.OH_AGENT_SERVER_LOCAL_PATH) {
-    validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
-  }
+  if (!args.frontendOnly) {
+    if (
+      process.env.OH_AGENT_SERVER_LOCAL_PATH &&
+      sandboxMode !== SANDBOX_MODES.DOCKER
+    ) {
+      validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
+    }
 
-  for (const dir of [
-    config.stateDir,
-    config.tmuxTmpDir,
-    config.conversationsPath,
-    config.workspacesPath,
-    config.bashEventsDir,
-  ]) {
-    mkdirSync(dir, { recursive: true });
+    for (const dir of [
+      config.stateDir,
+      config.tmuxTmpDir,
+      config.conversationsPath,
+      config.workspacesPath,
+      config.bashEventsDir,
+    ]) {
+      mkdirSync(dir, { recursive: true });
+    }
   }
-
-  const agentServerCmd = buildAgentServerCommand();
 
   const secretKeySource = process.env.OH_SECRET_KEY
     ? "custom (from OH_SECRET_KEY)"
@@ -703,35 +1013,34 @@ async function main() {
           process.env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH
         })`;
 
-  console.log(`- agent-server: ${agentServerCmd.source}`);
-  console.log(`- backend: ${config.backendBaseUrl}`);
-  console.log(`- vscode port: ${config.vscodePort}`);
-  console.log(`- working dir: ${config.workingDir}`);
-  console.log(`- isolated state dir: ${config.stateDir}`);
-  console.log(`- secret key: ${secretKeySource}`);
-  console.log(`- session API key: ${sessionKeySource}`);
-  console.log("");
+  if (!args.frontendOnly) {
+    const agentServerCmd = buildAgentServerCommand();
+    const serverSource =
+      sandboxMode === SANDBOX_MODES.DOCKER
+        ? `Docker (${resolveDockerAgentServerImage()})`
+        : agentServerCmd.source;
+    console.log(`- agent-server: ${serverSource}`);
+    console.log(`- backend: ${config.backendBaseUrl}`);
+    console.log(`- vscode port: ${config.vscodePort}`);
+    const workingDirDisplay =
+      sandboxMode === SANDBOX_MODES.DOCKER
+        ? `${DOCKER_CONTAINER_WORKSPACES_DIR} (inside container)`
+        : config.workingDir;
+    console.log(`- working dir: ${workingDirDisplay}`);
+    console.log(`- isolated state dir: ${config.stateDir}`);
+    console.log(`- secret key: ${secretKeySource}`);
+    console.log(`- session API key: ${sessionKeySource}`);
+    if (args.frontendRequireSessionKey) {
+      console.log(
+        "- session key injection: disabled (--frontend-require-session-key)",
+      );
+    }
+    console.log("");
+  }
 
-  const backend = spawnProcess(
-    agentServerCmd.command,
-    [
-      ...agentServerCmd.args,
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(config.backendPort),
-    ],
-    {
-      cwd: config.cwd,
-      env: {
-        ...process.env,
-        ...buildAgentServerEnv(config),
-      },
-    },
-  );
-
-  let shuttingDown = false;
+  let backend = null;
   let frontend = null;
+  let shuttingDown = false;
 
   const shutdown = (signal = "SIGTERM") => {
     if (shuttingDown) {
@@ -740,63 +1049,101 @@ async function main() {
 
     shuttingDown = true;
     frontend?.kill(signal);
-    backend.kill(signal);
+    backend?.kill(signal);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-  const backendErrored = new Promise((_, reject) => {
-    backend.once("error", (error) => reject(error));
-  });
-  const backendExited = new Promise((_, reject) => {
-    backend.once("exit", (code, signal) => {
+  if (!args.frontendOnly) {
+    if (sandboxMode === SANDBOX_MODES.DOCKER) {
+      backend = startDockerAgentServer(config);
+    } else {
+      const agentServerCmd = buildAgentServerCommand();
+      backend = spawnProcess(
+        agentServerCmd.command,
+        [
+          ...agentServerCmd.args,
+          "--host",
+          "127.0.0.1",
+          "--port",
+          String(config.backendPort),
+        ],
+        {
+          cwd: config.cwd,
+          env: {
+            ...process.env,
+            ...buildAgentServerEnv(config),
+          },
+        },
+      );
+    }
+
+    const backendErrored = new Promise((_, reject) => {
+      backend.once("error", (error) => reject(error));
+    });
+    const backendExited = new Promise((_, reject) => {
+      backend.once("exit", (code, signal) => {
+        if (!shuttingDown) {
+          reject(
+            new Error(
+              `agent-server exited before startup completed (code=${code ?? "null"}, signal=${signal ?? "null"})`,
+            ),
+          );
+        }
+      });
+    });
+
+    try {
+      await Promise.race([
+        waitForServer(`${config.backendBaseUrl}/server_info`),
+        backendErrored,
+        backendExited,
+      ]);
+    } catch (error) {
+      shutdown();
+      throw error;
+    }
+
+    backend.once("exit", (code) => {
       if (!shuttingDown) {
-        reject(
-          new Error(
-            `agent-server exited before startup completed (code=${code ?? "null"}, signal=${signal ?? "null"})`,
-          ),
+        console.error(
+          `agent-server exited unexpectedly with code ${code ?? 0}`,
         );
+        shutdown();
+        process.exitCode = code ?? 1;
       }
     });
-  });
-
-  try {
-    await Promise.race([
-      waitForServer(`${config.backendBaseUrl}/server_info`),
-      backendErrored,
-      backendExited,
-    ]);
-  } catch (error) {
-    shutdown();
-    throw error;
   }
 
-  const frontendCommand = buildNpmScriptCommand("dev:frontend");
-  frontend = spawnProcess(frontendCommand.command, frontendCommand.args, {
-    cwd: config.cwd,
-    env: {
+  if (!args.backendOnly) {
+    const workingDir =
+      sandboxMode === SANDBOX_MODES.DOCKER
+        ? DOCKER_CONTAINER_WORKSPACES_DIR
+        : config.workingDir;
+
+    const frontendEnv = {
       ...process.env,
       VITE_BACKEND_HOST: config.backendHost,
       VITE_BACKEND_BASE_URL: config.backendBaseUrl,
-      VITE_WORKING_DIR: config.workingDir,
+      VITE_WORKING_DIR: workingDir,
+    };
+    if (!args.frontendRequireSessionKey) {
       // Pass session API key so frontend can authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
-    },
-  });
-
-  frontend.once("exit", (code) => {
-    shutdown();
-    process.exitCode = code ?? 0;
-  });
-
-  backend.once("exit", (code) => {
-    if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
-      shutdown();
-      process.exitCode = code ?? 1;
+      frontendEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
     }
-  });
+
+    const frontendCommand = buildNpmScriptCommand("dev:canvas");
+    frontend = spawnProcess(frontendCommand.command, frontendCommand.args, {
+      cwd: config.cwd,
+      env: frontendEnv,
+    });
+
+    frontend.once("exit", (code) => {
+      shutdown();
+      process.exitCode = code ?? 0;
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

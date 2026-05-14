@@ -29,6 +29,59 @@ places tmux sockets under `/tmp` (via `TMUX_TMPDIR`) to avoid filesystem-support
 issues with mounted volumes, so it does not collide with other local or
 cloud-backed OpenHands sessions.
 
+### Dev script naming convention
+
+| Script | Services started | Notes |
+|--------|-----------------|-------|
+| `dev` | Docker agent-server + automation + static frontend | Default; same as `dev:full` |
+| `dev:full` | Same as `dev` | Explicit alias for the full stack |
+| `dev:server` | uvx agent-server + Vite frontend | No automation; access at `http://localhost:3001/` |
+| `dev:server:only` | uvx agent-server only | No frontend |
+| `dev:canvas` | Vite frontend only | Assumes a backend is already running |
+| `dev:extra-backend` | Extra standalone agent-server | Shared persistence with `dev` |
+| `dev:docker` | Docker agent-server + automation + static frontend | Explicit Docker command |
+| `dev:docker:dynamic` | Docker agent-server + automation + Vite frontend | Vite live reload |
+| `dev:dangerously-dockerless` | uvx agent-server + automation + static frontend | No Docker |
+| `dev:dangerously-dockerless:dynamic` | uvx agent-server + automation + Vite frontend | No Docker + Vite |
+
+**Deprecated aliases** (kept for backward compatibility):
+- `dev:safe` → `dev:server`
+- `dev:minimal` → `dev:server`
+- `dev:frontend` → `dev:canvas`
+
+### CLI flags for `dev:server` and `dev:full`
+
+The underlying scripts support flags to selectively enable or disable services:
+
+```sh
+# Agent-server + Vite frontend (default)
+npm run dev:server
+
+# Agent-server only — no frontend
+npm run dev:server -- --backend-only
+# (or: npm run dev:server:only)
+
+# Frontend only — assumes the agent-server is already running
+npm run dev:server -- --frontend-only
+
+# Don't auto-inject the session key into the frontend (user must configure it manually)
+npm run dev:server -- --frontend-require-session-key
+
+# Use Docker for the agent-server (requires PROJECT_PATH)
+npm run dev:server -- --sandbox docker
+
+# Use uvx directly (default, explicit)
+npm run dev:server -- --sandbox dangerously-none
+```
+
+The full-stack script supports the same flags:
+
+```sh
+npm run dev:full -- --backend-only          # agent-server + automation only
+npm run dev:full -- --frontend-only         # frontend only
+npm run dev:full -- --frontend-require-session-key
+```
+
 ### Environment Variables
 
 | Variable | Description | Default |
@@ -37,12 +90,12 @@ cloud-backed OpenHands sessions.
 | `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
 | `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
 
-### Alternative: Minimal Mode (without Automation)
+### Alternative: Server Mode (without Automation)
 
 To run without the automation service:
 
 ```sh
-npm run dev:minimal
+npm run dev:server
 ```
 
 This runs only agent-server + Vite (no automation backend or ingress).
@@ -88,12 +141,18 @@ reuses the bundled instance's state dir.
 Use this only if you intentionally started `agent-server` yourself or want the frontend to talk to another backend:
 
 ```sh
-npm run dev:frontend
+npm run dev:canvas
 ```
 
-The frontend-only workflow expects the backend at `127.0.0.1:8000` by default.
+Or use the `--frontend-only` flag on any dev script:
 
-If you start the backend with `SESSION_API_KEY` or `OH_SESSION_API_KEYS_0`, every `/api/*` route is authenticated with `X-Session-API-Key`. In that case the frontend must send the same key via `VITE_SESSION_API_KEY`.
+```sh
+npm run dev:server -- --frontend-only
+```
+
+The frontend-only workflow expects the backend at `127.0.0.1:8000` by default (set `VITE_BACKEND_BASE_URL` to override).
+
+If you start the backend with `SESSION_API_KEY` or `OH_SESSION_API_KEYS_0`, every `/api/*` route is authenticated with `X-Session-API-Key`. In that case the frontend must send the same key via `VITE_SESSION_API_KEY`. Use `--frontend-require-session-key` to prevent the dev script from auto-injecting the key (useful when you want to manage it manually).
 
 ### Mock mode
 
@@ -114,7 +173,7 @@ npm run start
 Useful targeted verification for the isolated dev launcher:
 
 ```sh
-npm run test -- __tests__/api/agent-server-config.test.ts __tests__/scripts/dev-safe.test.ts
+npm run test -- __tests__/api/agent-server-config.test.ts __tests__/scripts/dev-safe.test.ts __tests__/scripts/dev-with-automation.test.ts
 ```
 
 ## CSS isolation and host-app customization
