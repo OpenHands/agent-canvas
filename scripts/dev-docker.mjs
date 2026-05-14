@@ -79,6 +79,13 @@ const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
 const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
 const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 
+// Keep the in-container home at the path advertised by the agent-server
+// image. The default isolated-home launch overlays this path with tmpfs
+// before mounting ~/.openhands below it, so OH_PERSISTENCE_DIR can stay at
+// the conventional $HOME/.openhands instead of inventing a second home root.
+const CONTAINER_HOME_DIR = "/home/openhands";
+const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
+
 // Default secret key matches dev-safe.mjs so persisted settings stay
 // decryptable across docker / non-docker runs.
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
@@ -89,8 +96,7 @@ const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // dir (which is `~/.openhands` on the host, mounted in below). The frontend
 // receives this via VITE_WORKING_DIR so the working_dir it sends to the
 // agent-server is one the container can actually mkdir.
-const CONTAINER_WORKSPACES_DIR =
-  "/home/openhands/.openhands/agent-canvas/workspaces";
+const CONTAINER_WORKSPACES_DIR = `${CONTAINER_OPENHANDS_DIR}/agent-canvas/workspaces`;
 
 /**
  * Resolve the docker image to use based on environment.
@@ -146,6 +152,49 @@ function logDockerInfoFailure(stderr) {
     logError(`  ${stderr.split("\n")[0]}`);
   }
   logError("Start Docker (e.g. open Docker Desktop) and try again.");
+}
+
+function getHostDockerUserSpec() {
+  if (
+    typeof process.getuid !== "function" ||
+    typeof process.getgid !== "function"
+  ) {
+    return null;
+  }
+  return `${process.getuid()}:${process.getgid()}`;
+}
+
+function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
+  return userSpec ? ["--user", userSpec] : [];
+}
+
+/**
+ * When `docker run --user <host uid>:<host gid>` is set, the process no
+ * longer runs as the image's `openhands` user. The image home directory is
+ * owned by that image user and has mode 0700, so the mapped host user cannot
+ * enter `/home/openhands` unless we replace or mutate it.
+ *
+ * We deliberately use a tmpfs overlay instead of:
+ * - chown/chmod: would require starting the container as root and adding a
+ *   wrapper just to repair the image home before dropping privileges.
+ * - a custom home path: would make OH_PERSISTENCE_DIR stop looking like the
+ *   normal $HOME/.openhands location and make future path reasoning harder.
+ *
+ * Cache/config writes that libraries place under $HOME stay ephemeral in this
+ * tmpfs. The only persisted default-home state is the explicit
+ * ~/.openhands -> /home/openhands/.openhands bind mount below.
+ */
+function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
+  if (!userSpec) {
+    return [];
+  }
+
+  const [uid, gid] = userSpec.split(":");
+  if (!uid || !gid) {
+    return [];
+  }
+
+  return ["--tmpfs", `${CONTAINER_HOME_DIR}:uid=${uid},gid=${gid},mode=700`];
 }
 
 /**
@@ -213,15 +262,10 @@ function startAgentServerDocker(config) {
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
 
   const home = homedir();
-  const dockerArgs = [
-    "run",
-    "--rm",
-    "--name",
-    CONTAINER_NAME,
-    "--init",
-    "-v",
-    `${process.env.PROJECT_PATH}:/projects`,
-  ];
+  const userSpec = getHostDockerUserSpec();
+  const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
+  dockerArgs.push(...getDockerUserArgs(userSpec));
+  dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
   // rw so editable installs can write their .dist-info into each package
@@ -237,13 +281,15 @@ function startAgentServerDocker(config) {
   // filesystem (those credential subpaths come along automatically as
   // part of the same mount).
   if (process.env.OH_MOUNT_HOST_HOME === "1") {
-    dockerArgs.push("-v", `${home}:/home/openhands`);
+    dockerArgs.push("-v", `${home}:${CONTAINER_HOME_DIR}`);
   } else {
+    dockerArgs.push(...getDockerHomeTmpfsArgs(userSpec));
+
     const optionalMounts = [
-      [join(home, ".openhands"), "/home/openhands/.openhands"],
-      [join(home, ".claude"), "/home/openhands/.claude"],
-      [join(home, ".codex"), "/home/openhands/.codex"],
-      [join(home, ".ssh"), "/home/openhands/.ssh"],
+      [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
+      [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
+      [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
+      [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
     ];
     for (const [src, dest] of optionalMounts) {
       if (existsSync(src)) {
@@ -260,10 +306,10 @@ function startAgentServerDocker(config) {
   // These mirror buildAgentServerEnv() from dev-safe.mjs but use paths
   // that exist inside the container (under the mounted ~/.openhands).
   const containerEnv = {
-    OH_CONVERSATIONS_PATH:
-      "/home/openhands/.openhands/agent-canvas/conversations",
-    OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
-    OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
+    HOME: CONTAINER_HOME_DIR,
+    OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
+    OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
+    OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
@@ -326,11 +372,16 @@ if (isMainModule) {
 
 export {
   AGENT_SERVER_REPO,
+  CONTAINER_HOME_DIR,
   CONTAINER_LOCAL_SDK_DIR,
   CONTAINER_NAME,
+  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
   checkDockerPrereqs,
+  getDockerHomeTmpfsArgs,
+  getDockerUserArgs,
+  getHostDockerUserSpec,
   isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,
