@@ -2,22 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
   getActiveBackend,
-  getEffectiveLocalBackend,
   setActiveSelection,
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
 import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
-
-const ORIGINAL_LOCATION = window.location;
-
-function mockWindowLocation(url: string) {
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    value: new URL(url),
-  });
-}
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -27,10 +17,6 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllEnvs();
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    value: ORIGINAL_LOCATION,
-  });
   __resetActiveStoreForTests();
 });
 
@@ -83,16 +69,6 @@ describe("active-store", () => {
     const { backend } = getActiveBackend();
     expect(backend.kind).toBe("local");
     expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
-  });
-
-  it("keeps stored local backend URLs but resolves effective local calls through the page origin on remote hosts", () => {
-    mockWindowLocation("https://spark-1874.tailae62af.ts.net/conversations");
-    setRegisteredBackends([localBackend]);
-
-    expect(getActiveBackend().backend.host).toBe("http://localhost:9000");
-    expect(getEffectiveLocalBackend().host).toBe(
-      "https://spark-1874.tailae62af.ts.net",
-    );
   });
 
   it("notifies subscribers when selection changes", () => {

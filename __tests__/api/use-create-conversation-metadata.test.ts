@@ -46,7 +46,6 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerBaseUrl: vi.fn(() => "http://localhost:54928"),
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
-  resolveAgentServerRuntimeBaseUrl: vi.fn((baseUrl: string) => baseUrl),
   buildConversationWorkingDir: vi.fn(
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),

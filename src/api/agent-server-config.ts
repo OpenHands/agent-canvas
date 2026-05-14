@@ -85,43 +85,6 @@ function getConfiguredSessionApiKey(): string | null {
   return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
 }
 
-function shouldUseProxyOrigin(baseUrl: string): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  try {
-    const configuredUrl = new URL(baseUrl);
-    const localHosts = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
-    const browserHostname = window.location.hostname;
-
-    return (
-      localHosts.has(configuredUrl.hostname) && !localHosts.has(browserHostname)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function resolveAgentServerBaseUrl(baseUrl: string | null): string | null {
-  if (!baseUrl) {
-    return null;
-  }
-
-  if (shouldUseProxyOrigin(baseUrl)) {
-    return window.location.origin;
-  }
-
-  return baseUrl;
-}
-
-export function resolveAgentServerRuntimeBaseUrl(baseUrl: string): string {
-  const normalizedUrl = normalizeBaseUrl(baseUrl);
-  if (!normalizedUrl) return baseUrl;
-
-  return resolveAgentServerBaseUrl(normalizedUrl) ?? normalizedUrl;
-}
-
 export function getAgentServerFormDefaults(): AgentServerFormDefaults {
   return {
     baseUrl: getConfiguredBaseUrl() ?? "",
@@ -141,7 +104,7 @@ export function saveAgentServerConfig(config: AgentServerFormDefaults): void {
 
 export function getAgentServerBaseUrl(): string {
   const configuredUrl = getConfiguredBaseUrl();
-  if (configuredUrl) return resolveAgentServerRuntimeBaseUrl(configuredUrl);
+  if (configuredUrl) return configuredUrl;
 
   if (typeof window !== "undefined") {
     return window.location.origin;

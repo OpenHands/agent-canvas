@@ -561,9 +561,11 @@ function startVite(config) {
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
     env: {
-      // Point Vite at the ingress (so client-side fetches work)
+      // Point Vite's server-side proxy at the ingress while keeping
+      // browser-side API calls on the current page origin. This lets the
+      // same dev stack work through localhost, LAN IPs, and Tailscale names.
       VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+      VITE_BACKEND_BASE_URL: "",
       VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
       // Session API key for frontend to authenticate with agent-server

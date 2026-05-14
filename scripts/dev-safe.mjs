@@ -725,7 +725,11 @@ async function main() {
     env: {
       ...process.env,
       VITE_BACKEND_HOST: config.backendHost,
-      VITE_BACKEND_BASE_URL: config.backendBaseUrl,
+      // Keep browser-side calls on the current Vite origin. Vite proxies
+      // /api, /server_info, and /sockets to VITE_BACKEND_HOST server-side,
+      // so LAN/Tailscale clients do not need to know this machine's
+      // loopback agent-server address.
+      VITE_BACKEND_BASE_URL: "",
       VITE_WORKING_DIR: config.workingDir,
       // Pass session API key so frontend can authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,

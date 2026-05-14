@@ -7,7 +7,6 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
-  resolveAgentServerRuntimeBaseUrl,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
@@ -31,20 +30,21 @@ afterEach(() => {
 });
 
 describe("agent server config", () => {
-  it("uses the browser origin when a remote browser is pointed at localhost backend config", () => {
+  it("preserves a configured localhost backend URL instead of rewriting it", () => {
     mockWindowLocation("https://work-1.example.dev/settings");
     window.localStorage.setItem(
       AGENT_SERVER_CONFIG_STORAGE_KEY,
       JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
     );
 
-    expect(getAgentServerBaseUrl()).toBe("https://work-1.example.dev");
+    expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
   });
 
-  it("resolves loopback backend URLs through the current origin for remote browsers", () => {
+  it("falls back to the browser origin when the dev launcher clears the direct backend URL", () => {
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
     mockWindowLocation("https://spark-1874.tailae62af.ts.net/conversations");
 
-    expect(resolveAgentServerRuntimeBaseUrl("http://localhost:8000")).toBe(
+    expect(getAgentServerBaseUrl()).toBe(
       "https://spark-1874.tailae62af.ts.net",
     );
   });

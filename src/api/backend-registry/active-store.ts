@@ -1,5 +1,4 @@
 import { makeDefaultLocalBackend } from "./default-backend";
-import { resolveAgentServerRuntimeBaseUrl } from "../agent-server-config";
 import {
   readStoredActiveBackend,
   readStoredBackends,
@@ -27,13 +26,6 @@ interface Snapshot {
 function pickLocalBackend(backends: Backend[]): Backend {
   const firstLocal = backends.find((b) => b.kind === "local");
   return firstLocal ?? makeDefaultLocalBackend();
-}
-
-function resolveLocalBackendForRuntime(backend: Backend): Backend {
-  if (backend.kind !== "local") return backend;
-
-  const host = resolveAgentServerRuntimeBaseUrl(backend.host);
-  return host === backend.host ? backend : { ...backend, host };
 }
 
 function computeSnapshot(
@@ -93,8 +85,8 @@ export function getActiveBackend(): ResolvedActiveBackend {
  */
 export function getEffectiveLocalBackend(): Backend {
   const active = snapshot.active.backend;
-  if (active.kind === "local") return resolveLocalBackendForRuntime(active);
-  return resolveLocalBackendForRuntime(pickLocalBackend(snapshot.backends));
+  if (active.kind === "local") return active;
+  return pickLocalBackend(snapshot.backends);
 }
 
 export function getRegisteredBackends(): Backend[] {

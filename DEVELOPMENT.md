@@ -149,3 +149,10 @@ You can create a `.env` file in the project directory with these variables based
 | `VITE_FRONTEND_PORT`        | Port to run the frontend application                                               | `3001`                 |
 | `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                     | `false`                |
 | `VITE_GITHUB_TOKEN`         | GitHub token for repository access (used in some tests)                            | -                      |
+
+Full-stack dev launchers (`npm run dev`, `npm run dev:dangerously-dockerless`,
+and `npm run dev:minimal`) keep browser-side agent-server requests on the
+current web origin and proxy `/api`, `/server_info`, and `/sockets` server-side.
+This keeps the same launched stack reachable through `localhost`, a LAN address,
+or a Tailscale hostname. Set `VITE_BACKEND_BASE_URL` only when you intentionally
+want the browser to talk directly to a separately managed backend.
