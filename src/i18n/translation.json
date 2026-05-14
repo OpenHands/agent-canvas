@@ -1053,23 +1053,6 @@
     "uk": "Налаштуйте сервери MCP для розширених можливостей моделі",
     "ca": "Configura els servidors MCP per a capacitats de model millorades"
   },
-  "SETTINGS$NAV_MCP": {
-    "en": "MCP",
-    "ja": "MCP",
-    "zh-CN": "MCP",
-    "zh-TW": "MCP",
-    "ko-KR": "MCP",
-    "no": "MCP",
-    "it": "MCP",
-    "pt": "MCP",
-    "es": "MCP",
-    "ar": "MCP",
-    "fr": "MCP",
-    "tr": "MCP",
-    "de": "MCP",
-    "uk": "MCP",
-    "ca": "MCP"
-  },
   "SETTINGS$MCP_CONFIGURATION": {
     "en": "MCP Configuration",
     "ja": "MCP設定",

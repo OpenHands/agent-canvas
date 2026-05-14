@@ -68,5 +68,6 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/agent-server");
     expect(paths).not.toContain("/settings/integrations");
     expect(paths).not.toContain("/settings/skills");
+    expect(paths).not.toContain("/settings/mcp");
   });
 });
