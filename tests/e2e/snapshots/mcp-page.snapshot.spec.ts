@@ -115,4 +115,162 @@ test.describe("MCP Page Visual Snapshots", () => {
       maxDiffPixelRatio: 0.01,
     });
   });
+
+  /**
+   * Iterative snapshot test: install the Slack server from the marketplace.
+   *
+   * Simulates the full user journey with one snapshot per step:
+   *   step 1 – marketplace view with Slack card visible
+   *   step 2 – Slack install modal open with empty fields
+   *   step 3 – Slack install modal with bot-token and team-ID filled in
+   *   step 4 – after clicking Install, Slack card appears in Installed section
+   *
+   * The MSW settings PATCH handler persists the new mcp_config so the
+   * refetch shows the installed server without any page.route() trickery.
+   */
+  test("install Slack from marketplace (iterative snapshots)", async ({
+    page,
+  }) => {
+    await setupMocks(page);
+
+    await page.goto("/mcp");
+    await dismissConsentModal(page);
+    await page.waitForLoadState("networkidle");
+
+    const mcpPage = page.getByTestId("mcp-page");
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(mcpPage).toBeVisible({ timeout: 15_000 });
+
+    await test.step("step 1 – marketplace before install", async () => {
+      await expect(
+        page.getByTestId("mcp-marketplace-card-slack"),
+      ).toBeVisible({ timeout: 5_000 });
+      await expect(mcpPage).toHaveScreenshot("mcp-slack-install-1-marketplace.png", {
+        animations: "disabled",
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+
+    await test.step("step 2 – Slack install modal open", async () => {
+      await page.getByTestId("mcp-marketplace-card-slack").click();
+      await expect(page.getByTestId("mcp-install-modal")).toBeVisible({
+        timeout: 5_000,
+      });
+      await expect(rootLayout).toHaveScreenshot("mcp-slack-install-2-modal.png", {
+        animations: "disabled",
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+
+    await test.step("step 3 – fill in bot token and team ID", async () => {
+      await page
+        .getByTestId("mcp-install-field-SLACK_BOT_TOKEN")
+        .fill("xoxb-test-bot-token-1234567890");
+      await page
+        .getByTestId("mcp-install-field-SLACK_TEAM_ID")
+        .fill("T01ABC123");
+      await expect(rootLayout).toHaveScreenshot("mcp-slack-install-3-filled.png", {
+        animations: "disabled",
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+
+    await test.step("step 4 – submit and confirm Slack is installed", async () => {
+      await page.getByTestId("mcp-install-submit").click();
+
+      // Modal should disappear once the mutation completes
+      await expect(page.getByTestId("mcp-install-modal")).not.toBeVisible({
+        timeout: 10_000,
+      });
+      await page.waitForLoadState("networkidle");
+
+      // The installed section should now contain a Slack server card
+      await expect(page.getByTestId("mcp-server-item")).toBeVisible({
+        timeout: 10_000,
+      });
+      // Brief wait to let the toast and any animations settle
+      await page.waitForTimeout(400);
+
+      await expect(mcpPage).toHaveScreenshot("mcp-slack-install-4-installed.png", {
+        animations: "disabled",
+        maxDiffPixelRatio: 0.01,
+      });
+    });
+  });
+
+  /**
+   * Iterative snapshot test: manually add a custom SSE server via the editor.
+   *
+   * Simulates the full user journey with one snapshot per step:
+   *   step 1 – custom server editor open (SSE type, empty fields)
+   *   step 2 – URL field filled in
+   *   step 3 – API key field filled in (optional field shown)
+   *   step 4 – after clicking Add Server, the custom server appears installed
+   *
+   * Uses the same MSW settings PATCH + GET refetch flow as the marketplace
+   * install test so no page.route() overrides are needed.
+   */
+  test("add custom SSE server via editor (iterative snapshots)", async ({
+    page,
+  }) => {
+    await setupMocks(page);
+
+    await page.goto("/mcp");
+    await dismissConsentModal(page);
+    await page.waitForLoadState("networkidle");
+
+    const mcpPage = page.getByTestId("mcp-page");
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(mcpPage).toBeVisible({ timeout: 15_000 });
+
+    await test.step("step 1 – custom server editor open (empty)", async () => {
+      await page.getByTestId("mcp-add-custom-server").click();
+      await expect(page.getByTestId("mcp-custom-editor")).toBeVisible({
+        timeout: 5_000,
+      });
+      await expect(rootLayout).toHaveScreenshot(
+        "mcp-custom-server-1-editor-open.png",
+        { animations: "disabled", maxDiffPixelRatio: 0.01 },
+      );
+    });
+
+    await test.step("step 2 – URL filled in", async () => {
+      await page
+        .getByTestId("url-input")
+        .fill("https://api.example-mcp.com/sse");
+      await expect(rootLayout).toHaveScreenshot(
+        "mcp-custom-server-2-url-filled.png",
+        { animations: "disabled", maxDiffPixelRatio: 0.01 },
+      );
+    });
+
+    await test.step("step 3 – API key filled in (optional)", async () => {
+      await page.getByTestId("api-key-input").fill("test-api-key-xyz-123");
+      await expect(rootLayout).toHaveScreenshot(
+        "mcp-custom-server-3-all-filled.png",
+        { animations: "disabled", maxDiffPixelRatio: 0.01 },
+      );
+    });
+
+    await test.step("step 4 – save and confirm custom server is installed", async () => {
+      await page.getByTestId("submit-button").click();
+
+      // Editor modal should close
+      await expect(page.getByTestId("mcp-custom-editor")).not.toBeVisible({
+        timeout: 10_000,
+      });
+      await page.waitForLoadState("networkidle");
+
+      // Installed section should now contain the custom SSE server
+      await expect(page.getByTestId("mcp-server-item")).toBeVisible({
+        timeout: 10_000,
+      });
+      await page.waitForTimeout(400);
+
+      await expect(mcpPage).toHaveScreenshot(
+        "mcp-custom-server-4-installed.png",
+        { animations: "disabled", maxDiffPixelRatio: 0.01 },
+      );
+    });
+  });
 });

@@ -107,6 +107,61 @@ test.describe("Automations Visual Snapshots", () => {
     });
   });
 
+  test("no automations shows empty state", async ({ page }) => {
+    // Each Playwright test gets a fresh browser context, so MSW starts with
+    // the full MOCK_AUTOMATIONS_RESPONSE.  We delete every automation via the
+    // REST API (MSW handles DELETE) then reload so React Query fetches the
+    // now-empty list and renders the EmptyState component.
+    await setupMocks(page);
+
+    await page.goto("/automations");
+    await dismissConsentModal(page);
+
+    // Wait for initial list to confirm the service worker is active
+    await expect(
+      page.getByRole("button", { name: "Automation actions" }).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Delete every automation from the MSW mutable state.
+    // Important: the `automations` Map lives in PAGE-level JS (the MSW handlers
+    // are compiled into the client bundle). A page.reload() would re-run the
+    // module initialiser and reset the Map to 5 items, so instead we:
+    //   1. Make the DELETE fetches (MSW handles them in the page context)
+    //   2. Call window.__TEST_INVALIDATE_QUERIES__() to ask React Query to
+    //      refetch without a reload
+    await page.evaluate(async () => {
+      const res = await fetch("/api/automation/v1?limit=100");
+      const data = (await res.json()) as { automations: { id: string }[] };
+      await Promise.all(
+        data.automations.map((a) =>
+          fetch(`/api/automation/v1/${a.id}`, { method: "DELETE" }),
+        ),
+      );
+    });
+
+    // Trigger React Query to refetch the now-empty list
+    await page.evaluate(() => {
+      (
+        window as Window & { __TEST_INVALIDATE_QUERIES__?: () => void }
+      ).__TEST_INVALIDATE_QUERIES__?.();
+    });
+
+    await page.waitForLoadState("networkidle");
+
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toBeVisible({ timeout: 15_000 });
+
+    // No kebab buttons means the list is truly empty
+    await expect(
+      page.getByRole("button", { name: "Automation actions" }),
+    ).toHaveCount(0, { timeout: 10_000 });
+
+    await expect(rootLayout).toHaveScreenshot("automations-no-automations.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.01,
+    });
+  });
+
   test("delete confirmation modal renders correctly", async ({ page }) => {
     await setupMocks(page);
 
