@@ -27,23 +27,18 @@
  *     reload / process restart, matching the non-Docker dev loop.
  *
  * Optional credential mounts (only mounted when the host path exists):
- *   - ~/.openhands -> /openhands-home/.openhands  (persistence)
- *   - ~/.claude    -> /openhands-home/.claude     (Claude credentials)
- *   - ~/.codex     -> /openhands-home/.codex      (Codex credentials)
- *   - ~/.ssh       -> /openhands-home/.ssh        (git/ssh access)
+ *   - ~/.openhands -> /home/openhands/.openhands  (persistence)
+ *   - ~/.claude    -> /home/openhands/.claude     (Claude credentials)
+ *   - ~/.codex     -> /home/openhands/.codex      (Codex credentials)
+ *   - ~/.ssh       -> /home/openhands/.ssh        (git/ssh access)
  *
  * Optional host home mount (opt-in):
  *   Set `OH_MOUNT_HOST_HOME=1` to bind-mount your entire host home onto
- *   the container user's home at `/openhands-home`. This lets the
+ *   the container user's home at `/home/openhands`. This lets the
  *   "Add Workspace" file browser navigate your real host filesystem
  *   (and credentials/persistence dirs above are picked up automatically
  *   as subpaths). Off by default so the container stays isolated from
  *   the host home unless you opt in.
- *
- * Optional Docker user override:
- *   By default, Linux/macOS containers run as the host UID:GID so bind-mounted
- *   folders stay writable. Set `OH_DOCKER_USER=image` to use the image's
- *   default user, or set `OH_DOCKER_USER=<uid>:<gid>` explicitly.
  *
  * Usage:
  *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
@@ -83,8 +78,6 @@ const CONTAINER_NAME = "agent-canvas-dev-agent-server";
 // Default secret key matches dev-safe.mjs so persisted settings stay
 // decryptable across docker / non-docker runs.
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
-const CONTAINER_HOME_DIR = "/openhands-home";
-const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
 
 // Path inside the container where the agent-server stores per-conversation
 // workspace directories. Mirrors dev-with-automation.mjs's host-side
@@ -92,7 +85,8 @@ const CONTAINER_OPENHANDS_DIR = `${CONTAINER_HOME_DIR}/.openhands`;
 // dir (which is `~/.openhands` on the host, mounted in below). The frontend
 // receives this via VITE_WORKING_DIR so the working_dir it sends to the
 // agent-server is one the container can actually mkdir.
-const CONTAINER_WORKSPACES_DIR = `${CONTAINER_OPENHANDS_DIR}/agent-canvas/workspaces`;
+const CONTAINER_WORKSPACES_DIR =
+  "/home/openhands/.openhands/agent-canvas/workspaces";
 
 /**
  * Resolve the docker image to use based on environment.
@@ -105,32 +99,6 @@ function resolveAgentServerImage(env = process.env) {
   const gitRef = env.OH_AGENT_SERVER_GIT_REF;
   const tag = gitRef ? `${gitRef}-python` : DEFAULT_AGENT_SERVER_TAG;
   return `${AGENT_SERVER_REPO}:${tag}`;
-}
-
-function getCurrentDockerUserSpec() {
-  if (
-    typeof process.getuid !== "function" ||
-    typeof process.getgid !== "function"
-  ) {
-    return null;
-  }
-
-  return `${process.getuid()}:${process.getgid()}`;
-}
-
-function resolveDockerUser(
-  env = process.env,
-  currentUserSpec = getCurrentDockerUserSpec(),
-) {
-  const override = env.OH_DOCKER_USER?.trim();
-  if (override) {
-    if (["image", "default", "none"].includes(override.toLowerCase())) {
-      return null;
-    }
-    return override;
-  }
-
-  return currentUserSpec;
 }
 
 function suggestDockerless() {
@@ -214,16 +182,33 @@ function checkDockerPrereqs(config) {
   logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
 }
 
-function buildAgentServerDockerArgs(
-  config,
-  env = process.env,
-  {
-    home = homedir(),
-    image = resolveAgentServerImage(env),
-    dockerUser = resolveDockerUser(env),
-  } = {},
-) {
-  const localSdkPath = env.OH_AGENT_SERVER_LOCAL_PATH;
+function startAgentServerDocker(config) {
+  const image = resolveAgentServerImage();
+  const localSdkPath = process.env.OH_AGENT_SERVER_LOCAL_PATH;
+
+  // Validate up-front so we fail fast before touching docker if the user
+  // pointed at a missing / incomplete checkout.
+  if (localSdkPath) {
+    validateLocalAgentServerPath(localSdkPath);
+  }
+
+  logService(
+    "agent-server",
+    `Starting in Docker on port ${config.agentServerPort} (image: ${image})...`,
+    c.blue,
+  );
+  if (localSdkPath) {
+    logService(
+      "agent-server",
+      `Using local SDK source: ${localSdkPath} (mounted at ${CONTAINER_LOCAL_SDK_DIR})`,
+      c.blue,
+    );
+  }
+
+  // Best-effort cleanup of any leftover container from a previous run.
+  spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
+
+  const home = homedir();
   const dockerArgs = [
     "run",
     "--rm",
@@ -231,12 +216,8 @@ function buildAgentServerDockerArgs(
     CONTAINER_NAME,
     "--init",
     "-v",
-    `${env.PROJECT_PATH}:/projects`,
+    `${process.env.PROJECT_PATH}:/projects`,
   ];
-
-  if (dockerUser) {
-    dockerArgs.push("--user", dockerUser);
-  }
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
   // rw so editable installs can write their .dist-info into each package
@@ -251,14 +232,14 @@ function buildAgentServerDockerArgs(
   // the Add Workspace file browser to navigate your real host
   // filesystem (those credential subpaths come along automatically as
   // part of the same mount).
-  if (env.OH_MOUNT_HOST_HOME === "1") {
-    dockerArgs.push("-v", `${home}:${CONTAINER_HOME_DIR}`);
+  if (process.env.OH_MOUNT_HOST_HOME === "1") {
+    dockerArgs.push("-v", `${home}:/home/openhands`);
   } else {
     const optionalMounts = [
-      [join(home, ".openhands"), `${CONTAINER_HOME_DIR}/.openhands`],
-      [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
-      [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
-      [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
+      [join(home, ".openhands"), "/home/openhands/.openhands"],
+      [join(home, ".claude"), "/home/openhands/.claude"],
+      [join(home, ".codex"), "/home/openhands/.codex"],
+      [join(home, ".ssh"), "/home/openhands/.ssh"],
     ];
     for (const [src, dest] of optionalMounts) {
       if (existsSync(src)) {
@@ -275,12 +256,11 @@ function buildAgentServerDockerArgs(
   // These mirror buildAgentServerEnv() from dev-safe.mjs but use paths
   // that exist inside the container (under the mounted ~/.openhands).
   const containerEnv = {
-    HOME: CONTAINER_HOME_DIR,
-    OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
-    OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
-    OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
-    XDG_CACHE_HOME: `${CONTAINER_OPENHANDS_DIR}/cache`,
-    OH_SECRET_KEY: env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
+    OH_CONVERSATIONS_PATH:
+      "/home/openhands/.openhands/agent-canvas/conversations",
+    OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
+    OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
+    OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
@@ -315,37 +295,6 @@ function buildAgentServerDockerArgs(
     dockerArgs.push("-c", `${installCmd} && ${runCmd}`);
   }
 
-  return dockerArgs;
-}
-
-function startAgentServerDocker(config) {
-  const image = resolveAgentServerImage();
-  const localSdkPath = process.env.OH_AGENT_SERVER_LOCAL_PATH;
-
-  // Validate up-front so we fail fast before touching docker if the user
-  // pointed at a missing / incomplete checkout.
-  if (localSdkPath) {
-    validateLocalAgentServerPath(localSdkPath);
-  }
-
-  logService(
-    "agent-server",
-    `Starting in Docker on port ${config.agentServerPort} (image: ${image})...`,
-    c.blue,
-  );
-  if (localSdkPath) {
-    logService(
-      "agent-server",
-      `Using local SDK source: ${localSdkPath} (mounted at ${CONTAINER_LOCAL_SDK_DIR})`,
-      c.blue,
-    );
-  }
-
-  // Best-effort cleanup of any leftover container from a previous run.
-  spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
-
-  const dockerArgs = buildAgentServerDockerArgs(config, process.env, { image });
-
   spawnService("agent-server", "docker", dockerArgs, {
     color: c.blue,
   });
@@ -371,17 +320,12 @@ if (isMainModule) {
 
 export {
   AGENT_SERVER_REPO,
-  CONTAINER_HOME_DIR,
   CONTAINER_LOCAL_SDK_DIR,
   CONTAINER_NAME,
-  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
   DEFAULT_AGENT_SERVER_TAG,
-  buildAgentServerDockerArgs,
   checkDockerPrereqs,
-  getCurrentDockerUserSpec,
   isDockerPermissionDenied,
-  resolveDockerUser,
   resolveAgentServerImage,
   startAgentServerDocker,
 };
