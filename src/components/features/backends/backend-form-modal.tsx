@@ -259,12 +259,12 @@ export function BackendForm({
       />
 
       {/*
-       * Connection box: In cloud-add mode, host + auth + API key are
-       * grouped visually in a bordered card. In other modes the wrapper
-       * is unstyled so the inputs sit flush with the rest of the form.
+       * Connection section. The host & API-key inputs are always
+       * rendered in the same DOM position so the host is never
+       * unmounted when kind flips mid-keystroke.
        *
-       * The host input is always rendered in the same DOM position so it
-       * is never unmounted when kind flips mid-keystroke.
+       * In cloud-add mode the box also shows a "Login with OpenHands
+       * Cloud" option below the API key, separated by an OR divider.
        */}
       <div
         className={
@@ -299,31 +299,6 @@ export function BackendForm({
           )}
         </div>
 
-        {/* Device Flow auth for cloud backends in add mode */}
-        {mode === "add" && kind === "cloud" && (
-          <>
-            <p className="text-sm text-gray-300">
-              {t(I18nKey.BACKEND$AUTH_METHOD_HELPER)}
-            </p>
-            <DeviceFlowAuth
-              host={host}
-              onSuccess={setApiKey}
-              testIdRoot={testIdRoot}
-              isDisabled={host.trim().length === 0}
-            />
-
-            {/* Divider with "or" */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-600" />
-              <span className="text-xs text-gray-500 uppercase">
-                {t(I18nKey.BACKEND$LOGIN_OR)}
-              </span>
-              <div className="flex-1 border-t border-gray-600" />
-            </div>
-          </>
-        )}
-
-        {/* API key input — always rendered, with docs hint in cloud-add mode */}
         <div className="flex flex-col gap-2">
           <SettingsInput
             testId={`${testIdRoot}-api-key`}
@@ -349,6 +324,26 @@ export function BackendForm({
             </p>
           )}
         </div>
+
+        {/* Device Flow login for cloud backends in add mode */}
+        {mode === "add" && kind === "cloud" && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-gray-600" />
+              <span className="text-xs text-gray-500 uppercase">
+                {t(I18nKey.BACKEND$LOGIN_OR)}
+              </span>
+              <div className="flex-1 border-t border-gray-600" />
+            </div>
+
+            <DeviceFlowAuth
+              host={host}
+              onSuccess={setApiKey}
+              testIdRoot={testIdRoot}
+              isDisabled={host.trim().length === 0}
+            />
+          </>
+        )}
       </div>
 
       {mode === "edit" && backend ? (

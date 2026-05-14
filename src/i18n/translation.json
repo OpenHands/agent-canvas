@@ -23680,23 +23680,6 @@
     "uk": "Дізнатися про OpenHands Cloud",
     "ca": "Més informació sobre OpenHands Cloud"
   },
-  "BACKEND$AUTH_METHOD_HELPER": {
-    "en": "Log in with OpenHands Cloud using this host, or paste an API key below.",
-    "ja": "このホストを使用して OpenHands Cloud にログインするか、以下に API キーを貼り付けてください。",
-    "zh-CN": "使用此主机通过 OpenHands Cloud 登录，或在下方粘贴 API 密钥。",
-    "zh-TW": "使用此主機透過 OpenHands Cloud 登入，或在下方貼上 API 金鑰。",
-    "ko-KR": "이 호스트를 사용하여 OpenHands Cloud로 로그인하거나 아래에 API 키를 붙여넣으세요.",
-    "no": "Logg inn med OpenHands Cloud via denne verten, eller lim inn en API-nøkkel nedenfor.",
-    "it": "Accedi con OpenHands Cloud usando questo host oppure incolla una chiave API qui sotto.",
-    "pt": "Faça login com o OpenHands Cloud usando este host ou cole uma chave de API abaixo.",
-    "es": "Inicie sesión con OpenHands Cloud usando este host o pegue una clave de API a continuación.",
-    "ar": "سجّل الدخول باستخدام OpenHands Cloud عبر هذا المضيف، أو الصق مفتاح API أدناه.",
-    "fr": "Connectez-vous avec OpenHands Cloud via cet hôte, ou collez une clé API ci-dessous.",
-    "tr": "Bu ana bilgisayarı kullanarak OpenHands Cloud ile giriş yapın veya aşağıya bir API anahtarı yapıştırın.",
-    "de": "Melden Sie sich über diesen Host bei OpenHands Cloud an oder fügen Sie unten einen API-Schlüssel ein.",
-    "uk": "Увійдіть через OpenHands Cloud за допомогою цього хоста або вставте API-ключ нижче.",
-    "ca": "Inicieu sessió amb OpenHands Cloud utilitzant aquest amfitrió o enganxeu una clau d'API a continuació."
-  },
   "BACKEND$KEY_LABEL": {
     "en": "API Key",
     "ja": "APIキー",
