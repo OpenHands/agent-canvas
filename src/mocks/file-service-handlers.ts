@@ -8,6 +8,25 @@ export const FILE_VARIANTS_2 = [
 ];
 
 export const FILE_SERVICE_HANDLERS = [
+  http.all("*/api/bash/execute_bash_command", async () =>
+    HttpResponse.json({
+      command: "",
+      exit_code: 0,
+      output: "",
+    }),
+  ),
+
+  http.get("*/api/file/search_subdirs", async () =>
+    HttpResponse.json({ path: "/projects", subdirs: [] }),
+  ),
+
+  http.get("*/api/file/:path", async ({ params }) =>
+    HttpResponse.json({
+      path: `/${params.path?.toString() ?? "home"}`,
+      subdirs: [],
+    }),
+  ),
+
   http.get(
     "/api/conversations/:conversationId/list-files",
     async ({ params }) => {

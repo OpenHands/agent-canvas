@@ -93,8 +93,12 @@ const USER_MESSAGE_EVENT = {
   id: "user-msg-1",
   timestamp: "2026-01-01T00:00:00.000Z",
   source: "user",
-  role: "user",
-  payload: [{ type: "text", text: "Help me understand this project" }],
+  llm_message: {
+    role: "user",
+    content: [{ type: "text", text: "Help me understand this project" }],
+  },
+  activated_microagents: [],
+  extended_content: [],
 };
 
 /**
@@ -121,30 +125,77 @@ async function dismissConsentModal(page: Page) {
  * Inject events into the event store via the exposed Zustand API.
  */
 async function injectEvents(page: Page, events: unknown[]) {
-  await page.evaluate((evts) => {
+  await page.waitForFunction(() => {
     const store = (
       window as unknown as {
         __OH_EVENT_STORE__?: {
-          getState: () => { addEvents: (e: unknown[]) => void };
+          getState: () => { addEvents?: (e: unknown[]) => void };
         };
       }
     ).__OH_EVENT_STORE__;
-    if (store) {
-      store.getState().addEvents(evts);
-    }
-  }, events);
+    return Boolean(store?.getState().addEvents);
+  });
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate((evts) => {
+          const store = (
+            window as unknown as {
+              __OH_EVENT_STORE__?: {
+                getState: () => {
+                  addEvents: (e: unknown[]) => void;
+                  events: unknown[];
+                };
+              };
+            }
+          ).__OH_EVENT_STORE__;
+
+          if (!store) {
+            return 0;
+          }
+
+          const state = store.getState();
+          state.addEvents(evts);
+          return store.getState().events.length;
+        }, events),
+      { timeout: 10000 },
+    )
+    .toBeGreaterThanOrEqual(events.length);
+
   // Wait for React to re-render
   await page.waitForTimeout(500);
 }
 
 /**
- * Navigate to a conversation page and wait for the chat interface to load.
+ * Navigate to a conversation page and seed it with events so the chat
+ * interface renders instead of the empty launch prompt.
  * Uses mock conversation "1" which exists in the MSW handlers.
  */
-async function navigateToConversation(page: Page) {
+async function navigateToConversation(page: Page, events: unknown[]) {
   // Skip onboarding
   await page.addInitScript(() => {
     window.localStorage.setItem("openhands-onboarded", "true");
+  });
+
+  await page.route("**/api/bash/execute_bash_command", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        command: "ls -la",
+        exit_code: 0,
+        output: "",
+      }),
+    });
+  });
+
+  await page.route("**/api/file/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ path: "/home", subdirs: [] }),
+    });
   });
 
   // Stub WebSocket to prevent connection errors
@@ -189,6 +240,11 @@ async function navigateToConversation(page: Page) {
     waitUntil: "domcontentloaded",
   });
   await dismissConsentModal(page);
+  await expect(page.getByText("Let's start building!")).toBeVisible({
+    timeout: 20000,
+  });
+
+  await injectEvents(page, events);
 
   const chatInterface = page.getByTestId("chat-interface");
   await expect(chatInterface).toBeVisible({ timeout: 20000 });
@@ -203,10 +259,10 @@ test.describe("Collapsible Thinking Visual Snapshots", () => {
   test.setTimeout(60000);
 
   test("ThinkAction renders as collapsed section", async ({ page }) => {
-    const chatInterface = await navigateToConversation(page);
-
-    // Inject events
-    await injectEvents(page, [USER_MESSAGE_EVENT, THINK_ACTION_EVENT]);
+    const chatInterface = await navigateToConversation(page, [
+      USER_MESSAGE_EVENT,
+      THINK_ACTION_EVENT,
+    ]);
 
     // Verify the collapsible thinking section is rendered
     const collapsibleThinking = page.getByTestId("collapsible-thinking");
@@ -217,19 +273,17 @@ test.describe("Collapsible Thinking Visual Snapshots", () => {
     await expect(content).toHaveCount(0);
 
     // Snapshot: collapsed state
-    await expect(chatInterface).toHaveScreenshot(
-      "think-action-collapsed.png",
-      {
-        maxDiffPixelRatio: 0.01,
-        animations: "disabled",
-      },
-    );
+    await expect(chatInterface).toHaveScreenshot("think-action-collapsed.png", {
+      maxDiffPixelRatio: 0.01,
+      animations: "disabled",
+    });
   });
 
   test("ThinkAction expands on click", async ({ page }) => {
-    const chatInterface = await navigateToConversation(page);
-
-    await injectEvents(page, [USER_MESSAGE_EVENT, THINK_ACTION_EVENT]);
+    const chatInterface = await navigateToConversation(page, [
+      USER_MESSAGE_EVENT,
+      THINK_ACTION_EVENT,
+    ]);
 
     const toggle = page.getByTestId("collapsible-thinking-toggle");
     await expect(toggle).toBeVisible({ timeout: 5000 });
@@ -242,21 +296,16 @@ test.describe("Collapsible Thinking Visual Snapshots", () => {
     await expect(content).toBeVisible({ timeout: 5000 });
 
     // Snapshot: expanded state
-    await expect(chatInterface).toHaveScreenshot(
-      "think-action-expanded.png",
-      {
-        maxDiffPixelRatio: 0.01,
-        animations: "disabled",
-      },
-    );
+    await expect(chatInterface).toHaveScreenshot("think-action-expanded.png", {
+      maxDiffPixelRatio: 0.01,
+      animations: "disabled",
+    });
   });
 
   test("Reasoning content renders as collapsed section with action", async ({
     page,
   }) => {
-    const chatInterface = await navigateToConversation(page);
-
-    await injectEvents(page, [
+    const chatInterface = await navigateToConversation(page, [
       USER_MESSAGE_EVENT,
       BASH_WITH_REASONING_EVENT,
     ]);
@@ -276,9 +325,7 @@ test.describe("Collapsible Thinking Visual Snapshots", () => {
   });
 
   test("Reasoning content expands on click", async ({ page }) => {
-    const chatInterface = await navigateToConversation(page);
-
-    await injectEvents(page, [
+    const chatInterface = await navigateToConversation(page, [
       USER_MESSAGE_EVENT,
       BASH_WITH_REASONING_EVENT,
     ]);

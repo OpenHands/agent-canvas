@@ -20,6 +20,12 @@ export const resetAutomationMockData = () => {
 };
 
 export const AUTOMATION_HANDLERS = [
+  // GET /api/automation/health — Health check
+  http.get("*/api/automation/health", async () => {
+    await delay(100);
+    return HttpResponse.json({ status: "ok" });
+  }),
+
   // GET /api/automation/v1 — List automations
   http.get("*/api/automation/v1", async ({ request }) => {
     await delay(300);
