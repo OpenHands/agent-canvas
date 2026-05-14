@@ -13,7 +13,7 @@ Existing coverage is marked **✅ done**. Everything else is proposed.
 
 ## 1. Home Screen
 
-**File:** `home-screen.snapshot.spec.ts`  
+**File:** `home-screen.snapshot.spec.ts`
 **Existing:** ✅ `home-screen.png` in `settings-page.snapshot.spec.ts`
 
 | Snapshot name | State to capture |
@@ -51,7 +51,7 @@ the "Next" / "Back" buttons between snapshots.
 
 ## 3. Settings Pages
 
-**File:** `settings.snapshot.spec.ts`  
+**File:** `settings.snapshot.spec.ts`
 **Existing:** ✅ `settings-page.png`, `settings-app-page.png` in `settings-page.snapshot.spec.ts`
 
 ### LLM Settings
@@ -170,7 +170,7 @@ the "Next" / "Back" buttons between snapshots.
 
 ## 8. Analytics Consent Modal
 
-**File:** `settings-page.snapshot.spec.ts` (already exists)  
+**File:** `settings-page.snapshot.spec.ts` (already exists)
 **Existing:** ✅ `analytics-consent-modal.png`
 
 No new snapshots needed; keep existing baseline.
@@ -217,7 +217,7 @@ All tests use `navigateToConversation` + `injectEvents` via
 
 ## 11. Conversation Page – Collapsible Thinking
 
-**File:** `collapsible-thinking.snapshot.spec.ts` (already exists)  
+**File:** `collapsible-thinking.snapshot.spec.ts` (already exists)
 **Existing:** ✅ `think-action-collapsed.png`, `think-action-expanded.png`, `reasoning-content-collapsed.png`, `reasoning-content-expanded.png`
 
 No new snapshots needed; keep existing baselines.
