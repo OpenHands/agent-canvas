@@ -105,7 +105,7 @@ export function ConversationPanel({
     string | null
   >(null);
 
-  const { data, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
     usePaginatedConversations();
 
   // Fetch in-progress start tasks
@@ -293,9 +293,13 @@ export function ConversationPanel({
   // child fills the panel and scrolls when its content overflows. Modals are
   // siblings of the scroll element and are `position: fixed`, so they don't
   // participate in the panel's scroll geometry.
-  const showInitialSkeleton = isFetching && conversations.length === 0;
+  // Gate on `isLoading` (true only during the first fetch with no cached
+  // data), not `isFetching` — the latter flips back to true on every 10s
+  // background refetch, causing the skeleton/empty-state to flicker when
+  // the list is empty.
+  const showInitialSkeleton = isLoading;
   const showEmptyState =
-    !isFetching && conversations.length === 0 && !startTasks?.length;
+    !isLoading && conversations.length === 0 && !startTasks?.length;
   const showSummaryBar = !compact && olderConversations.length > 0;
 
   return (

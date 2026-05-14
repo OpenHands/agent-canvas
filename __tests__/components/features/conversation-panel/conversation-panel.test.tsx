@@ -1,8 +1,8 @@
-import {
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nextProvider } from "react-i18next";
+import i18n from "i18next";
+import { NavigationProvider } from "#/context/navigation-context";
 import {
   afterEach,
   beforeAll,
@@ -139,6 +139,102 @@ describe("ConversationPanel", () => {
     expect(emptyState).toBeInTheDocument();
   });
 
+  it("does not flash the loading skeleton during a background refetch when the list is empty", async () => {
+    // Arrange: first call (initial load) resolves with an empty list.
+    // Second call (the background refetch) is kept in-flight so we can
+    // observe the UI while `isFetching` is true — the exact window in
+    // which the buggy `isFetching`-gated code flashed the skeleton.
+    let resolveRefetch:
+      | ((value: { items: AppConversation[]; next_page_id: null }) => void)
+      | undefined;
+    const searchConversationsSpy = vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    );
+    searchConversationsSpy
+      .mockResolvedValueOnce({ items: [], next_page_id: null })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefetch = resolve;
+          }),
+      );
+
+    // Use a QueryClient we can reach so we can trigger the background
+    // refetch directly. This drives the same code path as the hook's 10s
+    // `refetchInterval` (both flip `isFetching` to true while existing
+    // data stays in the cache) without paying the cost of fake-timer
+    // gymnastics around React Query's async state machine.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const PanelRouterStub = createRoutesStub([
+      {
+        Component: () => <ConversationPanel />,
+        path: "/",
+      },
+      {
+        Component: () => null,
+        path: "/conversations/:conversationId",
+      },
+    ]);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <NavigationProvider
+            value={{
+              currentPath: "/",
+              conversationId: "test-conversation-id",
+              isNavigating: false,
+              navigate: vi.fn(),
+            }}
+          >
+            <PanelRouterStub />
+          </NavigationProvider>
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+
+    // Wait for the initial fetch to settle into the empty state.
+    expect(
+      await screen.findByText("CONVERSATION$NO_CONVERSATIONS"),
+    ).toBeInTheDocument();
+
+    // Act: trigger a background refetch directly on the cached query.
+    // This drives the same code path as the hook's 10s `refetchInterval`
+    // (both flip `isFetching` to true while the cached data stays
+    // intact). The second mock holds the request in-flight so the
+    // in-flight UI is observable. We fire-and-forget the fetch because
+    // awaiting it would hang on the held promise.
+    const conversationsQuery = queryClient
+      .getQueryCache()
+      .getAll()
+      .find(
+        (query) =>
+          query.queryKey[0] === "user" && query.queryKey[1] === "conversations",
+      );
+    if (!conversationsQuery) {
+      throw new Error("conversations query was not registered");
+    }
+    await act(async () => {
+      void conversationsQuery.fetch();
+      // Yield once so React Query can dispatch the in-flight state.
+      await Promise.resolve();
+    });
+
+    // Assert: the background refetch fired, but the skeleton did not
+    // flicker back in.
+    await waitFor(() => {
+      expect(searchConversationsSpy).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      screen.queryByTestId("conversation-card-skeleton"),
+    ).not.toBeInTheDocument();
+
+    // Settle the in-flight refetch so React Query can clean up.
+    resolveRefetch?.({ items: [], next_page_id: null });
+  });
+
   it("should not display the empty state when there are no conversations and the panel is compact", async () => {
     const searchConversationsSpy = vi.spyOn(
       AgentServerConversationService,
@@ -209,7 +305,9 @@ describe("ConversationPanel", () => {
     expect(
       await screen.findByLabelText("Running Conversation"),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Closed Conversation")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Closed Conversation"),
+    ).not.toBeInTheDocument();
   });
 
   it("should not render fetch errors in the conversation panel", async () => {
@@ -431,9 +529,7 @@ describe("ConversationPanel", () => {
     expect(
       screen.getByTestId("older-conversations-summary"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("load-more-conversations"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("load-more-conversations")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("load-more-conversations"));
 
@@ -1456,9 +1552,7 @@ describe("ConversationPanel", () => {
 
       await screen.findAllByTestId("conversation-card");
       // Older conversations are visible by default, so load-more is visible.
-      expect(
-        screen.getByTestId("load-more-conversations"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("load-more-conversations")).toBeInTheDocument();
 
       // Hide older conversations via the filter dropdown.
       const user = userEvent.setup();
