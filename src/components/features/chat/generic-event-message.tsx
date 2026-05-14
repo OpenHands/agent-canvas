@@ -51,7 +51,7 @@ export function GenericEventMessage({
 
   return (
     <div
-      className="flex flex-col gap-2 my-2 py-2 text-sm w-full"
+      className="flex flex-col gap-1.5 my-1 py-1 text-sm w-full"
     >
       <div className="flex items-center justify-between font-normal text-[#959CB2]">
         <div className="flex items-center">

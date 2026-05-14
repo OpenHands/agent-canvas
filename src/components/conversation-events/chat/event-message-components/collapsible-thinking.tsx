@@ -28,7 +28,7 @@ export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
 
   return (
     <div
-      className="my-2 w-full py-2 text-sm"
+      className="my-1 w-full py-1 text-sm"
       data-testid="collapsible-thinking"
     >
       <button
@@ -49,7 +49,7 @@ export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
       </button>
 
       {expanded && (
-        <div className="mt-2 pl-6" data-testid="collapsible-thinking-content">
+        <div className="mt-1.5 pl-6" data-testid="collapsible-thinking-content">
           <MarkdownRenderer>{content}</MarkdownRenderer>
         </div>
       )}

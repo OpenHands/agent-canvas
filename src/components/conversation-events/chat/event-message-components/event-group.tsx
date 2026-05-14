@@ -108,7 +108,7 @@ export function EventGroup({
 
   return (
     <div
-      className="my-2 w-full py-2 text-sm"
+      className="my-1 w-full py-1 text-sm"
       data-testid="event-group"
     >
       <button
@@ -154,7 +154,7 @@ export function EventGroup({
           id={contentId}
           role="region"
           aria-labelledby={buttonId}
-          className="mt-2 flex flex-col"
+          className="mt-1.5 flex flex-col"
           data-testid="event-group-content"
         >
           <IsInEventGroupContext.Provider value>
