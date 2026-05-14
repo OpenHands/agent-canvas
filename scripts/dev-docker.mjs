@@ -258,7 +258,6 @@ function startAgentServerDocker(config) {
   const containerEnv = {
     OH_CONVERSATIONS_PATH:
       "/home/openhands/.openhands/agent-canvas/conversations",
-    OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
     OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
     // Required so the secret-seeding PUT /api/settings/secrets call from
