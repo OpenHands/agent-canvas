@@ -120,6 +120,21 @@ describe("GitControlBarRepoButton", () => {
       expect(screen.getByText("COMMON$CONNECT_REPO")).toBeInTheDocument();
     });
 
+    it("should render a custom empty-state label when provided", () => {
+      render(
+        <GitControlBarRepoButton
+          selectedRepository={null}
+          gitProvider={null}
+          emptyStateLabel="Open Workspace"
+        />,
+      );
+
+      expect(screen.getByText("Open Workspace")).toBeInTheDocument();
+      expect(
+        screen.queryByText("COMMON$CONNECT_REPO"),
+      ).not.toBeInTheDocument();
+    });
+
     it("should show folder-open icon for connect-repo CTA", () => {
       render(
         <GitControlBarRepoButton

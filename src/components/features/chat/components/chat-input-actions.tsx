@@ -1,6 +1,7 @@
 import React from "react";
+import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Wrench } from "lucide-react";
+import { Cpu, Wrench } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
@@ -73,6 +74,7 @@ export function ChatInputActions({
   const toolsRef = React.useRef<HTMLDivElement>(null);
   const codeRef = React.useRef<HTMLDivElement>(null);
   const modelRef = React.useRef<HTMLDivElement>(null);
+  const overflowTriggerRef = React.useRef<HTMLButtonElement>(null);
   const [actionsRowWidth, setActionsRowWidth] = React.useState<number>(Number.POSITIVE_INFINITY);
   const [rightSectionWidth, setRightSectionWidth] = React.useState(0);
   const [addFileWidth, setAddFileWidth] = React.useState(32);
@@ -81,6 +83,8 @@ export function ChatInputActions({
   const [modelWidth, setModelWidth] = React.useState(120);
   const [isOverflowOpen, setIsOverflowOpen] = React.useState(false);
   const [activeSubmenu, setActiveSubmenu] = React.useState<"tools" | "agent" | "model" | null>(null);
+  const [overflowPortalStyle, setOverflowPortalStyle] =
+    React.useState<React.CSSProperties>();
 
   const {
     handleShowAgentTools,
@@ -256,6 +260,225 @@ export function ChatInputActions({
     CONTEXT_MENU_ICON_TEXT_CLASSNAME,
   );
 
+  React.useLayoutEffect(() => {
+    if (!isOverflowOpen || !overflowTriggerRef.current) {
+      return;
+    }
+
+    const trigger = overflowTriggerRef.current;
+
+    const updatePosition = () => {
+      const rect = trigger.getBoundingClientRect();
+      const GAP = 8;
+      setOverflowPortalStyle({
+        position: "fixed",
+        top: rect.top - GAP,
+        left: rect.left,
+        transform: "translateY(-100%)",
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOverflowOpen]);
+
+  const overflowMenu = (
+    <ContextMenu
+      ref={overflowMenuRef}
+      testId="chat-input-overflow-menu"
+      position="top"
+      alignment="left"
+      className="!static !top-auto !bottom-auto !left-auto !right-auto !mt-0 overflow-visible min-w-[200px]"
+    >
+      {!showToolsInline && (
+        <div className="relative group/overflow-tools">
+          <ContextMenuListItem
+            testId="overflow-tools-button"
+            onClick={() =>
+              setActiveSubmenu((current) =>
+                current === "tools" ? null : "tools",
+              )
+            }
+            className={contextMenuListItemClassName}
+          >
+            <ToolsContextMenuIconText
+              icon={<Wrench width={16} height={16} strokeWidth={2} />}
+              text={t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
+              rightIcon={<CarretRightFillIcon width={10} height={10} />}
+              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+            />
+          </ContextMenuListItem>
+          <div
+            className={cn(
+              "absolute left-full top-[-6px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
+              "group-hover/overflow-tools:opacity-100 group-hover/overflow-tools:visible group-hover/overflow-tools:pointer-events-auto",
+              "hover:opacity-100 hover:visible hover:pointer-events-auto",
+              activeSubmenu === "tools" &&
+                "opacity-100 visible pointer-events-auto",
+            )}
+          >
+            <ToolsContextMenu
+              onClose={closeOverflowMenus}
+              onShowSkills={handleShowSkills}
+              onShowHooks={handleShowHooks}
+              onShowAgentTools={handleShowAgentTools}
+              shouldShowAgentTools={shouldShowAgentTools}
+              shouldShowHooks={shouldShowHooks}
+            />
+          </div>
+        </div>
+      )}
+      {isCloud && !showCodeInline && (
+        <div className="relative group/overflow-agent">
+          <ContextMenuListItem
+            testId="overflow-agent-button"
+            onClick={() =>
+              setActiveSubmenu((current) =>
+                current === "agent" ? null : "agent",
+              )
+            }
+            isDisabled={isAgentSwitcherDisabled}
+            className={contextMenuListItemClassName}
+          >
+            <ToolsContextMenuIconText
+              icon={<CodePillIcon className="h-[11px] w-[11px]" />}
+              text={
+                conversationMode === "code"
+                  ? t(I18nKey.COMMON$CODE)
+                  : t(I18nKey.COMMON$PLAN)
+              }
+              rightIcon={<CarretRightFillIcon width={10} height={10} />}
+              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+            />
+          </ContextMenuListItem>
+          {!isAgentSwitcherDisabled && (
+            <div
+              className={cn(
+                "absolute left-full top-[-4px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
+                "group-hover/overflow-agent:opacity-100 group-hover/overflow-agent:visible group-hover/overflow-agent:pointer-events-auto",
+                "hover:opacity-100 hover:visible hover:pointer-events-auto",
+                activeSubmenu === "agent" &&
+                  "opacity-100 visible pointer-events-auto",
+              )}
+            >
+              <ContextMenu
+                testId="overflow-agent-submenu"
+                className="overflow-visible min-w-[195px]"
+              >
+                <ContextMenuListItem
+                  testId="overflow-agent-code"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setConversationMode("code");
+                    closeOverflowMenus();
+                  }}
+                  className={contextMenuListItemClassName}
+                >
+                  <ToolsContextMenuIconText
+                    icon={<CodePillIcon className="h-[11px] w-[11px]" />}
+                    text={t(I18nKey.COMMON$CODE)}
+                    className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+                  />
+                </ContextMenuListItem>
+                <ContextMenuListItem
+                  testId="overflow-agent-plan"
+                  onClick={(event) => {
+                    handlePlanClick(event);
+                    closeOverflowMenus();
+                  }}
+                  className={contextMenuListItemClassName}
+                >
+                  <ToolsContextMenuIconText
+                    icon={
+                      <LessonPlanIcon
+                        width={16}
+                        height={16}
+                        color="currentColor"
+                      />
+                    }
+                    text={t(I18nKey.COMMON$PLAN)}
+                    className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+                  />
+                </ContextMenuListItem>
+              </ContextMenu>
+            </div>
+          )}
+        </div>
+      )}
+      {!showModelInline && (
+        <div className="relative group/overflow-model">
+          <ContextMenuListItem
+            testId="overflow-model-button"
+            onClick={() =>
+              setActiveSubmenu((current) =>
+                current === "model" ? null : "model",
+              )
+            }
+            className={contextMenuListItemClassName}
+          >
+            <ToolsContextMenuIconText
+              icon={
+                <Cpu
+                  width={16}
+                  height={16}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              }
+              text="Model"
+              rightIcon={<CarretRightFillIcon width={10} height={10} />}
+              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
+            />
+          </ContextMenuListItem>
+          <div
+            className={cn(
+              "absolute left-full top-[-4px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
+              "group-hover/overflow-model:opacity-100 group-hover/overflow-model:visible group-hover/overflow-model:pointer-events-auto",
+              "hover:opacity-100 hover:visible hover:pointer-events-auto",
+              activeSubmenu === "model" &&
+                "opacity-100 visible pointer-events-auto",
+            )}
+          >
+            <ContextMenu
+              testId="overflow-model-submenu"
+              className="overflow-visible min-w-[220px] max-w-[320px]"
+            >
+              <li className="text-sm">
+                <div className="p-2 leading-5 text-white break-all">
+                  {conversation?.llm_model}
+                </div>
+              </li>
+              <Divider />
+              <li className="text-sm">
+                <NavigationLink
+                  to="/settings"
+                  onClick={closeOverflowMenus}
+                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+                >
+                  <SettingsGearIcon
+                    width={16}
+                    height={16}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                  <span>{t(I18nKey.SETTINGS$LLM_SETTINGS)}</span>
+                </NavigationLink>
+              </li>
+            </ContextMenu>
+          </div>
+        </div>
+      )}
+    </ContextMenu>
+  );
+
   return (
     <div ref={actionsRowRef} className="w-full min-w-0 flex items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-1">
@@ -281,6 +504,7 @@ export function ChatInputActions({
           {hasOverflowItems && (
             <div className="relative shrink-0">
               <button
+                ref={overflowTriggerRef}
                 type="button"
                 className={cn(
                   "flex size-6 items-center justify-center rounded-full text-[#959CB2] transition-colors",
@@ -298,194 +522,13 @@ export function ChatInputActions({
                 <ThreeDotsVerticalIcon width={16} height={16} color="currentColor" />
               </button>
 
-              {isOverflowOpen && (
-                <ContextMenu
-                  ref={overflowMenuRef}
-                  testId="chat-input-overflow-menu"
-                  position="top"
-                  alignment="left"
-                  className="z-[60] left-[-16px] mb-2 bottom-full overflow-visible min-w-[200px]"
-                >
-                  {!showToolsInline && (
-                    <div className="relative group/overflow-tools">
-                      <ContextMenuListItem
-                        testId="overflow-tools-button"
-                        onClick={() =>
-                          setActiveSubmenu((current) =>
-                            current === "tools" ? null : "tools",
-                          )
-                        }
-                        className={contextMenuListItemClassName}
-                      >
-                        <ToolsContextMenuIconText
-                          icon={<Wrench width={16} height={16} strokeWidth={2} />}
-                          text={t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
-                          rightIcon={<CarretRightFillIcon width={10} height={10} />}
-                          className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-                        />
-                      </ContextMenuListItem>
-                      <div
-                        className={cn(
-                          "absolute left-full top-[-6px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
-                          "group-hover/overflow-tools:opacity-100 group-hover/overflow-tools:visible group-hover/overflow-tools:pointer-events-auto",
-                          "hover:opacity-100 hover:visible hover:pointer-events-auto",
-                          activeSubmenu === "tools" &&
-                            "opacity-100 visible pointer-events-auto",
-                        )}
-                      >
-                        <ToolsContextMenu
-                          onClose={closeOverflowMenus}
-                          onShowSkills={handleShowSkills}
-                          onShowHooks={handleShowHooks}
-                          onShowAgentTools={handleShowAgentTools}
-                          shouldShowAgentTools={shouldShowAgentTools}
-                          shouldShowHooks={shouldShowHooks}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {isCloud && !showCodeInline && (
-                    <div className="relative group/overflow-agent">
-                      <ContextMenuListItem
-                        testId="overflow-agent-button"
-                        onClick={() =>
-                          setActiveSubmenu((current) =>
-                            current === "agent" ? null : "agent",
-                          )
-                        }
-                        isDisabled={isAgentSwitcherDisabled}
-                        className={contextMenuListItemClassName}
-                      >
-                        <ToolsContextMenuIconText
-                          icon={<CodePillIcon className="h-[11px] w-[11px]" />}
-                          text={
-                            conversationMode === "code"
-                              ? t(I18nKey.COMMON$CODE)
-                              : t(I18nKey.COMMON$PLAN)
-                          }
-                          rightIcon={<CarretRightFillIcon width={10} height={10} />}
-                          className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-                        />
-                      </ContextMenuListItem>
-                      {!isAgentSwitcherDisabled && (
-                        <div
-                          className={cn(
-                            "absolute left-full top-[-4px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
-                            "group-hover/overflow-agent:opacity-100 group-hover/overflow-agent:visible group-hover/overflow-agent:pointer-events-auto",
-                            "hover:opacity-100 hover:visible hover:pointer-events-auto",
-                            activeSubmenu === "agent" &&
-                              "opacity-100 visible pointer-events-auto",
-                          )}
-                        >
-                          <ContextMenu
-                            testId="overflow-agent-submenu"
-                            className="overflow-visible min-w-[195px]"
-                          >
-                            <ContextMenuListItem
-                              testId="overflow-agent-code"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setConversationMode("code");
-                                closeOverflowMenus();
-                              }}
-                              className={contextMenuListItemClassName}
-                            >
-                              <ToolsContextMenuIconText
-                                icon={<CodePillIcon className="h-[11px] w-[11px]" />}
-                                text={t(I18nKey.COMMON$CODE)}
-                                className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-                              />
-                            </ContextMenuListItem>
-                            <ContextMenuListItem
-                              testId="overflow-agent-plan"
-                              onClick={(event) => {
-                                handlePlanClick(event);
-                                closeOverflowMenus();
-                              }}
-                              className={contextMenuListItemClassName}
-                            >
-                              <ToolsContextMenuIconText
-                                icon={
-                                  <LessonPlanIcon
-                                    width={16}
-                                    height={16}
-                                    color="currentColor"
-                                  />
-                                }
-                                text={t(I18nKey.COMMON$PLAN)}
-                                className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-                              />
-                            </ContextMenuListItem>
-                          </ContextMenu>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {!showModelInline && (
-                    <div className="relative group/overflow-model">
-                      <ContextMenuListItem
-                        testId="overflow-model-button"
-                        onClick={() =>
-                          setActiveSubmenu((current) =>
-                            current === "model" ? null : "model",
-                          )
-                        }
-                        className={contextMenuListItemClassName}
-                      >
-                        <ToolsContextMenuIconText
-                          icon={
-                            <SettingsGearIcon
-                              width={16}
-                              height={16}
-                              aria-hidden
-                            />
-                          }
-                          text={t(I18nKey.SETTINGS$LLM_SETTINGS)}
-                          rightIcon={<CarretRightFillIcon width={10} height={10} />}
-                          className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-                        />
-                      </ContextMenuListItem>
-                      <div
-                        className={cn(
-                          "absolute left-full top-[-4px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
-                          "group-hover/overflow-model:opacity-100 group-hover/overflow-model:visible group-hover/overflow-model:pointer-events-auto",
-                          "hover:opacity-100 hover:visible hover:pointer-events-auto",
-                          activeSubmenu === "model" &&
-                            "opacity-100 visible pointer-events-auto",
-                        )}
-                      >
-                        <ContextMenu
-                          testId="overflow-model-submenu"
-                          className="overflow-visible min-w-[220px] max-w-[320px]"
-                        >
-                          <li className="text-sm">
-                            <div className="p-2 leading-5 text-white break-all">
-                              {conversation?.llm_model}
-                            </div>
-                          </li>
-                          <Divider />
-                          <li className="text-sm">
-                            <NavigationLink
-                              to="/settings"
-                              onClick={closeOverflowMenus}
-                              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
-                            >
-                              <SettingsGearIcon
-                                width={16}
-                                height={16}
-                                className="shrink-0"
-                                aria-hidden
-                              />
-                              <span>{t(I18nKey.SETTINGS$LLM_SETTINGS)}</span>
-                            </NavigationLink>
-                          </li>
-                        </ContextMenu>
-                      </div>
-                    </div>
-                  )}
-                </ContextMenu>
-              )}
+              {isOverflowOpen &&
+                typeof document !== "undefined" &&
+                overflowPortalStyle &&
+                ReactDOM.createPortal(
+                  <div style={overflowPortalStyle}>{overflowMenu}</div>,
+                  document.body,
+                )}
             </div>
           )}
         </div>
