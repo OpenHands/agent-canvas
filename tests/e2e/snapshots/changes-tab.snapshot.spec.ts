@@ -214,16 +214,14 @@ test.describe("Changes Tab Visual Snapshots", () => {
       timeout: 10_000,
     });
 
-    // Give Monaco a moment to finish incremental text rendering.
-    // Monaco renders content progressively after mount; a short pause lets
-    // the editor settle to a stable visual state before capturing the snapshot.
-    await page.waitForTimeout(800);
-
-    // Use a slightly larger pixel ratio tolerance since Monaco's text rendering
-    // can vary minimally between runs (sub-pixel font hinting differences).
+    // Mask the Monaco DiffEditor container.  Monaco renders text content
+    // progressively and uses sub-pixel font hinting that varies between OS/CI
+    // environments.  Masking editor-container captures the panel layout (toolbar,
+    // file list, editor frame) without the volatile text-rendering pixels.
     await expect(filesTab).toHaveScreenshot("changes-diff-viewer.png", {
       animations: "disabled",
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.01,
+      mask: [page.getByTestId("editor-container")],
     });
   });
 
