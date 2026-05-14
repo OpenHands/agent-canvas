@@ -51,10 +51,7 @@ import {
   isPortBusy,
   releaseStaleConversationLeases,
 } from "./dev-safe.mjs";
-import {
-  buildAutomationCommand,
-  buildConfig,
-} from "./dev-with-automation.mjs";
+import { buildAutomationCommand, buildConfig } from "./dev-with-automation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -310,6 +307,21 @@ function startAgentServer(config) {
   );
 }
 
+function buildAutomationBackendEnv(config) {
+  return {
+    AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+    AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
+    AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
+    AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
+    AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
+    AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+    FILE_STORE: "local",
+    LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
+    OPENHANDS_SUPPRESS_BANNER: "1",
+  };
+}
+
 function startAutomationBackend(config) {
   logService(
     "automation",
@@ -332,17 +344,7 @@ function startAutomationBackend(config) {
     ],
     {
       cwd: config.stateDir,
-      env: {
-        AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
-        AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
-        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
-        FILE_STORE: "local",
-        LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
-        OPENHANDS_SUPPRESS_BANNER: "1",
-      },
+      env: buildAutomationBackendEnv(config),
       color: c.green,
     },
   );
@@ -584,7 +586,7 @@ async function main() {
 // Exports for testing
 // ═══════════════════════════════════════════════════════════════════════════
 
-export { buildFrontend, startStaticServer };
+export { buildAutomationBackendEnv, buildFrontend, startStaticServer };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Main entry point (only when run directly, not when imported)
