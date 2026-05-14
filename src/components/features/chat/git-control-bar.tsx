@@ -101,10 +101,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     ? workspacePath.replace(/\/+$/, "").split("/").pop() || null
     : null;
 
-  // Keep git actions (pull/push/PR) gated on the conversation actually being
-  // associated with a known git provider — local-only repos shouldn't enable
-  // those flows, so we only flip `hasRepository` for conversation/task data.
-  const hasRepository = !!conversationRepository;
+  // Enable git actions whenever a repository and provider are known, including
+  // local conversations where repo metadata is inferred from git remotes.
+  const hasRepository = !!selectedRepository && !!gitProvider;
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "OPEN";

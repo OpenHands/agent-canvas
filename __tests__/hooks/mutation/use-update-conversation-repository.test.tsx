@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 // Mock the AgentServerConversationService
 vi.mock("#/api/conversation-service/agent-server-conversation-service.api", () => ({
@@ -24,21 +25,25 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
   displayErrorToast: vi.fn(),
 }));
 
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
+const createWrapper = (queryClient?: QueryClient) => {
+  const client =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+        mutations: {
+          retry: false,
+        },
       },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
+    });
 
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
+
+  return { Wrapper, client };
 };
 
 describe("useUpdateConversationRepository", () => {
@@ -58,8 +63,9 @@ describe("useUpdateConversationRepository", () => {
       mockResponse as any,
     );
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useUpdateConversationRepository(), {
-      wrapper: createWrapper(),
+      wrapper: Wrapper,
     });
 
     result.current.mutate({
@@ -93,8 +99,9 @@ describe("useUpdateConversationRepository", () => {
       mockResponse as any,
     );
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useUpdateConversationRepository(), {
-      wrapper: createWrapper(),
+      wrapper: Wrapper,
     });
 
     result.current.mutate({
@@ -121,8 +128,9 @@ describe("useUpdateConversationRepository", () => {
       new Error("Failed to update repository"),
     );
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useUpdateConversationRepository(), {
-      wrapper: createWrapper(),
+      wrapper: Wrapper,
     });
 
     result.current.mutate({
@@ -135,5 +143,103 @@ describe("useUpdateConversationRepository", () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
+  });
+
+  it("optimistically updates the cached conversation under the prefix-extended key used by useUserConversation", async () => {
+    const conversationId = "test-conversation-id";
+    // Mirror the key shape from `useUserConversation`:
+    //   ["user", "conversation", cid, backendId, orgId]
+    const cacheKey = [
+      "user",
+      "conversation",
+      conversationId,
+      "default-local",
+      null,
+    ] as const;
+    const baseConversation = {
+      id: conversationId,
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+    } as unknown as AppConversation;
+
+    vi.mocked(
+      AgentServerConversationService.updateConversationRepository,
+    ).mockImplementation(async () => {
+      // Block long enough to assert the optimistic update fires before
+      // the mutation resolves.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return {
+        ...baseConversation,
+        selected_repository: "owner/repo",
+        selected_branch: "main",
+        git_provider: "github",
+      } as unknown as AppConversation;
+    });
+
+    const { Wrapper, client } = createWrapper();
+    client.setQueryData(cacheKey, baseConversation);
+
+    const { result } = renderHook(() => useUpdateConversationRepository(), {
+      wrapper: Wrapper,
+    });
+
+    result.current.mutate({
+      conversationId,
+      repository: "owner/repo",
+      branch: "main",
+      gitProvider: "github",
+    });
+
+    await waitFor(() => {
+      const cached = client.getQueryData<AppConversation>(cacheKey);
+      expect(cached?.selected_repository).toBe("owner/repo");
+      expect(cached?.selected_branch).toBe("main");
+      expect(cached?.git_provider).toBe("github");
+    });
+  });
+
+  it("rolls back the prefix-keyed cache entry when the mutation rejects", async () => {
+    const conversationId = "test-conversation-id";
+    const cacheKey = [
+      "user",
+      "conversation",
+      conversationId,
+      "default-local",
+      null,
+    ] as const;
+    const baseConversation = {
+      id: conversationId,
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+    } as unknown as AppConversation;
+
+    vi.mocked(
+      AgentServerConversationService.updateConversationRepository,
+    ).mockRejectedValue(new Error("nope"));
+
+    const { Wrapper, client } = createWrapper();
+    client.setQueryData(cacheKey, baseConversation);
+
+    const { result } = renderHook(() => useUpdateConversationRepository(), {
+      wrapper: Wrapper,
+    });
+
+    result.current.mutate({
+      conversationId,
+      repository: "owner/repo",
+      branch: "main",
+      gitProvider: "github",
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    const cached = client.getQueryData<AppConversation>(cacheKey);
+    expect(cached?.selected_repository).toBeNull();
+    expect(cached?.selected_branch).toBeNull();
+    expect(cached?.git_provider).toBeNull();
   });
 });

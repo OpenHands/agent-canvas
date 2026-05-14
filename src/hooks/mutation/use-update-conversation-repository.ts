@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { I18nKey } from "#/i18n/declaration";
@@ -7,6 +7,7 @@ import {
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
 import { Provider } from "#/types/settings";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface UpdateRepositoryVariables {
   conversationId: string;
@@ -28,55 +29,54 @@ export const useUpdateConversationRepository = () => {
         variables.gitProvider,
       ),
     onMutate: async (variables) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: ["user", "conversation", variables.conversationId],
+      // The active conversation is cached under a prefix-extended key
+      // (`["user", "conversation", id, backendId, orgId]`) by
+      // `useUserConversation`. Cancel/snapshot/update via the prefix so
+      // the optimistic change actually reaches the rendered query, not a
+      // stale 3-element key that no observer ever reads.
+      const prefix: QueryKey = ["user", "conversation", variables.conversationId];
+      await queryClient.cancelQueries({ queryKey: prefix });
+
+      const previousEntries = queryClient.getQueriesData<AppConversation | null>({
+        queryKey: prefix,
       });
 
-      // Snapshot the previous value
-      const previousConversation = queryClient.getQueryData([
-        "user",
-        "conversation",
-        variables.conversationId,
-      ]);
-
-      // Optimistically update the conversation
-      queryClient.setQueryData(
-        ["user", "conversation", variables.conversationId],
-        (old: unknown) =>
-          old && typeof old === "object"
+      queryClient.setQueriesData<AppConversation | null>(
+        { queryKey: prefix },
+        (old) =>
+          old
             ? {
                 ...old,
                 selected_repository: variables.repository,
-                selected_branch: variables.branch,
-                git_provider: variables.gitProvider,
+                selected_branch: variables.branch ?? null,
+                git_provider: variables.gitProvider ?? null,
               }
             : old,
       );
 
-      return { previousConversation };
+      return { previousEntries };
     },
     onError: (err, variables, context) => {
-      // Rollback on error
-      if (context?.previousConversation) {
-        queryClient.setQueryData(
-          ["user", "conversation", variables.conversationId],
-          context.previousConversation,
-        );
-      }
+      context?.previousEntries.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
       displayErrorToast(t(I18nKey.CONVERSATION$FAILED_TO_UPDATE_REPOSITORY));
     },
     onSuccess: () => {
       displaySuccessToast(t(I18nKey.CONVERSATION$REPOSITORY_UPDATED));
     },
     onSettled: (data, error, variables) => {
-      // Always refetch after error or success
       queryClient.invalidateQueries({
         queryKey: ["user", "conversation", variables.conversationId],
       });
-      // Also invalidate the conversations list to update any cached data
       queryClient.invalidateQueries({
         queryKey: ["user", "conversations"],
+      });
+      // The local-git-info probe is keyed off the conversation's
+      // working_dir; force a re-probe so the connected-repo row
+      // re-renders without waiting on the next 10s poll tick.
+      queryClient.invalidateQueries({
+        queryKey: ["local-git-info", variables.conversationId],
       });
     },
   });
