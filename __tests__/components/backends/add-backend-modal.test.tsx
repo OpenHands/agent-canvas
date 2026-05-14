@@ -46,10 +46,12 @@ describe("AddBackendModal", () => {
     expect(row.className).toContain("grid-cols-2");
   });
 
-  it("starts with an empty host and shows the login button for cloud backends", () => {
+  it("prefills the cloud host and shows the login button", () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
-    expect(screen.getByTestId("add-backend-host")).toHaveValue("");
+    expect(screen.getByTestId("add-backend-host")).toHaveValue(
+      "https://app.openhands.dev",
+    );
     expect(screen.getByTestId("add-backend-kind-cloud")).toBeChecked();
     expect(screen.getByTestId("add-backend-login-button")).not.toBeDisabled();
   });
@@ -64,13 +66,8 @@ describe("AddBackendModal", () => {
     expect(submit).toBeDisabled();
 
     const user = userEvent.setup();
+    // Host is prefilled with the cloud default; still need name + API key.
     await user.type(screen.getByTestId("add-backend-name"), "Production");
-    expect(submit).toBeDisabled();
-
-    await user.type(
-      screen.getByTestId("add-backend-host"),
-      "https://app.openhands.dev",
-    );
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "secret-key");
@@ -134,11 +131,8 @@ describe("AddBackendModal", () => {
     ) as HTMLButtonElement;
     const user = userEvent.setup();
 
+    // Host is prefilled; adding name alone shouldn't enable submit.
     await user.type(screen.getByTestId("add-backend-name"), "Cloud");
-    await user.type(
-      screen.getByTestId("add-backend-host"),
-      "https://app.openhands.dev",
-    );
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "token");

@@ -189,7 +189,9 @@ export function BackendForm({
     backend?.kind ?? (mode === "edit" ? "local" : "cloud");
 
   const [name, setName] = React.useState(backend?.name ?? "");
-  const [host, setHost] = React.useState(backend?.host ?? "");
+  const [host, setHost] = React.useState(
+    backend?.host ?? (mode === "add" ? DEFAULT_OPENHANDS_CLOUD_HOST : ""),
+  );
   const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
   const [kind, setKind] = React.useState<BackendKind>(initialKind);
   // In add mode, infer the kind from the host; in edit mode, the user
@@ -317,13 +319,14 @@ export function BackendForm({
             </div>
 
             <DeviceFlowAuth
-              host={DEFAULT_OPENHANDS_CLOUD_HOST}
-              onSuccess={(key) => {
-                setHost(DEFAULT_OPENHANDS_CLOUD_HOST);
-                setApiKey(key);
-              }}
+              host={host}
+              onSuccess={setApiKey}
               testIdRoot={testIdRoot}
+              isDisabled={host.trim().length === 0}
             />
+            <p className="text-xs leading-5 text-gray-400">
+              {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}
+            </p>
           </>
         )}
       </div>

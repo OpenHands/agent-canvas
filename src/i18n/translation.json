@@ -24020,6 +24020,23 @@
     "uk": "Увійти через OpenHands Cloud",
     "ca": "Inicia sessió amb OpenHands Cloud"
   },
+  "BACKEND$LOGIN_CLOUD_HINT": {
+    "en": "Works with OpenHands Cloud or your self-hosted OpenHands Cloud deployment.",
+    "ja": "OpenHands Cloud またはセルフホスト型 OpenHands Cloud デプロイメントで使用できます。",
+    "zh-CN": "适用于 OpenHands Cloud 或您的自托管 OpenHands Cloud 部署。",
+    "zh-TW": "適用於 OpenHands Cloud 或您的自託管 OpenHands Cloud 部署。",
+    "ko-KR": "OpenHands Cloud 또는 자체 호스팅 OpenHands Cloud 배포에서 사용할 수 있습니다.",
+    "no": "Fungerer med OpenHands Cloud eller din selvhostede OpenHands Cloud-distribusjon.",
+    "it": "Funziona con OpenHands Cloud o la tua distribuzione self-hosted di OpenHands Cloud.",
+    "pt": "Funciona com o OpenHands Cloud ou sua implantação auto-hospedada do OpenHands Cloud.",
+    "es": "Funciona con OpenHands Cloud o su implementación autoalojada de OpenHands Cloud.",
+    "ar": "يعمل مع OpenHands Cloud أو نشر OpenHands Cloud المستضاف ذاتيًا.",
+    "fr": "Fonctionne avec OpenHands Cloud ou votre déploiement auto-hébergé d'OpenHands Cloud.",
+    "tr": "OpenHands Cloud veya kendi barındırdığınız OpenHands Cloud dağıtımınızla çalışır.",
+    "de": "Funktioniert mit OpenHands Cloud oder Ihrer selbst gehosteten OpenHands Cloud-Installation.",
+    "uk": "Працює з OpenHands Cloud або вашим самостійно розміщеним розгортанням OpenHands Cloud.",
+    "ca": "Funciona amb OpenHands Cloud o el vostre desplegament autoallotjat d'OpenHands Cloud."
+  },
   "BACKEND$LOGIN_OR_MANUAL": {
     "en": "or enter API key manually",
     "ja": "または API キーを手動で入力",
