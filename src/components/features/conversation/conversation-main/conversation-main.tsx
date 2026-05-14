@@ -71,7 +71,7 @@ export function ConversationMain() {
         >
           <div
             data-testid="chat-pane-header"
-            className="flex items-center min-h-9 mb-3 pt-2 lg:pt-0"
+            className="flex items-center min-h-9 pt-2 lg:pt-0"
           >
             <ConversationNameWithStatus />
           </div>
