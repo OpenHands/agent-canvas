@@ -35,13 +35,13 @@ export function GenericEventMessage({
     >
       {showDetails ? (
         <ArrowUp
-          className={`h-4 w-4 inline fill-neutral-300 ${
+          className={`h-4 w-4 inline fill-[#959CB2] ${
             chevronPosition === "after" ? "ml-2" : "mr-2"
           }`}
         />
       ) : (
         <ArrowDown
-          className={`h-4 w-4 inline fill-neutral-300 ${
+          className={`h-4 w-4 inline fill-[#959CB2] ${
             chevronPosition === "after" ? "ml-2" : "mr-2"
           }`}
         />
@@ -53,7 +53,7 @@ export function GenericEventMessage({
     <div
       className="flex flex-col gap-2 my-2 py-2 text-sm w-full"
     >
-      <div className="flex items-center justify-between font-bold text-neutral-300">
+      <div className="flex items-center justify-between font-normal text-[#959CB2]">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}
           {/* Wrap the title in a span so any whitespace inside Trans-rendered
