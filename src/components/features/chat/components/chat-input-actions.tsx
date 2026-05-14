@@ -2,6 +2,7 @@ import { AgentStatus } from "#/components/features/controls/agent-status";
 import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
 import { ChatInputModel } from "./chat-input-model";
+import { ChatAddFileButton } from "../chat-add-file-button";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
@@ -10,9 +11,13 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface ChatInputActionsProps {
   disabled: boolean;
+  onAddFileClick?: () => void;
 }
 
-export function ChatInputActions({ disabled }: ChatInputActionsProps) {
+export function ChatInputActions({
+  disabled,
+  onAddFileClick = () => {},
+}: ChatInputActionsProps) {
   const unifiedPauseMutation = useUnifiedPauseConversation();
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
@@ -36,6 +41,10 @@ export function ChatInputActions({ disabled }: ChatInputActionsProps) {
     <div className="w-full flex items-center justify-between">
       <div className="flex items-center gap-1">
         <div className="flex items-center gap-4">
+          <ChatAddFileButton
+            disabled={disabled}
+            handleFileIconClick={onAddFileClick}
+          />
           <Tools />
           {isCloud && <ChangeAgentButton />}
           <ChatInputModel />
