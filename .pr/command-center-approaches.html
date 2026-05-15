@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center — Design Approaches</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-raised: #1c2129;
+    --border: #30363d;
+    --border-accent: #58a6ff;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --teal: #39d2c0;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  .hero {
+    text-align: center;
+    padding: 60px 24px 40px;
+    background: linear-gradient(180deg, #161b2280 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .subtitle {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    max-width: 640px;
+    margin: 12px auto 0;
+  }
+  .hero .tag {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 4px 14px;
+    border-radius: 9999px;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: rgba(188,140,255,.15);
+    color: var(--purple);
+    border: 1px solid rgba(188,140,255,.25);
+  }
+
+  /* ── Problem Statement ──────────────────────────────── */
+  .problem {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 24px;
+  }
+  .problem-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+  }
+  .problem-card h2 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+    color: var(--orange);
+  }
+  .problem-card p { color: var(--text-muted); }
+  .problem-card .pain-points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .pain-point {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .pain-point .icon { font-size: 1.5rem; margin-bottom: 8px; }
+  .pain-point h3 { font-size: .9rem; margin-bottom: 4px; }
+  .pain-point p { font-size: .82rem; color: var(--text-muted); }
+
+  /* ── Architecture Context ───────────────────────────── */
+  .context {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 24px;
+  }
+  .context h2 {
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+  }
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    overflow-x: auto;
+  }
+  .arch-diagram pre {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: .78rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    white-space: pre;
+  }
+  .arch-diagram pre .hl  { color: var(--accent); }
+  .arch-diagram pre .hlg { color: var(--green); }
+  .arch-diagram pre .hlp { color: var(--purple); }
+  .arch-diagram pre .hlo { color: var(--orange); }
+  .context-caption {
+    font-size: .85rem;
+    color: var(--text-muted);
+    margin-top: 12px;
+  }
+
+  /* ── Approaches ─────────────────────────────────────── */
+  .approaches {
+    max-width: 1100px;
+    margin: 48px auto;
+    padding: 0 24px;
+  }
+  .approaches > h2 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+  }
+  .approaches > p { color: var(--text-muted); margin-bottom: 24px; }
+
+  .approach {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .approach:hover { border-color: var(--border-accent); }
+  .approach.recommended { border-color: var(--green); }
+  .approach.recommended .approach-header { border-bottom-color: rgba(63,185,80,.2); }
+
+  .approach-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .approach-header .letter {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .approach-header h3 { font-size: 1.1rem; flex: 1; }
+  .approach-header .effort-badge {
+    font-size: .75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 9999px;
+  }
+  .effort-low    { background: rgba(63,185,80,.15); color: var(--green); }
+  .effort-medium { background: rgba(210,153,34,.15); color: var(--orange); }
+  .effort-high   { background: rgba(248,81,73,.15); color: var(--red); }
+
+  .approach-body { padding: 24px 28px; display: none; }
+  .approach.open .approach-body { display: block; }
+  .approach-body p { color: var(--text-muted); margin-bottom: 16px; }
+
+  .approach-body h4 {
+    font-size: .9rem;
+    font-weight: 600;
+    margin: 20px 0 8px;
+    color: var(--text);
+  }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .tag-row .t {
+    font-size: .75rem;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .pro-con { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .pro-con { grid-template-columns: 1fr; } }
+  .pro-con ul { list-style: none; padding: 0; }
+  .pro-con li {
+    font-size: .85rem;
+    color: var(--text-muted);
+    padding: 6px 0 6px 24px;
+    position: relative;
+  }
+  .pro-con li::before {
+    position: absolute;
+    left: 0;
+    font-weight: 700;
+  }
+  .pros li::before { content: "+"; color: var(--green); }
+  .cons li::before { content: "−"; color: var(--red); }
+
+  /* ── Mockup ─────────────────────────────────────────── */
+  .mockup-section {
+    max-width: 1100px;
+    margin: 48px auto;
+    padding: 0 24px;
+  }
+  .mockup-section h2 { font-size: 1.3rem; margin-bottom: 8px; }
+  .mockup-section > p { color: var(--text-muted); margin-bottom: 24px; }
+
+  .mockup-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .mockup-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #0d1117;
+    border-bottom: 1px solid var(--border);
+  }
+  .mockup-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .mockup-dot.r { background: #f85149; }
+  .mockup-dot.y { background: #d29922; }
+  .mockup-dot.g { background: #3fb950; }
+  .mockup-titlebar span { font-size: .8rem; color: var(--text-muted); margin-left: 12px; }
+
+  .mockup-inner { padding: 24px; }
+
+  /* Dashboard mockup */
+  .mock-dashboard {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 16px;
+    min-height: 400px;
+  }
+  @media (max-width: 700px) { .mock-dashboard { grid-template-columns: 1fr; } }
+
+  .mock-sidebar {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .mock-sidebar h4 {
+    font-size: .8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 12px;
+  }
+  .mock-sidebar .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: .85rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .mock-sidebar .nav-item.active {
+    background: rgba(88,166,255,.12);
+    color: var(--accent);
+  }
+  .mock-sidebar .nav-item .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+
+  .mock-main { display: flex; flex-direction: column; gap: 12px; }
+
+  .mock-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 700px) { .mock-stats { grid-template-columns: repeat(2,1fr); } }
+  .mock-stat {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .mock-stat .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+  .mock-stat .label {
+    font-size: .75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .mock-table {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 1;
+  }
+  .mock-table-header {
+    display: grid;
+    grid-template-columns: 2fr 100px 120px 2fr 100px;
+    padding: 10px 16px;
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 1px solid var(--border);
+  }
+  @media (max-width: 800px) { .mock-table-header, .mock-table-row { grid-template-columns: 1fr 80px 1fr !important; } .mock-table-header > *:nth-child(4), .mock-table-header > *:nth-child(5), .mock-table-row > *:nth-child(4), .mock-table-row > *:nth-child(5) { display: none; } }
+  .mock-table-row {
+    display: grid;
+    grid-template-columns: 2fr 100px 120px 2fr 100px;
+    padding: 12px 16px;
+    font-size: .84rem;
+    border-bottom: 1px solid rgba(48,54,61,.5);
+    align-items: center;
+  }
+  .mock-table-row:last-child { border-bottom: none; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: .75rem;
+    font-weight: 600;
+  }
+  .status-pill .sd { width: 6px; height: 6px; border-radius: 50%; }
+  .status-running  { background: rgba(63,185,80,.12); color: var(--green); }
+  .status-running .sd { background: var(--green); }
+  .status-finished { background: rgba(88,166,255,.12); color: var(--accent); }
+  .status-finished .sd { background: var(--accent); }
+  .status-waiting  { background: rgba(210,153,34,.12); color: var(--orange); }
+  .status-waiting .sd { background: var(--orange); }
+  .status-error    { background: rgba(248,81,73,.12); color: var(--red); }
+  .status-error .sd { background: var(--red); }
+  .status-idle     { background: rgba(139,148,158,.12); color: var(--text-muted); }
+  .status-idle .sd { background: var(--text-muted); }
+  .last-msg { color: var(--text-muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Notification feed mockup */
+  .mock-feed {
+    max-width: 420px;
+    margin: 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-raised);
+    overflow: hidden;
+  }
+  .mock-feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mock-feed-header h4 { font-size: .95rem; }
+  .mock-feed-header .badge {
+    background: var(--accent);
+    color: #0d1117;
+    font-size: .7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+  .feed-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(48,54,61,.4);
+    align-items: flex-start;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+  }
+  .feed-item .feed-body { flex: 1; min-width: 0; }
+  .feed-item .feed-title { font-size: .85rem; font-weight: 600; }
+  .feed-item .feed-msg { font-size: .8rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-item .feed-time { font-size: .72rem; color: var(--text-muted); margin-top: 4px; }
+
+  /* Sidebar-enhanced mockup */
+  .mock-sidebar-enhanced {
+    width: 300px;
+    margin: 0 auto;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .se-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .se-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(48,54,61,.4);
+  }
+  .se-item:last-child { border-bottom: none; }
+  .se-item-top { display: flex; justify-content: space-between; align-items: center; }
+  .se-item-top .name { font-size: .85rem; font-weight: 600; }
+  .se-item-preview {
+    font-size: .78rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(13,17,23,.5);
+    border-radius: 6px;
+    border-left: 2px solid var(--border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .se-item-preview.finish { border-left-color: var(--green); }
+  .se-item-preview.running { border-left-color: var(--accent); }
+  .se-item-preview.error { border-left-color: var(--red); }
+
+  /* ── Recommendation ─────────────────────────────────── */
+  .recommendation {
+    max-width: 900px;
+    margin: 48px auto;
+    padding: 0 24px;
+  }
+  .rec-card {
+    background: linear-gradient(135deg, rgba(63,185,80,.06), rgba(88,166,255,.06));
+    border: 1px solid rgba(63,185,80,.3);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .rec-card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 12px;
+    color: var(--green);
+  }
+  .rec-card p { color: var(--text-muted); margin-bottom: 12px; }
+  .rec-card .phases {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .phase {
+    background: rgba(13,17,23,.5);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .phase .phase-label {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .phase h4 { font-size: .9rem; margin-bottom: 6px; }
+  .phase p { font-size: .82rem; color: var(--text-muted); }
+
+  /* ── Data Flow Diagram ──────────────────────────────── */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-top: 16px;
+    overflow-x: auto;
+  }
+  .diagram pre {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: .75rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    white-space: pre;
+  }
+
+  /* ── Footer ─────────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--text-muted);
+    font-size: .82rem;
+    border-top: 1px solid var(--border);
+    margin-top: 48px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── Toggle arrows ──────────────────────────────────── */
+  .toggle-arrow {
+    font-size: .8rem;
+    color: var(--text-muted);
+    transition: transform .2s;
+  }
+  .approach.open .toggle-arrow { transform: rotate(90deg); }
+
+  /* ── Code snippet ───────────────────────────────────── */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin-top: 12px;
+  }
+  .code-block pre {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: .78rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+  .code-block .kw { color: var(--purple); }
+  .code-block .fn { color: var(--accent); }
+  .code-block .st { color: var(--green); }
+  .code-block .cm { color: #484f58; }
+  .code-block .ty { color: var(--orange); }
+
+  /* ── Effort matrix ──────────────────────────────────── */
+  .matrix-section {
+    max-width: 900px;
+    margin: 48px auto;
+    padding: 0 24px;
+  }
+  .matrix-section h2 { font-size: 1.3rem; margin-bottom: 16px; }
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .matrix th, .matrix td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  .matrix th { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); background: var(--surface-raised); }
+  .matrix td { color: var(--text-muted); }
+  .matrix .star { color: var(--orange); }
+</style>
+</head>
+<body>
+
+<!-- ── Hero ──────────────────────────────────────────── -->
+<div class="hero">
+  <h1>🎛️ Command Center</h1>
+  <p class="subtitle">
+    Design exploration for an aggregated conversation dashboard in
+    <strong>agent-canvas</strong>&ensp;—&ensp;showing agent status, finish
+    actions, and latest messages across all running conversations at a glance.
+  </p>
+  <span class="tag">POST-MVP · DESIGN PHASE</span>
+</div>
+
+<!-- ── Problem ────────────────────────────────────────── -->
+<div class="problem">
+  <div class="problem-card">
+    <h2>⚡ The Problem</h2>
+    <p>
+      When running multiple agent conversations simultaneously, there is
+      <strong>no single view</strong> that shows what each agent is doing.
+      Users constantly click between conversations just to check status —
+      <em>"Is it finished? Is it done yet?"</em>
+    </p>
+    <div class="pain-points">
+      <div class="pain-point">
+        <div class="icon">🔄</div>
+        <h3>Context Switching</h3>
+        <p>Clicking between conversations to check agent status wastes time and breaks flow.</p>
+      </div>
+      <div class="pain-point">
+        <div class="icon">🔇</div>
+        <h3>No Finish Notifications</h3>
+        <p>When an agent finishes, there's no notification unless you're watching that conversation.</p>
+      </div>
+      <div class="pain-point">
+        <div class="icon">📋</div>
+        <h3>No Activity Summary</h3>
+        <p>The sidebar shows titles and status dots — but not <em>what</em> the agent said or concluded.</p>
+      </div>
+      <div class="pain-point">
+        <div class="icon">⏱️</div>
+        <h3>Latent Awareness</h3>
+        <p>Sidebar polls every 10s for status. No push-based awareness of critical events like errors or completions.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Architecture Context ───────────────────────────── -->
+<div class="context">
+  <h2>📐 Current Architecture</h2>
+  <div class="arch-diagram">
+    <pre>
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  <span class="hl">BROWSER (agent-canvas)</span>                                                    │
+  │                                                                             │
+  │  ┌──────────────┐   ┌────────────────────┐   ┌───────────────────────────┐  │
+  │  │  <span class="hlg">Sidebar</span>      │   │  <span class="hlg">Conversation Page</span>  │   │  <span class="hlp">Zustand Stores</span>          │  │
+  │  │              │   │                    │   │                           │  │
+  │  │  Conv List   │   │  Chat Messages     │   │  useEventStore (per-page) │  │
+  │  │  (polls      │   │  FinishAction      │   │  useConversationStore     │  │
+  │  │   /search    │   │  Terminal/Browser   │   │  useStatusStore           │  │
+  │  │   every 10s) │   │                    │   │                           │  │
+  │  │              │   │  ┌──────────────┐  │   │  ← Events come from WS   │  │
+  │  │  Shows:      │   │  │ <span class="hlo">WebSocket</span>    │──│───│──→ addEvent()             │  │
+  │  │  - title     │   │  │ (1 per conv) │  │   │                           │  │
+  │  │  - status    │   │  └──────────────┘  │   └───────────────────────────┘  │
+  │  │  - timestamp │   │                    │                                  │
+  │  └──────────────┘   └────────────────────┘                                  │
+  │         │                    │                                               │
+  └─────────│────────────────────│───────────────────────────────────────────────┘
+            │ REST               │ WebSocket
+            ▼                    ▼
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  <span class="hl">AGENT SERVER</span>                                                              │
+  │                                                                             │
+  │  GET  /api/conversations/search    →  list + status + metrics               │
+  │  GET  /api/conversations/:id       →  single conversation + runtime info    │
+  │  GET  /api/conversations/:id/events/search  →  event history                │
+  │  WS   /api/conversations/:id/events/stream  →  live event push             │
+  │                                                                             │
+  │  Each conversation = independent runtime with its own event stream          │
+  └─────────────────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+  <p class="context-caption">
+    <strong>Key constraint:</strong> WebSocket connections are 1:1 with conversations.
+    The sidebar polls REST every 10s for conversation metadata (title, status, timestamps),
+    but never fetches <em>event content</em> (messages, finish actions) for conversations you're not viewing.
+  </p>
+</div>
+
+<!-- ── Approaches ──────────────────────────────────────── -->
+<div class="approaches">
+  <h2>🔬 Approaches</h2>
+  <p>Six approaches ranging from quick sidebar enhancements to full-stack aggregation APIs. Click to expand.</p>
+
+  <!-- Approach A -->
+  <div class="approach recommended open" id="approach-a">
+    <div class="approach-header" onclick="toggleApproach('approach-a')">
+      <div class="letter" style="background:rgba(63,185,80,.15);color:var(--green)">A</div>
+      <h3>Dashboard Route <span style="font-weight:400;color:var(--green);font-size:.85rem">★ Recommended MVP</span></h3>
+      <span class="effort-badge effort-medium">Medium Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        Add a new top-level <code>/dashboard</code> route accessible from the sidebar (alongside
+        Conversations, Skills, Settings). The page shows a table or card grid of all conversations
+        with their <strong>status</strong>, <strong>last event timestamp</strong>, and <strong>latest
+        agent message / finish action summary</strong>.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">New Route</span>
+        <span class="t">REST Polling</span>
+        <span class="t">React Query</span>
+        <span class="t">Frontend Only</span>
+      </div>
+
+      <h4>How It Works</h4>
+      <div class="diagram">
+        <pre>
+  <span class="hl">useDashboardData()</span>  ← new React Query hook
+
+  1. Poll <span class="hlg">searchConversations(limit=50)</span> every 10s         (already exists)
+  2. For each conversation with status ∈ {finished, error, running}:
+     → Poll <span class="hlg">searchEvents(convId, {limit:1, sortOrder:TIMESTAMP_DESC})</span>
+     → Extract the latest FinishAction.message or last agent message
+  3. Merge into a unified rows array:  { conversation, latestEvent, status }
+  4. Render in a sortable/filterable table
+
+  <span class="hlo">Optimization:</span> Only fetch events for conversations updated since last poll
+  (compare updated_at timestamps). Cache aggressively with React Query staleTime.
+        </pre>
+      </div>
+
+      <h4>Key Implementation Details</h4>
+      <div class="code-block">
+        <pre>
+<span class="cm">// src/hooks/query/use-dashboard-conversations.ts</span>
+<span class="kw">export function</span> <span class="fn">useDashboardConversations</span>() {
+  <span class="kw">const</span> conversations = <span class="fn">usePaginatedConversations</span>();
+
+  <span class="cm">// For each active/finished conversation, fetch latest event</span>
+  <span class="kw">const</span> eventQueries = <span class="fn">useQueries</span>({
+    queries: (conversations.data?.pages.<span class="fn">flatMap</span>(p => p.items) ?? [])
+      .<span class="fn">filter</span>(c => c.execution_status) <span class="cm">// has a runtime status</span>
+      .<span class="fn">map</span>(conv => ({
+        queryKey: [<span class="st">'dashboard'</span>, <span class="st">'latest-event'</span>, conv.id, conv.updated_at],
+        queryFn: () => EventService.<span class="fn">searchEvents</span>(
+          conv.id, <span class="kw">null</span>, <span class="kw">null</span>,
+          { limit: <span class="ty">3</span>, sortOrder: <span class="st">'TIMESTAMP_DESC'</span> }
+        ),
+        staleTime: <span class="ty">15_000</span>,
+        enabled: !!conv.execution_status,
+      })),
+  });
+
+  <span class="cm">// Merge conversations with their latest events</span>
+  <span class="kw">return</span> <span class="fn">useMemo</span>(() => <span class="fn">mergeConversationsWithEvents</span>(
+    conversations, eventQueries
+  ), [conversations, eventQueries]);
+}
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>Clear, dedicated space for multi-conversation oversight</li>
+            <li>No backend changes — uses existing APIs</li>
+            <li>Sortable/filterable table for power users</li>
+            <li>Natural extension of existing routing pattern</li>
+            <li>Can expand to show cost/token metrics per conversation</li>
+            <li>Works for both local and cloud backends</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Not visible while inside a conversation (need to navigate)</li>
+            <li>N+1 queries: 1 for list + 1 per conversation for events</li>
+            <li>10s polling latency for status changes</li>
+            <li>Could be slow with many conversations (mitigate with pagination)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach B -->
+  <div class="approach" id="approach-b">
+    <div class="approach-header" onclick="toggleApproach('approach-b')">
+      <div class="letter" style="background:rgba(88,166,255,.15);color:var(--accent)">B</div>
+      <h3>Enhanced Sidebar Cards</h3>
+      <span class="effort-badge effort-low">Low Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        Extend the existing sidebar <code>ConversationCard</code> to show a preview of the last
+        agent message — especially for <code>FinishAction</code> events. When a conversation finishes,
+        the card expands slightly to show the finish message, highlighted with a green left border.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">Sidebar Enhancement</span>
+        <span class="t">REST Polling</span>
+        <span class="t">Minimal New Code</span>
+      </div>
+
+      <h4>How It Works</h4>
+      <div class="diagram">
+        <pre>
+  Existing: <span class="hlg">ConversationCard</span> shows title + status dot + timestamp
+
+  Enhanced: ConversationCard <span class="hlo">+ latest message preview</span>
+  ┌──────────────────────────────────┐
+  │ Fix auth bug in user service     │
+  │ <span class="hlg">● Finished</span> · 2 min ago              │
+  │ ┌────────────────────────────── ┐│
+  │ │<span class="hlg"> ✓ Fixed the JWT validation...</span>  ││
+  │ └────────────────────────────── ┘│
+  └──────────────────────────────────┘
+
+  Fetch: searchEvents(convId, {limit:1}) for conversations
+  where execution_status ∈ {finished, error}
+  <span class="hlo">Only fetch for recently-updated conversations</span> (last 5 minutes)
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>Always visible — no need to navigate away</li>
+            <li>Minimal UI change, familiar pattern</li>
+            <li>Very low implementation effort</li>
+            <li>Could be a quick first step before Dashboard</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Limited space — can only show truncated preview</li>
+            <li>Doesn't scale: 10+ conversations = lots of vertical scroll</li>
+            <li>Fetching events for all sidebar conversations is expensive</li>
+            <li>Mobile sidebar is even more constrained</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach C -->
+  <div class="approach" id="approach-c">
+    <div class="approach-header" onclick="toggleApproach('approach-c')">
+      <div class="letter" style="background:rgba(210,153,34,.15);color:var(--orange)">C</div>
+      <h3>Notification / Activity Feed Panel</h3>
+      <span class="effort-badge effort-medium">Medium Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        Add a bell icon to the sidebar header that opens a slide-out activity feed.
+        The feed aggregates <strong>important events</strong> across all conversations:
+        <code>FinishAction</code>, errors, confirmation requests. Items link back to the
+        originating conversation. An unread badge shows how many events happened since
+        you last looked.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">Overlay Panel</span>
+        <span class="t">Notification State</span>
+        <span class="t">Event Filtering</span>
+        <span class="t">Unread Tracking</span>
+      </div>
+
+      <h4>How It Works</h4>
+      <div class="diagram">
+        <pre>
+  ┌──────────────────────────────────────────────────────────────┐
+  │  <span class="hl">NotificationService</span> (new singleton)                         │
+  │                                                              │
+  │  1. Subscribe to <span class="hlg">searchConversations()</span> polling (already 10s)  │
+  │  2. When a conversation's execution_status changes:          │
+  │     → If new status = <span class="hlo">finished</span> or <span class="hlo">error</span>:                     │
+  │       → Fetch <span class="hlg">searchEvents(convId, {limit:1})</span>               │
+  │       → Extract FinishAction.message or error details        │
+  │       → Push to <span class="hlp">useNotificationStore</span> (Zustand)               │
+  │       → Increment unread badge count                         │
+  │  3. When a conversation's status = <span class="hlo">waiting_for_confirmation</span>:  │
+  │     → Push a "needs your attention" notification             │
+  │                                                              │
+  │  UI: Bell icon → slide-out panel with chronological feed     │
+  │  Clicking an item → navigate to that conversation            │
+  └──────────────────────────────────────────────────────────────┘
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>Non-intrusive — works from any page</li>
+            <li>Unread badge provides at-a-glance awareness</li>
+            <li>Only fetches events on status transitions (efficient)</li>
+            <li>Familiar UX pattern (Slack, GitHub, etc.)</li>
+            <li>Could later integrate with OS notifications / browser Notification API</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Requires new state management (notification store, read tracking)</li>
+            <li>Still depends on 10s polling to detect status changes</li>
+            <li>Feed can get noisy with many conversations</li>
+            <li>Need to handle persistence (which notifications were read?)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach D -->
+  <div class="approach" id="approach-d">
+    <div class="approach-header" onclick="toggleApproach('approach-d')">
+      <div class="letter" style="background:rgba(248,81,73,.15);color:var(--red)">D</div>
+      <h3>Multi-WebSocket Hub</h3>
+      <span class="effort-badge effort-high">High Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        Maintain WebSocket connections to <strong>all active conversations</strong> simultaneously,
+        even when you're only viewing one. A background "hub" service opens WS connections,
+        filters for important events (finish, error, confirmation), and aggregates them into
+        a shared store.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">Multi-WS</span>
+        <span class="t">Background Service</span>
+        <span class="t">Real-time</span>
+        <span class="t">Complex</span>
+      </div>
+
+      <h4>How It Works</h4>
+      <div class="diagram">
+        <pre>
+  <span class="hl">WebSocketHub</span> (new singleton service)
+
+  ┌─── Browser ────────────────────────────────────────────────┐
+  │                                                            │
+  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+  │  │ WS: Conv A   │  │ WS: Conv B   │  │ WS: Conv C   │ ... │
+  │  │ (running)    │  │ (running)    │  │ (running)    │     │
+  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
+  │         │                 │                 │              │
+  │         └────────┬────────┴────────┬────────┘              │
+  │                  ▼                 ▼                        │
+  │        <span class="hlg">WebSocketHub.onEvent(convId, event)</span>                 │
+  │                  │                                         │
+  │                  ▼                                         │
+  │        <span class="hlp">useAggregatedEventStore</span>                            │
+  │        (cross-conversation event state)                    │
+  │                                                            │
+  │        ← powers Dashboard / Feed / Sidebar                 │
+  └────────────────────────────────────────────────────────────┘
+
+  <span class="hlo">Lifecycle:</span>
+  • Opens WS to each conv where execution_status ∈ {running, idle}
+  • Closes WS when conversation finishes/errors (after capturing final events)
+  • Reconnects on WS failure (reuse existing reconnect logic)
+  • Filters events: only keeps FinishAction, AgentError, ConfirmationRequest
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>True real-time: instant finish/error awareness, no polling lag</li>
+            <li>Most responsive UX possible</li>
+            <li>Could power live "watching multiple agents code" view</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Browser resource concern: 10+ simultaneous WS connections</li>
+            <li>Complex lifecycle management (open/close/reconnect per conv)</li>
+            <li>Backend may not expect many concurrent WS per session</li>
+            <li>Significantly more code to maintain and test</li>
+            <li>Mobile/low-bandwidth unfriendly</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach E -->
+  <div class="approach" id="approach-e">
+    <div class="approach-header" onclick="toggleApproach('approach-e')">
+      <div class="letter" style="background:rgba(57,210,192,.15);color:var(--teal)">E</div>
+      <h3>Polling-Based Event Aggregation</h3>
+      <span class="effort-badge effort-low">Low Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        A pragmatic middle ground: add a new React Query hook that piggybacks on the existing
+        conversation list poll. For each conversation whose <code>updated_at</code> changed since
+        last poll, fetch the <strong>last 1-3 events</strong>. Cache aggressively. No new backend
+        APIs, no WebSockets — just smarter use of existing REST endpoints.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">REST Only</span>
+        <span class="t">React Query</span>
+        <span class="t">Incremental</span>
+        <span class="t">No Backend Changes</span>
+      </div>
+
+      <h4>How It Works</h4>
+      <div class="diagram">
+        <pre>
+  <span class="hl">useConversationEventPreviews()</span>
+
+  Dependencies:
+    ← <span class="hlg">usePaginatedConversations()</span>  (existing, 10s poll)
+
+  Logic:
+    1. On each conversations refetch, diff updated_at vs previous snapshot
+    2. For each <span class="hlo">changed</span> conversation:
+       → <span class="hlg">searchEvents(convId, { limit: 1, sortOrder: TIMESTAMP_DESC })</span>
+       → Cache the result keyed by convId + updated_at
+    3. Return Map&lt;convId, { latestEvent, conversationType }&gt;
+    4. For <span class="hlo">unchanged</span> conversations → return cached event (React Query staleTime)
+
+  Consumer: any component (Sidebar card, Dashboard row, Feed item)
+
+  <span class="hlo">Overhead:</span>  worst case = N API calls (one per changed conversation)
+            typical   = 1-3 calls per poll cycle (most conversations are idle)
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>Minimal new code — a single hook + cache strategy</li>
+            <li>Incremental: only fetches for conversations that changed</li>
+            <li>Powers all UI approaches (Dashboard, Sidebar, Feed)</li>
+            <li>No backend changes needed</li>
+            <li>Works with existing React Query infrastructure</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Still 10s polling latency</li>
+            <li>N+1 request pattern during "burst" activity</li>
+            <li>Doesn't detect mid-poll events (e.g. finish between polls)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach F -->
+  <div class="approach" id="approach-f">
+    <div class="approach-header" onclick="toggleApproach('approach-f')">
+      <div class="letter" style="background:rgba(247,120,186,.15);color:var(--pink)">F</div>
+      <h3>Server-Side Aggregation API</h3>
+      <span class="effort-badge effort-high">High Effort</span>
+      <span class="toggle-arrow">▶</span>
+    </div>
+    <div class="approach-body">
+      <p>
+        Add a <strong>new backend endpoint</strong> that returns the latest event per conversation
+        in a single request. This eliminates the N+1 problem: one API call returns everything
+        the command center needs. Could also add a "global events" WebSocket that multiplexes
+        events from all conversations onto a single stream.
+      </p>
+
+      <div class="tag-row">
+        <span class="t">Backend Change</span>
+        <span class="t">New API</span>
+        <span class="t">Single Request</span>
+        <span class="t">Optimal Performance</span>
+      </div>
+
+      <h4>Proposed API</h4>
+      <div class="code-block">
+        <pre>
+<span class="cm">// New endpoint on agent-server</span>
+<span class="kw">GET</span> /api/conversations/summary
+
+<span class="cm">// Response</span>
+{
+  <span class="st">"items"</span>: [
+    {
+      <span class="st">"conversation_id"</span>: <span class="st">"abc-123"</span>,
+      <span class="st">"title"</span>: <span class="st">"Fix auth bug"</span>,
+      <span class="st">"execution_status"</span>: <span class="st">"finished"</span>,
+      <span class="st">"updated_at"</span>: <span class="st">"2024-01-15T10:30:00Z"</span>,
+      <span class="st">"latest_event"</span>: {
+        <span class="st">"type"</span>: <span class="st">"FinishAction"</span>,
+        <span class="st">"message"</span>: <span class="st">"Fixed JWT validation and added tests."</span>,
+        <span class="st">"timestamp"</span>: <span class="st">"2024-01-15T10:29:55Z"</span>
+      },
+      <span class="st">"metrics"</span>: { <span class="st">"accumulated_cost"</span>: <span class="ty">0.42</span> }
+    }
+  ]
+}
+
+<span class="cm">// Optional: global event stream WebSocket</span>
+<span class="kw">WS</span> /api/events/stream
+<span class="cm">// Multiplexes events from all running conversations</span>
+<span class="cm">// with a conversation_id field on each event</span>
+        </pre>
+      </div>
+
+      <h4>Pros &amp; Cons</h4>
+      <div class="pro-con">
+        <div class="pros">
+          <ul>
+            <li>Single request — no N+1, no polling overhead</li>
+            <li>Backend can optimize query (single DB scan)</li>
+            <li>Global WS multiplexer = true real-time without multi-WS</li>
+            <li>Cleanest long-term architecture</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <ul>
+            <li>Requires agent-server changes (SDK contribution)</li>
+            <li>New API surface to maintain and version</li>
+            <li>Global WS multiplexer is complex to implement server-side</li>
+            <li>Coordination cost between frontend and backend teams</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Comparison Matrix ──────────────────────────────── -->
+<div class="matrix-section">
+  <h2>📊 Comparison Matrix</h2>
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th>Approach</th>
+        <th>Effort</th>
+        <th>Latency</th>
+        <th>Backend Changes</th>
+        <th>Always Visible</th>
+        <th>Scalability</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>A.</strong> Dashboard Route <span class="star">★</span></td>
+        <td>Medium</td>
+        <td>~10s (poll)</td>
+        <td>None</td>
+        <td>No (separate page)</td>
+        <td>Good (paginated)</td>
+      </tr>
+      <tr>
+        <td><strong>B.</strong> Enhanced Sidebar</td>
+        <td>Low</td>
+        <td>~10s (poll)</td>
+        <td>None</td>
+        <td>Yes</td>
+        <td>Poor (space limited)</td>
+      </tr>
+      <tr>
+        <td><strong>C.</strong> Notification Feed</td>
+        <td>Medium</td>
+        <td>~10s (poll)</td>
+        <td>None</td>
+        <td>Yes (overlay)</td>
+        <td>Good (scrollable)</td>
+      </tr>
+      <tr>
+        <td><strong>D.</strong> Multi-WebSocket Hub</td>
+        <td>High</td>
+        <td>&lt;1s (real-time)</td>
+        <td>None</td>
+        <td>Yes (powers any UI)</td>
+        <td>Poor (resource heavy)</td>
+      </tr>
+      <tr>
+        <td><strong>E.</strong> Polling Aggregation</td>
+        <td>Low</td>
+        <td>~10s (poll)</td>
+        <td>None</td>
+        <td>N/A (data layer)</td>
+        <td>Good (incremental)</td>
+      </tr>
+      <tr>
+        <td><strong>F.</strong> Server-Side API</td>
+        <td>High</td>
+        <td>&lt;1s (WS) / 10s (poll)</td>
+        <td>Yes</td>
+        <td>N/A (data layer)</td>
+        <td>Excellent</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Mockups ─────────────────────────────────────────── -->
+<div class="mockup-section">
+  <h2>🎨 Visual Mockups</h2>
+  <p>Interactive concept mockups for the top three approaches.</p>
+
+  <!-- Mockup A: Dashboard -->
+  <h3 style="margin: 28px 0 12px; font-size:1rem; color:var(--green);">A. Dashboard Route</h3>
+  <div class="mockup-frame">
+    <div class="mockup-titlebar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <span>agent-canvas — /dashboard</span>
+    </div>
+    <div class="mockup-inner">
+      <div class="mock-dashboard">
+        <div class="mock-sidebar">
+          <h4>Navigation</h4>
+          <div class="nav-item"><span>🏠</span> Home</div>
+          <div class="nav-item active"><span>🎛️</span> Dashboard</div>
+          <div class="nav-item"><span>⚙️</span> Settings</div>
+          <div class="nav-item"><span>🧩</span> Skills</div>
+          <h4 style="margin-top:20px">Recent</h4>
+          <div class="nav-item"><div class="dot" style="background:var(--green)"></div> Fix auth bug</div>
+          <div class="nav-item"><div class="dot" style="background:var(--green)"></div> Add dark mode</div>
+          <div class="nav-item"><div class="dot" style="background:var(--accent)"></div> Refactor API</div>
+        </div>
+        <div class="mock-main">
+          <div class="mock-stats">
+            <div class="mock-stat">
+              <div class="num" style="color:var(--green)">3</div>
+              <div class="label">Running</div>
+            </div>
+            <div class="mock-stat">
+              <div class="num" style="color:var(--accent)">5</div>
+              <div class="label">Finished</div>
+            </div>
+            <div class="mock-stat">
+              <div class="num" style="color:var(--orange)">1</div>
+              <div class="label">Waiting</div>
+            </div>
+            <div class="mock-stat">
+              <div class="num" style="color:var(--red)">0</div>
+              <div class="label">Errors</div>
+            </div>
+          </div>
+          <div class="mock-table">
+            <div class="mock-table-header">
+              <div>Conversation</div>
+              <div>Status</div>
+              <div>Updated</div>
+              <div>Last Message</div>
+              <div>Cost</div>
+            </div>
+            <div class="mock-table-row">
+              <div><strong>Fix auth bug in user service</strong></div>
+              <div><span class="status-pill status-finished"><span class="sd"></span>Finished</span></div>
+              <div style="color:var(--text-muted);font-size:.82rem">2m ago</div>
+              <div class="last-msg">✅ Fixed the JWT validation logic and added unit tests for edge cases.</div>
+              <div style="color:var(--text-muted);font-size:.82rem">$0.42</div>
+            </div>
+            <div class="mock-table-row">
+              <div><strong>Add dark mode to settings page</strong></div>
+              <div><span class="status-pill status-running"><span class="sd"></span>Running</span></div>
+              <div style="color:var(--text-muted);font-size:.82rem">15s ago</div>
+              <div class="last-msg">Implementing CSS variables for theme switching...</div>
+              <div style="color:var(--text-muted);font-size:.82rem">$0.18</div>
+            </div>
+            <div class="mock-table-row">
+              <div><strong>Refactor API layer</strong></div>
+              <div><span class="status-pill status-running"><span class="sd"></span>Running</span></div>
+              <div style="color:var(--text-muted);font-size:.82rem">1m ago</div>
+              <div class="last-msg">Moving service classes to use the new adapter pattern...</div>
+              <div style="color:var(--text-muted);font-size:.82rem">$0.31</div>
+            </div>
+            <div class="mock-table-row">
+              <div><strong>Write E2E tests for checkout flow</strong></div>
+              <div><span class="status-pill status-waiting"><span class="sd"></span>Waiting</span></div>
+              <div style="color:var(--text-muted);font-size:.82rem">5m ago</div>
+              <div class="last-msg">⚠️ Confirm: Install playwright as a dev dependency?</div>
+              <div style="color:var(--text-muted);font-size:.82rem">$0.08</div>
+            </div>
+            <div class="mock-table-row">
+              <div><strong>Update README with deploy instructions</strong></div>
+              <div><span class="status-pill status-finished"><span class="sd"></span>Finished</span></div>
+              <div style="color:var(--text-muted);font-size:.82rem">1h ago</div>
+              <div class="last-msg">✅ Updated README.md with Docker deployment instructions and env vars.</div>
+              <div style="color:var(--text-muted);font-size:.82rem">$0.05</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mockup C: Notification Feed -->
+  <h3 style="margin: 32px 0 12px; font-size:1rem; color:var(--orange);">C. Notification / Activity Feed</h3>
+  <div class="mockup-frame">
+    <div class="mockup-titlebar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <span>agent-canvas — Activity Feed (slide-out panel)</span>
+    </div>
+    <div class="mockup-inner">
+      <div class="mock-feed">
+        <div class="mock-feed-header">
+          <h4>🔔 Activity</h4>
+          <span class="badge">3 new</span>
+        </div>
+        <div class="feed-item">
+          <div class="feed-icon" style="background:rgba(63,185,80,.15);">✅</div>
+          <div class="feed-body">
+            <div class="feed-title">Fix auth bug in user service</div>
+            <div class="feed-msg">Fixed the JWT validation logic and added unit tests for edge cases.</div>
+            <div class="feed-time">2 minutes ago · $0.42</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-icon" style="background:rgba(210,153,34,.15);">⚠️</div>
+          <div class="feed-body">
+            <div class="feed-title">Write E2E tests for checkout flow</div>
+            <div class="feed-msg">Confirm: Install playwright as a dev dependency?</div>
+            <div class="feed-time">5 minutes ago · Needs your attention</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-icon" style="background:rgba(63,185,80,.15);">✅</div>
+          <div class="feed-body">
+            <div class="feed-title">Update README with deploy instructions</div>
+            <div class="feed-msg">Updated README.md with Docker deployment instructions and env vars.</div>
+            <div class="feed-time">1 hour ago · $0.05</div>
+          </div>
+        </div>
+        <div class="feed-item">
+          <div class="feed-icon" style="background:rgba(248,81,73,.15);">❌</div>
+          <div class="feed-body">
+            <div class="feed-title">Migrate database to PostgreSQL</div>
+            <div class="feed-msg">Error: Connection refused to localhost:5432. Is PostgreSQL running?</div>
+            <div class="feed-time">2 hours ago · $0.12</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mockup B: Enhanced Sidebar -->
+  <h3 style="margin: 32px 0 12px; font-size:1rem; color:var(--accent);">B. Enhanced Sidebar Cards</h3>
+  <div class="mockup-frame">
+    <div class="mockup-titlebar">
+      <div class="mockup-dot r"></div>
+      <div class="mockup-dot y"></div>
+      <div class="mockup-dot g"></div>
+      <span>agent-canvas — Sidebar with message previews</span>
+    </div>
+    <div class="mockup-inner" style="display:flex;justify-content:center;">
+      <div class="mock-sidebar-enhanced">
+        <div class="se-header">Conversations</div>
+        <div class="se-item">
+          <div class="se-item-top">
+            <span class="name">Fix auth bug</span>
+            <span class="status-pill status-finished" style="font-size:.65rem;padding:1px 8px"><span class="sd"></span>Done</span>
+          </div>
+          <div class="se-item-preview finish">✅ Fixed JWT validation and added tests for all edge cases.</div>
+        </div>
+        <div class="se-item">
+          <div class="se-item-top">
+            <span class="name">Add dark mode</span>
+            <span class="status-pill status-running" style="font-size:.65rem;padding:1px 8px"><span class="sd"></span>Running</span>
+          </div>
+          <div class="se-item-preview running">Implementing CSS variables for theme switching...</div>
+        </div>
+        <div class="se-item">
+          <div class="se-item-top">
+            <span class="name">Refactor API layer</span>
+            <span class="status-pill status-running" style="font-size:.65rem;padding:1px 8px"><span class="sd"></span>Running</span>
+          </div>
+          <div class="se-item-preview running">Moving service classes to adapter pattern...</div>
+        </div>
+        <div class="se-item">
+          <div class="se-item-top">
+            <span class="name">E2E tests for checkout</span>
+            <span class="status-pill status-waiting" style="font-size:.65rem;padding:1px 8px"><span class="sd"></span>Waiting</span>
+          </div>
+          <div class="se-item-preview error">⚠️ Confirm: Install playwright as dev dependency?</div>
+        </div>
+        <div class="se-item">
+          <div class="se-item-top">
+            <span class="name">Update README</span>
+            <span class="status-pill status-finished" style="font-size:.65rem;padding:1px 8px"><span class="sd"></span>Done</span>
+          </div>
+          <div class="se-item-preview finish">✅ Updated with Docker deploy instructions and env vars.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recommendation ─────────────────────────────────── -->
+<div class="recommendation">
+  <div class="rec-card">
+    <h2>✅ Recommended Phased Approach</h2>
+    <p>
+      Rather than picking one approach, <strong>layer them progressively</strong>.
+      Start with the data layer (E), add UI value quickly (B), then build the full
+      dashboard (A) and notification system (C) as the feature matures.
+    </p>
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-label" style="color:var(--green)">Phase 1 · Quick Win</div>
+        <h4>E + B: Data Hook + Sidebar Preview</h4>
+        <p>
+          Build <code>useConversationEventPreviews()</code> to incrementally
+          fetch latest events. Wire it into the sidebar's <code>ConversationCard</code>
+          to show finish/error message previews. ~1-2 days of work.
+        </p>
+      </div>
+      <div class="phase">
+        <div class="phase-label" style="color:var(--accent)">Phase 2 · Core Feature</div>
+        <h4>A: Dashboard Route</h4>
+        <p>
+          Add <code>/dashboard</code> with a sortable table powered by the same
+          data hook. Stats bar, filtering by status, click-to-navigate. ~2-3 days.
+        </p>
+      </div>
+      <div class="phase">
+        <div class="phase-label" style="color:var(--orange)">Phase 3 · Polish</div>
+        <h4>C: Notification Feed + Browser Notifications</h4>
+        <p>
+          Add the bell icon + activity feed overlay. Unread tracking, conversation
+          links, optional browser <code>Notification</code> API for finish events.
+          ~2-3 days.
+        </p>
+      </div>
+      <div class="phase">
+        <div class="phase-label" style="color:var(--purple)">Phase 4 · Long-term</div>
+        <h4>F: Server-Side Aggregation</h4>
+        <p>
+          Propose <code>/api/conversations/summary</code> endpoint to the SDK team.
+          Replace the N+1 client-side polling with a single efficient API call.
+          Optionally add a global events WebSocket.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Footer ─────────────────────────────────────────── -->
+<footer>
+  <p>
+    Design document for <a href="https://github.com/OpenHands/agent-canvas">OpenHands/agent-canvas</a>
+    · Command Center feature exploration
+    · Generated by an AI agent (OpenHands) for team review
+  </p>
+</footer>
+
+<script>
+function toggleApproach(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+</script>
+</body>
+</html>
