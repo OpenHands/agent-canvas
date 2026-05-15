@@ -1,16 +1,16 @@
 export function TypingIndicator() {
   return (
-    <div className="flex items-center space-x-1.5 bg-tertiary px-3 py-1.5 rounded-full">
+    <div className="flex items-center space-x-1.5 rounded-full bg-[#25272D] px-3 py-1.5">
       <span
-        className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-[bounce_0.5s_infinite] translate-y-[1px]"
+        className="h-1.5 w-1.5 rounded-full bg-[#959CB2] animate-[bounce_0.5s_infinite] translate-y-[1px]"
         style={{ animationDelay: "0ms" }}
       />
       <span
-        className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-[bounce_0.5s_infinite] translate-y-[1px]"
+        className="h-1.5 w-1.5 rounded-full bg-[#959CB2] animate-[bounce_0.5s_infinite] translate-y-[1px]"
         style={{ animationDelay: "75ms" }}
       />
       <span
-        className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-[bounce_0.5s_infinite] translate-y-[1px]"
+        className="h-1.5 w-1.5 rounded-full bg-[#959CB2] animate-[bounce_0.5s_infinite] translate-y-[1px]"
         style={{ animationDelay: "150ms" }}
       />
     </div>

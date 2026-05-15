@@ -72,7 +72,6 @@ const seedConversationState = (
     `conversation-state-${conversationId}`,
     JSON.stringify({
       selectedTab: "files",
-      rightPanelShown: true,
       unpinnedTabs: [],
       conversationMode: "code",
       subConversationTaskId: null,
@@ -94,7 +93,6 @@ function seedActiveBackend(backend: Backend): void {
 const setActiveTabState = (tab: "files" | "planner") => {
   seedConversationState(REAL_CONVERSATION_ID, {
     selectedTab: tab,
-    rightPanelShown: true,
   });
   useConversationStore.setState({
     selectedTab: tab,
@@ -152,8 +150,10 @@ describe("ConversationTabs localStorage behavior", () => {
 
       const parsed = JSON.parse(storedState!);
       expect(parsed).toHaveProperty("selectedTab");
-      expect(parsed).toHaveProperty("rightPanelShown");
       expect(parsed).toHaveProperty("unpinnedTabs");
+      // The right-drawer open state is session-only and must never
+      // be persisted into the consolidated conversation-state blob.
+      expect(parsed).not.toHaveProperty("rightPanelShown");
     });
   });
 
@@ -177,16 +177,16 @@ describe("ConversationTabs localStorage behavior", () => {
       const terminalTab = screen.getByTestId("conversation-tab-terminal");
       await user.click(terminalTab);
 
-      // Assert: Panel should be open and terminal tab selected
+      // Assert: Panel should be open and terminal tab selected (in-memory only).
       expect(useConversationStore.getState().selectedTab).toBe("terminal");
       expect(useConversationStore.getState().hasRightPanelToggled).toBe(true);
 
-      // Verify localStorage was updated
+      // Tab selection persists to localStorage; drawer-open state does not.
       const storedState = JSON.parse(
         localStorage.getItem(`conversation-state-${REAL_CONVERSATION_ID}`)!,
       );
       expect(storedState.selectedTab).toBe("terminal");
-      expect(storedState.rightPanelShown).toBe(true);
+      expect(storedState).not.toHaveProperty("rightPanelShown");
     });
 
     it("should close panel when clicking the same active tab", async () => {
@@ -208,14 +208,17 @@ describe("ConversationTabs localStorage behavior", () => {
       const editorTab = screen.getByTestId("conversation-tab-files");
       await user.click(editorTab);
 
-      // Assert: Panel should be closed
+      // Assert: Panel should be closed (in-memory only).
       expect(useConversationStore.getState().hasRightPanelToggled).toBe(false);
 
-      // Verify localStorage was updated
-      const storedState = JSON.parse(
-        localStorage.getItem(`conversation-state-${REAL_CONVERSATION_ID}`)!,
+      // localStorage must NOT carry the drawer-open state — that's
+      // session-only by design.
+      const raw = localStorage.getItem(
+        `conversation-state-${REAL_CONVERSATION_ID}`,
       );
-      expect(storedState.rightPanelShown).toBe(false);
+      if (raw !== null) {
+        expect(JSON.parse(raw)).not.toHaveProperty("rightPanelShown");
+      }
     });
 
     it("should switch to different tab when clicking another tab while panel is open", async () => {

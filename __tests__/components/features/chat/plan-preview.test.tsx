@@ -381,18 +381,17 @@ describe("PlanPreview", () => {
     const viewButton = screen.getByTestId("plan-preview-view-button");
     await user.click(viewButton);
 
-    // Assert: Verify selectTab was called with 'planner' and panel was opened
-    // The hook sets hasRightPanelToggled, which should trigger isRightPanelShown update
-    // In tests, we need to manually sync or check hasRightPanelToggled
+    // Assert: selectTab was called with 'planner' and the drawer opened
+    // (in-memory). The drawer-open state is session-only and must not
+    // touch localStorage; only the selected tab persists.
     expect(useConversationStore.getState().selectedTab).toBe("planner");
     expect(useConversationStore.getState().hasRightPanelToggled).toBe(true);
 
-    // Verify localStorage was updated
     const storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${conversationId}`)!,
     );
     expect(storedState.selectedTab).toBe("planner");
-    expect(storedState.rightPanelShown).toBe(true);
+    expect(storedState).not.toHaveProperty("rightPanelShown");
   });
 
   it("should call selectTab with 'planner' when Read more button is clicked", async () => {
@@ -413,17 +412,16 @@ describe("PlanPreview", () => {
     const readMoreButton = screen.getByTestId("plan-preview-read-more-button");
     await user.click(readMoreButton);
 
-    // Assert: Verify selectTab was called with 'planner' and panel was opened
-    // The hook sets hasRightPanelToggled, which should trigger isRightPanelShown update
-    // In tests, we need to manually sync or check hasRightPanelToggled
+    // Assert: selectTab was called with 'planner' and the drawer opened
+    // (in-memory). The drawer-open state is session-only and must not
+    // touch localStorage; only the selected tab persists.
     expect(useConversationStore.getState().selectedTab).toBe("planner");
     expect(useConversationStore.getState().hasRightPanelToggled).toBe(true);
 
-    // Verify localStorage was updated
     const storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${conversationId}`)!,
     );
     expect(storedState.selectedTab).toBe("planner");
-    expect(storedState.rightPanelShown).toBe(true);
+    expect(storedState).not.toHaveProperty("rightPanelShown");
   });
 });

@@ -1,6 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { useConversationId } from "#/hooks/use-conversation-id";
-import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { useConversationStore } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -13,23 +11,21 @@ interface RightPanelToggleProps {
 
 /**
  * Toggle button for showing/hiding the right panel.
- * This component is placed in the chat header so users can always
- * restore the panel, even when it's hidden.
+ *
+ * Placed in the chat header so users can always restore the panel,
+ * even when it's hidden. The open/closed state lives in the in-memory
+ * Zustand store and is intentionally not persisted across full reloads —
+ * see the comment in `useConversationStore` for the rationale.
  */
 export function RightPanelToggle({ className }: RightPanelToggleProps) {
   const { t } = useTranslation("openhands");
-  const { conversationId } = useConversationId();
-  const { setRightPanelShown } =
-    useConversationLocalStorageState(conversationId);
   const { isRightPanelShown, setHasRightPanelToggled, setSelectedTab } =
     useConversationStore();
 
   const handleToggle = () => {
     const newState = !isRightPanelShown;
     setHasRightPanelToggled(newState);
-    setRightPanelShown(newState);
 
-    // If opening the panel and no tab is selected, default to files
     if (newState) {
       const { selectedTab } = useConversationStore.getState();
       if (!selectedTab) {

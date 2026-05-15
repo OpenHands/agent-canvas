@@ -28,7 +28,7 @@ export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
 
   return (
     <div
-      className="my-2 w-full border-l-2 border-neutral-300 pl-2 py-2 text-sm"
+      className="my-1 w-full py-1 text-sm"
       data-testid="collapsible-thinking"
     >
       <button
@@ -41,15 +41,15 @@ export function CollapsibleThinking({ content }: CollapsibleThinkingProps) {
         data-testid="collapsible-thinking-toggle"
         className="w-full flex items-center gap-2 text-left cursor-pointer"
       >
-        <Chevron className="h-4 w-4 fill-neutral-300 flex-shrink-0" />
-        <LightbulbIcon className="h-4 w-4 fill-neutral-300 flex-shrink-0" />
-        <span className="font-bold text-neutral-300">
+        <Chevron className="h-4 w-4 fill-[#959CB2] flex-shrink-0" />
+        <LightbulbIcon className="h-4 w-4 fill-[#959CB2] flex-shrink-0" />
+        <span className="font-normal text-[#959CB2]">
           {t(I18nKey.THINKING$TITLE)}
         </span>
       </button>
 
       {expanded && (
-        <div className="mt-2 pl-6" data-testid="collapsible-thinking-content">
+        <div className="mt-1.5 pl-6" data-testid="collapsible-thinking-content">
           <MarkdownRenderer>{content}</MarkdownRenderer>
         </div>
       )}

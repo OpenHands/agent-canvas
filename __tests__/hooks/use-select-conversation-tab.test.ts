@@ -36,18 +36,17 @@ describe("useSelectConversationTab", () => {
         result.current.selectTab("files");
       });
 
-      // Assert: Panel should be open and tab selected
+      // Assert: Panel should be open and tab selected (in-memory only).
       expect(useConversationStore.getState().selectedTab).toBe("files");
       expect(useConversationStore.getState().hasRightPanelToggled).toBe(true);
 
-      // Verify localStorage was updated
+      // Tab selection is persisted; the right-drawer open state is
+      // intentionally session-only and must NOT touch localStorage.
       const storedState = JSON.parse(
-        localStorage.getItem(
-          `conversation-state-${TEST_CONVERSATION_ID}`,
-        )!,
+        localStorage.getItem(`conversation-state-${TEST_CONVERSATION_ID}`)!,
       );
       expect(storedState.selectedTab).toBe("files");
-      expect(storedState.rightPanelShown).toBe(true);
+      expect(storedState).not.toHaveProperty("rightPanelShown");
     });
 
     it("should close panel when clicking the same active tab", () => {
@@ -65,16 +64,19 @@ describe("useSelectConversationTab", () => {
         result.current.selectTab("files");
       });
 
-      // Assert: Panel should be closed
+      // Assert: Panel should be closed (in-memory only).
       expect(useConversationStore.getState().hasRightPanelToggled).toBe(false);
 
-      // Verify localStorage was updated
-      const storedState = JSON.parse(
-        localStorage.getItem(
-          `conversation-state-${TEST_CONVERSATION_ID}`,
-        )!,
+      // The drawer-close shouldn't have written to localStorage at all
+      // (session-only behavior). If anything is persisted, it's just the
+      // pre-existing tab selection from earlier writes — never a
+      // `rightPanelShown` field.
+      const raw = localStorage.getItem(
+        `conversation-state-${TEST_CONVERSATION_ID}`,
       );
-      expect(storedState.rightPanelShown).toBe(false);
+      if (raw !== null) {
+        expect(JSON.parse(raw)).not.toHaveProperty("rightPanelShown");
+      }
     });
 
     it("should switch to different tab when panel is already open", () => {

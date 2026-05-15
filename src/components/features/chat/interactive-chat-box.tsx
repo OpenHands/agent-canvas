@@ -178,7 +178,7 @@ export function InteractiveChatBox({
         onSubmit={handleSubmit}
         onFilesPaste={handleUpload}
       />
-      <div className="mt-4">
+      <div className="mt-3 md:pb-3">
         <GitControlBar onSuggestionsClick={handleSuggestionsClick} />
       </div>
     </div>

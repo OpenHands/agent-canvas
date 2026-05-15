@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithProviders } from "test-utils";
 
@@ -29,9 +29,17 @@ describe("ChatInputModel", () => {
 
     const model = screen.getByTestId("chat-input-llm-model");
     expect(model).toBeInTheDocument();
-    expect(model).toHaveTextContent("openai/gpt-4o");
+    expect(model).toHaveTextContent("openai/gpt…");
     expect(model).toHaveAttribute("title", "openai/gpt-4o");
-    expect(model.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-input-llm-model-popover")).not.toBeInTheDocument();
+
+    fireEvent.click(model);
+    const popover = screen.getByTestId("chat-input-llm-model-popover");
+    expect(popover).toHaveTextContent("openai/gpt-4o");
+    const llmSettingsLink = screen.getByRole("link", {
+      name: /LLM Settings|SETTINGS\$LLM_SETTINGS/,
+    });
+    expect(llmSettingsLink).toHaveAttribute("href", "/settings");
   });
 
   it("renders nothing when llm_model is missing", () => {

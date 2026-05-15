@@ -475,24 +475,6 @@ export function ChatInterface() {
 
         <div className="flex flex-col gap-[6px]">
           <BtwMessages conversationId={conversationId} />
-          <div className="flex justify-between relative">
-            <div className="flex items-end gap-1">
-              <ConfirmationModeEnabled />
-              {isStartingStatus && (
-                <ChatStatusIndicator
-                  statusColor={serverStatusColor}
-                  status={serverStatusText}
-                />
-              )}
-            </div>
-
-            <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0">
-              {curAgentState === AgentState.RUNNING && <TypingIndicator />}
-            </div>
-
-            {!hitBottom && <ScrollToBottomButton onClick={scrollDomToBottom} />}
-          </div>
-
           {errorMessage && (
             <ErrorMessageBanner
               message={errorMessage}
@@ -500,10 +482,38 @@ export function ChatInterface() {
             />
           )}
 
-          <InteractiveChatBox
-            onSubmit={handleSendMessage}
-            disabled={isNewConversationPending}
-          />
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-x-0 bottom-full mb-1 z-20">
+              <div className="flex justify-between relative">
+                <div className="flex items-end gap-1 pointer-events-auto">
+                  <ConfirmationModeEnabled />
+                  {isStartingStatus && (
+                    <ChatStatusIndicator
+                      statusColor={serverStatusColor}
+                      status={serverStatusText}
+                    />
+                  )}
+                </div>
+
+                {!hitBottom ? (
+                  <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0 pointer-events-auto">
+                    <ScrollToBottomButton onClick={scrollDomToBottom} />
+                  </div>
+                ) : (
+                  curAgentState === AgentState.RUNNING && (
+                    <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0 pointer-events-auto">
+                      <TypingIndicator />
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+
+            <InteractiveChatBox
+              onSubmit={handleSendMessage}
+              disabled={isNewConversationPending}
+            />
+          </div>
         </div>
       </div>
     </ScrollProvider>

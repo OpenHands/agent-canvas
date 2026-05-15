@@ -59,7 +59,7 @@ describe("EventMessage - ACPToolCallEvent dispatch", () => {
     expect(screen.getByText("ACTION_MESSAGE$ACP_RUN")).toBeInTheDocument();
   });
 
-  it("shows the success check mark for completed tool calls", () => {
+  it("does not show a success icon for completed tool calls", () => {
     renderWithProviders(
       <EventMessage
         event={makeEvent()}
@@ -69,8 +69,7 @@ describe("EventMessage - ACPToolCallEvent dispatch", () => {
       />,
     );
 
-    // Same status-icon testid as regular successful observations.
-    expect(screen.getByTestId("status-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
   });
 
   it("omits the status icon while a call is in progress", () => {

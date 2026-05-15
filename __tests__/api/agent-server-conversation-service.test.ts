@@ -67,6 +67,7 @@ vi.mock("#/api/agent-server-config", () => ({
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
   getConfiguredWorkerUrls: vi.fn(() => []),
+  getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
 }));
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { SlidersHorizontal } from "lucide-react";
+import { ListFilter } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
@@ -328,7 +328,7 @@ export function ConversationPanel({
               onClick={() => setOlderFilterMenuOpen((open) => !open)}
               className="inline-flex items-center justify-center rounded-md p-1 text-neutral-400 hover:text-white hover:bg-[#1f1f1f99] transition-colors"
             >
-              <SlidersHorizontal size={14} />
+              <ListFilter size={14} />
             </button>
 
             {olderFilterMenuOpen && (

@@ -58,7 +58,7 @@ export function ConversationMain() {
             "flex flex-col bg-base overflow-hidden",
             isMobile
               ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out md:pt-3 md:pb-3",
+              : "transition-all duration-300 ease-in-out",
           )}
           style={
             !isMobile
@@ -71,7 +71,7 @@ export function ConversationMain() {
         >
           <div
             data-testid="chat-pane-header"
-            className="flex items-center min-h-9 mb-3 pt-2 lg:pt-0"
+            className="flex items-center min-h-9 pt-2 lg:pt-0"
           >
             <ConversationNameWithStatus />
           </div>
