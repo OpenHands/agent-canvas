@@ -157,7 +157,7 @@ describe("SdkSectionPage", () => {
     );
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }],
       getInitialView: () => "advanced",
     });
 
@@ -225,7 +225,7 @@ describe("SdkSectionPage", () => {
 
       return (
         <SdkSectionPage
-          sectionKeys={["llm"]}
+          settingsSources={[{ settingsSource: "agent_settings", sectionKeys: ["llm"] }]}
           header={() => (
             <input
               data-testid="external-state-input"
@@ -324,7 +324,7 @@ describe("SdkSectionPage", () => {
       return true;
     });
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }] });
 
     await screen.findByTestId("sdk-section-advanced-toggle");
     await userEvent.click(screen.getByTestId("sdk-section-advanced-toggle"));
@@ -416,7 +416,7 @@ describe("SdkSectionPage", () => {
       return true;
     });
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }] });
 
     await screen.findByTestId("sdk-section-all-toggle");
     await userEvent.click(screen.getByTestId("sdk-section-all-toggle"));
@@ -442,7 +442,7 @@ describe("SdkSectionPage", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSavableSettings());
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }],
       forceShowAdvancedView: true,
     });
 
@@ -501,7 +501,7 @@ describe("SdkSectionPage", () => {
       }),
     );
 
-    renderSdkSectionPage({ sectionKeys: ["condenser"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["condenser"] }] });
 
     await screen.findByTestId("sdk-section-basic-toggle");
     expect(
@@ -553,14 +553,16 @@ describe("SdkSectionPage", () => {
       buildSettings({
         agent_settings_schema: schema,
         agent_settings: {
-          "verification.critic_enabled": true,
-          "verification.critic_server_url": "https://critic.example.com",
+          verification: {
+            critic_enabled: true,
+            critic_server_url: "https://critic.example.com",
+          },
         },
       }),
     );
 
     renderSdkSectionPage({
-      sectionKeys: ["verification"],
+      settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["verification"] }],
       getInitialView: () => "all",
     });
 
@@ -579,7 +581,7 @@ describe("SdkSectionPage", () => {
       "displaySuccessToast",
     );
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }] });
 
     const endpointInput = await screen.findByTestId(
       "sdk-settings-llm.endpoint",
@@ -602,7 +604,7 @@ describe("SdkSectionPage", () => {
     );
     const displayErrorToastSpy = vi.spyOn(ToastHandlers, "displayErrorToast");
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }] });
 
     const endpointInput = await screen.findByTestId(
       "sdk-settings-llm.endpoint",
@@ -635,7 +637,7 @@ describe("SdkSectionPage", () => {
       buildSettings({ agent_settings_schema: malformedSchema }),
     );
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({ settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }] });
 
     expect(
       await screen.findByText("SETTINGS$SDK_SCHEMA_UNAVAILABLE"),
@@ -652,7 +654,7 @@ describe("SdkSectionPage", () => {
       .mockResolvedValue(true);
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [{ settingsSource: "agent_settings", sectionKeys: ["llm"] }],
       extraDirty: true,
       buildPayload: (payload) => ({
         ...payload,
