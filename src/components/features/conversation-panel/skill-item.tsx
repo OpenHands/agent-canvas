@@ -2,10 +2,10 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Typography } from "#/ui/typography";
 import { SkillTriggers } from "./skill-triggers";
 import { SkillContent } from "./skill-content";
-import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { SkillInfo } from "#/types/settings";
 
 interface SkillItemProps {
-  skill: Skill;
+  skill: SkillInfo & { content?: string };
   isExpanded: boolean;
   onToggle: (agentName: string) => void;
 }
@@ -48,8 +48,8 @@ export function SkillItem({ skill, isExpanded, onToggle }: SkillItemProps) {
 
       {isExpanded && (
         <div className="px-2 pb-3 pt-1">
-          <SkillTriggers triggers={skill.triggers} />
-          <SkillContent content={skill.content} />
+          <SkillTriggers triggers={skill.triggers ?? []} />
+          <SkillContent content={skill.content ?? ""} />
         </div>
       )}
     </div>
