@@ -9808,6 +9808,23 @@
     "uk": "Завантажити зображення",
     "ca": "Carrega una imatge"
   },
+  "CHAT_INTERFACE$ADD_FILE": {
+    "en": "Add file",
+    "ja": "ファイルを追加",
+    "zh-CN": "添加文件",
+    "zh-TW": "新增檔案",
+    "ko-KR": "파일 추가",
+    "no": "Legg til fil",
+    "it": "Aggiungi file",
+    "pt": "Adicionar arquivo",
+    "es": "Añadir archivo",
+    "ar": "إضافة ملف",
+    "fr": "Ajouter un fichier",
+    "tr": "Dosya ekle",
+    "de": "Datei hinzufügen",
+    "uk": "Додати файл",
+    "ca": "Afegeix un fitxer"
+  },
   "CHAT_INTERFACE$INITIAL_MESSAGE": {
     "en": "Hi! I'm OpenHands, an AI Software Engineer. What would you like to build with me today?",
     "zh-CN": "你好！我是 OpenHands，一名 AI 软件工程师。今天想和我一起编写什么程序呢?",
