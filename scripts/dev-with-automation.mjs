@@ -65,6 +65,9 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 // Default automation version (released PyPI version)
 // Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
+// SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
+// DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
+const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.0";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 // Where the auto-generated default automation API key is persisted. Static
@@ -872,6 +875,7 @@ export {
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
+  DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
   DEFAULT_AUTOMATION_API_KEY_PATH,
