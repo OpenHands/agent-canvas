@@ -31,6 +31,7 @@
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
+ *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
  *
  * Secrets:
  *   The automation API key is automatically seeded into agent-server secrets
@@ -51,8 +52,8 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   formatMissingUvxGuidance,
-  generateRandomApiKey,
   findFreePorts,
+  getOrCreatePersistedApiKey,
   validateFrontendDependencies,
 } from "./dev-safe.mjs";
 
@@ -66,12 +67,15 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-
-// Auto-generate a random API key for this dev session.
-// This ensures services share the same key during a single invocation,
-// but each restart gets a fresh key for better security isolation.
-// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
-const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
+// Where the auto-generated default automation API key is persisted. Static
+// frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
+// must remain stable across restarts and --skip-build reuse.
+const DEFAULT_AUTOMATION_API_KEY_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "automation-api-key.txt",
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -190,6 +194,7 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+  OH_AUTOMATION_API_KEY_PATH  Override persisted default automation key path
 
 SECRETS:
   The automation API key is automatically seeded into agent-server secrets
@@ -282,8 +287,13 @@ async function buildConfig(args, env = process.env) {
 
   const vscodePort = ports.backend + 1000;
 
-  // Local API key for automation backend auth
-  const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
+  // Local API key for automation backend auth. Keep the generated default
+  // stable across restarts because static frontend builds bake this value.
+  const automationApiKeyPath =
+    env.OH_AUTOMATION_API_KEY_PATH || DEFAULT_AUTOMATION_API_KEY_PATH;
+  const localApiKey =
+    env.AUTOMATION_LOCAL_API_KEY ||
+    getOrCreatePersistedApiKey(automationApiKeyPath, "automation");
   
   // Session API key for agent-server auth
   // Build a preliminary safe config to get the auto-generated session key
@@ -851,7 +861,6 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAutomationCommand,
   buildConfig,
-  generateRandomApiKey,
   main,
   spawnService,
   commandExists,
@@ -865,6 +874,7 @@ export {
   DEFAULT_AUTOMATION_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
+  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
