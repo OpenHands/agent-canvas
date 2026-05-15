@@ -134,6 +134,10 @@ jobs:
             echo "Found snapshot-baselines artifact from run $RUN_ID"
           fi
 
+      - name: Clear snapshot directory before downloading baselines
+        if: github.event_name == 'pull_request'
+        run: rm -rf tests/e2e/__snapshots__/
+
       - name: Download main-branch baselines
         if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
         uses: actions/download-artifact@v4
@@ -162,7 +166,9 @@ jobs:
 
       - name: Generate current PR snapshots
         if: github.event_name == 'pull_request'
+        id: generate
         run: npm run test:e2e:snapshots:update
+        continue-on-error: true
 
       - name: Post snapshot report to PR
         if: always() && github.event_name == 'pull_request'
@@ -174,6 +180,7 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           MAIN_BASELINES_DIR: /tmp/main-baselines
           SNAPSHOTS_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
+          GENERATE_OUTCOME: ${{ steps.generate.outcome }}
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
 
       - name: Upload test results artifact
@@ -194,4 +201,12 @@ jobs:
           !contains(github.event.pull_request.labels.*.name, 'update-snapshots')
         run: |
           echo "::error::Snapshot differences detected. Add the 'update-snapshots' label to acknowledge intentional changes."
+          exit 1
+
+      - name: Fail if snapshot generation had test crashes
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.generate.outcome == 'failure'
+        run: |
+          echo "::error::One or more snapshot tests crashed during generation. See the PR comment and CI logs for details."
           exit 1

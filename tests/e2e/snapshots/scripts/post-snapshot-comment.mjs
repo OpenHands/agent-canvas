@@ -39,6 +39,7 @@ const HEAD_REF = requireEnv("HEAD_REF");
 const MAIN_BASELINES_DIR =
   process.env.MAIN_BASELINES_DIR ?? "/tmp/main-baselines";
 const SNAPSHOTS_APPROVED = process.env.SNAPSHOTS_APPROVED === "true";
+const GENERATE_OUTCOME = process.env.GENERATE_OUTCOME ?? "success";
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 const TEST_RESULTS_DIR = "test-results";
@@ -241,6 +242,18 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     COMMENT_MARKER,
     `## 📸 Snapshot Test Report`,
     "",
+  ];
+
+  if (GENERATE_OUTCOME === "failure") {
+    lines.push(
+      `> [!WARNING]`,
+      `> **One or more snapshot tests crashed during generation** — some snapshots below may be incomplete.`,
+      `> Check the [CI logs](https://github.com/${REPO}/actions/runs/${RUN_ID}) for the full error output (look for the "Generate current PR snapshots" step).`,
+      "",
+    );
+  }
+
+  lines.push(
     `${statusIcon} ${statusText}`,
     "",
     `| Category | Count |`,
