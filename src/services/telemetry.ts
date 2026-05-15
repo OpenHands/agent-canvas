@@ -32,17 +32,25 @@ const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 
-// PostHog configuration - configurable via env vars with OpenHands defaults
-// Note: The default API key sends telemetry to OpenHands' PostHog project.
-// Library consumers can override this with their own PostHog project key.
-//
-// Production builds fall back to the hardcoded placeholder when VITE_POSTHOG_API_KEY
-// is not set — replace the placeholder with the real project key before deploying.
-// Dev/test builds get null so PostHog never initialises and no events are sent,
-// keeping dev and CI traffic out of the production PostHog project entirely.
-const POSTHOG_API_KEY: string | null =
-  import.meta.env.VITE_POSTHOG_API_KEY ||
-  (import.meta.env.PROD ? "phc_REPLACE_WITH_PRODUCTION_KEY" : null);
+// PostHog project keys — hardcoded per deployment environment so they are
+// set in stone and cannot drift through environment variable changes.
+// Library consumers can still override via VITE_POSTHOG_API_KEY if needed.
+const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+const POSTHOG_STAGING_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK"; // TODO: replace with dedicated staging project key
+
+function resolvePosthogApiKey(): string | null {
+  // Library consumers can always override with their own key.
+  if (import.meta.env.VITE_POSTHOG_API_KEY) {
+    return import.meta.env.VITE_POSTHOG_API_KEY as string;
+  }
+  if (typeof window === "undefined") return null;
+  const { hostname } = window.location;
+  if (hostname === "app.all-hands.dev") return POSTHOG_PROD_KEY;
+  if (hostname === "staging.app.all-hands.dev") return POSTHOG_STAGING_KEY;
+  return null;
+}
+
+const POSTHOG_API_KEY = resolvePosthogApiKey();
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.

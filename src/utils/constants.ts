@@ -40,6 +40,7 @@ export const DOCUMENTATION_URL = {
 
 export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
+  STAGING: "https://staging.app.all-hands.dev",
 };
 
 export const SETTINGS_FORM = {
