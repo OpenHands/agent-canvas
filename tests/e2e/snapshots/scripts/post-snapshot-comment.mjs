@@ -206,13 +206,23 @@ function rawUrl(commitSha, filePath) {
   return `${RAW_BASE}/${OWNER}/${REPO_NAME}/${commitSha}/${filePath}`;
 }
 
-function formatRelPath(relPath) {
-  // "snapshots/settings-page.snapshot.spec.ts/chromium/sidebar-settings.png"
-  // → "settings-page / sidebar-settings"
-  const parts = relPath.replace(/^snapshots\//, "").split("/");
-  const spec = parts[0]?.replace(".snapshot.spec.ts", "") ?? "";
-  const name = basename(relPath, ".png");
-  return `\`${spec}\` — ${name}`;
+/** Extract the human-readable spec name from a relative snapshot path.
+ *  "snapshots/mcp-page.snapshot.spec.ts/chromium/foo.png" → "mcp-page"
+ */
+function specFromRelPath(relPath) {
+  const segment = relPath.replace(/^snapshots\//, "").split("/")[0] ?? "";
+  return segment.replace(".snapshot.spec.ts", "");
+}
+
+/** Group an array of snapshot objects by their spec name. */
+function groupBySpec(items) {
+  const groups = /** @type {Map<string, typeof items>} */ (new Map());
+  for (const item of items) {
+    const spec = specFromRelPath(item.relPath);
+    if (!groups.has(spec)) groups.set(spec, []);
+    groups.get(spec).push(item);
+  }
+  return groups;
 }
 
 function buildComment(changed, newSnapshots, unchanged, commitSha) {
@@ -265,43 +275,49 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     );
   }
 
-  // Changed snapshots
+  // Changed snapshots — grouped by spec file
   if (changed.length > 0) {
     lines.push(
       `<details>`,
       `<summary>🔴 Changed snapshots (${changed.length})</summary>`,
       "",
     );
-    for (const { relPath, diffFile } of changed) {
-      lines.push(`### ${formatRelPath(relPath)}`, "");
+    for (const [spec, items] of groupBySpec(changed)) {
+      lines.push(
+        `### \`${spec}\`${items.length > 1 ? ` — ${items.length} snapshots` : ""}`,
+        "",
+      );
+      for (const { relPath, diffFile } of items) {
+        const name = basename(relPath, ".png");
+        lines.push(`**${name}**`, "");
 
-      if (commitSha) {
-        // Paths in the orphan commit: changed/<relPath>-{actual,expected,diff}.png
-        const base = join("changed", relPath);
-        const expectedUrl = rawUrl(commitSha, base.replace(".png", "-expected.png"));
-        const actualUrl   = rawUrl(commitSha, base.replace(".png", "-actual.png"));
-        const diffUrl     = diffFile
-          ? rawUrl(commitSha, base.replace(".png", "-diff.png"))
-          : null;
+        if (commitSha) {
+          const base = join("changed", relPath);
+          const expectedUrl = rawUrl(commitSha, base.replace(".png", "-expected.png"));
+          const actualUrl   = rawUrl(commitSha, base.replace(".png", "-actual.png"));
+          const diffUrl     = diffFile
+            ? rawUrl(commitSha, base.replace(".png", "-diff.png"))
+            : null;
 
-        lines.push(
-          `| Expected (main) | Actual (PR) |${diffUrl ? " Diff |" : ""}`,
-          `|---|---|${diffUrl ? "---|" : ""}`,
-          `| ![expected](${expectedUrl}) | ![actual](${actualUrl}) |${diffUrl ? ` ![diff](${diffUrl}) |` : ""}`,
-          "",
-        );
-      } else {
-        lines.push(
-          `_Images could not be embedded (fork PR or push failed). ` +
-            `Download the [\`snapshot-test-results\` artifact](https://github.com/${REPO}/actions/runs/${RUN_ID}) for visual diffs._`,
-          "",
-        );
+          lines.push(
+            `| Expected (main) | Actual (PR) |${diffUrl ? " Diff |" : ""}`,
+            `|---|---|${diffUrl ? "---|" : ""}`,
+            `| ![expected](${expectedUrl}) | ![actual](${actualUrl}) |${diffUrl ? ` ![diff](${diffUrl}) |` : ""}`,
+            "",
+          );
+        } else {
+          lines.push(
+            `_Images could not be embedded (fork PR or push failed). ` +
+              `Download the [\`snapshot-test-results\` artifact](https://github.com/${REPO}/actions/runs/${RUN_ID}) for visual diffs._`,
+            "",
+          );
+        }
       }
     }
     lines.push(`</details>`, "");
   }
 
-  // New snapshots
+  // New snapshots — grouped by spec file
   if (newSnapshots.length > 0) {
     lines.push(
       `<details>`,
@@ -311,15 +327,16 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
       "",
     );
     if (commitSha) {
-      for (const { relPath } of newSnapshots) {
-        // Paths in the orphan commit: new/<relPath>.png
-        const actualUrl = rawUrl(commitSha, join("new", relPath));
+      for (const [spec, items] of groupBySpec(newSnapshots)) {
         lines.push(
-          `### ${formatRelPath(relPath)}`,
-          "",
-          `![new snapshot](${actualUrl})`,
+          `### \`${spec}\`${items.length > 1 ? ` — ${items.length} snapshots` : ""}`,
           "",
         );
+        for (const { relPath } of items) {
+          const name = basename(relPath, ".png");
+          const actualUrl = rawUrl(commitSha, join("new", relPath));
+          lines.push(`**${name}**`, "", `![new snapshot](${actualUrl})`, "");
+        }
       }
     } else {
       lines.push(
@@ -331,19 +348,21 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     lines.push(`</details>`, "");
   }
 
-  // Unchanged
+  // Unchanged — compact grouped list by spec file
   if (unchanged.length > 0) {
     lines.push(
       `<details>`,
       `<summary>✅ Unchanged snapshots (${unchanged.length})</summary>`,
       "",
-      `The following ${unchanged.length} snapshot${unchanged.length !== 1 ? "s" : ""} match${unchanged.length === 1 ? "es" : ""} the main branch baselines:`,
-      "",
     );
-    for (const { relPath } of unchanged) {
-      lines.push(`- ${formatRelPath(relPath)}`);
+    for (const [spec, items] of groupBySpec(unchanged)) {
+      lines.push(`**\`${spec}\`**`);
+      for (const { relPath } of items) {
+        lines.push(`- ${basename(relPath, ".png")}`);
+      }
+      lines.push("");
     }
-    lines.push("", `</details>`, "");
+    lines.push(`</details>`, "");
   }
 
   lines.push(
