@@ -9,6 +9,7 @@ import {
   TerminalObservation,
   BrowserObservation,
   BrowserNavigateAction,
+  SwitchLLMObservation,
 } from "./core";
 import { AgentErrorEvent } from "./core/events/observation-event";
 import { MessageEvent } from "./core/events/message-event";
@@ -144,6 +145,15 @@ export const isBrowserObservationEvent = (
   event: OpenHandsEvent,
 ): event is ObservationEvent<BrowserObservation> =>
   isObservationEvent(event) && event.observation.kind === "BrowserObservation";
+
+/**
+ * Type guard function to check if an observation event is a SwitchLLMObservation
+ */
+export const isSwitchLLMObservationEvent = (
+  event: OpenHandsEvent,
+): event is ObservationEvent<SwitchLLMObservation> =>
+  isObservationEvent(event) &&
+  event.observation.kind === "SwitchLLMObservation";
 
 /**
  * Type guard function to check if an action event is a BrowserNavigateAction

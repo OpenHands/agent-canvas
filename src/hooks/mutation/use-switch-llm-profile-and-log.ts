@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
 import { useSwitchLlmProfile } from "#/hooks/mutation/use-switch-llm-profile";
-import { useModelStore } from "#/stores/model-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -14,7 +14,6 @@ import { I18nKey } from "#/i18n/declaration";
  */
 export function useSwitchLlmProfileAndLog() {
   const { mutate } = useSwitchLlmProfile();
-  const recordSwitch = useModelStore((s) => s.recordSwitch);
   const { t } = useTranslation();
 
   return useCallback(
@@ -25,7 +24,7 @@ export function useSwitchLlmProfileAndLog() {
         { conversationId, profileName },
         {
           onSuccess: () =>
-            recordSwitch(conversationId, anchorEventId, profileName),
+            recordModelSwitchMessage(conversationId, profileName, anchorEventId),
           onError: (err: unknown) => {
             const fallback = t(I18nKey.MODEL$SWITCH_FAILED, {
               name: profileName,
@@ -37,6 +36,6 @@ export function useSwitchLlmProfileAndLog() {
         },
       );
     },
-    [mutate, recordSwitch, t],
+    [mutate, t],
   );
 }

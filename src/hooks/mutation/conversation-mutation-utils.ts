@@ -105,6 +105,38 @@ export const updateConversationExecutionStatusInCache = (
   });
 };
 
+export const updateConversationLlmModelInCache = (
+  queryClient: QueryClient,
+  conversationId: string,
+  llm_model: string,
+): void => {
+  queryClient.setQueriesData<AppConversation | null>(
+    { queryKey: ["user", "conversation", conversationId] },
+    (oldData) => {
+      if (!oldData) return oldData;
+      return { ...oldData, llm_model };
+    },
+  );
+
+  queryClient.setQueriesData<{
+    pages: Array<{
+      items: Array<{ id: string; llm_model: string | null }>;
+    }>;
+  }>({ queryKey: ["user", "conversations"] }, (oldData) => {
+    if (!oldData) return oldData;
+
+    return {
+      ...oldData,
+      pages: oldData.pages.map((page) => ({
+        ...page,
+        items: page.items.map((conv) =>
+          conv.id === conversationId ? { ...conv, llm_model } : conv,
+        ),
+      })),
+    };
+  });
+};
+
 export const invalidateConversationQueries = (
   queryClient: QueryClient,
   conversationId: string,
