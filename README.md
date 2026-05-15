@@ -26,7 +26,9 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 <img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
 
 > [!WARNING]
-> This project is in sandbox phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+> This project is in alpha phase. It may be vibecoded, untested, or out of date.```
+
+Everyone knows what alpha, vibecoded, untested means, not sure we need corporate-lawyer language for it.
 
 ## Quickstart
 
