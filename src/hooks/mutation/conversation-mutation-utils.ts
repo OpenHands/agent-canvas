@@ -78,8 +78,12 @@ export const updateConversationExecutionStatusInCache = (
   conversationId: string,
   execution_status: ExecutionStatusValue,
 ): void => {
-  queryClient.setQueryData<AppConversation | null>(
-    ["user", "conversation", conversationId],
+  // useUserConversation stores data under a 5-part key that includes the active
+  // backend id and org id. Use setQueriesData with prefix matching so the
+  // optimistic update reaches whichever (backend, org) variant is currently
+  // mounted, regardless of which specific key was registered.
+  queryClient.setQueriesData<AppConversation | null>(
+    { queryKey: ["user", "conversation", conversationId] },
     (oldData) => {
       if (!oldData) return oldData;
       return { ...oldData, execution_status };

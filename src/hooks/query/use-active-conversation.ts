@@ -12,7 +12,16 @@ export const useActiveConversation = () => {
 
   const userConversation = useUserConversation(
     actualConversationId,
-    () => 30000,
+    // Poll at 3 s while the sandbox URL is absent (cloud sandbox starting after
+    // navigate) so the WebSocket can connect as soon as the URL is available,
+    // rather than waiting up to 30 s for the next normal refetch.
+    (query) => {
+      const data = query.state.data;
+      if (data && !data.conversation_url) {
+        return 3000;
+      }
+      return 30000;
+    },
   );
 
   useEffect(() => {
