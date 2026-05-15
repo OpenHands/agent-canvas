@@ -2,6 +2,7 @@ name: Snapshot Tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
@@ -123,6 +124,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           HEAD_REF: ${{ github.head_ref }}
           MAIN_BASELINES_DIR: /tmp/main-baselines
+          SNAPSHOTS_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
 
       - name: Upload test results artifact
@@ -139,7 +141,8 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           steps.compare.outcome == 'failure' &&
-          steps.find-run.outputs.has_baselines == 'true'
+          steps.find-run.outputs.has_baselines == 'true' &&
+          !contains(github.event.pull_request.labels.*.name, 'update-snapshots')
         run: |
-          echo "::error::Visual snapshot differences detected. See the PR comment for image diffs."
+          echo "::error::Snapshot differences detected. Add the 'update-snapshots' label to acknowledge intentional changes."
           exit 1

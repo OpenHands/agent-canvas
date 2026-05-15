@@ -37,6 +37,7 @@ const RUN_ID = requireEnv("RUN_ID");
 const HEAD_REF = requireEnv("HEAD_REF");
 const MAIN_BASELINES_DIR =
   process.env.MAIN_BASELINES_DIR ?? "/tmp/main-baselines";
+const SNAPSHOTS_APPROVED = process.env.SNAPSHOTS_APPROVED === "true";
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 const TEST_RESULTS_DIR = "test-results";
@@ -213,17 +214,29 @@ function formatRelPath(relPath) {
 
 function buildComment(changed, newSnapshots, unchanged, commitSha) {
   const total = changed.length + newSnapshots.length + unchanged.length;
-  // Derive pass/fail from the actual classification, not from TEST_OUTCOME.
-  // TEST_OUTCOME is 'failure' in the bootstrap case (no baselines on main yet)
-  // even though there are zero visual regressions.
   const hasDifferences = changed.length > 0;
 
-  const statusIcon = hasDifferences ? "❌" : "✅";
-  const statusText = hasDifferences
-    ? `${changed.length} snapshot${changed.length !== 1 ? "s" : ""} differ from the main branch baseline${changed.length !== 1 ? "s" : ""}.`
-    : unchanged.length === 0
-      ? `No baseline found on main — all ${newSnapshots.length} snapshot${newSnapshots.length !== 1 ? "s" : ""} are new and will become the baseline once this PR merges.`
-      : "All snapshots match the main branch baselines.";
+  let statusIcon;
+  let statusText;
+  if (hasDifferences && SNAPSHOTS_APPROVED) {
+    statusIcon = "✅";
+    statusText =
+      `${changed.length} snapshot${changed.length !== 1 ? "s" : ""} changed — ` +
+      `acknowledged via the \`update-snapshots\` label. New baselines will be uploaded when this PR merges.`;
+  } else if (hasDifferences) {
+    statusIcon = "❌";
+    statusText =
+      `${changed.length} snapshot${changed.length !== 1 ? "s" : ""} differ from the main branch baseline${changed.length !== 1 ? "s" : ""}. ` +
+      `Add the \`update-snapshots\` label to acknowledge intentional changes.`;
+  } else if (unchanged.length === 0) {
+    statusIcon = "✅";
+    statusText =
+      `No baseline found on main — all ${newSnapshots.length} snapshot${newSnapshots.length !== 1 ? "s" : ""} are new ` +
+      `and will become the baseline once this PR merges.`;
+  } else {
+    statusIcon = "✅";
+    statusText = "All snapshots match the main branch baselines.";
+  }
 
   const lines = [
     COMMENT_MARKER,
