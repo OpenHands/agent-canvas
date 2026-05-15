@@ -222,12 +222,12 @@ test.describe("UI Visual Snapshots", () => {
     const homeScreen = page.getByTestId("home-screen");
     await expect(homeScreen).toBeVisible();
 
-    // Wait for the backend selector to appear in the sidebar footer.
-    const trigger = page
-      .getByTestId("backend-selector")
-      .getByTestId("dropdown-trigger");
-    await expect(trigger).toBeVisible({ timeout: 15_000 });
-    await trigger.click();
+    // The backend selector uses openOnHover, so hovering opens the
+    // dropdown. Clicking the toggle would close it again, so we hover
+    // to open and then click the menu item directly.
+    const backendSelector = page.getByTestId("backend-selector");
+    await expect(backendSelector).toBeVisible({ timeout: 15_000 });
+    await backendSelector.hover();
     await page.getByTestId("add-backend-menu-item").click();
 
     const addBackendModal = page.getByTestId("add-backend-modal");
