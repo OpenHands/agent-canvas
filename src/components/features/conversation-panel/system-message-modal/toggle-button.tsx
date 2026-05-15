@@ -19,14 +19,14 @@ export function ToggleButton({
       type="button"
       data-testid="toggle-button"
       onClick={onClick}
-      className={`w-full py-3 px-2 text-left flex items-center justify-between hover:bg-gray-700 transition-colors ${className || ""}`}
+      className={`w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors ${className || ""}`}
     >
       <div className="flex items-center">
-        <Typography.Text className="font-bold text-gray-100">
+        <Typography.Text className="font-bold text-content-2">
           {title}
         </Typography.Text>
       </div>
-      <Typography.Text className="text-gray-300">
+      <Typography.Text className="text-[var(--oh-text-tertiary)]">
         {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
       </Typography.Text>
     </button>

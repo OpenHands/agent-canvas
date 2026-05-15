@@ -29,6 +29,7 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
+  emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
   toConversationPage,
@@ -43,6 +44,7 @@ import {
   setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -476,6 +478,13 @@ class AgentServerConversationService {
     return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
       conversationId,
     );
+  }
+
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
+    return emptyHooksResponse();
   }
 
   static async getRuntimeConversation(

@@ -315,7 +315,7 @@ describe("FilesTab", () => {
     // color (so it blends with the surrounding chrome) and project white
     // text — both spelled out in the user's design ask.
     const container = screen.getByTestId("file-content-viewer-markdown");
-    expect(container.className).toContain("bg-[#25272D]");
+    expect(container.className).toContain("bg-[var(--oh-surface)]");
     expect(container.className).toContain("text-white");
   });
 

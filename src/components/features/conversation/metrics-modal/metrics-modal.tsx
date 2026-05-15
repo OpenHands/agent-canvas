@@ -67,7 +67,7 @@ export function MetricsModal({ isOpen, onOpenChange }: MetricsModalProps) {
 
   return (
     <ModalBackdrop onClose={() => onOpenChange(false)}>
-      <ModalBody className="items-start border border-tertiary">
+      <ModalBody className="items-start border border-[var(--oh-border)]">
         <BaseModalTitle title={t(I18nKey.CONVERSATION$METRICS_INFO)} />
         <div className="space-y-4 w-full">
           {(metrics?.cost !== null || metrics?.usage !== null) && (

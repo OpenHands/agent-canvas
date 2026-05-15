@@ -29,7 +29,7 @@ export function MCPServerList({
 
   if (servers.length === 0) {
     return (
-      <div className="border border-tertiary rounded-md p-8 text-center">
+      <div className="border border-[var(--oh-border)] rounded-md p-8 text-center">
         <p className="text-content-2 text-sm">
           {t(I18nKey.SETTINGS$MCP_NO_SERVERS)}
         </p>
@@ -38,7 +38,7 @@ export function MCPServerList({
   }
 
   return (
-    <div className="border border-tertiary rounded-md overflow-hidden">
+    <div className="border border-[var(--oh-border)] rounded-md overflow-hidden">
       <table className="w-full">
         <thead className="bg-base-tertiary">
           <tr className="grid grid-cols-[minmax(0,0.25fr)_120px_minmax(0,1fr)_120px] gap-4 items-start">

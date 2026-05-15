@@ -39,7 +39,7 @@ export function DropdownMenu({
     >
       <ul {...getMenuProps({ className: "p-0" })}>
         {isOpen && filteredOptions.length === 0 && (
-          <li className="px-2 py-2 text-sm text-gray-400 italic">
+          <li className="px-2 py-2 text-sm text-[var(--oh-muted)] italic">
             {emptyMessage}
           </li>
         )}
@@ -55,8 +55,8 @@ export function DropdownMenu({
                   "text-white focus:outline-none font-normal",
                   "flex items-center gap-2",
                   selectedItem?.value === option.value
-                    ? "bg-[#C9B974] text-black"
-                    : "hover:bg-[#5C5D62]",
+                    ? "bg-[var(--oh-interactive-selected)] text-white"
+                    : "hover:bg-[var(--oh-interactive-hover)]",
                 ),
               })}
             >
@@ -67,7 +67,7 @@ export function DropdownMenu({
       </ul>
       {isOpen && footer ? (
         <>
-          <div className="my-1 h-[1px] w-full bg-[#5C5D62]" />
+          <div className="my-1 h-[1px] w-full bg-[var(--oh-border)]" />
           <div className="p-0">{footer}</div>
         </>
       ) : null}

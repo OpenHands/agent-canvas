@@ -186,7 +186,7 @@ export function GitBranchDropdown({
       <div className="relative">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           {isLoadingState ? (
-            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+            <div className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full" />
           ) : (
             <BranchIcon width={16} height={16} />
           )}
@@ -196,10 +196,10 @@ export function GitBranchDropdown({
             disabled: disabled || !repository,
             placeholder,
             className: cn(
-              "w-full px-3 py-2 border border-[#727987] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
-              "bg-[#454545] text-[#A3A3A3] placeholder:text-[#A3A3A3]",
-              "focus:outline-none focus:ring-0 focus:border-[#727987]",
-              "disabled:bg-[#363636] disabled:cursor-not-allowed disabled:opacity-60",
+              "w-full px-3 py-2 border border-[var(--oh-border-input)] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
+              "bg-tertiary text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
+              "focus:outline-none focus:ring-0 focus:border-[var(--oh-border-input)]",
+              "disabled:bg-tertiary disabled:cursor-not-allowed disabled:opacity-60",
               "pl-7 pr-16 text-sm font-normal leading-5", // Space for clear and toggle buttons
             ),
             // Direct onChange for cursor position preservation

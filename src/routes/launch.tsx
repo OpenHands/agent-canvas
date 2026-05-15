@@ -104,16 +104,18 @@ function ErrorDisplay({
       className="flex h-full items-center justify-center"
       data-testid="launch-error"
     >
-      <div className="max-w-md rounded-lg bg-neutral-800 p-6 text-center">
+      <div className="max-w-md rounded-lg bg-[var(--oh-surface)] p-6 text-center">
         <h2 className="mb-4 text-xl font-semibold text-red-400">
           {t(I18nKey.LAUNCH$ERROR_TITLE)}
         </h2>
-        <p className="mb-6 text-neutral-300">{errorMessages[errorType]}</p>
+        <p className="mb-6 text-[var(--oh-text-tertiary)]">
+          {errorMessages[errorType]}
+        </p>
         <div className="flex justify-center gap-3">
           <button
             type="button"
             onClick={onGoHome}
-            className="rounded-md bg-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-600"
+            className="rounded-md bg-tertiary px-4 py-2 text-sm text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]"
             data-testid="go-home-button"
           >
             {t(I18nKey.LAUNCH$GO_HOME)}

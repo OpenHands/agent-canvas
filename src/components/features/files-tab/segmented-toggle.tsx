@@ -30,7 +30,7 @@ export function SegmentedToggle<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       data-testid={testId}
-      className="inline-flex items-center rounded-md bg-[#2F3137] p-0.5 text-xs"
+      className="inline-flex items-center rounded-md bg-[var(--oh-surface-raised)] p-0.5 text-xs"
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -47,8 +47,8 @@ export function SegmentedToggle<T extends string>({
             className={cn(
               "px-2 py-0.5 rounded cursor-pointer transition-colors",
               isActive
-                ? "bg-[#5C5D62] text-white"
-                : "text-[#9299AA] hover:text-white",
+                ? "bg-[var(--oh-interactive-hover)] text-white"
+                : "text-[var(--oh-muted)] hover:text-white",
             )}
           >
             {option.label}

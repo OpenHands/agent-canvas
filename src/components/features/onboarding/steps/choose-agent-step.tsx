@@ -57,7 +57,7 @@ export function ChooseAgentStep({
         <h2 className="text-2xl font-semibold text-white">
           {t(I18nKey.ONBOARDING$AGENT_TITLE)}
         </h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-[var(--oh-muted)]">
           {t(I18nKey.ONBOARDING$AGENT_SUBTITLE)}
         </p>
       </header>
@@ -107,7 +107,7 @@ export function ChooseAgentStep({
                 <span className="text-base font-medium text-white">
                   {option.label}
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-[var(--oh-muted)]">
                   {t(option.descriptionKey)}
                 </span>
               </div>

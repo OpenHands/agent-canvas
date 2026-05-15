@@ -37,7 +37,7 @@ export function InstalledServersSection({
       return (
         <div
           data-testid="mcp-installed-empty-search"
-          className="rounded-xl border border-dashed border-tertiary p-6 text-center"
+          className="rounded-xl border border-dashed border-[var(--oh-border)] p-6 text-center"
         >
           <p className="text-xs text-tertiary-alt">
             {t(I18nKey.MCP$SEARCH_EMPTY)}
@@ -48,7 +48,7 @@ export function InstalledServersSection({
     return (
       <div
         data-testid="mcp-installed-empty"
-        className="rounded-xl border border-dashed border-tertiary p-8 text-center"
+        className="rounded-xl border border-dashed border-[var(--oh-border)] p-8 text-center"
       >
         <p className="text-sm text-content-2">
           {t(I18nKey.MCP$INSTALLED_EMPTY_TITLE)}

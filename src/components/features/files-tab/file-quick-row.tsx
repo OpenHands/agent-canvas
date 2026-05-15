@@ -37,7 +37,7 @@ export function FileQuickRow({
 
   return (
     <div
-      className="flex items-center gap-1.5 border-b border-[#3A3D44] px-2 py-1.5 min-h-[34px]"
+      className="flex items-center gap-1.5 border-b border-[var(--oh-border)] px-2 py-1.5 min-h-[34px]"
       data-testid="file-quick-row"
     >
       <button
@@ -57,8 +57,8 @@ export function FileQuickRow({
         )}
         className={cn(
           "shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md cursor-pointer",
-          "text-[#D6D6D6] hover:bg-[#3A3D44]",
-          isTreeVisible && "bg-[#2F3137]",
+          "text-[var(--oh-text-tertiary)] hover:bg-tertiary",
+          isTreeVisible && "bg-[var(--oh-surface-raised)]",
         )}
       >
         {isTreeVisible ? (
@@ -82,8 +82,8 @@ export function FileQuickRow({
                 className={cn(
                   "inline-flex items-center px-2 py-0.5 text-xs whitespace-nowrap rounded-md cursor-pointer",
                   isSelected
-                    ? "bg-[#474A54] text-white"
-                    : "bg-[#2F3137] text-[#D6D6D6] hover:bg-[#3A3D44]",
+                    ? "bg-[var(--oh-interactive-hover)] text-white"
+                    : "bg-[var(--oh-surface-raised)] text-[var(--oh-text-tertiary)] hover:bg-tertiary",
                 )}
               >
                 {path}

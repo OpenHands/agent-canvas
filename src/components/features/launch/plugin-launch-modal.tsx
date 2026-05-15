@@ -126,7 +126,7 @@ export function PluginLaunchModal({
     <ModalBackdrop onClose={onClose}>
       <div
         data-testid="plugin-launch-modal"
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary w-[500px] max-w-[90vw] max-h-[80vh]"
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[500px] max-w-[90vw] max-h-[80vh]"
       >
         <div className="flex w-full items-center justify-between">
           <Typography.H2>
@@ -194,7 +194,7 @@ export function PluginLaunchModal({
           )}
         </div>
 
-        <div className="pt-4 border-t border-tertiary">
+        <div className="pt-4 border-t border-[var(--oh-border-subtle)]">
           <div className="flex items-start gap-3 mb-4">
             <input
               id="trust-checkbox"

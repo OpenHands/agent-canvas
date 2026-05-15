@@ -173,12 +173,12 @@ describe("FileDiffViewer", () => {
 
     await expand(user);
 
-    expect(screen.getByTestId("view-mode-diff").className).toContain("bg-[#474A54] text-white");
-    expect(screen.getByTestId("view-mode-old").className).not.toContain("bg-[#474A54] text-white");
+    expect(screen.getByTestId("view-mode-diff").className).toContain("bg-[var(--oh-interactive-hover)] text-white");
+    expect(screen.getByTestId("view-mode-old").className).not.toContain("bg-[var(--oh-interactive-hover)] text-white");
 
     await user.click(screen.getByTestId("view-mode-old"));
 
-    expect(screen.getByTestId("view-mode-old").className).toContain("bg-[#474A54] text-white");
-    expect(screen.getByTestId("view-mode-diff").className).not.toContain("bg-[#474A54] text-white");
+    expect(screen.getByTestId("view-mode-old").className).toContain("bg-[var(--oh-interactive-hover)] text-white");
+    expect(screen.getByTestId("view-mode-diff").className).not.toContain("bg-[var(--oh-interactive-hover)] text-white");
   });
 });

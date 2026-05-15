@@ -79,7 +79,7 @@ export function ExtensionsNavigation() {
       data-testid="extensions-navbar-desktop"
       className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start md:pl-[14px]"
     >
-      <span className="px-3 text-xs font-semibold uppercase tracking-wider text-[#A3A3A3]">
+      <span className="px-3 text-xs font-semibold uppercase tracking-wider text-[var(--oh-muted)]">
         {t(I18nKey.NAV$EXTENSIONS)}
       </span>
       <div className="flex flex-col gap-0.5 pt-0.5">
@@ -93,8 +93,8 @@ export function ExtensionsNavigation() {
               cn(
                 "flex items-center gap-2 rounded-md transition-colors text-sm leading-5 truncate px-2 py-2 w-full",
                 isActive
-                  ? "bg-[#1f1f1f99] text-white font-medium"
-                  : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  ? "bg-tertiary text-white font-medium"
+                  : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
               )
             }
           >
@@ -103,7 +103,7 @@ export function ExtensionsNavigation() {
             </span>
             <span className="truncate">{item.label}</span>
             {item.comingSoon && (
-              <span className="ml-auto shrink-0 rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[#8C8C8C]">
+              <span className="ml-auto shrink-0 rounded-full border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-[var(--oh-text-dim)]">
                 {t(I18nKey.NAV$COMING_SOON)}
               </span>
             )}

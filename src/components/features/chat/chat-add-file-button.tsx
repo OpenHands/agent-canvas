@@ -20,8 +20,8 @@ export function ChatAddFileButton({
       className={cn(
         "relative shrink-0 size-6 rounded-full transition-colors",
         disabled
-          ? "cursor-not-allowed text-[#6B7280]"
-          : "cursor-pointer text-[#959CB2] hover:text-white hover:bg-white/10",
+          ? "cursor-not-allowed text-[var(--oh-text-subtle)]"
+          : "cursor-pointer text-[var(--oh-muted)] hover:text-white hover:bg-white/10",
       )}
       aria-label={t(I18nKey.CHAT_INTERFACE$ADD_FILE)}
       data-testid="paperclip-icon"

@@ -11,6 +11,7 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
+import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { Provider } from "#/types/settings";
 import { Branch, GitRepository } from "#/types/git";
 import { I18nKey } from "#/i18n/declaration";
@@ -31,6 +32,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [isFolderBrowserOpen, _setIsFolderBrowserOpen] = useState(false);
+  const workspaceMenuContainerRef = useRef<HTMLDivElement>(null);
   const { addRecentRepository } = useHomeStore();
   const enqueuePendingMessage = useOptimisticUserMessageStore(
     (state) => state.enqueuePendingMessage,
@@ -55,6 +59,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     sendRef.current = send;
   }, [send]);
   const { mutate: updateRepository } = useUpdateConversationRepository();
+  const { mutate: _createConversation, isPending: _isCreatingConversation } =
+    useCreateConversation();
 
   // Priority: conversation data > task data > locally-detected git info.
   // The local fallback runs `git remote get-url origin` / `git rev-parse --abbrev-ref HEAD`
@@ -93,6 +99,31 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "OPEN";
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen || isFolderBrowserOpen) return undefined;
+    const onMouseDown = (event: MouseEvent) => {
+      if (
+        workspaceMenuContainerRef.current &&
+        !workspaceMenuContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [isWorkspaceMenuOpen, isFolderBrowserOpen]);
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen || isFolderBrowserOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isWorkspaceMenuOpen, isFolderBrowserOpen]);
 
   const handleLaunchRepository = (
     repository: GitRepository,

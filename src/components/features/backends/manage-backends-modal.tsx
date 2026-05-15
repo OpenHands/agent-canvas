@@ -43,7 +43,7 @@ function BackendVersion({ backend }: { backend: Backend }) {
 
   return (
     <span
-      className="text-xs text-[#7E848C] truncate"
+      className="text-xs text-[var(--oh-text-dim)] truncate"
       data-testid={`manage-backends-version-${backend.name}`}
     >
       {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
@@ -72,16 +72,18 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
 
   return (
     <li
-      className="flex items-center gap-3 px-5 py-3 border-b border-[#363840] last:border-b-0"
+      className="flex items-center gap-3 px-5 py-3 border-b border-[var(--oh-border)] last:border-b-0"
       data-testid={`manage-backends-row-${backend.name}`}
     >
       <BackendStatusDot isConnected={health?.isConnected ?? null} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-sm text-white truncate">{backend.name}</span>
-        <span className="text-xs text-[#A3A3A3] truncate">{backend.host}</span>
+        <span className="text-xs text-[var(--oh-muted)] truncate">
+          {backend.host}
+        </span>
         <BackendVersion backend={backend} />
       </div>
-      <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[#D6D6D6] bg-[#1F1F1F] border border-[#4B4E57]">
+      <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
         {backend.kind === "cloud"
           ? t(I18nKey.BACKEND$KIND_CLOUD)
           : t(I18nKey.BACKEND$KIND_LOCAL)}
@@ -91,7 +93,7 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
         onClick={onEdit}
         aria-label={t(I18nKey.BACKEND$EDIT)}
         data-testid={`manage-backends-edit-${backend.name}`}
-        className="px-2 py-1 rounded text-xs text-[#D6D6D6] hover:bg-[#5C5D62] hover:text-white cursor-pointer"
+        className="px-2 py-1 rounded text-xs text-[var(--oh-text-tertiary)] hover:bg-[var(--oh-interactive-hover)] hover:text-white cursor-pointer"
       >
         {t(I18nKey.BACKEND$EDIT)}
       </button>
@@ -100,7 +102,7 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
         onClick={onRemove}
         aria-label={t(I18nKey.BACKEND$REMOVE)}
         data-testid={`manage-backends-remove-${backend.name}`}
-        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#D6D6D6] hover:bg-[#5C5D62] hover:text-white cursor-pointer"
+        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[var(--oh-text-tertiary)] hover:bg-[var(--oh-interactive-hover)] hover:text-white cursor-pointer"
       >
         <CloseIcon width={12} height={12} />
         <span>{t(I18nKey.BACKEND$REMOVE)}</span>
@@ -137,11 +139,11 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
         <div
           data-testid="manage-backends-modal"
           className={cn(
-            "flex flex-col bg-[#26282D] border border-[#727987] rounded-xl",
+            "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border)] rounded-xl",
             "w-[640px] max-w-[90vw] max-h-[70vh]",
           )}
         >
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#727987]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border)]">
             <span className="text-sm font-semibold text-white">
               {t(I18nKey.BACKEND$MANAGE_TITLE)}
             </span>
@@ -152,7 +154,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             data-testid="manage-backends-list"
           >
             {backends.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-[#B7BDC2] text-center">
+              <p className="px-5 py-6 text-sm text-[var(--oh-text-secondary)] text-center">
                 {t(I18nKey.BACKEND$MANAGE_EMPTY)}
               </p>
             ) : (
@@ -175,7 +177,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             )}
           </div>
 
-          <div className="flex justify-between gap-2 px-5 py-3 border-t border-[#727987]">
+          <div className="flex justify-between gap-2 px-5 py-3 border-t border-[var(--oh-border)]">
             <BrandButton
               type="button"
               variant="secondary"

@@ -95,7 +95,7 @@ export function WorkspaceSelectionForm({
 
         {showWorkspaceStatus && workspaceStatusText && (
           <p
-            className="px-1 text-xs text-[#B7BDC2]"
+            className="px-1 text-xs text-[var(--oh-text-secondary)]"
             data-testid="workspace-status-message"
           >
             {workspaceStatusText}
