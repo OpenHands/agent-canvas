@@ -263,7 +263,7 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     `| ✅ Unchanged | ${unchanged.length} |`,
     `| **Total** | **${total}** |`,
     "",
-  ];
+  );
 
   if (hasDifferences && !SNAPSHOTS_APPROVED) {
     lines.push(
