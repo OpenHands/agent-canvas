@@ -26,11 +26,11 @@ export function code({
         <code
           className={className}
           style={{
-            backgroundColor: "#2a3038",
+            backgroundColor: "var(--oh-surface-raised)",
             padding: "0.2em 0.4em",
             borderRadius: "4px",
-            color: "#e6edf3",
-            border: "1px solid #30363d",
+            color: "var(--oh-foreground)",
+            border: "1px solid var(--oh-surface-raised)",
           }}
         >
           {children}
@@ -42,11 +42,11 @@ export function code({
       <CopyableContentWrapper text={codeString}>
         <pre
           style={{
-            backgroundColor: "#2a3038",
+            backgroundColor: "var(--oh-surface-raised)",
             padding: "1em",
             borderRadius: "4px",
-            color: "#e6edf3",
-            border: "1px solid #30363d",
+            color: "var(--oh-foreground)",
+            border: "1px solid var(--oh-surface-raised)",
             overflow: "auto",
           }}
         >

@@ -42,7 +42,7 @@ export function ProfileRow({
         </span>
         {profile.model ? (
           <span
-            className="text-sm text-gray-400 truncate min-w-0 max-w-full"
+            className="text-sm text-[var(--oh-muted)] truncate min-w-0 max-w-full"
             title={profile.model}
           >
             {profile.model}

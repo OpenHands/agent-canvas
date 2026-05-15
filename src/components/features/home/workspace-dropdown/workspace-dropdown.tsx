@@ -128,7 +128,7 @@ export function WorkspaceDropdown({
         <button
           type="button"
           data-testid="add-workspaces-button"
-          className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal"
+          className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal"
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -146,7 +146,7 @@ export function WorkspaceDropdown({
           <button
             type="button"
             data-testid="manage-workspaces-button"
-            className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal"
+            className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal"
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -177,10 +177,10 @@ export function WorkspaceDropdown({
             disabled,
             placeholder: placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER),
             className: cn(
-              "w-full px-3 py-2 border border-[#727987] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
-              "bg-[#454545] text-[#A3A3A3] placeholder:text-[#A3A3A3]",
-              "focus:outline-none focus:ring-0 focus:border-[#727987]",
-              "disabled:bg-[#363636] disabled:cursor-not-allowed disabled:opacity-60",
+              "w-full px-3 py-2 border border-[var(--oh-border-input)] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
+              "bg-tertiary text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
+              "focus:outline-none focus:ring-0 focus:border-[var(--oh-border-input)]",
+              "disabled:bg-tertiary disabled:cursor-not-allowed disabled:opacity-60",
               "pl-7 pr-16 text-sm font-normal leading-5",
             ),
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => {

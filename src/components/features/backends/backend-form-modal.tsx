@@ -100,10 +100,10 @@ function BackendStatusBadge({
           {statusLabel}
         </span>
         <span className="text-tertiary-alt">·</span>
-        <span className="text-gray-300">{kindLabel}</span>
+        <span className="text-[var(--oh-text-tertiary)]">{kindLabel}</span>
         {version ? (
           <span
-            className="text-xs text-gray-400"
+            className="text-xs text-[var(--oh-muted)]"
             data-testid={`${testIdRoot}-version`}
           >
             {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
@@ -119,7 +119,7 @@ function BackendStatusBadge({
           <span className="font-semibold text-red-300">
             {t(I18nKey.BACKEND$HEALTH_FAILED_TITLE)}
           </span>
-          <span className="text-xs text-gray-300">
+          <span className="text-xs text-[var(--oh-text-tertiary)]">
             {t(I18nKey.BACKEND$HEALTH_FAILED_DETAIL, {
               count: consecutiveFailures,
             })}
@@ -275,11 +275,11 @@ export function BackendForm({
 
           {/* Divider with "or" */}
           <div className="flex items-center gap-3">
-            <div className="flex-1 border-t border-gray-600" />
-            <span className="text-xs text-gray-500 uppercase">
+            <div className="flex-1 border-t border-[var(--oh-border)]" />
+            <span className="text-xs text-[var(--oh-text-subtle)] uppercase">
               {t(I18nKey.BACKEND$LOGIN_OR)}
             </span>
-            <div className="flex-1 border-t border-gray-600" />
+            <div className="flex-1 border-t border-[var(--oh-border)]" />
           </div>
 
           {/* Manual API key section */}
@@ -294,7 +294,7 @@ export function BackendForm({
               placeholder=""
               className="w-full"
             />
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-[var(--oh-muted)]">
               {t(I18nKey.BACKEND$KEY_DOCS_HINT)}{" "}
               <a
                 href="https://docs.openhands.dev/openhands/usage/settings/api-keys-settings"
@@ -358,7 +358,7 @@ export function BackendForm({
               {t(I18nKey.BACKEND$KIND_CLOUD)}
             </label>
           </div>
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-[var(--oh-muted)] mt-3">
             {kind === "cloud"
               ? t(I18nKey.BACKEND$KEY_HELPER_CLOUD)
               : t(I18nKey.BACKEND$KEY_HELPER_LOCAL)}
@@ -418,13 +418,13 @@ export function BackendFormModal({
     >
       <div
         data-testid={`${testIdRoot}-modal`}
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary"
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
         style={{ width: "480px" }}
       >
         <div className="flex flex-col gap-1">
           <h3 className="text-xl font-bold">{t(titleKey)}</h3>
           {mode === "add" ? (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-[var(--oh-muted)]">
               {t(I18nKey.BACKEND$ADD_SUBTITLE)}
             </p>
           ) : null}

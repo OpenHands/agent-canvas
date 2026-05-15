@@ -47,7 +47,7 @@ export function EllipsisButton({
       aria-label={ariaLabel}
       className={cn(
         "p-1 rounded-md cursor-pointer transition-colors",
-        "text-[#9299AA] hover:text-white hover:bg-white/10",
+        "text-[var(--oh-muted)] hover:text-white hover:bg-white/10",
         "flex items-center justify-center",
         className,
       )}

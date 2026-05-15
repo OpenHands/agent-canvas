@@ -312,11 +312,11 @@ export function ConversationPanel({
         <div
           data-testid="older-conversations-summary"
           className={cn(
-            "pl-4 pr-3 py-2 text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1",
-            isListScrolled && "border-b border-[#1f2228]",
+            "pl-4 pr-3 py-2 text-[var(--oh-muted)] flex flex-wrap items-center gap-x-2 gap-y-1",
+            isListScrolled && "border-b border-[var(--oh-border-subtle)]",
           )}
         >
-          <span className="text-sm font-medium text-neutral-400">
+          <span className="text-sm font-medium text-[var(--oh-muted)]">
             {t(I18nKey.SIDEBAR$CONVERSATIONS)}
           </span>
           <div ref={olderFilterMenuRef} className="relative ml-auto">
@@ -326,7 +326,7 @@ export function ConversationPanel({
               aria-label="Older conversations filter"
               aria-expanded={olderFilterMenuOpen}
               onClick={() => setOlderFilterMenuOpen((open) => !open)}
-              className="inline-flex items-center justify-center rounded-md p-1 text-neutral-400 hover:text-white hover:bg-[#1f1f1f99] transition-colors"
+              className="inline-flex items-center justify-center rounded-md p-1 text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors"
             >
               <ListFilter size={14} />
             </button>
@@ -343,7 +343,7 @@ export function ConversationPanel({
                     setShowOlderConversations((value) => !value);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
                 >
                   {showOlderConversations
                     ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
@@ -356,11 +356,11 @@ export function ConversationPanel({
                     setConfirmDeleteOlderVisible(true);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-danger hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-danger hover:bg-[var(--oh-interactive-hover)]"
                 >
                   {capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
                 </button>
-                <div className="my-1 h-[1px] w-full bg-[#5C5D62]" />
+                <div className="my-1 h-[1px] w-full bg-[var(--oh-border)]" />
                 <button
                   type="button"
                   data-testid="toggle-repo-branch-metadata"
@@ -368,7 +368,7 @@ export function ConversationPanel({
                     setShowRepoBranchMetadata((value) => !value);
                     setOlderFilterMenuOpen(false);
                   }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
                 >
                   {showRepoBranchMetadata
                     ? "Hide Repo/Branch"
@@ -399,7 +399,7 @@ export function ConversationPanel({
 
         {!compact && showEmptyState && (
           <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-neutral-400">
+            <p className="text-[var(--oh-muted)]">
               {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}
             </p>
           </div>
@@ -443,7 +443,7 @@ export function ConversationPanel({
                 type="button"
                 data-testid="load-more-conversations"
                 onClick={() => fetchNextPage()}
-                className="text-xs text-neutral-400 hover:text-white"
+                className="text-xs text-[var(--oh-muted)] hover:text-white"
               >
                 {t(I18nKey.CONVERSATION$LOAD_MORE)}
               </button>

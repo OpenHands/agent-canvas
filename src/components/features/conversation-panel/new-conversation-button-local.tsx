@@ -102,7 +102,7 @@ export function LocalNewConversationButton({
 
   const itemClass = cn(
     "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left cursor-pointer",
-    "hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal",
+    "hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal",
     "disabled:opacity-60 disabled:cursor-not-allowed",
   );
 
@@ -125,8 +125,8 @@ export function LocalNewConversationButton({
       aria-label={compact ? newConversationLabel : undefined}
       className={cn(
         "flex items-center rounded-md cursor-pointer transition-colors",
-        "text-sm font-medium text-white bg-[#1f1f1f99] hover:bg-[#2a2a2a]",
-        "border border-[#525252]",
+        "text-sm font-medium text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
+        "border border-[var(--oh-border)]",
         compact
           ? "justify-center w-10 h-10 p-0 mx-auto"
           : "gap-1.5 w-full px-3 py-2",
@@ -155,7 +155,7 @@ export function LocalNewConversationButton({
           data-testid="new-conversation-popover"
           className={cn(
             "absolute z-30 top-full mt-2 p-1",
-            "bg-[#26282D] border border-[#727987] rounded-lg shadow-xl",
+            "bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-lg shadow-xl",
             "flex flex-col",
             compact ? "left-0 w-[260px]" : "left-0 right-0",
           )}
@@ -169,7 +169,7 @@ export function LocalNewConversationButton({
                 onClick={() => launch()}
                 className={itemClass}
               >
-                <span className="italic text-[#A3A3A3]">
+                <span className="italic text-[var(--oh-muted)]">
                   {t(I18nKey.HOME$NO_WORKSPACE_OPTION)}
                 </span>
               </button>
@@ -191,7 +191,7 @@ export function LocalNewConversationButton({
             ))}
           </ul>
 
-          <div className="flex flex-col border-t border-[#525252] mt-1 pt-1">
+          <div className="flex flex-col border-t border-[var(--oh-border)] mt-1 pt-1">
             <button
               type="button"
               data-testid="add-workspaces-button"

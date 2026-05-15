@@ -22,8 +22,8 @@ export function InteractiveChip({
       data-testid={testId}
       onClick={onClick}
       className={cn(
-        "bg-[#E4E4E4] px-2 rounded-[100px] text-black text-sm text-center font-semibold cursor-pointer",
-        "hover:bg-[#D4D4D4] transition-colors",
+        "bg-[var(--oh-text-tertiary)] px-2 rounded-[100px] text-black text-sm text-center font-semibold cursor-pointer",
+        "hover:bg-[var(--oh-text-tertiary)] transition-colors",
         className,
       )}
     >

@@ -12,13 +12,13 @@ export function SearchInput({ value, onChange }: SearchInputProps) {
 
   return (
     <div className="relative">
-      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-content-muted" />
+      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted" />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t(I18nKey.AUTOMATIONS$SEARCH_PLACEHOLDER)}
-        className="w-full max-w-sm rounded-lg border border-border bg-surface-card py-2 pl-10 pr-3 text-sm text-white placeholder:text-content-muted focus:border-border-hover focus:outline-none"
+        className="w-full max-w-sm rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] py-2 pl-10 pr-3 text-sm text-white placeholder:text-muted focus:border-[var(--oh-border)] focus:outline-none"
       />
     </div>
   );

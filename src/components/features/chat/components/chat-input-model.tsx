@@ -28,7 +28,7 @@ export function ChatInputModel() {
       <button
         type="button"
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[#959CB2] whitespace-nowrap min-w-0 transition-[border-color,color]",
+          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,color]",
           "hover:text-white hover:bg-white/10 cursor-pointer",
         )}
         title={conversation.llm_model}
@@ -61,7 +61,7 @@ export function ChatInputModel() {
           className="z-[60] mb-2 min-w-[200px]"
         >
           <li className="text-sm">
-            <div className="p-2 leading-5 text-white whitespace-nowrap">
+            <div className="p-2 leading-5 text-white break-all">
               {conversation.llm_model}
             </div>
           </li>
@@ -70,7 +70,7 @@ export function ChatInputModel() {
             <NavigationLink
               to="/settings"
               onClick={() => setIsPopoverOpen(false)}
-              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
             >
               <SettingsGearIcon
                 width={16}

@@ -66,7 +66,7 @@ export function CompactConversationRow({
       content={preview}
       placement="right"
       closeDelay={100}
-      className="bg-[#1f2228] text-white border border-[#2a2f38] shadow-xl p-0"
+      className="bg-[var(--oh-surface)] text-white border border-[var(--oh-border-subtle)] shadow-xl p-0"
       disableAnimation={disableAnimation}
     >
       <NavigationLink
@@ -79,7 +79,9 @@ export function CompactConversationRow({
           cn(
             "flex items-center justify-center w-10 h-9 mx-auto rounded-md",
             "transition-colors cursor-pointer",
-            navActive || isActive ? "bg-[#1f1f1f99]" : "hover:bg-[#1f1f1f99]",
+            navActive || isActive
+              ? "bg-tertiary"
+              : "hover:bg-[var(--oh-surface-raised)]",
           )
         }
       >

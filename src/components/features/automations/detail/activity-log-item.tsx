@@ -35,7 +35,7 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
           {formatRunTimestamp(run.started_at, i18n.language)}
         </span>
         {!hasConversation && (
-          <span className="text-xs text-content-muted italic">
+          <span className="text-xs text-muted italic">
             ({t(I18nKey.AUTOMATIONS$DETAIL$NO_CONVERSATION)})
           </span>
         )}
@@ -48,7 +48,7 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
     return (
       <a
         href={getConversationUrl(run.conversation_id)}
-        className="flex items-center justify-between px-5 py-3 transition-colors cursor-pointer hover:bg-surface-elevated focus:bg-surface-elevated focus:outline-none"
+        className="flex items-center justify-between px-5 py-3 transition-colors cursor-pointer hover:bg-surface-raised focus:bg-surface-raised focus:outline-none"
         aria-label={`View conversation for run at ${formatRunTimestamp(run.started_at, i18n.language)}`}
       >
         {content}

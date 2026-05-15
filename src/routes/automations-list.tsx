@@ -86,12 +86,12 @@ export default function AutomationsList() {
   // Show loading state while checking health
   if (isHealthLoading) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <h1 className="text-xl font-semibold text-content">
             {t(I18nKey.AUTOMATIONS$TITLE)}
           </h1>
-          <p className="mt-1 text-sm text-content-muted">
+          <p className="mt-1 text-sm text-muted">
             {t(I18nKey.AUTOMATIONS$SUBTITLE)}
           </p>
           <div className="mt-6 flex flex-col gap-3">
@@ -107,12 +107,12 @@ export default function AutomationsList() {
   // Show backend not configured state if health check failed
   if (!isBackendHealthy) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <h1 className="text-xl font-semibold text-content">
             {t(I18nKey.AUTOMATIONS$TITLE)}
           </h1>
-          <p className="mt-1 text-sm text-content-muted">
+          <p className="mt-1 text-sm text-muted">
             {t(I18nKey.AUTOMATIONS$SUBTITLE)}
           </p>
           <BackendNotConfigured onRetry={refetchHealth} />
@@ -122,13 +122,13 @@ export default function AutomationsList() {
   }
 
   return (
-    <div className="min-h-full bg-surface">
+    <div className="min-h-full">
       <div className="p-6 max-w-4xl mx-auto">
         {/* Header */}
         <h1 className="text-xl font-semibold text-content">
           {t(I18nKey.AUTOMATIONS$TITLE)}
         </h1>
-        <p className="mt-1 text-sm text-content-muted">
+        <p className="mt-1 text-sm text-muted">
           {t(I18nKey.AUTOMATIONS$SUBTITLE)}
         </p>
 
@@ -177,7 +177,7 @@ export default function AutomationsList() {
                 <button
                   type="button"
                   onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
-                  className="self-center rounded-lg border border-border px-6 py-2 text-sm text-white hover:bg-surface-elevated"
+                  className="self-center rounded-lg border border-[var(--oh-border)] px-6 py-2 text-sm text-white hover:bg-surface-raised"
                 >
                   {t(I18nKey.AUTOMATIONS$LOAD_MORE)}
                 </button>
