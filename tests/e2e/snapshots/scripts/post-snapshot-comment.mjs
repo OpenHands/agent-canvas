@@ -40,7 +40,9 @@ const MAIN_BASELINES_DIR =
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 const TEST_RESULTS_DIR = "test-results";
-const PR_ARTIFACT_DIR = `.pr/snapshots/${RUN_ID}`;
+// Fixed path — old contents are replaced on each run so directories don't accumulate.
+// raw.githubusercontent.com URLs use the commit SHA, so every push still gets stable image URLs.
+const PR_ARTIFACT_DIR = ".pr/snapshots";
 const COMMENT_MARKER = "<!-- snapshot-test-report -->";
 const GITHUB_API = process.env.GITHUB_API_URL ?? "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
@@ -169,6 +171,9 @@ function publishImages(changed, newSnapshots) {
       `git config user.name "github-actions[bot]" && ` +
         `git config user.email "github-actions[bot]@users.noreply.github.com"`,
     );
+    // Remove images from any previous run before staging the new ones, so old
+    // directories don't accumulate across commits on the same PR branch.
+    execSync(`git rm -rf --ignore-unmatch "${PR_ARTIFACT_DIR}"`);
     execSync(`git add "${PR_ARTIFACT_DIR}"`);
     const diffOutput = execSync("git diff --staged --name-only")
       .toString()
