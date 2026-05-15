@@ -27,6 +27,7 @@ import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper"
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 function AppContent() {
   const { t } = useTranslation("openhands");
@@ -125,6 +126,62 @@ function AppContent() {
     if (conversationId.startsWith("task-")) return;
     setLastConversationId(active.backend.id, active.orgId, conversationId);
   }, [conversationId, backendChanged, active.backend.id, active.orgId]);
+
+  // Cloud conversation resume: when the cloud API returns a conversation with
+  // no conversation_url the backing sandbox is paused/stopped. Fetching it
+  // alone does NOT wake it up. We have to POST a new start task (reusing the
+  // conversation's existing sandbox_id) and then let useTaskPolling drive it
+  // to READY. Once READY, the task's app_conversation_id points back to the
+  // same (or a fresh) conversation whose sandbox is now running.
+  //
+  // A ref guards against duplicate triggers within the same route-mount
+  // lifetime: the effect fires once per unique conversation.id.
+  const resumeTriggeredForRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!isFetched || !conversation) return;
+    if (active.backend.kind !== "cloud") return;
+    if (conversation.conversation_url) return; // sandbox already running
+    if (!conversation.sandbox_id) return; // nothing to resume
+    if (resumeTriggeredForRef.current === conversation.id) return; // already sent
+
+    resumeTriggeredForRef.current = conversation.id;
+
+    AgentServerConversationService.createConversation(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      conversation.sandbox_id,
+    )
+      .then((task) => {
+        if (task.status === "ERROR") {
+          displayErrorToast(
+            task.detail || t(I18nKey.CONVERSATION$FAILED_TO_START_FROM_TASK),
+          );
+          return;
+        }
+        // Cloud tasks start as WORKING (app_conversation_id null); navigate
+        // to the task route so useTaskPolling drives it to READY and then
+        // redirects to the real conversation. Local path is synchronously
+        // READY so navigate straight to the conversation.
+        const nextId = task.app_conversation_id ?? `task-${task.id}`;
+        navigate(`/conversations/${nextId}`, { replace: true });
+      })
+      .catch(() => {
+        displayErrorToast(t(I18nKey.CONVERSATION$FAILED_TO_START_FROM_TASK));
+      });
+  }, [
+    isFetched,
+    conversation?.id,
+    conversation?.conversation_url,
+    conversation?.sandbox_id,
+    active.backend.kind,
+    navigate,
+    t,
+  ]);
 
   const content = (
     <EventHandler>
