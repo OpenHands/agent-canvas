@@ -16,6 +16,12 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import {
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
+
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
@@ -647,8 +653,11 @@ async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   throw new Error(`Timed out waiting for agent-server at ${url}`);
 }
 
-function spawnProcess(command, args, options) {
-  const child = spawn(command, args, { stdio: "inherit", ...options });
+function spawnProcess(command, args, options = {}) {
+  const child = spawn(command, args, getProcessTreeSpawnOptions({
+    stdio: "inherit",
+    ...options,
+  }));
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
@@ -739,8 +748,20 @@ async function main() {
     }
 
     shuttingDown = true;
-    frontend?.kill(signal);
-    backend.kill(signal);
+    if (frontend) {
+      signalProcessTree(frontend, signal);
+    }
+    signalProcessTree(backend, signal);
+
+    setTimeout(() => {
+      if (frontend && isProcessRunning(frontend)) {
+        signalProcessTree(frontend, "SIGKILL");
+      }
+      if (isProcessRunning(backend)) {
+        signalProcessTree(backend, "SIGKILL");
+      }
+      process.exit(process.exitCode ?? 0);
+    }, 3000);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));

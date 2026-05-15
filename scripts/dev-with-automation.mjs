@@ -55,6 +55,12 @@ import {
   findFreePorts,
   validateFrontendDependencies,
 } from "./dev-safe.mjs";
+import {
+  createShutdownHookRegistry,
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -379,14 +385,21 @@ function ensureDirectories(config) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const processes = new Map();
+const shutdownHooks = createShutdownHookRegistry((err) => {
+  logService("cleanup", `Cleanup hook failed: ${err.message}`, c.yellow);
+});
+
+function registerShutdownHook(hook) {
+  return shutdownHooks.add(hook);
+}
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, {
+  const proc = spawn(command, args, getProcessTreeSpawnOptions({
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
     cwd: options.cwd,
     shell: process.platform === "win32",
-  });
+  }));
 
   const color = options.color || c.reset;
 
@@ -533,15 +546,17 @@ function shutdown() {
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
-    proc.kill("SIGTERM");
+    signalProcessTree(proc, "SIGTERM");
   }
 
   setTimeout(() => {
-    for (const [, proc] of processes) {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+    for (const [name, proc] of processes) {
+      if (isProcessRunning(proc)) {
+        logService(name, "Force stopping...", c.dim);
+        signalProcessTree(proc, "SIGKILL");
       }
     }
+    shutdownHooks.run();
     process.exit(0);
   }, 3000);
 }
@@ -853,6 +868,7 @@ export {
   buildConfig,
   generateRandomApiKey,
   main,
+  registerShutdownHook,
   spawnService,
   commandExists,
   logService,

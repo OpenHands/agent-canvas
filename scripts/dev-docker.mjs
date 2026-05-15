@@ -62,6 +62,7 @@ import {
   logService,
   logSuccess,
   main,
+  registerShutdownHook,
   spawnService,
 } from "./dev-with-automation.mjs";
 import { validateLocalAgentServerPath } from "./dev-safe.mjs";
@@ -260,6 +261,9 @@ function startAgentServerDocker(config) {
 
   // Best-effort cleanup of any leftover container from a previous run.
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
+  registerShutdownHook(() => {
+    spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
+  });
 
   const home = homedir();
   const userSpec = getHostDockerUserSpec();
