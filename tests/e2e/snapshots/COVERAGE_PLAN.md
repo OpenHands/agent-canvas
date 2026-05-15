@@ -18,9 +18,8 @@ Existing coverage is marked **✅ done**. Everything else is proposed.
 
 | Snapshot name | State to capture |
 |---|---|
-| `home-empty-no-workspace` | No workspaces stored, no recent conversations |
+| `home-empty-no-workspace` | No workspaces stored |
 | `home-with-workspace-selected` | One workspace selected in the dropdown |
-| `home-with-recent-conversations` | Recent conversations list populated (mock 2–3 entries) |
 | `home-workspace-dropdown-open` | Workspace dropdown expanded showing stored workspaces |
 | `home-folder-browser-modal` | `FolderBrowserModal` open with a mocked directory listing |
 | `home-manage-workspaces-modal` | `ManageWorkspacesModal` open with two workspaces listed |

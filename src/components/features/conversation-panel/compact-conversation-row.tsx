@@ -4,7 +4,7 @@ import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
-import { ConversationStatusDot } from "../home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "./conversation-status-dot";
 import { ConversationCardFooter } from "./conversation-card/conversation-card-footer";
 
 interface CompactConversationRowProps {

@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "test-utils";
-import { ConversationStatusDot } from "#/components/features/home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "#/components/features/conversation-panel/conversation-status-dot";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 vi.mock("#/components/shared/buttons/styled-tooltip", () => ({

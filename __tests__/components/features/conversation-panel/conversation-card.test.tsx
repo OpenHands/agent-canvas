@@ -502,6 +502,21 @@ describe("ConversationCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders the status dot in the header when executionStatus is provided", () => {
+    renderWithProviders(
+      <ConversationCard
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        executionStatus={ExecutionStatus.RUNNING}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("conversation-status-working"),
+    ).toBeInTheDocument();
+  });
+
   const statusTable: [ExecutionStatus, boolean][] = [
     [ExecutionStatus.RUNNING, true],
     [ExecutionStatus.IDLE, true],

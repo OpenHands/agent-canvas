@@ -9179,23 +9179,6 @@
     "ja": ".jsonファイルをアップロード",
     "ca": "Carrega un fitxer .json"
   },
-  "LANDING$RECENT_CONVERSATION": {
-    "en": "jump back to your most recent conversation",
-    "ja": "最新の会話に戻る",
-    "zh-CN": "返回到最近的对话",
-    "zh-TW": "返回到最近的對話",
-    "ko-KR": "가장 최근 대화로 돌아가기",
-    "fr": "revenez à votre conversation la plus récente",
-    "es": "vuelve a tu conversación más reciente",
-    "de": "kehre zu deiner letzten Konversation zurück",
-    "it": "torna alla tua conversazione più recente",
-    "pt": "volte para sua conversa mais recente",
-    "ar": "أو العودة إلى آخر محادثة",
-    "no": "gå tilbake til din siste samtale",
-    "tr": "Son konuşma",
-    "uk": "повернутися до вашої останньої розмови",
-    "ca": "torna a la conversa més recent"
-  },
   "CONVERSATION$CONFIRM_DELETE": {
     "en": "Confirm Delete",
     "ja": "削除の確認",
@@ -20093,23 +20076,6 @@
     "uk": "Пуш",
     "ca": "Push"
   },
-  "COMMON$RECENT_CONVERSATIONS": {
-    "en": "Recent Conversations",
-    "ja": "最近の会話",
-    "zh-CN": "最近的对话",
-    "zh-TW": "最近的對話",
-    "ko-KR": "최근 대화",
-    "no": "Nylige samtaler",
-    "it": "Conversazioni recenti",
-    "pt": "Conversas recentes",
-    "es": "Conversaciones recientes",
-    "ar": "المحادثات الأخيرة",
-    "fr": "Conversations récentes",
-    "tr": "Son Konuşmalar",
-    "de": "Kürzliche Gespräche",
-    "uk": "Останні розмови",
-    "ca": "Converses recents"
-  },
   "COMMON$RECENT_PROJECTS": {
     "en": "Recent Projects",
     "ja": "最近のプロジェクト",
@@ -20500,23 +20466,6 @@
     "de": "Beginnen Sie ein neues Gespräch, das nicht mit einem bestehenden Repository verbunden ist.",
     "uk": "Почніть нову розмову, яка не пов'язана з існуючим репозиторієм.",
     "ca": "Inicia una nova conversa que no estigui connectada a un repositori existent."
-  },
-  "HOME$NO_RECENT_CONVERSATIONS": {
-    "en": "No recent conversations",
-    "ja": "最近の会話はありません",
-    "zh-CN": "没有最近的对话",
-    "zh-TW": "沒有最近的對話",
-    "ko-KR": "최근 대화 없음",
-    "no": "Ingen nylige samtaler",
-    "it": "Nessuna conversazione recente",
-    "pt": "Nenhuma conversa recente",
-    "es": "No hay conversaciones recientes",
-    "ar": "لا توجد محادثات حديثة",
-    "fr": "Aucune conversation récente",
-    "tr": "Son konuşma yok",
-    "de": "Keine aktuellen Unterhaltungen",
-    "uk": "Немає недавніх розмов",
-    "ca": "No hi ha converses recents"
   },
   "HOME$SELECT_OR_INSERT_URL": {
     "en": "Select or insert a URL",
