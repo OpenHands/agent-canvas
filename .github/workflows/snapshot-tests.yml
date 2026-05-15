@@ -7,8 +7,8 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      update_snapshots:
-        description: "Update baseline snapshots"
+      force_update:
+        description: "Force-regenerate baseline snapshots from main"
         type: boolean
         default: false
 
@@ -18,18 +18,22 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: read
 
 jobs:
   snapshot-tests:
     name: Visual Snapshot Tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
           ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
@@ -43,25 +47,87 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run snapshot tests
-        if: ${{ github.event.inputs.update_snapshots != 'true' }}
-        run: npm run test:e2e:snapshots
+      # ── MAIN BRANCH: generate fresh baselines and store as artifact ──────
 
-      - name: Update snapshots
-        if: ${{ github.event.inputs.update_snapshots == 'true' }}
+      - name: Generate baseline snapshots
+        if: github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true'
         run: npm run test:e2e:snapshots:update
 
-      - name: Commit updated snapshots
-        if: ${{ github.event.inputs.update_snapshots == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/e2e/__snapshots__/
-          git diff --staged --quiet || git commit -m "chore: update baseline snapshots [skip ci]"
-          git push
+      - name: Upload baseline snapshots artifact
+        if: github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-baselines
+          path: tests/e2e/__snapshots__/
+          retention-days: 90
 
-      - name: Upload snapshot diff artifacts
-        if: failure()
+      # ── PR BRANCH: download main baselines, compare, report diffs ────────
+
+      - name: Find latest successful main-branch snapshot run
+        if: github.event_name == 'pull_request'
+        id: find-run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow "snapshot-tests.yml" \
+            --branch main \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // ""')
+          if [ -z "$RUN_ID" ]; then
+            echo "has_baselines=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No successful main-branch snapshot run found — all snapshots will be treated as new."
+          else
+            echo "has_baselines=true" >> "$GITHUB_OUTPUT"
+            echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+            echo "Found main-branch baselines in run $RUN_ID"
+          fi
+
+      - name: Download main-branch baselines
+        if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: snapshot-baselines
+          path: tests/e2e/__snapshots__/
+          run-id: ${{ steps.find-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save main baselines for diff comparison
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -d "tests/e2e/__snapshots__" ]; then
+            cp -r tests/e2e/__snapshots__ /tmp/main-baselines
+          else
+            mkdir -p /tmp/main-baselines
+          fi
+
+      - name: Run snapshot comparison
+        if: github.event_name == 'pull_request'
+        id: compare
+        run: npm run test:e2e:snapshots
+        continue-on-error: true
+
+      - name: Generate current PR snapshots
+        if: github.event_name == 'pull_request'
+        run: npm run test:e2e:snapshots:update
+
+      - name: Post snapshot report to PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_REF: ${{ github.head_ref }}
+          TEST_OUTCOME: ${{ steps.compare.outcome }}
+          MAIN_BASELINES_DIR: /tmp/main-baselines
+        run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
+
+      - name: Upload test results artifact
+        if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: snapshot-test-results
@@ -69,3 +135,9 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 7
+
+      - name: Fail if snapshot comparison found differences
+        if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
+        run: |
+          echo "::error::Visual snapshot differences detected. See the PR comment for image diffs."
+          exit 1

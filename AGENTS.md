@@ -21,11 +21,17 @@
 
 ## Visual Snapshot Testing
 
-- Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baseline images in `tests/e2e/__snapshots__/`.
-- Run with `npm run test:e2e:snapshots`; update baselines after intentional UI changes with `npm run test:e2e:snapshots:update`.
-- CI runs snapshots via `.github/workflows/snapshot-tests.yml` on every PR/push to main; failures upload diff artifacts.
-- **Updating snapshots in CI**: Snapshots must be generated in CI to avoid local/CI rendering differences. Run the workflow manually from Actions tab with "Update baseline snapshots" checked, or via CLI: `gh workflow run snapshot-tests.yml --ref <branch> -f update_snapshots=true`.
-- **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report with visual diffs.
+- Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baselines stored as GitHub Actions artifacts (NOT in git).
+- **Baseline storage**: Baselines are stored as the `snapshot-baselines` artifact (90-day retention) in the latest successful `Snapshot Tests` run on `main`. They are never committed to the repository to avoid merge-conflict noise.
+- Run locally with `npm run test:e2e:snapshots`; generate/update snapshots with `npm run test:e2e:snapshots:update`. The `tests/e2e/__snapshots__/` directory is gitignored.
+- **CI workflow (`snapshot-tests.yml`)**:
+  - **On `main`**: Runs `test:e2e:snapshots:update`, uploads `tests/e2e/__snapshots__/` as the `snapshot-baselines` artifact (90 days).
+  - **On PRs**: Downloads the latest main-branch `snapshot-baselines` artifact, runs `test:e2e:snapshots` against it, then posts a PR comment with embedded images showing changed/new/unchanged snapshots. Changed and new images are temporarily committed to `.pr/snapshots/<run_id>/` on the PR branch so they can be embedded in the comment via `raw.githubusercontent.com` URLs.
+  - **Force-regenerate baselines**: Trigger the `Snapshot Tests` workflow manually with `force_update=true` to regenerate and upload a fresh baseline artifact from main.
+- **PR comment**: The `tests/e2e/snapshots/scripts/post-snapshot-comment.mjs` script posts or updates a comment (`<!-- snapshot-test-report -->` marker) with collapsed `<details>` sections for changed (side-by-side expected/actual/diff), new, and unchanged snapshots.
+- **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report with visual diffs. The PR comment also embeds these images directly.
+- **Bootstrap**: On the first run after removing baselines from git, all snapshots are treated as "new" until a successful main-branch run has uploaded the `snapshot-baselines` artifact.
+- `.pr/snapshots/` cleanup is handled automatically by `pr-artifacts.yml` when the PR is approved (same as `.pr/live-e2e/`).
 - Key patterns for writing snapshot tests:
   - Use `setupMocks(page, showConsentModal)` helper to configure API mocks consistently.
   - Use `dismissConsentModal(page)` after navigation to dismiss the analytics modal.
@@ -37,7 +43,7 @@
 - **Composing tests**: Use `test.step()` for iterative snapshots within a single test, or extract helper functions (like `navigateToSettings(page)`) to share setup across tests. For heavier reuse, use Playwright fixtures via `test.extend()`.
 - Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
 - **Conversation page snapshot tests**: The dev server uses MSW service workers for API mocking. For conversation-page tests, rely on MSW's pre-defined mock conversations (IDs "1", "2", "3" in `src/mocks/conversation-handlers.ts`) rather than fighting Playwright route interception. MSW's service worker intercepts requests before Playwright `page.route()` can; Playwright route interceptors only see requests that escape the service worker. Stub WebSocket via `page.addInitScript()` and inject events into the Zustand store via the exposed `window.__OH_EVENT_STORE__` API. Use `test.describe.configure({ mode: "serial" })` for conversation tests since the WebSocket stub + heavier page setup can cause intermittent failures in parallel mode.
-- **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Always regenerate baselines in CI after adding new snapshot tests: trigger the "Snapshot Tests" workflow manually with `update_snapshots=true`. The workflow commits updated baselines with `[skip ci]`, so push an empty commit afterward to trigger a fresh CI run that validates against the new baselines.
+- **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Baselines are regenerated automatically on every push to `main`. After adding new snapshot tests, open a PR — the new snapshots will be shown as "🆕 New" in the PR comment and become the baseline when the PR merges. To force-refresh baselines from main without waiting for a code push, trigger the "Snapshot Tests" workflow manually with `force_update=true`.
 - **MSW handler state is PAGE-level JS, not service-worker state**: In MSW 2.x browser mode the request handlers (including mutable Maps like `automations`) are compiled into the client bundle and run in the main thread. `page.reload()` re-initialises all module-level state (e.g. `const automations = new Map(...)` runs fresh on every page load). Tests that need to show an "empty list" state must NOT call `page.reload()` after deleting items. Instead: make the DELETE fetches from `page.evaluate()` (which DO go through MSW), then call `window.__TEST_INVALIDATE_QUERIES__()` (exposed in mock mode by `entry.client.tsx`) to trigger React Query's cache invalidation in-place without a reload. Example: the automations empty-state snapshot test in `tests/e2e/snapshots/automations.snapshot.spec.ts`.
 
 ## Live End-to-End Test Framework
