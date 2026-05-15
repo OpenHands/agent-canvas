@@ -35,22 +35,17 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 // PostHog project keys — hardcoded per deployment environment so they are
 // set in stone and cannot drift through environment variable changes.
 // Library consumers can still override via VITE_POSTHOG_API_KEY if needed.
+// Prod and staging share the same PostHog project for now.
+// Replace POSTHOG_STAGING_KEY with a dedicated project key once provisioned.
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
-const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY; // TODO: replace with dedicated staging project key once provisioned
+const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY;
 
-function resolvePosthogApiKey(): string | null {
-  // Library consumers can always override with their own key.
-  if (import.meta.env.VITE_POSTHOG_API_KEY) {
-    return import.meta.env.VITE_POSTHOG_API_KEY as string;
-  }
-  if (typeof window === "undefined") return null;
-  const { hostname } = window.location;
-  if (hostname === "app.all-hands.dev") return POSTHOG_PROD_KEY;
-  // TODO: add staging hostname check once staging URL is known, returning POSTHOG_STAGING_KEY
-  return null;
-}
-
-const POSTHOG_API_KEY = resolvePosthogApiKey();
+// Use the prod key for any production build, staging key for staging builds,
+// and null for dev/test so no events reach PostHog outside real deployments.
+// Library consumers can always override with VITE_POSTHOG_API_KEY.
+const POSTHOG_API_KEY: string | null =
+  (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
+  (import.meta.env.PROD ? POSTHOG_PROD_KEY : null);
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.
