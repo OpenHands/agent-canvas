@@ -299,11 +299,7 @@ export function BackendForm({
  * Host + API Key. Designed for self-hosted agent servers and
  * self-hosted OpenHands Cloud with API key auth.
  */
-function ManualConnectionColumn({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
 
@@ -391,11 +387,7 @@ function ManualConnectionColumn({
  * with OpenHands Cloud. Includes an "Advanced" disclosure for
  * users who self-host OpenHands Cloud and need to override the host.
  */
-function CloudLoginColumn({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
 
@@ -416,11 +408,7 @@ function CloudLoginColumn({
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 flex-1 min-w-0 px-4">
-      <OpenHandsLogoWhite
-        width={56}
-        height={56}
-        aria-hidden
-      />
+      <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
       <h4
         className="text-lg font-bold text-white"
@@ -442,9 +430,7 @@ function CloudLoginColumn({
       <details
         className="w-full"
         open={advancedOpen}
-        onToggle={(e) =>
-          setAdvancedOpen((e.target as HTMLDetailsElement).open)
-        }
+        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
       >
         <summary
           className="text-xs text-gray-400 cursor-pointer select-none text-center hover:text-gray-300"
@@ -510,7 +496,7 @@ export function BackendFormModal({
               data-testid="add-backend-close"
               aria-label="Close"
             >
-              ✕
+              {"✕"}
             </button>
           </div>
 
@@ -553,9 +539,7 @@ export function BackendFormModal({
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary"
         style={{ width: "480px" }}
       >
-        <h3 className="text-xl font-bold">
-          {t(I18nKey.BACKEND$EDIT_TITLE)}
-        </h3>
+        <h3 className="text-xl font-bold">{t(I18nKey.BACKEND$EDIT_TITLE)}</h3>
         <BackendForm
           mode="edit"
           backend={backend}
