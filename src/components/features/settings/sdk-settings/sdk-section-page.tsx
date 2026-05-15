@@ -47,6 +47,12 @@ const getLessDetailedView = (
 ): SettingsView =>
   VIEW_ORDER[nextView] < VIEW_ORDER[currentView] ? nextView : currentView;
 
+const getMoreDetailedView = (
+  currentView: SettingsView,
+  nextView: SettingsView,
+): SettingsView =>
+  VIEW_ORDER[nextView] > VIEW_ORDER[currentView] ? nextView : currentView;
+
 const normalizeView = (
   view: SettingsView,
   {
@@ -76,6 +82,11 @@ const normalizeView = (
   return "basic";
 };
 
+const PAYLOAD_DIFF_KEY: Record<SettingsValueSource, string> = {
+  agent_settings: "agent_settings_diff",
+  conversation_settings: "conversation_settings_diff",
+};
+
 const getSchemaUnavailableMessage = (
   error: unknown,
   fallbackMessage: string,
@@ -95,11 +106,24 @@ const getSchemaUnavailableMessage = (
   return fallbackMessage;
 };
 
+export interface SettingsSourceConfig {
+  /** Which schema/values bucket on `settings` this source pulls from. */
+  settingsSource: SettingsValueSource;
+  /** Section keys (e.g. ["llm"]) within that schema to render. */
+  sectionKeys: string[];
+  /** Field keys to skip (rendered elsewhere by the caller). */
+  excludeKeys?: Set<string>;
+}
+
 export interface SdkSectionHeaderProps {
   values: SettingsFormValues;
   isDisabled: boolean;
   view: SettingsView;
   onChange: (key: string, value: string | boolean) => void;
+}
+
+interface ResolvedSource extends SettingsSourceConfig {
+  filteredSchema: SettingsSchema | null;
 }
 
 /**
@@ -120,19 +144,24 @@ export interface SdkSectionSaveControl {
 }
 
 /**
- * A generic SDK-schema–driven settings page that renders fields
- * from one or more schema sections.
+ * A generic SDK-schema-driven settings page that renders fields from one or
+ * more schema sections.
  *
- * @param sectionKeys - which schema section(s) this page owns (e.g. ["condenser"])
- * @param excludeKeys - field keys to skip (rendered elsewhere by the caller)
- * @param header      - optional render prop receiving shared state to render above fields
- * @param testId      - data-testid for the page wrapper
+ * The `settingsSources` array specifies which schema(s)/section(s) the page
+ * owns. The page tracks values/dirty state per source, renders sections from
+ * each source in order (filtered by the schema's `prominence` field for the
+ * selected view), and emits a combined save payload like
+ * `{ conversation_settings_diff: {...}, agent_settings_diff: {...} }` ---
+ * including only the keys for sources that actually have dirty changes.
+ *
+ * @param settingsSources  one or more schemas to render fields from
+ * @param header           render prop above the fields (receives unified state)
+ * @param buildPayload     customize the save payload before submission
+ * @param testId           data-testid on the page wrapper
  */
 export function SdkSectionPage({
-  sectionKeys,
-  excludeKeys = EMPTY_EXCLUDE_KEYS,
+  settingsSources,
   scope = "personal",
-  settingsSource = "agent_settings",
   header,
   extraDirty = false,
   buildPayload,
@@ -146,15 +175,18 @@ export function SdkSectionPage({
   onSaveControlChange,
   testId = "sdk-section-settings-screen",
 }: {
-  sectionKeys: string[];
-  excludeKeys?: Set<string>;
+  settingsSources: SettingsSourceConfig[];
   scope?: SettingsScope;
-  settingsSource?: SettingsValueSource;
 
   header?: (props: SdkSectionHeaderProps) => React.ReactNode;
   extraDirty?: boolean;
+  /**
+   * Customize the save payload. Receives the wrapped default payload (e.g.
+   * `{ agent_settings_diff: { llm: { model: "gpt-4" } } }`) plus the unified
+   * form context. Return the payload to actually send.
+   */
   buildPayload?: (
-    payload: ReturnType<typeof buildSdkSettingsPayloadForView>,
+    defaultPayload: Record<string, unknown>,
     context: {
       values: SettingsFormValues;
       dirty: SettingsDirtyState;
@@ -168,33 +200,9 @@ export function SdkSectionPage({
   ) => SettingsView;
   forceShowAdvancedView?: boolean;
   allowAllView?: boolean;
-  /**
-   * Per-field initial value overrides that win over the values
-   * derived from `useSettings`. The keys of each override are also
-   * marked dirty on hydration so the user can save the form without
-   * having to touch the prefilled fields. Useful when the page is
-   * embedded in a flow that wants to nudge brand-new users toward a
-   * particular default (e.g. onboarding pre-filling Anthropic/Opus).
-   */
   initialValueOverrides?: SettingsFormValues;
-  /**
-   * When true, the Save button container is rendered inline (no
-   * sticky positioning, no contrasting `bg-base` band) so the page
-   * can be dropped into a modal/card without a hard footer break.
-   */
   embedded?: boolean;
-  /**
-   * Suppress the built-in Save Changes button entirely. Pair with
-   * {@link onSaveControlChange} to drive saving from a parent-rendered
-   * action (e.g. an onboarding "Next" button).
-   */
   hideSaveButton?: boolean;
-  /**
-   * Fires whenever the save state changes (a mutation starts/finishes,
-   * dirty status flips). Provides a stable `save()` callback the
-   * parent can wire to its own button. Useful when the form is
-   * embedded in a custom flow and the built-in Save button is hidden.
-   */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
   testId?: string;
 }) {
@@ -207,112 +215,171 @@ export function SdkSectionPage({
   const conversationSchemaQuery = useConversationSettingsSchema(
     settings?.conversation_settings_schema,
   );
-  const activeSchemaQuery =
-    settingsSource === "conversation_settings"
-      ? conversationSchemaQuery
-      : agentSchemaQuery;
-  const schema = activeSchemaQuery.data;
-  const isSchemaLoading = activeSchemaQuery.isLoading;
   const isReadOnly = false;
 
-  const [view, setView] = React.useState<SettingsView>("basic");
-  const [values, setValues] = React.useState<SettingsFormValues>({});
-  const [dirty, setDirty] = React.useState<SettingsDirtyState>({});
-  const hasHydratedViewRef = React.useRef(false);
-
-  const sectionKeysSignature = React.useMemo(
-    () => JSON.stringify(sectionKeys),
-    [sectionKeys],
-  );
-  const stableSectionKeys = React.useMemo(
-    () => JSON.parse(sectionKeysSignature) as string[],
-    [sectionKeysSignature],
+  const sourcesSignature = React.useMemo(
+    () =>
+      JSON.stringify(
+        settingsSources.map((s) => ({
+          source: s.settingsSource,
+          sectionKeys: s.sectionKeys,
+          excludeKeys: s.excludeKeys ? Array.from(s.excludeKeys).sort() : null,
+        })),
+      ),
+    [settingsSources],
   );
 
-  // Build a filtered schema containing only the requested sections.
-  // `isValidSettingsSchema` guards against truthy-but-malformed schema
-  // responses (e.g. when the deployment is pointed at a host that does
-  // not serve `/api/settings/agent-schema` and returns an SPA shell
-  // that parses into an object without a `sections` array). Without
-  // the guard, `schema.sections.filter(...)` would throw and React
-  // Router would escalate the crash to a full-screen error.
-  const filteredSchema = React.useMemo(() => {
-    if (!isValidSettingsSchema(schema)) return null;
-    const sectionSet = new Set(stableSectionKeys);
-    return {
-      ...schema,
-      sections: schema.sections.filter((s) => sectionSet.has(s.key)),
-    };
-  }, [schema, stableSectionKeys]);
+  const resolvedSourceConfigs = React.useMemo<SettingsSourceConfig[]>(() => {
+    const parsed = JSON.parse(sourcesSignature) as Array<{
+      source: SettingsValueSource;
+      sectionKeys: string[];
+      excludeKeys: string[] | null;
+    }>;
+    return parsed.map((p) => ({
+      settingsSource: p.source,
+      sectionKeys: p.sectionKeys,
+      excludeKeys: p.excludeKeys ? new Set(p.excludeKeys) : undefined,
+    }));
+  }, [sourcesSignature]);
+
+  const getSchemaForSource = React.useCallback(
+    (source: SettingsValueSource) =>
+      source === "conversation_settings"
+        ? conversationSchemaQuery.data
+        : agentSchemaQuery.data,
+    [agentSchemaQuery.data, conversationSchemaQuery.data],
+  );
+
+  const isSchemaLoading = resolvedSourceConfigs.some((src) =>
+    src.settingsSource === "conversation_settings"
+      ? conversationSchemaQuery.isLoading
+      : agentSchemaQuery.isLoading,
+  );
+
+  const resolvedSources = React.useMemo<ResolvedSource[]>(
+    () =>
+      resolvedSourceConfigs.map((src) => {
+        const schema = getSchemaForSource(src.settingsSource);
+        if (!isValidSettingsSchema(schema)) {
+          return { ...src, filteredSchema: null };
+        }
+        const sectionSet = new Set(src.sectionKeys);
+        const filteredSchema: SettingsSchema = {
+          ...schema,
+          sections: schema.sections.filter((s) => sectionSet.has(s.key)),
+        };
+        return { ...src, filteredSchema };
+      }),
+    [resolvedSourceConfigs, getSchemaForSource],
+  );
 
   const showAdvanced =
-    forceShowAdvancedView || hasAdvancedSettings(filteredSchema);
-  const showAll = allowAllView && hasMinorSettings(filteredSchema);
-  const schemaUnavailableMessage = React.useMemo(
-    () =>
-      getSchemaUnavailableMessage(
-        activeSchemaQuery.error,
-        t(I18nKey.SETTINGS$SDK_SCHEMA_UNAVAILABLE),
-      ),
-    [activeSchemaQuery.error, t],
-  );
+    forceShowAdvancedView ||
+    resolvedSources.some((src) => hasAdvancedSettings(src.filteredSchema));
+  const showAll =
+    allowAllView &&
+    resolvedSources.some((src) => hasMinorSettings(src.filteredSchema));
+
+  const schemaUnavailableMessage = React.useMemo(() => {
+    const firstError = resolvedSourceConfigs.reduce<unknown>(
+      (err, src) =>
+        err ??
+        (src.settingsSource === "conversation_settings"
+          ? conversationSchemaQuery.error
+          : agentSchemaQuery.error),
+      null,
+    );
+    return getSchemaUnavailableMessage(
+      firstError,
+      t(I18nKey.SETTINGS$SDK_SCHEMA_UNAVAILABLE),
+    );
+  }, [
+    resolvedSourceConfigs,
+    agentSchemaQuery.error,
+    conversationSchemaQuery.error,
+    t,
+  ]);
 
   const overridesSignature = React.useMemo(
     () => (initialValueOverrides ? JSON.stringify(initialValueOverrides) : ""),
     [initialValueOverrides],
   );
 
-  const initialValues = React.useMemo(() => {
-    if (!settings || !filteredSchema) return null;
-    const base = buildInitialSettingsFormValues(
-      settings,
-      filteredSchema,
-      settingsSource,
-    );
-    if (!initialValueOverrides) return base;
-    return { ...base, ...initialValueOverrides };
-    // overridesSignature keeps the memo reactive without depending on
-    // a (potentially recreated) object reference each render.
-  }, [settings, filteredSchema, settingsSource, overridesSignature]);
+  const [view, setView] = React.useState<SettingsView>("basic");
+  const [valuesBySource, setValuesBySource] = React.useState<
+    Partial<Record<SettingsValueSource, SettingsFormValues>>
+  >({});
+  const [dirtyBySource, setDirtyBySource] = React.useState<
+    Partial<Record<SettingsValueSource, SettingsDirtyState>>
+  >({});
+  const hasHydratedViewRef = React.useRef(false);
+
+  const initialValuesBySource = React.useMemo<Partial<
+    Record<SettingsValueSource, SettingsFormValues>
+  > | null>(() => {
+    if (!settings) return null;
+    const result: Partial<Record<SettingsValueSource, SettingsFormValues>> = {};
+    for (const src of resolvedSources) {
+      if (!src.filteredSchema) return null;
+      result[src.settingsSource] = {
+        ...(result[src.settingsSource] ?? {}),
+        ...buildInitialSettingsFormValues(
+          settings,
+          src.filteredSchema,
+          src.settingsSource,
+        ),
+      };
+    }
+    if (initialValueOverrides) {
+      const firstSource = resolvedSources[0]?.settingsSource;
+      if (firstSource && result[firstSource]) {
+        result[firstSource] = {
+          ...result[firstSource],
+          ...initialValueOverrides,
+        };
+      }
+    }
+    return result;
+  }, [settings, resolvedSources, overridesSignature]);
 
   const initialView = React.useMemo(() => {
-    if (!settings || !filteredSchema) return null;
-
-    const resolvedInitialView = getInitialView
-      ? getInitialView(settings, filteredSchema)
-      : inferInitialView(settings, filteredSchema, settingsSource);
-
-    return normalizeView(resolvedInitialView, { showAdvanced, showAll });
-  }, [
-    settings,
-    filteredSchema,
-    getInitialView,
-    settingsSource,
-    showAdvanced,
-    showAll,
-  ]);
+    if (!settings) return null;
+    let result: SettingsView | null = null;
+    for (const src of resolvedSources) {
+      if (!src.filteredSchema) return null;
+      const perSource = getInitialView
+        ? getInitialView(settings, src.filteredSchema)
+        : inferInitialView(settings, src.filteredSchema, src.settingsSource);
+      result = result ? getMoreDetailedView(result, perSource) : perSource;
+    }
+    if (!result) return null;
+    return normalizeView(result, { showAdvanced, showAll });
+  }, [settings, resolvedSources, getInitialView, showAdvanced, showAll]);
 
   React.useEffect(() => {
     hasHydratedViewRef.current = false;
     setView("basic");
-    setValues({});
-    setDirty({});
-  }, [scope, settingsSource, sectionKeysSignature]);
+    setValuesBySource({});
+    setDirtyBySource({});
+  }, [scope, sourcesSignature]);
 
   React.useEffect(() => {
-    if (!initialValues || !initialView) return;
+    if (!initialValuesBySource || !initialView) return;
 
-    setValues(initialValues);
-    // Override-supplied keys are pre-populated for the user, so mark
-    // them dirty up-front; otherwise the Save button stays disabled
-    // until the user touches a field, defeating the point of the
-    // override.
-    const overrideDirty: SettingsDirtyState = initialValueOverrides
-      ? Object.fromEntries(
+    setValuesBySource(initialValuesBySource);
+    if (initialValueOverrides) {
+      const firstSource = resolvedSources[0]?.settingsSource;
+      if (firstSource) {
+        const overrideDirty: SettingsDirtyState = Object.fromEntries(
           Object.keys(initialValueOverrides).map((key) => [key, true]),
-        )
-      : {};
-    setDirty(overrideDirty);
+        );
+        setDirtyBySource({ [firstSource]: overrideDirty });
+      } else {
+        setDirtyBySource({});
+      }
+    } else {
+      setDirtyBySource({});
+    }
     setView((currentView) => {
       if (!hasHydratedViewRef.current) {
         hasHydratedViewRef.current = true;
@@ -321,27 +388,60 @@ export function SdkSectionPage({
 
       return getLessDetailedView(currentView, initialView);
     });
-    // initialValueOverrides is intentionally tracked via
-    // overridesSignature on initialValues; including the object ref
-    // here would re-fire the effect every render.
-  }, [initialValues, initialView]);
+  }, [initialValuesBySource, initialView]);
 
-  const visibleSections = React.useMemo(() => {
-    if (!filteredSchema) return [];
-    return getVisibleSettingsSections(
-      filteredSchema,
-      values,
-      view,
-      excludeKeys,
-    );
-  }, [filteredSchema, values, view, excludeKeys]);
+  const fieldKeyToSource = React.useMemo(() => {
+    const map = new Map<string, SettingsValueSource>();
+    for (const src of resolvedSources) {
+      if (src.filteredSchema) {
+        for (const section of src.filteredSchema.sections) {
+          for (const field of section.fields) {
+            if (!map.has(field.key)) {
+              map.set(field.key, src.settingsSource);
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [resolvedSources]);
+
+  const flatValues = React.useMemo<SettingsFormValues>(() => {
+    const merged: SettingsFormValues = {};
+    for (const src of resolvedSources) {
+      Object.assign(merged, valuesBySource[src.settingsSource] ?? {});
+    }
+    return merged;
+  }, [resolvedSources, valuesBySource]);
+
+  const flatDirty = React.useMemo<SettingsDirtyState>(() => {
+    const merged: SettingsDirtyState = {};
+    for (const src of resolvedSources) {
+      Object.assign(merged, dirtyBySource[src.settingsSource] ?? {});
+    }
+    return merged;
+  }, [resolvedSources, dirtyBySource]);
 
   const handleFieldChange = React.useCallback(
     (fieldKey: string, nextValue: string | boolean) => {
-      setValues((prev) => ({ ...prev, [fieldKey]: nextValue }));
-      setDirty((prev) => ({ ...prev, [fieldKey]: true }));
+      const sourceKey = fieldKeyToSource.get(fieldKey);
+      if (!sourceKey) return;
+      setValuesBySource((prev) => ({
+        ...prev,
+        [sourceKey]: {
+          ...(prev[sourceKey] ?? {}),
+          [fieldKey]: nextValue,
+        },
+      }));
+      setDirtyBySource((prev) => ({
+        ...prev,
+        [sourceKey]: {
+          ...(prev[sourceKey] ?? {}),
+          [fieldKey]: true,
+        },
+      }));
     },
-    [],
+    [fieldKeyToSource],
   );
 
   const handleError = React.useCallback(
@@ -352,33 +452,45 @@ export function SdkSectionPage({
     [t],
   );
 
-  // Stable save callback so `onSaveControlChange` can hand a single
-  // function reference to the parent across renders. The latest
-  // closure is kept up to date via `handleSaveRef`.
   const handleSaveRef = React.useRef<() => void>(() => {});
   const stableSave = React.useCallback(() => {
     handleSaveRef.current();
   }, []);
 
   const handleSave = () => {
-    if (!filteredSchema || isReadOnly) return;
+    if (isReadOnly) return;
+    if (resolvedSources.some((src) => !src.filteredSchema)) return;
 
     let payload: Record<string, unknown>;
     try {
-      const basePayload = buildSdkSettingsPayloadForView(
-        filteredSchema,
-        values,
-        dirty,
-        view,
-      );
-      let defaultPayload: Record<string, unknown>;
-      if (settingsSource === "conversation_settings") {
-        defaultPayload = { conversation_settings_diff: basePayload };
-      } else {
-        defaultPayload = { agent_settings_diff: basePayload };
+      const defaultPayload: Record<string, unknown> = {};
+      for (const src of resolvedSources) {
+        const schema = src.filteredSchema!;
+        const sourceValues = valuesBySource[src.settingsSource] ?? {};
+        const sourceDirty = dirtyBySource[src.settingsSource] ?? {};
+        const diff = buildSdkSettingsPayloadForView(
+          schema,
+          sourceValues,
+          sourceDirty,
+          view,
+        );
+        if (Object.keys(diff).length > 0) {
+          const diffKey = PAYLOAD_DIFF_KEY[src.settingsSource];
+          defaultPayload[diffKey] = {
+            ...((defaultPayload[diffKey] as
+              | Record<string, unknown>
+              | undefined) ?? {}),
+            ...diff,
+          };
+        }
       }
+
       payload = buildPayload
-        ? buildPayload(basePayload, { values, dirty, view })
+        ? buildPayload(defaultPayload, {
+            values: flatValues,
+            dirty: flatDirty,
+            view,
+          })
         : defaultPayload;
     } catch (error) {
       displayErrorToast(
@@ -393,7 +505,7 @@ export function SdkSectionPage({
       onError: handleError,
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
-        setDirty({});
+        setDirtyBySource({});
         onSaveSuccess?.();
       },
     });
@@ -401,28 +513,27 @@ export function SdkSectionPage({
 
   handleSaveRef.current = handleSave;
 
-  // Surface save state to the parent. Hooks must run before any
-  // conditional early-returns below, so this lives here rather than
-  // alongside the JSX. The dependency list deliberately excludes
-  // `stableSave` (it never changes) and `onSaveControlChange` (we
-  // tolerate ref-instability of the callback to avoid spamming the
-  // parent on every render).
-  const saveControlIsDirty = Object.keys(dirty).length > 0 || extraDirty;
+  const isDirty = Object.keys(flatDirty).length > 0;
+  const saveControlIsDirty = isDirty || extraDirty;
   React.useEffect(() => {
     if (!onSaveControlChange) return;
     onSaveControlChange({
       save: stableSave,
       isSaving: isPending,
       isDirty: saveControlIsDirty,
-      values,
+      values: flatValues,
     });
-  }, [isPending, saveControlIsDirty, values]);
+  }, [isPending, saveControlIsDirty, flatValues]);
 
   if (isLoading || isFetching || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
 
-  if (!filteredSchema || filteredSchema.sections.length === 0) {
+  const hasAnyVisibleSection = resolvedSources.some(
+    (src) => src.filteredSchema && src.filteredSchema.sections.length > 0,
+  );
+
+  if (!hasAnyVisibleSection) {
     return (
       <Typography.Paragraph className="text-tertiary-alt">
         {schemaUnavailableMessage}
@@ -430,12 +541,10 @@ export function SdkSectionPage({
     );
   }
 
-  if (Object.keys(values).length === 0) return <LlmSettingsInputsSkeleton />;
+  if (Object.keys(flatValues).length === 0) {
+    return <LlmSettingsInputsSkeleton />;
+  }
 
-  // In embedded mode the form body owns scrolling so the surrounding
-  // chrome (heading, tabs, footer) stays pinned. Otherwise we keep the
-  // historical block layout, reserving `pb-20` for the sticky Save bar
-  // when it is rendered.
   let bodyClassName: string;
   if (embedded) {
     bodyClassName =
@@ -463,32 +572,42 @@ export function SdkSectionPage({
 
       <div className={bodyClassName}>
         {header?.({
-          values,
+          values: flatValues,
           isDisabled: isReadOnly,
           view,
           onChange: handleFieldChange,
         })}
 
-        {visibleSections.map((section, sectionIndex) => (
-          <section
-            key={`${section.key}-${sectionIndex}`}
-            className="flex flex-col gap-4"
-          >
-            <div className="grid gap-4 xl:grid-cols-2">
-              {section.fields.map((field) => (
-                <SchemaField
-                  key={field.key}
-                  field={field}
-                  value={values[field.key]}
-                  isDisabled={isReadOnly}
-                  onChange={(nextValue) =>
-                    handleFieldChange(field.key, nextValue)
-                  }
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+        {resolvedSources.map((src) => {
+          if (!src.filteredSchema) return null;
+          const sourceValues = valuesBySource[src.settingsSource] ?? {};
+          const visibleSections = getVisibleSettingsSections(
+            src.filteredSchema,
+            { ...flatValues, ...sourceValues },
+            view,
+            src.excludeKeys ?? EMPTY_EXCLUDE_KEYS,
+          );
+          return visibleSections.map((section) => (
+            <section
+              key={`${src.settingsSource}:${section.key}`}
+              className="flex flex-col gap-4"
+            >
+              <div className="grid gap-4 xl:grid-cols-2">
+                {section.fields.map((field) => (
+                  <SchemaField
+                    key={field.key}
+                    field={field}
+                    value={sourceValues[field.key]}
+                    isDisabled={isReadOnly}
+                    onChange={(nextValue) =>
+                      handleFieldChange(field.key, nextValue)
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          ));
+        })}
       </div>
 
       {!isReadOnly && !hideSaveButton ? (
@@ -497,9 +616,7 @@ export function SdkSectionPage({
             testId="save-button"
             type="button"
             variant="primary"
-            isDisabled={
-              isPending || (Object.keys(dirty).length === 0 && !extraDirty)
-            }
+            isDisabled={isPending || (!isDirty && !extraDirty)}
             onClick={handleSave}
           >
             {isPending
