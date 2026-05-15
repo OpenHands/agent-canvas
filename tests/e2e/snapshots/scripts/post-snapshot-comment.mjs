@@ -22,6 +22,7 @@
 
 import { execSync } from "node:child_process";
 import {
+  appendFileSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -442,6 +443,18 @@ async function main() {
 
   const body = buildComment(changed, newSnapshots, unchanged, commitSha);
   await postFreshComment(body);
+
+  // Tell the workflow whether there are actual pixel-diff failures so the
+  // "Fail if differences" step can distinguish changed snapshots (should
+  // fail CI) from missing baselines (new tests from this PR, should pass).
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `has_changes=${changed.length > 0}\n`,
+    );
+    console.log(`  has_changes=${changed.length > 0} written to GITHUB_OUTPUT`);
+  }
+
   console.log("Done.");
 }
 

@@ -175,6 +175,7 @@ jobs:
 
       - name: Post snapshot report to PR
         if: always() && github.event_name == 'pull_request'
+        id: post-comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -197,10 +198,13 @@ jobs:
           retention-days: 7
 
       - name: Fail if snapshot comparison found differences
+        # Only fail on real pixel-diff failures (changed snapshots), not on
+        # missing-baseline failures which are expected for new tests added in
+        # this PR. `has_changes` is written by post-snapshot-comment.mjs to
+        # $GITHUB_OUTPUT; it is false when all failures are "new" snapshots.
         if: >-
           github.event_name == 'pull_request' &&
-          steps.compare.outcome == 'failure' &&
-          steps.find-run.outputs.has_baselines == 'true' &&
+          steps.post-comment.outputs.has_changes == 'true' &&
           !contains(github.event.pull_request.labels.*.name, 'update-snapshots')
         run: |
           echo "::error::Snapshot differences detected. Add the 'update-snapshots' label to acknowledge intentional changes."

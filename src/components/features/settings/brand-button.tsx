@@ -48,7 +48,13 @@ export const BrandButton = forwardRef<
       aria-label={ariaLabel}
       aria-busy={ariaBusy}
       className={cn(
-        "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
+        "w-fit p-2 text-sm rounded-sm cursor-pointer",
+        // Apply disabled appearance via conditional class so it works
+        // regardless of whether the :disabled pseudo-class is available
+        // (e.g. Tailwind v4 + postcss-prefix-selector in dev mode).
+        isDisabled
+          ? "opacity-30 cursor-not-allowed pointer-events-none"
+          : "disabled:opacity-30 disabled:cursor-not-allowed",
         variant === "primary" &&
           "bg-primary text-[var(--oh-color-base)] hover:opacity-80",
         variant === "secondary" &&

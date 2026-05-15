@@ -33,12 +33,13 @@ import { test, expect, Page } from "@playwright/test";
 // Mock conversation IDs "1", "2", "3" are pre-defined in MSW handlers.
 const CONVERSATION_ID = "1";
 
-// Pre-enable diff view and open the right panel for conversation 1.
-// The key format matches LOCAL_STORAGE_KEYS.CONVERSATION_STATE + "-" + id.
+// Pre-enable diff view for conversation 1.
+// NOTE: rightPanelShown is intentionally omitted — it is session-only state
+// stripped by sanitizeStoredState on read.  The right panel is opened
+// programmatically via a right-panel-toggle click in navigateAndWaitForFilesTab.
 const CONVERSATION_STATE_KEY = `conversation-state-${CONVERSATION_ID}`;
 const CONVERSATION_STATE_VALUE = JSON.stringify({
   selectedTab: "files",
-  rightPanelShown: true,
   filesTabDiffView: true,
   filesTabContentViewMode: "rich",
   unpinnedTabs: [],
@@ -111,6 +112,12 @@ async function dismissConsentModal(page: Page) {
 /**
  * Navigate to the conversation and wait for the Files tab (diff view) to
  * be rendered.  Returns the `data-testid="files-tab"` locator.
+ *
+ * `isRightPanelShown` is session-only Zustand state (always false on load;
+ * `sanitizeStoredState` strips any persisted `rightPanelShown` key).
+ * We open the right panel by clicking the `right-panel-toggle` button,
+ * which calls `setHasRightPanelToggled(true)` → synced to
+ * `setIsRightPanelShown(true)` by `use-chat-input-logic`.
  */
 async function navigateAndWaitForFilesTab(page: Page) {
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
@@ -118,7 +125,12 @@ async function navigateAndWaitForFilesTab(page: Page) {
   });
   await dismissConsentModal(page);
 
-  // The FilesTab is lazy-loaded; wait for it to render.
+  // Open the right panel — it always starts closed on page load.
+  const toggle = page.getByTestId("right-panel-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await toggle.click();
+
+  // The FilesTab is lazy-loaded inside the now-open right panel.
   const filesTab = page.getByTestId("files-tab");
   await expect(filesTab).toBeVisible({ timeout: 20_000 });
   return filesTab;
