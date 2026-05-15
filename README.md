@@ -88,6 +88,34 @@ This also serves a static production build for stability. If you are developing 
 npm run dev:dangerously-dockerless:dynamic
 ```
 
+## Connecting to OpenHands Cloud (optional)
+
+If you want to use the hosted OpenHands Cloud backend instead of running your own Agent Server, point Agent Canvas at OpenHands Cloud:
+
+1. In OpenHands Cloud, go to **Settings → API Keys**: https://app.all-hands.dev/settings/api-keys
+2. Create an **OpenHands API Key**
+3. Create a `.env` file in this repo with:
+
+```sh
+VITE_BACKEND_BASE_URL=https://app.all-hands.dev
+VITE_SESSION_API_KEY=YOUR_OPENHANDS_API_KEY
+```
+
+4. Start the frontend only:
+
+```sh
+npm run dev:frontend
+```
+
+Then open the printed URL (usually http://localhost:5173).
+
+### OpenHands Cloud has two different keys
+
+OpenHands Cloud exposes two different API keys on the same page:
+
+- **OpenHands API Key**: used to authenticate to OpenHands Cloud itself (including the OpenHands Cloud API). This is also the key you should use for `VITE_SESSION_API_KEY` when connecting Agent Canvas to `https://app.all-hands.dev`.
+- **OpenHands LLM Key**: used to access OpenHands-hosted LLMs as an LLM provider (for example, `LLM_API_KEY` when running the OpenHands CLI or a self-hosted Agent Server). It is not used to authenticate to the OpenHands Cloud API.
+
 # Architecture
 
 Agent Canvas is powered by the [OpenHands Agent Server](https://github.com/OpenHands/software-agent-sdk/tree/main/openhands-agent-server/openhands/agent_server), a REST API for running multiple agents on a single machine. Each Agent Server runs on a single host/port; the Agent Canvas can connect to multiple Agent Servers and easily flip between them.
