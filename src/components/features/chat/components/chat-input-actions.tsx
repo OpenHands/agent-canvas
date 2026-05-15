@@ -446,10 +446,10 @@ export function ChatInputActions({
           >
             <ContextMenu
               testId="overflow-model-submenu"
-              className="overflow-visible min-w-[220px] max-w-[320px]"
+              className="overflow-visible min-w-[220px]"
             >
               <li className="text-sm">
-                <div className="p-2 leading-5 text-white break-all">
+                <div className="p-2 leading-5 text-white whitespace-nowrap">
                   {conversation?.llm_model}
                 </div>
               </li>

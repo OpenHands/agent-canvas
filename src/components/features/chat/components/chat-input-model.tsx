@@ -10,15 +10,6 @@ import { cn } from "#/utils/utils";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-const MODEL_LABEL_MAX_CHARS = 10;
-
-function truncateModelLabel(model: string): string {
-  if (model.length <= MODEL_LABEL_MAX_CHARS) {
-    return model;
-  }
-  return `${model.slice(0, MODEL_LABEL_MAX_CHARS)}…`;
-}
-
 export function ChatInputModel() {
   const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
@@ -31,7 +22,6 @@ export function ChatInputModel() {
   if (!conversation?.llm_model) {
     return null;
   }
-  const truncatedModelLabel = truncateModelLabel(conversation.llm_model);
 
   return (
     <div className="relative min-w-0">
@@ -51,7 +41,7 @@ export function ChatInputModel() {
           setIsPopoverOpen((open) => !open);
         }}
       >
-        <span>{truncatedModelLabel}</span>
+        <span>{conversation.llm_model}</span>
         <ChevronDownSmallIcon
           width={18}
           height={18}
@@ -68,10 +58,10 @@ export function ChatInputModel() {
           position="top"
           alignment="left"
           spacing="none"
-          className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
+          className="z-[60] mb-2 min-w-[200px]"
         >
           <li className="text-sm">
-            <div className="p-2 leading-5 text-white break-all">
+            <div className="p-2 leading-5 text-white whitespace-nowrap">
               {conversation.llm_model}
             </div>
           </li>
