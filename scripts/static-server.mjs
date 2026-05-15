@@ -29,7 +29,7 @@
 import { createServer, request as httpRequest } from "node:http";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { extname, normalize, resolve } from "node:path";
+import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -286,6 +286,14 @@ function looksLikeAssetRequest(urlPath) {
   return Boolean(ext) && ext in MIME;
 }
 
+function isPathInsideDir(dirAbs, filePath) {
+  const relativePath = relative(dirAbs, filePath);
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+  );
+}
+
 async function serveFile(req, res, filePath, urlPath) {
   const stats = await tryStat(filePath);
   if (!stats) return false;
@@ -326,7 +334,7 @@ async function handleStatic(req, res, dirAbs) {
 
   const safe = normalize(urlPath);
   let filePath = resolve(dirAbs, "." + safe);
-  if (filePath !== dirAbs && !filePath.startsWith(dirAbs + "/")) {
+  if (!isPathInsideDir(dirAbs, filePath)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
