@@ -49,6 +49,8 @@ export interface DirectConversationInfo {
 
 const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
+const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
+const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
 function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
@@ -204,6 +206,23 @@ function getAgentTools() {
   return tools;
 }
 
+function getBuiltInToolNames(agentSettings: SettingsRecord) {
+  const configured = Array.isArray(agentSettings.include_default_tools)
+    ? agentSettings.include_default_tools.filter(
+        (name): name is string => typeof name === "string" && name.length > 0,
+      )
+    : DEFAULT_BUILT_IN_TOOL_NAMES;
+
+  if (
+    agentSettings.enable_switch_llm_tool === true &&
+    !configured.includes(SWITCH_LLM_TOOL_NAME)
+  ) {
+    return [...configured, SWITCH_LLM_TOOL_NAME];
+  }
+
+  return configured;
+}
+
 function buildInitialMessage(
   query?: string,
   conversationInstructions?: string,
@@ -270,8 +289,10 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   }
 
   const condenser = buildCondenserConfig(llm, agentSettings.condenser);
+  const includeDefaultTools = getBuiltInToolNames(agentSettings);
 
   AGENT_SETTINGS_METADATA_KEYS.forEach((key) => delete agentSettings[key]);
+  delete agentSettings.enable_switch_llm_tool;
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
@@ -288,6 +309,7 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
     ...agentSettings,
     llm,
     tools: getAgentTools(),
+    include_default_tools: includeDefaultTools,
   };
 }
 
