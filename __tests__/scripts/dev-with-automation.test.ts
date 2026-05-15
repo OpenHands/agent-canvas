@@ -81,9 +81,7 @@ describe("buildAutomationCommand", () => {
     });
 
     expect(cmd.command).toBe("uvx");
-    expect(cmd.args).toContain(
-      `git+${DEFAULT_AUTOMATION_REPO}@abc123def456`,
-    );
+    expect(cmd.args).toContain(`git+${DEFAULT_AUTOMATION_REPO}@abc123def456`);
     expect(cmd.source).toBe("git (abc123def456)");
   });
 
@@ -93,9 +91,7 @@ describe("buildAutomationCommand", () => {
     });
 
     expect(cmd.command).toBe("uvx");
-    expect(cmd.args).toContain(
-      `${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`,
-    );
+    expect(cmd.args).toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
     expect(cmd.source).toBe("PyPI (1.0.0)");
   });
 
@@ -106,9 +102,7 @@ describe("buildAutomationCommand", () => {
     });
 
     expect(cmd.command).toBe("uvx");
-    expect(cmd.args).toContain(
-      `git+${DEFAULT_AUTOMATION_REPO}@main`,
-    );
+    expect(cmd.args).toContain(`git+${DEFAULT_AUTOMATION_REPO}@main`);
     expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
     expect(cmd.source).toBe("git (main)");
   });
@@ -268,7 +262,10 @@ describe("buildConfig", () => {
   });
 
   it("passes verbose flag through", async () => {
-    const config = await buildConfig({ verbose: true }, envWithIsolatedKeyPath());
+    const config = await buildConfig(
+      { verbose: true },
+      envWithIsolatedKeyPath(),
+    );
 
     expect(config.verbose).toBe(true);
   });
@@ -330,41 +327,56 @@ describe("buildConfig", () => {
   });
 
   it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
-    const config = await buildConfig({}, { VITE_SESSION_API_KEY: "vite-session-key" });
+    const config = await buildConfig(
+      {},
+      { VITE_SESSION_API_KEY: "vite-session-key" },
+    );
 
     expect(config.sessionApiKey).toBe("vite-session-key");
   });
 
   it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
-    const config = await buildConfig({}, {
-      SESSION_API_KEY: "session-key",
-      VITE_SESSION_API_KEY: "vite-key",
-    });
+    const config = await buildConfig(
+      {},
+      {
+        SESSION_API_KEY: "session-key",
+        VITE_SESSION_API_KEY: "vite-key",
+      },
+    );
 
     expect(config.sessionApiKey).toBe("session-key");
   });
 
   it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
-    const config = await buildConfig({}, { OH_SESSION_API_KEYS_0: "v1-session-key" });
+    const config = await buildConfig(
+      {},
+      { OH_SESSION_API_KEYS_0: "v1-session-key" },
+    );
 
     expect(config.sessionApiKey).toBe("v1-session-key");
   });
 
   it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
-    const config = await buildConfig({}, {
-      SESSION_API_KEY: "v0-key",
-      OH_SESSION_API_KEYS_0: "v1-key",
-    });
+    const config = await buildConfig(
+      {},
+      {
+        SESSION_API_KEY: "v0-key",
+        OH_SESSION_API_KEYS_0: "v1-key",
+      },
+    );
 
     expect(config.sessionApiKey).toBe("v0-key");
   });
 
   it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
-    const config = await buildConfig({}, {
-      SESSION_API_KEY: "v0-key",
-      OH_SESSION_API_KEYS_0: "v1-key",
-      VITE_SESSION_API_KEY: "vite-key",
-    });
+    const config = await buildConfig(
+      {},
+      {
+        SESSION_API_KEY: "v0-key",
+        OH_SESSION_API_KEYS_0: "v1-key",
+        VITE_SESSION_API_KEY: "vite-key",
+      },
+    );
 
     expect(config.sessionApiKey).toBe("v0-key");
   });
@@ -382,7 +394,7 @@ describe("default constants", () => {
   });
 
   it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a2");
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a3");
   });
 
   it("has expected default backend port", () => {
@@ -426,17 +438,13 @@ describe("dev-with-automation CLI", () => {
   });
 
   it("exits promptly when uvx is missing", async () => {
-    const child = spawn(
-      process.execPath,
-      ["scripts/dev-with-automation.mjs"],
-      {
-        cwd: repoRoot,
-        env: {
-          PATH: "",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
+    const child = spawn(process.execPath, ["scripts/dev-with-automation.mjs"], {
+      cwd: repoRoot,
+      env: {
+        PATH: "",
       },
-    );
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
     let output = "";
     child.stdout.on("data", (chunk) => {
