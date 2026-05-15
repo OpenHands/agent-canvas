@@ -205,13 +205,26 @@ test.describe("UI Visual Snapshots", () => {
 
   test("Add backend modal renders correctly", async ({ page }) => {
     await setupMocks(page, false);
+
+    // Mock the server-info endpoint so the backend health check
+    // succeeds instead of hanging against the dev server.
+    await page.route("**/server_info", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ version: "mock" }),
+      });
+    });
+
     await page.goto("/conversations");
     await dismissConsentModal(page);
 
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toBeVisible();
+    await page.waitForLoadState("networkidle");
 
     const backendSelector = page.getByTestId("backend-selector");
+    await expect(backendSelector).toBeVisible();
     await backendSelector.getByTestId("dropdown-trigger").click();
     await page.getByTestId("add-backend-menu-item").click();
 
