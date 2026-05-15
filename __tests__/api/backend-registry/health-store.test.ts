@@ -64,6 +64,28 @@ describe("backend health store", () => {
     expect(persisted[BACKEND_ID].disabled).toBe(true);
   });
 
+  it("caps the failure count at the max when a disabled backend fails another recheck", () => {
+    for (let i = 0; i < MAX_CONSECUTIVE_FAILURES; i += 1) {
+      recordBackendFailure(BACKEND_ID, new Error("timeout"));
+    }
+
+    recordBackendFailure(BACKEND_ID, new Error("still down"));
+
+    const entry = getBackendHealthEntry(BACKEND_ID);
+    expect(entry).toMatchObject({
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+      disabled: true,
+      lastError: "still down",
+    });
+
+    const persisted = JSON.parse(
+      window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY) ?? "{}",
+    );
+    expect(persisted[BACKEND_ID].consecutiveFailures).toBe(
+      MAX_CONSECUTIVE_FAILURES,
+    );
+  });
+
   it("clears the entry (and storage) and notifies subscribers when the backend recovers or the user edits its config", () => {
     // Arrange — record one failure so there is something to clear, and
     // subscribe so we can confirm listeners get notified.

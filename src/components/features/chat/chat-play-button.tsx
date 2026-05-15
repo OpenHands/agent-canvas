@@ -18,7 +18,7 @@ export function ChatResumeAgentButton({
       disabled={disabled}
       className={cn("cursor-pointer", disabled && "cursor-not-allowed")}
     >
-      <PlayIcon className="block max-w-none w-4 h-4" />
+      <PlayIcon className="block max-w-none w-4 h-4 text-current" />
     </button>
   );
 }

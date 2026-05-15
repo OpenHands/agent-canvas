@@ -22,6 +22,7 @@ const {
   mockConversationClient,
   mockFileClient,
   mockSettingsClient,
+  mockSwitchProfile,
   mockGetSettings,
   mockGetSettingsForConversation,
 } = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ const {
   mockConversationClient: vi.fn(),
   mockFileClient: vi.fn(),
   mockSettingsClient: vi.fn(),
+  mockSwitchProfile: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
 }));
@@ -65,6 +67,7 @@ vi.mock("#/api/agent-server-config", () => ({
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
   getConfiguredWorkerUrls: vi.fn(() => []),
+  getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
 }));
 
@@ -106,6 +109,7 @@ describe("AgentServerConversationService", () => {
       getConversation: vi.fn(),
       sendEvent: vi.fn(),
       updateConversation: vi.fn(),
+      switchProfile: mockSwitchProfile,
     });
     mockFileClient.mockReturnValue({
       downloadTextFile: async (path: string) => {
@@ -406,6 +410,50 @@ describe("AgentServerConversationService", () => {
       expect(conversation?.workspace?.working_dir).toBe(
         "/workspace/project/agent-canvas",
       );
+    });
+  });
+
+  describe("switchProfile", () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    afterEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    it("switches profiles through the local agent-server client", async () => {
+      mockSwitchProfile.mockResolvedValue(undefined);
+
+      await AgentServerConversationService.switchProfile("conv-1", "haiku");
+
+      expect(mockSwitchProfile).toHaveBeenCalledWith("conv-1", "haiku");
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://localhost:54928",
+        apiKey: "test-api-key",
+        workingDir: "/workspace/project/agent-canvas",
+      });
+    });
+
+    it("rejects profile switching on cloud backends before creating a client", async () => {
+      const cloudBackend: Backend = {
+        id: "prod",
+        name: "Production",
+        host: "https://app.all-hands.dev",
+        apiKey: "bearer-token",
+        kind: "cloud",
+      };
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      await expect(
+        AgentServerConversationService.switchProfile("conv-1", "haiku"),
+      ).rejects.toThrow(
+        "LLM profile switching is only supported for local agent-server backends.",
+      );
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
     });
   });
 

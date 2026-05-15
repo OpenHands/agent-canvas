@@ -11,7 +11,7 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
-import { PROFILE_NAME_PATTERN } from "#/utils/derive-profile-name";
+import { isProfileNameValid } from "#/utils/derive-profile-name";
 
 interface RenameProfileModalProps {
   profile: ProfileInfo | null;
@@ -33,14 +33,8 @@ export function RenameProfileModal({
 
   if (!profile) return null;
 
+  const isValid = isProfileNameValid(newName, { isRequired: true });
   const isUnchanged = newName === profile.name;
-  // Explicit empty check matches ProfileNameInput's isRequired validation
-  const isValid = newName !== "" && PROFILE_NAME_PATTERN.test(newName);
-
-  // Trim whitespace on input change to avoid user confusion
-  const handleNameChange = (value: string) => {
-    setNewName(value.trim());
-  };
 
   const handleSubmit = async () => {
     if (!isValid) {
@@ -114,7 +108,7 @@ export function RenameProfileModal({
           testId="rename-profile-input"
           ruleTestId="rename-profile-rule"
           value={newName}
-          onChange={handleNameChange}
+          onChange={setNewName}
           isRequired
           onKeyDown={(e) => {
             if (e.key === "Enter" && !renameProfile.isPending && isValid) {

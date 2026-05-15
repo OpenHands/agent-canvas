@@ -187,6 +187,18 @@ describe("OnboardingModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("opts the Skip button into cursor-pointer so hovering it shows the pointer affordance", () => {
+    // Arrange: render the modal so the Skip button is mounted.
+    renderModal();
+
+    // Act: locate the Skip button the user hovers.
+    const skipButton = screen.getByTestId("onboarding-skip");
+
+    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
+    // the button must opt back into cursor-pointer for the hover affordance.
+    expect(skipButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
+  });
+
   it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
     // Arrange + act: render the modal once.
     renderModal();

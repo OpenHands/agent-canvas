@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import CodeTagIcon from "#/icons/code-tag.svg?react";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
+import { CodePillIcon } from "#/icons/code-pill";
 import { useConversationStore } from "#/stores/conversation-store";
 import { ChangeAgentContextMenu } from "./change-agent-context-menu";
 import { cn } from "#/utils/utils";
@@ -140,10 +140,11 @@ export function ChangeAgentButton() {
 
   const buttonIcon = useMemo(() => {
     if (isExecutionAgent) {
-      return <CodeTagIcon width={18} height={18} color="#737373" />;
+      return <CodePillIcon className="h-[11px] w-[11px] shrink-0" />;
     }
-    return <LessonPlanIcon width={18} height={18} color="#ffffff" />;
+    return <LessonPlanIcon width={18} height={18} color="currentColor" />;
   }, [isExecutionAgent]);
+  const caretColor = "currentColor";
 
   return (
     <div className="relative">
@@ -152,20 +153,30 @@ export function ChangeAgentButton() {
         onClick={handleButtonClick}
         disabled={isButtonDisabled}
         className={cn(
-          "flex items-center border border-[#4B505F] rounded-[100px] transition-opacity",
-          !isExecutionAgent && "border-[#597FF4] bg-[#4A67BD]",
-          isButtonDisabled
-            ? "opacity-50 cursor-not-allowed"
-            : "cursor-pointer hover:opacity-80",
+          "flex items-center rounded-[100px] transition-[border-color,color,opacity]",
+          isExecutionAgent
+            ? "border border-transparent text-[var(--oh-muted)]"
+            : "border border-[#597FF4] bg-[#4A67BD]",
+          !isButtonDisabled &&
+            isExecutionAgent &&
+            "cursor-pointer hover:text-white hover:bg-white/10",
+          !isButtonDisabled &&
+            !isExecutionAgent &&
+            "cursor-pointer text-white hover:bg-white/10",
+          isButtonDisabled &&
+            cn(
+              "opacity-50 cursor-not-allowed",
+              isExecutionAgent && "border-transparent",
+            ),
         )}
       >
         <div className="flex items-center gap-1 pl-1.5">
           {buttonIcon}
-          <Typography.Text className="text-white text-2.75 not-italic font-normal leading-5">
+          <Typography.Text className="text-2.75 not-italic font-normal leading-5">
             {buttonLabel}
           </Typography.Text>
         </div>
-        <ChevronDownSmallIcon width={24} height={24} color="#ffffff" />
+        <ChevronDownSmallIcon width={18} height={18} color={caretColor} />
       </button>
       {contextMenuOpen && (
         <ChangeAgentContextMenu

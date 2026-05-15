@@ -2,10 +2,10 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Typography } from "#/ui/typography";
 import { SkillTriggers } from "./skill-triggers";
 import { SkillContent } from "./skill-content";
-import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { SkillInfo } from "#/types/settings";
 
 interface SkillItemProps {
-  skill: Skill;
+  skill: SkillInfo & { content?: string };
   isExpanded: boolean;
   onToggle: (agentName: string) => void;
 }
@@ -25,18 +25,18 @@ export function SkillItem({ skill, isExpanded, onToggle }: SkillItemProps) {
       <button
         type="button"
         onClick={() => onToggle(skill.name)}
-        className="w-full py-3 px-2 text-left flex items-center justify-between hover:bg-gray-700 transition-colors"
+        className="w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors"
       >
         <div className="flex items-center">
-          <Typography.Text className="font-bold text-gray-100">
+          <Typography.Text className="font-bold text-content-2">
             {skill.name}
           </Typography.Text>
         </div>
         <div className="flex items-center">
-          <Typography.Text className="px-2 py-1 text-xs rounded-full bg-gray-800 mr-2">
+          <Typography.Text className="px-2 py-1 text-xs rounded-full bg-[var(--oh-surface)] mr-2">
             {skillTypeLabel}
           </Typography.Text>
-          <Typography.Text className="text-gray-300">
+          <Typography.Text className="text-[var(--oh-text-tertiary)]">
             {isExpanded ? (
               <ChevronDown size={18} />
             ) : (
@@ -48,8 +48,8 @@ export function SkillItem({ skill, isExpanded, onToggle }: SkillItemProps) {
 
       {isExpanded && (
         <div className="px-2 pb-3 pt-1">
-          <SkillTriggers triggers={skill.triggers} />
-          <SkillContent content={skill.content} />
+          <SkillTriggers triggers={skill.triggers ?? []} />
+          <SkillContent content={skill.content ?? ""} />
         </div>
       )}
     </div>

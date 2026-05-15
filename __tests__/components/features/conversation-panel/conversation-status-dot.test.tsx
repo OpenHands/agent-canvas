@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "test-utils";
-import { ConversationStatusDot } from "#/components/features/home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "#/components/features/conversation-panel/conversation-status-dot";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
@@ -25,11 +25,11 @@ describe("ConversationStatusDot", () => {
     [ExecutionStatus.FINISHED, "conversation-status-check", "COMMON$FINISHED"],
     [ExecutionStatus.RUNNING, "conversation-status-working", "COMMON$WORKING"],
     [ExecutionStatus.PAUSED, "conversation-status-paused", "COMMON$PAUSED"],
-    [ExecutionStatus.IDLE, "conversation-status-paused", "COMMON$PAUSED"],
+    [ExecutionStatus.IDLE, "conversation-status-active", "COMMON$WORKING"],
     [
       ExecutionStatus.WAITING_FOR_CONFIRMATION,
-      "conversation-status-paused",
-      "COMMON$PAUSED",
+      "conversation-status-active",
+      "COMMON$WORKING",
     ],
     [ExecutionStatus.ERROR, "conversation-status-error", "COMMON$ERROR"],
     [ExecutionStatus.STUCK, "conversation-status-error", "COMMON$ERROR"],

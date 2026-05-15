@@ -58,7 +58,7 @@ export function ConversationMain() {
             "flex flex-col bg-base overflow-hidden",
             isMobile
               ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out md:pt-3 md:pb-3",
+              : "transition-all duration-300 ease-in-out",
           )}
           style={
             !isMobile
@@ -71,7 +71,7 @@ export function ConversationMain() {
         >
           <div
             data-testid="chat-pane-header"
-            className="flex items-center min-h-9 mb-3 pt-2 lg:pt-0"
+            className="flex items-center min-h-9 pt-2 lg:pt-0"
           >
             <ConversationNameWithStatus />
           </div>
@@ -118,10 +118,10 @@ export function ConversationMain() {
                 : "flex flex-col h-full w-full",
             )}
           >
-            <div className="flex flex-col flex-1 min-h-0 bg-[#25272D] border border-[#525252] overflow-hidden">
+            <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border border-[var(--oh-border)] overflow-hidden">
               <div
                 data-testid="tabs-pane-header"
-                className="flex items-center min-h-9 px-3 py-1.5 border-b border-[#474A54]"
+                className="flex items-center min-h-9 px-3 py-1.5 border-b border-[var(--oh-border)]"
               >
                 <ConversationTabs />
               </div>

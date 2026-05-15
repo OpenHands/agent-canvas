@@ -165,7 +165,7 @@ describe("EventGroup", () => {
     expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
   });
 
-  it("shows a spinner while running and the success indicator when done", () => {
+  it("shows a spinner while running and no status icon when done", () => {
     const running = [
       makeBashObservation("o1", "a1", "ls"),
       makeBashAction("a2", "pwd"),
@@ -189,7 +189,7 @@ describe("EventGroup", () => {
       </EventGroup>,
     );
     expect(screen.queryByTestId("spinner-icon")).not.toBeInTheDocument();
-    expect(screen.getByTestId("status-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
   });
 
   it("updates accessibility state while toggling the group", async () => {

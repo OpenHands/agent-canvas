@@ -29,7 +29,7 @@ export function BackendStatusDot({
     label = "Disconnected";
     status = "disconnected";
   } else {
-    color = "bg-neutral-500";
+    color = "bg-[var(--oh-interactive-selected)]";
     label = "Checking connection";
     status = "checking";
   }

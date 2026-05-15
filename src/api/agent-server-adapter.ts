@@ -1,21 +1,16 @@
-import { SkillsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import {
-  getAgentServerWorkingDir,
-  shouldLoadPublicSkills,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
-  GetSkillsResponse,
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { getAgentServerClientOptions } from "./agent-server-client-options";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -54,6 +49,8 @@ const DEFAULT_TOOL_NAMES = [
   "canvas_ui",
 ];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
+const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
+const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
 // tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
@@ -215,6 +212,23 @@ function getAgentTools() {
   return tools;
 }
 
+function getBuiltInToolNames(agentSettings: SettingsRecord) {
+  const configured = Array.isArray(agentSettings.include_default_tools)
+    ? agentSettings.include_default_tools.filter(
+        (name): name is string => typeof name === "string" && name.length > 0,
+      )
+    : DEFAULT_BUILT_IN_TOOL_NAMES;
+
+  if (
+    agentSettings.enable_switch_llm_tool === true &&
+    !configured.includes(SWITCH_LLM_TOOL_NAME)
+  ) {
+    return [...configured, SWITCH_LLM_TOOL_NAME];
+  }
+
+  return configured;
+}
+
 function buildInitialMessage(
   query?: string,
   conversationInstructions?: string,
@@ -281,8 +295,10 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   }
 
   const condenser = buildCondenserConfig(llm, agentSettings.condenser);
+  const includeDefaultTools = getBuiltInToolNames(agentSettings);
 
   AGENT_SETTINGS_METADATA_KEYS.forEach((key) => delete agentSettings[key]);
+  delete agentSettings.enable_switch_llm_tool;
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
@@ -299,6 +315,7 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
     ...agentSettings,
     llm,
     tools: getAgentTools(),
+    include_default_tools: includeDefaultTools,
   };
 }
 
@@ -307,7 +324,7 @@ function createAgentFromSettings(agentSettings: SettingsRecord) {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
-      load_public_skills: shouldLoadPublicSkills(),
+      load_public_skills: true,
       load_user_skills: true,
     },
   };
@@ -538,21 +555,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   });
 }
 
-export async function loadSkillsForConversation(
-  conversation: AppConversation | null | undefined,
-): Promise<GetSkillsResponse> {
-  const projectDir =
-    conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
-
-  const response = await new SkillsClient(
-    getAgentServerClientOptions(),
-  ).getSkills({
-    load_public: shouldLoadPublicSkills(),
-    load_user: true,
-    load_project: true,
-    load_org: false,
-    project_dir: projectDir,
-  });
-
-  return { skills: response.skills ?? [] };
+export function emptyHooksResponse(): GetHooksResponse {
+  return { hooks: [] };
 }

@@ -18,14 +18,11 @@ vi.mock("#/components/shared/git-provider-icon", () => ({
 }));
 
 // Mock GitExternalLinkIcon
-vi.mock(
-  "#/components/features/chat/git-external-link-icon",
-  () => ({
-    GitExternalLinkIcon: () => (
-      <span data-testid="git-external-link-icon">external</span>
-    ),
-  }),
-);
+vi.mock("#/components/features/chat/git-external-link-icon", () => ({
+  GitExternalLinkIcon: () => (
+    <span data-testid="git-external-link-icon">external</span>
+  ),
+}));
 
 // Mock RepoForkedIcon
 vi.mock("#/icons/repo-forked.svg?react", () => ({
@@ -86,9 +83,7 @@ describe("GitControlBarRepoButton", () => {
         />,
       );
 
-      expect(
-        screen.queryByTestId("repo-forked-icon"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("repo-forked-icon")).not.toBeInTheDocument();
     });
   });
 
@@ -107,7 +102,7 @@ describe("GitControlBarRepoButton", () => {
   });
 
   describe("when no repository is connected", () => {
-    it("should render as a button with 'No Repo Connected' text", () => {
+    it("should render as a button with 'Connect Repo' i18n key", () => {
       render(
         <GitControlBarRepoButton
           selectedRepository={null}
@@ -117,12 +112,10 @@ describe("GitControlBarRepoButton", () => {
 
       const button = screen.getByRole("button");
       expect(button).toBeInTheDocument();
-      expect(
-        screen.getByText("COMMON$NO_REPO_CONNECTED"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("COMMON$CONNECT_REPO")).toBeInTheDocument();
     });
 
-    it("should show repo forked icon instead of provider icon", () => {
+    it("should show folder-open icon for connect-repo CTA", () => {
       render(
         <GitControlBarRepoButton
           selectedRepository={null}
@@ -130,10 +123,10 @@ describe("GitControlBarRepoButton", () => {
         />,
       );
 
-      expect(screen.getByTestId("repo-forked-icon")).toBeInTheDocument();
       expect(
-        screen.queryByTestId("git-provider-icon"),
-      ).not.toBeInTheDocument();
+        screen.getByTestId("git-control-bar-connect-repo-icon"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("repo-forked-icon")).not.toBeInTheDocument();
     });
 
     it("should not show external link icon", () => {

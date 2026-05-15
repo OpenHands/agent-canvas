@@ -103,7 +103,7 @@ function FilesTab() {
     >
       {/* Top toolbar: diff/files + rich/plain toggles (left-aligned) plus
           the refresh button on the right. */}
-      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#3A3D44]">
+      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--oh-border)]">
         <SegmentedToggle<"on" | "off">
           ariaLabel={t(I18nKey.FILES$DIFF_VIEW)}
           testId="files-tab-diff-toggle"
@@ -140,7 +140,7 @@ function FilesTab() {
               aria-label={t(I18nKey.FILES$OPEN_IN_NEW_WINDOW)}
               title={t(I18nKey.FILES$OPEN_IN_NEW_WINDOW)}
               data-testid="files-tab-open-in-new-window"
-              className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:bg-[#474A54] cursor-pointer text-white"
+              className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-white"
             >
               <LinkExternalIcon width={14} height={14} />
             </a>
@@ -152,7 +152,7 @@ function FilesTab() {
             aria-label={t(I18nKey.FILES$REFRESH)}
             title={t(I18nKey.FILES$REFRESH)}
             data-testid="files-tab-refresh"
-            className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[#474A54] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-[26px] py-1 rounded-[7px] hover:enabled:bg-[var(--oh-interactive-hover)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshIcon
               width={12.75}
@@ -171,7 +171,7 @@ function FilesTab() {
       ) : (
         <div className="flex flex-1 flex-col min-h-0">
           {filesQuery.isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-[#9299AA]">
+            <div className="flex flex-1 items-center justify-center text-sm text-[var(--oh-muted)]">
               {t(I18nKey.FILES$LOADING_FILES)}
             </div>
           ) : (
@@ -186,7 +186,7 @@ function FilesTab() {
               <div className="flex flex-1 min-h-0">
                 {isTreeVisible && (
                   <aside
-                    className="w-56 shrink-0 border-r border-[#3A3D44] overflow-y-auto custom-scrollbar-always"
+                    className="w-56 shrink-0 border-r border-[var(--oh-border)] overflow-y-auto custom-scrollbar-always"
                     data-testid="files-tab-tree"
                   >
                     <FileTreeView
@@ -206,7 +206,7 @@ function FilesTab() {
                       viewMode={contentViewMode}
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]">
+                    <div className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]">
                       {t(I18nKey.FILES$NO_FILE_SELECTED)}
                     </div>
                   )}

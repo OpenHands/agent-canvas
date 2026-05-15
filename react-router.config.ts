@@ -9,7 +9,32 @@ import { vercelPreset } from "@vercel/react-router/vite";
  *
  * This script is used in the buildEnd function of the Vite config.
  */
-const unpackClientDirectory = async () => {
+let unpackClientDirectoryPromise: Promise<void> | null = null;
+
+const moveBuildEntry = async (
+  fs: typeof import("fs"),
+  source: string,
+  destination: string,
+) => {
+  await fs.promises.rm(destination, { recursive: true, force: true });
+
+  try {
+    await fs.promises.rename(source, destination);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EPERM" && code !== "EXDEV") {
+      throw error;
+    }
+
+    await fs.promises.cp(source, destination, {
+      recursive: true,
+      force: true,
+    });
+    await fs.promises.rm(source, { recursive: true, force: true });
+  }
+};
+
+const unpackClientDirectoryOnce = async () => {
   if (process.env.VERCEL) {
     // Vercel's React Router builder reads static assets from build/client.
     return;
@@ -21,17 +46,33 @@ const unpackClientDirectory = async () => {
   const buildDir = path.resolve(__dirname, "build");
   const clientDir = path.resolve(buildDir, "client");
 
-  const files = await fs.promises.readdir(clientDir);
-  await Promise.all(
-    files.map((file) =>
-      fs.promises.rename(
-        path.resolve(clientDir, file),
-        path.resolve(buildDir, file),
-      ),
-    ),
-  );
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(clientDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
 
-  await fs.promises.rmdir(clientDir);
+  for (const file of files) {
+    await moveBuildEntry(
+      fs,
+      path.resolve(clientDir, file),
+      path.resolve(buildDir, file),
+    );
+  }
+
+  await fs.promises.rm(clientDir, { recursive: true, force: true });
+};
+
+const unpackClientDirectory = async () => {
+  unpackClientDirectoryPromise ??= unpackClientDirectoryOnce().finally(() => {
+    unpackClientDirectoryPromise = null;
+  });
+
+  await unpackClientDirectoryPromise;
 };
 
 export default {

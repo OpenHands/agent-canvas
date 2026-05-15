@@ -64,8 +64,8 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
       data-testid="onboarding-backend-checking"
       className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
     >
-      <Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-gray-300" />
-      <span className="text-sm text-gray-200">
+      <Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-[var(--oh-text-tertiary)]" />
+      <span className="text-sm text-[var(--oh-text-tertiary)]">
         {t(I18nKey.ONBOARDING$BACKEND_CHECKING)}
       </span>
     </div>
@@ -93,7 +93,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         <h2 className="text-2xl font-semibold text-white">
           {t(I18nKey.ONBOARDING$BACKEND_TITLE)}
         </h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-[var(--oh-muted)]">
           {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
         </p>
       </header>

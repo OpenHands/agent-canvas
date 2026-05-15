@@ -13,12 +13,12 @@ interface ConversationStatusDotProps {
   showTooltip?: boolean;
 }
 
-type Visual = "check" | "working" | "paused" | "error" | "unknown";
+type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
 
 const SUCCESS_GREEN = "#1FBD53";
-const PAUSED_GRAY = "#A3A3A3";
+const PAUSED_GRAY = "var(--oh-muted)";
 const ERROR_RED = "#FF684E";
-const UNKNOWN_GRAY = "#3C3C49";
+const UNKNOWN_GRAY = "var(--oh-color-tertiary)";
 
 const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
@@ -26,9 +26,10 @@ const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
       return "check";
     case ExecutionStatus.RUNNING:
       return "working";
-    case ExecutionStatus.PAUSED:
     case ExecutionStatus.IDLE:
     case ExecutionStatus.WAITING_FOR_CONFIRMATION:
+      return "active";
+    case ExecutionStatus.PAUSED:
       return "paused";
     case ExecutionStatus.ERROR:
     case ExecutionStatus.STUCK:
@@ -43,6 +44,7 @@ const labelKeyFor = (visual: Visual): string => {
     case "check":
       return "COMMON$FINISHED";
     case "working":
+    case "active":
       return "COMMON$WORKING";
     case "paused":
       return "COMMON$PAUSED";
@@ -76,6 +78,14 @@ function renderIndicator(visual: Visual) {
         <span
           data-testid="conversation-status-working"
           className="w-1.5 h-1.5 rounded-full animate-pulse"
+          style={{ backgroundColor: SUCCESS_GREEN }}
+        />
+      );
+    case "active":
+      return (
+        <span
+          data-testid="conversation-status-active"
+          className="w-1.5 h-1.5 rounded-full"
           style={{ backgroundColor: SUCCESS_GREEN }}
         />
       );
@@ -129,7 +139,7 @@ export function ConversationStatusDot({
       content={label}
       placement="right"
       showArrow
-      tooltipClassName="bg-[#1a1a1a] text-white text-xs shadow-lg"
+      tooltipClassName="bg-base text-white text-xs shadow-lg"
     >
       {dot}
     </StyledTooltip>

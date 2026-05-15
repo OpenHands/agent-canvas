@@ -6,12 +6,13 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { Schema } from "hast-util-sanitize";
 import type { PluggableList } from "unified";
 import { code } from "./code";
-import { ul, ol } from "./list";
+import { ul, ol, li } from "./list";
 import { paragraph } from "./paragraph";
 import { anchor } from "./anchor";
 import { h1, h2, h3, h4, h5, h6 } from "./headings";
 import { table, th, td } from "./table";
 import { blockquote } from "./blockquote";
+import { hr } from "./horizontal-rule";
 import { remarkGithubAlerts } from "./remark-github-alerts";
 
 // Build a sanitize schema that extends rehype-sanitize's defaults with a
@@ -143,6 +144,8 @@ export function MarkdownRenderer({
     code,
     ul,
     ol,
+    li,
+    hr,
     table,
     th,
     td,

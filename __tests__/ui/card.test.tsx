@@ -30,8 +30,8 @@ describe("Card", () => {
       render(<Card testId="test-card">Content</Card>);
 
       const card = screen.getByTestId("test-card");
-      expect(card).toHaveClass("bg-[#26282D]");
-      expect(card).toHaveClass("border-[#727987]");
+      expect(card).toHaveClass("bg-[var(--oh-surface)]");
+      expect(card).toHaveClass("border-[var(--oh-border)]");
       expect(card).toHaveClass("rounded-xl");
     });
 
@@ -44,7 +44,7 @@ describe("Card", () => {
 
       const card = screen.getByTestId("test-card");
       expect(card).toHaveClass("bg-transparent");
-      expect(card).toHaveClass("border-[#727987]");
+      expect(card).toHaveClass("border-[var(--oh-border)]");
     });
 
     it("should apply dark theme styles", () => {
@@ -56,7 +56,7 @@ describe("Card", () => {
 
       const card = screen.getByTestId("test-card");
       expect(card).toHaveClass("bg-black");
-      expect(card).toHaveClass("border-[#242424]");
+      expect(card).toHaveClass("border-[var(--oh-border-subtle)]");
       expect(card).toHaveClass("rounded-2xl");
     });
   });
@@ -95,7 +95,7 @@ describe("Card", () => {
       );
 
       const card = screen.getByTestId("test-card");
-      expect(card).not.toHaveClass("bg-[#0A0A0A80]");
+      expect(card.className).not.toContain("--cool-grey-975");
     });
 
     it("should apply standard gradient styles", () => {
@@ -106,8 +106,8 @@ describe("Card", () => {
       );
 
       const card = screen.getByTestId("test-card");
-      expect(card).toHaveClass("bg-[#0A0A0A80]");
-      expect(card).toHaveClass("border-t-[#24242499]");
+      expect(card.className).toContain("--cool-grey-975");
+      expect(card.className).toContain("--cool-grey-925");
     });
   });
 
@@ -121,10 +121,10 @@ describe("Card", () => {
 
       const card = screen.getByTestId("test-card");
       // Should have dark theme base
-      expect(card).toHaveClass("border-[#242424]");
+      expect(card).toHaveClass("border-[var(--oh-border-subtle)]");
       expect(card).toHaveClass("rounded-2xl");
       // Should have gradient overlay
-      expect(card).toHaveClass("bg-[#0A0A0A80]");
+      expect(card.className).toContain("--cool-grey-975");
     });
 
     it("should apply dark theme with elevated hover", () => {

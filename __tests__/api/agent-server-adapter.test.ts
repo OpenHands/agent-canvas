@@ -80,6 +80,7 @@ describe("buildStartConversationRequest", () => {
       agent: Record<string, unknown> & {
         llm: Record<string, unknown>;
         tools: Array<{ name: string; params: Record<string, unknown> }>;
+        include_default_tools: string[];
       };
       workspace: { working_dir: string };
       initial_message: { content: Array<{ text: string }> };
@@ -108,6 +109,10 @@ describe("buildStartConversationRequest", () => {
       { name: "canvas_ui", params: {} },
       { name: "browser_tool_set", params: {} },
     ]);
+    expect(payload.agent.include_default_tools).toEqual([
+      "FinishTool",
+      "ThinkTool",
+    ]);
     expect(payload.agent.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
@@ -118,6 +123,31 @@ describe("buildStartConversationRequest", () => {
     );
     expect(payload.max_iterations).toBe(123);
     expect(payload.initial_message.content[0]?.text).toBe("hello");
+  });
+
+  it("adds the SDK switch-LLM built-in when the agent-server setting is enabled", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          enable_switch_llm_tool: true,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        include_default_tools: string[];
+        enable_switch_llm_tool?: boolean;
+      };
+    };
+
+    expect(payload.agent.include_default_tools).toEqual([
+      "FinishTool",
+      "ThinkTool",
+      "SwitchLLMTool",
+    ]);
+    expect(payload.agent.enable_switch_llm_tool).toBeUndefined();
   });
 
   it("omits browser_tool_set when the server does not advertise browser support", () => {

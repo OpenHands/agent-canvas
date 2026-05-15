@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { ProfileActionsMenu } from "./profile-actions-menu";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { I18nKey } from "#/i18n/declaration";
-import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
+import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
+import { BrandBadge } from "#/components/shared/badge";
 
 interface ProfileRowProps {
   profile: ProfileInfo;
@@ -41,31 +42,27 @@ export function ProfileRow({
         </span>
         {profile.model ? (
           <span
-            className="text-sm text-gray-400 truncate min-w-0 max-w-full"
+            className="text-sm text-[var(--oh-muted)] truncate min-w-0 max-w-full"
             title={profile.model}
           >
             {profile.model}
           </span>
         ) : null}
         {isActive && (
-          <span
-            className="text-xs bg-success text-white font-semibold rounded-full px-2.5 py-0.5 whitespace-nowrap self-start sm:self-auto"
+          <BrandBadge
+            className="text-xs px-2.5 py-1 whitespace-nowrap self-start sm:self-auto"
             data-testid="profile-active-badge"
           >
             {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
-          </span>
+          </BrandBadge>
         )}
       </div>
       <div className="relative shrink-0">
-        <button
-          type="button"
+        <EllipsisButton
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label={t(I18nKey.SETTINGS$PROFILE_MENU)}
-          className="cursor-pointer text-gray-300 hover:text-white p-2 border border-tertiary rounded-md"
-          data-testid="profile-menu-trigger"
-        >
-          <ThreeDotsVerticalIcon width={16} height={16} />
-        </button>
+          ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
+          testId="profile-menu-trigger"
+        />
         {menuOpen && (
           <ProfileActionsMenu
             onEdit={() => onEdit(profile)}

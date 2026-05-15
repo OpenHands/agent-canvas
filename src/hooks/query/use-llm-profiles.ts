@@ -5,7 +5,11 @@ import { CONFIG_CACHE_OPTIONS, LLM_PROFILES_QUERY_KEYS } from "./query-keys";
 
 export { LLM_PROFILES_QUERY_KEYS };
 
-export function useLlmProfiles() {
+interface UseLlmProfilesOptions {
+  enabled?: boolean;
+}
+
+export function useLlmProfiles(options: UseLlmProfilesOptions = {}) {
   const { backend, orgId } = useActiveBackend();
 
   return useQuery({
@@ -13,6 +17,7 @@ export function useLlmProfiles() {
     queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
     queryFn: ProfilesService.listProfiles,
     ...CONFIG_CACHE_OPTIONS,
+    enabled: options.enabled ?? true,
     meta: { disableToast: true },
   });
 }
