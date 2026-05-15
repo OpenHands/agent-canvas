@@ -76,41 +76,6 @@ const getConversationIdFromLocation = (): string | null => {
   return match ? match[1] : null;
 };
 
-const parseStoredBoolean = (value: string | null): boolean | null => {
-  if (value === null) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
-const getInitialRightPanelState = (): boolean => {
-  if (typeof window === "undefined") {
-    return true;
-  }
-
-  const conversationId = getConversationIdFromLocation();
-  const keysToCheck = conversationId
-    ? [`conversation-right-panel-shown-${conversationId}`]
-    : [];
-
-  // Fallback to global key for users who have not switched tabs yet
-  keysToCheck.push("conversation-right-panel-shown");
-
-  for (const key of keysToCheck) {
-    const parsed = parseStoredBoolean(localStorage.getItem(key));
-    if (parsed !== null) {
-      return parsed;
-    }
-  }
-
-  return true;
-};
-
 const getInitialConversationMode = (): ConversationMode => {
   if (typeof window === "undefined") {
     return "code";
@@ -128,8 +93,18 @@ const getInitialConversationMode = (): ConversationMode => {
 export const useConversationStore = create<ConversationStore>()(
   devtools(
     (set) => ({
-      // Initial state
-      isRightPanelShown: getInitialRightPanelState(),
+      // Initial state.
+      //
+      // The right-side drawer (`isRightPanelShown` / `hasRightPanelToggled`)
+      // is intentionally *session-only* state: it always starts closed on
+      // app load (or on opening a fresh/existing conversation after a
+      // restart), but it survives in-app navigation because the Zustand
+      // store stays alive across React Router transitions. Persisting the
+      // open/closed state in localStorage made the panel feel sticky in
+      // a way users didn't expect — they want a clean, focused chat view
+      // when they come back to the app and only want the panel back when
+      // they themselves opened it during the current session.
+      isRightPanelShown: false,
       selectedTab: "files" as ConversationTab,
       images: [],
       files: [],
@@ -140,7 +115,7 @@ export const useConversationStore = create<ConversationStore>()(
       shouldShownAgentLoading: false,
       submittedMessage: null,
       shouldHideSuggestions: false,
-      hasRightPanelToggled: true,
+      hasRightPanelToggled: false,
       planContent: null,
       conversationMode: getInitialConversationMode(),
       subConversationTaskId: null,

@@ -63,7 +63,6 @@ export function GenericDropdownMenu<T>({
     return (
       <div className="relative">
         <ul
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getMenuProps({
             ref: menuRef,
             className: "hidden",
@@ -78,13 +77,12 @@ export function GenericDropdownMenu<T>({
     <div className="relative">
       <div
         className={cn(
-          "absolute z-10 w-full bg-[#454545] border border-[#727987] rounded-lg shadow-none",
+          "absolute z-10 w-full bg-tertiary border border-[var(--oh-border-input)] rounded-lg shadow-none",
           "focus:outline-none mt-1 z-[9999]",
           stickyTopItem || stickyFooterItem ? "max-h-60" : "max-h-60",
         )}
       >
         <ul
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getMenuProps({
             ref: menuRef,
             className: cn(
@@ -115,7 +113,7 @@ export function GenericDropdownMenu<T>({
                     )}
                     {numberOfRecentItems > 0 &&
                       index === numberOfRecentItems - 1 && (
-                        <div className="border-b border-[#727987] bg-[#454545] pb-1 mb-1 h-[1px]" />
+                        <div className="border-b border-[var(--oh-border-input)] bg-tertiary pb-1 mb-1 h-[1px]" />
                       )}
                   </React.Fragment>
                 );
@@ -124,7 +122,7 @@ export function GenericDropdownMenu<T>({
           )}
         </ul>
         {stickyFooterItem && (
-          <div className="border-t border-[#727987] bg-[#454545] p-1 rounded-b-lg">
+          <div className="border-t border-[var(--oh-border-input)] bg-tertiary p-1 rounded-b-lg">
             {stickyFooterItem}
           </div>
         )}

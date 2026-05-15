@@ -12,7 +12,7 @@ export function ChatStopButton({ handleStop }: ChatStopButtonProps) {
       data-testid="stop-button"
       className="cursor-pointer"
     >
-      <PauseIcon className="block max-w-none w-4 h-4" />
+      <PauseIcon className="block max-w-none w-4 h-4 text-current" />
     </button>
   );
 }

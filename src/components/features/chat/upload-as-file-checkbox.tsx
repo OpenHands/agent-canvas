@@ -10,7 +10,7 @@ export function UploadAsFileCheckbox() {
   return (
     <label
       htmlFor="upload-images-as-files-checkbox"
-      className="flex items-center gap-2 text-xs text-[#A7A7A7] cursor-pointer select-none whitespace-nowrap"
+      className="flex items-center gap-2 text-xs text-[var(--oh-muted)] cursor-pointer select-none whitespace-nowrap"
     >
       <input
         id="upload-images-as-files-checkbox"

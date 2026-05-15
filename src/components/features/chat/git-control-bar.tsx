@@ -11,6 +11,7 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
+import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { Provider } from "#/types/settings";
 import { Branch, GitRepository } from "#/types/git";
 import { I18nKey } from "#/i18n/declaration";
@@ -21,6 +22,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface GitControlBarProps {
   onSuggestionsClick: (value: string) => void;
@@ -30,6 +32,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [isFolderBrowserOpen, _setIsFolderBrowserOpen] = useState(false);
+  const workspaceMenuContainerRef = useRef<HTMLDivElement>(null);
   const { addRecentRepository } = useHomeStore();
   const enqueuePendingMessage = useOptimisticUserMessageStore(
     (state) => state.enqueuePendingMessage,
@@ -37,6 +42,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const markPendingMessageError = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageError,
   );
+  const { backend } = useActiveBackend();
+  const isLocalBackend = backend.kind === "local";
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
@@ -52,6 +59,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     sendRef.current = send;
   }, [send]);
   const { mutate: updateRepository } = useUpdateConversationRepository();
+  const { mutate: _createConversation, isPending: _isCreatingConversation } =
+    useCreateConversation();
 
   // Priority: conversation data > task data > locally-detected git info.
   // The local fallback runs `git remote get-url origin` / `git rev-parse --abbrev-ref HEAD`
@@ -84,13 +93,37 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     ? workspacePath.replace(/\/+$/, "").split("/").pop() || null
     : null;
 
-  // Keep git actions (pull/push/PR) gated on the conversation actually being
-  // associated with a known git provider — local-only repos shouldn't enable
-  // those flows, so we only flip `hasRepository` for conversation/task data.
-  const hasRepository = !!conversationRepository;
+  // Enable git actions whenever a repository and provider are known, including
+  // local conversations where repo metadata is inferred from git remotes.
+  const hasRepository = !!selectedRepository && !!gitProvider;
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "OPEN";
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen || isFolderBrowserOpen) return undefined;
+    const onMouseDown = (event: MouseEvent) => {
+      if (
+        workspaceMenuContainerRef.current &&
+        !workspaceMenuContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [isWorkspaceMenuOpen, isFolderBrowserOpen]);
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen || isFolderBrowserOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isWorkspaceMenuOpen, isFolderBrowserOpen]);
 
   const handleLaunchRepository = (
     repository: GitRepository,
@@ -156,28 +189,37 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     );
   };
 
+  // Local backends never use the remote-repo "Connect Repo" CTA, so suppress the
+  // empty-state button there. A repo or workspace label inferred from local git
+  // metadata is still informational and stays visible.
+  const showRepoButton =
+    !isLocalBackend || !!selectedRepository || !!workspaceName;
+  // On a local backend the informational pill (e.g. workspace name, or a repo
+  // detected without a recognized provider) should not open the remote-repo
+  // modal — that flow is cloud-only. Disable the button in that case so the
+  // click is a no-op. Linkable repos render as <a> and ignore `disabled`.
+  const isRepoButtonInert = isLocalBackend && !hasRepository;
+
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-row gap-2.5 items-center overflow-x-auto flex-wrap md:flex-nowrap relative scrollbar-hide">
-        <GitControlBarRepoButton
-          selectedRepository={selectedRepository}
-          gitProvider={gitProvider}
-          workspaceName={workspaceName}
-          onClick={() => setIsOpenRepoModalOpen(true)}
-          disabled={!isConversationReady}
-        />
+        {showRepoButton ? (
+          <GitControlBarRepoButton
+            selectedRepository={selectedRepository}
+            gitProvider={gitProvider}
+            workspaceName={workspaceName}
+            onClick={() => setIsOpenRepoModalOpen(true)}
+            disabled={!isConversationReady || isRepoButtonInert}
+          />
+        ) : null}
 
-        <GitControlBarTooltipWrapper
-          tooltipMessage={t(I18nKey.COMMON$GIT_TOOLS_DISABLED_CONTENT)}
-          testId="git-control-bar-branch-button-tooltip"
-          shouldShowTooltip={!selectedBranch}
-        >
+        {selectedBranch ? (
           <GitControlBarBranchButton
             selectedBranch={selectedBranch}
             selectedRepository={selectedRepository}
             gitProvider={gitProvider}
           />
-        </GitControlBarTooltipWrapper>
+        ) : null}
 
         {hasRepository ? (
           <>

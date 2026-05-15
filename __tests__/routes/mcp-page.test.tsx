@@ -265,4 +265,17 @@ describe("MCPPage", () => {
       slack_1: { env: { SLACK_BOT_TOKEN: "xoxb-new", SLACK_TEAM_ID: "T02" } },
     });
   });
+
+  it("opens the custom server editor when the header 'Add custom server' button is clicked", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    const addCustomBtn = await screen.findByTestId("mcp-add-custom-server");
+    fireEvent.click(addCustomBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mcp-custom-editor")).toBeInTheDocument();
+    });
+  });
 });

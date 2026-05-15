@@ -85,8 +85,8 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           className={cn(
-            "bg-tertiary border border-[#717888] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
-            "disabled:bg-[#2D2F36] disabled:border-[#2D2F36] disabled:cursor-not-allowed",
+            "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
           )}
         />
       </label>

@@ -56,7 +56,7 @@ export function HooksModal({ onClose }: HooksModalProps) {
         />
 
         {isAgentReady && (
-          <Typography.Text className="text-sm text-gray-400">
+          <Typography.Text className="text-sm text-[var(--oh-muted)]">
             {t(I18nKey.HOOKS_MODAL$WARNING)}
           </Typography.Text>
         )}

@@ -119,7 +119,9 @@ export function ChatMessage({
           wordBreak: "break-word",
         }}
       >
-        <MarkdownRenderer includeStandard>{message}</MarkdownRenderer>
+        <MarkdownRenderer includeStandard includeHeadings>
+          {message}
+        </MarkdownRenderer>
       </div>
 
       {pendingStatus === "sending" && (

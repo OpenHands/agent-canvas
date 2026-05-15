@@ -1,9 +1,9 @@
 /**
  * Static-frontend Development Stack
  *
- * Mirrors `npm run dev` (scripts/dev-with-automation.mjs) but serves a
- * production build of the frontend via `sirv-cli` instead of the Vite dev
- * server. Designed for slow / flaky network situations (e.g. plane wifi)
+ * Mirrors the dockerless automation stack but serves a production build of the
+ * frontend via `scripts/static-server.mjs` instead of the Vite dev server.
+ * Designed for slow / flaky network situations (e.g. plane wifi)
  * where Vite's ~1000 individual module requests per page load are the
  * bottleneck. The static build collapses the frontend into ~50 hashed
  * chunks that all 304 cleanly on reload.
@@ -24,10 +24,10 @@
  *   └─────────────┘    └───────────────┘         └──────────────────┘
  *
  * Usage:
- *   npm run dev:static
- *   npm run dev:static -- --port 12000
- *   npm run dev:static -- --skip-build      # reuse an existing build/
- *   npm run dev:static -- --automation-ref feat/my-branch
+ *   npm run dev:dangerously-dockerless
+ *   npm run dev:dangerously-dockerless -- --port 12000
+ *   npm run dev:dangerously-dockerless -- --skip-build  # reuse an existing build/
+ *   npm run dev:dangerously-dockerless -- --automation-ref feat/my-branch
  *
  * Environment variables (all optional, same as dev:automation):
  *   - PORT: Ingress port (default: 8000)
@@ -37,25 +37,26 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
 
+import { buildFrontend } from "./static-build.mjs";
 import {
   buildAgentServerCommand,
   buildSafeDevConfig,
   buildAgentServerEnv,
-  buildNpmScriptCommand,
   formatMissingUvxGuidance,
   isPortBusy,
   releaseStaleConversationLeases,
 } from "./dev-safe.mjs";
 import {
-  buildAutomationCommand,
-  buildConfig,
-} from "./dev-with-automation.mjs";
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
+import { buildAutomationCommand, buildConfig } from "./dev-with-automation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -139,12 +140,12 @@ function showHelp() {
   console.log(`
 Agent Canvas Static-frontend Development Stack
 
-Same backend stack as \`npm run dev\`, but serves a production build of the
-frontend via sirv-cli. Use this when a flaky network makes Vite's per-module
-requests painful (e.g. on a plane).
+Runs the dockerless automation stack, but serves a production build of the
+frontend via scripts/static-server.mjs. Use this when a remote or flaky network
+makes Vite's per-module requests painful (e.g. ngrok or plane wifi).
 
 USAGE:
-  npm run dev:static [-- options]
+  npm run dev:dangerously-dockerless [-- options]
 
 OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
@@ -202,66 +203,6 @@ function checkPrerequisites() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Build
-// ═══════════════════════════════════════════════════════════════════════════
-
-function buildFrontend(config, args) {
-  const buildDir = join(config.canvasPath, "build");
-
-  if (args.skipBuild) {
-    if (!existsSync(buildDir)) {
-      logError(
-        "--skip-build was passed but build/ does not exist. Run without --skip-build first.",
-      );
-      process.exit(1);
-    }
-    logStep("2/3", "Skipping build (--skip-build)");
-    logService("build", `Reusing existing build/ at ${buildDir}`, c.dim);
-    return;
-  }
-
-  logStep("2/3", "Building frontend (npm run build:app)...");
-  logService(
-    "build",
-    "This typically takes 30–60s; cached as build/ for --skip-build reuse",
-    c.dim,
-  );
-
-  const cmd = buildNpmScriptCommand("build:app");
-  const result = spawnSync(cmd.command, cmd.args, {
-    cwd: config.canvasPath,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      // Bake the agent-server's workspace path into the build so conversations
-      // start with the same default working directory as `npm run dev`.
-      VITE_WORKING_DIR: join(config.stateDir, "workspaces"),
-      // Bake the automation backend API key so the static frontend can talk
-      // to /api/automation through the ingress.
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Intentionally do NOT set VITE_BACKEND_BASE_URL: leaving it unset makes
-      // the runtime fall back to window.location.origin (i.e. the ingress
-      // port the user is actually browsing), which keeps the build portable.
-    },
-  });
-
-  if (result.status !== 0) {
-    logError(`Build failed with exit code ${result.status ?? "null"}`);
-    process.exit(result.status ?? 1);
-  }
-
-  if (!existsSync(join(buildDir, "index.html"))) {
-    logError(
-      `Build completed but ${join(buildDir, "index.html")} is missing. ` +
-        `Did react-router build write somewhere unexpected?`,
-    );
-    process.exit(1);
-  }
-
-  logSuccess("Build complete");
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Process Management
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -269,12 +210,12 @@ const processes = new Map();
 let shuttingDown = false;
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, {
+  const proc = spawn(command, args, getProcessTreeSpawnOptions({
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
     cwd: options.cwd,
     shell: process.platform === "win32",
-  });
+  }));
 
   const color = options.color || c.reset;
 
@@ -371,6 +312,21 @@ function startAgentServer(config) {
   );
 }
 
+function buildAutomationBackendEnv(config) {
+  return {
+    AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+    AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
+    AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
+    AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
+    AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
+    AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+    FILE_STORE: "local",
+    LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
+    OPENHANDS_SUPPRESS_BANNER: "1",
+  };
+}
+
 function startAutomationBackend(config) {
   logService(
     "automation",
@@ -393,17 +349,7 @@ function startAutomationBackend(config) {
     ],
     {
       cwd: config.stateDir,
-      env: {
-        AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
-        AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
-        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
-        FILE_STORE: "local",
-        LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
-        OPENHANDS_SUPPRESS_BANNER: "1",
-      },
+      env: buildAutomationBackendEnv(config),
       color: c.green,
     },
   );
@@ -501,13 +447,14 @@ function shutdown() {
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
-    proc.kill("SIGTERM");
+    signalProcessTree(proc, "SIGTERM");
   }
 
   setTimeout(() => {
-    for (const [, proc] of processes) {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+    for (const [name, proc] of processes) {
+      if (isProcessRunning(proc)) {
+        logService(name, "Force stopping...", c.dim);
+        signalProcessTree(proc, "SIGKILL");
       }
     }
     process.exit(0);
@@ -553,7 +500,7 @@ function printBanner(config) {
     `${c.dim}Frontend served from: ${join(config.canvasPath, "build")}${c.reset}`,
   );
   console.log(
-    `${c.dim}Edit sources, then re-run \`npm run dev:static\` to rebuild.${c.reset}`,
+    `${c.dim}Edit sources, then re-run \`npm run dev:dangerously-dockerless\` to rebuild.${c.reset}`,
   );
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");
@@ -607,7 +554,7 @@ async function main() {
     logError(
       `Port ${config.agentServerPort} is already in use — another ` +
         `agent-server is running. Stop it (e.g. quit \`npm run dev\`) ` +
-        `before running dev:static.`,
+        `before running dev:dangerously-dockerless.`,
     );
     process.exit(1);
   }
@@ -645,7 +592,7 @@ async function main() {
 // Exports for testing
 // ═══════════════════════════════════════════════════════════════════════════
 
-export { buildFrontend, startStaticServer };
+export { buildAutomationBackendEnv, buildFrontend, startStaticServer };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Main entry point (only when run directly, not when imported)

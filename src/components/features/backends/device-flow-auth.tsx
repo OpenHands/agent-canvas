@@ -150,7 +150,7 @@ export function DeviceFlowAuth({
           aria-live="polite"
         >
           <LoadingSpinner />
-          <span className="text-sm text-gray-300">
+          <span className="text-sm text-[var(--oh-text-tertiary)]">
             {t(I18nKey.BACKEND$AUTH_STARTING)}
           </span>
         </div>
@@ -169,12 +169,12 @@ export function DeviceFlowAuth({
               {t(I18nKey.BACKEND$AUTH_AWAITING)}
             </span>
           </div>
-          <p className="text-sm text-gray-300">
+          <p className="text-sm text-[var(--oh-text-tertiary)]">
             {t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
           </p>
           {deviceFlow.verificationUrl &&
             isValidVerificationUrl(deviceFlow.verificationUrl) && (
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-[var(--oh-muted)]">
                 <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
                 <a
                   href={deviceFlow.verificationUrl}

@@ -19,7 +19,7 @@ function ConfirmationModeEnabled() {
       content={t(I18nKey.COMMON$CONFIRMATION_MODE_ENABLED)}
       tooltipClassName="bg-white text-black hover:bg-transparent"
     >
-      <div className="flex items-center justify-center w-[26px] h-[26px] rounded-lg bg-[#25272D]">
+      <div className="flex items-center justify-center w-[26px] h-[26px] rounded-lg bg-[var(--oh-surface)]">
         <LockIcon width={15} height={15} />
       </div>
     </StyledTooltip>

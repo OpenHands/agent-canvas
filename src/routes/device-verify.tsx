@@ -126,7 +126,7 @@ export default function DeviceVerify() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="max-w-md w-full mx-auto p-6 bg-card rounded-lg shadow-lg">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4" />
             <p className="text-muted-foreground">
               {t(I18nKey.DEVICE$PROCESSING)}
             </p>
@@ -140,12 +140,12 @@ export default function DeviceVerify() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="flex flex-col items-center gap-6 w-full max-w-md">
-          <div className="flex-1 min-w-0 max-w-md w-full mx-auto p-6 bg-card rounded-2xl shadow-lg border border-[#242424]">
+          <div className="flex-1 min-w-0 max-w-md w-full mx-auto p-6 bg-card rounded-2xl shadow-lg border border-[var(--oh-border-subtle)]">
             <H1 className="text-2xl mb-4 text-center">
               {t(I18nKey.DEVICE$AUTHORIZATION_REQUEST)}
             </H1>
-            <div className="mb-6 p-4 bg-neutral-900 rounded-lg border border-neutral-700">
-              <p className="text-xs text-neutral-500 mb-2 text-center uppercase tracking-wider">
+            <div className="mb-6 p-4 bg-base rounded-lg border border-[var(--oh-border-subtle)]">
+              <p className="text-xs text-[var(--oh-text-subtle)] mb-2 text-center uppercase tracking-wider">
                 {t(I18nKey.DEVICE$CODE_LABEL)}
               </p>
               <p className="text-xl font-mono font-semibold text-center tracking-[0.3em]">
@@ -156,7 +156,7 @@ export default function DeviceVerify() {
               <p className="text-sm font-medium text-amber-500 mb-1">
                 {t(I18nKey.DEVICE$SECURITY_NOTICE)}
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-[var(--oh-muted)]">
                 {t(I18nKey.DEVICE$SECURITY_WARNING)}
               </p>
             </div>
@@ -167,7 +167,7 @@ export default function DeviceVerify() {
               <button
                 type="button"
                 onClick={() => window.close()}
-                className="flex-1 px-4 py-2 border border-neutral-600 rounded-md hover:bg-muted text-gray-300"
+                className="flex-1 px-4 py-2 border border-[var(--oh-border)] rounded-md hover:bg-muted text-[var(--oh-text-tertiary)]"
               >
                 {t(I18nKey.DEVICE$CANCEL)}
               </button>
@@ -228,7 +228,7 @@ export default function DeviceVerify() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4" />
           <p className="text-muted-foreground">
             {t(I18nKey.DEVICE$PROCESSING)}
           </p>

@@ -13,7 +13,7 @@ export function ConversationLoading({ className }: ConversationLoadingProps) {
   return (
     <div
       className={cn(
-        "bg-[#25272D] flex flex-col items-center justify-center h-full w-full",
+        "bg-[var(--oh-surface)] flex flex-col items-center justify-center h-full w-full",
         className,
       )}
     >

@@ -17,10 +17,18 @@ type ConversationStateUpdatedDetail = {
 
 /**
  * Consolidated conversation state stored in a single localStorage key.
+ *
+ * NOTE: the right-drawer open/closed state is intentionally *not* persisted
+ * here. Users expect the drawer to start closed every time the app is
+ * (re)loaded and only stay open when they opened it themselves during the
+ * current session. That state lives in the in-memory Zustand
+ * `useConversationStore` (`isRightPanelShown` / `hasRightPanelToggled`)
+ * which survives in-app navigation but resets on full reloads. Older
+ * builds wrote a `rightPanelShown` field into this blob; we accept and
+ * silently ignore that field on read so we don't churn old localStorage.
  */
 export interface ConversationState {
   selectedTab: ConversationTab | null;
-  rightPanelShown: boolean;
   unpinnedTabs: string[];
   conversationMode: ConversationMode;
   subConversationTaskId: string | null;
@@ -38,7 +46,6 @@ export interface ConversationState {
 
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
   selectedTab: "files",
-  rightPanelShown: true,
   unpinnedTabs: [],
   conversationMode: "code",
   subConversationTaskId: null,
@@ -75,9 +82,16 @@ const REMOVED_CONVERSATION_TABS: ReadonlySet<string> = new Set([
 const VALID_VIEW_MODES: ReadonlySet<ViewMode> = new Set(["rich", "plain"]);
 
 function sanitizeStoredState(
-  stored: Partial<ConversationState>,
+  stored: Record<string, unknown>,
 ): Partial<ConversationState> {
-  let result: Partial<ConversationState> = stored;
+  // `rightPanelShown` is no longer part of the schema (the drawer's
+  // open state is session-only) but old persisted blobs still carry it.
+  // We just drop it on the way in — keeping it in `result` here would
+  // pollute the merged `ConversationState` shape that consumers receive.
+  const { rightPanelShown: _ignoredRightPanelShown, ...rest } = stored as {
+    rightPanelShown?: unknown;
+  } & Record<string, unknown>;
+  let result: Partial<ConversationState> = rest as Partial<ConversationState>;
 
   if (
     result.selectedTab != null &&
@@ -210,11 +224,13 @@ export function clearConversationLocalStorage(conversationId: string) {
 /**
  * React hook for conversation-scoped localStorage state.
  * Returns the full state and individual setters for each property.
+ *
+ * The right-drawer open state is deliberately not represented here —
+ * see the note on `ConversationState` for the rationale.
  */
 export function useConversationLocalStorageState(conversationId: string): {
   state: ConversationState;
   setSelectedTab: (tab: ConversationTab | null) => void;
-  setRightPanelShown: (shown: boolean) => void;
   setUnpinnedTabs: (tabs: string[]) => void;
   setConversationMode: (mode: ConversationMode) => void;
   setDraftMessage: (message: string | null) => void;
@@ -282,7 +298,6 @@ export function useConversationLocalStorageState(conversationId: string): {
   return {
     state,
     setSelectedTab: (tab) => updateState({ selectedTab: tab }),
-    setRightPanelShown: (shown) => updateState({ rightPanelShown: shown }),
     setUnpinnedTabs: (tabs) => updateState({ unpinnedTabs: tabs }),
     setConversationMode: (mode) => updateState({ conversationMode: mode }),
     setDraftMessage: (message) => updateState({ draftMessage: message }),
