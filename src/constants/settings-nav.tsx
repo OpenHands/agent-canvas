@@ -1,6 +1,7 @@
 import KeyIcon from "#/icons/key.svg?react";
 import LockIcon from "#/icons/lock.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
+import RobotIcon from "#/icons/u-robot.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 
@@ -15,6 +16,11 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <CircuitIcon width={16} height={16} />,
     to: "/settings",
     text: "SETTINGS$NAV_LLM",
+  },
+  {
+    icon: <RobotIcon width={16} height={16} />,
+    to: "/settings/agent",
+    text: "SETTINGS$AGENT",
   },
   {
     icon: <MemoryIcon width={16} height={16} />,
