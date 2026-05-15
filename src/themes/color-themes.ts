@@ -151,7 +151,7 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
   },
 };
 
-export const DEFAULT_COLOR_THEME: ColorThemeKey = "openhands-deepsea";
+export const DEFAULT_COLOR_THEME: ColorThemeKey = "openhands-neutral";
 
 export const AVAILABLE_COLOR_THEMES = Object.entries(COLOR_THEMES).map(
   ([key, def]) => ({ key: key as ColorThemeKey, label: def.label }),
