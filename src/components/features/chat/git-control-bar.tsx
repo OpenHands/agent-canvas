@@ -163,6 +163,11 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   // metadata is still informational and stays visible.
   const showRepoButton =
     !isLocalBackend || !!selectedRepository || !!workspaceName;
+  // On a local backend the informational pill (e.g. workspace name, or a repo
+  // detected without a recognized provider) should not open the remote-repo
+  // modal — that flow is cloud-only. Disable the button in that case so the
+  // click is a no-op. Linkable repos render as <a> and ignore `disabled`.
+  const isRepoButtonInert = isLocalBackend && !hasRepository;
 
   return (
     <div className="flex flex-row items-center">
@@ -173,7 +178,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             gitProvider={gitProvider}
             workspaceName={workspaceName}
             onClick={() => setIsOpenRepoModalOpen(true)}
-            disabled={!isConversationReady}
+            disabled={!isConversationReady || isRepoButtonInert}
           />
         ) : null}
 

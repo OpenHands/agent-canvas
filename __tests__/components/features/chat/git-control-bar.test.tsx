@@ -29,8 +29,12 @@ vi.mock("#/stores/optimistic-user-message-store");
 vi.mock("#/api/conversation-metadata-store");
 
 vi.mock("#/components/features/chat/git-control-bar-repo-button", () => ({
-  GitControlBarRepoButton: () => (
-    <button data-testid="git-control-bar-repo-button" type="button" />
+  GitControlBarRepoButton: ({ disabled }: { disabled?: boolean }) => (
+    <button
+      data-testid="git-control-bar-repo-button"
+      type="button"
+      data-disabled={String(!!disabled)}
+    />
   ),
 }));
 vi.mock("#/components/features/chat/git-control-bar-branch-button", () => ({
@@ -161,7 +165,7 @@ describe("GitControlBar repo button visibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the repo button on a local backend when a workspace name is available", () => {
+  it("renders the repo button as disabled on a local backend when only a workspace name is available", () => {
     vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
     vi.mocked(getStoredConversationMetadata).mockReturnValue({
       selected_workspace: "/projects/my-app",
@@ -169,8 +173,7 @@ describe("GitControlBar repo button visibility", () => {
 
     renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
 
-    expect(
-      screen.getByTestId("git-control-bar-repo-button"),
-    ).toBeInTheDocument();
+    const button = screen.getByTestId("git-control-bar-repo-button");
+    expect(button).toHaveAttribute("data-disabled", "true");
   });
 });
