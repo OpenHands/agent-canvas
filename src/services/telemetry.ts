@@ -35,9 +35,14 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 // PostHog configuration - configurable via env vars with OpenHands defaults
 // Note: The default API key sends telemetry to OpenHands' PostHog project.
 // Library consumers can override this with their own PostHog project key.
-const POSTHOG_API_KEY =
+//
+// Production builds fall back to the hardcoded placeholder when VITE_POSTHOG_API_KEY
+// is not set — replace the placeholder with the real project key before deploying.
+// Dev/test builds get null so PostHog never initialises and no events are sent,
+// keeping dev and CI traffic out of the production PostHog project entirely.
+const POSTHOG_API_KEY: string | null =
   import.meta.env.VITE_POSTHOG_API_KEY ||
-  "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+  (import.meta.env.PROD ? "phc_REPLACE_WITH_PRODUCTION_KEY" : null);
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.
@@ -127,6 +132,10 @@ async function initializePostHog(
 ): Promise<PostHog | null> {
   if (isInitialized) {
     return posthogInstance;
+  }
+
+  if (!POSTHOG_API_KEY) {
+    return null;
   }
 
   const posthog = await getPostHog();
