@@ -35,7 +35,6 @@ const PR_NUMBER = requireEnv("PR_NUMBER");
 const REPO = requireEnv("REPO");
 const RUN_ID = requireEnv("RUN_ID");
 const HEAD_REF = requireEnv("HEAD_REF");
-const TEST_OUTCOME = process.env.TEST_OUTCOME ?? "success";
 const MAIN_BASELINES_DIR =
   process.env.MAIN_BASELINES_DIR ?? "/tmp/main-baselines";
 
@@ -209,12 +208,17 @@ function formatRelPath(relPath) {
 
 function buildComment(changed, newSnapshots, unchanged, commitSha) {
   const total = changed.length + newSnapshots.length + unchanged.length;
-  const passed = TEST_OUTCOME === "success";
+  // Derive pass/fail from the actual classification, not from TEST_OUTCOME.
+  // TEST_OUTCOME is 'failure' in the bootstrap case (no baselines on main yet)
+  // even though there are zero visual regressions.
+  const hasDifferences = changed.length > 0;
 
-  const statusIcon = passed ? "✅" : "❌";
-  const statusText = passed
-    ? "All snapshots match the main branch baselines."
-    : `${changed.length} snapshot${changed.length !== 1 ? "s" : ""} differ from the main branch baseline${changed.length !== 1 ? "s" : ""}.`;
+  const statusIcon = hasDifferences ? "❌" : "✅";
+  const statusText = hasDifferences
+    ? `${changed.length} snapshot${changed.length !== 1 ? "s" : ""} differ from the main branch baseline${changed.length !== 1 ? "s" : ""}.`
+    : unchanged.length === 0
+      ? `No baseline found on main — all ${newSnapshots.length} snapshot${newSnapshots.length !== 1 ? "s" : ""} are new and will become the baseline once this PR merges.`
+      : "All snapshots match the main branch baselines.";
 
   const lines = [
     COMMENT_MARKER,

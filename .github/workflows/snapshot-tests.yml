@@ -122,7 +122,6 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           HEAD_REF: ${{ github.head_ref }}
-          TEST_OUTCOME: ${{ steps.compare.outcome }}
           MAIN_BASELINES_DIR: /tmp/main-baselines
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
 
@@ -137,7 +136,10 @@ jobs:
           retention-days: 7
 
       - name: Fail if snapshot comparison found differences
-        if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.compare.outcome == 'failure' &&
+          steps.find-run.outputs.has_baselines == 'true'
         run: |
           echo "::error::Visual snapshot differences detected. See the PR comment for image diffs."
           exit 1
