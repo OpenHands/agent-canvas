@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
 import { useSwitchLlmProfile } from "#/hooks/mutation/use-switch-llm-profile";
 import { useModelStore } from "#/stores/model-store";
-import { useEventStore } from "#/stores/use-event-store";
-import { shouldRenderEvent } from "#/components/conversation-events/chat";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -20,11 +19,7 @@ export function useSwitchLlmProfileAndLog() {
 
   return useCallback(
     (conversationId: string, profileName: string) => {
-      const last = useEventStore
-        .getState()
-        .uiEvents.filter(shouldRenderEvent)
-        .at(-1);
-      const anchorEventId = last && "id" in last ? String(last.id) : null;
+      const anchorEventId = getLastRenderableEventId();
 
       mutate(
         { conversationId, profileName },

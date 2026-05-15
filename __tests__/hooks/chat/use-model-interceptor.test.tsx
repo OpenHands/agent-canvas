@@ -1,0 +1,158 @@
+import React from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
+import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { useEventStore } from "#/stores/use-event-store";
+import { useModelStore } from "#/stores/model-store";
+
+const mockSwitchAndLog = vi.hoisted(() => vi.fn());
+
+vi.mock("#/hooks/mutation/use-switch-llm-profile-and-log", () => ({
+  useSwitchLlmProfileAndLog: () => mockSwitchAndLog,
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
+const CONVERSATION_ID = "conv-1";
+
+const cloudBackend: Backend = {
+  id: "prod",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-token",
+  kind: "cloud",
+};
+
+const createUserMessageEvent = (id: string) => ({
+  id,
+  timestamp: new Date().toISOString(),
+  source: "user" as const,
+  llm_message: {
+    role: "user" as const,
+    content: [{ type: "text" as const, text: "User message" }],
+  },
+  activated_microagents: [],
+  extended_content: [],
+});
+
+const makeWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ActiveBackendProvider>{children}</ActiveBackendProvider>
+      </QueryClientProvider>
+    );
+  };
+};
+
+describe("useModelInterceptor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
+      profiles: [],
+      active_profile: null,
+    });
+    __resetActiveStoreForTests();
+    useEventStore.getState().clearEvents();
+    useModelStore.setState({ entriesByConversation: {} });
+  });
+
+  it("lists profiles inline for bare /model submissions", async () => {
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValueOnce({
+      profiles: [
+        {
+          name: "haiku",
+          model: "anthropic/claude-haiku-4-5",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: "haiku",
+    });
+    useEventStore.getState().addEvent(createUserMessageEvent("message-1"));
+    const onSubmit = vi.fn();
+
+    const { result } = renderHook(
+      () => useModelInterceptor(CONVERSATION_ID, onSubmit),
+      { wrapper: makeWrapper() },
+    );
+
+    act(() => result.current(" /model "));
+
+    await waitFor(() => {
+      expect(
+        useModelStore.getState().entriesByConversation[CONVERSATION_ID],
+      ).toEqual([
+        expect.objectContaining({
+          anchorEventId: "message-1",
+          profiles: [expect.objectContaining({ name: "haiku" })],
+        }),
+      ]);
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(mockSwitchAndLog).not.toHaveBeenCalled();
+  });
+
+  it("switches profiles for /model <name> submissions", () => {
+    const onSubmit = vi.fn();
+    const { result } = renderHook(
+      () => useModelInterceptor(CONVERSATION_ID, onSubmit),
+      { wrapper: makeWrapper() },
+    );
+
+    act(() => result.current("/model haiku"));
+
+    expect(mockSwitchAndLog).toHaveBeenCalledWith(CONVERSATION_ID, "haiku");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(ProfilesService.listProfiles).not.toHaveBeenCalled();
+  });
+
+  it("falls through for non-model messages", () => {
+    const onSubmit = vi.fn();
+    const { result } = renderHook(
+      () => useModelInterceptor(CONVERSATION_ID, onSubmit),
+      { wrapper: makeWrapper() },
+    );
+
+    act(() => result.current("hello /model haiku"));
+
+    expect(onSubmit).toHaveBeenCalledWith("hello /model haiku");
+    expect(mockSwitchAndLog).not.toHaveBeenCalled();
+  });
+
+  it("falls through on cloud backends", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    const onSubmit = vi.fn();
+
+    const { result } = renderHook(
+      () => useModelInterceptor(CONVERSATION_ID, onSubmit),
+      { wrapper: makeWrapper() },
+    );
+
+    act(() => result.current("/model haiku"));
+
+    expect(onSubmit).toHaveBeenCalledWith("/model haiku");
+    expect(mockSwitchAndLog).not.toHaveBeenCalled();
+  });
+});

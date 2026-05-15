@@ -2,12 +2,11 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
-import { shouldRenderEvent } from "#/components/conversation-events/chat";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
+import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
 import { LLM_PROFILES_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useEventStore } from "#/stores/use-event-store";
 import { useModelStore } from "#/stores/model-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { MODEL_COMMAND } from "#/utils/constants";
@@ -49,11 +48,7 @@ export const useModelInterceptor = (
         return;
       }
 
-      const last = useEventStore
-        .getState()
-        .uiEvents.filter(shouldRenderEvent)
-        .at(-1);
-      const anchorEventId = last && "id" in last ? String(last.id) : null;
+      const anchorEventId = getLastRenderableEventId();
 
       // Imperative fetch through the query cache so the result lands on the
       // same key `useLlmProfiles` reads. `staleTime: 0` forces a fresh fetch
