@@ -36,7 +36,7 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 // are baked into the static bundle at build time and cannot drift at runtime.
 // Replace POSTHOG_STAGING_KEY with a dedicated project key once provisioned.
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
-const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY;
+const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
 
 // Always use the staging key unless VITE_APP_ENV is explicitly set to
 // "production" at bundle time (hardcoded in build:lib and production CI).
