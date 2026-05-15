@@ -24,29 +24,62 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ## Quickstart
 
-### With Docker (recommended)
+The MVP local install path is the packaged CLI: install the npm package, then run `openhands`.
 
 **Prerequisites**:
 
 - Node.js 22.12.x or later
 - `npm`
-- Docker
-
-Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
-
-By default the container runs as your host UID/GID so files written to bind mounts remain writable from your host account. The container is still kept isolated from your host home: its `/home/openhands` is a temporary writable home, and only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually under it (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off. Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
+- Docker for the default sandboxed agent-server backend
 
 ```sh
-export PROJECT_PATH=/path/to/your/projects
+npm install -g @openhands/agent-canvas
+openhands
+```
+
+Open the UI at [http://localhost:8000](http://localhost:8000). The first launch does not require cloning this repository or choosing a workspace up front. By default, Agent Canvas starts a Docker-backed agent server, the automation backend, and a static production build of the frontend behind one local URL.
+
+If you want the Docker agent server to access existing repositories on your machine, expose a projects folder before launching:
+
+```sh
+PROJECT_PATH=/path/to/your/projects openhands
+```
+
+`PROJECT_PATH` is optional. When it is omitted, Agent Canvas still starts with its managed internal workspace directory; set `PROJECT_PATH` only when you want `/projects` inside the container to point at a host folder. If you want the **Add Workspace** dialog to browse your real host filesystem, also set `OH_MOUNT_HOST_HOME=1`.
+
+### Split frontend/backend mode
+
+The same CLI can run only one side of the stack, which is useful for remote agent-server installs or custom process managers:
+
+```sh
+openhands --backend-only   # only runs the Docker agent server on localhost:18000
+openhands --frontend-only  # only runs the static frontend/proxy on localhost:8000
+```
+
+To point the frontend at a different agent server:
+
+```sh
+openhands --frontend-only --backend-url http://your-server:18000
+```
+
+Use `openhands --help` for the complete option list.
+
+### From source
+
+Use a source checkout when you are contributing to Agent Canvas itself or need unreleased changes.
+
+#### With Docker
+
+```sh
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
 npm run dev:docker
 ```
 
-This serves a static production build of the frontend behind the local ingress proxy. That is the recommended mode for normal use, remote access, and tunnels such as ngrok because it avoids Vite hot-reload restarts and large dev-module request bursts. If you are developing the Agent Canvas frontend itself and want live reload, use `npm run dev:docker:dynamic` instead.
+This serves a static production build of the frontend behind the local ingress proxy. That is the recommended source mode for normal use, remote access, and tunnels such as ngrok because it avoids Vite hot-reload restarts and large dev-module request bursts. If you are developing the Agent Canvas frontend itself and want live reload, use `npm run dev:docker:dynamic` instead.
 
-Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
+Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway, start the same stack directly with Node instead. Do not include any prompt characters or a trailing `>` in the value.
 
 ```powershell
 $env:PROJECT_PATH = "/path/to/your/projects"
@@ -56,22 +89,14 @@ npm install
 node --env-file-if-exists=.env .\scripts\dev-docker.mjs
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
-
-### Without Docker
+#### Without Docker
 
 > [!WARNING]
 > This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
-Running without docker is great if you're running Agent Canvas on a VM. See [SELF_HOSTING.md](SELF_HOSTING.md) for details,
-especially with respect to security hardening. Notably, you can run the backend on _multiple different VMs_ and switch between
-them from the same Agent Canvas frontend!
+Running without Docker is useful on a dedicated VM. See [SELF_HOSTING.md](SELF_HOSTING.md) for details, especially with respect to security hardening. Notably, you can run the backend on _multiple different VMs_ and switch between them from the same Agent Canvas frontend.
 
-**Prerequisites**:
-
-- Node.js 22.12.x or later
-- `npm`
-- `uv` (for running the agent server via `uvx`)
+**Additional prerequisite**: [`uv`](https://docs.astral.sh/uv/) for running the agent server via `uvx`.
 
 ```sh
 git clone https://github.com/OpenHands/agent-canvas.git
@@ -80,7 +105,7 @@ npm install
 npm run dev:dangerously-dockerless
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+Access the UI at [http://localhost:8000](http://localhost:8000).
 
 This also serves a static production build for stability. If you are developing the Agent Canvas frontend itself and want live reload, use the dynamic dockerless command instead:
 
@@ -123,27 +148,27 @@ Import the full package or specific components:
 
 ```typescript
 // Full package
-import { AgentServerUIProviders } from '@openhands/agent-canvas';
+import { AgentServerUIProviders } from "@openhands/agent-canvas";
 
 // Individual component packages
-import { BrowserPanel } from '@openhands/agent-canvas/browser';
-import { ChatPanel } from '@openhands/agent-canvas/conversation';
-import { FileExplorer } from '@openhands/agent-canvas/files';
-import { TerminalPanel } from '@openhands/agent-canvas/terminal';
+import { BrowserPanel } from "@openhands/agent-canvas/browser";
+import { ChatPanel } from "@openhands/agent-canvas/conversation";
+import { FileExplorer } from "@openhands/agent-canvas/files";
+import { TerminalPanel } from "@openhands/agent-canvas/terminal";
 ```
 
 ### Available Subpath Exports
 
-| Subpath | Description |
-|---------|-------------|
-| `@openhands/agent-canvas` | Main entry with providers and core components |
-| `@openhands/agent-canvas/browser` | Browser/preview panel components |
-| `@openhands/agent-canvas/conversation` | Chat interface and message components |
-| `@openhands/agent-canvas/files` | File explorer and editor components |
-| `@openhands/agent-canvas/settings` | Settings screens and forms |
-| `@openhands/agent-canvas/sidebar` | Sidebar navigation components |
-| `@openhands/agent-canvas/terminal` | Terminal emulator component |
-| `@openhands/agent-canvas/i18n` | Internationalization resources |
+| Subpath                                | Description                                   |
+| -------------------------------------- | --------------------------------------------- |
+| `@openhands/agent-canvas`              | Main entry with providers and core components |
+| `@openhands/agent-canvas/browser`      | Browser/preview panel components              |
+| `@openhands/agent-canvas/conversation` | Chat interface and message components         |
+| `@openhands/agent-canvas/files`        | File explorer and editor components           |
+| `@openhands/agent-canvas/settings`     | Settings screens and forms                    |
+| `@openhands/agent-canvas/sidebar`      | Sidebar navigation components                 |
+| `@openhands/agent-canvas/terminal`     | Terminal emulator component                   |
+| `@openhands/agent-canvas/i18n`         | Internationalization resources                |
 
 ## More documentation
 

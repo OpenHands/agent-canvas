@@ -854,6 +854,7 @@ export {
   generateRandomApiKey,
   main,
   spawnService,
+  waitForService,
   commandExists,
   logService,
   logStep,

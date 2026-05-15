@@ -10,13 +10,11 @@
  * it to the host's `agentServerPort` (default 18000) so the ingress proxy
  * and the secret-seeding step can reach it via http://localhost:18000.
  *
- * Required environment variables:
- *   - PROJECT_PATH: Absolute host path to your projects. Mounted into the
- *     container at /projects so the agent can read/edit your code. The
- *     frontend always treats /projects as a "workspace parent", so the
- *     dropdown lists its immediate subdirectories as workspaces.
- *
  * Optional environment variables:
+ *   - PROJECT_PATH: Absolute host path to your projects. When set, mounted
+ *     into the container at /projects so the agent can read/edit that code.
+ *     When omitted, Agent Canvas still starts with its managed internal
+ *     workspace directory and you can attach workspaces from the UI later.
  *   - OH_AGENT_SERVER_GIT_REF: Git ref (branch/tag/SHA) of the agent-server
  *     to use. Translates to the docker tag `${ref}-python`, e.g.
  *     `main` -> `ghcr.io/openhands/agent-server:main-python`.
@@ -43,8 +41,9 @@
  *   the host home unless you opt in.
  *
  * Usage:
+ *   npm run dev:docker
  *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
- *   PROJECT_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
+ *   npm run dev:docker -- --dynamic
  *   OH_AGENT_SERVER_GIT_REF=main PROJECT_PATH=... npm run dev:docker
  */
 
@@ -203,6 +202,11 @@ function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
  * installed, which is not enough -- on macOS / Windows the daemon may be
  * stopped, and on Linux the user may not have permissions to talk to it.
  */
+function getProjectPathDockerArgs(env = process.env) {
+  const projectPath = env.PROJECT_PATH;
+  return projectPath ? ["-v", `${projectPath}:/projects`] : [];
+}
+
 function checkDockerPrereqs(config) {
   if (!commandExists("docker")) {
     logError("docker is required for dev:docker but was not found on PATH.");
@@ -226,13 +230,20 @@ function checkDockerPrereqs(config) {
   }
   logSuccess("docker daemon is running");
 
-  if (!process.env.PROJECT_PATH) {
-    logError("PROJECT_PATH is required for dev:docker.");
-    logError("Set it to the directory containing your projects, e.g.:");
-    logError("  export PROJECT_PATH=/path/to/your/projects");
-    process.exit(1);
+  if (process.env.PROJECT_PATH) {
+    logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
+  } else {
+    logService(
+      "docker",
+      "PROJECT_PATH is not set; host projects will not be mounted at /projects.",
+      c.yellow,
+    );
+    logService(
+      "docker",
+      "Set PROJECT_PATH=/path/to/projects if you want the container to access existing local repositories.",
+      c.dim,
+    );
   }
-  logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
 }
 
 function startAgentServerDocker(config) {
@@ -265,7 +276,7 @@ function startAgentServerDocker(config) {
   const userSpec = getHostDockerUserSpec();
   const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
   dockerArgs.push(...getDockerUserArgs(userSpec));
-  dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
+  dockerArgs.push(...getProjectPathDockerArgs());
 
   // Bind-mount the local software-agent-sdk checkout if requested. Mounted
   // rw so editable installs can write their .dist-info into each package
@@ -382,6 +393,7 @@ export {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectPathDockerArgs,
   isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,

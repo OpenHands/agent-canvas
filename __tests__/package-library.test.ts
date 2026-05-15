@@ -12,6 +12,7 @@ const packageJson = JSON.parse(
   types: string;
   exports: Record<string, unknown>;
   scripts: Record<string, string>;
+  bin: Record<string, string>;
 };
 
 describe("package library metadata", () => {
@@ -46,6 +47,13 @@ describe("package library metadata", () => {
         import: "./dist/i18n/index.js",
         require: "./dist/i18n/index.cjs",
       },
+    });
+  });
+
+  it("publishes the OpenHands CLI command and keeps the old alias", () => {
+    expect(packageJson.bin).toMatchObject({
+      openhands: "bin/agent-canvas.mjs",
+      "agent-canvas": "bin/agent-canvas.mjs",
     });
   });
 

@@ -7,6 +7,7 @@ import {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectPathDockerArgs,
   isDockerPermissionDenied,
 } from "../../scripts/dev-docker.mjs";
 
@@ -49,6 +50,18 @@ describe("docker host user", () => {
       "/home/openhands:uid=1000,gid=1000,mode=700",
     ]);
     expect(getDockerHomeTmpfsArgs(null)).toEqual([]);
+  });
+});
+
+describe("docker project path mount", () => {
+  it("does not require PROJECT_PATH before starting the Docker backend", () => {
+    expect(getProjectPathDockerArgs({})).toEqual([]);
+  });
+
+  it("mounts PROJECT_PATH at /projects when provided", () => {
+    expect(getProjectPathDockerArgs({ PROJECT_PATH: "/tmp/projects" })).toEqual(
+      ["-v", "/tmp/projects:/projects"],
+    );
   });
 });
 
