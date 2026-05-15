@@ -252,6 +252,15 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     "",
   ];
 
+  if (hasDifferences && !SNAPSHOTS_APPROVED) {
+    lines.push(
+      `> **How to resolve:**`,
+      `> - **Unintentional diffs** — the baselines on \`main\` may have moved since this branch was created. Merge the latest \`main\` into this branch and re-run CI.`,
+      `> - **Intentional changes** — add the \`update-snapshots\` label. CI will pass and the new screenshots become the baseline when this PR merges.`,
+      "",
+    );
+  }
+
   // Changed snapshots
   if (changed.length > 0) {
     lines.push(
