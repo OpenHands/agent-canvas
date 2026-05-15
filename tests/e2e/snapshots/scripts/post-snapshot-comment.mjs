@@ -6,16 +6,17 @@
  *   GH_TOKEN          — GitHub token for API calls and git push
  *   PR_NUMBER         — Pull request number
  *   REPO              — "owner/repo"
- *   RUN_ID            — GitHub Actions run ID (used to namespace .pr/ artifacts)
- *   HEAD_REF          — PR branch name (e.g. "my-feature-branch")
- *   TEST_OUTCOME      — "success" or "failure" (from the Playwright comparison step)
+ *   RUN_ID            — GitHub Actions run ID
+ *   HEAD_REF          — PR branch name (used only for the log message)
  *   MAIN_BASELINES_DIR — Path to the copied main-branch baselines (e.g. /tmp/main-baselines)
+ *   SNAPSHOTS_APPROVED — "true" when the update-snapshots label is set
  *
  * The script:
  *   1. Scans tests/e2e/__snapshots__/ (PR's current snapshots) and MAIN_BASELINES_DIR
  *   2. Classifies each snapshot as NEW, CHANGED, or UNCHANGED
  *   3. For CHANGED: locates diff/actual/expected images in test-results/
- *   4. Copies relevant images to .pr/snapshots/<run_id>/ and pushes to the PR branch
+ *   4. Creates an orphan commit on snapshot-artifacts/pr-<N> with the images and
+ *      pushes it there (NOT to the PR branch — avoids invalidating required checks)
  *   5. Posts or updates a PR comment with inline image tables using raw.githubusercontent.com URLs
  */
 
@@ -41,9 +42,9 @@ const SNAPSHOTS_APPROVED = process.env.SNAPSHOTS_APPROVED === "true";
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 const TEST_RESULTS_DIR = "test-results";
-// Fixed path — old contents are replaced on each run so directories don't accumulate.
-// raw.githubusercontent.com URLs use the commit SHA, so every push still gets stable image URLs.
-const PR_ARTIFACT_DIR = ".pr/snapshots";
+// Images are pushed to this dedicated branch, NOT to the PR branch.
+// Pushing to the PR branch with [skip ci] was blocking required checks on the HEAD commit.
+const ARTIFACTS_BRANCH = `snapshot-artifacts/pr-${PR_NUMBER}`;
 const COMMENT_MARKER = "<!-- snapshot-test-report -->";
 const GITHUB_API = process.env.GITHUB_API_URL ?? "https://api.github.com";
 const RAW_BASE = "https://raw.githubusercontent.com";
@@ -142,64 +143,56 @@ function classifySnapshots() {
 // ── Image publishing ───────────────────────────────────────────────────────
 
 /**
- * Copy snapshot images to .pr/snapshots/<run_id>/ and push them to the PR
- * branch so they can be referenced via raw.githubusercontent.com.
+ * Push snapshot images to a dedicated orphan branch (snapshot-artifacts/pr-<N>)
+ * so they can be embedded in the PR comment via raw.githubusercontent.com URLs.
  *
- * Returns the commit SHA that contains the images, or null on failure.
+ * Images are intentionally NOT pushed to the PR branch. Pushing to the PR branch
+ * (even with [skip ci]) invalidates required checks on the HEAD commit and hangs
+ * the PR. The orphan artifacts branch is invisible to all CI workflows.
+ *
+ * Returns the commit SHA on the artifacts branch, or null on failure.
  */
 function publishImages(changed, newSnapshots) {
   const hasImages = changed.length > 0 || newSnapshots.length > 0;
   if (!hasImages) return null;
 
-  // Remove images from any previous run BEFORE copying new ones.
-  // git rm removes tracked files from disk; copying first then removing would
-  // delete the freshly written files and leave the directory empty.
+  // Build a temp directory containing only the images, mirroring the layout
+  // that buildComment expects: changed/<relPath>-{actual,expected,diff}.png
+  //                            new/<relPath>.png
+  const tmpDir = execSync("mktemp -d").toString().trim();
   try {
-    execSync(
-      `git config user.name "github-actions[bot]" && ` +
-        `git config user.email "github-actions[bot]@users.noreply.github.com"`,
-    );
-    execSync(`git rm -rf --ignore-unmatch "${PR_ARTIFACT_DIR}"`);
-  } catch {
-    // No previous images to remove — that's fine.
-  }
+    for (const { relPath, currentFile, baselineFile, diffFile } of changed) {
+      const dest = join(tmpDir, "changed", relPath);
+      copyFile(currentFile, dest.replace(".png", "-actual.png"));
+      if (baselineFile && existsSync(baselineFile)) {
+        copyFile(baselineFile, dest.replace(".png", "-expected.png"));
+      }
+      if (diffFile) {
+        copyFile(diffFile, dest.replace(".png", "-diff.png"));
+      }
+    }
+    for (const { relPath, currentFile } of newSnapshots) {
+      copyFile(currentFile, join(tmpDir, "new", relPath));
+    }
 
-  // Copy new images (directory is now clear of stale tracked files)
-  for (const { relPath, currentFile, baselineFile, diffFile } of changed) {
-    const dest = join(PR_ARTIFACT_DIR, "changed", relPath);
-    copyFile(currentFile, dest.replace(".png", "-actual.png"));
-    if (baselineFile && existsSync(baselineFile)) {
-      copyFile(baselineFile, dest.replace(".png", "-expected.png"));
-    }
-    if (diffFile) {
-      copyFile(diffFile, dest.replace(".png", "-diff.png"));
-    }
-  }
-  for (const { relPath, currentFile } of newSnapshots) {
-    copyFile(currentFile, join(PR_ARTIFACT_DIR, "new", relPath));
-  }
-
-  // Commit and push
-  try {
-    execSync(`git add "${PR_ARTIFACT_DIR}"`);
-    const diffOutput = execSync("git diff --staged --name-only")
-      .toString()
-      .trim();
-    if (!diffOutput) {
-      // Nothing new to commit — get existing HEAD for URL building
-      return execSync("git rev-parse HEAD").toString().trim();
-    }
-    execSync(
-      `git commit -m "chore: snapshot images for run ${RUN_ID} [skip ci]"`,
+    // Create an orphan commit in tmpDir and force-push to the artifacts branch.
+    // Using a fresh git repo avoids touching any tracked files in the PR checkout.
+    const git = (cmd) => execSync(`git -C "${tmpDir}" ${cmd}`);
+    git("init");
+    git(`config user.name "github-actions[bot]"`);
+    git(`config user.email "41898282+github-actions[bot]@users.noreply.github.com"`);
+    git("add .");
+    git(`commit -m "snapshot images for PR #${PR_NUMBER} run ${RUN_ID}"`);
+    git(
+      `push --force "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" ` +
+        `HEAD:refs/heads/${ARTIFACTS_BRANCH}`,
     );
-    execSync(
-      `git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" ` +
-        `HEAD:refs/heads/${HEAD_REF}`,
-    );
-    return execSync("git rev-parse HEAD").toString().trim();
+    return git("rev-parse HEAD").toString().trim();
   } catch (err) {
     console.error("Warning: failed to push snapshot images:", err.message);
     return null;
+  } finally {
+    execSync(`rm -rf "${tmpDir}"`);
   }
 }
 
@@ -270,24 +263,12 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
       lines.push(`### ${formatRelPath(relPath)}`, "");
 
       if (commitSha) {
-        const prArtifactRelPath = join(
-          PR_ARTIFACT_DIR,
-          "changed",
-          relPath,
-        );
-        const expectedUrl = rawUrl(
-          commitSha,
-          prArtifactRelPath.replace(".png", "-expected.png"),
-        );
-        const actualUrl = rawUrl(
-          commitSha,
-          prArtifactRelPath.replace(".png", "-actual.png"),
-        );
-        const diffUrl = diffFile
-          ? rawUrl(
-              commitSha,
-              prArtifactRelPath.replace(".png", "-diff.png"),
-            )
+        // Paths in the orphan commit: changed/<relPath>-{actual,expected,diff}.png
+        const base = join("changed", relPath);
+        const expectedUrl = rawUrl(commitSha, base.replace(".png", "-expected.png"));
+        const actualUrl   = rawUrl(commitSha, base.replace(".png", "-actual.png"));
+        const diffUrl     = diffFile
+          ? rawUrl(commitSha, base.replace(".png", "-diff.png"))
           : null;
 
         lines.push(
@@ -318,8 +299,8 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     );
     if (commitSha) {
       for (const { relPath } of newSnapshots) {
-        const prArtifactRelPath = join(PR_ARTIFACT_DIR, "new", relPath);
-        const actualUrl = rawUrl(commitSha, prArtifactRelPath);
+        // Paths in the orphan commit: new/<relPath>.png
+        const actualUrl = rawUrl(commitSha, join("new", relPath));
         lines.push(
           `### ${formatRelPath(relPath)}`,
           "",
@@ -428,7 +409,7 @@ async function main() {
 
   let commitSha = null;
   if (changed.length > 0 || newSnapshots.length > 0) {
-    console.log(`Publishing images to ${PR_ARTIFACT_DIR}/ on ${HEAD_REF}...`);
+    console.log(`Publishing images to branch ${ARTIFACTS_BRANCH}...`);
     commitSha = publishImages(changed, newSnapshots);
     if (commitSha) {
       console.log(`  Images published at ${commitSha}`);
