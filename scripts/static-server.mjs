@@ -1,7 +1,7 @@
 /**
  * Combined static file server + reverse proxy.
  *
- * Replaces `sirv-cli` for `npm run dev:static`. The reason a plain static
+ * Replaces `sirv-cli` for the dockerless static launcher. The reason a plain static
  * server is not enough: Vite's dev server (used by `npm run dev`) configures
  * a proxy for `/api`, `/sockets`, `/server_info`, `/alive`, `/health`,
  * `/ready` (see vite.config.ts) so requests to those paths are forwarded to

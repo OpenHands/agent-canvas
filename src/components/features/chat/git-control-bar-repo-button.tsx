@@ -10,6 +10,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 interface GitControlBarRepoButtonProps {
   selectedRepository: string | null | undefined;
   gitProvider: Provider | null | undefined;
+  workspaceName?: string | null;
   onClick?: () => void;
   disabled?: boolean;
 }
@@ -17,6 +18,7 @@ interface GitControlBarRepoButtonProps {
 export function GitControlBarRepoButton({
   selectedRepository,
   gitProvider,
+  workspaceName,
   onClick,
   disabled,
 }: GitControlBarRepoButtonProps) {
@@ -38,7 +40,8 @@ export function GitControlBarRepoButton({
     ? constructRepositoryUrl(gitProvider, selectedRepository, providerHost)
     : undefined;
 
-  const buttonText = selectedRepository || t(I18nKey.COMMON$NO_REPO_CONNECTED);
+  const buttonText =
+    selectedRepository || workspaceName || t(I18nKey.COMMON$NO_REPO_CONNECTED);
 
   if (hasLinkableRepo) {
     return (
@@ -74,7 +77,7 @@ export function GitControlBarRepoButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group flex flex-row items-center justify-between gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] flex-1 truncate relative min-w-[170px]",
+        "group flex flex-row items-center justify-between gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] truncate relative",
         "border border-[rgba(71,74,84,0.50)] bg-transparent",
         disabled
           ? "cursor-not-allowed opacity-50"

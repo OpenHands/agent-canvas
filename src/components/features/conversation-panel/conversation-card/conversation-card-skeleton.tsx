@@ -1,6 +1,23 @@
 import React from "react";
 
-export function ConversationCardSkeleton() {
+interface ConversationCardSkeletonProps {
+  compact?: boolean;
+}
+
+export function ConversationCardSkeleton({
+  compact = false,
+}: ConversationCardSkeletonProps) {
+  if (compact) {
+    return (
+      <div
+        data-testid="conversation-card-skeleton-compact"
+        className="flex items-center justify-center px-2 py-2"
+      >
+        <div className="skeleton-round h-2 w-2" />
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid="conversation-card-skeleton"

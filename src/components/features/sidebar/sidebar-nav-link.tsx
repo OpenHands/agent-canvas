@@ -22,12 +22,18 @@ interface SidebarNavLinkProps {
    * while the sidebar is collapsed.
    */
   hoverContent?: React.ReactNode;
+  /**
+   * When true, forces the active style regardless of the current path.
+   * Useful for links that should appear active for multiple related routes
+   * (e.g. the Extensions link being active on /mcp and /plugins too).
+   */
+  forceActive?: boolean;
 }
 
 function getLayoutClasses(collapsed: boolean, indent: boolean): string {
   if (collapsed) return "justify-center w-10 h-10 p-0 mx-auto";
-  if (indent) return "pl-7 pr-3 py-1.5 w-full";
-  return "px-3 py-2 w-full";
+  if (indent) return "pl-7 pr-2 py-1.5 w-full";
+  return "px-2 py-2 w-full";
 }
 
 export function SidebarNavLink({
@@ -40,6 +46,7 @@ export function SidebarNavLink({
   icon,
   collapsed = false,
   hoverContent,
+  forceActive = false,
 }: SidebarNavLinkProps) {
   const link = (
     <NavigationLink
@@ -58,7 +65,7 @@ export function SidebarNavLink({
           "flex items-center gap-2 rounded-md transition-colors",
           "text-sm leading-5 truncate",
           getLayoutClasses(collapsed, indent),
-          isActive
+          isActive || forceActive
             ? "bg-[#1f1f1f99] text-white font-medium"
             : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
           disabled && "pointer-events-none opacity-50",

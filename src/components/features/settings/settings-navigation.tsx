@@ -8,6 +8,7 @@ import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { SettingsNavHeader } from "./settings-nav-header";
 import { SettingsNavDivider } from "./settings-nav-divider";
 import { SettingsNavLink } from "./settings-nav-link";
+import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
 
 interface SettingsNavigationProps {
   isMobileMenuOpen: boolean;
@@ -21,9 +22,34 @@ export function SettingsNavigation({
   navigationItems,
 }: SettingsNavigationProps) {
   const { t } = useTranslation("openhands");
+  const desktopNavItems = navigationItems.filter(
+    (item): item is Extract<SettingsNavRenderedItem, { type: "item" }> =>
+      item.type === "item",
+  );
 
   return (
     <>
+      <aside
+        data-testid="settings-navbar-desktop"
+        className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2"
+      >
+        <Typography.Text className="px-3 text-xs font-semibold uppercase tracking-wider text-[#A3A3A3]">
+          {t(I18nKey.SETTINGS$TITLE)}
+        </Typography.Text>
+        <div className="flex flex-col gap-0.5 pt-0.5">
+          {desktopNavItems.map((renderedItem) => (
+            <SidebarNavLink
+              key={renderedItem.item.to}
+              to={renderedItem.item.to}
+              label={t(renderedItem.item.text as I18nKey)}
+              end
+              testId={`sidebar-settings-${renderedItem.item.to}`}
+              icon={renderedItem.item.icon}
+            />
+          ))}
+        </div>
+      </aside>
+
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"

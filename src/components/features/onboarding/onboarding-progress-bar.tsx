@@ -35,7 +35,6 @@ export function OnboardingProgressBar({
             key={index}
             data-testid={`onboarding-progress-step-${index}`}
             data-state={
-              // eslint-disable-next-line no-nested-ternary
               isCompleted ? "completed" : isCurrent ? "current" : "upcoming"
             }
             className={cn(

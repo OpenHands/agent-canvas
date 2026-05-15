@@ -52,7 +52,11 @@ function BackendStatusBadge({
 }) {
   const { t } = useTranslation("openhands");
   const healthByBackendId = useBackendsHealth([backend]);
-  const isConnected = healthByBackendId[backend.id]?.isConnected ?? null;
+  const health = healthByBackendId[backend.id];
+  const isConnected = health?.isConnected ?? null;
+  const disabled = health?.disabled === true;
+  const consecutiveFailures = health?.consecutiveFailures ?? 0;
+  const lastError = health?.lastError ?? null;
 
   const { data: version } = useQuery({
     queryKey: ["backend-version", backend.host, backend.apiKey],
@@ -68,7 +72,7 @@ function BackendStatusBadge({
     },
     retry: false,
     staleTime: 60_000,
-    enabled: backend.kind === "local",
+    enabled: backend.kind === "local" && !disabled,
   });
 
   let statusLabel: string;
@@ -86,23 +90,49 @@ function BackendStatusBadge({
       : t(I18nKey.BACKEND$KIND_LOCAL);
 
   return (
-    <div
-      data-testid={`${testIdRoot}-status`}
-      className="flex items-center gap-3 text-sm"
-    >
-      <BackendStatusDot isConnected={isConnected} />
-      <span className="text-white" data-testid={`${testIdRoot}-status-label`}>
-        {statusLabel}
-      </span>
-      <span className="text-tertiary-alt">·</span>
-      <span className="text-gray-300">{kindLabel}</span>
-      {version ? (
-        <span
-          className="text-xs text-gray-400"
-          data-testid={`${testIdRoot}-version`}
-        >
-          {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
+    <div className="flex flex-col gap-2">
+      <div
+        data-testid={`${testIdRoot}-status`}
+        className="flex items-center gap-3 text-sm"
+      >
+        <BackendStatusDot isConnected={isConnected} />
+        <span className="text-white" data-testid={`${testIdRoot}-status-label`}>
+          {statusLabel}
         </span>
+        <span className="text-tertiary-alt">·</span>
+        <span className="text-gray-300">{kindLabel}</span>
+        {version ? (
+          <span
+            className="text-xs text-gray-400"
+            data-testid={`${testIdRoot}-version`}
+          >
+            {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
+          </span>
+        ) : null}
+      </div>
+
+      {disabled ? (
+        <div
+          data-testid={`${testIdRoot}-status-error`}
+          className="flex flex-col gap-1 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm"
+        >
+          <span className="font-semibold text-red-300">
+            {t(I18nKey.BACKEND$HEALTH_FAILED_TITLE)}
+          </span>
+          <span className="text-xs text-gray-300">
+            {t(I18nKey.BACKEND$HEALTH_FAILED_DETAIL, {
+              count: consecutiveFailures,
+            })}
+          </span>
+          {lastError ? (
+            <span
+              data-testid={`${testIdRoot}-status-error-message`}
+              className="text-xs text-red-300 whitespace-pre-wrap break-words"
+            >
+              {lastError}
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

@@ -8,6 +8,20 @@ import { ToggleButton } from "./toggle-button";
 import { DropdownMenu } from "./dropdown-menu";
 import { DropdownInput } from "./dropdown-input";
 
+// Equivalent to Tailwind's `sr-only`, inlined so we don't depend on the
+// utility class being preserved by the host project's CSS pipeline.
+const visuallyHiddenStyle: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
 interface DropdownProps {
   options: DropdownOption[];
   emptyMessage?: string;
@@ -21,6 +35,10 @@ interface DropdownProps {
   className?: string;
   footer?: React.ReactNode;
   openUpward?: boolean;
+  hideTrigger?: boolean;
+  defaultOpen?: boolean;
+  /** Open the dropdown menu on hover instead of requiring a click. */
+  openOnHover?: boolean;
 }
 
 export function Dropdown({
@@ -36,7 +54,13 @@ export function Dropdown({
   className,
   footer,
   openUpward = false,
+  hideTrigger = false,
+  defaultOpen = false,
+  openOnHover = false,
 }: DropdownProps) {
+  const closeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [inputValue, setInputValue] = useState(defaultValue?.label ?? "");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -48,6 +72,8 @@ export function Dropdown({
     isOpen,
     selectedItem,
     selectItem,
+    openMenu,
+    closeMenu,
     getToggleButtonProps,
     getMenuProps,
     getItemProps,
@@ -61,6 +87,7 @@ export function Dropdown({
       state.isOpen
         ? { ...actionAndChanges.changes, isOpen: true }
         : actionAndChanges.changes,
+    initialIsOpen: defaultOpen,
     onInputValueChange: ({ inputValue: newValue }) => {
       setInputValue(newValue ?? "");
       setSearchTerm(newValue ?? "");
@@ -112,35 +139,79 @@ export function Dropdown({
     });
 
   return (
-    <div className="relative w-full" data-testid={testId}>
-      <div
-        className={cn(
-          "bg-tertiary border border-[#717888] rounded w-full p-2",
-          "flex items-center gap-2",
-          isDisabled && "cursor-not-allowed opacity-60",
-          className,
-        )}
-      >
-        {liveSelectedOption?.prefix ? (
-          <span className="flex items-center shrink-0">
-            {liveSelectedOption.prefix}
-          </span>
-        ) : null}
-        <DropdownInput
-          placeholder={placeholder}
-          isDisabled={isDisabled}
-          getInputProps={getInputPropsWithCursorFix}
-        />
-        {loading && <LoadingSpinner />}
-        {clearable && selectedItem && (
-          <ClearButton onClear={() => selectItem(null)} />
-        )}
-        <ToggleButton
-          isOpen={isOpen}
-          isDisabled={isDisabled}
-          getToggleButtonProps={getToggleButtonProps}
-        />
-      </div>
+    <div
+      className="relative w-full"
+      data-testid={testId}
+      onMouseEnter={
+        openOnHover
+          ? () => {
+              if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = null;
+              }
+              openMenu();
+            }
+          : undefined
+      }
+      onMouseLeave={
+        openOnHover
+          ? () => {
+              closeTimerRef.current = setTimeout(() => closeMenu(), 150);
+            }
+          : undefined
+      }
+    >
+      {!hideTrigger ? (
+        <div
+          className={cn(
+            "bg-tertiary border border-[#717888] rounded w-full p-2",
+            "flex items-center gap-2",
+            isDisabled && "cursor-not-allowed opacity-60",
+            className,
+          )}
+        >
+          {liveSelectedOption?.prefix ? (
+            <span className="flex items-center shrink-0">
+              {liveSelectedOption.prefix}
+            </span>
+          ) : null}
+          <DropdownInput
+            placeholder={placeholder}
+            isDisabled={isDisabled}
+            getInputProps={getInputPropsWithCursorFix}
+          />
+          {loading && <LoadingSpinner />}
+          {clearable && selectedItem && (
+            <ClearButton onClear={() => selectItem(null)} />
+          )}
+          <ToggleButton
+            isOpen={isOpen}
+            isDisabled={isDisabled}
+            getToggleButtonProps={getToggleButtonProps}
+          />
+        </div>
+      ) : (
+        // downshift's useCombobox always expects getInputProps() (and the
+        // toggle button) to be wired up. When the trigger is hidden (e.g.
+        // collapsed-sidebar popover) we still need to mount a real input
+        // so it stops warning every render. Keep it visually hidden but
+        // present in the DOM for accessibility.
+        <>
+          <input
+            {...getInputPropsWithCursorFix({
+              "aria-label": placeholder ?? "Filter options",
+              tabIndex: -1,
+            })}
+            style={visuallyHiddenStyle}
+          />
+          <button
+            type="button"
+            {...getToggleButtonProps({ tabIndex: -1 })}
+            style={visuallyHiddenStyle}
+            aria-hidden
+          />
+        </>
+      )}
       <DropdownMenu
         isOpen={isOpen}
         filteredOptions={filteredOptions}

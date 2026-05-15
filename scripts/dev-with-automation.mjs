@@ -53,6 +53,7 @@ import {
   formatMissingUvxGuidance,
   generateRandomApiKey,
   findFreePorts,
+  validateFrontendDependencies,
 } from "./dev-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -117,7 +118,9 @@ function parseArgs() {
     automationRepo: null,
     verbose: false,
     static: false,
+    dynamic: false,
     staticDir: null,
+    skipBuild: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -139,8 +142,14 @@ function parseArgs() {
       case "--static":
         config.static = true;
         break;
+      case "--dynamic":
+        config.dynamic = true;
+        break;
       case "--static-dir":
         config.staticDir = args[++i];
+        break;
+      case "--skip-build":
+        config.skipBuild = true;
         break;
       case "-h":
       case "--help":
@@ -166,6 +175,10 @@ OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
   --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
   --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
+  --static                    Serve an existing production build instead of Vite
+  --static-dir <dir>          Static build directory (default: build/)
+  --skip-build                Reuse build/ when the launcher builds static assets
+  --dynamic                   Force Vite dev server when a wrapper defaults static
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -321,7 +334,7 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites() {
+function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
   logStep("1/2", "Checking prerequisites...");
 
   if (!commandExists("uvx")) {
@@ -335,6 +348,16 @@ function checkPrerequisites() {
     process.exit(1);
   }
   logSuccess("npm found");
+
+  if (checkFrontendDependencies) {
+    try {
+      validateFrontendDependencies(projectRoot);
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    logSuccess("frontend dependencies found");
+  }
 }
 
 function ensureDirectories(config) {
@@ -478,6 +501,7 @@ function startAutomationBackend(config) {
       cwd: config.stateDir,
       env: {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+        AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
         AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
@@ -698,14 +722,19 @@ async function main(options = {}) {
     extraPrereqs,
     viteWorkingDir,
     staticMode: staticModeOverride,
+    defaultStaticMode = false,
+    buildStaticFrontend,
     staticDir: staticDirOverride,
   } = options;
 
   const args = parseArgs();
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
-  const useStaticMode = staticModeOverride ?? args.static;
-  const staticDir = staticDirOverride ?? args.staticDir ?? join(projectRoot, "build", "client");
+  const useStaticMode =
+    staticModeOverride ??
+    (args.dynamic ? false : args.static || defaultStaticMode);
+  const staticDir =
+    staticDirOverride ?? args.staticDir ?? join(projectRoot, "build");
 
   const modeLabel = useStaticMode ? "(Static)" : "";
   const titleWithMode = modeLabel ? `${bannerTitle} ${modeLabel}` : bannerTitle;
@@ -717,14 +746,10 @@ async function main(options = {}) {
   // Setup phase
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
-  checkPrerequisites();
-
-  // In static mode, verify build exists
-  if (useStaticMode && !existsSync(staticDir)) {
-    logError(`Static directory not found: ${staticDir}`);
-    logError(`Run 'npm run build' first to create the static files.`);
-    process.exit(1);
-  }
+  checkPrerequisites({
+    checkFrontendDependencies:
+      !useStaticMode || typeof buildStaticFrontend === "function",
+  });
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
@@ -732,6 +757,17 @@ async function main(options = {}) {
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
+  }
+
+  if (useStaticMode && typeof buildStaticFrontend === "function") {
+    buildStaticFrontend(config, args);
+  }
+
+  // In static mode, verify build exists after any launcher-managed build.
+  if (useStaticMode && !existsSync(staticDir)) {
+    logError(`Static directory not found: ${staticDir}`);
+    logError(`Run 'npm run build' first to create the static files.`);
+    process.exit(1);
   }
 
   // Start services phase

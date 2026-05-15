@@ -13,7 +13,7 @@ interface ConversationStatusDotProps {
   showTooltip?: boolean;
 }
 
-type Visual = "check" | "working" | "paused" | "error" | "unknown";
+type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
 
 const SUCCESS_GREEN = "#1FBD53";
 const PAUSED_GRAY = "#A3A3A3";
@@ -26,9 +26,10 @@ const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
       return "check";
     case ExecutionStatus.RUNNING:
       return "working";
-    case ExecutionStatus.PAUSED:
     case ExecutionStatus.IDLE:
     case ExecutionStatus.WAITING_FOR_CONFIRMATION:
+      return "active";
+    case ExecutionStatus.PAUSED:
       return "paused";
     case ExecutionStatus.ERROR:
     case ExecutionStatus.STUCK:
@@ -43,6 +44,7 @@ const labelKeyFor = (visual: Visual): string => {
     case "check":
       return "COMMON$FINISHED";
     case "working":
+    case "active":
       return "COMMON$WORKING";
     case "paused":
       return "COMMON$PAUSED";
@@ -76,6 +78,14 @@ function renderIndicator(visual: Visual) {
         <span
           data-testid="conversation-status-working"
           className="w-1.5 h-1.5 rounded-full animate-pulse"
+          style={{ backgroundColor: SUCCESS_GREEN }}
+        />
+      );
+    case "active":
+      return (
+        <span
+          data-testid="conversation-status-active"
+          className="w-1.5 h-1.5 rounded-full"
           style={{ backgroundColor: SUCCESS_GREEN }}
         />
       );

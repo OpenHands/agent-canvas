@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { EventMessage } from "#/components/conversation-events/chat/event-message";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -58,6 +59,7 @@ const createBashActionEvent = (
   id: string,
   command: string,
   thoughtText: string,
+  overrides?: Partial<ActionEvent<ExecuteBashAction>>,
 ): ActionEvent<ExecuteBashAction> => ({
   id,
   timestamp: new Date().toISOString(),
@@ -83,6 +85,7 @@ const createBashActionEvent = (
   },
   llm_response_id: `response_${id}`,
   security_risk: SecurityRisk.UNKNOWN,
+  ...overrides,
 });
 
 describe("EventMessage - ThinkAction rendering", () => {
@@ -118,7 +121,7 @@ describe("EventMessage - ThinkAction rendering", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should render ThinkAction thought as a normal chat message", () => {
+  it("should render ThinkAction as a collapsible section", () => {
     const thinkEvent = createThinkActionEvent(
       "think-2",
       "Let me analyze the problem",
@@ -133,13 +136,41 @@ describe("EventMessage - ThinkAction rendering", () => {
       />,
     );
 
-    // The thought content should be displayed as regular text
+    // The collapsible thinking wrapper should exist
+    expect(screen.getByTestId("collapsible-thinking")).toBeInTheDocument();
+
+    // The thought content should NOT be visible initially (collapsed by default)
+    expect(
+      screen.queryByTestId("collapsible-thinking-content"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should expand ThinkAction content when toggle is clicked", async () => {
+    const user = userEvent.setup();
+    const thinkEvent = createThinkActionEvent(
+      "think-3",
+      "Let me analyze the problem",
+    );
+
+    renderWithProviders(
+      <EventMessage
+        event={thinkEvent}
+        messages={[thinkEvent]}
+        isLastMessage={false}
+        isInLast10Actions={false}
+      />,
+    );
+
+    // Click the toggle to expand
+    await user.click(screen.getByTestId("collapsible-thinking-toggle"));
+
+    // Now the content should be visible
+    expect(
+      screen.getByTestId("collapsible-thinking-content"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Let me analyze the problem"),
     ).toBeInTheDocument();
-
-    // It should NOT be inside a collapsible block (no expand button)
-    expect(screen.queryByLabelText("Expand")).not.toBeInTheDocument();
   });
 
   it("should render ThoughtEventMessage for non-ThinkAction events", () => {
@@ -162,5 +193,62 @@ describe("EventMessage - ThinkAction rendering", () => {
     expect(
       screen.getByText("I need to run a command"),
     ).toBeInTheDocument();
+  });
+
+  it("should render reasoning_content as a collapsible section", () => {
+    const bashEvent = createBashActionEvent(
+      "bash-reasoning",
+      "echo hello",
+      "Running a command",
+      {
+        reasoning_content: "I need to think carefully about this step.",
+      },
+    );
+
+    renderWithProviders(
+      <EventMessage
+        event={bashEvent}
+        messages={[bashEvent]}
+        isLastMessage={false}
+        isInLast10Actions={false}
+      />,
+    );
+
+    // The collapsible thinking wrapper should exist for reasoning_content
+    expect(screen.getByTestId("collapsible-thinking")).toBeInTheDocument();
+
+    // The reasoning content should be hidden initially
+    expect(
+      screen.queryByText("I need to think carefully about this step."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should render thinking_blocks as a collapsible section", () => {
+    const bashEvent = createBashActionEvent(
+      "bash-thinking-blocks",
+      "echo hello",
+      "Running a command",
+      {
+        thinking_blocks: [
+          {
+            type: "thinking",
+            thinking: "Extended thinking block content here.",
+            signature: "sig123",
+          },
+        ],
+      },
+    );
+
+    renderWithProviders(
+      <EventMessage
+        event={bashEvent}
+        messages={[bashEvent]}
+        isLastMessage={false}
+        isInLast10Actions={false}
+      />,
+    );
+
+    // The collapsible thinking wrapper should exist for thinking_blocks
+    expect(screen.getByTestId("collapsible-thinking")).toBeInTheDocument();
   });
 });

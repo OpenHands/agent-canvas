@@ -9,4 +9,14 @@ describe("ConversationCardSkeleton", () => {
       screen.getByTestId("conversation-card-skeleton"),
     ).toBeInTheDocument();
   });
+
+  it("renders compact skeleton without text placeholders", () => {
+    render(<ConversationCardSkeleton compact />);
+    expect(
+      screen.getByTestId("conversation-card-skeleton-compact"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("conversation-card-skeleton"),
+    ).not.toBeInTheDocument();
+  });
 });
