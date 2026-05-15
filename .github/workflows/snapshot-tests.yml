@@ -63,32 +63,32 @@ jobs:
 
       # ── PR BRANCH: download main baselines, compare, report diffs ────────
 
-      - name: Find latest successful main-branch snapshot run
+      - name: Find latest snapshot-baselines artifact from main
         if: github.event_name == 'pull_request'
         id: find-run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RUN_ID=$(gh run list \
-            --repo "${{ github.repository }}" \
-            --workflow "snapshot-tests.yml" \
-            --branch main \
-            --status success \
-            --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId // ""')
-          if [ -z "$RUN_ID" ]; then
+          # Query the artifacts API by name so we only match runs that actually
+          # uploaded the artifact (not just any successful run of the workflow).
+          ARTIFACT=$(gh api \
+            "/repos/${{ github.repository }}/actions/artifacts?name=snapshot-baselines&per_page=10" \
+            --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0]')
+          if [ -z "$ARTIFACT" ] || [ "$ARTIFACT" = "null" ]; then
             echo "has_baselines=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No successful main-branch snapshot run found — all snapshots will be treated as new."
+            echo "::warning::No snapshot-baselines artifact found on main — all snapshots will be treated as new."
           else
+            RUN_ID=$(echo "$ARTIFACT" | jq -r '.workflow_run.id')
             echo "has_baselines=true" >> "$GITHUB_OUTPUT"
             echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-            echo "Found main-branch baselines in run $RUN_ID"
+            echo "Found snapshot-baselines artifact from run $RUN_ID"
           fi
 
       - name: Download main-branch baselines
         if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
         uses: actions/download-artifact@v4
+        continue-on-error: true
+        id: download-baselines
         with:
           name: snapshot-baselines
           path: tests/e2e/__snapshots__/
