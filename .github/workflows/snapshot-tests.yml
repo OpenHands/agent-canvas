@@ -167,6 +167,20 @@ jobs:
         run: npm run test:e2e:snapshots
         continue-on-error: true
 
+      # Playwright clears test-results/ at the start of every new run, so the
+      # diff files produced by the comparison step above would be wiped by the
+      # update step below before post-snapshot-comment.mjs can read them.
+      # Save the comparison output now so the comment script can still find the
+      # diff/actual/expected images.
+      - name: Save comparison test-results
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -d "test-results" ]; then
+            cp -r test-results /tmp/comparison-results
+          else
+            mkdir -p /tmp/comparison-results
+          fi
+
       - name: Generate current PR snapshots
         if: github.event_name == 'pull_request'
         id: generate
@@ -183,6 +197,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           HEAD_REF: ${{ github.head_ref }}
           MAIN_BASELINES_DIR: /tmp/main-baselines
+          COMPARISON_RESULTS_DIR: /tmp/comparison-results
           SNAPSHOTS_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
           GENERATE_OUTCOME: ${{ steps.generate.outcome }}
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs

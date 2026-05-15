@@ -43,7 +43,11 @@ const SNAPSHOTS_APPROVED = process.env.SNAPSHOTS_APPROVED === "true";
 const GENERATE_OUTCOME = process.env.GENERATE_OUTCOME ?? "success";
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
-const TEST_RESULTS_DIR = "test-results";
+// The workflow saves comparison test-results to this path before the
+// --update-snapshots pass wipes test-results/.  Fall back to the default
+// Playwright output directory when running outside CI.
+const TEST_RESULTS_DIR =
+  process.env.COMPARISON_RESULTS_DIR ?? "test-results";
 // Images are pushed to this dedicated branch, NOT to the PR branch.
 // Pushing to the PR branch with [skip ci] was blocking required checks on the HEAD commit.
 const ARTIFACTS_BRANCH = `snapshot-artifacts/pr-${PR_NUMBER}`;
