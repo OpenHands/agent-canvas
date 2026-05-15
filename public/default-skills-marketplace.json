@@ -13,6 +13,10 @@
     {
       "name": "docker",
       "source": "https://github.com/OpenHands/extensions/tree/main/skills/docker"
+    },
+    {
+      "name": "openhands-automation",
+      "source": "https://github.com/OpenHands/extensions/tree/main/skills/openhands-automation"
     }
   ]
 }

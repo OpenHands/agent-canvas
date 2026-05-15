@@ -9,6 +9,7 @@ export const DEFAULT_SKILL_NAMES: readonly string[] = [
   "github",
   "code-review",
   "docker",
+  "openhands-automation",
 ];
 
 export const DEFAULT_MARKETPLACE_PATH = "/default-skills-marketplace.json";
