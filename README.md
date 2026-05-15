@@ -1,26 +1,32 @@
-# agent-canvas
+# OpenHands Agent Canvas (Alpha)
 
-> [!WARNING]
-> This project is in sandbox phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+OpenHands Agent Canvas is an open source AI coding application that you can self-host on your local machine, in Docker, and on VMs. By default, Agent Canvas deploys a frontend Web UI and local [OpenHands Agent Server](https://github.com/OpenHands/software-agent-sdk/tree/main/openhands-agent-server/openhands/agent_server) to enable immediate use.
 
-Agent Canvas is a web frontend for managing agents. You can:
+The Agent Canvas frontend Web UI lets you manage multiple agents. You can:
 
 - ⌨️ prompt them manually
 - 🕐 run them on a schedule
 - ⚡ trigger them automatically—e.g. from Slack or GitHub.
 
-Agents can run anywhere:
+You can optionally add one or many Agent Server Backends so agents can run anywhere:
 
 - 🧑‍💻 on your laptop
 - 🖥️ on a remote virtual machine
 - ☁️ in our hosted cloud
 - 🏢 or inside your company’s infrastructure
 
+**Bring any coding agent**
+
 You can work with any agent (e.g. Claude Code, Codex) or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
+
+**Feedback welcome!**
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
 <img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
+
+> [!WARNING]
+> This project is in alpha phase. It may be vibecoded, untested, or out of date.
 
 ## Quickstart
 
@@ -32,7 +38,7 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 - `npm`
 - Docker
 
-Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent will mount this directory so it can read and edit your code.
 
 By default the container runs as your host UID/GID so files written to bind mounts remain writable from your host account. The container is still kept isolated from your host home: its `/home/openhands` is a temporary writable home, and only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually under it (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off. Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
 
