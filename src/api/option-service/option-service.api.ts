@@ -7,16 +7,15 @@ import { ModelsResponse, WebClientConfig } from "./option.types";
 // PostHog project keys — hardcoded per deployment environment so they can
 // never be accidentally changed by environment variable drift.
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
-const POSTHOG_STAGING_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK"; // TODO: replace with dedicated staging project key
+const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY; // TODO: replace with dedicated staging project key once provisioned
 
 const PROD_HOSTNAME = new URL(PRODUCT_URL.PRODUCTION).hostname;
-const STAGING_HOSTNAME = new URL(PRODUCT_URL.STAGING).hostname;
 
 function getPosthogClientKey(): string | null {
   if (typeof window === "undefined") return null;
   const { hostname } = window.location;
   if (hostname === PROD_HOSTNAME) return POSTHOG_PROD_KEY;
-  if (hostname === STAGING_HOSTNAME) return POSTHOG_STAGING_KEY;
+  // TODO: add staging hostname check once staging URL is known, returning POSTHOG_STAGING_KEY
   return null;
 }
 

@@ -36,7 +36,7 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 // set in stone and cannot drift through environment variable changes.
 // Library consumers can still override via VITE_POSTHOG_API_KEY if needed.
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
-const POSTHOG_STAGING_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK"; // TODO: replace with dedicated staging project key
+const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY; // TODO: replace with dedicated staging project key once provisioned
 
 function resolvePosthogApiKey(): string | null {
   // Library consumers can always override with their own key.
@@ -46,7 +46,7 @@ function resolvePosthogApiKey(): string | null {
   if (typeof window === "undefined") return null;
   const { hostname } = window.location;
   if (hostname === "app.all-hands.dev") return POSTHOG_PROD_KEY;
-  if (hostname === "staging.app.all-hands.dev") return POSTHOG_STAGING_KEY;
+  // TODO: add staging hostname check once staging URL is known, returning POSTHOG_STAGING_KEY
   return null;
 }
 
