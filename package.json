@@ -65,7 +65,7 @@
     "zustand": "5.0.12"
   },
   "scripts": {
-    "dev": "npm run dev:docker",
+    "dev": "npm run dev:automation",
     "dev:dangerously-dockerless": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:dangerously-dockerless:dynamic": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
     "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
