@@ -31,7 +31,6 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
   getConfiguredWorkerUrls: vi.fn(() => []),
-  shouldLoadPublicSkills: vi.fn(() => true),
 }));
 
 vi.mock("#/api/agent-server-compatibility", () => ({
@@ -114,11 +113,9 @@ describe("buildStartConversationRequest", () => {
       "FinishTool",
       "ThinkTool",
     ]);
-    expect(payload.agent.agent_context).toEqual({
-      load_public_skills: true,
-      load_user_skills: true,
-      marketplace_path: `${window.location.origin}/default-skills-marketplace.json`,
-    });
+    // No skills pre-fetched when calling the sync builder directly; the async
+    // buildStartConversationRequestWithEncryptedSettings populates this.
+    expect(payload.agent.agent_context).toEqual({});
     expect(payload.agent.agent).toBeUndefined();
     expect(payload.workspace.working_dir).toBe(
       "/workspace/project/agent-canvas",

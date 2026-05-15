@@ -22,10 +22,6 @@ class SkillsService {
       return fetchCloudSkills();
     }
 
-    // Always load public skills on the global Skills settings page so the user
-    // sees the available catalog even on a fresh dev environment with no local
-    // user/project skills. Conversation creation paths still gate on
-    // shouldLoadPublicSkills() to keep new-conversation latency low.
     const response = await SkillsService.client().getSkills({
       load_public: true,
       load_user: true,

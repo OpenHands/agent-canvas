@@ -41,10 +41,7 @@ afterEach(() => {
 });
 
 describe("SkillsService.getSkills against the agent-server backend", () => {
-  it("requests load_public:true for the global Skills page even when VITE_LOAD_PUBLIC_SKILLS is unset, so a fresh dev env still shows the public catalog", async () => {
-    // Arrange: the dev-default scenario that shipped the empty Skills page —
-    // VITE_LOAD_PUBLIC_SKILLS is not set, so shouldLoadPublicSkills() would
-    // return false. The agent-server has one public skill it can return.
+  it("always requests load_public:true so the full public catalog is shown on the Skills settings page", async () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
     mockGetSkills.mockResolvedValue({
       skills: [

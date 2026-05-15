@@ -1,13 +1,10 @@
 import { SkillsClient } from "@openhands/typescript-client/clients";
+import type { SkillInfo as SdkSkillInfo } from "@openhands/typescript-client";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { DEFAULT_MARKETPLACE_PATH } from "#/services/default-skills";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import {
-  getAgentServerWorkingDir,
-  shouldLoadPublicSkills,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
@@ -314,21 +311,15 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   };
 }
 
-function createAgentFromSettings(agentSettings: SettingsRecord) {
-  const loadPublic = shouldLoadPublicSkills();
+function createAgentFromSettings(
+  agentSettings: SettingsRecord,
+  skills?: SdkSkillInfo[],
+) {
   return {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
-      load_public_skills: loadPublic,
-      load_user_skills: true,
-      // When public skills are enabled, scope them to the curated list instead
-      // of loading all 44+ skills from the OpenHands/extensions marketplace.
-      ...(loadPublic
-        ? {
-            marketplace_path: `${window.location.origin}${DEFAULT_MARKETPLACE_PATH}`,
-          }
-        : {}),
+      ...(skills && skills.length > 0 ? { skills } : {}),
     },
   };
 }
@@ -408,6 +399,12 @@ export interface StartConversationOptions {
    * The actual values are fetched at runtime via LookupSecret.
    */
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * Pre-fetched, filtered skill list to inject via agent_context.skills.
+   * Populated by buildStartConversationRequestWithEncryptedSettings after
+   * applying the user's disabled_skills preference.
+   */
+  skills?: SdkSkillInfo[];
 }
 
 export function buildStartConversationRequest(
@@ -419,7 +416,7 @@ export function buildStartConversationRequest(
     : options.settings;
 
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
-  const agent = createAgentFromSettings(agentSettings);
+  const agent = createAgentFromSettings(agentSettings, options.skills);
 
   // For conversation settings, merge encrypted settings if provided
   const sourceConversationOptions = options.encryptedConversationSettings
@@ -533,14 +530,31 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   // Import SecretsService dynamically to avoid circular dependencies
   const { SecretsService } = await import("./secrets-service");
 
-  // Fetch settings with encrypted secrets and custom secrets list in parallel
-  const [settingsResult, customSecrets] = await Promise.all([
+  // Fetch encrypted settings, secrets, and skills in parallel.
+  // Skills are fetched with the same flags as the Skills settings page so what
+  // the user sees and what the agent gets are always identical.
+  const [settingsResult, customSecrets, skillsResponse] = await Promise.all([
     SettingsService.getSettingsForConversation(),
     SecretsService.getSecrets(),
+    new SkillsClient(getAgentServerClientOptions())
+      .getSkills({
+        load_public: true,
+        load_user: true,
+        load_project: true,
+        load_org: false,
+        project_dir: options.workingDir ?? getAgentServerWorkingDir(),
+      })
+      .catch(() => ({ skills: [] as SdkSkillInfo[] })),
   ]);
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
+
+  // Honour the user's disabled_skills toggle from settings.
+  const disabledSet = new Set(options.settings.disabled_skills ?? []);
+  const skills = (skillsResponse.skills ?? []).filter(
+    (s) => !disabledSet.has(s.name),
+  );
 
   return buildStartConversationRequest({
     ...options,
@@ -548,6 +562,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
+    skills,
   });
 }
 
@@ -557,20 +572,14 @@ export async function loadSkillsForConversation(
   const projectDir =
     conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
 
-  const loadPublic = shouldLoadPublicSkills();
   const response = await new SkillsClient(
     getAgentServerClientOptions(),
   ).getSkills({
-    load_public: loadPublic,
+    load_public: true,
     load_user: true,
     load_project: true,
     load_org: false,
     project_dir: projectDir,
-    ...(loadPublic
-      ? {
-          marketplace_path: `${window.location.origin}${DEFAULT_MARKETPLACE_PATH}`,
-        }
-      : {}),
   });
 
   return { skills: response.skills ?? [] };
