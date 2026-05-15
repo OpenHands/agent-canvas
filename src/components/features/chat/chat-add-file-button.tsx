@@ -1,4 +1,6 @@
-import PaperclipIcon from "#/icons/paper-clip.svg?react";
+import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
 export interface ChatAddFileButtonProps {
@@ -10,21 +12,25 @@ export function ChatAddFileButton({
   handleFileIconClick,
   disabled = false,
 }: ChatAddFileButtonProps) {
+  const { t } = useTranslation("openhands");
+
   return (
     <button
       type="button"
       className={cn(
-        "h-[25px] relative shrink-0 w-[13px] cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95",
-        disabled && "cursor-not-allowed",
+        "relative shrink-0 size-6 rounded-full transition-colors",
+        disabled
+          ? "cursor-not-allowed text-[#6B7280]"
+          : "cursor-pointer text-[#959CB2] hover:text-white hover:bg-white/10",
       )}
-      data-name="Shape"
+      aria-label={t(I18nKey.CHAT_INTERFACE$ADD_FILE)}
       data-testid="paperclip-icon"
       onClick={handleFileIconClick}
+      disabled={disabled}
     >
-      <PaperclipIcon
-        className="block max-w-none w-[13px] h-[25px]"
-        color={disabled ? "#959CB2" : "white"}
-      />
+      <span className="flex h-full w-full items-center justify-center">
+        <Plus className="h-[13px] w-[13px] shrink-0" strokeWidth={2} />
+      </span>
     </button>
   );
 }

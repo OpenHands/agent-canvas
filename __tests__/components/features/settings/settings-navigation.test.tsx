@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
@@ -27,8 +27,10 @@ describe("SettingsNavigation", () => {
 
     expect(screen.getByTestId("settings-navbar")).toBeInTheDocument();
     expect(screen.getAllByText("SETTINGS$TITLE").length).toBeGreaterThan(0);
-    expect(screen.getByText("SETTINGS$NAV_LLM")).toBeInTheDocument();
-    expect(screen.getByText("SETTINGS$NAV_CONDENSER")).toBeInTheDocument();
+    expect(screen.getAllByText("SETTINGS$NAV_LLM").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("SETTINGS$NAV_CONDENSER").length,
+    ).toBeGreaterThan(0);
   });
 
   it("closes the mobile drawer when the close button is clicked", async () => {
@@ -62,7 +64,8 @@ describe("SettingsNavigation", () => {
       </MemoryRouter>,
     );
 
-    await userEvent.click(screen.getByText("SETTINGS$NAV_LLM"));
+    const mobileNav = screen.getByTestId("settings-navbar");
+    await userEvent.click(within(mobileNav).getByText("SETTINGS$NAV_LLM"));
 
     expect(onCloseMobileMenu).toHaveBeenCalledTimes(1);
   });

@@ -12,6 +12,7 @@ interface ChatInputContainerProps {
   chatContainerRef: React.RefObject<HTMLDivElement | null>;
   isDragOver: boolean;
   disabled: boolean;
+  canSubmit: boolean;
   isNewConversationPending?: boolean;
   showButton: boolean;
   buttonClassName: string;
@@ -36,6 +37,7 @@ export function ChatInputContainer({
   chatContainerRef,
   isDragOver,
   disabled,
+  canSubmit,
   isNewConversationPending = false,
   showButton,
   buttonClassName,
@@ -63,7 +65,7 @@ export function ChatInputContainer({
     <div
       ref={chatContainerRef}
       className={cn(
-        "bg-[#25272D] box-border content-stretch flex flex-col items-start justify-center p-4 pt-3 relative rounded-[15px] w-full",
+        "bg-[#25272D] box-border content-stretch flex flex-col items-start justify-center p-4 relative rounded-[15px] w-full",
         conversationMode === "plan" && "border border-[#597FF4]",
       )}
       onDragOver={(e) => onDragOver(e, disabled)}
@@ -88,12 +90,7 @@ export function ChatInputContainer({
 
         <ChatInputRow
           chatInputRef={chatInputRef}
-          disabled={disabled}
           isNewConversationPending={isNewConversationPending}
-          showButton={showButton}
-          buttonClassName={buttonClassName}
-          handleFileIconClick={handleFileIconClick}
-          handleSubmit={handleSubmit}
           onInput={onInput}
           onPaste={onPaste}
           onKeyDown={onKeyDown}
@@ -102,7 +99,14 @@ export function ChatInputContainer({
         />
       </div>
 
-      <ChatInputActions disabled={disabled} />
+      <ChatInputActions
+        disabled={disabled}
+        canSubmit={canSubmit}
+        onAddFileClick={() => handleFileIconClick(disabled)}
+        showButton={showButton}
+        buttonClassName={buttonClassName}
+        handleSubmit={handleSubmit}
+      />
     </div>
   );
 }

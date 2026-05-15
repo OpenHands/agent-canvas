@@ -4,7 +4,7 @@ import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
-import { ConversationStatusDot } from "../home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "./conversation-status-dot";
 import { ConversationCardFooter } from "./conversation-card/conversation-card-footer";
 
 interface CompactConversationRowProps {
@@ -17,6 +17,7 @@ interface CompactConversationRowProps {
   workspaceWorkingDir?: string | null;
   isActive?: boolean;
   onClose?: () => void;
+  showRepositoryMetadata?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function CompactConversationRow({
   workspaceWorkingDir,
   isActive = false,
   onClose,
+  showRepositoryMetadata = true,
 }: CompactConversationRowProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -54,6 +56,7 @@ export function CompactConversationRow({
         createdAt={createdAt}
         executionStatus={executionStatus}
         workspaceWorkingDir={workspaceWorkingDir}
+        showRepositoryMetadata={showRepositoryMetadata}
       />
     </div>
   );

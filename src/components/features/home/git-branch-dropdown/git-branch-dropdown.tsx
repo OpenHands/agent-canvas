@@ -192,7 +192,6 @@ export function GitBranchDropdown({
           )}
         </div>
         <input
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getInputProps({
             disabled: disabled || !repository,
             placeholder,

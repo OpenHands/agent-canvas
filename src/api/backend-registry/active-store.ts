@@ -131,7 +131,7 @@ export function subscribeActiveBackend(listener: Listener): () => void {
 }
 
 /** Test-only: re-read storage and clear listeners. */
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
 export function __resetActiveStoreForTests(): void {
   snapshot = computeSnapshot(readStoredBackends(), readStoredActiveBackend());
   listeners.clear();

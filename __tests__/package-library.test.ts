@@ -11,6 +11,7 @@ const packageJson = JSON.parse(
   module: string;
   types: string;
   exports: Record<string, unknown>;
+  scripts: Record<string, string>;
 };
 
 describe("package library metadata", () => {
@@ -46,5 +47,20 @@ describe("package library metadata", () => {
         require: "./dist/i18n/index.cjs",
       },
     });
+  });
+
+  it("uses static frontend launchers for user-facing dev commands", () => {
+    expect(packageJson.scripts.dev).toBe("npm run dev:docker");
+    expect(packageJson.scripts["dev:dangerously-dockerless"]).toBe(
+      "node --env-file-if-exists=.env scripts/dev-static.mjs",
+    );
+    expect(packageJson.scripts["dev:static"]).toBeUndefined();
+    expect(packageJson.scripts["dev:docker"]).toContain(
+      "scripts/dev-docker.mjs",
+    );
+    expect(packageJson.scripts["dev:docker:dynamic"]).toContain("--dynamic");
+    expect(packageJson.scripts["dev:dangerously-dockerless:dynamic"]).toBe(
+      "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
+    );
   });
 });

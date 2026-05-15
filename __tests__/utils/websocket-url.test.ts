@@ -167,6 +167,22 @@ describe("websocket-url utilities", () => {
       expect(result).toBe("ws://localhost:3000/sockets/events/conv-123");
     });
 
+    it("should use ws for a remote HTTP page served by the local ingress", () => {
+      vi.stubGlobal("location", {
+        host: "spark-1874.tailae62af.ts.net:8000",
+        hostname: "spark-1874.tailae62af.ts.net",
+        protocol: "http:",
+      });
+
+      const result = buildWebSocketUrl(
+        "conv-123",
+        "http://localhost:8000/api/conversations/conv-123",
+      );
+      expect(result).toBe(
+        "ws://spark-1874.tailae62af.ts.net:8000/sockets/events/conv-123",
+      );
+    });
+
     it("should fallback to window.location.host for null URL", () => {
       const result = buildWebSocketUrl("conv-123", null);
       expect(result).toBe("wss://localhost:3001/sockets/events/conv-123");

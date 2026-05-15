@@ -1,3 +1,4 @@
+import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { constructRepositoryUrl, cn } from "#/utils/utils";
 import { Provider } from "#/types/settings";
@@ -40,8 +41,9 @@ export function GitControlBarRepoButton({
     ? constructRepositoryUrl(gitProvider, selectedRepository, providerHost)
     : undefined;
 
+  const showConnectRepoCta = !selectedRepository && !workspaceName;
   const buttonText =
-    selectedRepository || workspaceName || t(I18nKey.COMMON$NO_REPO_CONNECTED);
+    selectedRepository || workspaceName || t(I18nKey.COMMON$CONNECT_REPO);
 
   if (hasLinkableRepo) {
     return (
@@ -84,8 +86,17 @@ export function GitControlBarRepoButton({
           : "cursor-pointer hover:border-[#454545]",
       )}
     >
-      <div className="w-3 h-3 flex items-center justify-center flex-shrink-0">
-        <RepoForkedIcon width={12} height={12} color="white" />
+      <div className="w-3 h-3 flex items-center justify-center flex-shrink-0 text-white">
+        {showConnectRepoCta ? (
+          <FolderOpen
+            className="w-3 h-3"
+            strokeWidth={2}
+            aria-hidden
+            data-testid="git-control-bar-connect-repo-icon"
+          />
+        ) : (
+          <RepoForkedIcon width={12} height={12} color="white" />
+        )}
       </div>
       <div
         className="font-normal text-white text-sm leading-5 truncate flex-1 min-w-0"

@@ -1,9 +1,8 @@
-import {
-  screen,
-  waitFor,
-  waitForElementToBeRemoved,
-  within,
-} from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nextProvider } from "react-i18next";
+import i18n from "i18next";
+import { NavigationProvider } from "#/context/navigation-context";
 import {
   afterEach,
   beforeAll,
@@ -33,7 +32,7 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
 
 // Helper to create complete AppConversation mock data
 // Default timestamps use "now" so conversations are considered recent and
-// rendered eagerly by the panel (which hides items older than ~1h by default).
+// rendered eagerly by the panel.
 const createMockConversation = (
   overrides: Partial<AppConversation> = {},
 ): AppConversation => ({
@@ -140,6 +139,102 @@ describe("ConversationPanel", () => {
     expect(emptyState).toBeInTheDocument();
   });
 
+  it("does not flash the loading skeleton during a background refetch when the list is empty", async () => {
+    // Arrange: first call (initial load) resolves with an empty list.
+    // Second call (the background refetch) is kept in-flight so we can
+    // observe the UI while `isFetching` is true — the exact window in
+    // which the buggy `isFetching`-gated code flashed the skeleton.
+    let resolveRefetch:
+      | ((value: { items: AppConversation[]; next_page_id: null }) => void)
+      | undefined;
+    const searchConversationsSpy = vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    );
+    searchConversationsSpy
+      .mockResolvedValueOnce({ items: [], next_page_id: null })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefetch = resolve;
+          }),
+      );
+
+    // Use a QueryClient we can reach so we can trigger the background
+    // refetch directly. This drives the same code path as the hook's 10s
+    // `refetchInterval` (both flip `isFetching` to true while existing
+    // data stays in the cache) without paying the cost of fake-timer
+    // gymnastics around React Query's async state machine.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const PanelRouterStub = createRoutesStub([
+      {
+        Component: () => <ConversationPanel />,
+        path: "/",
+      },
+      {
+        Component: () => null,
+        path: "/conversations/:conversationId",
+      },
+    ]);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <NavigationProvider
+            value={{
+              currentPath: "/",
+              conversationId: "test-conversation-id",
+              isNavigating: false,
+              navigate: vi.fn(),
+            }}
+          >
+            <PanelRouterStub />
+          </NavigationProvider>
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+
+    // Wait for the initial fetch to settle into the empty state.
+    expect(
+      await screen.findByText("CONVERSATION$NO_CONVERSATIONS"),
+    ).toBeInTheDocument();
+
+    // Act: trigger a background refetch directly on the cached query.
+    // This drives the same code path as the hook's 10s `refetchInterval`
+    // (both flip `isFetching` to true while the cached data stays
+    // intact). The second mock holds the request in-flight so the
+    // in-flight UI is observable. We fire-and-forget the fetch because
+    // awaiting it would hang on the held promise.
+    const conversationsQuery = queryClient
+      .getQueryCache()
+      .getAll()
+      .find(
+        (query) =>
+          query.queryKey[0] === "user" && query.queryKey[1] === "conversations",
+      );
+    if (!conversationsQuery) {
+      throw new Error("conversations query was not registered");
+    }
+    await act(async () => {
+      void conversationsQuery.fetch();
+      // Yield once so React Query can dispatch the in-flight state.
+      await Promise.resolve();
+    });
+
+    // Assert: the background refetch fired, but the skeleton did not
+    // flicker back in.
+    await waitFor(() => {
+      expect(searchConversationsSpy).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      screen.queryByTestId("conversation-card-skeleton"),
+    ).not.toBeInTheDocument();
+
+    // Settle the in-flight refetch so React Query can clean up.
+    resolveRefetch?.({ items: [], next_page_id: null });
+  });
+
   it("should not display the empty state when there are no conversations and the panel is compact", async () => {
     const searchConversationsSpy = vi.spyOn(
       AgentServerConversationService,
@@ -163,17 +258,59 @@ describe("ConversationPanel", () => {
 
     renderWithProviders(<CompactRouterStub />);
 
-    const skeletons = await screen.findAllByTestId(
-      "conversation-card-skeleton",
-    );
-    await waitForElementToBeRemoved(skeletons);
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("conversation-card-skeleton-compact"),
+      ).not.toBeInTheDocument();
+    });
 
     expect(
       screen.queryByText("CONVERSATION$NO_CONVERSATIONS"),
     ).not.toBeInTheDocument();
   });
 
-  it("should handle an error when fetching conversations", async () => {
+  it("hides closed conversations in compact mode", async () => {
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [
+        createMockConversation({
+          id: "running",
+          title: "Running Conversation",
+          execution_status: ExecutionStatus.RUNNING,
+        }),
+        createMockConversation({
+          id: "closed",
+          title: "Closed Conversation",
+          execution_status: ExecutionStatus.PAUSED,
+        }),
+      ],
+      next_page_id: null,
+    });
+
+    const CompactRouterStub = createRoutesStub([
+      {
+        Component: () => <ConversationPanel compact />,
+        path: "/",
+      },
+      {
+        Component: () => null,
+        path: "/conversations/:conversationId",
+      },
+    ]);
+
+    renderWithProviders(<CompactRouterStub />);
+
+    expect(
+      await screen.findByLabelText("Running Conversation"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Closed Conversation"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should not render fetch errors in the conversation panel", async () => {
     const searchConversationsSpy = vi.spyOn(
       AgentServerConversationService,
       "searchConversations",
@@ -184,8 +321,11 @@ describe("ConversationPanel", () => {
 
     renderConversationPanel();
 
-    const error = await screen.findByText("Failed to fetch conversations");
-    expect(error).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Failed to fetch conversations"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("should cancel deleting a conversation", async () => {
@@ -332,7 +472,7 @@ describe("ConversationPanel", () => {
     expect(newCards).toHaveLength(3);
   });
 
-  it("keeps invalid timestamps recent and only shows load more after expanding older conversations", async () => {
+  it("keeps invalid timestamps recent and shows older conversations by default", async () => {
     const now = Date.now();
     const minutesAgo = (minutes: number) =>
       new Date(now - minutes * 60 * 1000).toISOString();
@@ -385,17 +525,11 @@ describe("ConversationPanel", () => {
     expect(await screen.findByText("Recent Conversation")).toBeInTheDocument();
     expect(screen.getByText("Invalid Timestamp")).toBeInTheDocument();
     expect(screen.getByText("Missing Timestamp")).toBeInTheDocument();
-    expect(screen.queryByText("Older Conversation")).not.toBeInTheDocument();
+    expect(screen.getByText("Older Conversation")).toBeInTheDocument();
     expect(
       screen.getByTestId("older-conversations-summary"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("load-more-conversations"),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByTestId("toggle-older-conversations"));
-
-    expect(await screen.findByText("Older Conversation")).toBeInTheDocument();
+    expect(screen.getByTestId("load-more-conversations")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("load-more-conversations"));
 
@@ -1014,7 +1148,7 @@ describe("ConversationPanel", () => {
     const olderIso = () =>
       new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
-    it("hides conversations older than 1h behind a summary line", async () => {
+    it("shows conversations older than 1h and includes a summary line", async () => {
       vi.spyOn(
         AgentServerConversationService,
         "searchConversations",
@@ -1042,18 +1176,16 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       const cards = await screen.findAllByTestId("conversation-card");
-      expect(cards).toHaveLength(1);
-      expect(within(cards[0]).getByText("Recent")).toBeInTheDocument();
+      expect(cards).toHaveLength(3);
+      expect(screen.getByText("Recent")).toBeInTheDocument();
+      expect(screen.getByText("Old 1")).toBeInTheDocument();
+      expect(screen.getByText("Old 2")).toBeInTheDocument();
 
       const summary = screen.getByTestId("older-conversations-summary");
-      expect(summary).toHaveTextContent("2");
-      expect(summary).toHaveTextContent("CONVERSATION$N_OLDER_CONVERSATIONS");
+      expect(summary).toHaveTextContent("SIDEBAR$CONVERSATIONS");
       expect(
-        within(summary).getByTestId("toggle-older-conversations"),
-      ).toHaveTextContent("CONVERSATION$SHOW_ALL");
-      expect(
-        within(summary).getByTestId("delete-older-conversations"),
-      ).toHaveTextContent("CONVERSATION$DELETE_ALL");
+        within(summary).getByTestId("older-conversations-filter-toggle"),
+      ).toBeInTheDocument();
     });
 
     it("does not render the summary when no conversations are older than 1h", async () => {
@@ -1084,7 +1216,7 @@ describe("ConversationPanel", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("toggles older conversations visibility via the show-all link", async () => {
+    it("toggles older conversations visibility via the filter dropdown", async () => {
       const user = userEvent.setup();
       vi.spyOn(
         AgentServerConversationService,
@@ -1108,19 +1240,67 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       let cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(2);
+
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      let toggle = await screen.findByTestId("toggle-older-conversations");
+      expect(toggle).toHaveTextContent("CONVERSATION$HIDE");
+      await user.click(toggle);
+
+      cards = await screen.findAllByTestId("conversation-card");
       expect(cards).toHaveLength(1);
 
-      const toggle = screen.getByTestId("toggle-older-conversations");
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      toggle = await screen.findByTestId("toggle-older-conversations");
       expect(toggle).toHaveTextContent("CONVERSATION$SHOW_ALL");
       await user.click(toggle);
-
       cards = await screen.findAllByTestId("conversation-card");
       expect(cards).toHaveLength(2);
-      expect(toggle).toHaveTextContent("CONVERSATION$HIDE");
+    });
 
-      await user.click(toggle);
-      cards = await screen.findAllByTestId("conversation-card");
-      expect(cards).toHaveLength(1);
+    it("keeps repo/branch metadata hidden by default and toggles it from the filter dropdown", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "recent",
+            title: "Recent",
+            updated_at: recentIso(),
+          }),
+          createMockConversation({
+            id: "old-with-repo",
+            title: "Old With Repo",
+            updated_at: olderIso(),
+            selected_repository: "openhands/agent-canvas",
+            selected_branch: "main",
+            git_provider: "github",
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+      await screen.findByText("Old With Repo");
+
+      expect(
+        screen.queryByTestId("conversation-card-selected-repository"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("conversation-card-selected-branch"),
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      await user.click(screen.getByTestId("toggle-repo-branch-metadata"));
+
+      expect(
+        await screen.findByTestId("conversation-card-selected-repository"),
+      ).toHaveTextContent("openhands/agent-canvas");
+      expect(
+        await screen.findByTestId("conversation-card-selected-branch"),
+      ).toHaveTextContent("main");
     });
 
     it("delete-all confirms then deletes every older conversation", async () => {
@@ -1156,6 +1336,7 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
       await screen.findAllByTestId("conversation-card");
 
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
       await user.click(screen.getByTestId("delete-older-conversations"));
 
       const confirmButton = await screen.findByRole("button", {
@@ -1209,6 +1390,7 @@ describe("ConversationPanel", () => {
       });
       await screen.findAllByTestId("conversation-card");
 
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
       await user.click(screen.getByTestId("delete-older-conversations"));
       await user.click(await screen.findByRole("button", { name: /confirm/i }));
 
@@ -1260,6 +1442,7 @@ describe("ConversationPanel", () => {
       });
       await screen.findAllByTestId("conversation-card");
 
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
       await user.click(screen.getByTestId("delete-older-conversations"));
       await user.click(await screen.findByRole("button", { name: /confirm/i }));
 
@@ -1345,7 +1528,7 @@ describe("ConversationPanel", () => {
       expect(loadMore).toHaveTextContent("CONVERSATION$LOAD_MORE");
     });
 
-    it("hides the load-more link while older conversations are hidden", async () => {
+    it("hides the load-more link after older conversations are hidden from the filter dropdown", async () => {
       vi.spyOn(
         AgentServerConversationService,
         "searchConversations",
@@ -1368,13 +1551,21 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       await screen.findAllByTestId("conversation-card");
-      // Older conversations are present and collapsed → no load-more.
+      // Older conversations are visible by default, so load-more is visible.
+      expect(screen.getByTestId("load-more-conversations")).toBeInTheDocument();
+
+      // Hide older conversations via the filter dropdown.
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      await user.click(screen.getByTestId("toggle-older-conversations"));
+
+      // Older conversations are hidden → no load-more.
       expect(
         screen.queryByTestId("load-more-conversations"),
       ).not.toBeInTheDocument();
 
-      // After expanding "show all", the link reappears.
-      const user = userEvent.setup();
+      // After showing older conversations again, the link reappears.
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
       await user.click(screen.getByTestId("toggle-older-conversations"));
       expect(
         await screen.findByTestId("load-more-conversations"),

@@ -94,6 +94,18 @@ async function setupMocks(page: Page, showConsentModal = false) {
     });
   });
 
+  await page.route("**/api/bash/execute_bash_command", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        command: "",
+        exit_code: 0,
+        output: "",
+      }),
+    });
+  });
+
   // Mock file APIs to prevent proxy errors
   await page.route("**/api/file/**", async (route) => {
     await route.fulfill({

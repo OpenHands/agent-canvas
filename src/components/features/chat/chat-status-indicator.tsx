@@ -15,7 +15,7 @@ function ChatStatusIndicator({
     <div
       data-testid="chat-status-indicator"
       className={cn(
-        "min-h-[31px] w-full max-w-full rounded-[100px] px-4 py-1.5 bg-[#25272D] flex items-center pl-2",
+        "w-full max-w-full rounded-[100px] p-1 bg-[#25272D] flex items-center gap-1",
       )}
     >
       <AnimatePresence mode="wait">
@@ -28,7 +28,7 @@ function ChatStatusIndicator({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <DebugStackframeDot className="w-6 h-6" color={statusColor} />
+          <DebugStackframeDot className="w-4 h-4" color={statusColor} />
         </motion.span>
 
         {/* Text */}
@@ -38,7 +38,7 @@ function ChatStatusIndicator({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 2 }}
           transition={{ duration: 0.3 }}
-          className="font-normal text-[11px] leading-[16px] normal-case break-words whitespace-normal"
+          className="pr-1.5 font-normal text-[11px] leading-[16px] normal-case break-words whitespace-normal"
         >
           {status}
         </motion.span>

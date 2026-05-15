@@ -173,7 +173,6 @@ export function WorkspaceDropdown({
           <RepoIcon width={16} height={16} />
         </div>
         <input
-          // eslint-disable-next-line react/jsx-props-no-spreading
           {...getInputProps({
             disabled,
             placeholder: placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER),

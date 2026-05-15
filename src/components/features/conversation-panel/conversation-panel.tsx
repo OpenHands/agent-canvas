@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { ListFilter } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
@@ -18,10 +19,12 @@ import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
+import { isExecutionActive } from "#/utils/status";
 import { ConversationCard } from "./conversation-card/conversation-card";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
 import { CompactConversationRow } from "./compact-conversation-row";
+import { cn } from "#/utils/utils";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -36,6 +39,8 @@ interface ConversationPanelProps {
 const noop = () => {};
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const capitalizeLabel = (label: string) =>
+  label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : label;
 
 const partitionByCutoff = <T extends { updated_at: string }>(
   items: readonly T[],
@@ -82,7 +87,15 @@ export function ConversationPanel({
   const [confirmDeleteOlderVisible, setConfirmDeleteOlderVisible] =
     React.useState(false);
   const [showOlderConversations, setShowOlderConversations] =
+    React.useState(true);
+  const [olderFilterMenuOpen, setOlderFilterMenuOpen] = React.useState(false);
+  const [showRepoBranchMetadata, setShowRepoBranchMetadata] =
     React.useState(false);
+  const [isListScrolled, setIsListScrolled] = React.useState(false);
+  const olderFilterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
+    setOlderFilterMenuOpen(false);
+  });
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [selectedConversationId, setSelectedConversationId] = React.useState<
     string | null
   >(null);
@@ -92,14 +105,8 @@ export function ConversationPanel({
     string | null
   >(null);
 
-  const {
-    data,
-    isFetching,
-    error,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = usePaginatedConversations();
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    usePaginatedConversations();
 
   // Fetch in-progress start tasks
   const { data: startTasks } = useStartTasks();
@@ -111,6 +118,13 @@ export function ConversationPanel({
 
   const { recent: recentConversations, older: olderConversations } =
     React.useMemo(() => partitionByCutoff(conversations), [conversations]);
+  const compactVisibleConversations = React.useMemo(
+    () =>
+      recentConversations.filter((conversation) =>
+        isExecutionActive(conversation.execution_status),
+      ),
+    [recentConversations],
+  );
 
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
@@ -223,6 +237,7 @@ export function ConversationPanel({
             workspaceWorkingDir={conversation.workspace?.working_dir}
             isActive={conversation.id === currentConversationId}
             onClose={onClose}
+            showRepositoryMetadata={showRepoBranchMetadata}
           />
         );
       }
@@ -231,7 +246,7 @@ export function ConversationPanel({
           key={conversation.id}
           to={`/conversations/${conversation.id}`}
           onClick={onClose}
-          className="block"
+          className="block px-2 py-0.5"
         >
           <ConversationCard
             onDelete={() =>
@@ -257,6 +272,7 @@ export function ConversationPanel({
             }
             isActive={conversation.id === currentConversationId}
             workspaceWorkingDir={conversation.workspace?.working_dir}
+            showRepositoryMetadata={showRepoBranchMetadata}
           />
         </NavigationLink>
       );
@@ -269,6 +285,7 @@ export function ConversationPanel({
       handleStopConversation,
       onClose,
       openContextMenuId,
+      showRepoBranchMetadata,
     ],
   );
 
@@ -276,9 +293,14 @@ export function ConversationPanel({
   // child fills the panel and scrolls when its content overflows. Modals are
   // siblings of the scroll element and are `position: fixed`, so they don't
   // participate in the panel's scroll geometry.
-  const showInitialSkeleton = isFetching && conversations.length === 0;
+  // Gate on `isLoading` (true only during the first fetch with no cached
+  // data), not `isFetching` — the latter flips back to true on every 10s
+  // background refetch, causing the skeleton/empty-state to flicker when
+  // the list is empty.
+  const showInitialSkeleton = isLoading;
   const showEmptyState =
-    !isFetching && conversations.length === 0 && !startTasks?.length;
+    !isLoading && conversations.length === 0 && !startTasks?.length;
+  const showSummaryBar = !compact && olderConversations.length > 0;
 
   return (
     <div
@@ -286,18 +308,92 @@ export function ConversationPanel({
       data-testid="conversation-panel"
       className="w-full h-full flex flex-col"
     >
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar-always">
-        {showInitialSkeleton && (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <ConversationCardSkeleton key={index} />
-            ))}
-          </div>
-        )}
+      {showSummaryBar && (
+        <div
+          data-testid="older-conversations-summary"
+          className={cn(
+            "pl-4 pr-3 py-2 text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1",
+            isListScrolled && "border-b border-[#1f2228]",
+          )}
+        >
+          <span className="text-sm font-medium text-neutral-400">
+            {t(I18nKey.SIDEBAR$CONVERSATIONS)}
+          </span>
+          <div ref={olderFilterMenuRef} className="relative ml-auto">
+            <button
+              type="button"
+              data-testid="older-conversations-filter-toggle"
+              aria-label="Older conversations filter"
+              aria-expanded={olderFilterMenuOpen}
+              onClick={() => setOlderFilterMenuOpen((open) => !open)}
+              className="inline-flex items-center justify-center rounded-md p-1 text-neutral-400 hover:text-white hover:bg-[#1f1f1f99] transition-colors"
+            >
+              <ListFilter size={14} />
+            </button>
 
-        {error && (
-          <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-danger">{error.message}</p>
+            {olderFilterMenuOpen && (
+              <div
+                data-testid="older-conversations-filter-menu"
+                className="absolute right-0 top-full mt-0 z-50 min-w-[168px] overflow-hidden rounded-[6px] bg-tertiary px-1 py-[6px] text-white context-menu-box-shadow"
+              >
+                <button
+                  type="button"
+                  data-testid="toggle-older-conversations"
+                  onClick={() => {
+                    setShowOlderConversations((value) => !value);
+                    setOlderFilterMenuOpen(false);
+                  }}
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                >
+                  {showOlderConversations
+                    ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
+                    : capitalizeLabel(t(I18nKey.CONVERSATION$SHOW_ALL))}
+                </button>
+                <button
+                  type="button"
+                  data-testid="delete-older-conversations"
+                  onClick={() => {
+                    setConfirmDeleteOlderVisible(true);
+                    setOlderFilterMenuOpen(false);
+                  }}
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-danger hover:bg-[#5C5D62]"
+                >
+                  {capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
+                </button>
+                <div className="my-1 h-[1px] w-full bg-[#5C5D62]" />
+                <button
+                  type="button"
+                  data-testid="toggle-repo-branch-metadata"
+                  onClick={() => {
+                    setShowRepoBranchMetadata((value) => !value);
+                    setOlderFilterMenuOpen(false);
+                  }}
+                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[#5C5D62]"
+                >
+                  {showRepoBranchMetadata
+                    ? "Hide Repo/Branch"
+                    : "Show Repo/Branch"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div
+        ref={scrollContainerRef}
+        onScroll={(event) => {
+          setIsListScrolled(event.currentTarget.scrollTop > 0);
+        }}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always"
+      >
+        {showInitialSkeleton && (
+          <div>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className={compact ? "" : "block px-2 py-0.5"}>
+                <ConversationCardSkeleton compact={compact} />
+              </div>
+            ))}
           </div>
         )}
 
@@ -324,43 +420,12 @@ export function ConversationPanel({
           ))}
 
         {/* Recent conversations (last_updated within the past hour) */}
-        {recentConversations.map(renderConversationCard)}
-
-        {/* Older conversations: full summary in expanded mode, just a flat
-            list of dots in compact mode (the summary text can't fit). */}
-        {!compact && olderConversations.length > 0 && (
-          <div
-            data-testid="older-conversations-summary"
-            className="px-3 py-2 text-xs text-neutral-400 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-[#1f2228]"
-          >
-            <span>
-              {olderConversations.length}{" "}
-              {t(I18nKey.CONVERSATION$N_OLDER_CONVERSATIONS)}:
-            </span>
-            <button
-              type="button"
-              data-testid="toggle-older-conversations"
-              onClick={() => setShowOlderConversations((value) => !value)}
-              className="underline hover:text-white"
-            >
-              {showOlderConversations
-                ? t(I18nKey.CONVERSATION$HIDE)
-                : t(I18nKey.CONVERSATION$SHOW_ALL)}
-            </button>
-            <button
-              type="button"
-              data-testid="delete-older-conversations"
-              onClick={() => setConfirmDeleteOlderVisible(true)}
-              className="underline hover:text-danger"
-            >
-              {t(I18nKey.CONVERSATION$DELETE_ALL)}
-            </button>
-          </div>
+        {(compact ? compactVisibleConversations : recentConversations).map(
+          renderConversationCard,
         )}
 
-        {/* Older conversations only render when explicitly expanded via
-            "Show all". Compact mode mirrors expanded's default — recent
-            only — so the icon rail isn't packed with archive cruft. */}
+        {/* Older conversations render by default; users can hide them from the
+            summary's filter menu. Compact mode still omits the summary row. */}
         {!compact &&
           showOlderConversations &&
           olderConversations.map(renderConversationCard)}
@@ -378,7 +443,7 @@ export function ConversationPanel({
                 type="button"
                 data-testid="load-more-conversations"
                 onClick={() => fetchNextPage()}
-                className="text-xs text-neutral-400 underline hover:text-white"
+                className="text-xs text-neutral-400 hover:text-white"
               >
                 {t(I18nKey.CONVERSATION$LOAD_MORE)}
               </button>

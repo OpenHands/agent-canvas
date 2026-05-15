@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
@@ -66,10 +66,20 @@ describe("SkillsSettingsScreen", () => {
 
     renderSkillsSettingsScreen();
 
-    const badge = await screen.findByTestId(
-      "skills-settings-description-badge",
+    const description = await screen.findByTestId(
+      "skills-settings-description",
     );
-    expect(badge).toHaveTextContent("SETTINGS$SKILLS_DESCRIPTION");
+    expect(description).toHaveTextContent("SETTINGS$SKILLS_PAGE_DESCRIPTION");
+    expect(screen.getByText("NAV$EXTENSIONS")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-extensions-/skills")).toHaveTextContent(
+      "Skills",
+    );
+    expect(screen.getByTestId("sidebar-extensions-/plugins")).toHaveTextContent(
+      "Plugins",
+    );
+    expect(screen.getByTestId("sidebar-extensions-/mcp")).toHaveTextContent(
+      "MCP Servers",
+    );
   });
 
   it("surfaces the YAML description and a friendly type label instead of the raw source path", async () => {
@@ -97,7 +107,6 @@ describe("SkillsSettingsScreen", () => {
   });
 
   it("filters skills by name, description, or trigger via the search input", async () => {
-    const user = userEvent.setup();
     vi.spyOn(SkillsService, "getSkills").mockResolvedValue([
       buildSkill({ name: "deno", description: "Deno runtime helper" }),
       buildSkill({
@@ -111,7 +120,9 @@ describe("SkillsSettingsScreen", () => {
     renderSkillsSettingsScreen();
     await screen.findByTestId("skill-card-deno");
 
-    await user.type(screen.getByTestId("skills-search-input"), "preview");
+    fireEvent.change(screen.getByTestId("skills-search-input"), {
+      target: { value: "preview" },
+    });
 
     expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
     expect(screen.getByTestId("skill-card-vercel")).toBeInTheDocument();
@@ -166,16 +177,15 @@ describe("SkillsSettingsScreen", () => {
   });
 
   it("shows an empty-state message when no skills match the current filters", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([buildSkill()]);
+    const skill = buildSkill();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
 
     renderSkillsSettingsScreen();
-    await screen.findByTestId("skill-card-deno");
+    await screen.findByTestId(`skill-card-${skill.name}`);
 
-    await user.type(
-      screen.getByTestId("skills-search-input"),
-      "no-such-skill-xyz",
-    );
+    fireEvent.change(screen.getByTestId("skills-search-input"), {
+      target: { value: "no-such-skill-xyz" },
+    });
 
     expect(screen.getByTestId("skills-no-match")).toBeInTheDocument();
   });
