@@ -23,6 +23,19 @@ async function prepareApp() {
     await worker.start({
       onUnhandledRequest: "bypass",
     });
+
+    // Expose a lightweight test helper so Playwright snapshot specs can
+    // trigger React Query refetches without a full page.reload() — a reload
+    // would re-initialize MSW handler state (e.g. the automations Map) back
+    // to its seed values, making it impossible to test empty-list UI states.
+    const { queryClient } = await import("./query-client-config");
+    (
+      window as Window &
+        typeof globalThis & {
+          __TEST_INVALIDATE_QUERIES__: (queryKey?: unknown[]) => void;
+        }
+    ).__TEST_INVALIDATE_QUERIES__ = (queryKey?: unknown[]) =>
+      void queryClient.invalidateQueries(queryKey ? { queryKey } : undefined);
   }
 }
 

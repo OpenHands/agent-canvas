@@ -4,6 +4,10 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-settings/sdk-section-page";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 interface SetupLlmStepProps {
   onBack: () => void;
@@ -35,14 +39,63 @@ const ONBOARDING_LLM_OVERRIDES = {
  */
 export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
+  const { backend } = useActiveBackend();
+  const isLocalBackend = backend.kind === "local";
+  const saveProfile = useSaveLlmProfile();
+  const activateProfile = useActivateLlmProfile();
   const [saveControl, setSaveControl] =
     React.useState<SdkSectionSaveControl | null>(null);
+  const [isFinalizing, setIsFinalizing] = React.useState(false);
+
+  // On local backends the LLM profiles list is the user-facing source of
+  // truth; without this step the form save only updates agent_settings and
+  // the new config never shows up in the profiles list ("ghost profile").
+  const persistAsProfile = React.useCallback(async () => {
+    if (!isLocalBackend || !saveControl) return;
+    const values = saveControl.values;
+    const model =
+      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
+    if (!model) return;
+    const apiKey =
+      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
+    const baseUrl =
+      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+
+    const name = deriveProfileNameFromModel(model);
+    const llmConfig: { model: string; api_key?: string; base_url?: string } = {
+      model,
+    };
+    if (apiKey) llmConfig.api_key = apiKey;
+    if (baseUrl) llmConfig.base_url = baseUrl;
+
+    try {
+      await saveProfile.mutateAsync({
+        name,
+        request: { llm: llmConfig, include_secrets: true },
+      });
+      await activateProfile.mutateAsync(name);
+    } catch (error) {
+      // Best-effort: the agent_settings save already succeeded, so the
+      // user is not blocked from completing onboarding.
+      console.error("Failed to persist onboarding LLM as profile:", error);
+    }
+  }, [isLocalBackend, saveControl, saveProfile, activateProfile]);
+
+  const handleSaveSuccess = React.useCallback(async () => {
+    setIsFinalizing(true);
+    try {
+      await persistAsProfile();
+    } finally {
+      setIsFinalizing(false);
+      onNext();
+    }
+  }, [persistAsProfile, onNext]);
 
   const handleNext = () => {
     if (saveControl?.isDirty) {
       saveControl.save();
-      // `onSaveSuccess` (wired to `onNext` below) will advance once
-      // the mutation resolves successfully.
+      // `onSaveSuccess` (wired to `handleSaveSuccess` below) will advance
+      // once the mutation resolves successfully.
       return;
     }
     onNext();
@@ -70,7 +123,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           embedded
           hideSaveButton
           initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
-          onSaveSuccess={onNext}
+          onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
       </div>
@@ -88,7 +141,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           testId="onboarding-llm-next"
           type="button"
           variant="primary"
-          isDisabled={saveControl?.isSaving ?? false}
+          isDisabled={(saveControl?.isSaving ?? false) || isFinalizing}
           onClick={handleNext}
         >
           {t(I18nKey.ONBOARDING$NEXT)}

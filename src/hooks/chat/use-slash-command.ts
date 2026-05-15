@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { Skill } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { Microagent } from "#/api/open-hands.types";
-import { BUILT_IN_COMMANDS } from "#/utils/constants";
+import { BUILT_IN_COMMANDS, MODEL_COMMAND } from "#/utils/constants";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 
 export type SlashCommandSkill = Skill | Microagent;
 
@@ -12,6 +13,8 @@ export interface SlashCommandItem {
   /** The slash command string, e.g. "/random-number" */
   command: string;
 }
+
+type SlashCompletionKind = "command" | "model-profile";
 
 /** Get the cursor's character offset within a contentEditable element. */
 function getCursorOffset(element: HTMLElement): number {
@@ -34,19 +37,27 @@ export const useSlashCommand = (
 ) => {
   const { data: skills, isLoading: isSkillsLoading } = useConversationSkills();
   const isCloud = useActiveBackend().backend.kind === "cloud";
+  const { data: profilesData, isLoading: isProfilesLoading } = useLlmProfiles({
+    enabled: !isCloud,
+  });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
+  const [completionKind, setCompletionKind] =
+    useState<SlashCompletionKind>("command");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Build slash command items from built-in commands + skills:
   // - Built-in commands (like /new) are included for V1 conversations
   // - /new is cloud-only — local backends don't surface it
+  // - /model is local-only — cloud backends don't have profiles
   // - Skills with explicit "/" triggers use those triggers
   // - AgentSkills without "/" triggers get a derived "/<name>" command
   const slashItems = useMemo(() => {
-    const items: SlashCommandItem[] = BUILT_IN_COMMANDS.filter(
-      (cmd) => isCloud || cmd.command !== "/new",
-    );
+    const items: SlashCommandItem[] = BUILT_IN_COMMANDS.filter((cmd) => {
+      if (cmd.command === "/new") return isCloud;
+      if (cmd.command === MODEL_COMMAND) return !isCloud;
+      return true;
+    });
 
     // Wait for skills to finish initial load so all commands appear together
     if (isSkillsLoading) return items;
@@ -69,16 +80,38 @@ export const useSlashCommand = (
     return items;
   }, [skills, isSkillsLoading, isCloud]);
 
+  const modelProfileItems = useMemo<SlashCommandItem[]>(() => {
+    if (isCloud) return [];
+
+    return (profilesData?.profiles ?? []).map((profile) => {
+      const command = `${MODEL_COMMAND} ${profile.name}`;
+      return {
+        command,
+        skill: {
+          name: profile.name,
+          type: "agentskills",
+          content: profile.model
+            ? `Switch to ${profile.model}`
+            : "Switch to this LLM profile",
+          triggers: [command],
+        },
+      };
+    });
+  }, [profilesData?.profiles, isCloud]);
+
   // Filter items based on user input after "/"
   const filteredItems = useMemo(() => {
-    if (!filterText) return slashItems;
+    const sourceItems =
+      completionKind === "model-profile" ? modelProfileItems : slashItems;
+    if (!filterText) return sourceItems;
     const lower = filterText.toLowerCase();
-    return slashItems.filter(
+    return sourceItems.filter(
       (item) =>
-        item.command.slice(1).toLowerCase().includes(lower) ||
-        item.skill.name.toLowerCase().includes(lower),
+        item.command.toLowerCase().includes(lower) ||
+        item.skill.name.toLowerCase().includes(lower) ||
+        item.skill.content?.toLowerCase().includes(lower),
     );
-  }, [slashItems, filterText]);
+  }, [completionKind, modelProfileItems, slashItems, filterText]);
 
   // Keep refs in sync so handleSlashKeyDown always reads the latest values,
   // avoiding stale closures from React's batched state updates.
@@ -102,6 +135,7 @@ export const useSlashCommand = (
   // Returns the filter text (characters after "/") and the range of the
   // slash word within the full input text, or null if no slash word found.
   const getSlashText = useCallback((): {
+    kind: SlashCompletionKind;
     text: string;
     start: number;
     end: number;
@@ -116,6 +150,23 @@ export const useSlashCommand = (
     if (cursor < 0) return null;
 
     const textBeforeCursor = text.slice(0, cursor);
+
+    const modelMatch = textBeforeCursor.match(/(^|\s)(\/model(?:\s+\S*)?)$/);
+    if (modelMatch) {
+      const modelCommand = modelMatch[2];
+      const start = textBeforeCursor.length - modelCommand.length;
+      const afterCursor = text.slice(cursor);
+      const trailing = afterCursor.match(/^\S*/);
+      const end = cursor + (trailing ? trailing[0].length : 0);
+
+      return {
+        kind: "model-profile",
+        text: modelCommand.replace(/^\/model(?:\s+)?/, ""),
+        start,
+        end,
+      };
+    }
+
     // Match a "/" preceded by whitespace or at position 0, followed by
     // non-whitespace characters, ending right at the cursor.
     const match = textBeforeCursor.match(/(^|\s)(\/\S*)$/);
@@ -130,22 +181,34 @@ export const useSlashCommand = (
     const trailing = afterCursor.match(/^\S*/);
     const end = cursor + (trailing ? trailing[0].length : 0);
 
-    return { text: slashWord.slice(1), start, end }; // strip leading "/"
+    return { kind: "command", text: slashWord.slice(1), start, end }; // strip leading "/"
   }, [chatInputRef]);
 
   // Update the menu state based on current input
   const updateSlashMenu = useCallback(() => {
     const result = getSlashText();
-    if (result !== null && slashItems.length > 0) {
+    const hasItems =
+      result?.kind === "model-profile"
+        ? modelProfileItems.length > 0 || isProfilesLoading
+        : slashItems.length > 0;
+
+    if (result !== null && hasItems) {
+      setCompletionKind(result.kind);
       setFilterText(result.text);
       slashRangeRef.current = { start: result.start, end: result.end };
       setIsMenuOpen(true);
     } else {
       setIsMenuOpen(false);
       setFilterText("");
+      setCompletionKind("command");
       slashRangeRef.current = null;
     }
-  }, [getSlashText, slashItems.length]);
+  }, [
+    getSlashText,
+    isProfilesLoading,
+    modelProfileItems.length,
+    slashItems.length,
+  ]);
 
   // Select an item and replace only the slash word with the command
   const selectItem = useCallback(
@@ -189,6 +252,7 @@ export const useSlashCommand = (
 
       setIsMenuOpen(false);
       setFilterText("");
+      setCompletionKind("command");
       setSelectedIndex(0);
       slashRangeRef.current = null;
 

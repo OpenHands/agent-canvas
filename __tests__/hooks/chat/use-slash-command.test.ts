@@ -1,5 +1,5 @@
 import React from "react";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSlashCommand } from "#/hooks/chat/use-slash-command";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -19,8 +19,27 @@ const mockConversation = vi.hoisted(() => ({
   data: undefined as { conversation_version?: "V0" | "V1" } | undefined,
 }));
 
+const mockLlmProfiles = vi.hoisted(() => ({
+  data: undefined as
+    | {
+        profiles: Array<{
+          name: string;
+          model: string | null;
+          base_url: string | null;
+          api_key_set: boolean;
+        }>;
+        active_profile: string | null;
+      }
+    | undefined,
+  isLoading: false,
+}));
+
 vi.mock("#/hooks/query/use-conversation-skills", () => ({
   useConversationSkills: () => mockSkills,
+}));
+
+vi.mock("#/hooks/query/use-llm-profiles", () => ({
+  useLlmProfiles: () => mockLlmProfiles,
 }));
 
 vi.mock("#/hooks/query/use-active-conversation", () => ({
@@ -39,6 +58,22 @@ function makeChatInputRef() {
   return { current: document.createElement("div") };
 }
 
+function setInputText(element: HTMLDivElement, text: string) {
+  element.textContent = text;
+  element.innerText = text;
+  document.body.appendChild(element);
+
+  const textNode = element.firstChild;
+  if (!textNode) return;
+
+  const range = document.createRange();
+  const selection = window.getSelection();
+  range.setStart(textNode, text.length);
+  range.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 const cloudBackend: Backend = {
   id: "prod",
   name: "Production",
@@ -52,11 +87,14 @@ describe("useSlashCommand", () => {
     vi.clearAllMocks();
     mockSkills.data = undefined;
     mockSkills.isLoading = false;
+    mockLlmProfiles.data = undefined;
+    mockLlmProfiles.isLoading = false;
     mockConversation.data = undefined;
   });
 
   afterEach(() => {
-    window.localStorage.clear();
+    document.body.innerHTML = "";
+    window.localStorage.clear?.();
     __resetActiveStoreForTests();
   });
 
@@ -92,5 +130,73 @@ describe("useSlashCommand", () => {
     // Assert
     const commands = result.current.filteredItems.map((i) => i.command);
     expect(commands).toContain("/new");
+  });
+
+  it("suggests saved LLM profiles after /model on a local backend", () => {
+    // The active backend store is reset before each test, which restores the default local backend.
+
+    mockSkills.data = [];
+    mockLlmProfiles.data = {
+      profiles: [
+        {
+          name: "haiku",
+          model: "anthropic/claude-haiku-4-5",
+          base_url: null,
+          api_key_set: true,
+        },
+        {
+          name: "gpt",
+          model: "openai/gpt-5.1",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: "haiku",
+    };
+
+    const ref = makeChatInputRef();
+    setInputText(ref.current, "/model");
+
+    const { result } = renderHook(() => useSlashCommand(ref));
+
+    act(() => result.current.updateSlashMenu());
+
+    expect(result.current.isMenuOpen).toBe(true);
+    expect(result.current.filteredItems.map((i) => i.command)).toEqual([
+      "/model haiku",
+      "/model gpt",
+    ]);
+  });
+
+  it("filters saved LLM profile suggestions by profile name or model", () => {
+    mockSkills.data = [];
+    mockLlmProfiles.data = {
+      profiles: [
+        {
+          name: "haiku",
+          model: "anthropic/claude-haiku-4-5",
+          base_url: null,
+          api_key_set: true,
+        },
+        {
+          name: "gpt",
+          model: "openai/gpt-5.1",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: null,
+    };
+
+    const ref = makeChatInputRef();
+    setInputText(ref.current, "/model claude");
+
+    const { result } = renderHook(() => useSlashCommand(ref));
+
+    act(() => result.current.updateSlashMenu());
+
+    expect(result.current.filteredItems.map((i) => i.command)).toEqual([
+      "/model haiku",
+    ]);
   });
 });

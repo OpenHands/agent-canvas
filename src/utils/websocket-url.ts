@@ -65,18 +65,18 @@ export function buildHttpBaseUrl(
   return `${protocol}//${baseHost}${pathPrefix}`;
 }
 
-/**
- * Determines if a hostname is a local/loopback address
- */
-function isLocalHost(hostname: string): boolean {
-  // Strip brackets from IPv6 addresses (e.g., "[::1]" -> "::1")
-  const normalizedHostname = hostname.replace(/^\[|\]$/g, "");
-  return (
-    normalizedHostname === "localhost" ||
-    normalizedHostname === "127.0.0.1" ||
-    normalizedHostname === "::1" ||
-    normalizedHostname.endsWith(".localhost")
-  );
+function getConversationUrlProtocol(
+  conversationUrl: string | null | undefined,
+): string | null {
+  if (!conversationUrl || conversationUrl.startsWith("/")) {
+    return null;
+  }
+
+  try {
+    return new URL(conversationUrl).protocol;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -100,19 +100,15 @@ export function buildWebSocketUrl(
   // The path prefix (e.g., /runtime/55313) is needed for proxy deployments
   // Note: Query params should be passed via the useWebSocket hook options
   //
-  // Protocol selection:
-  // - Use wss:// when the page is served over HTTPS
-  // - Use wss:// for external (non-localhost) hosts even when page is HTTP,
-  //   because Safari blocks insecure ws:// connections to external domains
-  // - Use ws:// only for localhost connections when page is HTTP
-  //
-  // Extract hostname, handling IPv6 addresses like [::1]:8080
-  const wsHostname = baseHost.startsWith("[")
-    ? baseHost.slice(0, baseHost.indexOf("]") + 1) // IPv6: "[::1]"
-    : baseHost.split(":")[0]; // IPv4/hostname: "localhost" or "example.com"
-  const isExternalHost = !isLocalHost(wsHostname);
+  // Protocol selection follows the actual HTTP access path. A page served
+  // over HTTPS must use WSS, but an HTTP page that reaches a remote dev ingress
+  // over plain HTTP (for example a Tailscale hostname) must use WS; forcing WSS
+  // sends a TLS handshake to the HTTP-only ingress and Node reports it as a
+  // malformed HTTP method.
   const pageIsSecure = window.location.protocol === "https:";
-  const protocol = pageIsSecure || isExternalHost ? "wss:" : "ws:";
+  const targetIsSecure =
+    getConversationUrlProtocol(conversationUrl) === "https:";
+  const protocol = pageIsSecure || targetIsSecure ? "wss:" : "ws:";
 
   return `${protocol}//${baseHost}${pathPrefix}/sockets/events/${conversationId}`;
 }

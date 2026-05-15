@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVE_BACKEND_STORAGE_KEY,
   BACKENDS_STORAGE_KEY,
@@ -11,6 +11,7 @@ import type { Backend } from "#/api/backend-registry/types";
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllEnvs();
 });
 
 describe("backend-registry storage", () => {
@@ -89,6 +90,57 @@ describe("backend-registry storage", () => {
     expect(readStoredBackends()).toEqual([
       { id: "ok", name: "x", host: "y", apiKey: "z", kind: "local" },
     ]);
+  });
+
+  it("fills a missing API key on the default Local backend from env defaults", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: window.location.origin,
+          apiKey: "",
+          kind: "local",
+        },
+      ]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY)!)[0],
+    ).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+  });
+
+  it("does not fill the default Local backend API key after its host is edited", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: "http://127.0.0.1:9999",
+          apiKey: "",
+          kind: "local",
+        },
+      ]),
+    );
+
+    expect(readStoredBackends()[0]).toMatchObject({
+      id: "default-local",
+      host: "http://127.0.0.1:9999",
+      apiKey: "",
+    });
   });
 
   it("round-trips active selection with orgId", () => {

@@ -112,13 +112,13 @@ describe("ProfileNameInput", () => {
     expect(rule).toHaveClass("text-gray-400");
   });
 
-  it("shows rule text in gray for whitespace-only value", () => {
+  it("shows rule text in red for whitespace-only value", () => {
     render(
       <ProfileNameInput value="   " onChange={() => {}} ruleTestId="rule-text" />,
     );
 
     const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
+    expect(rule).toHaveClass("text-red-400");
   });
 
   it("validates names with special characters as invalid", () => {
