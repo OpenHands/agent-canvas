@@ -14,7 +14,10 @@ on:
         default: false
 
 concurrency:
-  group: snapshot-tests-${{ github.workflow }}-${{ github.ref }}
+  # One run at a time per PR — a new commit cancels the in-flight run.
+  # Falls back to github.ref for main pushes and manual dispatch so those
+  # don't interfere with each other or with PR runs.
+  group: snapshot-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
