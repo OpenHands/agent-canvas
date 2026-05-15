@@ -315,7 +315,7 @@ export function Sidebar() {
               aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
               onClick={() => navigate("/settings")}
               className={cn(
-                "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
+                "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors cursor-pointer",
                 currentPath.startsWith("/settings")
                   ? "bg-[#1f1f1f99] text-white font-medium"
                   : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",

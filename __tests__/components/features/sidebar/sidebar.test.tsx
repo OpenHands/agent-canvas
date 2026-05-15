@@ -285,6 +285,19 @@ describe("Sidebar", () => {
     expect(navigate).toHaveBeenCalledWith("/settings");
   });
 
+  it("opts the collapsed Settings button into cursor-pointer so hovering it shows the pointer affordance", () => {
+    // Arrange: render with the sidebar collapsed so the Settings icon is mounted.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    // Act: locate the Settings button the user hovers.
+    const settingsButton = screen.getByTestId("collapsed-settings-link");
+
+    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
+    // the button must opt back into cursor-pointer for the hover affordance.
+    expect(settingsButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
+  });
+
   it("opens the backend popover when hovering the collapsed backend icon", async () => {
     window.localStorage.setItem("openhands-sidebar-collapsed", "true");
     renderSidebar("/conversations");
