@@ -292,13 +292,23 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
       `These snapshots have no baseline on main and will become the new baseline once this PR merges.`,
       "",
     );
-    for (const { relPath } of newSnapshots) {
-      lines.push(`### ${formatRelPath(relPath)}`, "");
-      if (commitSha) {
+    if (commitSha) {
+      for (const { relPath } of newSnapshots) {
         const prArtifactRelPath = join(PR_ARTIFACT_DIR, "new", relPath);
         const actualUrl = rawUrl(commitSha, prArtifactRelPath);
-        lines.push(`![new snapshot](${actualUrl})`, "");
+        lines.push(
+          `### ${formatRelPath(relPath)}`,
+          "",
+          `![new snapshot](${actualUrl})`,
+          "",
+        );
       }
+    } else {
+      lines.push(
+        `_Images could not be embedded (fork PR or push failed). ` +
+          `Download the [\`snapshot-test-results\` artifact](https://github.com/${REPO}/actions/runs/${RUN_ID}) for screenshots._`,
+        "",
+      );
     }
     lines.push(`</details>`, "");
   }
@@ -345,10 +355,20 @@ async function githubFetch(path, options = {}) {
     const text = await res.text();
     throw new Error(`GitHub API ${res.status} for ${url}: ${text}`);
   }
+  // DELETE returns 204 No Content
+  if (res.status === 204) return null;
   return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
 }
 
-async function upsertPRComment(body) {
+/**
+ * Delete any existing snapshot report comment and post a fresh one.
+ *
+ * We always delete-then-create (rather than edit in-place) so that the new
+ * comment always references the current run's image URLs. Editing would
+ * leave stale raw.githubusercontent.com URLs pointing at the previous run's
+ * .pr/snapshots/<old_run_id>/ images.
+ */
+async function postFreshComment(body) {
   const comments = await githubFetch(
     `/repos/${OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments`,
   );
@@ -357,16 +377,16 @@ async function upsertPRComment(body) {
   if (existing) {
     await githubFetch(
       `/repos/${OWNER}/${REPO_NAME}/issues/comments/${existing.id}`,
-      { method: "PATCH", body: JSON.stringify({ body }) },
+      { method: "DELETE" },
     );
-    console.log(`Updated existing PR comment ${existing.id}`);
-  } else {
-    await githubFetch(
-      `/repos/${OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments`,
-      { method: "POST", body: JSON.stringify({ body }) },
-    );
-    console.log("Posted new PR comment");
+    console.log(`Deleted stale PR comment ${existing.id}`);
   }
+
+  await githubFetch(
+    `/repos/${OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments`,
+    { method: "POST", body: JSON.stringify({ body }) },
+  );
+  console.log("Posted fresh PR comment");
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -394,7 +414,7 @@ async function main() {
   }
 
   const body = buildComment(changed, newSnapshots, unchanged, commitSha);
-  await upsertPRComment(body);
+  await postFreshComment(body);
   console.log("Done.");
 }
 
