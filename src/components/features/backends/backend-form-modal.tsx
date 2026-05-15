@@ -30,11 +30,63 @@ function inferKindFromHost(host: string): BackendKind {
   return "local";
 }
 
+/**
+ * Returns true for hostnames that represent a local / private-network address.
+ * Used by normalizeHost to choose http:// instead of https://.
+ */
+function isLocalAddress(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  // Named loopback / any-address
+  if (h === "localhost" || h === "::1" || h === "0.0.0.0") return true;
+  // 127.x.x.x loopback range
+  if (/^127\./.test(h)) return true;
+  // RFC 1918 private ranges
+  if (/^10\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  // mDNS / Bonjour (.local)
+  if (h.endsWith(".local")) return true;
+  // Single-label hostnames (no dots) are treated as local network names.
+  if (!h.includes(".")) return true;
+  return false;
+}
+
 function normalizeHost(host: string): string {
   const trimmed = host.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
+  // Already has an explicit scheme — respect it.
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
+  // Bare host (optionally with port): pick http for local, https for cloud.
+  const hostname = trimmed.split(":")[0];
+  const scheme = isLocalAddress(hostname) ? "http" : "https";
+  return `${scheme}://${trimmed}`;
+}
+
+/**
+ * Returns true when `host` represents a reachable backend URL.
+ *
+ * Rules (applied in order):
+ *   1. Must be non-empty after trimming.
+ *   2. Must contain no whitespace — spaces can never appear in a host/port.
+ *   3. After normalisation (bare hosts get `https://` prepended), must parse
+ *      as a valid http or https URL with a non-empty hostname.
+ */
+function isValidHostUrl(host: string): boolean {
+  const trimmed = host.trim();
+  if (!trimmed) return false;
+  // Spaces anywhere in the input are an immediate rejection.
+  if (/\s/.test(trimmed)) return false;
+  const normalized = normalizeHost(trimmed);
+  if (!normalized) return false;
+  try {
+    const url = new URL(normalized);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -206,7 +258,7 @@ export function BackendForm({
 
   const canSubmit =
     name.trim().length > 0 &&
-    host.trim().length > 0 &&
+    isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {

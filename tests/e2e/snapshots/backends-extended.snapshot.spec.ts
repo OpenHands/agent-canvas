@@ -33,10 +33,11 @@ import type { Backend } from "../../../src/api/backend-registry/types";
  *   then updates the selector trigger label once the overlay fades.
  *
  * Flow 7 — Malformed / empty host blocks submission
- *   A host with only whitespace keeps the Submit button disabled; the
- *   form accepts (without validating) a syntactically invalid URL for a
- *   local backend and enables Save — demonstrating that URL-format
- *   validation is currently deferred to the connection-test phase.
+ *   A host with only whitespace keeps the Submit button disabled.
+ *   A syntactically invalid URL (e.g. containing spaces or a garbled
+ *   scheme) also keeps Save disabled — isValidHostUrl() rejects it at
+ *   the form level before normalisation can make it look superficially
+ *   valid to the URL constructor.
  *
  * Flow 8 — Cancel add form dismisses without saving
  *   Clicking Cancel closes the modal without altering the backend list.
@@ -483,7 +484,7 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
 
   // ── Flow 7: Malformed/empty host ──────────────────────────────────────
 
-  test("Flow 7 — empty host keeps Save disabled; non-empty host enables Save for local (no URL validation)", async ({
+  test("Flow 7 — empty or invalid host keeps Save disabled; valid host enables Save", async ({
     page,
   }) => {
     await setupPage(page);
@@ -493,7 +494,7 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     await page.getByTestId("add-backend-kind-local").click();
     await page.getByTestId("add-backend-name").fill("Bad URL Test");
 
-    // Whitespace-only host → host.trim() === "" → disabled.
+    // Whitespace-only host → isValidHostUrl returns false → disabled.
     await page.getByTestId("add-backend-host").fill("   ");
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
@@ -501,13 +502,12 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
       SNAP_OPTS,
     );
 
-    // A syntactically invalid URL string still passes the frontend guard
-    // (canSubmit only checks non-empty). The Save button becomes enabled —
-    // URL validation is deferred to the connection-test phase.
+    // A syntactically invalid URL (spaces + garbled scheme) is rejected by
+    // isValidHostUrl() — Save stays disabled.
     await page.getByTestId("add-backend-host").fill("not://:::a valid url!!!");
-    await expect(page.getByTestId("add-backend-submit")).not.toBeDisabled();
+    await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
-      "backend-add-invalid-url-accepted.png",
+      "backend-add-invalid-url-disabled.png",
       SNAP_OPTS,
     );
   });
