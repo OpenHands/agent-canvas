@@ -26,7 +26,7 @@ jobs:
   snapshot-tests:
     name: Visual Snapshot Tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -63,6 +63,55 @@ jobs:
           retention-days: 90
 
       # ── PR BRANCH: download main baselines, compare, report diffs ────────
+
+      # Wait for the snapshot-tests.yml run triggered by the *current* HEAD
+      # commit of main to complete before we download baselines.  Without this,
+      # a PR job that starts while main's baseline upload is still in flight
+      # downloads the previous (stale) artifact and produces false failures.
+      #
+      # We resolve main's HEAD SHA first so we wait only for that specific run —
+      # not for an older in-progress run from a different commit.
+      - name: Wait for main baseline workflow if in progress
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" \
+            --jq '.object.sha' 2>/dev/null || echo "")
+          if [ -z "$MAIN_SHA" ]; then
+            echo "Could not resolve main HEAD SHA — skipping wait."
+            exit 0
+          fi
+          echo "main HEAD SHA: $MAIN_SHA"
+
+          # Find the snapshot-tests.yml run triggered by exactly this commit.
+          RUN_ID=$(gh api \
+            "/repos/${{ github.repository }}/actions/workflows/snapshot-tests.yml/runs?branch=main&per_page=20" \
+            --jq "[.workflow_runs[] | select(.head_sha == \"$MAIN_SHA\")] | .[0].id // empty")
+
+          if [ -z "$RUN_ID" ]; then
+            echo "No snapshot-tests run found for main SHA $MAIN_SHA — proceeding."
+            exit 0
+          fi
+
+          STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status')
+          echo "Run $RUN_ID status: $STATUS"
+          if [ "$STATUS" = "completed" ]; then
+            echo "Already completed — proceeding."
+            exit 0
+          fi
+
+          echo "Waiting for run $RUN_ID to complete (max 10 min)..."
+          for i in $(seq 1 60); do
+            sleep 10
+            STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status')
+            echo "  [$((i * 10))s] status: $STATUS"
+            if [ "$STATUS" = "completed" ]; then
+              echo "Main baseline workflow completed."
+              exit 0
+            fi
+          done
+          echo "::warning::Timed out waiting for main baseline workflow — proceeding with latest available artifact."
 
       - name: Find latest snapshot-baselines artifact from main
         if: github.event_name == 'pull_request'
