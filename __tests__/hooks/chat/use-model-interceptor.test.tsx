@@ -14,7 +14,10 @@ import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useEventStore } from "#/stores/use-event-store";
 import { useModelStore } from "#/stores/model-store";
 
-const mockSwitchAndLog = vi.hoisted(() => vi.fn());
+const { mockSwitchAndLog, mockDisplayErrorToast } = vi.hoisted(() => ({
+  mockSwitchAndLog: vi.fn(),
+  mockDisplayErrorToast: vi.fn(),
+}));
 
 vi.mock("#/hooks/mutation/use-switch-llm-profile-and-log", () => ({
   useSwitchLlmProfileAndLog: () => mockSwitchAndLog,
@@ -24,6 +27,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displayErrorToast: mockDisplayErrorToast,
 }));
 
 const CONVERSATION_ID = "conv-1";
@@ -68,6 +75,7 @@ const makeWrapper = () => {
 describe("useModelInterceptor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
       profiles: [],
       active_profile: null,
@@ -154,5 +162,24 @@ describe("useModelInterceptor", () => {
 
     expect(onSubmit).toHaveBeenCalledWith("/model haiku");
     expect(mockSwitchAndLog).not.toHaveBeenCalled();
+  });
+
+  it("shows an error toast when listing profiles fails", async () => {
+    vi.mocked(ProfilesService.listProfiles).mockRejectedValue(
+      new Error("Network error"),
+    );
+    const onSubmit = vi.fn();
+
+    const { result } = renderHook(
+      () => useModelInterceptor(CONVERSATION_ID, onSubmit),
+      { wrapper: makeWrapper() },
+    );
+
+    act(() => result.current("/model"));
+
+    await waitFor(() => {
+      expect(mockDisplayErrorToast).toHaveBeenCalledWith("Network error");
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

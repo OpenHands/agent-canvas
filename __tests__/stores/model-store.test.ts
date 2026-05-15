@@ -49,4 +49,18 @@ describe("model store", () => {
       }),
     ]);
   });
+
+  it("clears entries for one conversation or all conversations", () => {
+    useModelStore.getState().show(CONV_A, "event-1", [profile]);
+    useModelStore.getState().recordSwitch(CONV_B, "event-2", "gpt");
+
+    useModelStore.getState().clear(CONV_A);
+
+    expect(entriesFor(CONV_A)).toEqual([]);
+    expect(entriesFor(CONV_B)).toHaveLength(1);
+
+    useModelStore.getState().clearAll();
+
+    expect(entriesFor(CONV_B)).toEqual([]);
+  });
 });

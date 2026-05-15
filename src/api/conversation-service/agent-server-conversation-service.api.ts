@@ -571,6 +571,12 @@ class AgentServerConversationService {
     conversationId: string,
     profileName: string,
   ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "LLM profile switching is only supported for local agent-server backends.",
+      );
+    }
+
     await new ConversationClient(getAgentServerClientOptions()).switchProfile(
       conversationId,
       profileName,

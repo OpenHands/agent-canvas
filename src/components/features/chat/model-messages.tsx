@@ -1,5 +1,5 @@
 import React from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { Trans } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useModelStore } from "#/stores/model-store";
 import { I18nKey } from "#/i18n/declaration";
@@ -18,6 +18,8 @@ function ProfileRow({ profile }: ProfileRowProps) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={`Toggle details for ${profile.name}`}
         className="w-full py-1.5 px-2 text-left flex items-center gap-2 hover:bg-neutral-700 transition-colors cursor-pointer"
       >
         <span className="text-neutral-300">
@@ -54,7 +56,6 @@ export function ModelMessages({
   conversationId,
   anchorEventId,
 }: ModelMessagesProps) {
-  const { t } = useTranslation();
   const entriesById = useModelStore((s) => s.entriesByConversation);
   const allEntries = conversationId ? (entriesById[conversationId] ?? []) : [];
   const entries = allEntries.filter((e) => e.anchorEventId === anchorEventId);
@@ -92,17 +93,20 @@ export function ModelMessages({
             key={entry.id}
             title={
               <span>
-                {isEmpty
-                  ? t(I18nKey.MODEL$NO_SAVED_PROFILES)
-                  : t(I18nKey.MODEL$AVAILABLE_PROFILES, {
-                      count: entry.profiles.length,
-                    })}
+                {isEmpty ? (
+                  <Trans i18nKey={I18nKey.MODEL$NO_SAVED_PROFILES} />
+                ) : (
+                  <Trans
+                    i18nKey={I18nKey.MODEL$AVAILABLE_PROFILES}
+                    values={{ count: entry.profiles.length }}
+                  />
+                )}
               </span>
             }
             details={
               isEmpty ? (
                 <span className="text-neutral-300 text-sm px-2 py-1 block">
-                  {t(I18nKey.MODEL$NO_PROFILES_HINT)}
+                  <Trans i18nKey={I18nKey.MODEL$NO_PROFILES_HINT} />
                 </span>
               ) : (
                 <div className="flex flex-col gap-1 mt-1">

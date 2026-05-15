@@ -2,10 +2,12 @@ import { shouldRenderEvent } from "#/components/conversation-events/chat/event-c
 import { useEventStore } from "#/stores/use-event-store";
 
 export const getLastRenderableEventId = (): string | null => {
-  const last = useEventStore
-    .getState()
-    .uiEvents.filter(shouldRenderEvent)
-    .at(-1);
+  const { uiEvents } = useEventStore.getState();
 
-  return last && "id" in last ? String(last.id) : null;
+  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
+    const event = uiEvents[index];
+    if (shouldRenderEvent(event)) return String(event.id);
+  }
+
+  return null;
 };

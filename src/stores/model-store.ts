@@ -30,6 +30,8 @@ interface ModelActions {
     anchorEventId: string | null,
     profileName: string,
   ) => void;
+  clear: (conversationId: string) => void;
+  clearAll: () => void;
 }
 
 type ModelStore = ModelState & ModelActions;
@@ -69,6 +71,13 @@ export const useModelStore = create<ModelStore>()(
             switchedTo: profileName,
           }),
         ),
+      clear: (conversationId) =>
+        set((s) => {
+          const entriesByConversation = { ...s.entriesByConversation };
+          delete entriesByConversation[conversationId];
+          return { entriesByConversation };
+        }),
+      clearAll: () => set({ entriesByConversation: {} }),
     }),
     { name: "ModelStore" },
   ),

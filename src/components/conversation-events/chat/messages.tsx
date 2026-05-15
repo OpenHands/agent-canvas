@@ -107,7 +107,6 @@ export const Messages: React.FC<MessagesProps> = React.memo(
           // prominent summary.
           const isFinalized = itemIndex < renderedItems.length - 1;
           const groupKey = item.events[0]?.id ?? `group-${item.startIndex}`;
-          const lastEventId = item.events.at(-1)?.id;
           return (
             <React.Fragment key={`group-${groupKey}`}>
               <EventGroup
@@ -119,7 +118,11 @@ export const Messages: React.FC<MessagesProps> = React.memo(
                   renderEventMessage(event, item.startIndex + offset, true),
                 )}
               </EventGroup>
-              {maybeRenderModelMessages(lastEventId)}
+              {item.events.map((event) => (
+                <React.Fragment key={`model-${event.id}`}>
+                  {maybeRenderModelMessages(event.id)}
+                </React.Fragment>
+              ))}
             </React.Fragment>
           );
         })}

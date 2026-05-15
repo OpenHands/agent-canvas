@@ -133,6 +133,8 @@ describe("useSlashCommand", () => {
   });
 
   it("suggests saved LLM profiles after /model on a local backend", () => {
+    // The active backend store is reset before each test, which restores the default local backend.
+
     mockSkills.data = [];
     mockLlmProfiles.data = {
       profiles: [

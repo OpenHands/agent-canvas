@@ -26,19 +26,15 @@ const profiles: ProfileInfo[] = [
 
 describe("ModelMessages", () => {
   beforeEach(() => {
-    i18n.addResourceBundle(
-      "en",
-      "translation",
-      {
-        MODEL$AVAILABLE_PROFILES: "Available profiles ({{count}})",
-        MODEL$NO_SAVED_PROFILES: "No saved profiles",
-        MODEL$NO_PROFILES_HINT:
-          "Use the LLM settings page to create a profile, then run /model <name> to switch.",
-        MODEL$SWITCHED_TO_PROFILE: "ℹ️ Switched to profile <cmd>{{name}}</cmd>",
-      },
-      true,
-      true,
-    );
+    const resources = {
+      MODEL$AVAILABLE_PROFILES: "Available profiles ({{count}})",
+      MODEL$NO_SAVED_PROFILES: "No saved profiles",
+      MODEL$NO_PROFILES_HINT:
+        "Use the LLM settings page to create a profile, then run /model <name> to switch.",
+      MODEL$SWITCHED_TO_PROFILE: "ℹ️ Switched to profile <cmd>{{name}}</cmd>",
+    };
+    i18n.addResourceBundle("en", "translation", resources, true, true);
+    i18n.addResourceBundle("en", "openhands", resources, true, true);
     useModelStore.setState({ entriesByConversation: {} });
   });
 
@@ -55,16 +51,20 @@ describe("ModelMessages", () => {
     );
 
     expect(screen.getByTestId("model-messages")).toBeInTheDocument();
-    expect(screen.getByText("MODEL$AVAILABLE_PROFILES")).toBeInTheDocument();
+    expect(screen.getByText("Available profiles (1)")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Expand" }));
 
-    expect(screen.getByRole("button", { name: "haiku" })).toBeInTheDocument();
+    const profileToggle = screen.getByRole("button", {
+      name: "Toggle details for haiku",
+    });
+    expect(profileToggle).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.queryByRole("button", { name: "gpt" }),
+      screen.queryByRole("button", { name: "Toggle details for gpt" }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "haiku" }));
+    await user.click(profileToggle);
+    expect(profileToggle).toHaveAttribute("aria-expanded", "true");
 
     expect(
       screen.getByText(/model:\s+anthropic\/claude-haiku-4-5/),
@@ -82,8 +82,12 @@ describe("ModelMessages", () => {
       <ModelMessages conversationId={CONVERSATION_ID} anchorEventId={null} />,
     );
 
-    expect(screen.getByText("MODEL$NO_SAVED_PROFILES")).toBeInTheDocument();
-    expect(screen.getByText("MODEL$NO_PROFILES_HINT")).toBeInTheDocument();
+    expect(screen.getByText("No saved profiles")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Use the LLM settings page to create a profile, then run /model <name> to switch.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders switch confirmations for the matching anchor", () => {

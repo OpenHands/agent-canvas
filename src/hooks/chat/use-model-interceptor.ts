@@ -53,6 +53,10 @@ export const useModelInterceptor = (
       // Imperative fetch through the query cache so the result lands on the
       // same key `useLlmProfiles` reads. `staleTime: 0` forces a fresh fetch
       // each time the user types /model.
+      // Multiple rapid /model submissions intentionally append multiple chat
+      // entries, matching normal command history behavior rather than replacing
+      // earlier results.
+
       queryClient
         .fetchQuery({
           queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
