@@ -151,7 +151,20 @@ function publishImages(changed, newSnapshots) {
   const hasImages = changed.length > 0 || newSnapshots.length > 0;
   if (!hasImages) return null;
 
-  // Stage images
+  // Remove images from any previous run BEFORE copying new ones.
+  // git rm removes tracked files from disk; copying first then removing would
+  // delete the freshly written files and leave the directory empty.
+  try {
+    execSync(
+      `git config user.name "github-actions[bot]" && ` +
+        `git config user.email "github-actions[bot]@users.noreply.github.com"`,
+    );
+    execSync(`git rm -rf --ignore-unmatch "${PR_ARTIFACT_DIR}"`);
+  } catch {
+    // No previous images to remove — that's fine.
+  }
+
+  // Copy new images (directory is now clear of stale tracked files)
   for (const { relPath, currentFile, baselineFile, diffFile } of changed) {
     const dest = join(PR_ARTIFACT_DIR, "changed", relPath);
     copyFile(currentFile, dest.replace(".png", "-actual.png"));
@@ -168,13 +181,6 @@ function publishImages(changed, newSnapshots) {
 
   // Commit and push
   try {
-    execSync(
-      `git config user.name "github-actions[bot]" && ` +
-        `git config user.email "github-actions[bot]@users.noreply.github.com"`,
-    );
-    // Remove images from any previous run before staging the new ones, so old
-    // directories don't accumulate across commits on the same PR branch.
-    execSync(`git rm -rf --ignore-unmatch "${PR_ARTIFACT_DIR}"`);
     execSync(`git add "${PR_ARTIFACT_DIR}"`);
     const diffOutput = execSync("git diff --staged --name-only")
       .toString()
@@ -422,7 +428,7 @@ async function main() {
 
   let commitSha = null;
   if (changed.length > 0 || newSnapshots.length > 0) {
-    console.log(`Publishing images to .pr/snapshots/${RUN_ID}/ on ${HEAD_REF}...`);
+    console.log(`Publishing images to ${PR_ARTIFACT_DIR}/ on ${HEAD_REF}...`);
     commitSha = publishImages(changed, newSnapshots);
     if (commitSha) {
       console.log(`  Images published at ${commitSha}`);
