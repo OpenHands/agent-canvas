@@ -12,7 +12,6 @@ interface GitControlBarRepoButtonProps {
   selectedRepository: string | null | undefined;
   gitProvider: Provider | null | undefined;
   workspaceName?: string | null;
-  emptyStateLabel?: string;
   onClick?: () => void;
   disabled?: boolean;
 }
@@ -21,7 +20,6 @@ export function GitControlBarRepoButton({
   selectedRepository,
   gitProvider,
   workspaceName,
-  emptyStateLabel,
   onClick,
   disabled,
 }: GitControlBarRepoButtonProps) {
@@ -45,10 +43,7 @@ export function GitControlBarRepoButton({
 
   const showConnectRepoCta = !selectedRepository && !workspaceName;
   const buttonText =
-    selectedRepository ||
-    workspaceName ||
-    emptyStateLabel ||
-    t(I18nKey.COMMON$CONNECT_REPO);
+    selectedRepository || workspaceName || t(I18nKey.COMMON$CONNECT_REPO);
 
   if (hasLinkableRepo) {
     return (
