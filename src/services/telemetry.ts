@@ -38,17 +38,17 @@ const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
 const POSTHOG_STAGING_KEY = POSTHOG_PROD_KEY;
 
-// VITE_APP_ENV is set at bundle time (e.g. VITE_APP_ENV=staging npm run build)
-// so the correct key is compiled in as a literal — no runtime branching.
-// Dev builds get null; PostHog never initialises outside real deployments.
+// VITE_APP_ENV must be explicitly set at bundle time ("production" | "staging").
+// If unset (local dev, CI, plain `npm run build`) the key is null and PostHog
+// never initialises, so local developers never send telemetry accidentally.
 // Library consumers can always override with VITE_POSTHOG_API_KEY.
 const POSTHOG_API_KEY: string | null =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
-  (import.meta.env.PROD
-    ? import.meta.env.VITE_APP_ENV === "staging"
+  (import.meta.env.VITE_APP_ENV === "production"
+    ? POSTHOG_PROD_KEY
+    : import.meta.env.VITE_APP_ENV === "staging"
       ? POSTHOG_STAGING_KEY
-      : POSTHOG_PROD_KEY
-    : null);
+      : null);
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.
