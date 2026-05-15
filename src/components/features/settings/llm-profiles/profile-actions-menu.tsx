@@ -128,7 +128,7 @@ export function ProfileActionsMenu({
   return (
     <div
       ref={menuRef}
-      className="absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-tertiary rounded-md shadow-lg py-1 min-w-[160px]"
+      className="absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-[var(--oh-border)] rounded-md shadow-lg py-1 min-w-[160px]"
       role="menu"
       aria-orientation="vertical"
       data-testid="profile-actions-menu"

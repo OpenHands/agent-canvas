@@ -22,7 +22,7 @@ export function TaskItem({ task }: TaskItemProps) {
       case "in_progress":
         return <CheckCircleHalfIcon className="w-4 h-4 text-[#ffffff]" />;
       case "done":
-        return <CheckCircleIcon className="w-4 h-4 text-[#A3A3A3]" />;
+        return <CheckCircleIcon className="w-4 h-4 text-[var(--oh-muted)]" />;
       default:
         return <CircleIcon className="w-4 h-4 text-[#ffffff]" />;
     }
@@ -40,13 +40,13 @@ export function TaskItem({ task }: TaskItemProps) {
         <Typography.Text
           className={cn(
             "text-[12px] text-white",
-            isDoneStatus && "text-[#A3A3A3]",
+            isDoneStatus && "text-[var(--oh-muted)]",
           )}
         >
           {task.title}
         </Typography.Text>
         {task.notes && (
-          <Typography.Text className="text-[10px] text-[#A3A3A3]">
+          <Typography.Text className="text-[10px] text-[var(--oh-muted)]">
             {t(I18nKey.TASK_TRACKING_OBSERVATION$TASK_NOTES)}: {task.notes}
           </Typography.Text>
         )}

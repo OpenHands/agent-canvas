@@ -1,6 +1,6 @@
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { ConversationCardTitle } from "./conversation-card-title";
-import { ConversationStatusDot } from "../../home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "../conversation-status-dot";
 
 interface ConversationCardHeaderProps {
   title: string;

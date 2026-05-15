@@ -1,4 +1,3 @@
-import { cn } from "#/utils/utils";
 import { ChatInterface } from "../../chat/chat-interface";
 
 interface ChatInterfaceWrapperProps {
@@ -6,16 +5,11 @@ interface ChatInterfaceWrapperProps {
 }
 
 export function ChatInterfaceWrapper({
-  isRightPanelShown,
+  isRightPanelShown: _isRightPanelShown,
 }: ChatInterfaceWrapperProps) {
   return (
     <div className="flex justify-center w-full h-full">
-      <div
-        className={cn(
-          "w-full min-w-0 transition-all duration-300 ease-in-out",
-          isRightPanelShown ? "max-w-4xl" : "max-w-6xl",
-        )}
-      >
+      <div className="w-full min-w-0 max-w-[800px] transition-all duration-300 ease-in-out">
         <ChatInterface />
       </div>
     </div>

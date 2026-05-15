@@ -113,4 +113,45 @@ test.describe("Sidebar Visual Snapshots", () => {
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
     );
   });
+
+  test("new conversation popover opens with no-workspace entry", async ({
+    page,
+  }) => {
+    // The `NewConversationButton` component (and its `new-conversation-button`
+    // testid) is temporarily removed from the sidebar. The component lives at
+    // src/components/features/conversation-panel/new-conversation-button-local.tsx
+    // but is commented out in sidebar.tsx (lines 241-244). This test documents
+    // the intended snapshot once the button is re-wired. Mark as fixme so CI
+    // stays green while the implementation is pending.
+    // eslint-disable-next-line playwright/no-skipped-test
+    test.fixme(
+      true,
+      "NewConversationButton is temporarily hidden from the sidebar (sidebar.tsx:241-244)",
+    );
+
+    await setupMocks(page);
+    await page.goto("/");
+    await dismissConsentModal(page);
+    await page.waitForLoadState("networkidle");
+
+    // Find and click the new-conversation trigger in the sidebar
+    const newConvButton = page.getByTestId("new-conversation-button");
+    await expect(newConvButton).toBeVisible({ timeout: 10_000 });
+    await newConvButton.click();
+
+    // Popover should appear
+    await expect(page.getByTestId("new-conversation-popover")).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // "No workspace" entry is always present (no workspaces stored in
+    // localStorage in this mock setup)
+    await expect(page.getByTestId("launch-no-workspace")).toBeVisible();
+
+    const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toHaveScreenshot(
+      "sidebar-new-conversation-popover.png",
+      { animations: "disabled", maxDiffPixelRatio: 0.01 },
+    );
+  });
 });

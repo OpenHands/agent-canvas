@@ -1,5 +1,6 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
+import { getStoredConversationMetadata } from "../conversation-metadata-store";
 import type {
   AppConversation,
   AppConversationPage,
@@ -7,6 +8,37 @@ import type {
   AppConversationStartTask,
 } from "../conversation-service/agent-server-conversation-service.types";
 import { callCloudProxy } from "./proxy";
+
+/**
+ * The cloud SaaS does not always echo `selected_repository` /
+ * `selected_branch` / `git_provider` back from
+ * `GET /api/v1/app-conversations` until its own background hydration
+ * completes. We persist the selection to local storage at connect time
+ * (see `AgentServerConversationService.updateConversationRepository`)
+ * and overlay it here so the chat-page git control bar reflects the
+ * connection immediately, instead of snapping back to the empty
+ * "Connect Repo" state on every refetch.
+ *
+ * Server values take precedence whenever they're populated; the
+ * local-storage fallback only fills in fields the server returned as
+ * `null`/`undefined`.
+ */
+function overlayStoredRepoSelection(
+  conversation: AppConversation | null,
+): AppConversation | null {
+  if (!conversation?.id) return conversation;
+  const stored = getStoredConversationMetadata(conversation.id);
+  if (!stored) return conversation;
+
+  return {
+    ...conversation,
+    selected_repository:
+      conversation.selected_repository ?? stored.selected_repository ?? null,
+    selected_branch:
+      conversation.selected_branch ?? stored.selected_branch ?? null,
+    git_provider: conversation.git_provider ?? stored.git_provider ?? null,
+  };
+}
 
 function getActiveCloudBackend(): Backend {
   const active = getActiveBackend().backend;
@@ -42,7 +74,9 @@ export async function searchCloudConversations(
   });
 
   return {
-    items: data?.items ?? [],
+    items: (data?.items ?? []).map(
+      (item) => overlayStoredRepoSelection(item) as AppConversation,
+    ),
     next_page_id: data?.next_page_id ?? null,
   };
 }
@@ -63,7 +97,7 @@ export async function batchGetCloudConversations(
     method: "GET",
     path: `/api/v1/app-conversations?${params.toString()}`,
   });
-  return data ?? [];
+  return (data ?? []).map(overlayStoredRepoSelection);
 }
 
 /**

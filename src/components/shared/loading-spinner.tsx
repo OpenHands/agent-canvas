@@ -24,7 +24,7 @@ export function LoadingSpinner({
     >
       <div
         className={cn(
-          "rounded-full border-4 border-[#525252] absolute",
+          "rounded-full border-4 border-[var(--oh-border)] absolute",
           sizeStyle,
           innerClassName,
         )}

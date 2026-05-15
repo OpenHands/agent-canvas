@@ -33,7 +33,7 @@ export function SettingsNavigation({
         data-testid="settings-navbar-desktop"
         className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2"
       >
-        <Typography.Text className="px-3 text-xs font-semibold uppercase tracking-wider text-[#A3A3A3]">
+        <Typography.Text className="px-3 text-xs font-semibold uppercase tracking-wider text-[var(--oh-muted)]">
           {t(I18nKey.SETTINGS$TITLE)}
         </Typography.Text>
         <div className="flex flex-col gap-0.5 pt-0.5">
@@ -60,7 +60,7 @@ export function SettingsNavigation({
         data-testid="settings-navbar"
         className={cn(
           "flex flex-col gap-6 transition-transform duration-300 ease-in-out",
-          "fixed inset-0 z-50 w-full bg-[#050505] p-4 transform md:hidden",
+          "fixed inset-0 z-50 w-full bg-[var(--oh-surface-deep)] p-4 transform md:hidden",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >

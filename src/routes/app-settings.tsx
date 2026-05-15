@@ -10,6 +10,7 @@ import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
 import { LanguageInput } from "#/components/features/settings/app-settings/language-input";
+import { ThemeInput } from "#/components/features/settings/app-settings/theme-input";
 import { handleCaptureConsent } from "#/utils/handle-capture-consent";
 import {
   displayErrorToast,
@@ -143,6 +144,8 @@ export function AppSettingsScreen() {
             onChange={checkIfLanguageInputHasChanged}
           />
 
+          <ThemeInput />
+
           <SettingsSwitch
             testId="enable-analytics-switch"
             name="enable-analytics-switch"
@@ -161,7 +164,7 @@ export function AppSettingsScreen() {
             {t(I18nKey.SETTINGS$SOUND_NOTIFICATIONS)}
           </SettingsSwitch>
 
-          <div className="border-t border-t-tertiary pt-6 mt-2">
+          <div className="border-t border-[var(--oh-border)] pt-6 mt-2">
             <h3 className="text-lg font-medium mb-2">
               {t(I18nKey.SETTINGS$GIT_SETTINGS)}
             </h3>

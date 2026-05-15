@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useConversationStore } from "#/stores/conversation-store";
 
 const defaultConversationState = {
-  selectedTab: "editor" as const,
-  rightPanelShown: true,
+  selectedTab: "files" as const,
   unpinnedTabs: [] as string[],
   conversationMode: "code" as const,
 };
 
-const mockGetConversationState = vi.fn((_id: string) => defaultConversationState);
+const mockGetConversationState = vi.fn(
+  (_id: string) => defaultConversationState,
+);
 const mockSetConversationState = vi.fn();
 
 vi.mock("#/utils/conversation-local-storage", () => ({
@@ -71,8 +72,7 @@ describe("conversation store", () => {
     it("sets conversationMode from getConversationState", () => {
       useConversationStore.setState({ conversationMode: "plan" });
       mockGetConversationState.mockReturnValue({
-        selectedTab: "editor",
-        rightPanelShown: true,
+        selectedTab: "files",
         unpinnedTabs: [],
         conversationMode: "code",
       });

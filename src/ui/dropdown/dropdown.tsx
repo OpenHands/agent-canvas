@@ -164,7 +164,7 @@ export function Dropdown({
       {!hideTrigger ? (
         <div
           className={cn(
-            "bg-tertiary border border-[#717888] rounded w-full p-2",
+            "bg-tertiary border border-[var(--oh-border-input)] rounded w-full p-2",
             "flex items-center gap-2",
             isDisabled && "cursor-not-allowed opacity-60",
             className,

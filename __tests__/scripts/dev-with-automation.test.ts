@@ -131,9 +131,8 @@ describe("buildConfig", () => {
   });
 
   /**
-   * Build an env that points the persisted session-api-key file at a
-   * fresh temp dir, so tests don't write to the user's real
-   * ~/.openhands/agent-canvas/session-api-key.txt.
+   * Build an env that points persisted dev API key files at a fresh temp dir,
+   * so tests don't write to the user's real ~/.openhands/agent-canvas files.
    */
   function envWithIsolatedKeyPath(
     extra: Record<string, string> = {},
@@ -142,6 +141,7 @@ describe("buildConfig", () => {
     keyDirs.push(dir);
     return {
       OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
+      OH_AUTOMATION_API_KEY_PATH: path.join(dir, "automation-api-key.txt"),
       ...extra,
     };
   }
@@ -273,11 +273,24 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("auto-generates random local API key by default", async () => {
+  it("uses a persisted generated local automation API key by default", async () => {
     const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // Default is a 64-char hex string (256-bit random key)
     expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("reuses the persisted local automation API key across restarts", async () => {
+    const env = envWithIsolatedKeyPath();
+    const first = await buildConfig({}, env);
+
+    // Simulate a fresh process invocation (the file on disk should be
+    // what makes the key stable).
+    resetPersistedSessionApiKeyCache();
+
+    const second = await buildConfig({}, env);
+
+    expect(second.localApiKey).toBe(first.localApiKey);
   });
 
   it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {

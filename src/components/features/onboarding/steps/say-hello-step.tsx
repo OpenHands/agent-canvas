@@ -62,7 +62,7 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         <h2 className="text-2xl font-semibold text-white">
           {t(I18nKey.ONBOARDING$HELLO_TITLE)}
         </h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-[var(--oh-muted)]">
           {t(I18nKey.ONBOARDING$HELLO_SUBTITLE)}
         </p>
       </header>
@@ -75,7 +75,7 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         onChange={(event) => setMessage(event.target.value)}
         placeholder={defaultMessage}
         disabled={isLaunching}
-        className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-gray-500 focus:border-primary focus:outline-none disabled:opacity-60"
+        className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
       />
 
       <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">

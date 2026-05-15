@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
+import { ModelMessages } from "./model-messages";
+import { useModelStore } from "#/stores/model-store";
 import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
@@ -202,6 +204,17 @@ export function ChatInterface() {
   const isHistoryLoading = !showConversationMessages;
   const isChatLoading = isHistoryLoading && !isTask;
 
+  // The empty-state ChatSuggestions overlay is absolutely positioned with
+  // `pointer-events-auto`, so it would block clicks on any /model entry
+  // rendered behind it. Once the user has run /model, the conversation is
+  // no longer logically empty — hide suggestions so the profile list is
+  // interactive.
+  const hasModelEntries = useModelStore((s) =>
+    conversationId
+      ? (s.entriesByConversation[conversationId]?.length ?? 0) > 0
+      : false,
+  );
+
   const handleSendMessage = async (
     content: string,
     originalImages: File[],
@@ -391,6 +404,7 @@ export function ChatInterface() {
         {!hasSubstantiveAgentActions &&
           !hasPendingUserMessages &&
           !userEventsExist &&
+          !hasModelEntries &&
           !isChatLoading && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
@@ -437,6 +451,10 @@ export function ChatInterface() {
            * keeps its own gate (`!userEventsExist && !hasSubstantiveAgentActions`)
            * so brand-new conversations show suggestions, not an empty chat.
            */}
+          {/* /model entries created before any event is rendered are
+              anchored to `null` and live above the message list. */}
+          <ModelMessages conversationId={conversationId} anchorEventId={null} />
+
           {showConversationMessages && renderableEvents.length > 0 && (
             <Messages
               messages={renderableEvents}
@@ -457,24 +475,6 @@ export function ChatInterface() {
 
         <div className="flex flex-col gap-[6px]">
           <BtwMessages conversationId={conversationId} />
-          <div className="flex justify-between relative">
-            <div className="flex items-end gap-1">
-              <ConfirmationModeEnabled />
-              {isStartingStatus && (
-                <ChatStatusIndicator
-                  statusColor={serverStatusColor}
-                  status={serverStatusText}
-                />
-              )}
-            </div>
-
-            <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0">
-              {curAgentState === AgentState.RUNNING && <TypingIndicator />}
-            </div>
-
-            {!hitBottom && <ScrollToBottomButton onClick={scrollDomToBottom} />}
-          </div>
-
           {errorMessage && (
             <ErrorMessageBanner
               message={errorMessage}
@@ -482,10 +482,38 @@ export function ChatInterface() {
             />
           )}
 
-          <InteractiveChatBox
-            onSubmit={handleSendMessage}
-            disabled={isNewConversationPending}
-          />
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-x-0 bottom-full mb-1 z-20">
+              <div className="flex justify-between relative">
+                <div className="flex items-end gap-1 pointer-events-auto">
+                  <ConfirmationModeEnabled />
+                  {isStartingStatus && (
+                    <ChatStatusIndicator
+                      statusColor={serverStatusColor}
+                      status={serverStatusText}
+                    />
+                  )}
+                </div>
+
+                {!hitBottom ? (
+                  <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0 pointer-events-auto">
+                    <ScrollToBottomButton onClick={scrollDomToBottom} />
+                  </div>
+                ) : (
+                  curAgentState === AgentState.RUNNING && (
+                    <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0 pointer-events-auto">
+                      <TypingIndicator />
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+
+            <InteractiveChatBox
+              onSubmit={handleSendMessage}
+              disabled={isNewConversationPending}
+            />
+          </div>
         </div>
       </div>
     </ScrollProvider>

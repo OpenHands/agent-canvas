@@ -16,6 +16,12 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import {
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
+
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
@@ -32,7 +38,7 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default agent-server version (released PyPI version)
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.22.0";
+const DEFAULT_AGENT_SERVER_VERSION = "1.22.1";
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**
@@ -62,7 +68,7 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
 
 // Cache so repeated lookups within a single process return the same key,
 // keyed by file path so tests can use temp paths in isolation.
-const persistedSessionApiKeyCache = new Map();
+const persistedApiKeyCache = new Map();
 
 /**
  * Load the persisted default session API key, generating + persisting one if
@@ -78,21 +84,37 @@ const persistedSessionApiKeyCache = new Map();
 export function getOrCreatePersistedSessionApiKey(
   filePath = DEFAULT_SESSION_API_KEY_PATH,
 ) {
-  const cached = persistedSessionApiKeyCache.get(filePath);
+  return getOrCreatePersistedApiKey(filePath, "session");
+}
+
+/**
+ * Load a persisted default API key, generating + persisting one if the file
+ * doesn't exist yet.
+ *
+ * Best-effort: if the file can't be written (e.g. read-only home dir), we
+ * fall back to an in-memory key for this process so dev still works -- the
+ * key just won't survive a restart.
+ *
+ * @param {string} filePath - Where to read/write the key.
+ * @param {string} label - Human-readable key label for warning messages.
+ * @returns {string} The (hex) API key.
+ */
+export function getOrCreatePersistedApiKey(filePath, label = "API") {
+  const cached = persistedApiKeyCache.get(filePath);
   if (cached) return cached;
 
   // Try to read an existing key.
   try {
     const existing = readFileSync(filePath, "utf8").trim();
     if (existing) {
-      persistedSessionApiKeyCache.set(filePath, existing);
+      persistedApiKeyCache.set(filePath, existing);
       return existing;
     }
     // File exists but is empty -- treat as if missing and regenerate.
   } catch (error) {
     if (!isEnoentError(error)) {
       console.warn(
-        `Could not read persisted session API key from ${filePath}: ${error.message}. Regenerating.`,
+        `Could not read persisted ${label} API key from ${filePath}: ${error.message}. Regenerating.`,
       );
     }
   }
@@ -104,10 +126,10 @@ export function getOrCreatePersistedSessionApiKey(
     writeFileSync(filePath, `${newKey}\n`, { mode: 0o600 });
   } catch (error) {
     console.warn(
-      `Could not persist session API key to ${filePath}: ${error.message}. Falling back to in-memory key (will not survive restarts).`,
+      `Could not persist ${label} API key to ${filePath}: ${error.message}. Falling back to in-memory key (will not survive restarts).`,
     );
   }
-  persistedSessionApiKeyCache.set(filePath, newKey);
+  persistedApiKeyCache.set(filePath, newKey);
   return newKey;
 }
 
@@ -116,7 +138,7 @@ export function getOrCreatePersistedSessionApiKey(
  * Intended for tests that swap the persisted file path between cases.
  */
 export function resetPersistedSessionApiKeyCache() {
-  persistedSessionApiKeyCache.clear();
+  persistedApiKeyCache.clear();
 }
 
 function isEnoentError(error) {
@@ -311,7 +333,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -647,8 +669,11 @@ async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   throw new Error(`Timed out waiting for agent-server at ${url}`);
 }
 
-function spawnProcess(command, args, options) {
-  const child = spawn(command, args, { stdio: "inherit", ...options });
+function spawnProcess(command, args, options = {}) {
+  const child = spawn(command, args, getProcessTreeSpawnOptions({
+    stdio: "inherit",
+    ...options,
+  }));
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
@@ -739,8 +764,20 @@ async function main() {
     }
 
     shuttingDown = true;
-    frontend?.kill(signal);
-    backend.kill(signal);
+    if (frontend) {
+      signalProcessTree(frontend, signal);
+    }
+    signalProcessTree(backend, signal);
+
+    setTimeout(() => {
+      if (frontend && isProcessRunning(frontend)) {
+        signalProcessTree(frontend, "SIGKILL");
+      }
+      if (isProcessRunning(backend)) {
+        signalProcessTree(backend, "SIGKILL");
+      }
+      process.exit(process.exitCode ?? 0);
+    }, 3000);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));

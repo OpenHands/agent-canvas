@@ -89,7 +89,6 @@ describe("useHandlePlanClick", () => {
 
     vi.mocked(getConversationState).mockReturnValue({
       selectedTab: "files",
-      rightPanelShown: true,
       unpinnedTabs: [],
       subConversationTaskId: null,
       conversationMode: "code",
@@ -121,7 +120,6 @@ describe("useHandlePlanClick", () => {
 
       vi.mocked(getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,
         conversationMode: "code",
@@ -162,7 +160,6 @@ describe("useHandlePlanClick", () => {
 
       vi.mocked(getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         subConversationTaskId: storedTaskId,
         conversationMode: "code",

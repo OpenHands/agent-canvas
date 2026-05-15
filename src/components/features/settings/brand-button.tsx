@@ -48,10 +48,13 @@ export const BrandButton = forwardRef<
       aria-label={ariaLabel}
       aria-busy={ariaBusy}
       className={cn(
-        "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 cursor-pointer",
-        variant === "primary" && "bg-primary text-[#0D0F11]",
-        variant === "secondary" && "border border-primary text-primary",
-        variant === "tertiary" && "bg-neutral-600 text-white",
+        "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
+        variant === "primary" &&
+          "bg-primary text-[var(--oh-color-base)] hover:opacity-80",
+        variant === "secondary" &&
+          "border border-[var(--oh-border)] text-white hover:bg-surface-raised",
+        variant === "tertiary" &&
+          "bg-[var(--oh-interactive-hover)] text-white hover:opacity-80",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         variant === "ghost-danger" &&
           "bg-transparent text-red-600 underline hover:text-red-700 hover:no-underline font-medium",

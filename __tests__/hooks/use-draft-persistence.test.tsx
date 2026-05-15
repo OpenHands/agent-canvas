@@ -37,7 +37,6 @@ describe("useDraftPersistence", () => {
     vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
       state: {
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -46,7 +45,6 @@ describe("useDraftPersistence", () => {
         filesTabContentViewMode: "rich",
       },
       setSelectedTab: vi.fn(),
-      setRightPanelShown: vi.fn(),
       setUnpinnedTabs: vi.fn(),
       setConversationMode: vi.fn(),
       setDraftMessage: mockSetDraftMessage,
@@ -57,7 +55,6 @@ describe("useDraftPersistence", () => {
     // Default mock for getConversationState
     vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
       selectedTab: "files",
-      rightPanelShown: true,
       unpinnedTabs: [],
       conversationMode: "code",
       subConversationTaskId: null,
@@ -81,7 +78,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -106,7 +102,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -129,7 +124,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -219,7 +213,6 @@ describe("useDraftPersistence", () => {
       vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
         state: {
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -228,7 +221,6 @@ describe("useDraftPersistence", () => {
           filesTabContentViewMode: "rich",
         },
         setSelectedTab: vi.fn(),
-        setRightPanelShown: vi.fn(),
         setUnpinnedTabs: vi.fn(),
         setConversationMode: vi.fn(),
         setDraftMessage: mockSetDraftMessage,
@@ -238,7 +230,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -325,7 +316,6 @@ describe("useDraftPersistence", () => {
       vi.mocked(conversationLocalStorage.getConversationState)
         .mockReturnValueOnce({
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -335,7 +325,6 @@ describe("useDraftPersistence", () => {
         })
         .mockReturnValue({
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -365,7 +354,6 @@ describe("useDraftPersistence", () => {
       vi.mocked(conversationLocalStorage.getConversationState)
         .mockReturnValueOnce({
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -375,7 +363,6 @@ describe("useDraftPersistence", () => {
         })
         .mockReturnValue({
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -436,7 +423,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -473,7 +459,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -502,7 +487,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,
@@ -535,7 +519,6 @@ describe("useDraftPersistence", () => {
       vi.mocked(conversationLocalStorage.useConversationLocalStorageState).mockReturnValue({
         state: {
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: [],
           conversationMode: "code",
           subConversationTaskId: null,
@@ -544,7 +527,6 @@ describe("useDraftPersistence", () => {
           filesTabContentViewMode: "rich",
         },
         setSelectedTab: vi.fn(),
-        setRightPanelShown: vi.fn(),
         setUnpinnedTabs: vi.fn(),
         setConversationMode: vi.fn(),
         setDraftMessage: mockSetDraftMessage,
@@ -582,7 +564,6 @@ describe("useDraftPersistence", () => {
 
       vi.mocked(conversationLocalStorage.getConversationState).mockReturnValue({
         selectedTab: "files",
-        rightPanelShown: true,
         unpinnedTabs: [],
         conversationMode: "code",
         subConversationTaskId: null,

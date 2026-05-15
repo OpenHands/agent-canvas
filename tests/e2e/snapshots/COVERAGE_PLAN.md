@@ -13,14 +13,13 @@ Existing coverage is marked **✅ done**. Everything else is proposed.
 
 ## 1. Home Screen
 
-**File:** `home-screen.snapshot.spec.ts`  
+**File:** `home-screen.snapshot.spec.ts`
 **Existing:** ✅ `home-screen.png` in `settings-page.snapshot.spec.ts`
 
 | Snapshot name | State to capture |
 |---|---|
-| `home-empty-no-workspace` | No workspaces stored, no recent conversations |
+| `home-empty-no-workspace` | No workspaces stored |
 | `home-with-workspace-selected` | One workspace selected in the dropdown |
-| `home-with-recent-conversations` | Recent conversations list populated (mock 2–3 entries) |
 | `home-workspace-dropdown-open` | Workspace dropdown expanded showing stored workspaces |
 | `home-folder-browser-modal` | `FolderBrowserModal` open with a mocked directory listing |
 | `home-manage-workspaces-modal` | `ManageWorkspacesModal` open with two workspaces listed |
@@ -51,7 +50,7 @@ the "Next" / "Back" buttons between snapshots.
 
 ## 3. Settings Pages
 
-**File:** `settings.snapshot.spec.ts`  
+**File:** `settings.snapshot.spec.ts`
 **Existing:** ✅ `settings-page.png`, `settings-app-page.png` in `settings-page.snapshot.spec.ts`
 
 ### LLM Settings
@@ -170,7 +169,7 @@ the "Next" / "Back" buttons between snapshots.
 
 ## 8. Analytics Consent Modal
 
-**File:** `settings-page.snapshot.spec.ts` (already exists)  
+**File:** `settings-page.snapshot.spec.ts` (already exists)
 **Existing:** ✅ `analytics-consent-modal.png`
 
 No new snapshots needed; keep existing baseline.
@@ -217,7 +216,7 @@ All tests use `navigateToConversation` + `injectEvents` via
 
 ## 11. Conversation Page – Collapsible Thinking
 
-**File:** `collapsible-thinking.snapshot.spec.ts` (already exists)  
+**File:** `collapsible-thinking.snapshot.spec.ts` (already exists)
 **Existing:** ✅ `think-action-collapsed.png`, `think-action-expanded.png`, `reasoning-content-collapsed.png`, `reasoning-content-expanded.png`
 
 No new snapshots needed; keep existing baselines.

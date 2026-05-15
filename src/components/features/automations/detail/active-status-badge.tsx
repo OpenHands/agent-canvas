@@ -15,8 +15,8 @@ export function ActiveStatusBadge({ active }: ActiveStatusBadgeProps) {
       }
       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
         active
-          ? "bg-status-success-badge-bg text-status-success-text"
-          : "bg-border text-content-muted"
+          ? "bg-[var(--oh-success)]/15 text-[var(--oh-success)]"
+          : "bg-surface-raised text-muted"
       }`}
     >
       {active

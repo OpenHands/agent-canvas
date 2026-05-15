@@ -36,10 +36,12 @@ describe("RightPanelToggle", () => {
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(false);
 
-    const storedState = JSON.parse(
-      localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
-    );
-    expect(storedState.rightPanelShown).toBe(false);
+    // The drawer's open/closed state is session-only — the toggle must
+    // not write a `rightPanelShown` field into the persisted blob.
+    const raw = localStorage.getItem(`conversation-state-${CONVERSATION_ID}`);
+    if (raw !== null) {
+      expect(JSON.parse(raw)).not.toHaveProperty("rightPanelShown");
+    }
   });
 
   it("should show the panel when clicked while panel is hidden", async () => {
@@ -58,10 +60,10 @@ describe("RightPanelToggle", () => {
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(true);
 
-    const storedState = JSON.parse(
-      localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
-    );
-    expect(storedState.rightPanelShown).toBe(true);
+    const raw = localStorage.getItem(`conversation-state-${CONVERSATION_ID}`);
+    if (raw !== null) {
+      expect(JSON.parse(raw)).not.toHaveProperty("rightPanelShown");
+    }
   });
 
   it("should have aria-pressed attribute reflecting panel state", () => {

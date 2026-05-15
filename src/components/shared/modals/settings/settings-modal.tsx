@@ -18,7 +18,7 @@ export function SettingsModal({ onClose, settings }: SettingsModalProps) {
     <ModalBackdrop>
       <div
         data-testid="ai-config-modal"
-        className="bg-[#25272D] min-w-full max-w-[475px] m-4 p-6 rounded-xl flex flex-col gap-[17px] border border-tertiary api-configuration-modal"
+        className="bg-[var(--oh-surface)] min-w-full max-w-[475px] m-4 p-6 rounded-xl flex flex-col gap-[17px] border border-[var(--oh-border)] api-configuration-modal"
       >
         <span className="text-5 leading-6 font-semibold -tracking-[0.2px]">
           {t(I18nKey.AI_SETTINGS$TITLE)}
