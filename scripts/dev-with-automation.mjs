@@ -73,7 +73,7 @@ const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 const DEFAULT_AUTOMATION_VERSION = "1.0.0a3";
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
-const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.0";
+const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
 // Where the auto-generated default automation API key is persisted. Static
