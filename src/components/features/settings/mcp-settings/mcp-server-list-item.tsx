@@ -64,7 +64,7 @@ export function MCPServerListItem({
   return (
     <tr
       data-testid="mcp-server-item"
-      className="grid grid-cols-[minmax(0,0.25fr)_120px_minmax(0,1fr)_120px] gap-4 items-start border-t border-tertiary"
+      className="grid grid-cols-[minmax(0,0.25fr)_120px_minmax(0,1fr)_120px] gap-4 items-start border-t border-[var(--oh-border-subtle)]"
     >
       <td
         className="p-3 text-sm text-content-2 truncate min-w-0"

@@ -118,10 +118,10 @@ export function ConversationMain() {
                 : "flex flex-col h-full w-full",
             )}
           >
-            <div className="flex flex-col flex-1 min-h-0 bg-[#25272D] border border-[#525252] overflow-hidden">
+            <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border border-[var(--oh-border)] overflow-hidden">
               <div
                 data-testid="tabs-pane-header"
-                className="flex items-center min-h-9 px-3 py-1.5 border-b border-[#474A54]"
+                className="flex items-center min-h-9 px-3 py-1.5 border-b border-[var(--oh-border)]"
               >
                 <ConversationTabs />
               </div>

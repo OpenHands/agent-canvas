@@ -10,15 +10,6 @@ import { cn } from "#/utils/utils";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-const MODEL_LABEL_MAX_CHARS = 10;
-
-function truncateModelLabel(model: string): string {
-  if (model.length <= MODEL_LABEL_MAX_CHARS) {
-    return model;
-  }
-  return `${model.slice(0, MODEL_LABEL_MAX_CHARS)}…`;
-}
-
 export function ChatInputModel() {
   const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
@@ -31,14 +22,13 @@ export function ChatInputModel() {
   if (!conversation?.llm_model) {
     return null;
   }
-  const truncatedModelLabel = truncateModelLabel(conversation.llm_model);
 
   return (
     <div className="relative min-w-0">
       <button
         type="button"
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[#959CB2] whitespace-nowrap min-w-0 transition-[border-color,color]",
+          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,color]",
           "hover:text-white hover:bg-white/10 cursor-pointer",
         )}
         title={conversation.llm_model}
@@ -51,7 +41,7 @@ export function ChatInputModel() {
           setIsPopoverOpen((open) => !open);
         }}
       >
-        <span>{truncatedModelLabel}</span>
+        <span>{conversation.llm_model}</span>
         <ChevronDownSmallIcon
           width={18}
           height={18}
@@ -68,7 +58,7 @@ export function ChatInputModel() {
           position="top"
           alignment="left"
           spacing="none"
-          className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
+          className="z-[60] mb-2 min-w-[200px]"
         >
           <li className="text-sm">
             <div className="p-2 leading-5 text-white break-all">
@@ -80,7 +70,7 @@ export function ChatInputModel() {
             <NavigationLink
               to="/settings"
               onClick={() => setIsPopoverOpen(false)}
-              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
             >
               <SettingsGearIcon
                 width={16}

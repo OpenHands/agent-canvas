@@ -162,7 +162,7 @@ export function Sidebar() {
         }}
         className={cn(
           "bg-base flex flex-col transition-[width,min-width] duration-200",
-          "md:border-r md:border-[#242424]",
+          "md:border-r md:border-[var(--oh-border)]",
           // Mobile: top bar; Desktop: vertical column. Width responds to
           // the collapsed state on md+ screens.
           "h-[54px] md:h-full",
@@ -201,7 +201,7 @@ export function Sidebar() {
                 onClick={() => setCollapsed(false)}
                 className={cn(
                   "absolute inset-0 hidden md:inline-flex items-center justify-center",
-                  "rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  "rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                   "transition-colors cursor-pointer",
                   showCollapsedExpandButton
                     ? "opacity-100 pointer-events-auto"
@@ -225,7 +225,7 @@ export function Sidebar() {
                 onClick={() => setCollapsed(true)}
                 className={cn(
                   "hidden md:inline-flex items-center justify-center shrink-0",
-                  "w-7 h-7 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  "w-7 h-7 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                   "transition-colors cursor-pointer",
                   // Keep the collapse button right-aligned while preserving a
                   // small gutter from the rail edge.
@@ -308,7 +308,7 @@ export function Sidebar() {
         <SidebarConversationList />
 
         {collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2">
+          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2 cursor-pointer">
             <button
               type="button"
               data-testid="collapsed-settings-link"
@@ -317,8 +317,8 @@ export function Sidebar() {
               className={cn(
                 "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors cursor-pointer",
                 currentPath.startsWith("/settings")
-                  ? "bg-[#1f1f1f99] text-white font-medium"
-                  : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  ? "bg-tertiary text-white font-medium"
+                  : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
               )}
             >
               <Settings width={16} height={16} />
@@ -348,8 +348,8 @@ export function Sidebar() {
                 className={cn(
                   "relative inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
                   collapsedBackendPopoverOpen
-                    ? "bg-[#1f1f1f99] text-white font-medium"
-                    : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                    ? "bg-tertiary text-white font-medium"
+                    : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                 )}
               >
                 <BackendStatusDot
@@ -388,7 +388,7 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[#242424] md:-mx-2 md:px-2">
+          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2">
             <BackendSelector openUpward />
           </div>
         )}

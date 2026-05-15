@@ -13,7 +13,7 @@ export function StyledSwitchComponent({
         "w-12 h-6 rounded-xl flex items-center p-1.5 cursor-pointer",
         isToggled && "justify-end bg-primary",
         !isToggled &&
-          "justify-start bg-base-secondary border border-tertiary-light",
+          "justify-start bg-base-secondary border border-[var(--oh-border)]",
       )}
     >
       <div

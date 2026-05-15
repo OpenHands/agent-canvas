@@ -66,8 +66,8 @@ export function SidebarNavLink({
           "text-sm leading-5 truncate",
           getLayoutClasses(collapsed, indent),
           isActive || forceActive
-            ? "bg-[#1f1f1f99] text-white font-medium"
-            : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+            ? "bg-tertiary text-white font-medium"
+            : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
           disabled && "pointer-events-none opacity-50",
         )
       }
@@ -87,9 +87,7 @@ export function SidebarNavLink({
     <StyledTooltip
       content={hoverContent ?? label}
       placement="right"
-      tooltipClassName={
-        hoverContent ? "p-0 bg-[#1f2228] text-white" : undefined
-      }
+      tooltipClassName={hoverContent ? "p-0 bg-tertiary text-white" : undefined}
     >
       {link}
     </StyledTooltip>

@@ -155,7 +155,7 @@ export function ChangeAgentButton() {
         className={cn(
           "flex items-center rounded-[100px] transition-[border-color,color,opacity]",
           isExecutionAgent
-            ? "border border-transparent text-[#959CB2]"
+            ? "border border-transparent text-[var(--oh-muted)]"
             : "border border-[#597FF4] bg-[#4A67BD]",
           !isButtonDisabled &&
             isExecutionAgent &&

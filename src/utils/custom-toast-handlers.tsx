@@ -4,8 +4,8 @@ import { calculateToastDuration } from "./toast-duration";
 import i18n from "#/i18n";
 
 const TOAST_STYLE: CSSProperties = {
-  background: "#454545",
-  border: "1px solid #717888",
+  background: "var(--oh-color-tertiary)",
+  border: "1px solid var(--oh-border-input)",
   color: "#fff",
   borderRadius: "4px",
   maxWidth: "400px",

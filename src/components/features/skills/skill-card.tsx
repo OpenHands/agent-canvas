@@ -55,7 +55,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
     <article
       data-testid={`skill-card-${skill.name}`}
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-tertiary bg-base-secondary p-4 transition-colors hover:border-white/40 hover:bg-base-tertiary/30",
+        "flex flex-col gap-3 rounded-xl border border-[var(--oh-border)] bg-base-secondary p-4 transition-colors hover:border-[var(--cool-grey-500)] hover:bg-base-tertiary/30",
         !enabled && "opacity-70",
       )}
     >
@@ -73,7 +73,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
           {skill.version && (
             <span
               data-testid={`skill-version-${skill.name}`}
-              className="inline-flex items-center rounded-full border border-tertiary px-2 py-0.5 text-[11px] font-medium text-tertiary-light"
+              className="inline-flex items-center rounded-full border border-[var(--oh-border)] px-2 py-0.5 text-[11px] font-medium text-tertiary-light"
             >
               {t(I18nKey.SETTINGS$SKILLS_VERSION, { version: skill.version })}
             </span>
@@ -111,7 +111,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
             type="button"
             onClick={() => setShowFullDescription((prev) => !prev)}
             data-testid={`skill-show-more-${skill.name}`}
-            className="mt-1 text-xs font-medium text-primary hover:underline"
+            className="mt-1 text-xs font-medium text-[var(--oh-muted)] hover:text-white hover:underline transition-colors"
           >
             {showFullDescription
               ? t(I18nKey.SETTINGS$SKILLS_SHOW_LESS)
@@ -128,7 +128,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
           {skill.triggers.map((trigger) => (
             <span
               key={trigger}
-              className="inline-flex items-center rounded-md border border-tertiary bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 text-[11px] text-tertiary-light"
+              className="inline-flex items-center rounded-md border border-[var(--oh-border)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 text-[11px] text-tertiary-light"
             >
               {trigger}
             </span>
@@ -209,7 +209,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
                     {skill.allowed_tools.map((tool) => (
                       <span
                         key={tool}
-                        className="inline-flex items-center rounded-md border border-tertiary px-1.5 py-0.5 font-mono text-[11px] text-tertiary-light"
+                        className="inline-flex items-center rounded-md border border-[var(--oh-border)] px-1.5 py-0.5 font-mono text-[11px] text-tertiary-light"
                       >
                         {tool}
                       </span>

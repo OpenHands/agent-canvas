@@ -27,9 +27,9 @@ describe("ContextMenuContainer", () => {
     );
 
     const container = screen.getByTestId("test-container");
-    expect(container).toHaveClass("bg-[#050505]");
+    expect(container).toHaveClass("bg-[var(--oh-surface-deep)]");
     expect(container).toHaveClass("border");
-    expect(container).toHaveClass("border-[#242424]");
+    expect(container).toHaveClass("border-[var(--oh-border-subtle)]");
     expect(container).toHaveClass("rounded-[12px]");
     expect(container).toHaveClass("p-[25px]");
     expect(container).toHaveClass("context-menu-box-shadow");

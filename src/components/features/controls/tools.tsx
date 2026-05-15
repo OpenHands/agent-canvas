@@ -47,7 +47,7 @@ export function Tools() {
     <div className="relative">
       <button
         type="button"
-        className="group flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-[#959CB2] transition-[border-color,color] cursor-pointer hover:text-white hover:bg-white/10"
+        className="group flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-[var(--oh-muted)] transition-[border-color,color] cursor-pointer hover:text-white hover:bg-white/10"
         onClick={handleClick}
       >
         <Wrench

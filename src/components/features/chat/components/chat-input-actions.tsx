@@ -458,7 +458,7 @@ export function ChatInputActions({
                 <NavigationLink
                   to="/settings"
                   onClick={closeOverflowMenus}
-                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
                 >
                   <SettingsGearIcon
                     width={16}
@@ -507,7 +507,7 @@ export function ChatInputActions({
                 ref={overflowTriggerRef}
                 type="button"
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-full text-[#959CB2] transition-colors",
+                  "flex size-6 items-center justify-center rounded-full text-[var(--oh-muted)] transition-colors",
                   "hover:bg-white/10 hover:text-white cursor-pointer",
                 )}
                 aria-label="More input actions"

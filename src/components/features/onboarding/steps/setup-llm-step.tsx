@@ -110,7 +110,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         <h2 className="text-2xl font-semibold text-white">
           {t(I18nKey.ONBOARDING$LLM_TITLE)}
         </h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-[var(--oh-muted)]">
           {t(I18nKey.ONBOARDING$LLM_SUBTITLE)}
         </p>
       </header>

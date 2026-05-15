@@ -45,7 +45,7 @@ export function AnalyticsConsentFormModal({
         onSubmit={handleSubmit}
         className="flex flex-col gap-2"
       >
-        <ModalBody className="border border-tertiary">
+        <ModalBody className="border border-[var(--oh-border)]">
           <BaseModalTitle title={t(I18nKey.ANALYTICS$TITLE)} />
           <BaseModalDescription>
             {t(I18nKey.ANALYTICS$DESCRIPTION)}

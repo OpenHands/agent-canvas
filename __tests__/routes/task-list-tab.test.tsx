@@ -117,13 +117,13 @@ describe("TaskListTab", () => {
     // Find each task item via its text, then check the wrapper div
     const activeItem = screen.getByText("Active task").closest("[data-name]");
     const activeWrapper = activeItem?.parentElement;
-    expect(activeWrapper?.className).toContain("bg-[#2D3039]");
+    expect(activeWrapper?.className).toContain("bg-[var(--oh-surface-raised)]");
 
     const todoItem = screen.getByText("Todo task").closest("[data-name]");
-    expect(todoItem?.parentElement?.className).not.toContain("bg-[#2D3039]");
+    expect(todoItem?.parentElement?.className).not.toContain("bg-[var(--oh-surface-raised)]");
 
     const doneItem = screen.getByText("Done task").closest("[data-name]");
-    expect(doneItem?.parentElement?.className).not.toContain("bg-[#2D3039]");
+    expect(doneItem?.parentElement?.className).not.toContain("bg-[var(--oh-surface-raised)]");
   });
 
   it("displays task notes when present and omits when absent", () => {
