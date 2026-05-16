@@ -208,7 +208,7 @@ describes. Specifically:
   Defaults to `OpenHands/agent-sdk` as the upstream when no target is
   specified. Lives only on this fork — upstream has no notion of it.
   Files: `.agents/skills/create-fork.md`
-  Introduced: (this commit)
+  Introduced: 3489c8b
 
 ### Sanity-check the MODLOG against git
 
