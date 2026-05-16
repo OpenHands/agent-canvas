@@ -137,11 +137,13 @@ export function ConversationTabs() {
     });
   }
 
-  // Filter out unpinned tabs, and hide the VSCode tab on local backends
-  // (the agent-server's VSCode URL is only reachable in cloud deployments).
+  // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
+  // user has that tab selected — then it appears while active so the bar
+  // matches the open panel. Hide VS Code on local backends (cloud-only URL).
   const visibleTabs = tabs.filter((tab) => {
     if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
-    return !persistedState.unpinnedTabs.includes(tab.tabValue);
+    if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
+    return selectedTab === tab.tabValue;
   });
 
   const unpinnedSignature = persistedState.unpinnedTabs.join(",");

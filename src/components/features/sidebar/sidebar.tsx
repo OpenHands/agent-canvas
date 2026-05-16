@@ -185,8 +185,10 @@ export function Sidebar() {
             // Collapsed: stack the chevron beneath the logo so the 64px rail
             // doesn't need to grow to fit two controls in a row. Expanded:
             // chevron is right-aligned via ml-auto further down.
-            // `px-2` matches SidebarNavLink so the logo centers on the nav icons.
-            collapsed ? "md:flex-col md:gap-2 md:px-0" : "px-2",
+            // `pl-2` matches SidebarNavLink horizontal inset; no right padding so
+            // the collapse control can sit flush against the rail edge (outer
+            // sidebar still provides `px-2`).
+            collapsed ? "md:flex-col md:gap-2 md:px-0" : "pl-2 pr-0",
           )}
         >
           {collapsed ? (
