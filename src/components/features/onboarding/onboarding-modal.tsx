@@ -117,7 +117,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               type="button"
               data-testid="onboarding-skip"
               onClick={onClose}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--oh-muted)] hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--oh-muted)] hover:bg-white/5 hover:text-white cursor-pointer"
             >
               <span>{t(I18nKey.ONBOARDING$SKIP)}</span>
               <X className="size-3.5" aria-hidden />
