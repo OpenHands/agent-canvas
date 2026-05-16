@@ -1,13 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 test("captures Docker /projects workspace browser state", async ({ page }) => {
   test.setTimeout(60_000);
 
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "true");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
+  await seedLocalStorage(page, {
+    extra: [
+      ["analytics-consent", "true"],
+      ["openhands-telemetry-first-use", "true"],
+    ],
   });
 
   await page.goto("/conversations", { waitUntil: "domcontentloaded" });

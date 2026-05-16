@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the sidebar / conversation panel.
@@ -22,9 +23,7 @@ async function dismissConsentModal(page: Page) {
 }
 
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
   // Suppress proxy errors for file API (home page workspace scan)
   await page.route("**/api/file/**", async (route) => {
     await route.fulfill({

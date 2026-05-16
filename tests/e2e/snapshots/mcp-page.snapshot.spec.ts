@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the MCP page (/mcp).
@@ -32,9 +33,7 @@ async function dismissConsentModal(page: Page) {
  * instead of trying to suppress it here.
  */
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 
   await page.route("**/api/conversations/search**", async (route) => {
     await route.fulfill({
