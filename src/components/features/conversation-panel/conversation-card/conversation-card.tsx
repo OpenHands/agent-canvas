@@ -136,7 +136,6 @@ export function ConversationCard({
         "group relative h-auto w-full cursor-pointer rounded-md py-1 pl-2 pr-1 transition-colors",
         "data-[context-menu-open=false]:hover:bg-[var(--oh-surface)]",
         "data-[active=true]:bg-[var(--oh-surface)]",
-        "data-[context-menu-open=true]:z-[100]",
       )}
     >
       <div className="flex items-center w-full min-w-0">
@@ -168,7 +167,7 @@ export function ConversationCard({
               className={cn(
                 "absolute right-0 top-1/2 -translate-y-1/2 transition-opacity",
                 "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
-                contextMenuOpen && "visible z-[200] opacity-100",
+                contextMenuOpen && "visible opacity-100",
               )}
             >
               <ConversationCardActions

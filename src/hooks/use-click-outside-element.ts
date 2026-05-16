@@ -6,20 +6,23 @@ import React from "react";
  */
 export const useClickOutsideElement = <T extends HTMLElement>(
   callback: () => void,
+  ignoreOutsideClickRef?: React.RefObject<HTMLElement | null>,
 ) => {
   const ref = React.useRef<T>(null);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        callback();
-      }
+      const target = event.target as Node;
+      if (!ref.current) return;
+      if (ref.current.contains(target)) return;
+      if (ignoreOutsideClickRef?.current?.contains(target)) return;
+      callback();
     };
 
     document.addEventListener("click", handleClickOutside);
 
     return () => document.removeEventListener("click", handleClickOutside);
-  }, [callback]);
+  }, [callback, ignoreOutsideClickRef]);
 
   return ref;
 };

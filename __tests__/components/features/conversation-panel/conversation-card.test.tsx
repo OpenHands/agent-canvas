@@ -185,14 +185,8 @@ describe("ConversationCard", () => {
       />,
     );
 
-    // Context menu is always in the DOM but hidden by CSS classes when contextMenuOpen is false
-    const contextMenu = screen.queryByTestId("context-menu");
-    if (contextMenu) {
-      const contextMenuParent = contextMenu.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
-    }
+    // Menu is portaled to document.body only while open
+    expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
 
     const ellipsisButton = screen.getByTestId("ellipsis-button");
     await user.click(ellipsisButton);

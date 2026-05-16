@@ -334,17 +334,10 @@ describe("ConversationPanel", () => {
 
     let cards = await screen.findAllByTestId("conversation-card");
     // Delete button should not be visible initially (context menu is closed)
-    // The context menu is always in the DOM but hidden by CSS classes on the parent div
-    const contextMenuParent = within(cards[0]).queryByTestId(
-      "context-menu",
-    )?.parentElement;
-    if (contextMenuParent) {
-      expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-    }
-
+    expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
-    const deleteButton = within(cards[0]).getByTestId("delete-button");
+    const deleteButton = screen.getByTestId("delete-button");
 
     // Click the first delete button
     await user.click(deleteButton);
@@ -398,7 +391,7 @@ describe("ConversationPanel", () => {
 
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
-    const deleteButton = within(cards[0]).getByTestId("delete-button");
+    const deleteButton = screen.getByTestId("delete-button");
 
     // Click the first delete button
     await user.click(deleteButton);
@@ -580,7 +573,7 @@ describe("ConversationPanel", () => {
     await user.click(ellipsisButton);
 
     // Stop button should be available for RUNNING conversation
-    const stopButton = within(cards[0]).getByTestId("stop-button");
+    const stopButton = screen.getByTestId("stop-button");
     expect(stopButton).toBeInTheDocument();
 
     // Click the stop button
@@ -639,7 +632,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const stopButton = within(cards[0]).getByTestId("stop-button");
+    const stopButton = screen.getByTestId("stop-button");
 
     // Click the stop button
     await user.click(stopButton);
@@ -700,19 +693,13 @@ describe("ConversationPanel", () => {
     );
     await user.click(runningEllipsisButton);
 
-    expect(within(cards[0]).getByTestId("stop-button")).toBeInTheDocument();
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
 
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close (check CSS classes on parent div)
     await waitFor(() => {
-      const contextMenuParent = within(cards[0]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
     });
 
     // Test STARTING conversation - should show stop button
@@ -721,19 +708,13 @@ describe("ConversationPanel", () => {
     );
     await user.click(startingEllipsisButton);
 
-    expect(within(cards[1]).getByTestId("stop-button")).toBeInTheDocument();
+    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
 
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close (check CSS classes on parent div)
     await waitFor(() => {
-      const contextMenuParent = within(cards[1]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
     });
 
     // Test STOPPED conversation - should NOT show stop button
@@ -742,9 +723,7 @@ describe("ConversationPanel", () => {
     );
     await user.click(stoppedEllipsisButton);
 
-    expect(
-      within(cards[2]).queryByTestId("stop-button"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
   });
 
   it("should show edit button in context menu", async () => {
@@ -759,7 +738,7 @@ describe("ConversationPanel", () => {
     await user.click(ellipsisButton);
 
     // Edit button should be visible within the first card's context menu
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     expect(editButton).toBeInTheDocument();
     expect(editButton).toHaveTextContent("BUTTON$RENAME");
   });
@@ -775,7 +754,7 @@ describe("ConversationPanel", () => {
     await user.click(ellipsisButton);
 
     // Click edit button within the first card's context menu
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Should find input field instead of title text
@@ -806,7 +785,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Edit the title
@@ -843,7 +822,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Edit the title and press Enter
@@ -878,7 +857,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Edit the title with extra whitespace
@@ -913,7 +892,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Clear the title completely
@@ -943,7 +922,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Edit the title
@@ -974,22 +953,16 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    // Verify context menu is open within the first card
-    const contextMenu = within(cards[0]).getByTestId("context-menu");
+    // Verify context menu is open (portaled to document.body)
+    const contextMenu = screen.getByTestId("context-menu");
     expect(contextMenu).toBeInTheDocument();
 
-    // Click edit button within the first card's context menu
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    // Click edit button within the open context menu
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
-    // Wait for context menu to close after edit button click (check CSS classes on parent div)
     await waitFor(() => {
-      const contextMenuParent = within(cards[0]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
     });
   });
 
@@ -1012,7 +985,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Don't change the title, just blur
@@ -1043,7 +1016,7 @@ describe("ConversationPanel", () => {
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
 
-    const editButton = within(cards[0]).getByTestId("edit-button");
+    const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
     // Edit the title with special characters
@@ -1068,7 +1041,7 @@ describe("ConversationPanel", () => {
     // Open context menu and click delete
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
-    const deleteButton = within(cards[0]).getByTestId("delete-button");
+    const deleteButton = screen.getByTestId("delete-button");
     await user.click(deleteButton);
 
     // Modal should be visible
@@ -1124,7 +1097,7 @@ describe("ConversationPanel", () => {
     // Open context menu and click stop
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
-    const stopButton = within(cards[0]).getByTestId("stop-button");
+    const stopButton = screen.getByTestId("stop-button");
     await user.click(stopButton);
 
     // Modal should be visible

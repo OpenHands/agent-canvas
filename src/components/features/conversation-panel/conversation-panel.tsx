@@ -561,7 +561,7 @@ export function ConversationPanel({
         conversationGroups ? (
           <nav
             aria-label={t(I18nKey.SIDEBAR$CONVERSATIONS)}
-            className="space-y-1 pb-1"
+            className="space-y-1 md:space-y-0.5 pb-1"
           >
             {conversationGroups.map((group) => {
               const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
