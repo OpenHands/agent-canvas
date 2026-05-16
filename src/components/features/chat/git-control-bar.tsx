@@ -200,6 +200,14 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   // click is a no-op. Linkable repos render as <a> and ignore `disabled`.
   const isRepoButtonInert = isLocalBackend && !hasRepository;
 
+  // True when the bar will render at least one chip (cloud always shows
+  // "Open Repository"; local needs a repo or a workspace name; selected
+  // branch or push/pull/PR also count). When false, the bar has nothing to
+  // show — return null so the wrapper above collapses to its natural padding
+  // instead of leaving an empty DOM node below the chat input.
+  const hasAnyContent = showRepoButton || !!selectedBranch || hasRepository;
+  if (!hasAnyContent) return null;
+
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-row gap-2.5 items-center overflow-x-auto flex-wrap md:flex-nowrap relative scrollbar-hide">
