@@ -31,6 +31,14 @@ export function ChatInputField({
 
   const isPlanMode = conversationMode === "plan";
 
+  React.useEffect(() => {
+    if (!disabled) {
+      chatInputRef.current?.focus();
+    }
+    // Focus on mount only — re-focusing on later `disabled` transitions
+    // would steal focus from a user who has clicked elsewhere.
+  }, []);
+
   return (
     <div
       className="box-border content-stretch flex flex-row items-center justify-start min-h-6 p-0 relative shrink-0 flex-1"
