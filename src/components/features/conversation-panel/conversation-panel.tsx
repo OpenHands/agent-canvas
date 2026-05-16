@@ -24,6 +24,7 @@ import { ConversationCard } from "./conversation-card/conversation-card";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
 import { CompactConversationRow } from "./compact-conversation-row";
+import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import { cn } from "#/utils/utils";
 
 interface ConversationPanelProps {
@@ -86,11 +87,22 @@ export function ConversationPanel({
   ] = React.useState(false);
   const [confirmDeleteOlderVisible, setConfirmDeleteOlderVisible] =
     React.useState(false);
-  const [showOlderConversations, setShowOlderConversations] =
-    React.useState(true);
+  // Filter-menu toggles persist across reloads via the preferences store —
+  // the menu's open/closed state stays transient (React.useState) since
+  // users expect a dropdown to start closed every time they revisit.
+  const showOlderConversations = useConversationPanelPreferencesStore(
+    (state) => state.showOlderConversations,
+  );
+  const toggleShowOlderConversations = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowOlderConversations,
+  );
+  const showRepoBranchMetadata = useConversationPanelPreferencesStore(
+    (state) => state.showRepoBranchMetadata,
+  );
+  const toggleShowRepoBranchMetadata = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowRepoBranchMetadata,
+  );
   const [olderFilterMenuOpen, setOlderFilterMenuOpen] = React.useState(false);
-  const [showRepoBranchMetadata, setShowRepoBranchMetadata] =
-    React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
   const olderFilterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
     setOlderFilterMenuOpen(false);
@@ -340,7 +352,7 @@ export function ConversationPanel({
                   type="button"
                   data-testid="toggle-older-conversations"
                   onClick={() => {
-                    setShowOlderConversations((value) => !value);
+                    toggleShowOlderConversations();
                     setOlderFilterMenuOpen(false);
                   }}
                   className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
@@ -365,7 +377,7 @@ export function ConversationPanel({
                   type="button"
                   data-testid="toggle-repo-branch-metadata"
                   onClick={() => {
-                    setShowRepoBranchMetadata((value) => !value);
+                    toggleShowRepoBranchMetadata();
                     setOlderFilterMenuOpen(false);
                   }}
                   className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
