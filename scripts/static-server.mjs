@@ -4,7 +4,8 @@
  * Replaces `sirv-cli` for the dockerless static launcher. The reason a plain static
  * server is not enough: Vite's dev server (used by `npm run dev`) configures
  * a proxy for `/api`, `/sockets`, `/server_info`, `/alive`, `/health`,
- * `/ready`, `/docs` (see vite.config.ts) so requests to those paths are forwarded to
+ * `/ready`, `/docs`, `/redoc`, `/openapi.json` (see vite.config.ts) so
+ * requests to those paths are forwarded to
  * the agent-server even when the browser is hitting Vite directly on :3001.
  * sirv-cli has no proxy support, so under `--single` it falls back to
  * index.html for any of those paths — making `/server_info` look like HTML
