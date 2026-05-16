@@ -8,14 +8,13 @@ interface ResizeHandleProps {
 export function ResizeHandle({ onMouseDown, className }: ResizeHandleProps) {
   return (
     <div
-      className={cn("relative w-1 bg-transparent cursor-ew-resize", className)}
-      onMouseDown={onMouseDown}
+      className={cn("relative z-10 w-0 shrink-0 self-stretch", className)}
+      aria-hidden
     >
-      {/* Visual indicator */}
-      <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2" />
-
-      {/* Larger hit area for easier dragging */}
-      <div className="absolute inset-y-0 -left-1 -right-1" />
+      <div
+        className="absolute inset-y-0 left-1/2 w-3 min-w-[12px] -translate-x-1/2 cursor-ew-resize"
+        onMouseDown={onMouseDown}
+      />
     </div>
   );
 }
