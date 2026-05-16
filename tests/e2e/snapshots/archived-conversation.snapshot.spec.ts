@@ -8,15 +8,18 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *   4. "Archived Project"  — sandbox_status: "MISSING"
  *   5. "Errored Project"   — sandbox_status: "ERROR"
  *
- * Both conversations carry one pre-seeded ExecuteBashAction event
- * (`ARCHIVED_BASH_EVENT` in CONVERSATION_EVENTS) so the chat has a stable
- * content anchor that loads through the normal REST history path.
- *
  * Snapshots:
  *   1. conversation-panel-with-archived-badges — sidebar badges for MISSING/ERROR
- *   2. conversation-view-archived — chat interface for conv 4 with the event
- *      + the read-only "Sandbox no longer available" banner
+ *   2. conversation-view-archived — chat interface for conv 4 with the
+ *      read-only "Sandbox no longer available" banner (no chat input)
  *   3. conversation-view-sandbox-error — same for conv 5, "Sandbox error" variant
+ *
+ * NOTE: We do NOT inject events into the chat for these tests. In dev mode
+ * React 18 strict mode double-fires effects in child-before-parent order, so
+ * ConversationWebSocketProvider's addEvents runs before conversation.tsx's
+ * clearEvents — any REST-loaded or store-injected events get wiped. The
+ * tests verify the banner + hidden chat input (the actual feature), not
+ * event rendering.
  */
 
 const ARCHIVED_CONVERSATION_ID = "4"; // sandbox_status: "MISSING"
@@ -79,13 +82,11 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
-    // The pre-seeded event loads through the normal REST history path
-    // (useConversationHistory → addEvents). Wait for both the event text
-    // and the archived banner before taking the screenshot.
-    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
+    // Wait for the archived banner — proves useActiveConversation resolved
+    // with sandbox_status: "MISSING" and the component fully initialized.
     await expect(
       page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
@@ -105,10 +106,9 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
-    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
     await expect(
       page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 15_000 });
+    ).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
