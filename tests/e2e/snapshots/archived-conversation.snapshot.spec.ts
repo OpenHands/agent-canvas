@@ -14,10 +14,10 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *      event + the read-only "Sandbox no longer available" banner
  *   3. conversation-view-sandbox-error — same for conv 5, "Sandbox error" variant
  *
- * NOTE: The GET /api/conversations handler correctly returns sandbox_status
- * because the MSW handler parses Axios bracket-style array params (ids[]).
- * Injecting one event gives the chat stable visible content that survives
- * re-renders caused by the 3s polling on conversations with no conversation_url.
+ * The MSW event-search handler returns [] for convs 4 and 5 (CONVERSATION_EVENTS
+ * is empty). Tests 2 and 3 inject exactly one event via __OH_EVENT_STORE__ so
+ * the chat has a single stable content anchor that survives the 3 s polling
+ * re-renders without accumulating duplicates.
  */
 
 const ARCHIVED_CONVERSATION_ID = "4"; // sandbox_status: "MISSING"

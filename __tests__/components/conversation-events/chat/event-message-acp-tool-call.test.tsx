@@ -12,6 +12,7 @@ vi.mock("#/hooks/query/use-config", () => ({
 }));
 vi.mock("#/hooks/use-agent-state");
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 

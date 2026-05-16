@@ -2,87 +2,8 @@ import { http, delay, HttpResponse } from "msw";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
 
-// ---------------------------------------------------------------------------
-// Trajectory fixtures
-// ---------------------------------------------------------------------------
-
-/**
- * A minimal "echo hello world" trajectory shared by the archived (conv 4)
- * and sandbox-error (conv 5) mock conversations so snapshot tests render
- * real chat history above the read-only banner.
- *
- * The events/search endpoint is requested with sort_order=TIMESTAMP_DESC, so
- * the items are ordered newest-first here; useConversationHistory reverses
- * them back to chronological order before storing them in the event store.
- */
-const ECHO_HELLO_WORLD_TRAJECTORY = [
-  // 3 — bash observation (newest)
-  {
-    id: "archived-evt-3",
-    timestamp: "2026-01-10T00:00:03.000Z",
-    source: "environment",
-    action_id: "archived-evt-2",
-    tool_name: "execute_bash",
-    tool_call_id: "call-archived-bash-1",
-    observation: {
-      kind: "ExecuteBashObservation",
-      output: "hello world",
-      command: "echo hello world",
-      exit_code: 0,
-      error: false,
-      timed_out: false,
-      metadata: {},
-    },
-  },
-  // 2 — agent bash action
-  {
-    id: "archived-evt-2",
-    timestamp: "2026-01-10T00:00:02.000Z",
-    source: "agent",
-    thought: [
-      { type: "text", text: "I'll run the echo command as requested." },
-    ],
-    reasoning_content: null,
-    thinking_blocks: [],
-    action: {
-      kind: "ExecuteBashAction",
-      command: "echo hello world",
-      is_input: false,
-      timeout: null,
-      reset: false,
-    },
-    tool_name: "execute_bash",
-    tool_call_id: "call-archived-bash-1",
-    tool_call: {
-      id: "call-archived-bash-1",
-      type: "function",
-      function: {
-        name: "execute_bash",
-        arguments: JSON.stringify({ command: "echo hello world" }),
-      },
-    },
-    llm_response_id: "archived-response-1",
-    security_risk: "unknown",
-  },
-  // 1 — user message (oldest)
-  {
-    id: "archived-evt-1",
-    timestamp: "2026-01-10T00:00:01.000Z",
-    source: "user",
-    llm_message: {
-      role: "user",
-      content: [{ type: "text", text: "echo hello world" }],
-    },
-    activated_microagents: [],
-    extended_content: [],
-  },
-];
-
 /** Map from conversation id → events returned by GET /events/search */
-const CONVERSATION_EVENTS: Record<string, unknown[]> = {
-  "4": ECHO_HELLO_WORLD_TRAJECTORY,
-  "5": ECHO_HELLO_WORLD_TRAJECTORY,
-};
+const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
 
 const now = Date.now();
 
