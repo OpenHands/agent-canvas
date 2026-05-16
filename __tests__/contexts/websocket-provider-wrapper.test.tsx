@@ -57,7 +57,7 @@ function makeConversation(
     metrics: null,
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
-    execution_status: "idle",
+    execution_status: null,
     conversation_url: "https://sandbox.example.com/api/conversations/conv-1",
     session_api_key: "sess-key",
     sandbox_id: "sbx-1",
