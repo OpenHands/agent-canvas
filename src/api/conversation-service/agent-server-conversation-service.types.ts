@@ -7,7 +7,7 @@ import { ExecutionStatus } from "#/types/agent-server/core";
  * Lifecycle state of a cloud sandbox. Mirrors OpenHands' V1SandboxStatus.
  * Local agent-server conversations do not carry this field (null).
  */
-export type SandboxStatus = "PAUSED" | "RUNNING" | "STARTING" | "MISSING";
+export type SandboxStatus = "PAUSED" | "RUNNING" | "STARTING" | "MISSING" | "ERROR";
 
 // Plugin specification for starting conversations with plugins
 export interface PluginSpec {
