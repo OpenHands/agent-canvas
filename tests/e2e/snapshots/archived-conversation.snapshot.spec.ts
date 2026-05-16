@@ -178,7 +178,14 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     // The interactive chat box must NOT be present.
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
-    // Snapshot: full chat interface with archived banner at the bottom.
+    // Wait for the trajectory fetched from GET /events/search to render.
+    // MSW returns the echo-hello-world trajectory for conversation 4; the
+    // user message is the first item visible in the chat history.
+    await expect(chatInterface.getByText("echo hello world")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Snapshot: chat history above with archived banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
       "conversation-view-archived.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
@@ -205,7 +212,12 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     // The interactive chat box must NOT be present.
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
-    // Snapshot: full chat interface with sandbox-error banner at the bottom.
+    // Wait for the trajectory to render (same fixture as the archived view).
+    await expect(chatInterface.getByText("echo hello world")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Snapshot: chat history above with sandbox-error banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
       "conversation-view-sandbox-error.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },

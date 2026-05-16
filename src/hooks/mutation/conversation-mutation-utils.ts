@@ -112,7 +112,8 @@ export const updateConversationExecutionStatusInCache = (
   queryClient: QueryClient,
   conversationId: string,
   execution_status: ExecutionStatusValue,
-): void => patchConversationInCache(queryClient, conversationId, { execution_status });
+): void =>
+  patchConversationInCache(queryClient, conversationId, { execution_status });
 
 export const invalidateConversationQueries = (
   queryClient: QueryClient,
