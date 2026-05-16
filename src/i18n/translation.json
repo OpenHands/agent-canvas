@@ -20450,6 +20450,18 @@
     "uk": "Архівовано",
     "ca": "Arxivat"
   },
+  "CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE": {
+    "en": "Sandbox no longer available"
+  },
+  "CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION": {
+    "en": "This conversation's sandbox has been removed. The history below is read-only."
+  },
+  "CHAT_INTERFACE$ERROR_SANDBOX_TITLE": {
+    "en": "Sandbox error"
+  },
+  "CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION": {
+    "en": "This conversation's sandbox encountered an error. The history below is read-only."
+  },
   "HOME$GUIDE_MESSAGE_TITLE": {
     "en": "New around here? Not sure where to start?",
     "ja": "このあたりは初めてですか？どこから始めればいいかわかりませんか？",
