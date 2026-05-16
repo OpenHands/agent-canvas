@@ -51,6 +51,7 @@ import {
   buildSafeDevConfig,
   buildAgentServerEnv,
   buildNpmScriptCommand,
+  buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
   findFreePorts,
   getOrCreatePersistedApiKey,
@@ -655,6 +656,12 @@ function startIngress(config) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
       "--default",
       `http://localhost:${config.vitePort}`,
     ],
@@ -665,10 +672,32 @@ function startIngress(config) {
   );
 }
 
+/**
+ * Build the JSON-serializable runtime services info for an automation
+ * stack. Used by both the Vite dev server (dev mode) and static-build.mjs
+ * (static mode) so the frontend can populate the agent's
+ * `<RUNTIME_SERVICES>` system-prompt block.
+ */
+export function buildAutomationRuntimeServicesInfo(config) {
+  return buildRuntimeServicesInfo({
+    mode: config.mode ?? "dev:automation",
+    agentHostAlias: config.agentHostAlias ?? "localhost",
+    agentServerPort: config.agentServerPort,
+    ingressPort: config.ingressPort,
+    frontendPort: config.vitePort,
+    // The same port hosts Vite in dynamic mode and a static-file server
+    // in static mode. The launcher records this on the config so the
+    // description shown to the agent matches reality.
+    frontendKind: config.frontendKind ?? "vite",
+    automation: { port: config.autoBackendPort },
+  });
+}
+
 function startVite(config) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
@@ -683,6 +712,9 @@ function startVite(config) {
       VITE_SESSION_API_KEY: config.sessionApiKey,
       // Automation API key for frontend to authenticate with automation backend
       VITE_AUTOMATION_API_KEY: config.localApiKey,
+      // Inform the frontend (and downstream, the agent's system prompt) about
+      // which services are available in this dev stack.
+      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
       // Session API key for agent-server auth (when SESSION_API_KEY is set)
       ...(config.sessionApiKey && {
         VITE_SESSION_API_KEY: config.sessionApiKey,
@@ -834,6 +866,14 @@ async function main(options = {}) {
     defaultStaticMode = false,
     buildStaticFrontend,
     staticDir: staticDirOverride,
+    // Hostname the agent uses to reach services running on the host.
+    // dev-docker.mjs overrides this to "host.docker.internal" because the
+    // agent-server runs in a container and the host is not "localhost"
+    // from its perspective.
+    agentHostAlias = "localhost",
+    // Human-readable label for the dev mode, surfaced in the agent's
+    // <RUNTIME_SERVICES> system-prompt block.
+    mode = "dev:automation",
   } = options;
 
   const args = parseArgs();
@@ -863,6 +903,12 @@ async function main(options = {}) {
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
+  // Stamp the dev-mode label, host alias, and frontend kind on the config
+  // so downstream helpers (Vite spawn, static build) can produce a
+  // runtime-services info object describing what the agent can reach.
+  config.mode = mode;
+  config.agentHostAlias = agentHostAlias;
+  config.frontendKind = useStaticMode ? "static" : "vite";
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
@@ -959,6 +1005,12 @@ function startStaticFrontend(config, staticDir) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
     ],
     {
       cwd: config.canvasPath,
