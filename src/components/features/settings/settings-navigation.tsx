@@ -18,8 +18,9 @@ interface SettingsNavigationProps {
 }
 
 /**
- * Desktop sidebar only — must stay inside the main settings scroll row so flex
- * layout is just aside + content (fixed mobile UI lives outside that row).
+ * Desktop sidebar — sibling of the scrolling main column (same pattern as
+ * {@link ExtensionsNavigation}). Mobile drawer stays `position: fixed` outside
+ * this row in the layout.
  */
 export function SettingsDesktopSidebar({
   navigationItems,
@@ -35,9 +36,7 @@ export function SettingsDesktopSidebar({
       data-testid="settings-navbar-desktop"
       className={cn(
         "hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2",
-        // No md:pt-8 here — main already has md:pt-8 for the page title; doubling
-        // it pushed the nav below the H2 on LLM, Application, etc.
-        "md:sticky md:top-8 md:self-start",
+        "md:sticky md:top-8 md:self-start md:pl-[14px]",
       )}
     >
       <Typography.Text className="px-3 text-xs font-semibold uppercase tracking-wider text-[var(--oh-muted)]">
@@ -55,7 +54,7 @@ export function SettingsDesktopSidebar({
           />
         ))}
       </div>
-      <div className="flex min-h-[2.75rem] items-start px-2 pt-3">
+      <div className="px-2 pt-3">
         <BackendSyncedSettingsBadge />
       </div>
     </aside>
@@ -129,7 +128,7 @@ export function SettingsMobileDrawer({
           })}
         </div>
 
-        <div className="flex min-h-[2.75rem] items-start px-2 pt-3">
+        <div className="px-2 pt-3">
           <BackendSyncedSettingsBadge />
         </div>
       </nav>

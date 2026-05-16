@@ -11,6 +11,11 @@ interface SettingsLayoutProps {
   navigationItems: SettingsNavRenderedItem[];
 }
 
+/**
+ * Mirrors the extensions layout (Skills / MCP): aside and main are siblings,
+ * and only the main column scrolls so the left nav stays pinned like
+ * ExtensionsNavigation.
+ */
 export function SettingsLayout({
   children,
   navigationItems,
@@ -21,18 +26,14 @@ export function SettingsLayout({
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="flex flex-col h-full px-[14px]">
-      {/* Mobile header */}
+    <div className="flex h-full flex-col px-[14px] md:px-0">
       <MobileHeader
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMenu={toggleMobileMenu}
       />
-      {/* Desktop: one vertical scroll for nav + content so the sidebar can
-          stay sticky (`md:sticky` on the desktop aside). */}
-      <div className="flex min-h-0 flex-1 items-start gap-10 overflow-y-auto custom-scrollbar-always">
+      <div className="flex min-h-0 flex-1 gap-10 md:items-start">
         <SettingsDesktopSidebar navigationItems={navigationItems} />
-        {/* Main content: fixed reading width (~800px) centered beside the nav. */}
-        <main className="flex min-w-0 flex-1 flex-col md:pt-8">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always md:pr-[14px] md:pt-8 md:pb-12">
           <div className="mx-auto w-full min-w-0 max-w-[800px]">{children}</div>
         </main>
       </div>
