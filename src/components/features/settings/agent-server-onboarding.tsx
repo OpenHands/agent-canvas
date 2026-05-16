@@ -116,7 +116,7 @@ export function AgentServerConnectionForm({
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-primary">
               {t("SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE")}
             </p>
-            <p className="mt-3 max-w-[680px] text-sm leading-7 text-[var(--oh-muted)]">
+            <p className="mt-3 w-full min-w-0 text-sm leading-7 text-[var(--oh-muted)]">
               {t("SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_DESCRIPTION")}
             </p>
           </div>
@@ -130,7 +130,7 @@ export function AgentServerConnectionForm({
           value={baseUrl}
           onChange={setBaseUrl}
           placeholder={t("SETTINGS$AGENT_SERVER_URL_PLACEHOLDER")}
-          className="w-full max-w-[680px]"
+          className="w-full min-w-0"
         />
 
         <SettingsInput
@@ -142,10 +142,10 @@ export function AgentServerConnectionForm({
           onChange={setSessionApiKey}
           placeholder={t("SETTINGS$AGENT_SERVER_API_KEY_PLACEHOLDER")}
           showOptionalTag
-          className="w-full max-w-[680px]"
+          className="w-full min-w-0"
         />
 
-        <p className="max-w-[680px] text-xs leading-6 text-[var(--oh-text-subtle)]">
+        <p className="w-full min-w-0 text-xs leading-6 text-[var(--oh-text-subtle)]">
           {t("SETTINGS$AGENT_SERVER_BROWSER_ONLY_NOTE")}
         </p>
       </div>
