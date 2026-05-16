@@ -32,7 +32,10 @@ export function SettingsNavigation({
     <>
       <aside
         data-testid="settings-navbar-desktop"
-        className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2"
+        className={cn(
+          "hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2",
+          "md:sticky md:top-8 md:self-start",
+        )}
       >
         <Typography.Text className="px-3 text-xs font-semibold uppercase tracking-wider text-[var(--oh-muted)]">
           {t(I18nKey.SETTINGS$TITLE)}

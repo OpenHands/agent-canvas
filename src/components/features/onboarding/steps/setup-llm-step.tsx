@@ -117,7 +117,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
 
       <div
         data-testid="onboarding-llm-settings"
-        className="flex-1 min-h-0 flex flex-col"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always"
       >
         <LlmSettingsScreen
           embedded
