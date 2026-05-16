@@ -42,21 +42,21 @@ export interface DirectConversationInfo {
   } | null;
 }
 
-const DEFAULT_TOOL_NAMES = [
-  "terminal",
-  "file_editor",
-  "task_tracker",
-  "canvas_ui",
-];
-const BROWSER_TOOL_SET_NAME = "browser_tool_set";
-const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
-const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
-
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
 // tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
 // (see scripts/dev-docker.mjs and scripts/dev-safe.mjs).
 const CANVAS_UI_TOOL_NAME = "canvas_ui";
 const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
+
+const DEFAULT_TOOL_NAMES = [
+  "terminal",
+  "file_editor",
+  "task_tracker",
+  CANVAS_UI_TOOL_NAME,
+];
+const BROWSER_TOOL_SET_NAME = "browser_tool_set";
+const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
+const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
 function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";

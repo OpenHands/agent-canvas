@@ -63,13 +63,12 @@ class CanvasUIExecutor(ToolExecutor[CanvasUIAction, CanvasUIObservation]):
         )
 
 
-_CANVAS_UI_DESCRIPTION = """Direct the Agent Canvas frontend so the user sees what you just produced.
+_CANVAS_UI_DESCRIPTION = """The user is interacting with you inside Agent Canvas — a web UI with a chat panel on the left and a tabbed right-side panel (files, terminal, browser, vscode, planner, tasklist). This tool lets you drive that right-side panel so the user sees what you just produced.
 
-The user is looking at a chat panel. They will NOT see the files you wrote,
-the terminal output, or the browser unless you call this tool to switch the
-right-side panel to the relevant tab. Call this every time you finish work
-that produces something the user should look at — don't rely on them
-noticing on their own.
+They will NOT see the files you wrote, the terminal output, or the browser
+unless you call this tool to switch the right-side panel to the relevant
+tab. Call this every time you finish work that produces something the user
+should look at — don't rely on them noticing on their own.
 
 When to call (pick the most specific option that matches your last action):
 
