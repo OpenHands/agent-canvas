@@ -296,6 +296,32 @@ is omitted.
     the `main` branch of a dedicated fork at `rbren/agent-canvas` (no
     history rewrite — same commit graph, new home).
 
+- **2026-05-16** — synced upstream `main` at `56a3d8a4` ("fix: prevent LLM
+  profile actions menu from being clipped by scroll container (#523)").
+  - Sync commit: this commit (see `git log` for hash)
+  - Conflicts: `src/components/shared/buttons/openhands-logo-button.tsx`,
+    `src/components/features/sidebar/sidebar.tsx`
+  - Notes: Pulled in 10 upstream commits (`76a0e806..56a3d8a4`) via
+    `git rebase --empty=drop upstream/main`. The conversation-panel
+    filter-persistence work the fork had been carrying as a merge of
+    `feat/persist-conversation-panel-preferences` landed upstream as
+    PR #510 (`4a72f6bd`); the fork-local cherry (`cf13abc9`) was detected
+    by `git rebase` as already-applied and dropped automatically. Two
+    files conflicted, both because of upstream's chat-first home /
+    redesign work (PR #514 + #508): `openhands-logo-button.tsx` —
+    upstream refactored the component to accept optional
+    `className` / `logoClassName` / `logoWidth` / `logoHeight` props with
+    `cn()`-based class merging; resolution kept all upstream props *and*
+    layered the fork's `compact` prop, var(--oh-muted) tint, and wordmark
+    on top (additive — no upstream behavior overridden). `sidebar.tsx` —
+    upstream's redesigned collapsed-rail logo block now passes the new
+    width/height/className props; resolution kept those props and added
+    `compact` so the rail still suppresses the wordmark. All 18
+    fork-local `rbren's mod:` markers were preserved (re-grep clean).
+    The `enable-subagent-delegation` feature branch the fork had merged
+    in (`9ed13b24`) has *not* landed on upstream `main` yet and was
+    replayed onto the new base as a normal commit (`093f2ee6`).
+
 ## Core Principles
 
 1. **Additive, not invasive.** Prefer adding *new* files, *new* entries, or *new*
