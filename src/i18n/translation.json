@@ -14381,6 +14381,23 @@
     "tr": "Eski sohbetler",
     "uk": "Старі розмови"
   },
+  "CONVERSATION_PANEL$OLDER_OVER_ONE_HOUR": {
+    "en": "Over 1 hour",
+    "ja": "1時間以上前",
+    "zh-CN": "超过 1 小时",
+    "zh-TW": "超過 1 小時",
+    "ko-KR": "1시간 이상 지남",
+    "no": "Mer enn 1 time",
+    "ar": "أكثر من ساعة",
+    "de": "Über 1 Stunde",
+    "fr": "Plus d’1 h",
+    "it": "Oltre 1 ora",
+    "pt": "Há mais de 1 hora",
+    "es": "Más de 1 hora",
+    "ca": "Fa més d’1 hora",
+    "tr": "1 saati aşkın",
+    "uk": "Понад 1 годину"
+  },
   "CONVERSATION_PANEL$SHOW": {
     "en": "Show",
     "ja": "表示",

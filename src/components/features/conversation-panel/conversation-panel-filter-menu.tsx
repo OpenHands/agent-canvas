@@ -234,9 +234,14 @@ export function ConversationPanelFilterMenu({
           />
 
           <MenuSeparator />
-          <MenuHeading>
-            {t(I18nKey.CONVERSATION_PANEL$OLDER_SECTION)}
-          </MenuHeading>
+          <div className="flex items-baseline justify-between gap-2 px-2 py-1">
+            <span className="min-w-0 truncate text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--oh-muted)]">
+              {t(I18nKey.CONVERSATION_PANEL$OLDER_SECTION)}
+            </span>
+            <span className="shrink-0 text-right text-[10px] font-medium normal-case tracking-normal text-[var(--oh-muted)]/70">
+              {t(I18nKey.CONVERSATION_PANEL$OLDER_OVER_ONE_HOUR)}
+            </span>
+          </div>
           <button
             type="button"
             data-testid="toggle-older-conversations"
