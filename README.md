@@ -1,13 +1,13 @@
 # agent-canvas
 
 > [!WARNING]
-> This project is in sandbox phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+> This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).
 
 Agent Canvas is a web frontend for managing agents. You can:
 
 - ⌨️ prompt them manually
 - 🕐 run them on a schedule
-- ⚡ trigger them automatically—e.g. from Slack or GitHub.
+- ⚡ trigger them automatically — e.g. from Slack or GitHub.
 
 Agents can run anywhere:
 
