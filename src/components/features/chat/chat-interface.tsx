@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
+import { ModelMessages } from "./model-messages";
+import { useModelStore } from "#/stores/model-store";
 import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
@@ -202,6 +204,17 @@ export function ChatInterface() {
   const isHistoryLoading = !showConversationMessages;
   const isChatLoading = isHistoryLoading && !isTask;
 
+  // The empty-state ChatSuggestions overlay is absolutely positioned with
+  // `pointer-events-auto`, so it would block clicks on any /model entry
+  // rendered behind it. Once the user has run /model, the conversation is
+  // no longer logically empty — hide suggestions so the profile list is
+  // interactive.
+  const hasModelEntries = useModelStore((s) =>
+    conversationId
+      ? (s.entriesByConversation[conversationId]?.length ?? 0) > 0
+      : false,
+  );
+
   const handleSendMessage = async (
     content: string,
     originalImages: File[],
@@ -391,6 +404,7 @@ export function ChatInterface() {
         {!hasSubstantiveAgentActions &&
           !hasPendingUserMessages &&
           !userEventsExist &&
+          !hasModelEntries &&
           !isChatLoading && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
@@ -437,6 +451,10 @@ export function ChatInterface() {
            * keeps its own gate (`!userEventsExist && !hasSubstantiveAgentActions`)
            * so brand-new conversations show suggestions, not an empty chat.
            */}
+          {/* /model entries created before any event is rendered are
+              anchored to `null` and live above the message list. */}
+          <ModelMessages conversationId={conversationId} anchorEventId={null} />
+
           {showConversationMessages && renderableEvents.length > 0 && (
             <Messages
               messages={renderableEvents}

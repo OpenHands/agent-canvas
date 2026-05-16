@@ -29,7 +29,11 @@ export function NoRepository({ workspaceWorkingDir }: NoRepositoryProps) {
 
   return (
     <div className="flex items-center gap-1 text-xs text-[var(--oh-muted)] flex-1 min-w-0 overflow-hidden">
-      <RepoForkedIcon width={14} height={14} className="text-[var(--oh-muted)]" />
+      <RepoForkedIcon
+        width={14}
+        height={14}
+        className="text-[var(--oh-muted)]"
+      />
       <span className="truncate min-w-0">
         {t(I18nKey.COMMON$NO_REPOSITORY)}
       </span>

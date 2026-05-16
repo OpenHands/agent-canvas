@@ -5,8 +5,10 @@ import { cn } from "#/utils/utils";
 const cardVariants = cva("flex", {
   variants: {
     theme: {
-      default: "relative bg-[var(--oh-surface)] border border-[var(--oh-border)] rounded-xl",
-      outlined: "relative bg-transparent border border-[var(--oh-border)] rounded-xl",
+      default:
+        "relative bg-[var(--oh-surface)] border border-[var(--oh-border)] rounded-xl",
+      outlined:
+        "relative bg-transparent border border-[var(--oh-border)] rounded-xl",
       dark: "relative bg-black border border-[var(--oh-border-subtle)] rounded-2xl",
     },
     hover: {

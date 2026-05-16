@@ -26,7 +26,7 @@ import { callCloudProxy } from "./proxy";
 function overlayStoredRepoSelection(
   conversation: AppConversation | null,
 ): AppConversation | null {
-  if (!conversation || !conversation.id) return conversation;
+  if (!conversation?.id) return conversation;
   const stored = getStoredConversationMetadata(conversation.id);
   if (!stored) return conversation;
 
@@ -36,8 +36,7 @@ function overlayStoredRepoSelection(
       conversation.selected_repository ?? stored.selected_repository ?? null,
     selected_branch:
       conversation.selected_branch ?? stored.selected_branch ?? null,
-    git_provider:
-      conversation.git_provider ?? stored.git_provider ?? null,
+    git_provider: conversation.git_provider ?? stored.git_provider ?? null,
   };
 }
 

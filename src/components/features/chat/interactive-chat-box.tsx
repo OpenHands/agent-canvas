@@ -3,6 +3,7 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { validateFiles } from "#/utils/file-validation";
 import { CustomChatInput } from "./custom-chat-input";
 import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
+import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { AgentState } from "#/types/agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { GitControlBar } from "./git-control-bar";
@@ -139,7 +140,7 @@ export function InteractiveChatBox({
     }
   };
 
-  const handleSubmit = useBtwInterceptor(
+  const handleAfterModel = useBtwInterceptor(
     conversation?.id ?? null,
     (message) => {
       // When the user opts in via the "upload as file" checkbox, route
@@ -152,6 +153,10 @@ export function InteractiveChatBox({
       }
       clearAllFiles();
     },
+  );
+  const handleSubmit = useModelInterceptor(
+    conversation?.id ?? null,
+    handleAfterModel,
   );
 
   const handleSuggestionsClick = (suggestion: string) => {

@@ -19,4 +19,18 @@ describe("ConversationCardSkeleton", () => {
       screen.queryByTestId("conversation-card-skeleton"),
     ).not.toBeInTheDocument();
   });
+
+  it("renders the same header slots a loaded conversation card shows: status dot, title, and timestamp", () => {
+    render(<ConversationCardSkeleton />);
+
+    expect(
+      screen.getByTestId("conversation-card-skeleton-status-dot"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("conversation-card-skeleton-title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("conversation-card-skeleton-timestamp"),
+    ).toBeInTheDocument();
+  });
 });

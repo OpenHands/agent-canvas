@@ -50,9 +50,7 @@ export function GenericEventMessage({
   ) : null;
 
   return (
-    <div
-      className="flex flex-col gap-1.5 my-1 py-1 text-sm w-full"
-    >
+    <div className="flex flex-col gap-1.5 my-1 py-1 text-sm w-full">
       <div className="flex items-center justify-between font-normal text-[var(--oh-muted)]">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}

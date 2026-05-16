@@ -15,7 +15,7 @@ import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -60,7 +60,9 @@ export function ChatInputActions({
   const unifiedPauseMutation = useUnifiedPauseConversation();
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
-  const { conversationId } = useConversationId();
+  // Optional because the chat input also renders on the home page (no
+  // conversation route yet). Conversation-scoped actions below guard on this.
+  const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const webSocketStatus = useUnifiedWebSocketStatus();
@@ -75,14 +77,18 @@ export function ChatInputActions({
   const codeRef = React.useRef<HTMLDivElement>(null);
   const modelRef = React.useRef<HTMLDivElement>(null);
   const overflowTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const [actionsRowWidth, setActionsRowWidth] = React.useState<number>(Number.POSITIVE_INFINITY);
+  const [actionsRowWidth, setActionsRowWidth] = React.useState<number>(
+    Number.POSITIVE_INFINITY,
+  );
   const [rightSectionWidth, setRightSectionWidth] = React.useState(0);
   const [addFileWidth, setAddFileWidth] = React.useState(32);
   const [toolsWidth, setToolsWidth] = React.useState(100);
   const [codeWidth, setCodeWidth] = React.useState(96);
   const [modelWidth, setModelWidth] = React.useState(120);
   const [isOverflowOpen, setIsOverflowOpen] = React.useState(false);
-  const [activeSubmenu, setActiveSubmenu] = React.useState<"tools" | "agent" | "model" | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = React.useState<
+    "tools" | "agent" | "model" | null
+  >(null);
   const [overflowPortalStyle, setOverflowPortalStyle] =
     React.useState<React.CSSProperties>();
 
@@ -100,7 +106,7 @@ export function ChatInputActions({
     shouldShowAgentTools,
     shouldShowHooks,
   } = useConversationNameContextMenu({
-    conversationId,
+    conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
     showOptions: true,
     onContextMenuToggle: setIsOverflowOpen,
@@ -164,11 +170,13 @@ export function ChatInputActions({
   }, [isCloud]);
 
   const handlePauseAgent = () => {
+    if (!conversationId) return;
     // Pause the conversation (agent execution)
     pauseConversationMutation.mutate({ conversationId });
   };
 
   const handleResumeAgentClick = () => {
+    if (!conversationId) return;
     // Resume the conversation (agent execution)
     resumeConversationMutation.mutate({ conversationId });
   };
@@ -425,14 +433,7 @@ export function ChatInputActions({
             className={contextMenuListItemClassName}
           >
             <ToolsContextMenuIconText
-              icon={
-                <Cpu
-                  width={16}
-                  height={16}
-                  strokeWidth={2}
-                  aria-hidden
-                />
-              }
+              icon={<Cpu width={16} height={16} strokeWidth={2} aria-hidden />}
               text="Model"
               rightIcon={<CarretRightFillIcon width={10} height={10} />}
               className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
@@ -480,7 +481,10 @@ export function ChatInputActions({
   );
 
   return (
-    <div ref={actionsRowRef} className="w-full min-w-0 flex items-center justify-between gap-2">
+    <div
+      ref={actionsRowRef}
+      className="w-full min-w-0 flex items-center justify-between gap-2"
+    >
       <div className="flex min-w-0 items-center gap-1">
         <div className="flex min-w-0 items-center gap-3">
           <div ref={addFileRef} className={cn(!showAddFileInline && "hidden")}>
@@ -519,7 +523,11 @@ export function ChatInputActions({
                   setIsOverflowOpen((open) => !open);
                 }}
               >
-                <ThreeDotsVerticalIcon width={16} height={16} color="currentColor" />
+                <ThreeDotsVerticalIcon
+                  width={16}
+                  height={16}
+                  color="currentColor"
+                />
               </button>
 
               {isOverflowOpen &&
@@ -533,8 +541,11 @@ export function ChatInputActions({
           )}
         </div>
       </div>
-      <div ref={rightSectionRef} className="ml-auto flex shrink-0 items-center gap-2">
-        {showAgentStatusInline && (
+      <div
+        ref={rightSectionRef}
+        className="ml-auto flex shrink-0 items-center gap-2"
+      >
+        {showAgentStatusInline && conversationId && (
           <AgentStatus
             handleStop={handlePauseAgent}
             handleResumeAgent={handleResumeAgentClick}

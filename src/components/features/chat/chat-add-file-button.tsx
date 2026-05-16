@@ -1,4 +1,6 @@
 import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
 export interface ChatAddFileButtonProps {
@@ -10,6 +12,8 @@ export function ChatAddFileButton({
   handleFileIconClick,
   disabled = false,
 }: ChatAddFileButtonProps) {
+  const { t } = useTranslation("openhands");
+
   return (
     <button
       type="button"
@@ -19,7 +23,7 @@ export function ChatAddFileButton({
           ? "cursor-not-allowed text-[var(--oh-text-subtle)]"
           : "cursor-pointer text-[var(--oh-muted)] hover:text-white hover:bg-white/10",
       )}
-      aria-label="Add file"
+      aria-label={t(I18nKey.CHAT_INTERFACE$ADD_FILE)}
       data-testid="paperclip-icon"
       onClick={handleFileIconClick}
       disabled={disabled}

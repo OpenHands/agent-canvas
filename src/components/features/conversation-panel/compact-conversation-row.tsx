@@ -4,7 +4,7 @@ import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
-import { ConversationStatusDot } from "../home/recent-conversations/conversation-status-dot";
+import { ConversationStatusDot } from "./conversation-status-dot";
 import { ConversationCardFooter } from "./conversation-card/conversation-card-footer";
 
 interface CompactConversationRowProps {
@@ -79,7 +79,9 @@ export function CompactConversationRow({
           cn(
             "flex items-center justify-center w-10 h-9 mx-auto rounded-md",
             "transition-colors cursor-pointer",
-            navActive || isActive ? "bg-tertiary" : "hover:bg-[var(--oh-surface-raised)]",
+            navActive || isActive
+              ? "bg-tertiary"
+              : "hover:bg-[var(--oh-surface-raised)]",
           )
         }
       >

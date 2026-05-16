@@ -77,7 +77,9 @@ function TreeNode({ node, depth, selectedPath, onSelectFile }: TreeNodeProps) {
         className={cn(
           "flex w-full items-center gap-1.5 py-1 pr-2 text-left text-sm",
           "hover:bg-tertiary cursor-pointer",
-          isSelected ? "bg-[var(--oh-interactive-hover)] text-white" : "text-[var(--oh-text-tertiary)]",
+          isSelected
+            ? "bg-[var(--oh-interactive-hover)] text-white"
+            : "text-[var(--oh-text-tertiary)]",
         )}
         style={{ paddingLeft: `${indentPx + 16}px` }}
       >

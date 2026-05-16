@@ -78,7 +78,9 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
       <BackendStatusDot isConnected={health?.isConnected ?? null} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-sm text-white truncate">{backend.name}</span>
-        <span className="text-xs text-[var(--oh-muted)] truncate">{backend.host}</span>
+        <span className="text-xs text-[var(--oh-muted)] truncate">
+          {backend.host}
+        </span>
         <BackendVersion backend={backend} />
       </div>
       <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">

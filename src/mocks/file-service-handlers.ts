@@ -7,36 +7,71 @@ export const FILE_VARIANTS_2 = [
   "terminator_blueprint.txt",
 ];
 
+const MOCK_FILE_BROWSER_HOME = {
+  home: "/home/openhands",
+  favorites: [{ label: "Downloads", path: "/home/openhands/Downloads" }],
+  locations: [],
+};
+
+const MOCK_SUBDIRECTORIES_BY_PATH: Record<
+  string,
+  { name: string; path: string }[]
+> = {
+  "/projects": [
+    { name: "demo-app", path: "/projects/demo-app" },
+    { name: "sample-tools", path: "/projects/sample-tools" },
+    { name: "notes-service", path: "/projects/notes-service" },
+  ],
+  "/projects/demo-app": [
+    {
+      name: "web-client",
+      path: "/projects/demo-app/web-client",
+    },
+    {
+      name: "api-service",
+      path: "/projects/demo-app/api-service",
+    },
+  ],
+  "/projects/demo-app/web-client": [],
+};
+
+const shouldReturnDockerProjectMock =
+  typeof import.meta.env.MODE === "string" && import.meta.env.MODE !== "test";
+
 export const FILE_SERVICE_HANDLERS = [
-  // Home directory for the workspace folder-browser
-  http.get("*/api/file/home", () =>
+  http.all("*/api/bash/execute_bash_command", async () =>
     HttpResponse.json({
-      home: "/home/user",
-      favorites: [{ label: "Home", path: "/home/user" }],
-      locations: [{ label: "Projects", path: "/projects" }],
+      command: "",
+      exit_code: 0,
+      output: "",
     }),
   ),
 
-  // Subdirectory listing for the workspace folder-browser
-  http.get("*/api/file/search_subdirs", ({ request }) => {
+  http.get("*/api/file/home", async () =>
+    HttpResponse.json(MOCK_FILE_BROWSER_HOME),
+  ),
+
+  http.get("*/api/file/search_subdirs", async ({ request }) => {
     const url = new URL(request.url);
-    const path = url.searchParams.get("path") ?? "/";
+    const path = url.searchParams.get("path") ?? "";
+    const items = shouldReturnDockerProjectMock
+      ? (MOCK_SUBDIRECTORIES_BY_PATH[path] ?? [])
+      : [];
+
     return HttpResponse.json({
       path,
-      entries: [
-        {
-          name: "project-a",
-          path: `${path}/project-a`.replace("//", "/"),
-          is_dir: true,
-        },
-        {
-          name: "project-b",
-          path: `${path}/project-b`.replace("//", "/"),
-          is_dir: true,
-        },
-      ],
+      items,
+      subdirs: items,
+      next_page_id: null,
     });
   }),
+
+  http.get("*/api/file/:path", async ({ params }) =>
+    HttpResponse.json({
+      path: `/${params.path?.toString() ?? "home"}`,
+      subdirs: [],
+    }),
+  ),
 
   http.get(
     "/api/conversations/:conversationId/list-files",

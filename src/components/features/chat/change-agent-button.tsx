@@ -164,7 +164,10 @@ export function ChangeAgentButton() {
             !isExecutionAgent &&
             "cursor-pointer text-white hover:bg-white/10",
           isButtonDisabled &&
-            cn("opacity-50 cursor-not-allowed", isExecutionAgent && "border-transparent"),
+            cn(
+              "opacity-50 cursor-not-allowed",
+              isExecutionAgent && "border-transparent",
+            ),
         )}
       >
         <div className="flex items-center gap-1 pl-1.5">

@@ -107,10 +107,7 @@ export function EventGroup({
   const Chevron = expanded ? ArrowUp : ArrowDown;
 
   return (
-    <div
-      className="my-1 w-full py-1 text-sm"
-      data-testid="event-group"
-    >
+    <div className="my-1 w-full py-1 text-sm" data-testid="event-group">
       <button
         id={buttonId}
         type="button"

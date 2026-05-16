@@ -68,7 +68,8 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
   "--oh-bg-editor-sidebar": "var(--cool-grey-925)",
   "--oh-bg-editor-active": "var(--cool-grey-900)",
   "--oh-border-editor-sidebar": "var(--cool-grey-800)",
-  "--oh-bg-neutral-muted": "color-mix(in srgb, var(--cool-grey-300) 20%, transparent)",
+  "--oh-bg-neutral-muted":
+    "color-mix(in srgb, var(--cool-grey-300) 20%, transparent)",
 } as const;
 
 export type AgentServerUICssVariableName =

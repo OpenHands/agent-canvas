@@ -6,6 +6,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 import {
+  type HomeDirectoryResponse,
   useHomeDirectory,
   useSearchSubdirs,
 } from "#/hooks/query/use-search-subdirs";
@@ -13,6 +14,8 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
+
+const DOCKER_PROJECTS_PATH = "/projects";
 
 interface FolderBrowserModalProps {
   isOpen: boolean;
@@ -80,6 +83,12 @@ function getParentPath(path: string): string | null {
   return trimmed.slice(0, idx);
 }
 
+function shouldDefaultToDockerProjects(
+  homeData: HomeDirectoryResponse | undefined,
+): boolean {
+  return homeData?.home === "/home/openhands";
+}
+
 export function FolderBrowserModal({
   isOpen,
   onClose,
@@ -95,7 +104,11 @@ export function FolderBrowserModal({
   // Initialize / reset to home each time the modal is opened
   useEffect(() => {
     if (isOpen && homeData?.home && currentPath === null) {
-      setCurrentPath(homeData.home);
+      setCurrentPath(
+        shouldDefaultToDockerProjects(homeData)
+          ? DOCKER_PROJECTS_PATH
+          : homeData.home,
+      );
     }
     if (!isOpen) {
       setCurrentPath(null);
@@ -118,7 +131,21 @@ export function FolderBrowserModal({
   const favorites: SidebarEntry[] = useMemo(() => {
     if (!homeData?.home) return [];
     const trimmed = homeData.home.replace(/[\\/]+$/, "") || homeData.home;
-    return [{ label: "Home", path: trimmed }, ...(homeData.favorites ?? [])];
+    const backendFavorites = [
+      { label: "Home", path: trimmed },
+      ...(homeData.favorites ?? []),
+    ];
+    if (
+      shouldDefaultToDockerProjects(homeData) &&
+      !backendFavorites.some((entry) => entry.path === DOCKER_PROJECTS_PATH)
+    ) {
+      backendFavorites.push({
+        label: DOCKER_PROJECTS_PATH,
+        path: DOCKER_PROJECTS_PATH,
+      });
+    }
+
+    return backendFavorites;
   }, [homeData]);
 
   const locations: SidebarEntry[] = homeData?.locations ?? [];
@@ -133,8 +160,7 @@ export function FolderBrowserModal({
   // returns no favorites (the only contents are hidden credential dirs).
   // In that case there's nothing useful for the user to browse, so we
   // surface the OH_MOUNT_HOST_HOME=1 opt-in instead of the generic empty
-  // state. Off in production / non-Docker dev because favorites are
-  // populated there.
+  // state when the user navigates back to the container home.
   const showHostHomeHint =
     homeData?.home === "/home/openhands" &&
     (homeData?.favorites?.length ?? 0) === 0 &&

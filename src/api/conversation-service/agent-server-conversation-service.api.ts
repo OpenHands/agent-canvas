@@ -29,6 +29,7 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
+  emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
   toConversationPage,
@@ -43,6 +44,7 @@ import {
   setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -478,6 +480,13 @@ class AgentServerConversationService {
     );
   }
 
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
+    return emptyHooksResponse();
+  }
+
   static async getRuntimeConversation(
     conversationId: string,
     conversationUrl: string | null | undefined,
@@ -568,6 +577,22 @@ class AgentServerConversationService {
       conversationId,
     ]);
     return requireAppConversation(conversation, conversationId);
+  }
+
+  static async switchProfile(
+    conversationId: string,
+    profileName: string,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "LLM profile switching is only supported for local agent-server backends.",
+      );
+    }
+
+    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
+      conversationId,
+      profileName,
+    );
   }
 }
 

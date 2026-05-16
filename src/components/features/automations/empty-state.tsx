@@ -9,9 +9,7 @@ export function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <DatabaseIcon className="size-12 text-muted" />
-      <p className="mt-4 text-sm text-muted">
-        {t(I18nKey.AUTOMATIONS$EMPTY)}
-      </p>
+      <p className="mt-4 text-sm text-muted">{t(I18nKey.AUTOMATIONS$EMPTY)}</p>
 
       {/* How to create section */}
       <div className="mt-8 flex justify-center">

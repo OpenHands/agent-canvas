@@ -86,7 +86,9 @@ export function SkillItemExpanded({ content }: SkillItemExpandedProps) {
         </div>
       )}
 
-      {hasMetadata && body && <hr className="border-[var(--oh-border-subtle)] mb-3" />}
+      {hasMetadata && body && (
+        <hr className="border-[var(--oh-border-subtle)] mb-3" />
+      )}
 
       {body && <MarkdownRenderer>{styleImportantTags(body)}</MarkdownRenderer>}
     </div>

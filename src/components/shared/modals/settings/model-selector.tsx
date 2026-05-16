@@ -117,7 +117,7 @@ export function ModelSelector({
   return (
     <div
       className={cn(
-        "flex flex-col md:flex-row w-full max-w-[680px] justify-between gap-4 md:gap-[46px]",
+        "flex flex-col md:flex-row w-full min-w-0 justify-between gap-4 md:gap-[46px]",
         wrapperClassName,
       )}
     >
@@ -141,7 +141,8 @@ export function ModelSelector({
           defaultSelectedKey={selectedProvider ?? undefined}
           selectedKey={selectedProvider}
           classNames={{
-            popoverContent: "bg-content1 rounded-xl border border-[var(--oh-border)]",
+            popoverContent:
+              "bg-content1 rounded-xl border border-[var(--oh-border)]",
             selectorButton:
               "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
           }}
@@ -212,7 +213,8 @@ export function ModelSelector({
           selectedKey={selectedModel}
           defaultSelectedKey={selectedModel ?? undefined}
           classNames={{
-            popoverContent: "bg-content1 rounded-xl border border-[var(--oh-border)]",
+            popoverContent:
+              "bg-content1 rounded-xl border border-[var(--oh-border)]",
             selectorButton:
               "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
           }}

@@ -1,19 +1,17 @@
 import { cn } from "#/utils/utils";
 
-interface BrandBadgeProps {
-  className?: string;
-}
-
 export function BrandBadge({
   children,
   className,
-}: React.PropsWithChildren<BrandBadgeProps>) {
+  ...rest
+}: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       className={cn(
-        "text-sm leading-4 text-base font-semibold tracking-tighter bg-primary p-1 rounded-full",
+        "text-sm leading-4 text-black font-semibold tracking-tighter bg-primary p-1 rounded-full",
         className,
       )}
+      {...rest}
     >
       {children}
     </span>

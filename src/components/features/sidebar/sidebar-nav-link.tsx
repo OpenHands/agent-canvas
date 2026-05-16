@@ -87,9 +87,7 @@ export function SidebarNavLink({
     <StyledTooltip
       content={hoverContent ?? label}
       placement="right"
-      tooltipClassName={
-        hoverContent ? "p-0 bg-tertiary text-white" : undefined
-      }
+      tooltipClassName={hoverContent ? "p-0 bg-tertiary text-white" : undefined}
     >
       {link}
     </StyledTooltip>

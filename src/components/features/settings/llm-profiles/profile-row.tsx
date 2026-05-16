@@ -4,6 +4,7 @@ import { ProfileActionsMenu } from "./profile-actions-menu";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { I18nKey } from "#/i18n/declaration";
 import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
+import { BrandBadge } from "#/components/shared/badge";
 
 interface ProfileRowProps {
   profile: ProfileInfo;
@@ -48,12 +49,12 @@ export function ProfileRow({
           </span>
         ) : null}
         {isActive && (
-          <span
-            className="text-xs bg-success text-white font-semibold rounded-full px-2.5 py-0.5 whitespace-nowrap self-start sm:self-auto"
+          <BrandBadge
+            className="text-xs px-2.5 py-1 whitespace-nowrap self-start sm:self-auto"
             data-testid="profile-active-badge"
           >
             {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
-          </span>
+          </BrandBadge>
         )}
       </div>
       <div className="relative shrink-0">

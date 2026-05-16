@@ -1,4 +1,8 @@
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { I18nKey } from "#/i18n/declaration";
@@ -34,12 +38,17 @@ export const useUpdateConversationRepository = () => {
       // `useUserConversation`. Cancel/snapshot/update via the prefix so
       // the optimistic change actually reaches the rendered query, not a
       // stale 3-element key that no observer ever reads.
-      const prefix: QueryKey = ["user", "conversation", variables.conversationId];
+      const prefix: QueryKey = [
+        "user",
+        "conversation",
+        variables.conversationId,
+      ];
       await queryClient.cancelQueries({ queryKey: prefix });
 
-      const previousEntries = queryClient.getQueriesData<AppConversation | null>({
-        queryKey: prefix,
-      });
+      const previousEntries =
+        queryClient.getQueriesData<AppConversation | null>({
+          queryKey: prefix,
+        });
 
       queryClient.setQueriesData<AppConversation | null>(
         { queryKey: prefix },

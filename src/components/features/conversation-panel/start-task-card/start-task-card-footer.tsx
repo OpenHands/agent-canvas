@@ -39,7 +39,9 @@ export function StartTaskCardFooter({
 
       {/* Task Detail */}
       {detail && (
-        <div className="text-xs text-[var(--oh-text-subtle)] truncate">{detail}</div>
+        <div className="text-xs text-[var(--oh-text-subtle)] truncate">
+          {detail}
+        </div>
       )}
     </div>
   );

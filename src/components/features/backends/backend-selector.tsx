@@ -315,8 +315,8 @@ export function BackendSelector({
             onClick={() => navigate("/settings")}
             className={
               isSettingsActive
-                ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors"
-                : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors"
+                ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
+                : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
             }
           >
             <Settings width={16} height={16} />

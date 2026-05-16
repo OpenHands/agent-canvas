@@ -80,9 +80,12 @@ export function AgentStatus({
 
   const shouldShownAgentResume =
     !shouldShownAgentError &&
-    (curAgentState === AgentState.STOPPED || curAgentState === AgentState.PAUSED);
-  const isInteractive = !isLoading && (shouldShownAgentStop || shouldShownAgentResume);
-  const isDoneStatus = statusCode === I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE;
+    (curAgentState === AgentState.STOPPED ||
+      curAgentState === AgentState.PAUSED);
+  const isInteractive =
+    !isLoading && (shouldShownAgentStop || shouldShownAgentResume);
+  const isDoneStatus =
+    statusCode === I18nKey.CHAT_INTERFACE$AGENT_FINISHED_MESSAGE;
   const isReadyStatus = statusCode === I18nKey.AGENT_STATUS$WAITING_FOR_TASK;
   const isTransientCheckStatus = isDoneStatus || isReadyStatus;
   const [shouldRenderDoneStatus, setShouldRenderDoneStatus] = useState(true);

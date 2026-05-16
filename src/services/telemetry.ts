@@ -32,12 +32,20 @@ const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 
-// PostHog configuration - configurable via env vars with OpenHands defaults
-// Note: The default API key sends telemetry to OpenHands' PostHog project.
-// Library consumers can override this with their own PostHog project key.
-const POSTHOG_API_KEY =
-  import.meta.env.VITE_POSTHOG_API_KEY ||
-  "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+// PostHog project keys — one per deployment environment, hardcoded so they
+// are baked into the static bundle at build time and cannot drift at runtime.
+// Replace POSTHOG_STAGING_KEY with a dedicated project key once provisioned.
+const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
+
+// Always use the staging key unless VITE_APP_ENV is explicitly set to
+// "production" at bundle time (hardcoded in build:lib and production CI).
+// Library consumers can always override with VITE_POSTHOG_API_KEY.
+const POSTHOG_API_KEY: string =
+  (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
+  (import.meta.env.VITE_APP_ENV === "production"
+    ? POSTHOG_PROD_KEY
+    : POSTHOG_STAGING_KEY);
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.

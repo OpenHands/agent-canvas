@@ -5,6 +5,7 @@ src/i18n/declaration.ts
 .envrc
 node_modules/
 build/
+logs/
 /.tmp/live-e2e-state/
 dist/
 
@@ -15,6 +16,9 @@ dist/
 /playwright-report-live/
 /blob-report/
 /playwright/.cache/
+# Snapshot baselines are stored as GitHub Actions artifacts — not in git.
+# Download them from the latest successful "Snapshot Tests" run on main.
+/tests/e2e/__snapshots__/
 .react-router/
 ralph/
 .vercel

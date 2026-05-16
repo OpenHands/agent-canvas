@@ -106,6 +106,112 @@ describe("cloud conversation-service overlay", () => {
     expect(mockCallCloudProxy).not.toHaveBeenCalled();
   });
 
+  it("only fills server-side nulls — server-populated fields are preserved", async () => {
+    setStoredConversationMetadata("conv-1", {
+      selected_repository: "local/repo",
+      selected_branch: "local-branch",
+      git_provider: "gitlab",
+    });
+
+    mockCallCloudProxy.mockResolvedValueOnce([
+      {
+        id: "conv-1",
+        title: "Hello",
+        selected_repository: "server/repo",
+        selected_branch: null,
+        git_provider: null,
+      },
+    ]);
+
+    const [conversation] = await batchGetCloudConversations(["conv-1"]);
+
+    // Server-populated field wins…
+    expect(conversation?.selected_repository).toBe("server/repo");
+    // …but the two nulls are filled in from local storage.
+    expect(conversation?.selected_branch).toBe("local-branch");
+    expect(conversation?.git_provider).toBe("gitlab");
+  });
+
+  it("leaves server-side nulls null when local storage only has a partial selection", async () => {
+    setStoredConversationMetadata("conv-1", {
+      selected_repository: "local/repo",
+      selected_branch: null,
+      git_provider: null,
+    });
+
+    mockCallCloudProxy.mockResolvedValueOnce([
+      {
+        id: "conv-1",
+        title: "Hello",
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+      },
+    ]);
+
+    const [conversation] = await batchGetCloudConversations(["conv-1"]);
+
+    expect(conversation?.selected_repository).toBe("local/repo");
+    expect(conversation?.selected_branch).toBeNull();
+    expect(conversation?.git_provider).toBeNull();
+  });
+
+  it("applies the overlay independently per conversation when batching multiple ids", async () => {
+    setStoredConversationMetadata("conv-1", {
+      selected_repository: "octocat/hello-world",
+      selected_branch: "main",
+      git_provider: "github",
+    });
+    setStoredConversationMetadata("conv-2", {
+      selected_repository: "octocat/other",
+      selected_branch: "dev",
+      git_provider: "github",
+    });
+
+    mockCallCloudProxy.mockResolvedValueOnce([
+      {
+        id: "conv-1",
+        title: "First",
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+      },
+      {
+        id: "conv-2",
+        title: "Second",
+        // Server returns the repo already — overlay should NOT override.
+        selected_repository: "server/two",
+        selected_branch: null,
+        git_provider: null,
+      },
+      {
+        id: "conv-3",
+        title: "Third (no local data)",
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+      },
+    ]);
+
+    const conversations = await batchGetCloudConversations([
+      "conv-1",
+      "conv-2",
+      "conv-3",
+    ]);
+
+    expect(conversations[0]?.selected_repository).toBe("octocat/hello-world");
+    expect(conversations[0]?.selected_branch).toBe("main");
+    expect(conversations[0]?.git_provider).toBe("github");
+
+    expect(conversations[1]?.selected_repository).toBe("server/two");
+    expect(conversations[1]?.selected_branch).toBe("dev");
+    expect(conversations[1]?.git_provider).toBe("github");
+
+    expect(conversations[2]?.selected_repository).toBeNull();
+    expect(conversations[2]?.selected_branch).toBeNull();
+    expect(conversations[2]?.git_provider).toBeNull();
+  });
+
   it("overlays repo selection on each item returned from searchCloudConversations", async () => {
     setStoredConversationMetadata("conv-1", {
       selected_repository: "octocat/hello-world",

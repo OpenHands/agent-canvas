@@ -13,15 +13,12 @@ import {
 export function ThemeInput() {
   const { t } = useTranslation("openhands");
 
-  const handleSelectionChange = React.useCallback(
-    (key: React.Key | null) => {
-      if (!key) return;
-      const next = key as ColorThemeKey;
-      applyColorTheme(next);
-      persistColorTheme(next);
-    },
-    [],
-  );
+  const handleSelectionChange = React.useCallback((key: React.Key | null) => {
+    if (!key) return;
+    const next = key as ColorThemeKey;
+    applyColorTheme(next);
+    persistColorTheme(next);
+  }, []);
 
   return (
     <SettingsDropdownInput
@@ -35,7 +32,7 @@ export function ThemeInput() {
       defaultSelectedKey={readPersistedColorTheme()}
       onSelectionChange={handleSelectionChange}
       isClearable={false}
-      wrapperClassName="w-full max-w-[680px]"
+      wrapperClassName="w-full min-w-0"
     />
   );
 }

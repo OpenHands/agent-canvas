@@ -52,7 +52,9 @@ export function SettingsDropdownInput({
   const { t } = useTranslation("openhands");
 
   return (
-    <label className={cn("flex flex-col gap-2.5", wrapperClassName)}>
+    <label
+      className={cn("flex flex-col gap-2.5 w-full min-w-0", wrapperClassName)}
+    >
       {label && (
         <div className="flex items-center gap-1">
           <span className="text-sm">{label}</span>
@@ -84,7 +86,7 @@ export function SettingsDropdownInput({
         inputProps={{
           classNames: {
             inputWrapper: cn(
-              "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic",
+              "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:italic",
               inputWrapperClassName,
             ),
             input: inputClassName,

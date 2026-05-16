@@ -108,7 +108,9 @@ function ErrorDisplay({
         <h2 className="mb-4 text-xl font-semibold text-red-400">
           {t(I18nKey.LAUNCH$ERROR_TITLE)}
         </h2>
-        <p className="mb-6 text-[var(--oh-text-tertiary)]">{errorMessages[errorType]}</p>
+        <p className="mb-6 text-[var(--oh-text-tertiary)]">
+          {errorMessages[errorType]}
+        </p>
         <div className="flex justify-center gap-3">
           <button
             type="button"

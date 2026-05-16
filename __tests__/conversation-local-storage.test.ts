@@ -74,6 +74,29 @@ describe("conversation localStorage utilities", () => {
       expect(state).not.toHaveProperty("rightPanelShown");
     });
 
+    it("also drops legacy rightPanelShown: true (not just the falsy variant)", () => {
+      // Older builds could persist either boolean. The previous test
+      // covered `false`; this one covers `true` so an upgrading user
+      // with the drawer open can't have it leak through into the new
+      // schema either.
+      const conversationId = "conv-legacy-right-panel-true";
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          selectedTab: "terminal",
+          rightPanelShown: true,
+          unpinnedTabs: ["browser"],
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      expect(state.selectedTab).toBe("terminal");
+      expect(state.unpinnedTabs).toEqual(["browser"]);
+      expect(state).not.toHaveProperty("rightPanelShown");
+    });
+
     it("returns default state when key is missing or invalid", () => {
       expect(getConversationState("conv-missing").conversationMode).toBe(
         "code",

@@ -88,7 +88,9 @@ export function HookExecutionEventMessage({
   const details = (
     <div className="flex flex-col gap-2 text-[var(--oh-muted)]">
       <div>
-        <span className="text-[var(--oh-text-subtle)]">{t("HOOK$COMMAND")}:</span>{" "}
+        <span className="text-[var(--oh-text-subtle)]">
+          {t("HOOK$COMMAND")}:
+        </span>{" "}
         <code className="text-xs bg-[var(--oh-surface)] px-1 py-0.5 rounded">
           {formatHookCommand(event.hook_command)}
         </code>
@@ -96,35 +98,45 @@ export function HookExecutionEventMessage({
 
       {event.exit_code !== null && (
         <div>
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$EXIT_CODE")}:</span>{" "}
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$EXIT_CODE")}:
+          </span>{" "}
           {event.exit_code}
         </div>
       )}
 
       {event.blocked && event.reason && (
         <div className="text-amber-400">
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$BLOCKED_REASON")}:</span>{" "}
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$BLOCKED_REASON")}:
+          </span>{" "}
           {event.reason}
         </div>
       )}
 
       {event.additional_context && (
         <div>
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$CONTEXT")}:</span>{" "}
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$CONTEXT")}:
+          </span>{" "}
           {event.additional_context}
         </div>
       )}
 
       {event.error && (
         <div className="text-red-400">
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$ERROR")}:</span>{" "}
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$ERROR")}:
+          </span>{" "}
           {event.error}
         </div>
       )}
 
       {event.stdout && (
         <div>
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$OUTPUT")}:</span>
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$OUTPUT")}:
+          </span>
           <pre className="text-xs bg-[var(--oh-surface)] p-2 rounded mt-1 overflow-x-auto max-h-40 overflow-y-auto">
             {event.stdout}
           </pre>
@@ -133,7 +145,9 @@ export function HookExecutionEventMessage({
 
       {event.stderr && (
         <div>
-          <span className="text-[var(--oh-text-subtle)]">{t("HOOK$STDERR")}:</span>
+          <span className="text-[var(--oh-text-subtle)]">
+            {t("HOOK$STDERR")}:
+          </span>
           <pre className="text-xs bg-[var(--oh-surface)] p-2 rounded mt-1 overflow-x-auto max-h-40 overflow-y-auto text-amber-300">
             {event.stderr}
           </pre>

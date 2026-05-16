@@ -326,14 +326,14 @@ export function Sidebar() {
         <SidebarConversationList />
 
         {collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2">
+          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2 cursor-pointer">
             <button
               type="button"
               data-testid="collapsed-settings-link"
               aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
               onClick={() => navigate("/settings")}
               className={cn(
-                "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
+                "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors cursor-pointer",
                 currentPath.startsWith("/settings")
                   ? "bg-tertiary text-white font-medium"
                   : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",

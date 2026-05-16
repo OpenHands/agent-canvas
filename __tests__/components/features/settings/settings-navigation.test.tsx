@@ -1,10 +1,13 @@
+import type { ReactNode } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SettingsNavigation } from "#/components/features/settings/settings-navigation";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 const baseItems: SettingsNavRenderedItem[] = [
   { type: "header", text: "SETTINGS$TITLE" as never },
@@ -13,16 +16,28 @@ const baseItems: SettingsNavRenderedItem[] = [
   { type: "item", item: OSS_NAV_ITEMS[1] },
 ];
 
+function renderSettingsNavigation(ui: ReactNode) {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <ActiveBackendProvider>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </ActiveBackendProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("SettingsNavigation", () => {
   it("renders the provided OSS navigation items, headers, and dividers", () => {
-    render(
-      <MemoryRouter>
-        <SettingsNavigation
-          isMobileMenuOpen={false}
-          onCloseMobileMenu={vi.fn()}
-          navigationItems={baseItems}
-        />
-      </MemoryRouter>,
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={baseItems}
+      />,
     );
 
     expect(screen.getByTestId("settings-navbar")).toBeInTheDocument();
@@ -35,14 +50,12 @@ describe("SettingsNavigation", () => {
 
   it("closes the mobile drawer when the close button is clicked", async () => {
     const onCloseMobileMenu = vi.fn();
-    render(
-      <MemoryRouter>
-        <SettingsNavigation
-          isMobileMenuOpen
-          onCloseMobileMenu={onCloseMobileMenu}
-          navigationItems={baseItems}
-        />
-      </MemoryRouter>,
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen
+        onCloseMobileMenu={onCloseMobileMenu}
+        navigationItems={baseItems}
+      />,
     );
 
     await userEvent.click(
@@ -54,14 +67,12 @@ describe("SettingsNavigation", () => {
 
   it("closes the mobile drawer after a navigation item is selected", async () => {
     const onCloseMobileMenu = vi.fn();
-    render(
-      <MemoryRouter>
-        <SettingsNavigation
-          isMobileMenuOpen
-          onCloseMobileMenu={onCloseMobileMenu}
-          navigationItems={baseItems}
-        />
-      </MemoryRouter>,
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen
+        onCloseMobileMenu={onCloseMobileMenu}
+        navigationItems={baseItems}
+      />,
     );
 
     const mobileNav = screen.getByTestId("settings-navbar");

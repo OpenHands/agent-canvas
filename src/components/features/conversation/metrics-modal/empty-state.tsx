@@ -6,7 +6,9 @@ export function EmptyState() {
 
   return (
     <div className="rounded-md p-4 text-center">
-      <p className="text-[var(--oh-muted)]">{t(I18nKey.CONVERSATION$NO_METRICS)}</p>
+      <p className="text-[var(--oh-muted)]">
+        {t(I18nKey.CONVERSATION$NO_METRICS)}
+      </p>
     </div>
   );
 }

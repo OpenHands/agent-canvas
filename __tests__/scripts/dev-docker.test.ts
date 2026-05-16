@@ -1,7 +1,19 @@
+// @vitest-environment node
+// These tests load `scripts/dev-docker.mjs`, which constructs file:// URLs
+// relative to its own location via `new URL("../tools", import.meta.url)`.
+// jsdom's URL constructor ignores file:// base URLs (it falls back to its
+// document base, e.g. http://localhost:3000/), breaking that resolution;
+// the Node environment has the standard WHATWG URL behavior that honors
+// the file:// base.
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTAINER_HOME_DIR,
+  CONTAINER_OPENHANDS_DIR,
   CONTAINER_WORKSPACES_DIR,
+  getDockerHomeTmpfsArgs,
+  getDockerUserArgs,
+  getHostDockerUserSpec,
   isDockerPermissionDenied,
 } from "../../scripts/dev-docker.mjs";
 
@@ -10,6 +22,40 @@ describe("CONTAINER_WORKSPACES_DIR", () => {
     expect(CONTAINER_WORKSPACES_DIR).toBe(
       "/home/openhands/.openhands/agent-canvas/workspaces",
     );
+  });
+});
+
+describe("docker host user", () => {
+  it("uses the current host uid/gid when the platform exposes them", () => {
+    if (
+      typeof process.getuid !== "function" ||
+      typeof process.getgid !== "function"
+    ) {
+      expect(getHostDockerUserSpec()).toBeNull();
+      return;
+    }
+
+    expect(getHostDockerUserSpec()).toBe(
+      `${process.getuid()}:${process.getgid()}`,
+    );
+  });
+
+  it("keeps docker persistence under the standard agent home", () => {
+    expect(CONTAINER_HOME_DIR).toBe("/home/openhands");
+    expect(CONTAINER_OPENHANDS_DIR).toBe("/home/openhands/.openhands");
+  });
+
+  it("adds --user when a host uid/gid is available", () => {
+    expect(getDockerUserArgs("1000:1000")).toEqual(["--user", "1000:1000"]);
+    expect(getDockerUserArgs(null)).toEqual([]);
+  });
+
+  it("mounts a writable tmpfs home for the mapped host user", () => {
+    expect(getDockerHomeTmpfsArgs("1000:1000")).toEqual([
+      "--tmpfs",
+      "/home/openhands:uid=1000,gid=1000,mode=700",
+    ]);
+    expect(getDockerHomeTmpfsArgs(null)).toEqual([]);
   });
 });
 
