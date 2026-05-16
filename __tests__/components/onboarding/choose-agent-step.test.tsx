@@ -31,15 +31,17 @@ describe("ChooseAgentStep", () => {
     expect(openhands).toHaveAttribute("aria-checked", "true");
     expect(openhands).not.toBeDisabled();
 
-    // Claude Code and Codex are visible but disabled / coming-soon.
+    // Claude Code and Codex are visible but disabled with per-option badges.
     expect(claude).toBeDisabled();
     expect(claude).toHaveAttribute("aria-disabled", "true");
     expect(codex).toBeDisabled();
     expect(codex).toHaveAttribute("aria-disabled", "true");
 
-    // The "coming soon" note is rendered.
     expect(
-      screen.getByTestId("onboarding-agent-coming-soon"),
+      screen.getByTestId("onboarding-agent-badge-claude-code"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-agent-badge-codex"),
     ).toBeInTheDocument();
   });
 
