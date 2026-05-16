@@ -392,7 +392,7 @@ describe("ConversationTabs localStorage behavior", () => {
       mockConversationId = REAL_CONVERSATION_ID;
     });
 
-    it("should hide the vscode tab when the active backend is local", () => {
+    it("should show the vscode tab when the active backend is local", () => {
       // Arrange
       seedActiveBackend({
         id: "local-test",
@@ -407,10 +407,9 @@ describe("ConversationTabs localStorage behavior", () => {
         wrapper: createWrapper(REAL_CONVERSATION_ID),
       });
 
-      // Assert
-      expect(
-        screen.queryByTestId("conversation-tab-vscode"),
-      ).not.toBeInTheDocument();
+      // Assert – the VS Code tab is always visible now; the tab content
+      // itself handles the "not configured" state for local backends.
+      expect(screen.getByTestId("conversation-tab-vscode")).toBeInTheDocument();
     });
 
     it("should show the vscode tab when the active backend is cloud", () => {
