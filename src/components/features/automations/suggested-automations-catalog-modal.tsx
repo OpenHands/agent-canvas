@@ -44,9 +44,7 @@ function CatalogItemCard({
           {t(item.titleKey)}
         </span>
       </div>
-      <p className="mt-2 text-sm text-muted transition-colors group-hover:text-content-2">
-        {t(item.descriptionKey)}
-      </p>
+      <p className="mt-2 text-sm text-muted">{t(item.descriptionKey)}</p>
     </div>
   );
 }

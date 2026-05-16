@@ -79,9 +79,7 @@ function SuggestedAutomations() {
                   {t(titleKey)}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-muted transition-colors group-hover:text-content-2">
-                {t(descriptionKey)}
-              </p>
+              <p className="mt-2 text-sm text-muted">{t(descriptionKey)}</p>
             </div>
           ),
         )}

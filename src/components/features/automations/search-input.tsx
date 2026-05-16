@@ -11,7 +11,7 @@ export function SearchInput({ value, onChange }: SearchInputProps) {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="relative">
+    <div className="relative max-w-[416px]">
       <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted" />
       <input
         type="text"
