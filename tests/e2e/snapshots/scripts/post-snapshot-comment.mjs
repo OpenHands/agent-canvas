@@ -41,6 +41,7 @@ const MAIN_BASELINES_DIR =
   process.env.MAIN_BASELINES_DIR ?? "/tmp/main-baselines";
 const SNAPSHOTS_APPROVED = process.env.SNAPSHOTS_APPROVED === "true";
 const GENERATE_OUTCOME = process.env.GENERATE_OUTCOME ?? "success";
+const COMPARE_OUTCOME = process.env.COMPARE_OUTCOME ?? "success";
 
 const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 // The workflow saves comparison test-results to this path before the
@@ -258,6 +259,15 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     `## 📸 Snapshot Test Report`,
     "",
   ];
+
+  if (COMPARE_OUTCOME === "failure") {
+    lines.push(
+      `> [!WARNING]`,
+      `> **Snapshot comparison step crashed** (timeout, OOM, or runner error) — diff results below may be incomplete or absent.`,
+      `> Check the [CI logs](https://github.com/${REPO}/actions/runs/${RUN_ID}) for the full error output (look for the "Run snapshot comparison" step).`,
+      "",
+    );
+  }
 
   if (GENERATE_OUTCOME === "failure") {
     lines.push(

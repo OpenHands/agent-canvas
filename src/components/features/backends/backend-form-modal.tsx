@@ -35,19 +35,25 @@ function inferKindFromHost(host: string): BackendKind {
  * Used by normalizeHost to choose http:// instead of https://.
  */
 function isLocalAddress(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  // Named loopback / any-address
-  if (h === "localhost" || h === "::1" || h === "0.0.0.0") return true;
-  // 127.x.x.x loopback range
-  if (/^127\./.test(h)) return true;
+  // Strip IPv6 bracket notation: [::1] → ::1
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  // IPv6 loopback, any-address, and named loopback
+  if (h === "localhost" || h === "::1" || h === "::" || h === "0.0.0.0")
+    return true;
+  // 127.x.x.x loopback range + IPv4-mapped loopback (::ffff:127.x.x.x)
+  if (/^127\./.test(h) || /^::ffff:127\./i.test(h)) return true;
   // RFC 1918 private ranges
   if (/^10\./.test(h)) return true;
   if (/^192\.168\./.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  // IPv6 link-local (fe80::/10) and unique local (fc00::/7)
+  if (/^fe[89ab][0-9a-f]:/i.test(h)) return true;
+  if (/^f[cd][0-9a-f]{2}:/i.test(h)) return true;
   // mDNS / Bonjour (.local)
   if (h.endsWith(".local")) return true;
-  // Single-label hostnames (no dots) are treated as local network names.
-  if (!h.includes(".")) return true;
+  // Single-label hostnames (no dots, no colons) are local network names.
+  // Colons are excluded so bare IPv6 addresses don't accidentally match.
+  if (!h.includes(".") && !h.includes(":")) return true;
   return false;
 }
 
@@ -56,8 +62,16 @@ function normalizeHost(host: string): string {
   if (!trimmed) return "";
   // Already has an explicit scheme — respect it.
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  // Bare host (optionally with port): pick http for local, https for cloud.
-  const hostname = trimmed.split(":")[0];
+  // Extract the pure hostname for scheme selection, handling three cases:
+  //   [::1]:8080  → bracket IPv6 notation → extract ::1
+  //   ::1         → bare IPv6 (multiple colons, no bracket) → whole string
+  //   host:port   → regular host:port → part before the colon
+  const bracketMatch = trimmed.match(/^\[([^\]]+)\]/);
+  const hostname = bracketMatch
+    ? bracketMatch[1]
+    : (trimmed.match(/:/g) ?? []).length > 1
+      ? trimmed
+      : trimmed.split(":")[0];
   const scheme = isLocalAddress(hostname) ? "http" : "https";
   return `${scheme}://${trimmed}`;
 }
@@ -278,7 +292,13 @@ export function BackendForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      // Mark all validated fields as touched so inline errors become visible
+      // (e.g. user pressed Enter before filling required fields).
+      setNameTouched(true);
+      setHostTouched(true);
+      return;
+    }
 
     const payload = {
       name: name.trim(),

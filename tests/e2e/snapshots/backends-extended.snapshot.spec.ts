@@ -161,7 +161,6 @@ const SNAP_OPTS = { animations: "disabled" as const, maxDiffPixelRatio: 0.01 };
 // ── Test Suite ─────────────────────────────────────────────────────────────
 
 test.describe("Backend Management — Extended Flow Snapshots", () => {
-  test.describe.configure({ mode: "serial" });
   test.setTimeout(90_000);
 
   // ── Flow 1: Add-form validation gates ─────────────────────────────────

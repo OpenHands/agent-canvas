@@ -200,6 +200,7 @@ jobs:
           COMPARISON_RESULTS_DIR: /tmp/comparison-results
           SNAPSHOTS_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
           GENERATE_OUTCOME: ${{ steps.generate.outcome }}
+          COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
 
       - name: Upload test results artifact
