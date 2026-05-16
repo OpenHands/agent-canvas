@@ -98,6 +98,24 @@ describes. Specifically:
   Files: `src/components/features/sidebar/sidebar.tsx`
   Introduced: 9d130c4
 
+- **Browser-tab title rebranded to "rbren's mod"** — `APP_TITLE` constant
+  swapped from `"OpenHands"` to `"rbren's mod"`. Carries through to all
+  `<title>` rendering (including conversation-title prefixes and agent-state
+  emoji prefixes) since the rest of `useAppTitle` is untouched.
+  Files: `src/hooks/use-app-title.ts`
+  Introduced: HEAD
+
+- **Sidebar logo tinted + tooltip rebranded** — the `OpenHandsLogo` SVG in
+  the top-left of the sidebar is tinted Toffee Brown (`#9D684B`, the
+  `rbren-earth` theme's primary accent) via a Tailwind arbitrary-selector
+  class that overrides the SVG's inline `fill="white"` paths only (the
+  transparent face cut-out stays transparent). The hover tooltip and aria
+  label are hardcoded to `"rbren's mod"` / `"rbren's mod logo"`, replacing
+  the upstream `t(I18nKey.BRANDING$OPENHANDS{,_LOGO})` calls; the unused
+  `useTranslation` / `I18nKey` imports are dropped.
+  Files: `src/components/shared/buttons/openhands-logo-button.tsx`
+  Introduced: HEAD
+
 - **`long-running-fork` skill** — this file. Fork-local skill documenting
   maintenance discipline, upstream-issue escalation path, and this MODLOG.
   Loaded automatically on every task for this branch.
