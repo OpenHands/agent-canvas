@@ -74,12 +74,13 @@ function makeStartTask(overrides: Record<string, unknown> = {}) {
 function renderForm(
   initialWorkspaces: LocalWorkspace[] = [],
   initialParents: { id: string; name: string; path: string }[] = [],
+  props: { onConfirm?: (workspace: LocalWorkspace) => void } = {},
 ) {
   useWorkspacesStore.setState({
     workspaces: initialWorkspaces,
     workspaceParents: initialParents,
   });
-  return render(<WorkspaceSelectionForm />, {
+  return render(<WorkspaceSelectionForm {...props} />, {
     wrapper: ({ children }) => (
       <QueryClientProvider
         client={
@@ -537,6 +538,34 @@ describe("WorkspaceSelectionForm", () => {
     expect(
       within(refreshedDropdown).queryByText("repoB"),
     ).not.toBeInTheDocument();
+  });
+
+  it("invokes onConfirm with the selected workspace instead of creating a conversation when used in dialog mode", async () => {
+    const onConfirm = vi.fn();
+    const createSpy = vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    );
+
+    renderForm(
+      [{ id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" }],
+      [],
+      { onConfirm },
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByText("repo1"));
+    await user.click(screen.getByTestId("workspace-launch-button"));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledWith({
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("Add Workspace sidebar renders backend-provided favorites dynamically and navigates into them on click", async () => {

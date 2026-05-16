@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { MessageContent } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 interface SendResult {
@@ -11,7 +11,10 @@ interface SendResult {
  * Sends user messages through the active conversation WebSocket.
  */
 export function useSendMessage() {
-  const { conversationId } = useConversationId();
+  // Optional: this hook is reachable from the home-page chat input shell.
+  // Outside a conversation route, `conversationContext` is null anyway so
+  // `send` is a no-op that returns `{ queued: false }`.
+  const { conversationId } = useOptionalConversationId();
 
   // Get agent-server context (null outside a conversation provider)
   const conversationContext = useConversationWebSocket();
