@@ -455,7 +455,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         >
           {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
           <a
-            href="https://github.com/All-Hands-AI/OpenHands-Cloud"
+            href="https://github.com/OpenHands/OpenHands-Cloud"
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-400 hover:underline"
