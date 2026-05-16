@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RecommendedAutomationsSection } from "#/components/features/automations/recommended-automations-section";
-import { RecommendedAutomationSetupModal } from "#/components/features/automations/recommended-automation-setup-modal";
 import { RECOMMENDED_AUTOMATIONS } from "#/constants/recommended-automations";
-import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
-import type { MCPServerConfig } from "#/types/mcp-server";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -15,14 +12,6 @@ vi.mock("react-i18next", () => ({
     },
   }),
 }));
-
-const githubServer: MCPServerConfig = {
-  id: "stdio-0",
-  type: "stdio",
-  name: "github",
-  command: "npx",
-  args: ["-y", "@modelcontextprotocol/server-github"],
-};
 
 describe("recommended automations", () => {
   it("shows recommended automations in popularity order", () => {
@@ -65,45 +54,23 @@ describe("recommended automations", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("requires missing MCPs before launching a recommendation", () => {
+  it("selects a recommendation directly from its card", () => {
     const automation = RECOMMENDED_AUTOMATIONS.find(
       (item) => item.id === "github-pr-reviewer",
     )!;
-    const githubEntry = MCP_MARKETPLACE.find((entry) => entry.id === "github")!;
-    const onInstallMcp = vi.fn();
-    const onLaunch = vi.fn();
+    const onSelect = vi.fn();
 
-    const { rerender } = render(
-      <RecommendedAutomationSetupModal
-        automation={automation}
-        requiredEntries={[githubEntry]}
+    render(
+      <RecommendedAutomationsSection
+        backendKind="local"
         installedServers={[]}
-        isLaunching={false}
-        onInstallMcp={onInstallMcp}
-        onLaunch={onLaunch}
-        onClose={vi.fn()}
+        onSelect={onSelect}
       />,
     );
 
-    expect(screen.getByTestId("recommended-automation-launch")).toBeDisabled();
     fireEvent.click(
-      screen.getByTestId("recommended-automation-install-github"),
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
-    expect(onInstallMcp).toHaveBeenCalledWith(githubEntry);
-
-    rerender(
-      <RecommendedAutomationSetupModal
-        automation={automation}
-        requiredEntries={[githubEntry]}
-        installedServers={[githubServer]}
-        isLaunching={false}
-        onInstallMcp={onInstallMcp}
-        onLaunch={onLaunch}
-        onClose={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("recommended-automation-launch"));
-    expect(onLaunch).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(automation);
   });
 });
