@@ -102,7 +102,7 @@ export function SecretsSettingsScreen() {
       {view === "list" && !isLoadingSecrets && (
         <div
           ref={tableContainerRef}
-          className="border border-tertiary rounded-md overflow-auto max-h-[60vh]"
+          className="border border-[var(--oh-border)] rounded-md overflow-auto max-h-[60vh]"
           onScroll={handleScroll}
         >
           <table className="w-full min-w-full table-fixed">

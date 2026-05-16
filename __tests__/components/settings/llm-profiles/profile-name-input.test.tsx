@@ -85,7 +85,7 @@ describe("ProfileNameInput", () => {
     );
 
     const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
+    expect(rule).toHaveClass("text-[var(--oh-muted)]");
     expect(rule).not.toHaveClass("text-red-400");
   });
 
@@ -100,7 +100,7 @@ describe("ProfileNameInput", () => {
 
     const rule = screen.getByTestId("rule-text");
     expect(rule).toHaveClass("text-red-400");
-    expect(rule).not.toHaveClass("text-gray-400");
+    expect(rule).not.toHaveClass("text-[var(--oh-muted)]");
   });
 
   it("shows rule text in gray for empty value (treated as valid)", () => {
@@ -109,7 +109,7 @@ describe("ProfileNameInput", () => {
     );
 
     const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
+    expect(rule).toHaveClass("text-[var(--oh-muted)]");
   });
 
   it("shows rule text in red for whitespace-only value", () => {
@@ -206,7 +206,7 @@ describe("ProfileNameInput", () => {
         />,
       );
       // Valid names show gray rule text
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("rule")).toHaveClass("text-[var(--oh-muted)]");
     });
 
     it("rejects 65 character names", () => {
@@ -230,7 +230,7 @@ describe("ProfileNameInput", () => {
           ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("rule")).toHaveClass("text-[var(--oh-muted)]");
     });
 
     it("accepts names with all allowed special characters", () => {
@@ -241,7 +241,7 @@ describe("ProfileNameInput", () => {
           ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("rule")).toHaveClass("text-[var(--oh-muted)]");
     });
 
     it("rejects names starting with special characters", () => {

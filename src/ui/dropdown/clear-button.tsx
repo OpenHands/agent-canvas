@@ -11,7 +11,7 @@ export function ClearButton({ onClear }: ClearButtonProps) {
       data-testid="dropdown-clear"
       onClick={onClear}
       aria-label="Clear selection"
-      className="text-white hover:text-gray-300"
+      className="text-white hover:text-[var(--oh-text-tertiary)]"
     >
       <X size={14} />
     </button>

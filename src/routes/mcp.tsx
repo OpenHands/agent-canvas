@@ -127,7 +127,7 @@ export default function MCPPage() {
       <div data-testid="mcp-page" className="flex h-full gap-10">
         <ExtensionsNavigation />
         <div className="flex h-full flex-1 items-center justify-center">
-          <div className="h-8 w-8 rounded-full border-2 border-tertiary border-t-primary animate-spin" />
+          <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
         </div>
       </div>
     );

@@ -91,7 +91,7 @@ export const useTerminal = () => {
       fastScrollSensitivity: 5,
       disableStdin: true, // Make terminal read-only
       theme: {
-        background: "#25272D",
+        background: "var(--oh-surface)",
       },
     });
 

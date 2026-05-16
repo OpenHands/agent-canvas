@@ -66,7 +66,7 @@ export const ProfileNameInput = forwardRef<
       <p
         id={describedById}
         data-testid={ruleTestId}
-        className={`text-xs ${isValid ? "text-gray-400" : "text-red-400"}`}
+        className={`text-xs ${isValid ? "text-[var(--oh-muted)]" : "text-red-400"}`}
       >
         {t(I18nKey.SETTINGS$PROFILE_NAME_RULE)}
       </p>

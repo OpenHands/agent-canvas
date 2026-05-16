@@ -213,11 +213,13 @@ describe("Sidebar", () => {
     },
   );
 
-  it("renders sidebar nav links with the default text color (text-[#8C8C8C])", () => {
+  it("renders sidebar nav links with the muted default text color", () => {
     renderSidebar("/skills");
 
     const conversationsLink = screen.getByTestId("sidebar-conversations-link");
-    expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+    expect(conversationsLink.className).toMatch(
+      /(^|\s)text-\[var\(--oh-muted\)\](\s|$)/,
+    );
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {

@@ -31,7 +31,9 @@ describe("ChatInputModel", () => {
     expect(model).toBeInTheDocument();
     expect(model).toHaveTextContent("openai/gpt-4o");
     expect(model).toHaveAttribute("title", "openai/gpt-4o");
-    expect(screen.queryByTestId("chat-input-llm-model-popover")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model-popover"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(model);
     const popover = screen.getByTestId("chat-input-llm-model-popover");
@@ -63,9 +65,9 @@ describe("ChatInputModel", () => {
     // Assert — button shows the full name (no truncation),
     // and the popover renders the same full string.
     expect(button).toHaveTextContent(longModel);
-    expect(screen.getByTestId("chat-input-llm-model-popover")).toHaveTextContent(
-      longModel,
-    );
+    expect(
+      screen.getByTestId("chat-input-llm-model-popover"),
+    ).toHaveTextContent(longModel);
   });
 
   it("renders nothing when llm_model is missing", () => {

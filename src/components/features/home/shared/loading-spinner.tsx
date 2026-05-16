@@ -18,7 +18,7 @@ export function LoadingSpinner({
       )}
     >
       <div
-        className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"
+        className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"
         data-testid={testId}
       />
     </div>

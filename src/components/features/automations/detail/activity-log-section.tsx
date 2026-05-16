@@ -23,9 +23,9 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
   const hasMore = data ? data.total > data.runs.length : false;
 
   return (
-    <div className="rounded-2xl border border-border bg-surface-card">
-      <div className="flex items-center gap-2 border-b border-border px-5 pb-3 pt-4">
-        <span className="size-4 text-content-muted">
+    <div className="rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)]">
+      <div className="flex items-center gap-2 border-b border-[var(--oh-border)] px-5 pb-3 pt-4">
+        <span className="size-4 text-muted">
           <ActivityIcon className="size-4" />
         </span>
         <h3 className="text-sm font-medium text-content">
@@ -40,15 +40,15 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
               key={`skeleton-${i}`}
               className="flex items-center justify-between py-3"
             >
-              <div className="h-5 w-64 animate-pulse rounded bg-surface-elevated" />
-              <div className="h-6 w-24 animate-pulse rounded-full bg-surface-elevated" />
+              <div className="h-5 w-64 animate-pulse rounded bg-surface-raised" />
+              <div className="h-6 w-24 animate-pulse rounded-full bg-surface-raised" />
             </div>
           ))}
         </div>
       )}
 
       {!isLoading && data?.runs.length === 0 && (
-        <p className="px-5 py-8 text-center text-sm text-content-muted">
+        <p className="px-5 py-8 text-center text-sm text-muted">
           {t(I18nKey.AUTOMATIONS$DETAIL$NO_RUNS)}
         </p>
       )}
@@ -58,18 +58,18 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
           {data.runs.map((run, index) => (
             <div
               key={run.id}
-              className={index > 0 ? "border-t border-border" : ""}
+              className={index > 0 ? "border-t border-[var(--oh-border)]" : ""}
             >
               <ActivityLogItem run={run} />
             </div>
           ))}
 
           {hasMore && (
-            <div className="border-t border-border px-5 py-3">
+            <div className="border-t border-[var(--oh-border)] px-5 py-3">
               <button
                 type="button"
                 onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
-                className="text-sm text-content-muted hover:text-content"
+                className="text-sm text-muted hover:text-foreground"
               >
                 {t(I18nKey.AUTOMATIONS$DETAIL$LOAD_MORE_RUNS)}
               </button>

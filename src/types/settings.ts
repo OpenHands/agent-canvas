@@ -104,6 +104,7 @@ export type SkillInfo = {
   allowed_tools?: string[] | null;
   is_agentskills_format?: boolean;
   disable_model_invocation?: boolean;
+  content?: string;
 };
 
 export type SettingsScope = "personal";

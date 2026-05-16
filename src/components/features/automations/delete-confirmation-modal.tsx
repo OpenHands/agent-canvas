@@ -29,11 +29,11 @@ export function DeleteConfirmationModal({
         }}
         role="presentation"
       />
-      <div className="relative w-full max-w-sm rounded-xl border border-border bg-surface-card p-6">
+      <div className="relative w-full max-w-sm rounded-xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-6">
         <button
           type="button"
           onClick={onCancel}
-          className="absolute right-4 top-4 text-content-muted hover:text-content"
+          className="absolute right-4 top-4 text-muted hover:text-foreground"
           aria-label="Close"
         >
           <XMarkIcon className="size-5" />
@@ -42,7 +42,7 @@ export function DeleteConfirmationModal({
         <h2 className="text-lg font-semibold text-white">
           {t(I18nKey.AUTOMATIONS$DELETE_CONFIRM_TITLE)}
         </h2>
-        <p className="mt-2 text-sm text-content-muted">
+        <p className="mt-2 text-sm text-muted">
           {t(I18nKey.AUTOMATIONS$DELETE_CONFIRM_MESSAGE, {
             name: automationName,
           })}
@@ -52,14 +52,14 @@ export function DeleteConfirmationModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-border px-4 py-2 text-sm text-white hover:bg-surface-elevated"
+            className="rounded-lg border border-[var(--oh-border)] px-4 py-2 text-sm text-white hover:bg-surface-raised"
           >
             {t(I18nKey.AUTOMATIONS$CANCEL)}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-status-fail-solid px-4 py-2 text-sm text-white hover:bg-status-fail-solid-hover"
+            className="rounded-lg bg-danger px-4 py-2 text-sm text-white hover:bg-danger/80"
           >
             {t(I18nKey.AUTOMATIONS$DELETE)}
           </button>

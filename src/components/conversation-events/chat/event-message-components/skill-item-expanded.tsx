@@ -71,14 +71,14 @@ export function SkillItemExpanded({ content }: SkillItemExpandedProps) {
   return (
     <div className="pl-6 pr-2 pt-2 pb-2">
       {hasMetadata && (
-        <div className="mb-3 text-sm text-neutral-400 space-y-1">
+        <div className="mb-3 text-sm text-[var(--oh-muted)] space-y-1">
           {matchInfo && <p>{matchInfo}</p>}
           {filePath && (
             <p>
-              <Typography.Text className="text-neutral-500">
+              <Typography.Text className="text-[var(--oh-text-subtle)]">
                 {t(I18nKey.COMMON$PATH)}{" "}
               </Typography.Text>
-              <code className="bg-neutral-800 px-1.5 py-0.5 rounded text-neutral-300">
+              <code className="bg-[var(--oh-surface)] px-1.5 py-0.5 rounded text-[var(--oh-text-tertiary)]">
                 {filePath}
               </code>
             </p>
@@ -86,7 +86,9 @@ export function SkillItemExpanded({ content }: SkillItemExpandedProps) {
         </div>
       )}
 
-      {hasMetadata && body && <hr className="border-neutral-700 mb-3" />}
+      {hasMetadata && body && (
+        <hr className="border-[var(--oh-border-subtle)] mb-3" />
+      )}
 
       {body && <MarkdownRenderer>{styleImportantTags(body)}</MarkdownRenderer>}
     </div>

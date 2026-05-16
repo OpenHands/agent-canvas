@@ -129,8 +129,8 @@ export function ConversationCard({
       onClick={onClick}
       className={cn(
         "group relative h-auto w-full rounded-md px-3 pt-1 pb-1 cursor-pointer transition-colors",
-        "data-[context-menu-open=false]:hover:bg-[#1f2228]",
-        "data-[active=true]:bg-[#25272D]",
+        "data-[context-menu-open=false]:hover:bg-[var(--oh-surface)]",
+        "data-[active=true]:bg-[var(--oh-surface)]",
         "data-[context-menu-open=true]:z-20",
       )}
     >
@@ -148,7 +148,7 @@ export function ConversationCard({
           {(createdAt ?? lastUpdatedAt) && (
             <p
               className={cn(
-                "text-xs text-[#A3A3A3] text-right whitespace-nowrap transition-opacity",
+                "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity",
                 hasContextMenu &&
                   "group-hover:opacity-0 group-focus-within:opacity-0",
                 contextMenuOpen && "opacity-0",
