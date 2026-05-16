@@ -1,8 +1,8 @@
 export type ColorThemeKey =
   | "openhands-deepsea"
   | "openhands-neutral"
-  // rbren branch: long-running-fork-local theme (mild green hackery tint).
-  | "rbren-hackery";
+  // rbren branch: long-running-fork-local theme (warm earth-tone palette).
+  | "rbren-earth";
 
 export interface ColorThemeDefinition {
   label: string;
@@ -154,75 +154,96 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
     },
   },
 
-  // rbren branch: long-running-fork-local theme. Two-tone dark mode:
-  //   • main app shell (positions 950 / 975) → dark slate, restrained cool-
-  //     blue-gray (hue ~220, low saturation).
-  //   • side panel / cards / inputs / elevated surfaces (positions 50–925) →
-  //     mild green "hackery" tint (hue ~130, low saturation) so the chrome
-  //     reads like a CRT phosphor terminal without going neon.
+  // rbren branch: long-running-fork-local theme — warm earth-tone palette.
+  // Anchored on six named tones:
+  //   Sand        #CBB874 → position 300 (foreground text)
+  //   Palm Leaf   #9D956C → position 400
+  //   Camel       #AE8853 → position 500 (mid surfaces / active states)
+  //   Olive Wood  #826A48 → position 600
+  //   Stone Brown #6C5D4E → position 700 (hover/selected tint)
+  //   Toffee Brown #9D684B → primary accent (replaces default blue)
+  // Positions 50–200 (cream highlights) and 800–975 (dark app shell) are
+  // derived from the same warm hue family (H≈30, low-to-medium saturation)
+  // so the whole UI reads as a single warm earth-tone dark theme.
   // Lives only on this branch; do not propagate upstream.
   // See .agents/skills/long-running-fork.md.
-  "rbren-hackery": {
-    label: "rbren — Hackery Green",
+  "rbren-earth": {
+    label: "rbren — Earth Tones",
     scale: {
-      "--cool-grey-50": "#F3FBF3",
-      "--cool-grey-100": "#E8F0E8",
-      "--cool-grey-200": "#D8E0D8",
-      "--cool-grey-300": "#B7C5B7",
-      "--cool-grey-400": "#909E90",
-      "--cool-grey-500": "#6E7A6E",
-      "--cool-grey-600": "#525C52",
-      "--cool-grey-700": "#3E443E",
-      "--cool-grey-800": "#2F352F",
-      "--cool-grey-900": "#262C26",
-      "--cool-grey-925": "#1E221E",
-      // Main page background — dark slate, NOT green.
-      "--cool-grey-950": "#161A22",
-      "--cool-grey-975": "#0E1218",
+      "--cool-grey-50": "#F5EEDD", // light cream
+      "--cool-grey-100": "#EBE1C7",
+      "--cool-grey-200": "#DDCFA8",
+      "--cool-grey-300": "#CBB874", // Sand
+      "--cool-grey-400": "#9D956C", // Palm Leaf
+      "--cool-grey-500": "#AE8853", // Camel
+      "--cool-grey-600": "#826A48", // Olive Wood
+      "--cool-grey-700": "#6C5D4E", // Stone Brown
+      "--cool-grey-800": "#534639",
+      "--cool-grey-900": "#2F2820",
+      "--cool-grey-925": "#241F19",
+      "--cool-grey-950": "#1A1612", // main app shell — dark warm brown
+      "--cool-grey-975": "#120F0C",
     },
     heroui: {
-      // App-shell positions (950 / 975) — dark slate.
-      "--heroui-background": "222 21% 11%", // ~#161A22
-      "--heroui-background-foreground": "130 8% 96.86%",
-      "--heroui-foreground-50": "216 26% 7%", // ~#0E1218
-      "--heroui-foreground-100": "222 21% 11%", // ~#161A22
-      "--heroui-default-50": "216 26% 7%", // ~#0E1218
-      "--heroui-default-100": "222 21% 11%", // ~#161A22
+      // App-shell + foreground/default ramp.
+      // Position → HSL (channel format used by heroui as "H S% L%").
+      "--heroui-background": "30 18% 8.63%", // ~#1A1612
+      "--heroui-background-foreground": "42 55% 91.37%", // ~#F5EEDD
 
-      // Side panel / cards / elevated surfaces — green-tinted.
-      "--heroui-foreground-200": "130 8% 12.55%",
-      "--heroui-foreground-300": "130 8% 15.69%",
-      "--heroui-foreground-400": "130 8% 19.22%",
-      "--heroui-foreground-500": "130 8% 25.1%",
-      "--heroui-foreground-600": "130 8% 33.73%",
-      "--heroui-foreground-700": "130 8% 45.1%",
-      "--heroui-foreground-800": "130 8% 59.22%",
-      "--heroui-foreground-900": "130 8% 74.51%",
-      "--heroui-foreground": "130 8% 74.51%",
-      "--heroui-content1": "130 8% 12.55%",
-      "--heroui-content1-foreground": "130 8% 92.55%",
-      "--heroui-content2": "130 8% 15.69%",
-      "--heroui-content2-foreground": "130 8% 86.27%",
-      "--heroui-content3": "130 8% 19.22%",
-      "--heroui-content3-foreground": "130 8% 74.51%",
-      "--heroui-content4": "130 8% 25.1%",
-      "--heroui-content4-foreground": "130 8% 59.22%",
-      "--heroui-default-200": "130 8% 12.55%",
-      "--heroui-default-300": "130 8% 15.69%",
-      "--heroui-default-400": "130 8% 19.22%",
-      "--heroui-default-500": "130 8% 25.1%",
-      "--heroui-default-600": "130 8% 33.73%",
-      "--heroui-default-700": "130 8% 45.1%",
-      "--heroui-default-800": "130 8% 59.22%",
-      "--heroui-default-900": "130 8% 74.51%",
-      "--heroui-default-foreground": "130 8% 96.86%",
-      "--heroui-default": "130 8% 19.22%",
+      "--heroui-foreground-50": "30 20% 5.88%", // ~#120F0C
+      "--heroui-foreground-100": "30 18% 8.63%", // ~#1A1612
+      "--heroui-foreground-200": "32 19% 15.49%", // ~#2F2820
+      "--heroui-foreground-300": "30 19% 20.78%", // ~#3F352B (mid-dark)
+      "--heroui-foreground-400": "30 19% 27.45%", // ~#534639
+      "--heroui-foreground-500": "30 16% 36.47%", // Stone Brown
+      "--heroui-foreground-600": "35 29% 39.61%", // Olive Wood
+      "--heroui-foreground-700": "35 35% 50.39%", // Camel
+      "--heroui-foreground-800": "50 21% 51.96%", // Palm Leaf
+      "--heroui-foreground-900": "47 47% 62.55%", // Sand
+      "--heroui-foreground": "47 47% 62.55%", // Sand — primary text
+
+      "--heroui-content1": "32 19% 15.49%", // ~#2F2820 (panel)
+      "--heroui-content1-foreground": "43 53% 85.10%", // cream
+      "--heroui-content2": "30 19% 20.78%", // ~#3F352B (card)
+      "--heroui-content2-foreground": "44 50% 76.27%",
+      "--heroui-content3": "30 19% 27.45%", // ~#534639 (inner card)
+      "--heroui-content3-foreground": "47 47% 62.55%", // Sand
+      "--heroui-content4": "30 16% 36.47%", // Stone Brown (inset)
+      "--heroui-content4-foreground": "50 21% 51.96%", // Palm Leaf
+
+      "--heroui-default-50": "30 20% 5.88%",
+      "--heroui-default-100": "30 18% 8.63%",
+      "--heroui-default-200": "32 19% 15.49%",
+      "--heroui-default-300": "30 19% 20.78%",
+      "--heroui-default-400": "30 19% 27.45%",
+      "--heroui-default-500": "30 16% 36.47%", // Stone Brown
+      "--heroui-default-600": "35 29% 39.61%", // Olive Wood
+      "--heroui-default-700": "35 35% 50.39%", // Camel
+      "--heroui-default-800": "50 21% 51.96%", // Palm Leaf
+      "--heroui-default-900": "47 47% 62.55%", // Sand
+      "--heroui-default-foreground": "42 55% 91.37%", // cream
+      "--heroui-default": "30 19% 27.45%", // hover/selected tint
+
+      // Primary accent ramp — Toffee Brown #9D684B (hsl(21, 35%, 45.5%))
+      // at primary-500, ramped symmetrically darker / lighter.
+      "--heroui-primary-50": "21 35% 6%",
+      "--heroui-primary-100": "21 35% 10%",
+      "--heroui-primary-200": "21 35% 16%",
+      "--heroui-primary-300": "21 35% 22%",
+      "--heroui-primary-400": "21 35% 34%",
+      "--heroui-primary-500": "21 35% 45.5%", // Toffee Brown
+      "--heroui-primary-600": "21 35% 56%",
+      "--heroui-primary-700": "21 35% 67%",
+      "--heroui-primary-800": "21 35% 78%",
+      "--heroui-primary-900": "21 35% 88%",
+      "--heroui-primary": "21 35% 45.5%", // Toffee Brown
+      "--heroui-primary-foreground": "42 55% 91.37%", // cream on toffee
     },
   },
 };
 
-// rbren branch: default to the fork-local hackery-green theme.
-export const DEFAULT_COLOR_THEME: ColorThemeKey = "rbren-hackery";
+// rbren branch: default to the fork-local earth-tones theme.
+export const DEFAULT_COLOR_THEME: ColorThemeKey = "rbren-earth";
 
 export const AVAILABLE_COLOR_THEMES = Object.entries(COLOR_THEMES).map(
   ([key, def]) => ({ key: key as ColorThemeKey, label: def.label }),
