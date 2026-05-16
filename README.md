@@ -16,6 +16,9 @@
 > rbren's mod's `main`. Fork-local edits in source are tagged with a
 > `rbren's mod:` comment so they can be grepped easily.
 
+<img width="1511" height="827" alt="Screenshot 2026-05-16 at 1 36 07 PM" src="https://github.com/user-attachments/assets/d2cad58a-14f0-4337-88fe-c5ab3b8cdb20" />
+
+
 ## Robert's dockerless VM install
 
 These are the install steps Robert uses on a fresh Linux VM where Docker is not
