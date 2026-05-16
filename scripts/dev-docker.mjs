@@ -11,7 +11,7 @@
  * and the secret-seeding step can reach it via http://localhost:18000.
  *
  * Required environment variables:
- *   - PROJECT_PATH: Absolute host path to your projects. Mounted into the
+ *   - PROJECTS_PATH: Absolute host path to your projects. Mounted into the
  *     container at /projects so the agent can read/edit your code. The
  *     frontend always treats /projects as a "workspace parent", so the
  *     dropdown lists its immediate subdirectories as workspaces.
@@ -43,9 +43,9 @@
  *   the host home unless you opt in.
  *
  * Usage:
- *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
- *   PROJECT_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
- *   OH_AGENT_SERVER_GIT_REF=main PROJECT_PATH=... npm run dev:docker
+ *   PROJECTS_PATH=/path/to/your/projects npm run dev:docker
+ *   PROJECTS_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
+ *   OH_AGENT_SERVER_GIT_REF=main PROJECTS_PATH=... npm run dev:docker
  */
 
 import { spawnSync } from "node:child_process";
@@ -213,6 +213,10 @@ function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
  * installed, which is not enough -- on macOS / Windows the daemon may be
  * stopped, and on Linux the user may not have permissions to talk to it.
  */
+function getProjectsPathDockerArgs(env = process.env) {
+  return env.PROJECTS_PATH ? ["-v", `${env.PROJECTS_PATH}:/projects`] : [];
+}
+
 function checkDockerPrereqs(config) {
   if (!commandExists("docker")) {
     logError("docker is required for dev:docker but was not found on PATH.");
@@ -236,13 +240,13 @@ function checkDockerPrereqs(config) {
   }
   logSuccess("docker daemon is running");
 
-  if (!process.env.PROJECT_PATH) {
-    logError("PROJECT_PATH is required for dev:docker.");
+  if (!process.env.PROJECTS_PATH) {
+    logError("PROJECTS_PATH is required for dev:docker.");
     logError("Set it to the directory containing your projects, e.g.:");
-    logError("  export PROJECT_PATH=/path/to/your/projects");
+    logError("  export PROJECTS_PATH=/path/to/your/projects");
     process.exit(1);
   }
-  logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
+  logSuccess(`PROJECTS_PATH=${process.env.PROJECTS_PATH}`);
 }
 
 function startAgentServerDocker(config) {
@@ -278,7 +282,7 @@ function startAgentServerDocker(config) {
   const userSpec = getHostDockerUserSpec();
   const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
   dockerArgs.push(...getDockerUserArgs(userSpec));
-  dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
+  dockerArgs.push(...getProjectsPathDockerArgs());
   // Read-only mount of the Agent-Canvas tools directory. Coupled with
   // OH_EXTRA_PYTHON_PATH below so the agent-server can import
   // canvas_ui_tool when the conversation request lists it under
@@ -413,6 +417,7 @@ export {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectsPathDockerArgs,
   isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,

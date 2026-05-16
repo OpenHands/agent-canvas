@@ -14,6 +14,7 @@ import {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectsPathDockerArgs,
   isDockerPermissionDenied,
 } from "../../scripts/dev-docker.mjs";
 
@@ -56,6 +57,20 @@ describe("docker host user", () => {
       "/home/openhands:uid=1000,gid=1000,mode=700",
     ]);
     expect(getDockerHomeTmpfsArgs(null)).toEqual([]);
+  });
+});
+
+describe("getProjectsPathDockerArgs", () => {
+  it("uses PROJECTS_PATH for the /projects bind mount", () => {
+    expect(
+      getProjectsPathDockerArgs({ PROJECTS_PATH: "/host/projects" }),
+    ).toEqual(["-v", "/host/projects:/projects"]);
+  });
+
+  it("does not read the old PROJECT_PATH name", () => {
+    expect(getProjectsPathDockerArgs({ PROJECT_PATH: "/host/projects" })).toEqual(
+      [],
+    );
   });
 });
 
