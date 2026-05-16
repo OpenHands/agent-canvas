@@ -200,6 +200,7 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
+      { name: "canvas_ui", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
   });
