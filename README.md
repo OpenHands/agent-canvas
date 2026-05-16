@@ -1,4 +1,63 @@
-# agent-canvas
+# agent-canvas — `rbren` branch
+
+> [!NOTE]
+> This is a **long-running branch** maintained by **Robert Brennan** (`@rbren`).
+> It carries personal preferences (theming, layout tweaks, dev-loop helpers, etc.) on top of `main`.
+> It is rebased / fast-forwarded onto `main` periodically and is not guaranteed to be stable
+> between rebases. If you are looking for the canonical project, use `main`.
+
+## Robert's dockerless VM install
+
+These are the install steps Robert uses on a fresh Linux VM where Docker is not
+available (or not desired) and the VM is dedicated to running Agent Canvas.
+
+> [!WARNING]
+> The dockerless path runs the agent-server directly on the host — the agent has
+> full access to the VM's filesystem. Only do this on a VM you own and treat as
+> disposable. See [SELF_HOSTING.md](SELF_HOSTING.md) for hardening guidance.
+
+**Prerequisites**:
+
+- A Linux VM you control (Ubuntu 22.04+ / Debian 12+ tested)
+- Node.js **22.12.x or later** (`nvm install 22` works)
+- `npm`
+- [`uv`](https://docs.astral.sh/uv/) — used to launch the agent server via `uvx`
+- `git`
+
+```sh
+# 1. Install uv (one-liner from astral.sh)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Clone this branch
+git clone -b rbren https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+
+# 3. Install JS deps and run dockerless
+npm install
+npm run dev:dangerously-dockerless
+```
+
+Access the UI at [http://localhost:8000](http://localhost:8000).
+
+To expose it to the outside world, front it with nginx + Let's Encrypt + basic
+auth — do **not** publish the raw port. See [SELF_HOSTING.md](SELF_HOSTING.md)
+for a reference setup.
+
+If you want the static (non-hot-reloading) variant for stability:
+
+```sh
+npm run dev:dangerously-dockerless
+```
+
+If you are hacking on the frontend itself and want live reload:
+
+```sh
+npm run dev:dangerously-dockerless:dynamic
+```
+
+---
+
+## Upstream README
 
 > [!WARNING]
 > This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).

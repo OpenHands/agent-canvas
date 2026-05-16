@@ -1,4 +1,8 @@
-export type ColorThemeKey = "openhands-deepsea" | "openhands-neutral";
+export type ColorThemeKey =
+  | "openhands-deepsea"
+  | "openhands-neutral"
+  // rbren branch: long-running-fork-local theme (mild green hackery tint).
+  | "rbren-hackery";
 
 export interface ColorThemeDefinition {
   label: string;
@@ -149,9 +153,68 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
       "--heroui-default": NEUTRAL_HSL[800],
     },
   },
+
+  // rbren branch: long-running-fork-local theme. Mild green "hackery" tint —
+  // hue ~130 with low saturation so the dark UI reads like a CRT phosphor
+  // terminal without going neon. Lives only on this branch; do not propagate
+  // upstream. See .agents/skills/long-running-fork.md.
+  "rbren-hackery": {
+    label: "rbren — Hackery Green",
+    scale: {
+      "--cool-grey-50": "#F3FBF3",
+      "--cool-grey-100": "#E8F0E8",
+      "--cool-grey-200": "#D8E0D8",
+      "--cool-grey-300": "#B7C5B7",
+      "--cool-grey-400": "#909E90",
+      "--cool-grey-500": "#6E7A6E",
+      "--cool-grey-600": "#525C52",
+      "--cool-grey-700": "#3E443E",
+      "--cool-grey-800": "#2F352F",
+      "--cool-grey-900": "#262C26",
+      "--cool-grey-925": "#1E221E",
+      "--cool-grey-950": "#161A16",
+      "--cool-grey-975": "#0E120E",
+    },
+    heroui: {
+      "--heroui-background": "130 8% 9.41%",
+      "--heroui-background-foreground": "130 8% 96.86%",
+      "--heroui-foreground-50": "130 8% 6.27%",
+      "--heroui-foreground-100": "130 8% 9.41%",
+      "--heroui-foreground-200": "130 8% 12.55%",
+      "--heroui-foreground-300": "130 8% 15.69%",
+      "--heroui-foreground-400": "130 8% 19.22%",
+      "--heroui-foreground-500": "130 8% 25.1%",
+      "--heroui-foreground-600": "130 8% 33.73%",
+      "--heroui-foreground-700": "130 8% 45.1%",
+      "--heroui-foreground-800": "130 8% 59.22%",
+      "--heroui-foreground-900": "130 8% 74.51%",
+      "--heroui-foreground": "130 8% 74.51%",
+      "--heroui-content1": "130 8% 12.55%",
+      "--heroui-content1-foreground": "130 8% 92.55%",
+      "--heroui-content2": "130 8% 15.69%",
+      "--heroui-content2-foreground": "130 8% 86.27%",
+      "--heroui-content3": "130 8% 19.22%",
+      "--heroui-content3-foreground": "130 8% 74.51%",
+      "--heroui-content4": "130 8% 25.1%",
+      "--heroui-content4-foreground": "130 8% 59.22%",
+      "--heroui-default-50": "130 8% 6.27%",
+      "--heroui-default-100": "130 8% 9.41%",
+      "--heroui-default-200": "130 8% 12.55%",
+      "--heroui-default-300": "130 8% 15.69%",
+      "--heroui-default-400": "130 8% 19.22%",
+      "--heroui-default-500": "130 8% 25.1%",
+      "--heroui-default-600": "130 8% 33.73%",
+      "--heroui-default-700": "130 8% 45.1%",
+      "--heroui-default-800": "130 8% 59.22%",
+      "--heroui-default-900": "130 8% 74.51%",
+      "--heroui-default-foreground": "130 8% 96.86%",
+      "--heroui-default": "130 8% 19.22%",
+    },
+  },
 };
 
-export const DEFAULT_COLOR_THEME: ColorThemeKey = "openhands-neutral";
+// rbren branch: default to the fork-local hackery-green theme.
+export const DEFAULT_COLOR_THEME: ColorThemeKey = "rbren-hackery";
 
 export const AVAILABLE_COLOR_THEMES = Object.entries(COLOR_THEMES).map(
   ([key, def]) => ({ key: key as ColorThemeKey, label: def.label }),
