@@ -20,6 +20,9 @@ export type OpenHandsLogoButtonProps = {
   logoClassName?: string;
   logoWidth?: number;
   logoHeight?: number;
+  /* rbren branch: compact mode skips the "rbren's mod" wordmark next to the
+     logo. Used by the collapsed 64px sidebar rail where there's no room. */
+  compact?: boolean;
 };
 
 export function OpenHandsLogoButton({
@@ -27,6 +30,7 @@ export function OpenHandsLogoButton({
   logoClassName,
   logoWidth = DEFAULT_LOGO_WIDTH,
   logoHeight = DEFAULT_LOGO_HEIGHT,
+  compact = false,
 }: OpenHandsLogoButtonProps = {}) {
   const tooltipText = "rbren's mod";
   const ariaLabel = "rbren's mod logo";
@@ -38,18 +42,26 @@ export function OpenHandsLogoButton({
         aria-label={ariaLabel}
         className={cn(className)}
       >
-        {/* rbren branch: tint logo with Toffee Brown (#9D684B), the
-            rbren-earth theme's primary accent. Targets only the
-            originally-white SVG paths so the transparent face cut-out
-            stays transparent. */}
-        <OpenHandsLogo
-          width={logoWidth}
-          height={logoHeight}
-          className={cn(
-            "shrink-0 [&_path[fill='white']]:fill-[#9D684B]",
-            logoClassName,
+        <span className="flex items-center gap-2">
+          {/* rbren branch: tint logo with var(--oh-muted), matching the
+              inactive color of the sidebar nav icons (Code / Customize /
+              Automate). Targets only originally-white SVG paths so the
+              transparent face cut-out stays transparent. */}
+          <OpenHandsLogo
+            width={logoWidth}
+            height={logoHeight}
+            className={cn(
+              "shrink-0 [&_path[fill='white']]:fill-[var(--oh-muted)]",
+              logoClassName,
+            )}
+          />
+          {/* rbren branch: wordmark shown next to the logo in expanded mode. */}
+          {!compact && (
+            <span className="text-sm font-medium text-[var(--oh-muted)] whitespace-nowrap">
+              rbren&apos;s mod
+            </span>
           )}
-        />
+        </span>
       </NavigationLink>
     </StyledTooltip>
   );

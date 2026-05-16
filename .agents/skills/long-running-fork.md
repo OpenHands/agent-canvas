@@ -103,18 +103,24 @@ describes. Specifically:
   `<title>` rendering (including conversation-title prefixes and agent-state
   emoji prefixes) since the rest of `useAppTitle` is untouched.
   Files: `src/hooks/use-app-title.ts`
-  Introduced: HEAD
+  Introduced: 6d894ef
 
-- **Sidebar logo tinted + tooltip rebranded** — the `OpenHandsLogo` SVG in
-  the top-left of the sidebar is tinted Toffee Brown (`#9D684B`, the
-  `rbren-earth` theme's primary accent) via a Tailwind arbitrary-selector
-  class that overrides the SVG's inline `fill="white"` paths only (the
-  transparent face cut-out stays transparent). The hover tooltip and aria
-  label are hardcoded to `"rbren's mod"` / `"rbren's mod logo"`, replacing
-  the upstream `t(I18nKey.BRANDING$OPENHANDS{,_LOGO})` calls; the unused
+- **Sidebar logo tinted, wordmark added, tooltip rebranded** — the
+  `OpenHandsLogo` SVG in the top-left of the sidebar is tinted with
+  `var(--oh-muted)` (matching the inactive color of the Code / Customize /
+  Automate nav icons) via a Tailwind arbitrary-selector class that
+  overrides the SVG's inline `fill="white"` paths only (the transparent
+  face cut-out stays transparent). A `"rbren's mod"` wordmark is rendered
+  next to the logo in expanded mode; the component now accepts an optional
+  `compact` prop that suppresses the wordmark in the collapsed 64px rail,
+  passed from `sidebar-rail-body.tsx` in the collapsed branch. The hover
+  tooltip and aria label are hardcoded to `"rbren's mod"` /
+  `"rbren's mod logo"`, replacing the upstream
+  `t(I18nKey.BRANDING$OPENHANDS{,_LOGO})` calls; the unused
   `useTranslation` / `I18nKey` imports are dropped.
-  Files: `src/components/shared/buttons/openhands-logo-button.tsx`
-  Introduced: HEAD
+  Files: `src/components/shared/buttons/openhands-logo-button.tsx`,
+  `src/components/features/sidebar/sidebar-rail-body.tsx`
+  Introduced: 6d894ef
 
 - **`long-running-fork` skill** — this file. Fork-local skill documenting
   maintenance discipline, upstream-issue escalation path, and this MODLOG.

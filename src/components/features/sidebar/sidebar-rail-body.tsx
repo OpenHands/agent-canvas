@@ -91,7 +91,10 @@ export function SidebarRailBody({
                 showCollapsedExpandButton && "opacity-0",
               )}
             >
+              {/* rbren's mod: pass compact so the wordmark is hidden in the
+                  collapsed 64px rail (the logo alone still fits there). */}
               <OpenHandsLogoButton
+                compact
                 logoWidth={SIDEBAR_LOGO_WIDTH}
                 logoHeight={SIDEBAR_LOGO_HEIGHT}
                 logoClassName="max-w-none"
