@@ -15,7 +15,7 @@ const {
   mockGetEffectiveLocalBackend,
 } = vi.hoisted(() => ({
   mockGetAgentServerWorkingDir: vi.fn(() => "/workspace/project/agent-canvas"),
-  mockIsAgentServerToolAvailable: vi.fn(() => true),
+  mockIsAgentServerToolAvailable: vi.fn((_toolName: string) => true),
   mockGetEffectiveLocalBackend: vi.fn(() => ({
     id: "default-local",
     name: "Local backend",
@@ -109,6 +109,7 @@ describe("buildStartConversationRequest", () => {
       { name: "task_tracker", params: {} },
       { name: "canvas_ui", params: {} },
       { name: "browser_tool_set", params: {} },
+      { name: "task_tool_set", params: {} },
     ]);
     expect(payload.agent.include_default_tools).toEqual([
       "FinishTool",
@@ -151,7 +152,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent.enable_switch_llm_tool).toBeUndefined();
   });
 
-  it("omits browser_tool_set when the server does not advertise browser support", () => {
+  it("omits browser_tool_set and task_tool_set when the server does not advertise them", () => {
     mockIsAgentServerToolAvailable.mockReturnValue(false);
 
     const payload = buildStartConversationRequest({
@@ -173,6 +174,34 @@ describe("buildStartConversationRequest", () => {
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
       { name: "canvas_ui", params: {} },
+    ]);
+  });
+
+  it("includes task_tool_set when the server advertises it but not browser tools", () => {
+    mockIsAgentServerToolAvailable.mockImplementation(
+      (toolName: string) => toolName === "task_tool_set",
+    );
+
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        tools: Array<{ name: string; params: Record<string, unknown> }>;
+      };
+    };
+
+    expect(payload.agent.tools).toEqual([
+      { name: "terminal", params: {} },
+      { name: "file_editor", params: {} },
+      { name: "task_tracker", params: {} },
+      { name: "canvas_ui", params: {} },
+      { name: "task_tool_set", params: {} },
     ]);
   });
 
