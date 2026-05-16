@@ -4997,6 +4997,23 @@
     "uk": "Модель, API ключ та параметри агента.",
     "ca": "Model, clau d'API i opcions per a l'agent."
   },
+  "SETTINGS$PAGE_LLM_PROFILES_SUBLINE": {
+    "en": "Create, edit, and activate saved LLM profiles for the agent.",
+    "ja": "エージェント用の保存済みLLMプロファイルを作成、編集、有効化します。",
+    "zh-CN": "为代理创建、编辑和激活已保存的 LLM 配置文件。",
+    "zh-TW": "為代理建立、編輯和啟用已儲存的 LLM 設定檔。",
+    "ko-KR": "에이전트용 저장된 LLM 프로필을 생성, 편집 및 활성화합니다.",
+    "no": "Opprett, rediger og aktiver lagrede LLM-profiler for agenten.",
+    "it": "Crea, modifica e attiva profili LLM salvati per l'agente.",
+    "pt": "Crie, edite e ative perfis LLM salvos para o agente.",
+    "es": "Crea, edita y activa perfiles LLM guardados para el agente.",
+    "ar": "أنشئ وعدّل وفعّل ملفات تعريف LLM المحفوظة للوكيل.",
+    "fr": "Créez, modifiez et activez des profils LLM enregistrés pour l'agent.",
+    "tr": "Aracı için kayıtlı LLM profilleri oluşturun, düzenleyin ve etkinleştirin.",
+    "de": "Erstellen, bearbeiten und aktivieren Sie gespeicherte LLM-Profile für den Agenten.",
+    "uk": "Створюйте, редагуйте й активуйте збережені профілі LLM для агента.",
+    "ca": "Creeu, editeu i activeu perfils LLM desats per a l'agent."
+  },
   "SETTINGS$PAGE_CONDENSER_SUBLINE": {
     "en": "Summarize long chats to stay within context limits.",
     "ja": "コンテキスト制限内に収まるよう、長いチャットを要約します。",
@@ -5659,6 +5676,23 @@
     "tr": "LLM Ayarları",
     "uk": "LLM налаштування",
     "ca": "Configuració del LLM"
+  },
+  "SETTINGS$LLM_PROFILES": {
+    "en": "LLM Profiles",
+    "ja": "LLMプロファイル",
+    "zh-CN": "LLM配置文件",
+    "zh-TW": "LLM設定檔",
+    "ko-KR": "LLM 프로필",
+    "de": "LLM-Profile",
+    "no": "LLM-profiler",
+    "it": "Profili LLM",
+    "pt": "Perfis LLM",
+    "es": "Perfiles LLM",
+    "ar": "ملفات تعريف LLM",
+    "fr": "Profils LLM",
+    "tr": "LLM profilleri",
+    "uk": "Профілі LLM",
+    "ca": "Perfils LLM"
   },
   "SETTINGS$GIT_SETTINGS": {
     "en": "Git Settings",
