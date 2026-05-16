@@ -264,49 +264,53 @@ export function ConversationTabs() {
         </div>
         <div
           ref={tabsRowInnerRef}
-          className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-x-hidden"
+          className="flex w-full min-w-0 flex-nowrap justify-start"
         >
-          {visibleTabs
-            .slice(0, safeInlineTabCount)
-            .map(
-              (
-                {
-                  tabValue,
-                  icon,
-                  onClick,
-                  isActive,
-                  tooltipContent,
-                  tooltipAriaLabel,
-                  label,
-                  className: tabClassName,
-                },
-                index,
-              ) => (
-                <ChatActionTooltip
-                  key={`${tabValue}-${index}`}
-                  tooltip={tooltipContent}
-                  ariaLabel={tooltipAriaLabel}
-                >
-                  <ConversationTabNav
-                    tabValue={tabValue}
-                    icon={icon}
-                    onClick={onClick}
-                    isActive={isActive}
-                    label={label}
-                    className={cn(tabClassName, "shrink-0")}
-                  />
-                </ChatActionTooltip>
-              ),
-            )}
-          <div ref={menuRef} className="relative shrink-0">
-            <EllipsisButton
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
-            />
-            <ConversationTabsContextMenu
-              isOpen={isMenuOpen}
-              onClose={() => setIsMenuOpen(false)}
-            />
+          <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5">
+            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
+              {visibleTabs
+                .slice(0, safeInlineTabCount)
+                .map(
+                  (
+                    {
+                      tabValue,
+                      icon,
+                      onClick,
+                      isActive,
+                      tooltipContent,
+                      tooltipAriaLabel,
+                      label,
+                      className: tabClassName,
+                    },
+                    index,
+                  ) => (
+                    <ChatActionTooltip
+                      key={`${tabValue}-${index}`}
+                      tooltip={tooltipContent}
+                      ariaLabel={tooltipAriaLabel}
+                    >
+                      <ConversationTabNav
+                        tabValue={tabValue}
+                        icon={icon}
+                        onClick={onClick}
+                        isActive={isActive}
+                        label={label}
+                        className={cn(tabClassName, "shrink-0")}
+                      />
+                    </ChatActionTooltip>
+                  ),
+                )}
+            </div>
+            <div ref={menuRef} className="relative shrink-0">
+              <EllipsisButton
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+              />
+              <ConversationTabsContextMenu
+                isOpen={isMenuOpen}
+                onClose={() => setIsMenuOpen(false)}
+              />
+            </div>
           </div>
         </div>
       </div>

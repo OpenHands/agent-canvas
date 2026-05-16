@@ -44,8 +44,7 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
         type="button"
         onClick={handleToggle}
         className={cn(
-          "p-1 rounded-md cursor-pointer transition-colors text-[var(--oh-muted)] hover:text-white",
-          isRightPanelShown ? "hover:bg-transparent" : "hover:bg-white/10",
+          "p-1 rounded-md cursor-pointer transition-colors text-[var(--oh-muted)] hover:bg-white/10 hover:text-white",
           className,
         )}
         aria-label={tooltipText}
