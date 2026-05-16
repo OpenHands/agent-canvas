@@ -28,6 +28,14 @@ interface SettingsInputProps {
   ariaDescribedBy?: string;
   /** ARIA invalid attribute for accessibility */
   ariaInvalid?: boolean;
+  /**
+   * Validation error message. When set, the input gets a red border and
+   * the message is rendered below it. Also sets aria-invalid automatically.
+   */
+  error?: string;
+  /** Renders a red asterisk next to the label to mark the field as required. */
+  showRequiredTag?: boolean;
+  onBlur?: () => void;
 }
 
 export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
@@ -55,14 +63,23 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
       labelClassName,
       ariaDescribedBy,
       ariaInvalid,
+      error,
+      showRequiredTag,
+      onBlur,
     },
     ref,
   ) {
+    const errorId = error && testId ? `${testId}-error` : undefined;
     return (
       <label className={cn("flex flex-col gap-2.5 w-fit", className)}>
         <div className="flex items-center gap-2">
           {startContent}
           <span className={cn("text-sm", labelClassName)}>{label}</span>
+          {showRequiredTag && (
+            <span className="text-red-400 text-sm leading-none" aria-hidden>
+              *
+            </span>
+          )}
           {showOptionalTag && <OptionalTag />}
         </div>
         <input
@@ -70,6 +87,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           data-testid={testId}
           onChange={(e) => onChange?.(e.target.value)}
           onKeyDown={onKeyDown}
+          onBlur={onBlur}
           name={name}
           disabled={isDisabled}
           type={type}
@@ -82,13 +100,24 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           required={required}
           pattern={pattern}
           title={title}
-          aria-describedby={ariaDescribedBy}
-          aria-invalid={ariaInvalid}
+          aria-describedby={errorId ?? ariaDescribedBy}
+          aria-invalid={!!error || ariaInvalid}
           className={cn(
             "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+            error && "border-red-500",
           )}
         />
+        {error && (
+          <p
+            id={errorId}
+            role="alert"
+            data-testid={testId ? `${testId}-error` : undefined}
+            className="text-xs text-red-400 -mt-1"
+          >
+            {error}
+          </p>
+        )}
       </label>
     );
   },

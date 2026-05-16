@@ -14,7 +14,10 @@ on:
         default: false
 
 concurrency:
-  group: snapshot-tests-${{ github.workflow }}-${{ github.ref }}
+  # One run at a time per PR — a new commit cancels the in-flight run.
+  # Falls back to github.ref for main pushes and manual dispatch so those
+  # don't interfere with each other or with PR runs.
+  group: snapshot-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -134,6 +137,10 @@ jobs:
             echo "Found snapshot-baselines artifact from run $RUN_ID"
           fi
 
+      - name: Clear snapshot directory before downloading baselines
+        if: github.event_name == 'pull_request'
+        run: rm -rf tests/e2e/__snapshots__/
+
       - name: Download main-branch baselines
         if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
         uses: actions/download-artifact@v4
@@ -176,10 +183,13 @@ jobs:
 
       - name: Generate current PR snapshots
         if: github.event_name == 'pull_request'
+        id: generate
         run: npm run test:e2e:snapshots:update
+        continue-on-error: true
 
       - name: Post snapshot report to PR
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
+        id: post-comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -189,6 +199,8 @@ jobs:
           MAIN_BASELINES_DIR: /tmp/main-baselines
           COMPARISON_RESULTS_DIR: /tmp/comparison-results
           SNAPSHOTS_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
+          GENERATE_OUTCOME: ${{ steps.generate.outcome }}
+          COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: node tests/e2e/snapshots/scripts/post-snapshot-comment.mjs
 
       - name: Upload test results artifact
@@ -202,11 +214,22 @@ jobs:
           retention-days: 7
 
       - name: Fail if snapshot comparison found differences
+        # Only fail on real pixel-diff failures (changed snapshots), not on
+        # missing-baseline failures which are expected for new tests added in
+        # this PR. `has_changes` is written by post-snapshot-comment.mjs to
+        # $GITHUB_OUTPUT; it is false when all failures are "new" snapshots.
         if: >-
           github.event_name == 'pull_request' &&
-          steps.compare.outcome == 'failure' &&
-          steps.find-run.outputs.has_baselines == 'true' &&
+          steps.post-comment.outputs.has_changes == 'true' &&
           !contains(github.event.pull_request.labels.*.name, 'update-snapshots')
         run: |
           echo "::error::Snapshot differences detected. Add the 'update-snapshots' label to acknowledge intentional changes."
+          exit 1
+
+      - name: Fail if snapshot generation had test crashes
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.generate.outcome == 'failure'
+        run: |
+          echo "::error::One or more snapshot tests crashed during generation. See the PR comment and CI logs for details."
           exit 1
