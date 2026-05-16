@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the backend management UI.
@@ -27,9 +28,7 @@ async function dismissConsentModal(page: Page) {
 }
 
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 
   // Suppress file-API proxy errors emitted when the home page scans the
   // workspace directory (same suppression used in sidebar.snapshot.spec.ts).

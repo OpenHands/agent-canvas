@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the CollapsibleThinking component.
@@ -173,10 +174,7 @@ async function injectEvents(page: Page, events: unknown[]) {
  * Uses mock conversation "1" which exists in the MSW handlers.
  */
 async function navigateToConversation(page: Page, events: unknown[]) {
-  // Skip onboarding
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 
   await page.route("**/api/bash/execute_bash_command", async (route) => {
     await route.fulfill({

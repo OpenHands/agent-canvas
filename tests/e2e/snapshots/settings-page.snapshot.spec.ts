@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for UI pages.
@@ -46,10 +47,7 @@ const SETTINGS_WITHOUT_CONSENT = {
  * @param showConsentModal - Whether to show the analytics consent modal
  */
 async function setupMocks(page: Page, showConsentModal = false) {
-  // Pre-set localStorage to skip onboarding
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page, { showConsentModal });
 
   // Mock settings API - consent modal appears when user_consents_to_analytics is null
   const settingsResponse = showConsentModal
