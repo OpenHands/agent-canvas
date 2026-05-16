@@ -186,7 +186,12 @@ export const CONVERSATION_HANDLERS = [
 
   http.get("*/api/conversations", async ({ request }) => {
     const url = new URL(request.url);
-    const ids = url.searchParams.getAll("ids");
+    // Axios serializes arrays as `ids[]=a&ids[]=b` (bracket notation).
+    // Fall back to plain `ids` to support both formats.
+    const ids =
+      url.searchParams.getAll("ids[]").length > 0
+        ? url.searchParams.getAll("ids[]")
+        : url.searchParams.getAll("ids");
     return HttpResponse.json(listConversationResponses(ids));
   }),
 
