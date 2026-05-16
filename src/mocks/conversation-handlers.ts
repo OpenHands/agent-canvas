@@ -36,6 +36,27 @@ const conversations: MockConversation[] = [
     selected_repository: "octocat/earth",
     selected_branch: "main",
   },
+  // Conversation whose sandbox has been removed (MISSING). The conversation
+  // history is still readable but the sandbox cannot be resumed — the chat
+  // input is replaced with a read-only archived banner.
+  {
+    id: "4",
+    title: "Archived Project",
+    created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    sandbox_status: "MISSING",
+  },
+  // Conversation whose sandbox encountered an unrecoverable error. Same
+  // read-only treatment but with the "Sandbox error" variant of the banner.
+  {
+    id: "5",
+    title: "Errored Project",
+    created_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    sandbox_status: "ERROR",
+  },
 ];
 
 const CONVERSATIONS = new Map<string, MockConversation>(
@@ -51,6 +72,7 @@ function createConversationResponse(
     created_at: conversation.created_at,
     updated_at: conversation.updated_at,
     execution_status: conversation.execution_status ?? "idle",
+    sandbox_status: conversation.sandbox_status ?? null,
     metrics: conversation.metrics ?? null,
     agent: conversation.agent ?? null,
     workspace: conversation.workspace ?? null,

@@ -415,7 +415,8 @@ export function ChatInterface() {
           !hasPendingUserMessages &&
           !userEventsExist &&
           !hasModelEntries &&
-          !isChatLoading && (
+          !isChatLoading &&
+          !isArchivedConversation && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
             />

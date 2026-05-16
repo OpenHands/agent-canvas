@@ -46,10 +46,10 @@ test.describe("Sidebar Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for all three conversation cards to be present
+    // Wait for all five conversation cards to be present
     const conversationPanel = page.getByTestId("conversation-panel");
     await expect(conversationPanel).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(3, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(5, {
       timeout: 10_000,
     });
 
@@ -95,7 +95,7 @@ test.describe("Sidebar Visual Snapshots", () => {
     await expect(page.getByTestId("conversation-panel")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(3, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(5, {
       timeout: 10_000,
     });
 
