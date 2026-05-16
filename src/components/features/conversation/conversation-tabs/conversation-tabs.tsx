@@ -150,71 +150,78 @@ export function ConversationTabs() {
   const isBuildDisabled = isAgentRunning || !planContent;
 
   return (
-    <div
-      className={cn(
-        "relative w-full",
-        "flex flex-row justify-start lg:justify-end items-center gap-4.5 flex-wrap",
-      )}
-    >
-      {visibleTabs.map(
-        (
-          {
-            tabValue,
-            icon,
-            onClick,
-            isActive,
-            tooltipContent,
-            tooltipAriaLabel,
-            label,
-            className,
-          },
-          index,
-        ) => (
-          <ChatActionTooltip
-            key={index}
-            tooltip={tooltipContent}
-            ariaLabel={tooltipAriaLabel}
-          >
-            <ConversationTabNav
-              tabValue={tabValue}
-              icon={icon}
-              onClick={onClick}
-              isActive={isActive}
-              label={label}
-              className={className}
-            />
-          </ChatActionTooltip>
-        ),
-      )}
-      {isTabActive("planner") && (
-        <button
-          type="button"
-          onClick={handleBuildPlanClick}
-          disabled={isBuildDisabled}
-          className={cn(
-            "flex items-center justify-center h-5 min-w-17 px-2 rounded bg-white transition-opacity",
-            isBuildDisabled
-              ? "opacity-50 cursor-not-allowed"
-              : "hover:opacity-90 cursor-pointer",
-          )}
-          data-testid="planner-tab-build-button"
-        >
-          <Typography.Text className="text-black text-[11px] font-medium leading-5">
-            {/* eslint-disable-next-line i18next/no-literal-string */}
-            {t(I18nKey.COMMON$BUILD)} ⌘↩
-          </Typography.Text>
-        </button>
-      )}
-      <div className="relative">
-        <EllipsisButton
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
-        />
-        <ConversationTabsContextMenu
-          isOpen={isMenuOpen}
-          onClose={() => setIsMenuOpen(false)}
-        />
+    <>
+      <div
+        className={cn(
+          "relative flex min-h-10 w-full flex-row flex-wrap items-center justify-start gap-1.5 p-1",
+        )}
+      >
+        {visibleTabs.map(
+          (
+            {
+              tabValue,
+              icon,
+              onClick,
+              isActive,
+              tooltipContent,
+              tooltipAriaLabel,
+              label,
+              className,
+            },
+            index,
+          ) => (
+            <ChatActionTooltip
+              key={index}
+              tooltip={tooltipContent}
+              ariaLabel={tooltipAriaLabel}
+            >
+              <ConversationTabNav
+                tabValue={tabValue}
+                icon={icon}
+                onClick={onClick}
+                isActive={isActive}
+                label={label}
+                className={className}
+              />
+            </ChatActionTooltip>
+          ),
+        )}
+        <div className="relative">
+          <EllipsisButton
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+          />
+          <ConversationTabsContextMenu
+            isOpen={isMenuOpen}
+            onClose={() => setIsMenuOpen(false)}
+          />
+        </div>
       </div>
-    </div>
+      {isTabActive("planner") && (
+        <div
+          className={cn(
+            "flex h-10 min-h-10 shrink-0 items-center border-t border-[var(--oh-border)] px-1",
+          )}
+        >
+          <button
+            type="button"
+            onClick={handleBuildPlanClick}
+            disabled={isBuildDisabled}
+            className={cn(
+              "flex h-5 min-w-17 items-center justify-center rounded bg-white px-2 transition-opacity",
+              isBuildDisabled
+                ? "cursor-not-allowed opacity-50"
+                : "cursor-pointer hover:opacity-90",
+            )}
+            data-testid="planner-tab-build-button"
+          >
+            <Typography.Text className="text-[11px] font-medium leading-5 text-black">
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              {t(I18nKey.COMMON$BUILD)} ⌘↩
+            </Typography.Text>
+          </button>
+        </div>
+      )}
+    </>
   );
 }
