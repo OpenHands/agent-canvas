@@ -655,6 +655,8 @@ function startIngress(config) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
       "--default",
       `http://localhost:${config.vitePort}`,
     ],
@@ -959,6 +961,8 @@ function startStaticFrontend(config, staticDir) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
     ],
     {
       cwd: config.canvasPath,
