@@ -743,6 +743,7 @@ describe("dev-safe CLI startup", () => {
 });
 
 interface RuntimeServiceEntry {
+  kind?: string;
   description?: string;
   url_from_agent?: string;
   api_prefix?: string;
@@ -756,7 +757,7 @@ interface RuntimeServicesInfoShape {
   services: {
     agent_server?: RuntimeServiceEntry;
     ingress?: RuntimeServiceEntry;
-    vite?: RuntimeServiceEntry;
+    frontend?: RuntimeServiceEntry;
     automation?: RuntimeServiceEntry;
   };
 }
@@ -779,16 +780,20 @@ describe("buildRuntimeServicesInfo", () => {
     });
   });
 
-  it("includes ingress, vite, and automation entries when ports are provided", () => {
+  it("includes ingress, frontend (vite), and automation entries when ports are provided", () => {
     const info = buildRuntimeServicesInfo({
       mode: "dev:automation",
       agentServerPort: 18000,
       ingressPort: 8000,
-      vitePort: 3001,
+      frontendPort: 3001,
       automation: { port: 18001 },
     }) as RuntimeServicesInfoShape;
     expect(info.services.ingress?.url_from_agent).toBe("http://localhost:8000");
-    expect(info.services.vite?.url_from_agent).toBe("http://localhost:3001");
+    expect(info.services.frontend).toMatchObject({
+      kind: "vite",
+      url_from_agent: "http://localhost:3001",
+    });
+    expect(info.services.frontend?.description).toMatch(/Vite dev server/i);
     expect(info.services.automation).toMatchObject({
       url_from_agent: "http://localhost:18001",
       api_prefix: "/api/automation",
@@ -804,7 +809,8 @@ describe("buildRuntimeServicesInfo", () => {
       agentHostAlias: "host.docker.internal",
       agentServerPort: 8000,
       ingressPort: 8000,
-      vitePort: 3001,
+      frontendPort: 3001,
+      frontendKind: "static",
       automation: { port: 18001 },
     }) as RuntimeServicesInfoShape;
     // Agent-server URL is always localhost (the agent is *inside* it).
@@ -815,9 +821,13 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.ingress?.url_from_agent).toBe(
       "http://host.docker.internal:8000",
     );
-    expect(info.services.vite?.url_from_agent).toBe(
+    expect(info.services.frontend?.url_from_agent).toBe(
       "http://host.docker.internal:3001",
     );
+    // Static-mode description, not "Vite dev server".
+    expect(info.services.frontend?.kind).toBe("static");
+    expect(info.services.frontend?.description).toMatch(/Static-file server/i);
+    expect(info.services.frontend?.description).not.toMatch(/Vite/i);
     expect(info.services.automation?.url_from_agent).toBe(
       "http://host.docker.internal:18001",
     );
@@ -848,5 +858,37 @@ describe("buildRuntimeServicesInfo", () => {
       ingressPort: 8000,
     }) as RuntimeServicesInfoShape;
     expect(info.services.automation).toBeUndefined();
+  });
+
+  it("omits the automation entry when the object lacks a port", () => {
+    // A bare `{}` previously slipped through and produced
+    // `http://localhost:undefined`; require the port explicitly.
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+      automation: {},
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.automation).toBeUndefined();
+  });
+
+  it("throws when agentServerPort is missing", () => {
+    expect(() =>
+      buildRuntimeServicesInfo({
+        mode: "dev:safe",
+      }),
+    ).toThrow(/agentServerPort is required/);
+  });
+
+  it("accepts the legacy vitePort alias for frontendPort", () => {
+    // dev-safe.mjs's `main()` and some external callers still pass the
+    // older option name; keep them working for one release.
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+      vitePort: 3001,
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.frontend?.url_from_agent).toBe(
+      "http://localhost:3001",
+    );
   });
 });

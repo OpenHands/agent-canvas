@@ -614,14 +614,24 @@ export function buildAgentServerEnv(config) {
  * container and reaches host services via "host.docker.internal".
  *
  * @param {object} options
- * @param {string} options.mode - Human-readable dev mode label (e.g. "dev:safe").
+ * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
  * @param {string} [options.agentHostAlias="localhost"] - Hostname the agent
  *   uses to reach services running on the host machine.
- * @param {number} options.agentServerPort - Port the agent-server listens on.
+ * @param {number} [options.agentServerPort] - Port the agent-server listens on.
+ *   Required at runtime; the function throws if missing because the resulting
+ *   URL would otherwise bake `undefined` into the agent's system prompt.
+ *   Typed as optional only so TypeScript callers can negative-test the guard.
  * @param {number} [options.ingressPort] - Ingress port (omit if no ingress).
- * @param {number} [options.vitePort] - Vite dev server port (omit if static).
- * @param {object} [options.automation] - Automation backend info.
- * @param {number} options.automation.port - Automation backend port.
+ * @param {number} [options.frontendPort] - Frontend port (Vite dev server
+ *   or static-file server). Omit if no frontend is exposed.
+ * @param {number} [options.vitePort] - Deprecated alias for `frontendPort`,
+ *   accepted for backward compat with older launchers. Remove after one release.
+ * @param {"vite"|"static"} [options.frontendKind="vite"] - Whether the
+ *   frontend port hosts Vite or a static build. Only affects the
+ *   description shown to the agent.
+ * @param {object} [options.automation] - Automation backend info. Skipped
+ *   entirely if `.port` is missing, so passing `{}` is safe.
+ * @param {number} [options.automation.port] - Automation backend port.
  * @param {string} [options.automation.apiPrefix="/api/automation"] - Path
  *   prefix all automation routes are mounted under.
  * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
@@ -634,9 +644,21 @@ export function buildRuntimeServicesInfo(options) {
     agentHostAlias = "localhost",
     agentServerPort,
     ingressPort,
+    // Accept legacy `vitePort` for one release so external callers keep working.
     vitePort,
+    frontendPort = vitePort,
+    frontendKind = "vite",
     automation,
   } = options;
+
+  if (agentServerPort === undefined || agentServerPort === null) {
+    // Without this the URL becomes `http://localhost:undefined` and ends up
+    // verbatim in the agent's system prompt, which is worse than failing fast.
+    throw new Error(
+      "buildRuntimeServicesInfo: agentServerPort is required " +
+        "(otherwise the agent_server URL would be `http://localhost:undefined`).",
+    );
+  }
 
   const services = {
     agent_server: {
@@ -659,14 +681,20 @@ export function buildRuntimeServicesInfo(options) {
     };
   }
 
-  if (vitePort !== undefined) {
-    services.vite = {
-      description: "Vite dev server hosting the agent-canvas frontend.",
-      url_from_agent: `http://${agentHostAlias}:${vitePort}`,
+  if (frontendPort !== undefined) {
+    services.frontend = {
+      kind: frontendKind,
+      description:
+        frontendKind === "static"
+          ? "Static-file server hosting the agent-canvas production build."
+          : "Vite dev server hosting the agent-canvas frontend.",
+      url_from_agent: `http://${agentHostAlias}:${frontendPort}`,
     };
   }
 
-  if (automation) {
+  // Require an explicit port so we don't bake `:undefined` into the
+  // automation URL when the caller passes `automation: {}`.
+  if (automation?.port !== undefined && automation.port !== null) {
     const apiPrefix = automation.apiPrefix ?? "/api/automation";
     const authEnvVar = automation.authEnvVar ?? "OPENHANDS_AUTOMATION_API_KEY";
     const baseUrl = `http://${agentHostAlias}:${automation.port}`;

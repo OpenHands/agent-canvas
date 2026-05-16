@@ -64,6 +64,13 @@ interface RuntimeServicesInfo {
   services?: {
     agent_server?: { description?: string; url_from_agent?: string };
     ingress?: { description?: string; url_from_agent?: string };
+    frontend?: {
+      kind?: "vite" | "static";
+      description?: string;
+      url_from_agent?: string;
+    };
+    // `vite` is the legacy key name for the frontend entry, accepted for
+    // one release while older dev-stack launchers may still emit it.
     vite?: { description?: string; url_from_agent?: string };
     automation?: {
       description?: string;
@@ -117,7 +124,11 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
     "",
   );
 
-  const { agent_server, ingress, vite, automation } = info.services;
+  const { agent_server, ingress, automation } = info.services;
+  // Accept `frontend` (current key) or `vite` (legacy key) for the
+  // frontend service entry. The legacy fallback can be removed once all
+  // launchers in this repo emit `frontend`.
+  const frontend = info.services.frontend ?? info.services.vite;
 
   if (agent_server?.url_from_agent) {
     lines.push(
@@ -131,10 +142,10 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
       `    ${ingress.description ?? "Unified entry point for browser-facing traffic."}`,
     );
   }
-  if (vite?.url_from_agent) {
+  if (frontend?.url_from_agent) {
     lines.push(
-      `* Vite frontend: ${vite.url_from_agent}`,
-      `    ${vite.description ?? "Frontend dev server."}`,
+      `* Frontend: ${frontend.url_from_agent}`,
+      `    ${frontend.description ?? "Frontend dev server."}`,
     );
   }
   if (automation?.url_from_agent) {
@@ -159,13 +170,23 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
     );
   }
 
+  // Anchor the "don't guess" warning to the actual agent-server URL for
+  // this stack instead of a hardcoded port. The agent-server listens on
+  // different ports across dev modes (18000 in dev:safe, 8000 in
+  // dev:docker, ...), and baking the wrong port into the system prompt
+  // is exactly the kind of confusion this block is meant to prevent.
+  const agentServerUrl = agent_server?.url_from_agent;
   lines.push(
     "",
     "Trust this block over guessing: do not assume any other URLs are running.",
-    "In particular, http://localhost:8000 inside your sandbox is the Agent Server",
-    "you are running inside of — NOT the automation backend.",
-    "</RUNTIME_SERVICES>",
   );
+  if (agentServerUrl) {
+    lines.push(
+      `In particular, ${agentServerUrl} inside your sandbox is the Agent Server`,
+      "you are running inside of — NOT the automation backend.",
+    );
+  }
+  lines.push("</RUNTIME_SERVICES>");
 
   return lines.join("\n");
 }

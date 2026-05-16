@@ -684,7 +684,11 @@ export function buildAutomationRuntimeServicesInfo(config) {
     agentHostAlias: config.agentHostAlias ?? "localhost",
     agentServerPort: config.agentServerPort,
     ingressPort: config.ingressPort,
-    vitePort: config.vitePort,
+    frontendPort: config.vitePort,
+    // The same port hosts Vite in dynamic mode and a static-file server
+    // in static mode. The launcher records this on the config so the
+    // description shown to the agent matches reality.
+    frontendKind: config.frontendKind ?? "vite",
     automation: { port: config.autoBackendPort },
   });
 }
@@ -899,11 +903,12 @@ async function main(options = {}) {
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
-  // Stamp the dev-mode label and host alias on the config so downstream
-  // helpers (Vite spawn, static build) can produce a runtime-services
-  // info object describing what the agent can reach.
+  // Stamp the dev-mode label, host alias, and frontend kind on the config
+  // so downstream helpers (Vite spawn, static build) can produce a
+  // runtime-services info object describing what the agent can reach.
   config.mode = mode;
   config.agentHostAlias = agentHostAlias;
+  config.frontendKind = useStaticMode ? "static" : "vite";
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);

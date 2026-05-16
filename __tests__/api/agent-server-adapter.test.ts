@@ -417,6 +417,76 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     );
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
+    // The "don't guess" line should reference the actual agent-server URL
+    // for this stack, not a hardcoded :8000. We pinned :8000 here but the
+    // assertion specifically anchors on the URL we supplied.
+    expect(suffix).toContain(
+      "In particular, http://localhost:8000 inside your sandbox is the Agent Server",
+    );
+  });
+
+  it("uses the configured agent-server URL in the don't-guess line (not a hardcoded :8000)", () => {
+    // dev:safe runs the agent-server on :18000, not :8000. Make sure the
+    // rendered block doesn't lie to the agent about its own URL.
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:safe",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:18000" },
+        },
+      }),
+    );
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toBeDefined();
+    expect(suffix).toContain(
+      "In particular, http://localhost:18000 inside your sandbox is the Agent Server",
+    );
+    expect(suffix).not.toContain(
+      "In particular, http://localhost:8000 inside your sandbox",
+    );
+  });
+
+  it("renders the frontend entry with the new key", () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:docker",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:8000" },
+          frontend: {
+            kind: "static",
+            description: "Static-file server hosting the agent-canvas build.",
+            url_from_agent: "http://host.docker.internal:3001",
+          },
+        },
+      }),
+    );
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toContain("* Frontend: http://host.docker.internal:3001");
+    expect(suffix).toContain("Static-file server");
+    // Should NOT mislabel a static-build frontend as "Vite frontend".
+    expect(suffix).not.toContain("Vite frontend");
+  });
+
+  it("accepts the legacy `vite` service key", () => {
+    // Older launchers may still emit `services.vite`. Render it under the
+    // new "Frontend" label rather than dropping the entry.
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:safe",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:18000" },
+          vite: {
+            description: "Vite dev server",
+            url_from_agent: "http://localhost:3001",
+          },
+        },
+      }),
+    );
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toContain("* Frontend: http://localhost:3001");
   });
 
   it("explicitly mentions when automation is absent", () => {

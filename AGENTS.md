@@ -32,6 +32,68 @@
   - `scripts/dev-docker.mjs` and `bin/agent-canvas.mjs` pass `agentHostAlias: "host.docker.internal"` to `main()` because the agent-server runs in a container in those modes.
   - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
 
+### `VITE_RUNTIME_SERVICES_INFO` shape
+
+The env var is a JSON string of:
+
+```json
+{
+  "mode": "dev:docker",
+  "agent_host_alias": "host.docker.internal",
+  "services": {
+    "agent_server": {
+      "description": "The OpenHands Agent Server this agent is running inside. ...",
+      "url_from_agent": "http://localhost:8000"
+    },
+    "ingress": {
+      "description": "Unified entry point. Routes /api/automation/* ...",
+      "url_from_agent": "http://host.docker.internal:8000"
+    },
+    "frontend": {
+      "kind": "vite",
+      "description": "Vite dev server hosting the agent-canvas frontend.",
+      "url_from_agent": "http://host.docker.internal:3001"
+    },
+    "automation": {
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "url_from_agent": "http://host.docker.internal:18001",
+      "api_prefix": "/api/automation",
+      "docs_url": "http://host.docker.internal:18001/api/automation/docs",
+      "openapi_url": "http://host.docker.internal:18001/api/automation/openapi.json",
+      "auth_env_var": "OPENHANDS_AUTOMATION_API_KEY"
+    }
+  }
+}
+```
+
+All keys under `services` are optional and omitted when the corresponding service isn't running. `frontend.kind` is `"vite"` for dev launchers running the Vite dev server and `"static"` for stacks serving a pre-built `build/` directory (`dev:docker`, `dev:dangerously-dockerless`, the published `agent-canvas` binary). `services.vite` is accepted as a legacy alias for `services.frontend` by the renderer.
+
+### Example `<RUNTIME_SERVICES>` block (dev:docker with automation)
+
+```
+<RUNTIME_SERVICES>
+You are running inside an agent-canvas dev stack started in 'dev:docker' mode.
+The following services are reachable from your sandbox. URLs are written
+from your point of view (i.e., as you should curl/fetch them).
+
+* Agent Server (you): http://localhost:8000
+    The OpenHands Agent Server this agent is running inside. Tool calls (terminal, file_editor, browser, etc.) execute here.
+* Ingress: http://host.docker.internal:8000
+    Unified entry point. Routes /api/automation/* to the automation backend, /api/* and /sockets to the agent-server, and /* to the frontend.
+* Frontend: http://host.docker.internal:3001
+    Static-file server hosting the agent-canvas production build.
+* Automation backend: http://host.docker.internal:18001
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    Docs:    http://host.docker.internal:18001/api/automation/docs
+    OpenAPI: http://host.docker.internal:18001/api/automation/openapi.json
+    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+
+Trust this block over guessing: do not assume any other URLs are running.
+In particular, http://localhost:8000 inside your sandbox is the Agent Server
+you are running inside of — NOT the automation backend.
+</RUNTIME_SERVICES>
+```
+
 ## Visual Snapshot Testing
 
 - Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baselines stored as GitHub Actions artifacts (NOT in git).
