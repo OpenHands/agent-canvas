@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileActionsMenu } from "./profile-actions-menu";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
@@ -27,6 +27,7 @@ export function ProfileRow({
 }: ProfileRowProps) {
   const { t } = useTranslation("openhands");
   const [menuOpen, setMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div
@@ -59,12 +60,14 @@ export function ProfileRow({
       </div>
       <div className="relative shrink-0">
         <EllipsisButton
+          ref={triggerRef}
           onClick={() => setMenuOpen((open) => !open)}
           ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
           testId="profile-menu-trigger"
         />
         {menuOpen && (
           <ProfileActionsMenu
+            anchorRef={triggerRef}
             onEdit={() => onEdit(profile)}
             onRename={() => onRename(profile)}
             onSetActive={() => onActivate(profile.name)}

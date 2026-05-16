@@ -33,14 +33,16 @@ interface EllipsisButtonProps {
  * variant with a custom hover background — do NOT replace that one
  * with this component; it is intentionally different.
  */
-export function EllipsisButton({
-  onClick,
-  className,
-  ariaLabel,
-  testId = "ellipsis-button",
-}: EllipsisButtonProps) {
+export const EllipsisButton = React.forwardRef<
+  HTMLButtonElement,
+  EllipsisButtonProps
+>(function EllipsisButton(
+  { onClick, className, ariaLabel, testId = "ellipsis-button" },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       data-testid={testId}
       type="button"
       onClick={onClick}
@@ -55,4 +57,4 @@ export function EllipsisButton({
       <ThreeDotsVerticalIcon className="w-4 h-4" />
     </button>
   );
-}
+});
