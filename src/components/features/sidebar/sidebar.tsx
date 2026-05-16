@@ -254,7 +254,7 @@ export function Sidebar() {
           <SidebarNavLink
             to="/conversations"
             end
-            label="New"
+            label="Code" /* rbren branch: was "New" */
             testId="sidebar-conversations-link"
             disabled={linkDisabled}
             collapsed={collapsed}
@@ -262,7 +262,7 @@ export function Sidebar() {
           />
           <SidebarNavLink
             to="/skills"
-            label="Extensions"
+            label="Customize" /* rbren branch: was "Extensions" */
             testId="sidebar-skills-link"
             disabled={linkDisabled}
             collapsed={collapsed}
@@ -297,7 +297,7 @@ export function Sidebar() {
           />
           <SidebarNavLink
             to="/automations"
-            label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
+            label="Automate" /* rbren branch: was t(I18nKey.SIDEBAR$AUTOMATIONS) ("Automations") */
             testId="sidebar-automations-link"
             disabled={linkDisabled}
             collapsed={collapsed}
