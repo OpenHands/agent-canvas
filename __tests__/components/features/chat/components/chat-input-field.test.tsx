@@ -29,4 +29,13 @@ describe("ChatInputField auto-focus", () => {
 
     expect(screen.getByTestId("chat-input")).not.toBe(document.activeElement);
   });
+
+  it("does not steal focus when disabled flips from true to false", () => {
+    const { rerender } = renderWithProviders(<Harness disabled />);
+    document.body.focus();
+
+    rerender(<Harness disabled={false} />);
+
+    expect(screen.getByTestId("chat-input")).not.toBe(document.activeElement);
+  });
 });
