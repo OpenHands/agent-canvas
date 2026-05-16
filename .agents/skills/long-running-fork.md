@@ -32,6 +32,13 @@ behavior plus the original introducing commit (as a historical anchor — full
 history lives in `git log`). One-line descriptions are best; this is a
 ledger, not a changelog.
 
+> **The MODLOG is NOT a timeline. It is an unsorted inventory of the
+> divergences that currently exist on this branch, grouped by topic for
+> readability.** Don't read entry order as chronology. Entries are grouped
+> under category subheadings (`#### …`) and may be reordered or moved
+> between groups whenever it makes the inventory easier to navigate.
+> Chronology lives in `git log` and in the SYNCLOG below.
+
 ### Maintenance rules
 
 Update this MODLOG **in the same commit** as the fork-local code change it
@@ -57,6 +64,12 @@ describes. Specifically:
    retired independently. Don't merge conceptually distinct changes that
    happen to touch the same file (e.g. a sidebar nav-label swap and a
    hypothetical sidebar ordering change should be two separate entries).
+6. **Group related entries under topic subheadings.** When you add a new
+   entry, place it under the existing `####` subheading that best fits its
+   topic (Branding, Theming & Typography, Sidebar, Dev meta, etc.). If no
+   group fits, create a new `####` subheading. Feel free to re-group or
+   re-title subheadings whenever it improves clarity — the groups are a
+   navigation aid, not a contract.
 
 ### Entry format
 
@@ -69,34 +82,19 @@ describes. Specifically:
 
 ### Current entries
 
-- **README — fork-local header + dockerless-VM install instructions** — top of
-  the README declares this is a long-running fork maintained by Robert
-  Brennan and documents the dockerless-on-a-VM install path (uv + `npm run
-  dev:dangerously-dockerless`). Upstream README is preserved verbatim below
-  an `---` separator under an "Upstream README" heading.
+#### Branding & identity ("rbren's mod")
+
+- **README — fork-local header + dockerless-VM install + skill pointer** —
+  top of the README declares this is a long-running fork maintained by
+  Robert Brennan, documents the dockerless-on-a-VM install path (uv +
+  `npm run dev:dangerously-dockerless`), and carries an "IMPORTANT" GitHub
+  callout pointing maintainers and agents at the
+  `.agents/skills/long-running-fork.md` skill (the canonical source for
+  MODLOG / SYNCLOG / merge-friendly editing discipline). Upstream README is
+  preserved verbatim below an `---` separator under an "Upstream README"
+  heading.
   Files: `README.md`
   Introduced: 82f2bc7
-
-- **Monospace UI font on `<body>`** — body `font-family` swapped to a
-  monospace stack (IBM Plex Mono → JetBrains Mono → Fira Code → system mono
-  fallbacks). Applies regardless of selected color theme.
-  Files: `src/index.css`
-  Introduced: 82f2bc7
-
-- **`rbren-earth` color theme + default-theme flip** — new fork-local entry
-  appended to `COLOR_THEMES` (warm earth-tone dark palette: Sand / Palm Leaf
-  / Camel / Olive Wood / Stone Brown across the surface ramp; Toffee Brown
-  as the primary accent). `DEFAULT_COLOR_THEME` flipped to `"rbren-earth"`.
-  Upstream themes (`openhands-deepsea`, `openhands-neutral`) are untouched.
-  Files: `src/themes/color-themes.ts`
-  Introduced: 82f2bc7
-
-- **Sidebar nav-label rename** — three left-nav labels swapped: "New" →
-  **Code**, "Extensions" → **Customize**, "Automations" → **Automate** (the
-  third was previously a `t(I18nKey.SIDEBAR$AUTOMATIONS)` call). Each line
-  carries an `rbren branch:` marker comment.
-  Files: `src/components/features/sidebar/sidebar.tsx`
-  Introduced: 9d130c4
 
 - **Browser-tab title rebranded to "rbren's mod"** — `APP_TITLE` constant
   swapped from `"OpenHands"` to `"rbren's mod"`. Carries through to all
@@ -121,9 +119,36 @@ describes. Specifically:
   `src/components/features/sidebar/sidebar.tsx`
   Introduced: 6d894ef
 
+#### Theming & typography
+
+- **`rbren-earth` color theme + default-theme flip** — new fork-local entry
+  appended to `COLOR_THEMES` (warm earth-tone dark palette: Sand / Palm Leaf
+  / Camel / Olive Wood / Stone Brown across the surface ramp; Toffee Brown
+  as the primary accent). `DEFAULT_COLOR_THEME` flipped to `"rbren-earth"`.
+  Upstream themes (`openhands-deepsea`, `openhands-neutral`) are untouched.
+  Files: `src/themes/color-themes.ts`
+  Introduced: 82f2bc7
+
+- **Monospace UI font on `<body>`** — body `font-family` swapped to a
+  monospace stack (IBM Plex Mono → JetBrains Mono → Fira Code → system mono
+  fallbacks). Applies regardless of selected color theme.
+  Files: `src/index.css`
+  Introduced: 82f2bc7
+
+#### Sidebar
+
+- **Sidebar nav-label rename** — three left-nav labels swapped: "New" →
+  **Code**, "Extensions" → **Customize**, "Automations" → **Automate** (the
+  third was previously a `t(I18nKey.SIDEBAR$AUTOMATIONS)` call). Each line
+  carries an `rbren branch:` marker comment.
+  Files: `src/components/features/sidebar/sidebar.tsx`
+  Introduced: 9d130c4
+
+#### Dev meta / skills
+
 - **`long-running-fork` skill** — this file. Fork-local skill documenting
-  maintenance discipline, upstream-issue escalation path, and this MODLOG.
-  Loaded automatically on every task for this branch.
+  maintenance discipline, upstream-issue escalation path, the MODLOG, and
+  the SYNCLOG. Loaded automatically on every task for this branch.
   Files: `.agents/skills/long-running-fork.md`
   Introduced: 82f2bc7
 
@@ -139,6 +164,74 @@ git grep -n "rbren branch:" -- ':(exclude).agents/skills/long-running-fork.md'
 Every distinct piece of fork-local behavior visible in `git log` /
 `rbren branch:` markers should correspond to exactly one MODLOG entry. If
 something is missing on either side, fix the MODLOG before rebasing.
+
+## SYNCLOG — Upstream Sync History
+
+**Unlike the MODLOG, the SYNCLOG _is_ a timeline.** It is a chronological,
+append-only record of every time upstream `main` was synced into this
+branch (whether via merge or rebase). Newest entries go at the **bottom**.
+
+The first entry is the commit on `main` that this branch was originally
+branched from (no merge happened — it's the starting point of all later
+diffs). Every subsequent entry records a merge / rebase and any
+conflicts, breakages, or follow-up fixes that had to be addressed to make
+the sync stick.
+
+### Why we keep this
+
+- Provides a quick "when was the last sync?" answer without trawling
+  `git log`.
+- Surfaces conflict hotspots over time: if the same file shows up in the
+  conflicts list across multiple sync entries, that's a strong signal to
+  open an upstream issue (see "Pushing Upstream When Conflicts Recur"
+  below) so the fork-local edit can be replaced with an upstream
+  extensibility hook.
+- Records merge-time bug fixes that aren't otherwise represented in the
+  MODLOG (because they don't add fork-local behavior — they patch
+  fork-local code to keep working against new upstream behavior).
+
+### Entry format
+
+```
+- **YYYY-MM-DD** — synced upstream `main` at `<short hash>` ("<commit title>")
+  - Sync commit: `<short hash on rbren>` (omit for the initial branch point)
+  - Conflicts: <comma-separated files / paths>, or "None"
+  - Notes: <one-paragraph summary of any breakages, fork-local fix-ups,
+            or behavior shifts that landed in the sync commit>. Use "None"
+            for clean merges.
+```
+
+The "Sync commit" is the rbren-branch commit that *applied* the merge /
+rebase (so the reader can `git show` it). For the very first entry — the
+initial branch point — there is no sync commit and the line is omitted.
+
+### Maintenance rules
+
+1. **Append, never reorder.** This is the one section where commit order
+   matters; entries are chronological.
+2. **One entry per sync operation,** regardless of how many upstream
+   commits it pulled in. Reference the *tip* of `main` at sync time, not
+   each individual upstream commit.
+3. **A "clean" sync still gets an entry.** Even if there are no
+   conflicts, record the sync — that's the evidence that the branch was
+   up-to-date at that point in time.
+4. **Don't retroactively edit historical entries** to "fix" descriptions
+   of past conflicts. If a follow-up fix landed later, add a new entry
+   for the follow-up rather than rewriting history. (Typo / formatting
+   fixes are obviously fine.)
+5. **Cross-link to upstream issues.** If a recurring conflict triggered
+   an upstream-issue proposal (per "Pushing Upstream When Conflicts
+   Recur"), drop the issue/PR URL in the Notes section.
+
+### Entries
+
+- **2026-05-16** — branched from `f7c7dbe` ("perf(snapshots): skip retries
+  on comparison pass, suppress consent modal (#505)") on upstream `main`.
+  - Conflicts: N/A (initial branch point, not a sync)
+  - Notes: starting commit of the `rbren` long-running branch. All
+    fork-local divergences listed in the MODLOG above were introduced on
+    top of this commit. The initial fork-local commit on `rbren` was
+    `82f2bc7` ("Initialize rbren long-running branch").
 
 ## Core Principles
 

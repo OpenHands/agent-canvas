@@ -6,6 +6,14 @@
 > It is rebased / fast-forwarded onto `main` periodically and is not guaranteed to be stable
 > between rebases. If you are looking for the canonical project, use `main`.
 
+> [!IMPORTANT]
+> **Maintainers and agents working on this branch:** read
+> [`.agents/skills/long-running-fork.md`](.agents/skills/long-running-fork.md)
+> first. It documents the merge-friendly editing discipline, the **MODLOG**
+> (canonical inventory of every fork-local divergence from `main`), and the
+> **SYNCLOG** (chronological record of upstream syncs). The skill is also
+> auto-loaded by OpenHands for every task on this branch.
+
 ## Robert's dockerless VM install
 
 These are the install steps Robert uses on a fresh Linux VM where Docker is not
