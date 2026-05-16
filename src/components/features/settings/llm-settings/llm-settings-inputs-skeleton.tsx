@@ -6,7 +6,7 @@ export function LlmSettingsInputsSkeleton() {
   return (
     <div
       data-testid="app-settings-skeleton"
-      className="px-11 py-9 flex flex-col gap-6"
+      className="skeleton-stagger px-11 py-9 flex flex-col gap-6"
     >
       <SwitchSkeleton />
       <InputSkeleton />

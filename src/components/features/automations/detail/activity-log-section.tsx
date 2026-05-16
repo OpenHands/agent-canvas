@@ -34,14 +34,14 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
       </div>
 
       {isLoading && (
-        <div className="space-y-1 p-5">
+        <div className="skeleton-stagger space-y-1 p-5">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={`skeleton-${i}`}
               className="flex items-center justify-between py-3"
             >
-              <div className="h-5 w-64 animate-pulse rounded bg-surface-raised" />
-              <div className="h-6 w-24 animate-pulse rounded-full bg-surface-raised" />
+              <div className="h-5 w-64 skeleton" />
+              <div className="h-6 w-24 skeleton-round" />
             </div>
           ))}
         </div>

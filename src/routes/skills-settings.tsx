@@ -102,12 +102,9 @@ function SkillsSettingsScreen() {
           </div>
 
           {isLoading && (
-            <div className="flex flex-col gap-4">
+            <div className="skeleton-stagger flex flex-col gap-4">
               {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-24 rounded-2xl bg-tertiary animate-pulse"
-                />
+                <div key={i} className="h-24 w-full skeleton !rounded-2xl" />
               ))}
             </div>
           )}
