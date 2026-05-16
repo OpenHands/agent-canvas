@@ -433,10 +433,11 @@ export function ChatInterface() {
 
           {isLoadingOlderEvents && (
             <div
-              className="flex justify-center py-2"
+              className="flex items-center justify-center gap-2 py-3 text-sm text-neutral-400"
               data-testid="loading-older-events"
             >
               <LoadingSpinner size="small" />
+              <span>{t(I18nKey.CHAT_INTERFACE$FETCHING_OLDER_MESSAGES)}</span>
             </div>
           )}
 

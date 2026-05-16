@@ -25771,6 +25771,23 @@
     "uk": "Видалити",
     "ca": "Suprimeix"
   },
+  "CHAT_INTERFACE$FETCHING_OLDER_MESSAGES": {
+    "en": "Fetching older messages…",
+    "ja": "古いメッセージを取得中…",
+    "zh-CN": "正在获取较早的消息…",
+    "zh-TW": "正在擷取較舊的訊息…",
+    "ko-KR": "이전 메시지를 가져오는 중…",
+    "no": "Henter eldre meldinger…",
+    "ar": "جارٍ جلب الرسائل الأقدم…",
+    "de": "Ältere Nachrichten werden abgerufen…",
+    "fr": "Récupération des anciens messages…",
+    "it": "Recupero dei messaggi meno recenti…",
+    "pt": "Buscando mensagens mais antigas…",
+    "es": "Obteniendo mensajes anteriores…",
+    "ca": "S'estan recuperant missatges més antics…",
+    "tr": "Eski mesajlar getiriliyor…",
+    "uk": "Отримання старіших повідомлень…"
+  },
   "SETTINGS$CREATE_PROFILE": {
     "en": "Create Profile",
     "ja": "プロファイルを作成",
