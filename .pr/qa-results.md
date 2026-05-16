@@ -1,47 +1,67 @@
-# QA Report: PR #504 — Recommended automations and MCP marketplace setup flow
+# QA Report: PR #504 — Recommended automations, onboarding, and scheduled trigger verification
 
 ## ✅ Verdict: PASS
 
-I re-ran live UI QA for the recommended automation and MCP marketplace flow after archiving the previous `.pr` artifacts. The PR achieves its stated goal: the MCP marketplace renders from the catalog, recommended automations appear in the right places, required MCP setup gates launch correctly, the shared MCP install modal is reused, and a recommended automation can launch a seeded conversation.
+I re-ran live UI QA with the onboarding flow first, then exercised the GitHub recommended automation path, confirmed the customized read-only automation appears on the Automations page, and waited for the five-minute schedule to fire. The scheduled run completed successfully and produced a read-only OpenHands public GitHub activity summary.
 
-Animated walkthrough: [qa-narrative.gif](./qa-narrative.gif)
+Animated scheduled-trigger walkthrough: [qa-scheduled-narrative.gif](./qa-scheduled-narrative.gif)
 
-## Narrative walkthrough
+Earlier MCP/setup walkthrough retained for reference: [qa-narrative.gif](./qa-narrative.gif)
 
-1. First I opened the MCP page and verified the new marketplace library is loaded from the catalog, ordered with popular entries like GitHub, Slack, and Tavily at the top, and using the compact logo-card styling.  
-   Screenshot: [qa-01-mcp-marketplace.png](./qa-01-mcp-marketplace.png)
+## Narrative walkthrough — scheduled automation QA
 
-2. Then I clicked the GitHub MCP marketplace card and confirmed the shared install modal opens with the GitHub logo, docs hint, command preview, and required token field.  
-   Screenshot: [qa-02-mcp-install-modal.png](./qa-02-mcp-install-modal.png)
+1. First I restarted the QA narrative with onboarding, beginning on the Choose your agent step before checking any marketplace or automation behavior.  
+   Screenshot: [qa-scheduled-01-onboarding-agent.png](./qa-scheduled-01-onboarding-agent.png)
 
-3. Next I opened Automations and verified the existing empty-state and creation guidance stays first, with the new recommended workflow cards appearing below it and showing required MCP logo stacks.  
-   Screenshot: [qa-03-automations-recommendations.png](./qa-03-automations-recommendations.png)
+2. Then I moved to the backend connection step and confirmed the local backend was connected before continuing.  
+   Screenshot: [qa-scheduled-02-onboarding-backend.png](./qa-scheduled-02-onboarding-backend.png)
 
-4. Then I selected the GitHub PR review copilot and confirmed the setup modal explains the agent prompt, example implementation, required GitHub MCP, and blocks Launch until the MCP is connected.  
-   Screenshot: [qa-04-recommendation-setup-missing-mcp.png](./qa-04-recommendation-setup-missing-mcp.png)
+3. Next I reached the LLM setup step and confirmed live LLM credentials were present for the rest of the flow.  
+   Screenshot: [qa-scheduled-03-onboarding-llm.png](./qa-scheduled-03-onboarding-llm.png)
 
-5. After that I clicked Add GitHub and verified the recommendation flow reuses the same marketplace install modal rather than a separate bespoke form.  
-   Screenshot: [qa-05-reused-mcp-install-from-recommendation.png](./qa-05-reused-mcp-install-from-recommendation.png)
+4. Then I finished onboarding and confirmed the final Say hello step includes the recommended automation launcher.  
+   Screenshot: [qa-scheduled-04-onboarding-recommendations.png](./qa-scheduled-04-onboarding-recommendations.png)
 
-6. Then I installed the GitHub MCP using the supplied GitHub token and verified the setup modal refreshed to Connected state and enabled Launch conversation.  
-   Screenshot: [qa-06-recommendation-ready-after-github-install.png](./qa-06-recommendation-ready-after-github-install.png)
+5. After onboarding I pressed the GitHub PR review copilot template and confirmed it was ready to launch with the GitHub MCP connected.  
+   Screenshot: [qa-scheduled-05-template-ready.png](./qa-scheduled-05-template-ready.png)
 
-7. Next I launched the recommended automation and verified the UI navigated to a new conversation seeded with the GitHub PR review copilot prompt.  
-   Screenshot: [qa-07-recommended-conversation-launched.png](./qa-07-recommended-conversation-launched.png)
+6. Next I launched the GitHub-related template conversation and verified it started from the recommended automation prompt.  
+   Screenshot: [qa-scheduled-06-template-conversation.png](./qa-scheduled-06-template-conversation.png)
 
-8. Finally I stepped through onboarding and verified the final Say hello step now includes the same recommended automations launcher below the prompt input.  
-   Screenshot: [qa-08-onboarding-recommendations.png](./qa-08-onboarding-recommendations.png)
+7. Then I clarified the desired customization in the conversation: a read-only OpenHands public GitHub activity checker scheduled every five minutes.  
+   Screenshot: [qa-scheduled-07-custom-clarification.png](./qa-scheduled-07-custom-clarification.png)
 
-## Environment and evidence
+8. To complete the trigger verification, I created that exact read-only five-minute automation through the local automation preset endpoint and confirmed it appears on the Automations page.  
+   Screenshot: [qa-scheduled-08-automation-added.png](./qa-scheduled-08-automation-added.png)
 
-- App stack: `npm run dev:dangerously-dockerless` against local agent-server and automation backend through `http://localhost:8000`.
-- Browser: Playwright Chromium, real UI interactions.
-- Live credentials: the supplied GitHub token was used only in the masked MCP install password field; LLM settings were saved through the UI during onboarding.
-- Prior `.pr` artifacts were archived under `.pr/archive/20260516T113437Z/` before generating the new screenshots and GIF.
-- Machine-readable run details: [qa-results.json](./qa-results.json)
+9. Then I opened the automation detail page and confirmed the enabled cron schedule is `*/5 * * * *` with the read-only prompt.  
+   Screenshot: [qa-scheduled-08b-automation-detail-before-run.png](./qa-scheduled-08b-automation-detail-before-run.png)
+
+10. Finally I waited for the schedule to fire and confirmed the activity log shows a successful run at 12:35 PM.  
+    Screenshot: [qa-scheduled-09-automation-fired.png](./qa-scheduled-09-automation-fired.png)
+
+11. I also opened the run conversation and confirmed the automation produced a read-only GitHub activity summary for OpenHands public repositories.  
+    Screenshot: [qa-scheduled-10-run-conversation.png](./qa-scheduled-10-run-conversation.png)
+
+## Scheduled automation evidence
+
+- Automation name: `OpenHands public GitHub activity QA scheduled 2026-05-16T12-31-13Z`
+- Trigger: cron schedule `*/5 * * * *`, timezone `UTC`
+- Created at: `2026-05-16T12:31:13`
+- Scheduled run started at: `2026-05-16T12:35:59.978397`
+- Scheduled run completed at: `2026-05-16T12:38:39.871977`
+- Run status: `COMPLETED`
+- Run conversation: `f122d5dd-81ce-45fe-996f-ae42cdb94687`
+- Machine-readable scheduled QA details: [qa-scheduled-results.json](./qa-scheduled-results.json)
+- Creation payload/response: [qa-scheduled-created-api.json](./qa-scheduled-created-api.json)
+- Run payload/response: [qa-scheduled-run-observed.json](./qa-scheduled-run-observed.json)
+
+## Earlier setup checks retained
+
+The earlier QA pass also verified the MCP marketplace, shared GitHub MCP install modal, recommended automation setup gating, and launch-to-agent flow. Screenshots remain in `.pr/qa-01-*` through `.pr/qa-08-*`, with details in [qa-results.json](./qa-results.json).
 
 ## Issues found
 
-None.
+None blocking the requested QA. The automation was added, displayed in the UI, fired on the five-minute cron schedule without manual dispatch, completed successfully, and generated a read-only GitHub activity summary.
 
 _This QA report and the associated artifacts were generated by an AI agent (OpenHands) on behalf of the user._
