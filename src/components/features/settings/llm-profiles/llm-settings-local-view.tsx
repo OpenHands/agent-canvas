@@ -252,23 +252,42 @@ export function LlmSettingsLocalView() {
     );
   }
 
+  const profileEditorTitle =
+    viewMode === "edit"
+      ? t(I18nKey.SETTINGS$EDIT_LLM_PROFILE)
+      : t(I18nKey.SETTINGS$ADD_LLM_PROFILE);
+  const profileEditorDescription =
+    viewMode === "edit" && editingProfile
+      ? t(I18nKey.SETTINGS$PROFILE_LOADED, {
+          name: editingProfile.profile.name,
+        })
+      : t(I18nKey.SETTINGS$PROFILE_SAVE_HINT);
+
   // Create/Edit view: show form with profile name input
   return (
     <div className="flex flex-col gap-6">
       {/* Header with back button */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleBackToList}
-          className="p-2 rounded-lg hover:bg-tertiary text-neutral-400 hover:text-white transition-colors"
-          aria-label={t(I18nKey.BUTTON$BACK)}
-          data-testid="back-to-profiles"
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBackToList}
+            className="p-2 rounded-lg hover:bg-tertiary text-neutral-400 hover:text-white transition-colors"
+            aria-label={t(I18nKey.BUTTON$BACK)}
+            data-testid="back-to-profiles"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="text-base font-semibold text-white">
+            {profileEditorTitle}
+          </h2>
+        </div>
+        <p
+          data-testid="profile-editor-description"
+          className="text-sm leading-5 text-tertiary-light"
         >
-          <ArrowLeft size={20} />
-        </button>
-        <h2 className="text-base font-semibold text-white">
-          {t(I18nKey.SETTINGS$BACK_TO_LLM_PROFILES_LIST)}
-        </h2>
+          {profileEditorDescription}
+        </p>
       </div>
 
       {/* Profile name input */}
@@ -279,7 +298,7 @@ export function LlmSettingsLocalView() {
         isRequired
       />
 
-      {/* LLM Settings Form - key ensures form remounts when switching profiles */}
+      {/* Profile form - key ensures form remounts when switching profiles */}
       <LlmSettingsScreen
         key={
           viewMode === "edit"
