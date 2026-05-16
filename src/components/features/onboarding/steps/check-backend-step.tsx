@@ -106,7 +106,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         onSubmitted={() => {}}
         testIdRoot="onboarding-backend"
         renderActions={({ canSubmit, testIdRoot }) => (
-          <div className="sticky bottom-0 flex items-center justify-between gap-2 mt-2 bg-base-secondary pt-4 pb-7">
+          <div className="sticky bottom-0 flex items-center justify-end gap-2 mt-2 bg-base-secondary pt-4 pb-7">
             <BrandButton
               testId="onboarding-backend-back"
               type="button"
@@ -115,25 +115,23 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
             >
               {t(I18nKey.ONBOARDING$BACK)}
             </BrandButton>
-            <div className="flex gap-2">
-              <BrandButton
-                testId={`${testIdRoot}-submit`}
-                type="submit"
-                variant="secondary"
-                isDisabled={!canSubmit}
-              >
-                {t(I18nKey.BACKEND$SAVE)}
-              </BrandButton>
-              <BrandButton
-                testId="onboarding-backend-next"
-                type="button"
-                variant="primary"
-                isDisabled={isConnected !== true}
-                onClick={onNext}
-              >
-                {t(I18nKey.ONBOARDING$NEXT)}
-              </BrandButton>
-            </div>
+            <BrandButton
+              testId={`${testIdRoot}-submit`}
+              type="submit"
+              variant="secondary"
+              isDisabled={!canSubmit}
+            >
+              {t(I18nKey.BACKEND$SAVE)}
+            </BrandButton>
+            <BrandButton
+              testId="onboarding-backend-next"
+              type="button"
+              variant="primary"
+              isDisabled={isConnected !== true}
+              onClick={onNext}
+            >
+              {t(I18nKey.ONBOARDING$NEXT)}
+            </BrandButton>
           </div>
         )}
       />

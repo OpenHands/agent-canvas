@@ -143,25 +143,19 @@ export function OpenRepositoryModal({
         </div>
 
         <div
-          className="flex flex-col gap-2 w-full"
+          className="flex justify-end gap-2 w-full"
           onClick={(event) => event.stopPropagation()}
         >
+          <BrandButton type="button" variant="secondary" onClick={handleClose}>
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
           <BrandButton
             type="button"
             variant="primary"
             onClick={handleLaunch}
-            className="w-full"
             isDisabled={!canLaunch}
           >
             {t(I18nKey.BUTTON$LAUNCH)}
-          </BrandButton>
-          <BrandButton
-            type="button"
-            variant="secondary"
-            onClick={handleClose}
-            className="w-full"
-          >
-            {t(I18nKey.BUTTON$CANCEL)}
           </BrandButton>
         </div>
       </ModalBody>

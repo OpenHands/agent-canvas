@@ -128,7 +128,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         />
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-llm-back"
           type="button"
