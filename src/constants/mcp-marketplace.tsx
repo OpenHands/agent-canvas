@@ -114,6 +114,8 @@ const MCP_LOGOS: Record<string, ReactNode> = {
   mattermost: <SiMattermost className={LOGO} />,
 };
 
+export const MCP_LOGO_IDS = new Set(Object.keys(MCP_LOGOS));
+
 export const MCP_MARKETPLACE: MarketplaceEntry[] = MCP_CATALOG.map((entry) => ({
   ...entry,
   logo: MCP_LOGOS[entry.id] ?? <Bot className={LOGO} strokeWidth={2.25} />,

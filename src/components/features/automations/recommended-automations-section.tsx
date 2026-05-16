@@ -4,6 +4,7 @@ import { I18nKey } from "#/i18n/declaration";
 import type { RecommendedAutomation } from "#/constants/recommended-automations";
 import { getRecommendedAutomationsByPopularity } from "#/constants/recommended-automations";
 import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
+import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   findInstalledMatch,
@@ -133,9 +134,16 @@ export function RecommendedAutomationsSection({
                     {automation.name}
                   </h3>
                 </div>
-                <span className="rounded-full bg-base-secondary px-2 py-1 text-[11px] text-muted">
-                  #{automation.popularityRank}
-                </span>
+                <div className="flex -space-x-1.5" aria-hidden="true">
+                  {requiredEntries.map((entry) => (
+                    <McpLogoBadge
+                      key={entry.id}
+                      entry={entry}
+                      size="sm"
+                      className="ring-2 ring-[var(--oh-surface)]"
+                    />
+                  ))}
+                </div>
               </div>
 
               <p className="text-xs leading-5 text-content-2">
@@ -158,16 +166,7 @@ export function RecommendedAutomationsSection({
                           : "border-[var(--oh-border)] bg-base-secondary text-muted",
                       )}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full"
-                        style={{
-                          backgroundColor: entry.iconBg,
-                          color: entry.iconColor ?? "#FFFFFF",
-                        }}
-                      >
-                        {entry.logo}
-                      </span>
+                      <McpLogoBadge entry={entry} size="sm" />
                       {entry.name}
                     </span>
                   );

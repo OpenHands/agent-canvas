@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MCP_CATALOG } from "@openhands/extensions/mcps";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
-import { MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
+import { MCP_LOGO_IDS, MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
 import { RECOMMENDED_AUTOMATIONS } from "#/constants/recommended-automations";
 
 describe("OpenHands extensions catalogs", () => {
@@ -12,6 +12,10 @@ describe("OpenHands extensions catalogs", () => {
     const github = MCP_MARKETPLACE.find((entry) => entry.id === "github");
     expect(github?.template.kind).toBe("stdio");
     expect(github?.logo).toBeTruthy();
+
+    for (const entry of MCP_CATALOG) {
+      expect(MCP_LOGO_IDS.has(entry.id)).toBe(true);
+    }
   });
 
   it("loads recommended automations from @openhands/extensions", () => {
