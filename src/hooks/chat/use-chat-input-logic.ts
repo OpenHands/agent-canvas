@@ -5,7 +5,7 @@ import {
   getTextContent,
 } from "#/components/features/chat/utils/chat-input.utils";
 import { useConversationStore } from "#/stores/conversation-store";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useDraftPersistence } from "./use-draft-persistence";
 
 /**
@@ -13,7 +13,10 @@ import { useDraftPersistence } from "./use-draft-persistence";
  */
 export const useChatInputLogic = () => {
   const chatInputRef = useRef<HTMLDivElement | null>(null);
-  const { conversationId } = useConversationId();
+  // Optional because the chat input also renders on the home page, where no
+  // conversation route is mounted yet. Draft persistence is conversation-
+  // scoped, so it no-ops when this is undefined.
+  const { conversationId } = useOptionalConversationId();
 
   const {
     messageToSend,

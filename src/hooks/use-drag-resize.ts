@@ -1,6 +1,13 @@
-import { RefObject } from "react";
+import type {
+  RefObject,
+  MouseEvent as ReactMouseEvent,
+  TouchEvent as ReactTouchEvent,
+} from "react";
 import { EPS } from "#/utils/constants";
 import { isMobileDevice } from "#/utils/utils";
+
+/** Movement required before a pointer gesture is treated as a resize drag. */
+const DRAG_COMMIT_PX = 2;
 
 // Drag handling hook
 interface UseDragResizeOptions {
@@ -27,75 +34,6 @@ export const useDragResize = ({
       return event.touches[0].clientY;
     }
     return (event as MouseEvent).clientY;
-  };
-
-  // Create drag move handler
-  const createDragMoveHandler = (startY: number, startHeight: number) => {
-    const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
-      moveEvent.preventDefault();
-
-      const deltaY = getClientY(moveEvent) - startY;
-      // Invert deltaY so moving up increases height and moving down decreases height
-      const newHeight = Math.max(
-        minHeight,
-        Math.min(maxHeight, startHeight - deltaY),
-      );
-
-      const element = elementRef.current;
-
-      if (!element) {
-        return;
-      }
-
-      element.style.height = `${newHeight}px`;
-
-      // Check if content exceeds the new height to determine scrollbar visibility
-      const contentHeight = element.scrollHeight;
-      const shouldShowScrollbar =
-        contentHeight > newHeight || newHeight >= maxHeight;
-      element.style.overflowY = shouldShowScrollbar ? "auto" : "hidden";
-
-      // Call the height change callback if provided
-      if (onHeightChange) {
-        onHeightChange(newHeight);
-      }
-
-      // Notify when dragged to minimum height to clear manual mode
-      if (onReachedMinHeight && Math.abs(newHeight - minHeight) <= EPS) {
-        onReachedMinHeight();
-      }
-    };
-    return handleDragMove;
-  };
-
-  // Create drag end handler
-  const createDragEndHandler = (
-    isMobile: boolean,
-    handleDragMove: (event: MouseEvent | TouchEvent) => void,
-  ) => {
-    const handleDragEnd = () => {
-      // Call optional drag end callback
-      onGripDragEnd?.();
-
-      if (isMobile) {
-        const resizeGrip = document.getElementById("resize-grip");
-        if (!resizeGrip) {
-          return;
-        }
-
-        // Remove both mouse and touch event listeners
-        resizeGrip.removeEventListener("mousemove", handleDragMove);
-        resizeGrip.removeEventListener("mouseup", handleDragEnd);
-        resizeGrip.removeEventListener("touchmove", handleDragMove);
-        resizeGrip.removeEventListener("touchend", handleDragEnd);
-      } else {
-        document.removeEventListener("mousemove", handleDragMove);
-        document.removeEventListener("mouseup", handleDragEnd);
-        document.removeEventListener("touchmove", handleDragMove);
-        document.removeEventListener("touchend", handleDragEnd);
-      }
-    };
-    return handleDragEnd;
   };
 
   // Setup event listeners for mobile devices
@@ -129,15 +67,77 @@ export const useDragResize = ({
 
   // Start drag operation
   const startDrag = (startY: number) => {
-    // Call optional drag start callback
-    onGripDragStart?.();
-
     const isMobile = isMobileDevice();
     const startHeight = elementRef.current?.offsetHeight || minHeight;
+    let dragCommitted = false;
 
-    // Create event handlers
-    const handleDragMove = createDragMoveHandler(startY, startHeight);
-    const handleDragEnd = createDragEndHandler(isMobile, handleDragMove);
+    const handleDragMove = (moveEvent: MouseEvent | TouchEvent) => {
+      moveEvent.preventDefault();
+
+      if (!dragCommitted) {
+        const y = getClientY(moveEvent);
+        if (Math.abs(y - startY) < DRAG_COMMIT_PX) {
+          return;
+        }
+        dragCommitted = true;
+        onGripDragStart?.();
+      }
+
+      const deltaY = getClientY(moveEvent) - startY;
+      // Invert deltaY so moving up increases height and moving down decreases height
+      const newHeight = Math.max(
+        minHeight,
+        Math.min(maxHeight, startHeight - deltaY),
+      );
+
+      const element = elementRef.current;
+
+      if (!element) {
+        return;
+      }
+
+      element.style.height = `${newHeight}px`;
+
+      // Check if content exceeds the new height to determine scrollbar visibility
+      const contentHeight = element.scrollHeight;
+      const shouldShowScrollbar =
+        contentHeight > newHeight || newHeight >= maxHeight;
+      element.style.overflowY = shouldShowScrollbar ? "auto" : "hidden";
+
+      // Call the height change callback if provided
+      if (onHeightChange) {
+        onHeightChange(newHeight);
+      }
+
+      // Notify when dragged to minimum height to clear manual mode
+      if (onReachedMinHeight && Math.abs(newHeight - minHeight) <= EPS) {
+        onReachedMinHeight();
+      }
+    };
+
+    const handleDragEnd = () => {
+      if (dragCommitted) {
+        onGripDragEnd?.();
+      }
+
+      if (isMobile) {
+        const resizeGrip = document.getElementById("resize-grip");
+        if (!resizeGrip) {
+          return;
+        }
+
+        // Remove both mouse and touch event listeners
+        resizeGrip.removeEventListener("mousemove", handleDragMove);
+        resizeGrip.removeEventListener("mouseup", handleDragEnd);
+        resizeGrip.removeEventListener("touchmove", handleDragMove);
+        resizeGrip.removeEventListener("touchend", handleDragEnd);
+      } else {
+        document.removeEventListener("mousemove", handleDragMove);
+        document.removeEventListener("mouseup", handleDragEnd);
+        document.removeEventListener("touchmove", handleDragMove);
+        document.removeEventListener("touchend", handleDragEnd);
+      }
+    };
 
     // Setup event listeners based on device type
     if (isMobile) {
@@ -148,13 +148,13 @@ export const useDragResize = ({
   };
 
   // Handle mouse down on grip for manual resizing
-  const handleGripMouseDown = (e: React.MouseEvent) => {
+  const handleGripMouseDown = (e: ReactMouseEvent) => {
     e.preventDefault();
     startDrag(e.clientY);
   };
 
   // Handle touch start on grip for manual resizing
-  const handleGripTouchStart = (e: React.TouchEvent) => {
+  const handleGripTouchStart = (e: ReactTouchEvent) => {
     e.preventDefault();
     startDrag(e.touches[0].clientY);
   };

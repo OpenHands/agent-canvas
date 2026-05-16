@@ -22,6 +22,13 @@ test("captures Docker /projects workspace browser state", async ({ page }) => {
     .catch(() => undefined);
   await expect(consentDialog).toHaveCount(0, { timeout: 5000 });
 
+  // The home screen is now a chat-first launcher (#514) — the workspace
+  // dropdown lives inside OpenWorkspaceDialog, opened via "Open workspace".
+  const openWorkspaceButton = page.getByTestId("open-workspace-button");
+  await expect(openWorkspaceButton).toBeEnabled({ timeout: 15_000 });
+  await openWorkspaceButton.click();
+  await expect(page.getByTestId("open-workspace-dialog-body")).toBeVisible();
+
   const workspaceDropdown = page.getByTestId("workspace-dropdown");
   await expect(workspaceDropdown).toBeEnabled({ timeout: 15_000 });
   await workspaceDropdown.click();

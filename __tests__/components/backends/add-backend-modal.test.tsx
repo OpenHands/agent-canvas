@@ -29,21 +29,22 @@ afterEach(() => {
 });
 
 describe("AddBackendModal", () => {
-  it("renders Save (left) before Cancel (right) in a 2-column grid", () => {
+  it("places Cancel before Save in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
-    const submit = screen.getByTestId("add-backend-submit");
+    // Act: locate the two footer buttons.
     const cancel = screen.getByTestId("add-backend-cancel");
-    const row = submit.parentElement!;
+    const submit = screen.getByTestId("add-backend-submit");
 
-    // Save comes before Cancel in DOM order — Save is on the left.
-    const orderTest = submit.compareDocumentPosition(cancel);
-    // Bit 4 = DOCUMENT_POSITION_FOLLOWING: cancel comes after submit.
+    // Assert: Cancel precedes Save in DOM order — this is what governs
+    // tab order and screen-reader reading order, so the dominant Save
+    // action is the rightmost / last-reached button.
     // eslint-disable-next-line no-bitwise
-    expect(orderTest & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    // Equal-width via grid-cols-2: each column is exactly 50% of the row.
-    expect(row.className).toContain("grid-cols-2");
+    expect(
+      cancel.compareDocumentPosition(submit) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("disables submit until all fields are filled", async () => {

@@ -32,7 +32,7 @@ export function ThemeInput() {
       defaultSelectedKey={readPersistedColorTheme()}
       onSelectionChange={handleSelectionChange}
       isClearable={false}
-      wrapperClassName="w-full max-w-[680px]"
+      wrapperClassName="w-full min-w-0"
     />
   );
 }

@@ -462,24 +462,22 @@ export function BackendForm({
       {renderActions ? (
         renderActions({ canSubmit, testIdRoot })
       ) : (
-        <div className="grid grid-cols-2 gap-2 mt-2 w-full">
-          <BrandButton
-            type="submit"
-            variant="primary"
-            isDisabled={!canSubmit}
-            testId={`${testIdRoot}-submit`}
-            className="w-full text-center"
-          >
-            {t(I18nKey.BACKEND$SAVE)}
-          </BrandButton>
+        <div className="flex justify-end gap-2 mt-2 w-full">
           <BrandButton
             type="button"
             variant="secondary"
             onClick={onSubmitted}
             testId={`${testIdRoot}-cancel`}
-            className="w-full text-center"
           >
             {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+          <BrandButton
+            type="submit"
+            variant="primary"
+            isDisabled={!canSubmit}
+            testId={`${testIdRoot}-submit`}
+          >
+            {t(I18nKey.BACKEND$SAVE)}
           </BrandButton>
         </div>
       )}

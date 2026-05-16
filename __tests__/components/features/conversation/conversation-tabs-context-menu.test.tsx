@@ -57,7 +57,6 @@ describe("ConversationTabsContextMenu", () => {
   it("should render all default tabs when open", () => {
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    // Default active backend is local, so the Code (vscode) entry is hidden.
     const expectedTabs = [
       "COMMON$PLANNER",
       "COMMON$FILES",
@@ -70,7 +69,6 @@ describe("ConversationTabsContextMenu", () => {
   });
 
   it("should show the Code entry when the active backend is cloud", () => {
-    // Arrange
     seedActiveBackend({
       id: "cloud-test",
       name: "Cloud Test",
@@ -79,63 +77,64 @@ describe("ConversationTabsContextMenu", () => {
       kind: "cloud",
     });
 
-    // Act
     render(
       <ActiveBackendProvider>
         <ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />
       </ActiveBackendProvider>,
     );
 
-    // Assert
     expect(screen.getByText("COMMON$CODE")).toBeInTheDocument();
   });
 
-  it("should re-pin a tab when clicking an unpinned tab", async () => {
+  it("should open a tab from the label button without changing pin state", async () => {
     const user = userEvent.setup();
 
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    const terminalItem = screen.getByText("COMMON$TERMINAL");
+    await user.click(screen.getByTestId("conversation-tabs-menu-open-terminal"));
 
-    // Unpin
-    await user.click(terminalItem);
+    expect(useConversationStore.getState().selectedTab).toBe("terminal");
+    const storedState = JSON.parse(
+      localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
+    );
+    expect(storedState.unpinnedTabs).toEqual([]);
+  });
+
+  it("should re-pin a tab when clicking the pin control on an unpinned tab", async () => {
+    const user = userEvent.setup();
+
+    render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
+
+    await user.click(screen.getByTestId("conversation-tabs-menu-pin-terminal"));
     let storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
     );
     expect(storedState.unpinnedTabs).toContain("terminal");
 
-    // Re-pin
-    await user.click(terminalItem);
+    await user.click(screen.getByTestId("conversation-tabs-menu-pin-terminal"));
     storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
     );
     expect(storedState.unpinnedTabs).not.toContain("terminal");
   });
 
-  it("should switch to another pinned tab when unpinning the currently active tab", async () => {
+  it("should switch to another pinned tab when unpinning the currently active tab via pin control", async () => {
     const user = userEvent.setup();
 
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    // Initially selected tab is "files"
     expect(useConversationStore.getState().selectedTab).toBe("files");
 
-    // Unpin the active "files" tab
-    await user.click(screen.getByText("COMMON$FILES"));
+    await user.click(screen.getByTestId("conversation-tabs-menu-pin-files"));
 
-    // Panel should still be shown
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(true);
-
-    // Should have switched to another pinned tab (planner is first in list)
     expect(storeState.selectedTab).toBe("planner");
 
-    // Verify the files tab was unpinned
     const storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
     );
     expect(storedState.unpinnedTabs).toContain("files");
-    // Selected tab should be persisted as the new tab
     expect(storedState.selectedTab).toBe("planner");
   });
 
@@ -144,7 +143,7 @@ describe("ConversationTabsContextMenu", () => {
 
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    await user.click(screen.getByText("COMMON$TERMINAL"));
+    await user.click(screen.getByTestId("conversation-tabs-menu-pin-terminal"));
 
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(true);

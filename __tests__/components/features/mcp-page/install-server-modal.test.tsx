@@ -179,4 +179,22 @@ describe("InstallServerModal", () => {
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
+
+  it("places Cancel before Install in the footer so the dominant action is the last focusable button", async () => {
+    // Arrange: render with any marketplace entry so the footer is mounted.
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    renderWith(<InstallServerModal entry={slack} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByTestId("mcp-install-cancel");
+    const submit = screen.getByTestId("mcp-install-submit");
+
+    // Assert: Cancel precedes the dominant Install action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(submit) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

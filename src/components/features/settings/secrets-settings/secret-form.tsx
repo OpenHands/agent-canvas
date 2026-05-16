@@ -120,7 +120,7 @@ export function SecretForm({
         name="secret-name"
         type="text"
         label="Name"
-        className="w-full max-w-[350px]"
+        className="w-full min-w-0"
         required
         defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
         placeholder={t("SECRETS$API_KEY_EXAMPLE")}
@@ -130,7 +130,7 @@ export function SecretForm({
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
       {mode === "add" && (
-        <label className="flex flex-col gap-2.5 w-full max-w-[680px]">
+        <label className="flex flex-col gap-2.5 w-full min-w-0">
           <span className="text-sm">{t(I18nKey.FORM$VALUE)}</span>
           <textarea
             data-testid="value-input"
@@ -146,7 +146,7 @@ export function SecretForm({
         </label>
       )}
 
-      <label className="flex flex-col gap-2.5 w-full max-w-[680px]">
+      <label className="flex flex-col gap-2.5 w-full min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm">{t(I18nKey.FORM$DESCRIPTION)}</span>
           <OptionalTag />

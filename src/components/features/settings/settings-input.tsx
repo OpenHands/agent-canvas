@@ -71,7 +71,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
   ) {
     const errorId = error && testId ? `${testId}-error` : undefined;
     return (
-      <label className={cn("flex flex-col gap-2.5 w-fit", className)}>
+      <label className={cn("flex flex-col gap-2.5 w-full min-w-0", className)}>
         <div className="flex items-center gap-2">
           {startContent}
           <span className={cn("text-sm", labelClassName)}>{label}</span>
@@ -103,7 +103,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           aria-describedby={errorId ?? ariaDescribedBy}
           aria-invalid={!!error || ariaInvalid}
           className={cn(
-            "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full max-w-[680px] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+            "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
             error && "border-red-500",
           )}
