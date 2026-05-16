@@ -77,7 +77,7 @@ export function ExtensionsNavigation() {
   return (
     <aside
       data-testid="extensions-navbar-desktop"
-      className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start md:pl-[14px]"
+      className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start md:pl-8"
     >
       <span className="px-2 text-sm font-normal text-white">
         {t(I18nKey.NAV$EXTENSIONS)}

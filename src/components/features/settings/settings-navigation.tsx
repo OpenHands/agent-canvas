@@ -36,7 +36,7 @@ export function SettingsDesktopSidebar({
       data-testid="settings-navbar-desktop"
       className={cn(
         "hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2",
-        "md:sticky md:top-8 md:self-start md:pl-[14px]",
+        "md:sticky md:top-8 md:self-start md:pl-8",
       )}
     >
       <Typography.Text className="px-2 text-sm font-normal text-white">

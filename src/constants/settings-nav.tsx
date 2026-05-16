@@ -1,7 +1,6 @@
+import { AppWindow, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
-import LockIcon from "#/icons/lock.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
-import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 export interface SettingsNavItem {
@@ -26,13 +25,13 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     subtitle: "SETTINGS$PAGE_CONDENSER_SUBLINE",
   },
   {
-    icon: <LockIcon width={16} height={16} />,
+    icon: <Shield className="size-4" strokeWidth={2} aria-hidden />,
     to: "/settings/verification",
     text: "SETTINGS$NAV_VERIFICATION",
     subtitle: "SETTINGS$PAGE_VERIFICATION_SUBLINE",
   },
   {
-    icon: <SettingsGearIcon width={16} height={16} />,
+    icon: <AppWindow className="size-4" strokeWidth={2} aria-hidden />,
     to: "/settings/app",
     text: "SETTINGS$NAV_APPLICATION",
     subtitle: "SETTINGS$PAGE_APPLICATION_SUBLINE",
