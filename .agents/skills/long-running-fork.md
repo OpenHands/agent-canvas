@@ -138,6 +138,102 @@ When pulling in upstream `main`:
    ```
    (Never plain `--force` against a long-running branch.)
 
+## Pushing Upstream When Conflicts Recur
+
+The cheapest fork-local change is the one you don't have to maintain. If you
+find yourself **repeatedly resolving conflicts in the same upstream code**
+because of a fork-local tweak — and you have an idea for how upstream could
+expose that surface as a configuration point — open an issue on the upstream
+repo proposing it. A small upstream extensibility hook usually beats indefinite
+rebase friction.
+
+### When to file an upstream issue
+
+File one when **two or more** of these are true:
+
+- The same upstream file (or small cluster of files) has conflicted on this
+  branch across multiple rebases.
+- The fork-local edit is structurally the same each time (a label swap,
+  a default value flip, a feature gated on / off, a different color, etc.).
+- The change is something other fork maintainers would plausibly also want
+  to make — i.e. it generalizes, not "rbren's idiosyncratic preference".
+- You can describe a concrete extensibility hook that would let upstream stay
+  opinionated about defaults while letting forks override cleanly (a config
+  flag, a slot/render-prop, a registry entry, a theme key, an env var, etc.).
+
+If only one of those is true it's probably not worth filing — just keep the
+local edit and move on.
+
+### Where to file
+
+Upstream is **`OpenHands/agent-canvas`**. Use the GitHub MCP tools (e.g.
+`github_create_issue` with `owner: "OpenHands"`, `repo: "agent-canvas"`).
+
+### Issue template
+
+Title: `Proposal: make <X> configurable to reduce fork-rebase friction`
+
+Body (fill in each section):
+
+```
+### Context
+This came up while maintaining the long-running `rbren` fork of
+agent-canvas, where a fork-local tweak to <FILE / FEATURE> has
+conflicted on <N> consecutive rebases of `main` into `rbren`.
+
+### Current behavior
+<What upstream currently does — link the exact lines / file.>
+
+### Why this causes rebase friction on forks
+<Why the fork has to keep editing this same spot, e.g. hardcoded
+label / hardcoded default theme / hardcoded route list.>
+
+### Proposed extensibility hook
+<Concrete proposal, kept minimal. Examples:
+- a new optional prop / config field with the current value as default,
+- moving a hardcoded literal into a small registry/constants module,
+- exposing a render slot,
+- reading a value from a config / env var with current behavior as
+  fallback.>
+
+### Backward compatibility
+<Confirm the proposal preserves current default behavior so it is a
+pure additive change for non-fork consumers.>
+
+### Out of scope
+<Explicitly state this issue is *not* asking upstream to adopt the
+fork-local value — only to expose the seam. Forks remain responsible
+for their own values.>
+```
+
+Always include the standard AI-disclosure line in the body, since the issue
+will be read by humans:
+
+> _This issue was opened by an AI agent (OpenHands) on behalf of @rbren while
+> maintaining the long-running `rbren` fork._
+
+### After filing
+
+- Drop the issue URL into a one-line comment alongside the fork-local edit:
+  ```ts
+  label: "Code", /* rbren branch: was "New"; upstream: OpenHands/agent-canvas#NNN */
+  ```
+  That way the next rebaser knows whether the upstream proposal landed and
+  the fork-local edit can be retired.
+- If upstream lands the hook, your next rebase should **delete** the fork-local
+  edit and switch to consuming the new hook. That is the win condition.
+
+### What *not* to do
+
+- Don't file an issue to ask upstream to adopt your preferred value
+  (theme color, label text, default route). Upstream owns defaults; the fork
+  owns overrides.
+- Don't open a PR against upstream with the fork-local change directly. File
+  the issue first; let maintainers decide on the seam shape before any PR.
+- Don't bundle multiple unrelated proposals into one issue — one
+  extensibility hook per issue keeps the discussion (and any subsequent PR)
+  focused.
+
 ## When in Doubt
 
 If a proposed change *cannot* be made additively and *must* edit a shared file,
