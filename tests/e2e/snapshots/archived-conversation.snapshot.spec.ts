@@ -1,74 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
 
-// ---------------------------------------------------------------------------
-// Echo-hello-world trajectory fixture
-//
-// Same shape as the MSW handler fixture in src/mocks/conversation-handlers.ts,
-// but kept here so the snapshot tests can inject it directly into the Zustand
-// event store without relying on cross-origin MSW interception (the mock dev
-// server lives on localhost:3001 while RemoteEventsList sends requests to the
-// configured backend host, which is 127.0.0.1:8000 — a different origin that
-// the Service Worker cannot intercept).
-// ---------------------------------------------------------------------------
-const ECHO_HELLO_WORLD_TRAJECTORY = [
-  {
-    id: "archived-evt-1",
-    timestamp: "2026-01-10T00:00:01.000Z",
-    source: "user",
-    llm_message: {
-      role: "user",
-      content: [{ type: "text", text: "echo hello world" }],
-    },
-    activated_microagents: [],
-    extended_content: [],
-  },
-  {
-    id: "archived-evt-2",
-    timestamp: "2026-01-10T00:00:02.000Z",
-    source: "agent",
-    thought: [
-      { type: "text", text: "I'll run the echo command as requested." },
-    ],
-    reasoning_content: null,
-    thinking_blocks: [],
-    action: {
-      kind: "ExecuteBashAction",
-      command: "echo hello world",
-      is_input: false,
-      timeout: null,
-      reset: false,
-    },
-    tool_name: "execute_bash",
-    tool_call_id: "call-archived-bash-1",
-    tool_call: {
-      id: "call-archived-bash-1",
-      type: "function",
-      function: {
-        name: "execute_bash",
-        arguments: JSON.stringify({ command: "echo hello world" }),
-      },
-    },
-    llm_response_id: "archived-response-1",
-  },
-  {
-    id: "archived-evt-3",
-    timestamp: "2026-01-10T00:00:03.000Z",
-    source: "environment",
-    action_id: "archived-evt-2",
-    tool_name: "execute_bash",
-    tool_call_id: "call-archived-bash-1",
-    observation: {
-      kind: "ExecuteBashObservation",
-      output: "hello world",
-      command: "echo hello world",
-      exit_code: 0,
-      error: false,
-      timed_out: false,
-      metadata: {},
-    },
-  },
-];
-
 /**
  * Visual snapshot tests for archived / sandbox-error conversation states.
  *
@@ -174,65 +105,25 @@ async function stubWebSocket(page: Page) {
 }
 
 /**
- * Inject events directly into the Zustand event store via the exposed
- * `window.__OH_EVENT_STORE__` API. Bypasses the MSW service-worker /
- * cross-origin fetch path; required for conversation-page tests where
- * RemoteEventsList sends requests to the configured backend host (a
- * different origin that the Service Worker cannot intercept).
+ * Navigate to an archived/error conversation and wait until the read-only
+ * banner is visible.  The banner only renders after `useActiveConversation`
+ * has resolved with sandbox_status MISSING or ERROR, so it is a reliable
+ * "page fully settled" signal — unlike the outer `chat-interface` container,
+ * which can appear in the DOM (h-full flex) with zero height before any API
+ * data arrives.
  *
- * Mirrors the same helper used in collapsible-thinking.snapshot.spec.ts.
+ * Returns the `chat-interface` locator for subsequent screenshot assertions.
  */
-async function injectEvents(page: Page, events: unknown[]) {
-  // Wait for the store to be available.
-  await page.waitForFunction(() => {
-    const store = (
-      window as unknown as {
-        __OH_EVENT_STORE__?: {
-          getState: () => { addEvents?: (e: unknown[]) => void };
-        };
-      }
-    ).__OH_EVENT_STORE__;
-    return Boolean(store?.getState().addEvents);
-  });
-
-  // Call addEvents and check for the DOM element in the SAME poll tick.
-  // By merging the write and the DOM read we eliminate the race window
-  // where React Strict-Mode's double-invoke of clearEvents() could fire
-  // between the two calls and wipe the store before rendering completes.
-  // addEvents deduplicates by event ID, so repeated calls are harmless.
-  await page.waitForFunction(
-    (evts) => {
-      const store = (
-        window as unknown as {
-          __OH_EVENT_STORE__?: {
-            getState: () => {
-              addEvents: (e: unknown[]) => void;
-            };
-          };
-        }
-      ).__OH_EVENT_STORE__;
-      if (!store) return false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      store.getState().addEvents(evts as any);
-      return (
-        document.querySelectorAll('[data-testid="user-message"]').length >= 1
-      );
-    },
-    events,
-    { timeout: 15_000 },
-  );
-}
-
-/**
- * Navigate to a specific conversation page and wait until the chat interface
- * is visible. Call `stubWebSocket` first so the WS never throws.
- */
-async function navigateToConversation(page: Page, id: string) {
+async function navigateToArchivedConversation(page: Page, id: string) {
   await page.goto(`/conversations/${id}`, { waitUntil: "domcontentloaded" });
   await dismissConsentModal(page);
-  const chatInterface = page.getByTestId("chat-interface");
-  await expect(chatInterface).toBeVisible({ timeout: 20_000 });
-  return chatInterface;
+  // Wait for the archived read-only banner — this is the concrete "data
+  // loaded and UI settled" signal that is unique to sandbox_status
+  // MISSING / ERROR conversations.
+  await expect(
+    page.getByTestId("archived-conversation-banner"),
+  ).toBeVisible({ timeout: 30_000 });
+  return page.getByTestId("chat-interface");
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -285,25 +176,17 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     await setupCommonMocks(page);
     await stubWebSocket(page);
 
-    const chatInterface = await navigateToConversation(
+    // navigateToArchivedConversation already waits for the banner, so the
+    // page is fully settled before we take the screenshot.
+    const chatInterface = await navigateToArchivedConversation(
       page,
       ARCHIVED_CONVERSATION_ID,
     );
 
-    // The archived read-only banner must appear where the input normally lives.
-    const banner = page.getByTestId("archived-conversation-banner");
-    await expect(banner).toBeVisible({ timeout: 10_000 });
-
     // The interactive chat box must NOT be present.
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
-    // Inject trajectory events directly into the Zustand store.
-    // MSW cannot intercept the cross-origin RemoteEventsList request
-    // (127.0.0.1:8000 ≠ localhost:3001), so we use the store API instead.
-    // injectEvents already polls until `data-testid="user-message"` is in DOM.
-    await injectEvents(page, ECHO_HELLO_WORLD_TRAJECTORY);
-
-    // Snapshot: chat history above with archived banner at the bottom.
+    // Snapshot: read-only state with archived banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
       "conversation-view-archived.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
@@ -318,23 +201,15 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     await setupCommonMocks(page);
     await stubWebSocket(page);
 
-    const chatInterface = await navigateToConversation(
+    const chatInterface = await navigateToArchivedConversation(
       page,
       ERROR_CONVERSATION_ID,
     );
 
-    // The error variant of the read-only banner must appear.
-    const banner = page.getByTestId("archived-conversation-banner");
-    await expect(banner).toBeVisible({ timeout: 10_000 });
-
     // The interactive chat box must NOT be present.
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
-    // Inject trajectory events directly into the Zustand store.
-    // injectEvents already polls until `data-testid="user-message"` is in DOM.
-    await injectEvents(page, ECHO_HELLO_WORLD_TRAJECTORY);
-
-    // Snapshot: chat history above with sandbox-error banner at the bottom.
+    // Snapshot: read-only state with sandbox-error banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
       "conversation-view-sandbox-error.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
