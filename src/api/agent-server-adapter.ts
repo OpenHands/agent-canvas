@@ -62,6 +62,146 @@ function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
 }
 
+/**
+ * Shape of `VITE_RUNTIME_SERVICES_INFO` (set by the dev launchers in
+ * scripts/dev-*.mjs). All URLs are written from the agent's point of view,
+ * not the browser's. The block is rendered into the agent's system prompt
+ * via `AgentContext.system_message_suffix` so the agent knows what's
+ * reachable from inside its sandbox without having to probe.
+ */
+interface RuntimeServicesInfo {
+  mode?: string;
+  agent_host_alias?: string;
+  services?: {
+    agent_server?: { description?: string; url_from_agent?: string };
+    ingress?: { description?: string; url_from_agent?: string };
+    frontend?: {
+      kind?: "vite" | "static";
+      description?: string;
+      url_from_agent?: string;
+    };
+    // `vite` is the legacy key name for the frontend entry, accepted for
+    // one release while older dev-stack launchers may still emit it.
+    vite?: { description?: string; url_from_agent?: string };
+    automation?: {
+      description?: string;
+      url_from_agent?: string;
+      api_prefix?: string;
+      docs_url?: string;
+      openapi_url?: string;
+      auth_env_var?: string;
+    };
+  };
+}
+
+function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
+  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as RuntimeServicesInfo;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    // Malformed JSON: ignore and fall back to no runtime info, rather than
+    // tearing down conversation creation over a misconfigured dev env var.
+    return null;
+  }
+}
+
+/**
+ * Render the runtime services info into a markdown block suitable for
+ * appending to the system prompt via `AgentContext.system_message_suffix`.
+ *
+ * Returns `undefined` when no runtime info is configured, so callers can
+ * safely omit the field on production builds (where the launcher doesn't
+ * set `VITE_RUNTIME_SERVICES_INFO`).
+ */
+export function buildRuntimeServicesSystemSuffix(): string | undefined {
+  const info = parseRuntimeServicesInfo();
+  if (!info?.services) return undefined;
+
+  const lines: string[] = [];
+  lines.push("<RUNTIME_SERVICES>");
+  if (info.mode) {
+    lines.push(
+      `You are running inside an agent-canvas dev stack started in '${info.mode}' mode.`,
+    );
+  } else {
+    lines.push("You are running inside an agent-canvas dev stack.");
+  }
+  lines.push(
+    "The following services are reachable from your sandbox. URLs are written",
+    "from your point of view (i.e., as you should curl/fetch them).",
+    "",
+  );
+
+  const { agent_server, ingress, automation } = info.services;
+  // Accept `frontend` (current key) or `vite` (legacy key) for the
+  // frontend service entry. The legacy fallback can be removed once all
+  // launchers in this repo emit `frontend`.
+  const frontend = info.services.frontend ?? info.services.vite;
+
+  if (agent_server?.url_from_agent) {
+    lines.push(
+      `* Agent Server (you): ${agent_server.url_from_agent}`,
+      `    ${agent_server.description ?? "The agent-server hosting your tool calls."}`,
+    );
+  }
+  if (ingress?.url_from_agent) {
+    lines.push(
+      `* Ingress: ${ingress.url_from_agent}`,
+      `    ${ingress.description ?? "Unified entry point for browser-facing traffic."}`,
+    );
+  }
+  if (frontend?.url_from_agent) {
+    lines.push(
+      `* Frontend: ${frontend.url_from_agent}`,
+      `    ${frontend.description ?? "Frontend dev server."}`,
+    );
+  }
+  if (automation?.url_from_agent) {
+    lines.push(
+      `* Automation backend: ${automation.url_from_agent}`,
+      `    ${automation.description ?? "OpenHands Automations service."}`,
+    );
+    if (automation.docs_url) {
+      lines.push(`    Docs:    ${automation.docs_url}`);
+    }
+    if (automation.openapi_url) {
+      lines.push(`    OpenAPI: ${automation.openapi_url}`);
+    }
+    if (automation.auth_env_var) {
+      lines.push(
+        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+      );
+    }
+  } else {
+    lines.push(
+      "* Automation backend: not running in this dev mode (skip /api/automation calls).",
+    );
+  }
+
+  // Anchor the "don't guess" warning to the actual agent-server URL for
+  // this stack instead of a hardcoded port. The agent-server listens on
+  // different ports across dev modes (18000 in dev:safe, 8000 in
+  // dev:docker, ...), and baking the wrong port into the system prompt
+  // is exactly the kind of confusion this block is meant to prevent.
+  const agentServerUrl = agent_server?.url_from_agent;
+  lines.push(
+    "",
+    "Trust this block over guessing: do not assume any other URLs are running.",
+  );
+  if (agentServerUrl) {
+    lines.push(
+      `In particular, ${agentServerUrl} inside your sandbox is the Agent Server`,
+      "you are running inside of — NOT the automation backend.",
+    );
+  }
+  lines.push("</RUNTIME_SERVICES>");
+
+  return lines.join("\n");
+}
+
 export function toConversationUrl(conversationId: string): string {
   // Local-format conversation URL — points at whichever local agent-server
   // is actually serving the conversation (the bundled one when the active
@@ -320,12 +460,20 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
 }
 
 function createAgentFromSettings(agentSettings: SettingsRecord) {
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   return {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
       load_public_skills: true,
       load_user_skills: true,
+      // When the dev launcher provided `VITE_RUNTIME_SERVICES_INFO`, append
+      // a <RUNTIME_SERVICES> block to the system prompt so the agent knows
+      // which services exist in this dev stack (e.g. automation backend
+      // URL, ingress URL) instead of having to probe.
+      ...(runtimeServicesSuffix
+        ? { system_message_suffix: runtimeServicesSuffix }
+        : {}),
     },
   };
 }

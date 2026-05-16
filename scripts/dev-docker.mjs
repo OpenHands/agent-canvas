@@ -385,6 +385,11 @@ if (isMainModule) {
     viteWorkingDir: CONTAINER_WORKSPACES_DIR,
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
+    // The agent-server runs inside a Docker container in this mode, so
+    // host services (ingress, automation, vite) are reachable via
+    // "host.docker.internal" rather than "localhost" from the agent's POV.
+    agentHostAlias: "host.docker.internal",
+    mode: "dev:docker",
   }).catch((err) => {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {

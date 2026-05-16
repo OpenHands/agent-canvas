@@ -81,11 +81,8 @@ this is a packaging error. If running from source:
 let main, checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR;
 try {
   ({ main } = await import("../scripts/dev-with-automation.mjs"));
-  ({
-    checkDockerPrereqs,
-    startAgentServerDocker,
-    CONTAINER_WORKSPACES_DIR,
-  } = await import("../scripts/dev-docker.mjs"));
+  ({ checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR } =
+    await import("../scripts/dev-docker.mjs"));
 } catch (err) {
   console.error("Failed to load required scripts. Try reinstalling:");
   console.error("  npm install -g @openhands/agent-canvas@latest");
@@ -100,6 +97,10 @@ main({
   viteWorkingDir: CONTAINER_WORKSPACES_DIR,
   staticMode: true,
   staticDir: BUILD_DIR,
+  // Agent-server runs in a Docker container; host services are reached
+  // via "host.docker.internal" from the agent's POV.
+  agentHostAlias: "host.docker.internal",
+  mode: "agent-canvas",
 }).catch((err) => {
   console.error(`Fatal error: ${err.message}`);
   if (err.stack) {

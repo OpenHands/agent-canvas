@@ -454,10 +454,7 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
     env.OH_CANVAS_SAFE_BACKEND_PORT,
     DEFAULT_BACKEND_PORT,
   );
-  const vscodePort = parsePort(
-    env.OH_CANVAS_SAFE_VSCODE_PORT,
-    backendPort + 1,
-  );
+  const vscodePort = parsePort(env.OH_CANVAS_SAFE_VSCODE_PORT, backendPort + 1);
 
   return buildConfigFromPorts({ backendPort, vscodePort }, cwd, env);
 }
@@ -614,6 +611,124 @@ export function buildAgentServerEnv(config) {
   };
 }
 
+/**
+ * Build a structured description of the dev-stack services that are
+ * reachable from inside the agent's sandbox. The frontend forwards this
+ * (verbatim, as a JSON string in `VITE_RUNTIME_SERVICES_INFO`) and renders
+ * it into the system prompt via `AgentContext.system_message_suffix`, so
+ * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
+ * without having to probe.
+ *
+ * URLs are written from the *agent's* point of view. In dev-safe /
+ * dev-with-automation the agent-server runs on the host, so the host
+ * alias is "localhost". In dev-docker the agent-server runs inside a
+ * container and reaches host services via "host.docker.internal".
+ *
+ * @param {object} options
+ * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
+ * @param {string} [options.agentHostAlias="localhost"] - Hostname the agent
+ *   uses to reach services running on the host machine.
+ * @param {number} [options.agentServerPort] - Port the agent-server listens on.
+ *   Required at runtime; the function throws if missing because the resulting
+ *   URL would otherwise bake `undefined` into the agent's system prompt.
+ *   Typed as optional only so TypeScript callers can negative-test the guard.
+ * @param {number} [options.ingressPort] - Ingress port (omit if no ingress).
+ * @param {number} [options.frontendPort] - Frontend port (Vite dev server
+ *   or static-file server). Omit if no frontend is exposed.
+ * @param {number} [options.vitePort] - Deprecated alias for `frontendPort`,
+ *   accepted for backward compat with older launchers. Remove after one release.
+ * @param {"vite"|"static"} [options.frontendKind="vite"] - Whether the
+ *   frontend port hosts Vite or a static build. Only affects the
+ *   description shown to the agent.
+ * @param {object} [options.automation] - Automation backend info. Skipped
+ *   entirely if `.port` is missing, so passing `{}` is safe.
+ * @param {number} [options.automation.port] - Automation backend port.
+ * @param {string} [options.automation.apiPrefix="/api/automation"] - Path
+ *   prefix all automation routes are mounted under.
+ * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
+ *   - Env var holding the API key.
+ * @returns {object} A JSON-serializable runtime services info object.
+ */
+export function buildRuntimeServicesInfo(options) {
+  const {
+    mode,
+    agentHostAlias = "localhost",
+    agentServerPort,
+    ingressPort,
+    // Accept legacy `vitePort` for one release so external callers keep working.
+    vitePort,
+    frontendPort = vitePort,
+    frontendKind = "vite",
+    automation,
+  } = options;
+
+  if (agentServerPort === undefined || agentServerPort === null) {
+    // Without this the URL becomes `http://localhost:undefined` and ends up
+    // verbatim in the agent's system prompt, which is worse than failing fast.
+    throw new Error(
+      "buildRuntimeServicesInfo: agentServerPort is required " +
+        "(otherwise the agent_server URL would be `http://localhost:undefined`).",
+    );
+  }
+
+  const services = {
+    agent_server: {
+      description:
+        "The OpenHands Agent Server this agent is running inside. " +
+        "Tool calls (terminal, file_editor, browser, etc.) execute here.",
+      // From the agent's POV, the agent-server it's *inside* is on
+      // localhost, regardless of where the host is.
+      url_from_agent: `http://localhost:${agentServerPort}`,
+    },
+  };
+
+  if (ingressPort !== undefined) {
+    services.ingress = {
+      description:
+        "Unified entry point. Routes /api/automation/* to the automation " +
+        "backend, /api/* and /sockets to the agent-server, and /* to the " +
+        "frontend.",
+      url_from_agent: `http://${agentHostAlias}:${ingressPort}`,
+    };
+  }
+
+  if (frontendPort !== undefined) {
+    services.frontend = {
+      kind: frontendKind,
+      description:
+        frontendKind === "static"
+          ? "Static-file server hosting the agent-canvas production build."
+          : "Vite dev server hosting the agent-canvas frontend.",
+      url_from_agent: `http://${agentHostAlias}:${frontendPort}`,
+    };
+  }
+
+  // Require an explicit port so we don't bake `:undefined` into the
+  // automation URL when the caller passes `automation: {}`.
+  if (automation?.port !== undefined && automation.port !== null) {
+    const apiPrefix = automation.apiPrefix ?? "/api/automation";
+    const authEnvVar = automation.authEnvVar ?? "OPENHANDS_AUTOMATION_API_KEY";
+    const baseUrl = `http://${agentHostAlias}:${automation.port}`;
+    services.automation = {
+      description:
+        "OpenHands Automations service. All routes are mounted under " +
+        `'${apiPrefix}'. Authenticate with header ` +
+        `'X-API-Key: $${authEnvVar}'.`,
+      url_from_agent: baseUrl,
+      api_prefix: apiPrefix,
+      docs_url: `${baseUrl}${apiPrefix}/docs`,
+      openapi_url: `${baseUrl}${apiPrefix}/openapi.json`,
+      auth_env_var: authEnvVar,
+    };
+  }
+
+  return {
+    mode,
+    agent_host_alias: agentHostAlias,
+    services,
+  };
+}
+
 export function buildNpmScriptCommand(
   scriptName,
   platform = process.platform,
@@ -647,9 +762,7 @@ export function validateLocalAgentServerPath(localPath) {
     );
   }
   if (!existsSync(localPath)) {
-    throw new Error(
-      `OH_AGENT_SERVER_LOCAL_PATH does not exist: ${localPath}`,
-    );
+    throw new Error(`OH_AGENT_SERVER_LOCAL_PATH does not exist: ${localPath}`);
   }
   for (const subdir of LOCAL_AGENT_SERVER_SUBDIRS) {
     const subdirPath = path.join(localPath, subdir);
@@ -681,10 +794,14 @@ async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
 }
 
 function spawnProcess(command, args, options = {}) {
-  const child = spawn(command, args, getProcessTreeSpawnOptions({
-    stdio: "inherit",
-    ...options,
-  }));
+  const child = spawn(
+    command,
+    args,
+    getProcessTreeSpawnOptions({
+      stdio: "inherit",
+      ...options,
+    }),
+  );
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
@@ -821,6 +938,10 @@ async function main() {
   }
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  const runtimeServicesInfo = buildRuntimeServicesInfo({
+    mode: "dev:safe",
+    agentServerPort: config.backendPort,
+  });
   frontend = spawnProcess(frontendCommand.command, frontendCommand.args, {
     cwd: config.cwd,
     env: {
@@ -830,6 +951,9 @@ async function main() {
       VITE_WORKING_DIR: config.workingDir,
       // Pass session API key so frontend can authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,
+      // Inform the frontend (and downstream, the agent's system prompt) about
+      // which services are available in this dev stack.
+      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
     },
   });
 
