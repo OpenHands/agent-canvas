@@ -1,5 +1,5 @@
 /**
- * rbren branch: fork-local sidebar widget.
+ * rbren's mod: fork-local sidebar widget.
  *
  * Renders a small outline-bordered chevron-down button next to the "Code"
  * nav link in the left sidebar. Clicking it opens a popover listing

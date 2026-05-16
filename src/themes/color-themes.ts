@@ -1,7 +1,7 @@
 export type ColorThemeKey =
   | "openhands-deepsea"
   | "openhands-neutral"
-  // rbren branch: long-running-fork-local theme (warm earth-tone palette).
+  // rbren's mod: long-running-fork-local theme (warm earth-tone palette).
   | "rbren-earth";
 
 export interface ColorThemeDefinition {
@@ -154,7 +154,7 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
     },
   },
 
-  // rbren branch: long-running-fork-local theme — warm earth-tone palette.
+  // rbren's mod: long-running-fork-local theme — warm earth-tone palette.
   // Anchored on six named tones:
   //   Sand        #CBB874 → position 300 (foreground text)
   //   Palm Leaf   #9D956C → position 400
@@ -242,7 +242,7 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
   },
 };
 
-// rbren branch: default to the fork-local earth-tones theme.
+// rbren's mod: default to the fork-local earth-tones theme.
 export const DEFAULT_COLOR_THEME: ColorThemeKey = "rbren-earth";
 
 export const AVAILABLE_COLOR_THEMES = Object.entries(COLOR_THEMES).map(

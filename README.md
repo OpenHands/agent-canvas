@@ -1,19 +1,20 @@
-# agent-canvas — `rbren/agent-canvas` fork
+# agent-canvas — rbren's mod
 
 > [!NOTE]
-> This is a **long-running personal fork** of [`OpenHands/agent-canvas`](https://github.com/OpenHands/agent-canvas) maintained by **Robert Brennan** (`@rbren`).
+> **rbren's mod** is a **long-running personal fork** of [`OpenHands/agent-canvas`](https://github.com/OpenHands/agent-canvas) maintained by **Robert Brennan** (`@rbren`) at [`rbren/agent-canvas`](https://github.com/rbren/agent-canvas).
 > The fork's default branch — this `main` — intentionally **diverges from upstream `main`** to carry personal preferences (theming, layout tweaks, dev-loop helpers, etc.) on top of upstream.
 > It is rebased onto upstream periodically and is not guaranteed to be stable between rebases. If you are looking for the canonical project, use [`OpenHands/agent-canvas`](https://github.com/OpenHands/agent-canvas).
 
 > [!IMPORTANT]
-> **Maintainers and agents working on this fork:** read
+> **Maintainers and agents working on rbren's mod:** read
 > [`.agents/skills/long-running-fork.md`](.agents/skills/long-running-fork.md)
 > first. It documents the merge-friendly editing discipline, the remote
 > layout (`origin` = fork, `upstream` = `OpenHands/agent-canvas`), the
 > **MODLOG** (canonical inventory of every fork-local divergence from
 > upstream `main`), and the **SYNCLOG** (chronological record of upstream
 > syncs). The skill is also auto-loaded by OpenHands for every task on
-> this fork's `main`.
+> rbren's mod's `main`. Fork-local edits in source are tagged with a
+> `rbren's mod:` comment so they can be grepped easily.
 
 ## Robert's dockerless VM install
 

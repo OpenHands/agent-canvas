@@ -44,7 +44,7 @@
 body {
   margin: 0;
   background-color: var(--oh-color-base);
-  /* rbren branch: monospace UI for structured-text "hackery" feel. */
+  /* rbren's mod: monospace UI for structured-text "hackery" feel. */
   font-family:
     "IBM Plex Mono", "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;

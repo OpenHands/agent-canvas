@@ -19,11 +19,11 @@ upstream `main`** — it carries personal preferences (theming, layout
 tweaks, dev-loop helpers, etc.) on top of upstream and is rebased onto
 upstream periodically.
 
-> **There is no `rbren` branch on this fork.** The fork itself plays the
-> role the old `rbren` branch used to play; `main` here is "rbren's main".
-> The literal token `rbren branch:` is still used in source comments as a
-> fixed marker for fork-local edits (see "Mark every fork-local edit" in
-> Core Principles) — it's a recognizable string, not a current branch name.
+> **The fork is informally called "rbren's mod"** (that's also the
+> browser-tab title and sidebar wordmark). There is no `rbren` branch
+> here — `main` is the customized line, and fork-local edits in source
+> are tagged with a `rbren's mod:` comment marker (see "Mark every
+> fork-local edit" in Core Principles).
 
 ### Remote setup
 
@@ -170,7 +170,7 @@ describes. Specifically:
 - **Sidebar nav-label rename** — three left-nav labels swapped: "New" →
   **Code**, "Extensions" → **Customize**, "Automations" → **Automate** (the
   third was previously a `t(I18nKey.SIDEBAR$AUTOMATIONS)` call). Each line
-  carries an `rbren branch:` marker comment.
+  carries an `rbren's mod:` marker comment.
   Files: `src/components/features/sidebar/sidebar.tsx`
   Introduced: 9d130c4
 
@@ -207,11 +207,11 @@ Before any rebase, cross-check that the MODLOG matches reality:
 ```sh
 git fetch upstream
 git --no-pager log --oneline upstream/main..HEAD
-git grep -n "rbren branch:" -- ':(exclude).agents/skills/long-running-fork.md'
+git grep -n "rbren's mod:" -- ':(exclude).agents/skills/long-running-fork.md'
 ```
 
 Every distinct piece of fork-local behavior visible in `git log` /
-`rbren branch:` markers should correspond to exactly one MODLOG entry. If
+`rbren's mod:` markers should correspond to exactly one MODLOG entry. If
 something is missing on either side, fix the MODLOG before rebasing.
 
 ## SYNCLOG — Upstream Sync History
@@ -299,13 +299,16 @@ is omitted.
    the file or sprinkling edits throughout it does not.
 
 3. **Mark every fork-local edit clearly.** Any line that exists only on the
-   fork must carry a `rbren branch:` (or `rbren:`) comment so future merges
-   can immediately identify what is local vs. upstream. This also makes it
-   trivial to grep for fork-local code: `git grep -n "rbren branch:"`. The
-   literal token `rbren branch:` is preserved as a fixed marker for grep /
-   tooling reasons — it predates the move to a dedicated fork and is *not*
-   a current git branch name. Don't rename it without a coordinated sweep
-   across the whole tree.
+   fork must carry a `rbren's mod:` comment so future merges can immediately
+   identify what is local vs. upstream. This also makes it trivial to grep
+   for fork-local code:
+   ```sh
+   git grep -n "rbren's mod:"
+   ```
+   `rbren's mod:` is the canonical marker token. Don't introduce variants
+   (`rbren:`, `rbren branch:`, `rbren fork:`, etc.) — they'll just defeat the
+   grep. If you ever need to rename the token, do it as a coordinated sweep
+   across the whole tree in a single commit and update this skill.
 
 4. **Quarantine fork-local code where possible.** Prefer putting fork-local code
    in a file that *only exists on the fork* (e.g. under `.agents/skills/`,
@@ -333,7 +336,7 @@ is omitted.
   `hero.ts` / `tailwind.config.js` color tokens in place. Those files are
   actively maintained upstream and will conflict on every rebase.
 - **Body / font-family overrides:** prefer a *new* CSS file imported once at
-  app entry (or a single localized edit clearly tagged `rbren branch:`) over
+  app entry (or a single localized edit clearly tagged `rbren's mod:`) over
   spreading font changes across many components.
 
 ### React components / TS modules
@@ -361,7 +364,7 @@ export const RBREN_USE_HACKERY_THEME_BY_DEFAULT = true;
 - Don't update upstream snapshot tests just because the theme looks different
   on the fork. Either:
   - Mark those snapshot tests skipped on the fork's `main` with a clear
-    `rbren branch:` comment, or
+    `rbren's mod:` comment, or
   - Maintain a parallel fork-local snapshot directory and switch on the
     fork-local flag.
 - New tests for fork-local behavior should live in fork-local test files so
@@ -400,12 +403,12 @@ When pulling in upstream `main` from `OpenHands/agent-canvas`:
    ```
 3. Before rebasing, run:
    ```sh
-   git grep -n "rbren branch:" -- ':(exclude).agents/skills/long-running-fork.md'
+   git grep -n "rbren's mod:" -- ':(exclude).agents/skills/long-running-fork.md'
    ```
    to remind yourself of every fork-local edit. If something on that list no
    longer needs to exist (because upstream now does the same thing), drop it
    during the rebase instead of carrying it forward.
-4. If a rebase hits a conflict in a file that *only* contains "rbren branch:"
+4. If a rebase hits a conflict in a file that *only* contains "rbren's mod:"
    markers, prefer resolving by re-applying the marker on top of the new
    upstream content rather than blindly keeping the fork-local version. The
    marker is the contract; the surrounding lines belong to upstream.
@@ -495,7 +498,7 @@ will be read by humans:
 
 - Drop the issue URL into a one-line comment alongside the fork-local edit:
   ```ts
-  label: "Code", /* rbren branch: was "New"; upstream: OpenHands/agent-canvas#NNN */
+  label: "Code", /* rbren's mod: was "New"; upstream: OpenHands/agent-canvas#NNN */
   ```
   That way the next rebaser knows whether the upstream proposal landed and
   the fork-local edit can be retired.

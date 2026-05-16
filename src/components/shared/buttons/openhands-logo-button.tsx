@@ -3,7 +3,7 @@ import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { cn } from "#/utils/utils";
 
-/* rbren branch: useTranslation / I18nKey imports dropped — brand tooltip
+/* rbren's mod: useTranslation / I18nKey imports dropped — brand tooltip
    and aria label are now hardcoded to "rbren's mod" below. Original lines:
    import { useTranslation } from "react-i18next";
    import { I18nKey } from "#/i18n/declaration";
@@ -20,7 +20,7 @@ export type OpenHandsLogoButtonProps = {
   logoClassName?: string;
   logoWidth?: number;
   logoHeight?: number;
-  /* rbren branch: compact mode skips the "rbren's mod" wordmark next to the
+  /* rbren's mod: compact mode skips the "rbren's mod" wordmark next to the
      logo. Used by the collapsed 64px sidebar rail where there's no room. */
   compact?: boolean;
 };
@@ -43,7 +43,7 @@ export function OpenHandsLogoButton({
         className={cn(className)}
       >
         <span className="flex items-center gap-2">
-          {/* rbren branch: tint logo with var(--oh-muted), matching the
+          {/* rbren's mod: tint logo with var(--oh-muted), matching the
               inactive color of the sidebar nav icons (Code / Customize /
               Automate). Targets only originally-white SVG paths so the
               transparent face cut-out stays transparent. */}
@@ -55,7 +55,7 @@ export function OpenHandsLogoButton({
               logoClassName,
             )}
           />
-          {/* rbren branch: wordmark shown next to the logo in expanded mode. */}
+          {/* rbren's mod: wordmark shown next to the logo in expanded mode. */}
           {!compact && (
             <span className="text-sm font-medium text-[var(--oh-muted)] whitespace-nowrap">
               rbren&apos;s mod
