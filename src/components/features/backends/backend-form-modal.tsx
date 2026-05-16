@@ -249,7 +249,8 @@ export function BackendForm({
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
 
-  const initialKind: BackendKind = backend?.kind ?? "local";
+  const initialKind: BackendKind =
+    backend?.kind ?? (mode === "edit" ? "local" : "cloud");
 
   const [name, setName] = React.useState(backend?.name ?? "");
   const [host, setHost] = React.useState(backend?.host ?? "");
