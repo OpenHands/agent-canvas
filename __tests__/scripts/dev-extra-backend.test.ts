@@ -1,3 +1,10 @@
+// @vitest-environment node
+// These tests load `scripts/dev-safe.mjs` (via dev-extra-backend), which
+// constructs file:// URLs relative to its own location via
+// `new URL("../tools", import.meta.url)`. jsdom's URL constructor ignores
+// file:// base URLs (it falls back to its document base, e.g.
+// http://localhost:3000/), breaking that resolution; the Node environment
+// has the standard WHATWG URL behavior that honors the file:// base.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";

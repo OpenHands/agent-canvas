@@ -277,6 +277,17 @@ export interface InvokeSkillAction extends ActionBase<"InvokeSkillAction"> {
   name: string;
 }
 
+/**
+ * Frontend-injected custom tool. Emitted over the existing WebSocket as a
+ * regular ActionEvent; intercepted client-side by handleCanvasUIAction.
+ * The Python definition lives in tools/canvas_ui_tool.py.
+ */
+export interface CanvasUIAction extends ActionBase<"CanvasUIAction"> {
+  command: "navigate_to_file" | "open_tab" | "show_preview";
+  path?: string | null;
+  tab?: string | null;
+}
+
 export type Action =
   | MCPToolAction
   | FinishAction
@@ -299,4 +310,5 @@ export type Action =
   | BrowserCloseTabAction
   | GlobAction
   | GrepAction
-  | InvokeSkillAction;
+  | InvokeSkillAction
+  | CanvasUIAction;
