@@ -92,6 +92,26 @@ function normalize(query: string): string {
  * user-visible identity (name, description, id, keywords). Empty
  * queries always match.
  */
+export function getMarketplaceEntriesByPopularity(
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry[] {
+  return catalog
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const byPopularity =
+        (b.entry.popularityRank ?? 0) - (a.entry.popularityRank ?? 0);
+      return byPopularity || a.index - b.index;
+    })
+    .map(({ entry }) => entry);
+}
+
+export function getMarketplaceEntryById(
+  id: string,
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry | undefined {
+  return catalog.find((entry) => entry.id === id);
+}
+
 export function marketplaceEntryMatchesQuery(
   entry: MarketplaceEntry,
   rawQuery: string,

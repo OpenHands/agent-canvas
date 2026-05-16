@@ -20,8 +20,8 @@ import {
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
-import { MCPConfig } from "#/types/settings";
 import { MCPServerConfig } from "#/types/mcp-server";
+import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
   InstalledServersSection,
   MarketplaceSearch,
@@ -29,32 +29,6 @@ import {
   InstallServerModal,
   CustomServerEditor,
 } from "#/components/features/mcp-page";
-
-function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
-  return [
-    ...config.sse_servers.map((server, index) => ({
-      id: `sse-${index}`,
-      type: "sse" as const,
-      url: typeof server === "string" ? server : server.url,
-      api_key: typeof server === "object" ? server.api_key : undefined,
-    })),
-    ...config.stdio_servers.map((server, index) => ({
-      id: `stdio-${index}`,
-      type: "stdio" as const,
-      name: server.name,
-      command: server.command,
-      args: server.args,
-      env: server.env,
-    })),
-    ...config.shttp_servers.map((server, index) => ({
-      id: `shttp-${index}`,
-      type: "shttp" as const,
-      url: typeof server === "string" ? server : server.url,
-      api_key: typeof server === "object" ? server.api_key : undefined,
-      timeout: typeof server === "object" ? server.timeout : undefined,
-    })),
-  ];
-}
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");

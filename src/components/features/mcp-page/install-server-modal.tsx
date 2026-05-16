@@ -14,6 +14,7 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
   onClose: () => void;
+  onSuccess?: (entry: MarketplaceEntry) => void;
 }
 
 interface FieldState {
@@ -45,6 +46,7 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
 export function InstallServerModal({
   entry,
   onClose,
+  onSuccess,
 }: InstallServerModalProps) {
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
@@ -68,6 +70,7 @@ export function InstallServerModal({
     addMcpServer(payload, {
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+        onSuccess?.(entry);
         onClose();
       },
       onError: (err: unknown) => {

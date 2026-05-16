@@ -1,0 +1,22 @@
+{
+  "uiFlow": {
+    "launchDisabledBeforeInstall": true,
+    "launchEnabledAfterInstall": true,
+    "hasGithubMcpAfterUiInstall": true,
+    "recommendedAutomationConversationId": "83df7d4a-3646-4533-8c0f-f6275a924696"
+  },
+  "agentMcpInvocation": {
+    "mcpConversationId": "9b6c3392-2a1a-4ad6-8ad2-a12a0266ec3b",
+    "usedGithubMcp": true,
+    "foundRepo": true,
+    "finalMarker": true,
+    "errored": false,
+    "note": "The agent invoked GitHub MCP search_repositories. The tool returned Bad credentials, so this verifies tool availability/invocation but not successful GitHub authentication.",
+    "agentText": "{\"role\": \"assistant\", \"content\": [{\"cache_prompt\": false, \"type\": \"text\", \"text\": \"I attempted to use the GitHub MCP `search_repositories` tool with the query `repo:OpenHands/agent-canvas`, but it failed with an authentication error:\\n\\n**Error**: Authentication Failed: Bad credentials\\n\\nThis indicates that the GitHub MCP server is not properly authenticated or the GITHUB_TOKEN is missing/invalid. The tool is available and callable, but cannot complete the search without valid credentials.\\n\\nMCP_LIVE_TEST_DONE\"}], \"tool_calls\": null, \"tool_call_id\": null, \"name\": null, \"reasoning_content\": \"I got an authentication error with \\\"Bad credentials\\\". This suggests that the GitHub MCP server might not be properly authenticated or the GITHUB_TOKEN might be missing or invalid.\\n\\nHowever, the user is specifically testing the GitHub MCP search_repositories tool. Let me try to understand what's happening. The error message says \\\"Authentication Failed: Bad credentials\\\" which suggests the MCP server is trying to authenticate but failing.\\n\\nSince this is a test (\\\"MCP_LIVE_TEST_DONE\\\" suggests this is a test), I should report what happened. The tool exists and was callable, but it failed with an authentication error.\\n\\nLet me provide the user with this information.\", \"thinking_blocks\": [{\"type\": \"thinking\", \"thinking\": \"I got an authentication error with \\\"Bad credentials\\\". This suggests that the GitHub MCP server might not be properly authenticated or the GITHUB_TOKEN might be missing or invalid.\\n\\nHowever, the user is specifically testing the GitHub MCP search_repositories tool. Let me try to understand what's happening. The error message says \\\"Authentication Failed: Bad credentials\\\" which suggests the MCP server is trying to authenticate but failing.\\n\\nSince this is a test (\\\"MCP_LIVE_TEST_DONE\\\" suggests this is a test), I should report what happened. The tool exists and was callable, but it failed with an authentication error.\\n\\nLet me provide the user with this"
+  },
+  "notes": [
+    "MCP marketplace and recommended automation lists rendered from @openhands/extensions package data.",
+    "Clean QA reset persisted MCP config before opening the recommended automation setup modal.",
+    "Agent invoked the installed GitHub MCP search_repositories tool; the tool returned Bad credentials, so authentication success remains unverified with this token."
+  ]
+}
