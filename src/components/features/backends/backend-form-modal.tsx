@@ -104,7 +104,7 @@ function isValidHostUrl(host: string): boolean {
   }
 }
 
-const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.openhands.dev";
+const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 /**
  * Live status row for the edit form: shows a connection dot, a
@@ -453,15 +453,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           className="text-xs text-gray-500"
           data-testid="add-backend-host-helper"
         >
-          {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
-          <a
-            href="https://github.com/OpenHands/OpenHands-Cloud"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            {t(I18nKey.BACKEND$SELF_HOSTED_CLOUD_LINK)}
-          </a>
+          {t(I18nKey.BACKEND$HOST_HELPER)}
         </p>
       </div>
 
