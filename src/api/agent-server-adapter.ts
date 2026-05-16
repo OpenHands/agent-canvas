@@ -51,6 +51,125 @@ function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
 }
 
+/**
+ * Shape of `VITE_RUNTIME_SERVICES_INFO` (set by the dev launchers in
+ * scripts/dev-*.mjs). All URLs are written from the agent's point of view,
+ * not the browser's. The block is rendered into the agent's system prompt
+ * via `AgentContext.system_message_suffix` so the agent knows what's
+ * reachable from inside its sandbox without having to probe.
+ */
+interface RuntimeServicesInfo {
+  mode?: string;
+  agent_host_alias?: string;
+  services?: {
+    agent_server?: { description?: string; url_from_agent?: string };
+    ingress?: { description?: string; url_from_agent?: string };
+    vite?: { description?: string; url_from_agent?: string };
+    automation?: {
+      description?: string;
+      url_from_agent?: string;
+      api_prefix?: string;
+      docs_url?: string;
+      openapi_url?: string;
+      auth_env_var?: string;
+    };
+  };
+}
+
+function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
+  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as RuntimeServicesInfo;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    // Malformed JSON: ignore and fall back to no runtime info, rather than
+    // tearing down conversation creation over a misconfigured dev env var.
+    return null;
+  }
+}
+
+/**
+ * Render the runtime services info into a markdown block suitable for
+ * appending to the system prompt via `AgentContext.system_message_suffix`.
+ *
+ * Returns `undefined` when no runtime info is configured, so callers can
+ * safely omit the field on production builds (where the launcher doesn't
+ * set `VITE_RUNTIME_SERVICES_INFO`).
+ */
+export function buildRuntimeServicesSystemSuffix(): string | undefined {
+  const info = parseRuntimeServicesInfo();
+  if (!info?.services) return undefined;
+
+  const lines: string[] = [];
+  lines.push("<RUNTIME_SERVICES>");
+  if (info.mode) {
+    lines.push(
+      `You are running inside an agent-canvas dev stack started in '${info.mode}' mode.`,
+    );
+  } else {
+    lines.push("You are running inside an agent-canvas dev stack.");
+  }
+  lines.push(
+    "The following services are reachable from your sandbox. URLs are written",
+    "from your point of view (i.e., as you should curl/fetch them).",
+    "",
+  );
+
+  const { agent_server, ingress, vite, automation } = info.services;
+
+  if (agent_server?.url_from_agent) {
+    lines.push(
+      `* Agent Server (you): ${agent_server.url_from_agent}`,
+      `    ${agent_server.description ?? "The agent-server hosting your tool calls."}`,
+    );
+  }
+  if (ingress?.url_from_agent) {
+    lines.push(
+      `* Ingress: ${ingress.url_from_agent}`,
+      `    ${ingress.description ?? "Unified entry point for browser-facing traffic."}`,
+    );
+  }
+  if (vite?.url_from_agent) {
+    lines.push(
+      `* Vite frontend: ${vite.url_from_agent}`,
+      `    ${vite.description ?? "Frontend dev server."}`,
+    );
+  }
+  if (automation?.url_from_agent) {
+    lines.push(
+      `* Automation backend: ${automation.url_from_agent}`,
+      `    ${automation.description ?? "OpenHands Automations service."}`,
+    );
+    if (automation.docs_url) {
+      lines.push(`    Docs:    ${automation.docs_url}`);
+    }
+    if (automation.openapi_url) {
+      lines.push(`    OpenAPI: ${automation.openapi_url}`);
+    }
+    if (automation.auth_env_var) {
+      lines.push(
+        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+      );
+    }
+  } else {
+    lines.push(
+      "* Automation backend: not running in this dev mode (skip /api/automation calls).",
+    );
+  }
+
+  lines.push(
+    "",
+    "Trust this block over guessing: do not assume any other URLs are running.",
+    "In particular, http://localhost:8000 inside your sandbox is the Agent Server",
+    "you are running inside of — NOT the automation backend.",
+    "</RUNTIME_SERVICES>",
+  );
+
+  return lines.join("\n");
+}
+
 export function toConversationUrl(conversationId: string): string {
   // Local-format conversation URL — points at whichever local agent-server
   // is actually serving the conversation (the bundled one when the active
@@ -309,12 +428,20 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
 }
 
 function createAgentFromSettings(agentSettings: SettingsRecord) {
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   return {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
       load_public_skills: true,
       load_user_skills: true,
+      // When the dev launcher provided `VITE_RUNTIME_SERVICES_INFO`, append
+      // a <RUNTIME_SERVICES> block to the system prompt so the agent knows
+      // which services exist in this dev stack (e.g. automation backend
+      // URL, ingress URL) instead of having to probe.
+      ...(runtimeServicesSuffix
+        ? { system_message_suffix: runtimeServicesSuffix }
+        : {}),
     },
   };
 }
