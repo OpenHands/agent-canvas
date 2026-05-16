@@ -305,7 +305,7 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
 
   // ── Flow 3: OAuth button gated by host ────────────────────────────────
 
-  test("Flow 3 — cloud Login button disabled when host is empty, enabled when filled", async ({
+  test("Flow 3 — cloud Login button disabled until both name and host are filled", async ({
     page,
   }) => {
     await setupPage(page);
@@ -319,7 +319,8 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
       SNAP_OPTS,
     );
 
-    // Fill host → login button enabled.
+    // Fill name + host → login button enabled.
+    await page.getByTestId("add-backend-name").fill("My Cloud");
     await page.getByTestId("add-backend-host").fill("https://app.all-hands.dev");
     await expect(page.getByTestId("add-backend-login-button")).not.toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(

@@ -343,7 +343,7 @@ export function BackendForm({
             host={host}
             onSuccess={setApiKey}
             testIdRoot={testIdRoot}
-            isDisabled={host.trim().length === 0}
+            isDisabled={!name.trim() || !isValidHostUrl(host)}
           />
 
           {/* Divider with "or" */}
