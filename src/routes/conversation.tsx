@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import { useConversationId } from "#/hooks/use-conversation-id";
@@ -54,6 +54,7 @@ function AppContent() {
   const { data: isAuthed } = useIsAuthed();
   const { resetConversationState } = useConversationStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const clearTerminal = useCommandStore((state) => state.clearTerminal);
   const resetConversationRuntimeState = useConversationStateStore(
     (state) => state.reset,
@@ -87,8 +88,17 @@ function AppContent() {
       displayErrorToast(
         taskDetail || t(I18nKey.CONVERSATION$FAILED_TO_START_FROM_TASK),
       );
+      // Navigate back to the original conversation when a resume task fails so
+      // the user isn't stranded at the dead task-{id} URL. The resume effect's
+      // ref prevents it from immediately retrying once we land there.
+      const resumedFrom = (location.state as Record<string, unknown> | null)
+        ?.resumedFromConversationId as string | undefined;
+      navigate(
+        resumedFrom ? `/conversations/${resumedFrom}` : "/conversations",
+        { replace: true },
+      );
     }
-  }, [isTask, taskStatus, taskDetail, t]);
+  }, [isTask, taskStatus, taskDetail, t, navigate, location.state]);
 
   React.useEffect(() => {
     if (!isFetched || !isAuthed) return;
@@ -167,8 +177,13 @@ function AppContent() {
         // to the task route so useTaskPolling drives it to READY and then
         // redirects to the real conversation. Local path is synchronously
         // READY so navigate straight to the conversation.
+        // Pass resumedFromConversationId in state so the task-error handler
+        // can navigate back here if the sandbox fails to start.
         const nextId = task.app_conversation_id ?? `task-${task.id}`;
-        navigate(`/conversations/${nextId}`, { replace: true });
+        navigate(`/conversations/${nextId}`, {
+          replace: true,
+          state: { resumedFromConversationId: conversation.id },
+        });
       })
       .catch(() => {
         displayErrorToast(t(I18nKey.CONVERSATION$FAILED_TO_START_FROM_TASK));
