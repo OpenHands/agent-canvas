@@ -6,8 +6,6 @@ I re-ran live QA entirely through the browser UI: onboarding first, then the Git
 
 Animated UI-only walkthrough: [qa-ui-only-narrative.gif](./qa-ui-only-narrative.gif)
 
-Earlier MCP/setup walkthrough retained for reference: [qa-narrative.gif](./qa-narrative.gif)
-
 ## Narrative walkthrough — UI-only scheduled automation QA
 
 1. First I restarted the QA narrative with onboarding, beginning on the Choose your agent step before checking automation behavior.  
@@ -56,11 +54,7 @@ Earlier MCP/setup walkthrough retained for reference: [qa-narrative.gif](./qa-na
 
 ## Important correction to prior QA
 
-The earlier `qa-scheduled-*` pass is retained only as historical reference. That pass used automation backend endpoints from the QA script, so it is superseded by this UI-only pass. In this pass, the QA script did not call automation backend endpoints directly; all automation creation and verification was driven through the app UI and the UI-launched agent conversation.
-
-## Earlier setup checks retained
-
-The earlier QA pass also verified the MCP marketplace, shared GitHub MCP install modal, and original recommendation setup flow. Screenshots remain in `.pr/qa-01-*` through `.pr/qa-08-*`, with details in [qa-results.json](./qa-results.json).
+The earlier `qa-scheduled-*` and `qa-*` artifact archives were removed because they were superseded by this UI-only pass. In this pass, the QA script did not call automation backend endpoints directly; all automation creation and verification was driven through the app UI and the UI-launched agent conversation.
 
 ## Issues found
 
