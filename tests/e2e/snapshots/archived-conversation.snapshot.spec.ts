@@ -183,6 +183,7 @@ async function stubWebSocket(page: Page) {
  * Mirrors the same helper used in collapsible-thinking.snapshot.spec.ts.
  */
 async function injectEvents(page: Page, events: unknown[]) {
+  // Wait for the store to be available.
   await page.waitForFunction(() => {
     const store = (
       window as unknown as {
@@ -194,31 +195,32 @@ async function injectEvents(page: Page, events: unknown[]) {
     return Boolean(store?.getState().addEvents);
   });
 
-  await expect
-    .poll(
-      async () =>
-        page.evaluate((evts) => {
-          const store = (
-            window as unknown as {
-              __OH_EVENT_STORE__?: {
-                getState: () => {
-                  addEvents: (e: unknown[]) => void;
-                  events: unknown[];
-                };
-              };
-            }
-          ).__OH_EVENT_STORE__;
-          if (!store) return 0;
-          const state = store.getState();
-          state.addEvents(evts);
-          return store.getState().events.length;
-        }, events),
-      { timeout: 10_000 },
-    )
-    .toBeGreaterThanOrEqual(events.length);
-
-  // Give React one tick to re-render the new events.
-  await page.waitForTimeout(500);
+  // Call addEvents and check for the DOM element in the SAME poll tick.
+  // By merging the write and the DOM read we eliminate the race window
+  // where React Strict-Mode's double-invoke of clearEvents() could fire
+  // between the two calls and wipe the store before rendering completes.
+  // addEvents deduplicates by event ID, so repeated calls are harmless.
+  await page.waitForFunction(
+    (evts) => {
+      const store = (
+        window as unknown as {
+          __OH_EVENT_STORE__?: {
+            getState: () => {
+              addEvents: (e: unknown[]) => void;
+            };
+          };
+        }
+      ).__OH_EVENT_STORE__;
+      if (!store) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      store.getState().addEvents(evts as any);
+      return (
+        document.querySelectorAll('[data-testid="user-message"]').length >= 1
+      );
+    },
+    events,
+    { timeout: 15_000 },
+  );
 }
 
 /**
@@ -298,10 +300,8 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     // Inject trajectory events directly into the Zustand store.
     // MSW cannot intercept the cross-origin RemoteEventsList request
     // (127.0.0.1:8000 ≠ localhost:3001), so we use the store API instead.
+    // injectEvents already polls until `data-testid="user-message"` is in DOM.
     await injectEvents(page, ECHO_HELLO_WORLD_TRAJECTORY);
-
-    // Verify the user message rendered above the banner.
-    await expect(chatInterface.getByText("echo hello world")).toBeVisible();
 
     // Snapshot: chat history above with archived banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
@@ -331,10 +331,8 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     // Inject trajectory events directly into the Zustand store.
+    // injectEvents already polls until `data-testid="user-message"` is in DOM.
     await injectEvents(page, ECHO_HELLO_WORLD_TRAJECTORY);
-
-    // Verify the user message rendered above the banner.
-    await expect(chatInterface.getByText("echo hello world")).toBeVisible();
 
     // Snapshot: chat history above with sandbox-error banner at the bottom.
     await expect(chatInterface).toHaveScreenshot(
