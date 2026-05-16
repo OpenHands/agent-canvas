@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Backend } from "../../../src/api/backend-registry/types";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Extended visual snapshot tests for the backend management UI.
@@ -77,21 +78,16 @@ async function setupPage(
     activeBackendId,
   }: { backends?: Backend[]; activeBackendId?: string } = {},
 ) {
-  await page.addInitScript(
-    ({ backendsJson, activeJson }: { backendsJson: string; activeJson: string | null }) => {
-      window.localStorage.setItem("openhands-onboarded", "true");
-      window.localStorage.setItem("openhands-backends", backendsJson);
-      if (activeJson) {
-        window.localStorage.setItem("openhands-active-backend", activeJson);
-      }
-    },
-    {
-      backendsJson: JSON.stringify(backends),
-      activeJson: activeBackendId
-        ? JSON.stringify({ backendId: activeBackendId, orgId: null })
-        : null,
-    },
-  );
+  const extra: [string, string][] = [
+    ["openhands-backends", JSON.stringify(backends)],
+  ];
+  if (activeBackendId) {
+    extra.push([
+      "openhands-active-backend",
+      JSON.stringify({ backendId: activeBackendId, orgId: null }),
+    ]);
+  }
+  await seedLocalStorage(page, { extra });
 
   // Prevent workspace-scan 404s in the sidebar from cluttering timing.
   await page.route("**/api/file/**", (route) =>

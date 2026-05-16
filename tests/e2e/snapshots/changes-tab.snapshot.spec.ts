@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the Changes (diff viewer) UI.
@@ -52,13 +53,9 @@ const CONVERSATION_STATE_VALUE = JSON.stringify({
  * Skip onboarding and pre-enable the diff view for conversation 1.
  */
 async function setupMocks(page: Page) {
-  await page.addInitScript(
-    ([key, value]) => {
-      window.localStorage.setItem("openhands-onboarded", "true");
-      window.localStorage.setItem(key, value);
-    },
-    [CONVERSATION_STATE_KEY, CONVERSATION_STATE_VALUE] as [string, string],
-  );
+  await seedLocalStorage(page, {
+    extra: [[CONVERSATION_STATE_KEY, CONVERSATION_STATE_VALUE]],
+  });
 
   // Stub WebSocket so the conversation page doesn't hang waiting for a real
   // socket connection.  Copied from collapsible-thinking.snapshot.spec.ts.
