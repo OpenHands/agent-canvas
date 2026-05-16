@@ -277,6 +277,17 @@ export interface InvokeSkillAction extends ActionBase<"InvokeSkillAction"> {
   name: string;
 }
 
+export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
+  /**
+   * Name of the saved LLM profile to use for future agent steps.
+   */
+  profile_name: string;
+  /**
+   * Brief reason why this profile is a better fit for the next step.
+   */
+  reason: string;
+}
+
 export type Action =
   | MCPToolAction
   | FinishAction
@@ -299,4 +310,5 @@ export type Action =
   | BrowserCloseTabAction
   | GlobAction
   | GrepAction
-  | InvokeSkillAction;
+  | InvokeSkillAction
+  | SwitchLLMAction;

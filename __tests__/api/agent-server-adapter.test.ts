@@ -54,7 +54,7 @@ beforeEach(() => {
 });
 
 describe("buildStartConversationRequest", () => {
-  it("uses nested settings as the source of truth and keeps SDK tool names", () => {
+  it("uses nested settings as the source of truth and lets the SDK create the agent", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -71,6 +71,7 @@ describe("buildStartConversationRequest", () => {
             enabled: true,
             max_size: 120,
           },
+          enable_switch_llm_tool: true,
         },
         conversation_settings: {
           ...DEFAULT_SETTINGS.conversation_settings,
@@ -79,46 +80,39 @@ describe("buildStartConversationRequest", () => {
       },
       query: "hello",
     }) as {
-      agent: Record<string, unknown> & {
+      agent?: unknown;
+      agent_settings: Record<string, unknown> & {
         llm: Record<string, unknown>;
         tools: Array<{ name: string; params: Record<string, unknown> }>;
-        include_default_tools: string[];
+        agent_context: Record<string, unknown>;
       };
       workspace: { working_dir: string };
       initial_message: { content: Array<{ text: string }> };
       max_iterations: number;
     };
 
-    expect(payload.agent.llm).toMatchObject({
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.llm).toMatchObject({
       model: "nested-model",
       api_key: "nested-key",
       base_url: "https://nested.example.com",
     });
-    expect(payload.agent.condenser).toEqual({
-      kind: "LLMSummarizingCondenser",
-      llm: {
-        model: "nested-model",
-        api_key: "nested-key",
-        base_url: "https://nested.example.com",
-        usage_id: "condenser",
-      },
+    expect(payload.agent_settings.condenser).toEqual({
+      enabled: true,
       max_size: 120,
     });
-    expect(payload.agent.tools).toEqual([
+    expect(payload.agent_settings.tools).toEqual([
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
       { name: "browser_tool_set", params: {} },
     ]);
-    expect(payload.agent.include_default_tools).toEqual([
-      "FinishTool",
-      "ThinkTool",
-    ]);
-    expect(payload.agent.agent_context).toEqual({
+    expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
     });
-    expect(payload.agent.agent).toBeUndefined();
+    expect(payload.agent_settings.agent).toBe("CodeActAgent");
+    expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
     expect(payload.workspace.working_dir).toBe(
       "/workspace/project/agent-canvas",
     );
@@ -126,7 +120,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message.content[0]?.text).toBe("hello");
   });
 
-  it("adds the SDK switch-LLM built-in when the agent-server setting is enabled", () => {
+  it("forwards the switch-LLM setting to SDK agent settings", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -137,20 +131,17 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
-        include_default_tools: string[];
+      agent?: unknown;
+      agent_settings: {
         enable_switch_llm_tool?: boolean;
+        include_default_tools?: unknown;
       };
     };
 
-    expect(payload.agent.include_default_tools).toEqual([
-      "FinishTool",
-      "ThinkTool",
-      "SwitchLLMTool",
-    ]);
-    expect(payload.agent.enable_switch_llm_tool).toBeUndefined();
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
+    expect(payload.agent_settings.include_default_tools).toBeUndefined();
   });
-
 
   it("omits browser_tool_set when the server does not advertise browser support", () => {
     mockIsAgentServerToolAvailable.mockReturnValue(false);
@@ -164,12 +155,12 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
+      agent_settings: {
         tools: Array<{ name: string; params: Record<string, unknown> }>;
       };
     };
 
-    expect(payload.agent.tools).toEqual([
+    expect(payload.agent_settings.tools).toEqual([
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },

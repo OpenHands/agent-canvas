@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchLlmProfileVars {
   conversationId: string;
@@ -18,9 +19,7 @@ export const useSwitchLlmProfile = () => {
     mutationFn: ({ conversationId, profileName }: SwitchLlmProfileVars) =>
       AgentServerConversationService.switchProfile(conversationId, profileName),
     onSuccess: (_data, { conversationId }) => {
-      queryClient.invalidateQueries({
-        queryKey: ["user", "conversation", conversationId],
-      });
+      invalidateConversationQueries(queryClient, conversationId);
     },
     // Caller renders an inline message + handles error toast manually.
     meta: { disableToast: true },

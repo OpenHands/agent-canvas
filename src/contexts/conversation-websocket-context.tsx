@@ -33,6 +33,7 @@ import {
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
+  isSwitchLLMObservationEvent,
 } from "#/types/agent-server/type-guards";
 import { ConversationStateUpdateEventStats } from "#/types/agent-server/core/events/conversation-state-event";
 import type {
@@ -53,6 +54,11 @@ import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  invalidateConversationQueries,
+  updateConversationLlmModelInCache,
+} from "#/hooks/mutation/conversation-mutation-utils";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -386,6 +392,13 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
+          const switchLLMObservation =
+            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
+              ? event
+              : null;
           addEvent(event);
 
           // Handle displayable error events - show error banner
@@ -493,6 +506,27 @@ export function ConversationWebSocketProvider({
           // Handle BrowserNavigateAction events - update browser store with URL
           if (isBrowserNavigateActionEvent(event)) {
             useBrowserStore.getState().setUrl(event.action.url);
+          }
+
+          if (
+            conversationId &&
+            switchLLMObservation &&
+            !switchLLMObservation.observation.is_error
+          ) {
+            recordModelSwitchMessage(
+              conversationId,
+              switchLLMObservation.observation.profile_name,
+            );
+
+            if (switchLLMObservation.observation.active_model) {
+              updateConversationLlmModelInCache(
+                queryClient,
+                conversationId,
+                switchLLMObservation.observation.active_model,
+              );
+            }
+
+            invalidateConversationQueries(queryClient, conversationId);
           }
         }
       } catch (error) {

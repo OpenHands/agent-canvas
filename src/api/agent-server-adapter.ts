@@ -2,7 +2,10 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import { getAgentServerWorkingDir } from "./agent-server-config";
+import {
+  getAgentServerWorkingDir,
+  shouldLoadPublicSkills,
+} from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
@@ -44,8 +47,6 @@ export interface DirectConversationInfo {
 
 const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
-const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
-const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
 function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
@@ -131,11 +132,31 @@ export function toConversationPage(data: {
 
 type SettingsRecord = Record<string, unknown>;
 
-const AGENT_SETTINGS_METADATA_KEYS = new Set([
-  "schema_version",
-  "agent_kind",
-  "agent",
-]);
+interface AgentToolSpec {
+  name: string;
+  params: SettingsRecord;
+}
+
+type AgentSettingsPayload = SettingsRecord & {
+  llm: SettingsRecord;
+  agent_context: SettingsRecord;
+  tools: AgentToolSpec[];
+};
+
+interface LocalWorkspacePayload {
+  kind: "LocalWorkspace";
+  working_dir: string;
+}
+
+interface InitialMessagePayload {
+  role: "user";
+  content: Array<{ type: "text"; text: string }>;
+}
+
+type ConversationSettingsPayload = SettingsRecord & {
+  workspace: LocalWorkspacePayload;
+  initial_message?: InitialMessagePayload;
+};
 
 const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
   "schema_version",
@@ -190,38 +211,61 @@ function getConversationSecurityAnalyzer(conversationSettings: SettingsRecord) {
   }
 }
 
-function getAgentTools() {
-  const tools = DEFAULT_TOOL_NAMES.map((name) => ({ name, params: {} }));
-  if (
-    browserToolsEnabled() &&
-    isAgentServerToolAvailable(BROWSER_TOOL_SET_NAME)
-  ) {
-    tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
-  }
-  return tools;
+function isToolRecord(
+  value: unknown,
+): value is { name: string; params?: unknown } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof (value as { name?: unknown }).name === "string"
+  );
 }
 
-function getBuiltInToolNames(agentSettings: SettingsRecord) {
-  const configured = Array.isArray(agentSettings.include_default_tools)
-    ? agentSettings.include_default_tools.filter(
-        (name): name is string => typeof name === "string" && name.length > 0,
-      )
-    : DEFAULT_BUILT_IN_TOOL_NAMES;
+function shouldIncludeTool(name: string) {
+  return (
+    name !== BROWSER_TOOL_SET_NAME ||
+    (browserToolsEnabled() && isAgentServerToolAvailable(BROWSER_TOOL_SET_NAME))
+  );
+}
 
-  if (
-    agentSettings.enable_switch_llm_tool === true &&
-    !configured.includes(SWITCH_LLM_TOOL_NAME)
-  ) {
-    return [...configured, SWITCH_LLM_TOOL_NAME];
+function getAgentTools(configuredTools: unknown): AgentToolSpec[] {
+  // Defaults are always present; schema-provided tools may override them by
+  // name or add new tools, but they cannot remove local runtime defaults.
+  const tools = new Map<string, AgentToolSpec>();
+
+  for (const name of DEFAULT_TOOL_NAMES) {
+    tools.set(name, { name, params: {} });
   }
 
-  return configured;
+  if (shouldIncludeTool(BROWSER_TOOL_SET_NAME)) {
+    tools.set(BROWSER_TOOL_SET_NAME, {
+      name: BROWSER_TOOL_SET_NAME,
+      params: {},
+    });
+  }
+
+  if (
+    Array.isArray(configuredTools) &&
+    configuredTools.every((tool) => isToolRecord(tool))
+  ) {
+    for (const tool of configuredTools) {
+      if (shouldIncludeTool(tool.name)) {
+        tools.set(tool.name, {
+          name: tool.name,
+          params: toRecord(tool.params),
+        });
+      }
+    }
+  }
+
+  return Array.from(tools.values());
 }
 
 function buildInitialMessage(
   query?: string,
   conversationInstructions?: string,
-) {
+): InitialMessagePayload | null {
   const parts = [query?.trim(), conversationInstructions?.trim()].filter(
     Boolean,
   );
@@ -235,34 +279,9 @@ function buildInitialMessage(
   };
 }
 
-function buildCondenserConfig(
-  llm: SettingsRecord,
-  rawCondenser: unknown,
-): SettingsRecord | undefined {
-  const condenser = toRecord(rawCondenser);
-
-  if (condenser.enabled !== true) {
-    return undefined;
-  }
-
-  const condenserLlm = {
-    ...llm,
-    usage_id: "condenser",
-  };
-
-  const config: SettingsRecord = {
-    kind: "LLMSummarizingCondenser",
-    llm: condenserLlm,
-  };
-
-  if (typeof condenser.max_size === "number") {
-    config.max_size = condenser.max_size;
-  }
-
-  return config;
-}
-
-function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
+function buildConfiguredAgentSettings(
+  settings: Settings,
+): AgentSettingsPayload {
   const agentSettings = toRecord(settings.agent_settings);
   const llm = toRecord(agentSettings.llm);
 
@@ -283,39 +302,22 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
     delete llm.base_url;
   }
 
-  const condenser = buildCondenserConfig(llm, agentSettings.condenser);
-  const includeDefaultTools = getBuiltInToolNames(agentSettings);
-
-  AGENT_SETTINGS_METADATA_KEYS.forEach((key) => delete agentSettings[key]);
-  delete agentSettings.enable_switch_llm_tool;
-
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
     delete agentSettings.mcp_config;
   }
 
-  if (condenser) {
-    agentSettings.condenser = condenser;
-  } else {
-    delete agentSettings.condenser;
-  }
-
+  // Forward condenser settings verbatim so the server SDK's create_agent()
+  // path owns condenser construction and stays aligned with SDK defaults.
   return {
     ...agentSettings,
     llm,
-    tools: getAgentTools(),
-    include_default_tools: includeDefaultTools,
-  };
-}
-
-function createAgentFromSettings(agentSettings: SettingsRecord) {
-  return {
-    kind: "Agent",
-    ...agentSettings,
     agent_context: {
-      load_public_skills: true,
+      ...toRecord(agentSettings.agent_context),
+      load_public_skills: shouldLoadPublicSkills(),
       load_user_skills: true,
     },
+    tools: getAgentTools(agentSettings.tools),
   };
 }
 
@@ -325,7 +327,7 @@ function buildConfiguredConversationSettings(options: {
   conversationInstructions?: string;
   plugins?: PluginSpec[];
   workingDir?: string;
-}): SettingsRecord {
+}): ConversationSettingsPayload {
   const { settings, query, conversationInstructions, plugins, workingDir } =
     options;
   const conversationSettings = toRecord(settings.conversation_settings);
@@ -335,7 +337,7 @@ function buildConfiguredConversationSettings(options: {
     (key) => delete conversationSettings[key],
   );
 
-  return {
+  const payload: ConversationSettingsPayload = {
     ...conversationSettings,
     workspace: {
       kind: "LocalWorkspace",
@@ -352,6 +354,8 @@ function buildConfiguredConversationSettings(options: {
         }
       : {}),
   };
+
+  return payload;
 }
 
 /**
@@ -365,6 +369,21 @@ interface LookupSecret {
   headers?: Record<string, string>;
   description?: string;
 }
+
+type StartConversationPayload = Record<string, unknown> & {
+  agent_settings: AgentSettingsPayload;
+  workspace: LocalWorkspacePayload;
+  confirmation_policy: SettingsRecord;
+  security_analyzer?: SettingsRecord;
+  initial_message?: InitialMessagePayload;
+  max_iterations: number;
+  stuck_detection: true;
+  autotitle: true;
+  worktree: true;
+  secrets_encrypted?: true;
+  conversation_id?: string;
+  secrets?: Record<string, LookupSecret>;
+};
 
 export interface StartConversationOptions {
   settings: Settings;
@@ -398,14 +417,13 @@ export interface StartConversationOptions {
 
 export function buildStartConversationRequest(
   options: StartConversationOptions,
-) {
+): StartConversationPayload {
   // Use encrypted settings if provided, otherwise fall back to regular settings
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
 
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
-  const agent = createAgentFromSettings(agentSettings);
 
   // For conversation settings, merge encrypted settings if provided
   const sourceConversationOptions = options.encryptedConversationSettings
@@ -422,8 +440,8 @@ export function buildStartConversationRequest(
     sourceConversationOptions,
   );
 
-  const payload: Record<string, unknown> = {
-    agent,
+  const payload: StartConversationPayload = {
+    agent_settings: agentSettings,
     workspace: conversationSettings.workspace,
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
