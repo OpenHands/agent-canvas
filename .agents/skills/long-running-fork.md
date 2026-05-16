@@ -157,7 +157,7 @@ describes. Specifically:
   deleting the picker file plus the wrapping div.
   Files: `src/components/features/sidebar/rbren-workspace-picker.tsx`
   (new), `src/components/features/sidebar/sidebar.tsx`
-  Introduced: HEAD
+  Introduced: 05572b2
 
 #### Dev meta / skills
 
