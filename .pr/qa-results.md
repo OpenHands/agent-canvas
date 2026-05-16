@@ -1,32 +1,47 @@
-# QA results
+# QA Report: PR #504 — Recommended automations and MCP marketplace setup flow
 
-## UI review
+## ✅ Verdict: PASS
 
-- MCP marketplace page renders the local `@openhands/extensions` MCP catalog in popularity order.
-- Every MCP catalog item has an explicit logo mapping; reusable logo badges keep icon sizing consistent across marketplace cards, installed cards, modals, and recommended automation cards.
-- Recommended automation cards show the logos for all required MCPs in the card header and in the MCP requirement chips.
-- Copy remains concise: cards show category/name/one short description, required MCPs, missing setup count, and setup estimate.
+I re-ran live UI QA for the recommended automation and MCP marketplace flow after archiving the previous `.pr` artifacts. The PR achieves its stated goal: the MCP marketplace renders from the catalog, recommended automations appear in the right places, required MCP setup gates launch correctly, the shared MCP install modal is reused, and a recommended automation can launch a seeded conversation.
 
-Screenshots:
+Animated walkthrough: [qa-narrative.gif](./qa-narrative.gif)
 
-- `mcp-marketplace-ui.png`
-- `recommended-automations-ui.png`
-- Prior flow screenshots: `final-mcp-marketplace-from-extensions.png`, `final-recommended-automations-from-extensions.png`, `final-recommended-github-setup-clean-before-install.png`, `final-recommended-github-setup-after-install.png`, `final-recommended-github-conversation-launched.png`, `final-github-mcp-agent-live-response.png`
+## Narrative walkthrough
 
-## Live MCP QA
+1. First I opened the MCP page and verified the new marketplace library is loaded from the catalog, ordered with popular entries like GitHub, Slack, and Tavily at the top, and using the compact logo-card styling.  
+   Screenshot: [qa-01-mcp-marketplace.png](./qa-01-mcp-marketplace.png)
 
-Latest successful run is recorded in `fixed-sdk-mcp-retest.json`.
+2. Then I clicked the GitHub MCP marketplace card and confirmed the shared install modal opens with the GitHub logo, docs hint, command preview, and required token field.  
+   Screenshot: [qa-02-mcp-install-modal.png](./qa-02-mcp-install-modal.png)
 
-- Conversation ID: `ced375d9-61ad-42de-9b90-e288037c132e`
-- Status: `finished`
-- GitHub MCP tool use detected: `true`
-- Repository found: `true`
-- Auth succeeded: `true`
-- Bad credentials observed: `false`
-- Runtime MCP env token was decrypted plaintext, while settings stayed encrypted at rest.
+3. Next I opened Automations and verified the existing empty-state and creation guidance stays first, with the new recommended workflow cards appearing below it and showing required MCP logo stacks.  
+   Screenshot: [qa-03-automations-recommendations.png](./qa-03-automations-recommendations.png)
 
-## Validation commands
+4. Then I selected the GitHub PR review copilot and confirmed the setup modal explains the agent prompt, example implementation, required GitHub MCP, and blocks Launch until the MCP is connected.  
+   Screenshot: [qa-04-recommendation-setup-missing-mcp.png](./qa-04-recommendation-setup-missing-mcp.png)
 
-- `npm test -- --run __tests__/constants/extensions-catalogs.test.ts`
-- `npm run typecheck`
-- `npm run build`
+5. After that I clicked Add GitHub and verified the recommendation flow reuses the same marketplace install modal rather than a separate bespoke form.  
+   Screenshot: [qa-05-reused-mcp-install-from-recommendation.png](./qa-05-reused-mcp-install-from-recommendation.png)
+
+6. Then I installed the GitHub MCP using the supplied GitHub token and verified the setup modal refreshed to Connected state and enabled Launch conversation.  
+   Screenshot: [qa-06-recommendation-ready-after-github-install.png](./qa-06-recommendation-ready-after-github-install.png)
+
+7. Next I launched the recommended automation and verified the UI navigated to a new conversation seeded with the GitHub PR review copilot prompt.  
+   Screenshot: [qa-07-recommended-conversation-launched.png](./qa-07-recommended-conversation-launched.png)
+
+8. Finally I stepped through onboarding and verified the final Say hello step now includes the same recommended automations launcher below the prompt input.  
+   Screenshot: [qa-08-onboarding-recommendations.png](./qa-08-onboarding-recommendations.png)
+
+## Environment and evidence
+
+- App stack: `npm run dev:dangerously-dockerless` against local agent-server and automation backend through `http://localhost:8000`.
+- Browser: Playwright Chromium, real UI interactions.
+- Live credentials: the supplied GitHub token was used only in the masked MCP install password field; LLM settings were saved through the UI during onboarding.
+- Prior `.pr` artifacts were archived under `.pr/archive/20260516T113437Z/` before generating the new screenshots and GIF.
+- Machine-readable run details: [qa-results.json](./qa-results.json)
+
+## Issues found
+
+None.
+
+_This QA report and the associated artifacts were generated by an AI agent (OpenHands) on behalf of the user._

@@ -1,0 +1,46 @@
+{
+  "baseUrl": "http://localhost:8000",
+  "generatedAt": "2026-05-16T11:43:38.117Z",
+  "screenshots": [
+    {
+      "file": "qa-01-mcp-marketplace.png",
+      "narrative": "First I opened the MCP page and verified the new marketplace library is loaded from the catalog, ordered with popular entries like GitHub, Slack, and Tavily at the top, and using the compact logo-card styling."
+    },
+    {
+      "file": "qa-02-mcp-install-modal.png",
+      "narrative": "Then I clicked the GitHub MCP marketplace card and confirmed the shared install modal opens with the GitHub logo, docs hint, command preview, and required token field."
+    },
+    {
+      "file": "qa-03-automations-recommendations.png",
+      "narrative": "Next I opened Automations and verified the existing empty-state/creation guidance stays first, with the new recommended workflow cards appearing below it and showing required MCP logo stacks."
+    },
+    {
+      "file": "qa-04-recommendation-setup-missing-mcp.png",
+      "narrative": "Then I selected the GitHub PR review copilot and confirmed the setup modal explains the agent prompt, example implementation, required GitHub MCP, and blocks Launch until the MCP is connected."
+    },
+    {
+      "file": "qa-05-reused-mcp-install-from-recommendation.png",
+      "narrative": "After that I clicked Add GitHub and verified the recommendation flow reuses the same marketplace install modal rather than a separate bespoke form."
+    },
+    {
+      "file": "qa-06-recommendation-ready-after-github-install.png",
+      "narrative": "Then I installed the GitHub MCP using the supplied token and verified the setup modal refreshed to Connected state and enabled Launch conversation."
+    },
+    {
+      "file": "qa-07-recommended-conversation-launched.png",
+      "narrative": "Next I launched the recommended automation and verified the UI navigated to a new conversation seeded with the GitHub PR review copilot prompt."
+    },
+    {
+      "file": "qa-08-onboarding-recommendations.png",
+      "narrative": "Finally I stepped through onboarding and verified the final Say hello step now includes the same recommended automations launcher below the prompt input."
+    }
+  ],
+  "checks": {
+    "mcpMarketplaceVisible": true,
+    "recommendationLaunchDisabledBeforeMcp": true,
+    "githubMcpInstallCompleted": true,
+    "recommendationLaunchEnabledAfterMcp": true,
+    "recommendedConversationLaunched": true,
+    "onboardingRecommendationsVisible": true
+  }
+}
