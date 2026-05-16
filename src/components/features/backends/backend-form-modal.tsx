@@ -266,15 +266,14 @@ export function BackendForm({
     (kind === "local" || apiKey.trim().length > 0);
 
   // Error messages — only surfaced after the user has blurred the field.
-  const nameError = nameTouched && !name.trim()
-    ? t(I18nKey.BACKEND$NAME_REQUIRED)
-    : undefined;
+  const nameError =
+    nameTouched && !name.trim() ? t(I18nKey.BACKEND$NAME_REQUIRED) : undefined;
   const hostError = hostTouched
-    ? (!host.trim()
-        ? t(I18nKey.BACKEND$HOST_REQUIRED)
-        : !isValidHostUrl(host)
-          ? t(I18nKey.BACKEND$HOST_INVALID)
-          : undefined)
+    ? !host.trim()
+      ? t(I18nKey.BACKEND$HOST_REQUIRED)
+      : !isValidHostUrl(host)
+        ? t(I18nKey.BACKEND$HOST_INVALID)
+        : undefined
     : undefined;
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
