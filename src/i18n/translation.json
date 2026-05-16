@@ -20451,16 +20451,72 @@
     "ca": "Arxivat"
   },
   "CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE": {
-    "en": "Sandbox no longer available"
+    "en": "Sandbox no longer available",
+    "ja": "Sandbox no longer available",
+    "zh-CN": "Sandbox no longer available",
+    "zh-TW": "Sandbox no longer available",
+    "ko-KR": "Sandbox no longer available",
+    "no": "Sandbox no longer available",
+    "ar": "Sandbox no longer available",
+    "de": "Sandbox no longer available",
+    "fr": "Sandbox no longer available",
+    "it": "Sandbox no longer available",
+    "pt": "Sandbox no longer available",
+    "es": "Sandbox no longer available",
+    "ca": "Sandbox no longer available",
+    "tr": "Sandbox no longer available",
+    "uk": "Sandbox no longer available"
   },
   "CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION": {
-    "en": "This conversation's sandbox has been removed. The history below is read-only."
+    "en": "This conversation's sandbox has been removed. The history below is read-only.",
+    "ja": "This conversation's sandbox has been removed. The history below is read-only.",
+    "zh-CN": "This conversation's sandbox has been removed. The history below is read-only.",
+    "zh-TW": "This conversation's sandbox has been removed. The history below is read-only.",
+    "ko-KR": "This conversation's sandbox has been removed. The history below is read-only.",
+    "no": "This conversation's sandbox has been removed. The history below is read-only.",
+    "ar": "This conversation's sandbox has been removed. The history below is read-only.",
+    "de": "This conversation's sandbox has been removed. The history below is read-only.",
+    "fr": "This conversation's sandbox has been removed. The history below is read-only.",
+    "it": "This conversation's sandbox has been removed. The history below is read-only.",
+    "pt": "This conversation's sandbox has been removed. The history below is read-only.",
+    "es": "This conversation's sandbox has been removed. The history below is read-only.",
+    "ca": "This conversation's sandbox has been removed. The history below is read-only.",
+    "tr": "This conversation's sandbox has been removed. The history below is read-only.",
+    "uk": "This conversation's sandbox has been removed. The history below is read-only."
   },
   "CHAT_INTERFACE$ERROR_SANDBOX_TITLE": {
-    "en": "Sandbox error"
+    "en": "Sandbox error",
+    "ja": "Sandbox error",
+    "zh-CN": "Sandbox error",
+    "zh-TW": "Sandbox error",
+    "ko-KR": "Sandbox error",
+    "no": "Sandbox error",
+    "ar": "Sandbox error",
+    "de": "Sandbox error",
+    "fr": "Sandbox error",
+    "it": "Sandbox error",
+    "pt": "Sandbox error",
+    "es": "Sandbox error",
+    "ca": "Sandbox error",
+    "tr": "Sandbox error",
+    "uk": "Sandbox error"
   },
   "CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION": {
-    "en": "This conversation's sandbox encountered an error. The history below is read-only."
+    "en": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "ja": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "zh-CN": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "zh-TW": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "ko-KR": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "no": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "ar": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "de": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "fr": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "it": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "pt": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "es": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "ca": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "tr": "This conversation's sandbox encountered an error. The history below is read-only.",
+    "uk": "This conversation's sandbox encountered an error. The history below is read-only."
   },
   "HOME$GUIDE_MESSAGE_TITLE": {
     "en": "New around here? Not sure where to start?",
@@ -25801,12 +25857,54 @@
     "ca": "Descobreix habilitats per afegir al teu espai de treball. Obre una targeta per veure indicacions, curl i fluxos d'instal·lació. Cerca des de la barra lateral per filtrar la llista. Activeu o desactiveu les habilitats predeterminades. Les habilitats desactivades no es carregaran al context de l'agent."
   },
   "BACKEND$NAME_REQUIRED": {
-    "en": "Name is required"
+    "en": "Name is required",
+    "ja": "Name is required",
+    "zh-CN": "Name is required",
+    "zh-TW": "Name is required",
+    "ko-KR": "Name is required",
+    "no": "Name is required",
+    "ar": "Name is required",
+    "de": "Name is required",
+    "fr": "Name is required",
+    "it": "Name is required",
+    "pt": "Name is required",
+    "es": "Name is required",
+    "ca": "Name is required",
+    "tr": "Name is required",
+    "uk": "Name is required"
   },
   "BACKEND$HOST_REQUIRED": {
-    "en": "Host is required"
+    "en": "Host is required",
+    "ja": "Host is required",
+    "zh-CN": "Host is required",
+    "zh-TW": "Host is required",
+    "ko-KR": "Host is required",
+    "no": "Host is required",
+    "ar": "Host is required",
+    "de": "Host is required",
+    "fr": "Host is required",
+    "it": "Host is required",
+    "pt": "Host is required",
+    "es": "Host is required",
+    "ca": "Host is required",
+    "tr": "Host is required",
+    "uk": "Host is required"
   },
   "BACKEND$HOST_INVALID": {
-    "en": "Enter a valid URL (e.g. http://localhost:8080)"
+    "en": "Enter a valid URL (e.g. http://localhost:8080)",
+    "ja": "Enter a valid URL (e.g. http://localhost:8080)",
+    "zh-CN": "Enter a valid URL (e.g. http://localhost:8080)",
+    "zh-TW": "Enter a valid URL (e.g. http://localhost:8080)",
+    "ko-KR": "Enter a valid URL (e.g. http://localhost:8080)",
+    "no": "Enter a valid URL (e.g. http://localhost:8080)",
+    "ar": "Enter a valid URL (e.g. http://localhost:8080)",
+    "de": "Enter a valid URL (e.g. http://localhost:8080)",
+    "fr": "Enter a valid URL (e.g. http://localhost:8080)",
+    "it": "Enter a valid URL (e.g. http://localhost:8080)",
+    "pt": "Enter a valid URL (e.g. http://localhost:8080)",
+    "es": "Enter a valid URL (e.g. http://localhost:8080)",
+    "ca": "Enter a valid URL (e.g. http://localhost:8080)",
+    "tr": "Enter a valid URL (e.g. http://localhost:8080)",
+    "uk": "Enter a valid URL (e.g. http://localhost:8080)"
   }
 }

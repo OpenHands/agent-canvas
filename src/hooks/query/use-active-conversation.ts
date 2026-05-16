@@ -18,7 +18,10 @@ export const useActiveConversation = () => {
     // 30 s interval while the sandbox is waking up after a resume call.
     (query) => {
       const data = query.state.data;
-      if (data && (!data.conversation_url || data.sandbox_status === "PAUSED")) {
+      if (
+        data &&
+        (!data.conversation_url || data.sandbox_status === "PAUSED")
+      ) {
         return 3000;
       }
       return 30000;
