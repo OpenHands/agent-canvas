@@ -60,7 +60,7 @@ export default function SharedConversation() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-neutral-900">
+      <div className="flex items-center justify-center h-screen bg-base">
         <LoadingSpinner size="large" />
       </div>
     );
@@ -68,16 +68,16 @@ export default function SharedConversation() {
 
   if (error || !conversation) {
     return (
-      <div className="flex items-center justify-center h-screen bg-neutral-900">
+      <div className="flex items-center justify-center h-screen bg-base">
         <div className="text-white">{t(I18nKey.CONVERSATION$NOT_FOUND)}</div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-neutral-900 text-white flex flex-col">
+    <div className="h-screen bg-base text-white flex flex-col">
       {/* Header with logo, conversation title and branch info */}
-      <div className="border-b border-neutral-700 p-4 flex-shrink-0">
+      <div className="border-b border-[var(--oh-border-subtle)] p-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-start gap-4">
           <Link
             to="/conversations"
@@ -92,18 +92,18 @@ export default function SharedConversation() {
                 t(I18nKey.CONVERSATION$SHARED_CONVERSATION)}
             </h1>
             {conversation?.selected_branch && (
-              <div className="text-sm text-neutral-400">
+              <div className="text-sm text-[var(--oh-muted)]">
                 {t(I18nKey.CONVERSATION$BRANCH)}: {conversation.selected_branch}
               </div>
             )}
             {conversation?.selected_repository && (
-              <div className="text-sm text-neutral-400">
+              <div className="text-sm text-[var(--oh-muted)]">
                 {t(I18nKey.CONVERSATION$REPOSITORY)}:{" "}
                 {conversation.selected_repository}
               </div>
             )}
             {conversation?.llm_model && (
-              <div className="text-sm text-neutral-400">
+              <div className="text-sm text-[var(--oh-muted)]">
                 {t(I18nKey.LLM$MODEL)}: {conversation.llm_model}
               </div>
             )}
@@ -116,7 +116,7 @@ export default function SharedConversation() {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto custom-scrollbar-always px-4 pt-4 gap-2"
       >
-        <div className="max-w-4xl mx-auto p-4 border border-neutral-700 rounded">
+        <div className="max-w-4xl mx-auto p-4 border border-[var(--oh-border-subtle)] rounded">
           {renderableEvents.length > 0 ? (
             <Messages
               messages={renderableEvents}
@@ -124,7 +124,7 @@ export default function SharedConversation() {
             />
           ) : (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center text-neutral-400 py-8">
+              <div className="text-center text-[var(--oh-muted)] py-8">
                 {t(I18nKey.CONVERSATION$NO_HISTORY_AVAILABLE)}
               </div>
             </div>

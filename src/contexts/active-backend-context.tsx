@@ -9,6 +9,10 @@ import {
 } from "#/api/backend-registry/active-store";
 import { makeDefaultLocalBackend } from "#/api/backend-registry/default-backend";
 import {
+  dropBackendHealth,
+  resetBackendHealth,
+} from "#/api/backend-registry/health-store";
+import {
   type Backend,
   type BackendSelection,
   type ResolvedActiveBackend,
@@ -81,10 +85,26 @@ export function ActiveBackendProvider({
 
   const updateBackend = React.useCallback(
     (id: string, patch: Partial<Omit<Backend, "id">>) => {
+      const prev = getRegisteredBackends().find((b) => b.id === id);
       const list = getRegisteredBackends().map((b) =>
         b.id === id ? { ...b, ...patch } : b,
       );
       setRegisteredBackends(list);
+
+      // Re-arm health polling when the user edits the fields that
+      // actually drive the probe. Cosmetic edits (name) shouldn't
+      // re-enable a backend that was disabled for being unreachable.
+      const hostChanged =
+        patch.host !== undefined &&
+        prev !== undefined &&
+        patch.host !== prev.host;
+      const apiKeyChanged =
+        patch.apiKey !== undefined &&
+        prev !== undefined &&
+        patch.apiKey !== prev.apiKey;
+      if (hostChanged || apiKeyChanged) {
+        resetBackendHealth(id);
+      }
     },
     [],
   );
@@ -92,6 +112,7 @@ export function ActiveBackendProvider({
   const removeBackend = React.useCallback((id: string) => {
     const list = getRegisteredBackends().filter((b) => b.id !== id);
     setRegisteredBackends(list);
+    dropBackendHealth(id);
     // If the active selection pointed at this backend, the active
     // store falls back to the first remaining local backend (or the
     // env-derived default if no locals exist); consumer hooks re-key

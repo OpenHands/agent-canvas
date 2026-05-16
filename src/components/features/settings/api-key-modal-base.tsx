@@ -79,14 +79,14 @@ export function ApiKeyModalBase({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-tertiary"
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
         style={{ width }}
       >
         <h3 id="modal-title" className="text-xl font-bold">
           {title}
         </h3>
         {children}
-        <div className="w-full flex gap-2 mt-2">{footer}</div>
+        <div className="w-full flex justify-end gap-2 mt-2">{footer}</div>
       </div>
     </ModalBackdrop>
   );

@@ -74,12 +74,13 @@ function makeStartTask(overrides: Record<string, unknown> = {}) {
 function renderForm(
   initialWorkspaces: LocalWorkspace[] = [],
   initialParents: { id: string; name: string; path: string }[] = [],
+  props: { onConfirm?: (workspace: LocalWorkspace) => void } = {},
 ) {
   useWorkspacesStore.setState({
     workspaces: initialWorkspaces,
     workspaceParents: initialParents,
   });
-  return render(<WorkspaceSelectionForm />, {
+  return render(<WorkspaceSelectionForm {...props} />, {
     wrapper: ({ children }) => (
       <QueryClientProvider
         client={
@@ -116,7 +117,6 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add Workspace adds only the chosen folder (not its subfolders) and dedupes on repeat", async () => {
-
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
     const searchSpy = mockSearchSubdirectories;
 
@@ -139,7 +139,6 @@ describe("WorkspaceSelectionForm", () => {
       }
       throw new Error(`unexpected path ${path}`);
     });
-
 
     // Pre-seed one workspace to verify dedup
     renderForm([{ id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" }]);
@@ -255,8 +254,8 @@ describe("WorkspaceSelectionForm", () => {
       if (path === "/projects") {
         return {
           items: [
-            { name: "agent-canvas", path: "/projects/agent-canvas" },
-            { name: "sdk", path: "/projects/sdk" },
+            { name: "demo-app", path: "/projects/demo-app" },
+            { name: "sample-tools", path: "/projects/sample-tools" },
           ],
           next_page_id: null,
         };
@@ -269,10 +268,71 @@ describe("WorkspaceSelectionForm", () => {
 
     await user.click(screen.getByTestId("workspace-dropdown"));
     const dropdownMenu = await screen.findByTestId("workspace-dropdown-menu");
-    await within(dropdownMenu).findByText("agent-canvas");
-    await within(dropdownMenu).findByText("sdk");
+    await within(dropdownMenu).findByText("demo-app");
+    await within(dropdownMenu).findByText("sample-tools");
 
     expect(searchSpy).toHaveBeenCalledWith("/projects");
+  });
+
+  it("Add Workspace starts at the docker /projects mount and can save nested folders", async () => {
+    mockGetHome.mockResolvedValue({
+      home: "/home/openhands",
+      favorites: [{ label: "Downloads", path: "/home/openhands/Downloads" }],
+      locations: [],
+    });
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/projects") {
+        return {
+          items: [{ name: "demo-app", path: "/projects/demo-app" }],
+          next_page_id: null,
+        };
+      }
+      if (path === "/projects/demo-app") {
+        return {
+          items: [
+            {
+              name: "web-client",
+              path: "/projects/demo-app/web-client",
+            },
+          ],
+          next_page_id: null,
+        };
+      }
+      if (path === "/projects/demo-app/web-client") {
+        return { items: [], next_page_id: null };
+      }
+      return { items: [], next_page_id: null };
+    });
+
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+
+    await screen.findByTestId("folder-browser-modal");
+    expect(
+      await screen.findByTestId("folder-browser-current-path"),
+    ).toHaveTextContent("/projects");
+    expect(
+      await screen.findByTestId("folder-browser-sidebar-/projects"),
+    ).toBeInTheDocument();
+    await user.click(
+      await screen.findByTestId("folder-browser-entry-demo-app"),
+    );
+    await user.click(
+      await screen.findByTestId("folder-browser-entry-web-client"),
+    );
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("folder-browser-modal"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(useWorkspacesStore.getState().workspaces.map((w) => w.path)).toEqual(
+      ["/projects/demo-app/web-client"],
+    );
   });
 
   it("A stored /projects parent suppresses the implicit duplicate query", async () => {
@@ -352,7 +412,6 @@ describe("WorkspaceSelectionForm", () => {
   });
 
   it("Add all subdirectories saves a workspace parent and lists its children dynamically", async () => {
-
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
     const searchSpy = mockSearchSubdirectories;
 
@@ -374,7 +433,6 @@ describe("WorkspaceSelectionForm", () => {
       }
       throw new Error(`unexpected path ${path}`);
     });
-
 
     renderForm();
     const user = userEvent.setup();
@@ -480,6 +538,34 @@ describe("WorkspaceSelectionForm", () => {
     expect(
       within(refreshedDropdown).queryByText("repoB"),
     ).not.toBeInTheDocument();
+  });
+
+  it("invokes onConfirm with the selected workspace instead of creating a conversation when used in dialog mode", async () => {
+    const onConfirm = vi.fn();
+    const createSpy = vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    );
+
+    renderForm(
+      [{ id: "/Users/me/dev/repo1", name: "repo1", path: "/Users/me/dev/repo1" }],
+      [],
+      { onConfirm },
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("workspace-dropdown"));
+    await user.click(await screen.findByText("repo1"));
+    await user.click(screen.getByTestId("workspace-launch-button"));
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledWith({
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("Add Workspace sidebar renders backend-provided favorites dynamically and navigates into them on click", async () => {

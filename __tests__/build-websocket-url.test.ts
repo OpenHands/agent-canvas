@@ -35,7 +35,7 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBe("wss://example.com:8080/sockets/events/conv-123");
     });
 
-    it("should extract host and port from conversation URL", () => {
+    it("should use ws:// for external HTTP hosts when page is HTTP", () => {
       vi.stubGlobal("location", {
         protocol: "http:",
         host: "localhost:3000",
@@ -47,6 +47,36 @@ describe("buildWebSocketUrl", () => {
       );
 
       expect(result).toBe("ws://agent-server.com:9000/sockets/events/conv-456");
+    });
+
+    it("should use wss:// for external HTTPS hosts when page is HTTP", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "conv-456",
+        "https://agent-server.com:9000/api/conversations/conv-456",
+      );
+
+      expect(result).toBe(
+        "wss://agent-server.com:9000/sockets/events/conv-456",
+      );
+    });
+
+    it("should use ws:// for localhost when page is HTTP", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "conv-456",
+        "http://127.0.0.1:9000/api/conversations/conv-456",
+      );
+
+      expect(result).toBe("ws://127.0.0.1:9000/sockets/events/conv-456");
     });
   });
 
@@ -145,7 +175,7 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBeNull();
     });
 
-    it("should handle conversation URLs with non-standard ports", () => {
+    it("should handle conversation URLs with non-standard ports on external hosts", () => {
       const result = buildWebSocketUrl(
         "conv-123",
         "http://example.com:12345/api/conversations/conv-123",
@@ -154,7 +184,7 @@ describe("buildWebSocketUrl", () => {
       expect(result).toBe("ws://example.com:12345/sockets/events/conv-123");
     });
 
-    it("should handle conversation URLs without port (default port)", () => {
+    it("should handle conversation URLs without port (default port) on external hosts", () => {
       const result = buildWebSocketUrl(
         "conv-123",
         "http://example.com/api/conversations/conv-123",
@@ -182,6 +212,58 @@ describe("buildWebSocketUrl", () => {
 
       expect(result).toBe("ws://localhost:8080/sockets/events/conv-123");
       expect(result).not.toContain("?");
+    });
+  });
+
+  describe("protocol selection for external hosts", () => {
+    it("should use wss:// for HTTPS prod-runtime.all-hands.dev domains", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "localhost:8000",
+      });
+
+      // Use obviously fake IDs that follow the format pattern
+      const fakeConversationId = "00000000deadbeef0000000000000000";
+      const fakeRuntimeHost = "faketesthost.prod-runtime.all-hands.dev";
+
+      const result = buildWebSocketUrl(
+        fakeConversationId,
+        `https://${fakeRuntimeHost}/api/conversations/${fakeConversationId}`,
+      );
+
+      expect(result).toBe(
+        `wss://${fakeRuntimeHost}/sockets/events/${fakeConversationId}`,
+      );
+    });
+
+    it("should use ws:// for ::1 (IPv6 localhost)", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "[::1]:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "test-conv-ipv6",
+        "http://[::1]:8080/api/conversations/test-conv-ipv6",
+      );
+
+      expect(result).toBe("ws://[::1]:8080/sockets/events/test-conv-ipv6");
+    });
+
+    it("should use ws:// for .localhost subdomains", () => {
+      vi.stubGlobal("location", {
+        protocol: "http:",
+        host: "app.localhost:3000",
+      });
+
+      const result = buildWebSocketUrl(
+        "test-conv-localhost-subdomain",
+        "http://api.localhost:8080/api/conversations/test-conv-localhost-subdomain",
+      );
+
+      expect(result).toBe(
+        "ws://api.localhost:8080/sockets/events/test-conv-localhost-subdomain",
+      );
     });
   });
 });

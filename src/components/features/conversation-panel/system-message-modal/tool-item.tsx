@@ -74,7 +74,7 @@ export function ToolItem({ tool, index, isExpanded, onToggle }: ToolItemProps) {
 
       {isExpanded && (
         <div className="px-2 pb-3 pt-1">
-          <div className="mt-2 mb-3 text-sm text-gray-300 leading-relaxed">
+          <div className="mt-2 mb-3 text-sm text-[var(--oh-text-tertiary)] leading-relaxed">
             <MarkdownRenderer>{String(description)}</MarkdownRenderer>
           </div>
 

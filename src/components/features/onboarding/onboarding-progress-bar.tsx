@@ -35,12 +35,11 @@ export function OnboardingProgressBar({
             key={index}
             data-testid={`onboarding-progress-step-${index}`}
             data-state={
-              // eslint-disable-next-line no-nested-ternary
               isCompleted ? "completed" : isCurrent ? "current" : "upcoming"
             }
             className={cn(
               "h-1.5 flex-1 rounded-full transition-colors duration-300",
-              isCompleted || isCurrent ? "bg-primary" : "bg-white/15",
+              isCompleted || isCurrent ? "bg-white" : "bg-white/15",
             )}
           />
         );

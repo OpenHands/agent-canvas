@@ -171,7 +171,7 @@ export function CloudNewConversationButton({
 
   const itemClass = cn(
     "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left cursor-pointer",
-    "hover:bg-[#5C5D62] rounded-md transition-colors duration-150 font-normal",
+    "hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal",
     "disabled:opacity-60 disabled:cursor-not-allowed",
   );
 
@@ -209,8 +209,8 @@ export function CloudNewConversationButton({
       aria-label={compact ? newConversationLabel : undefined}
       className={cn(
         "flex items-center rounded-md cursor-pointer transition-colors",
-        "text-sm font-medium text-white bg-[#1f1f1f99] hover:bg-[#2a2a2a]",
-        "border border-[#525252]",
+        "text-sm font-medium text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
+        "border border-[var(--oh-border)]",
         compact
           ? "justify-center w-10 h-10 p-0 mx-auto"
           : "gap-1.5 w-full px-3 py-2",
@@ -239,7 +239,7 @@ export function CloudNewConversationButton({
           data-testid="new-conversation-popover"
           className={cn(
             "absolute z-30 top-full mt-2 p-1",
-            "bg-[#26282D] border border-[#727987] rounded-lg shadow-xl",
+            "bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-lg shadow-xl",
             "flex flex-col gap-1",
             compact ? "left-0 w-[260px]" : "left-0 right-0",
           )}
@@ -261,8 +261,8 @@ export function CloudNewConversationButton({
                       "flex items-center gap-1 px-2 py-1 rounded text-xs",
                       "border transition-colors",
                       isActive
-                        ? "bg-[#5C5D62] border-[#727987] text-white"
-                        : "border-transparent text-[#B7BDC2] hover:text-white",
+                        ? "bg-[var(--oh-interactive-hover)] border-[var(--oh-border-input)] text-white"
+                        : "border-transparent text-[var(--oh-text-secondary)] hover:text-white",
                     )}
                   >
                     <GitProviderIcon gitProvider={provider} />
@@ -283,9 +283,9 @@ export function CloudNewConversationButton({
               disabled={!selectedProvider}
               className={cn(
                 "w-full px-2 py-1.5 text-sm rounded-md",
-                "bg-[#1f1f1f] border border-[#525252] text-white",
-                "placeholder:text-[#A3A3A3] outline-none",
-                "focus:border-[#727987]",
+                "bg-[var(--oh-surface)] border border-[var(--oh-border)] text-white",
+                "placeholder:text-[var(--oh-muted)] outline-none",
+                "focus:border-[var(--oh-border-input)]",
                 "disabled:opacity-60 disabled:cursor-not-allowed",
               )}
             />
@@ -294,7 +294,7 @@ export function CloudNewConversationButton({
           <ul className="flex flex-col max-h-[40vh] sm:max-h-[280px] overflow-y-auto">
             {isListLoading && repositories.length === 0 && (
               <li
-                className="px-2 py-2 text-sm text-[#A3A3A3] italic"
+                className="px-2 py-2 text-sm text-[var(--oh-muted)] italic"
                 data-testid="cloud-repo-loading"
               >
                 {t(I18nKey.HOME$LOADING_REPOSITORIES)}
@@ -313,7 +313,7 @@ export function CloudNewConversationButton({
               repositories.length === 0 &&
               !!selectedProvider && (
                 <li
-                  className="px-2 py-2 text-sm text-[#A3A3A3] italic"
+                  className="px-2 py-2 text-sm text-[var(--oh-muted)] italic"
                   data-testid="cloud-repo-empty"
                 >
                   {t(I18nKey.GITHUB$NO_RESULTS)}
@@ -337,7 +337,7 @@ export function CloudNewConversationButton({
                   onClick={() => fetchNextPage()}
                   className={itemClass}
                 >
-                  <span className="text-[#B7BDC2]">
+                  <span className="text-[var(--oh-text-secondary)]">
                     {isFetchingNextPage
                       ? t(I18nKey.HOME$LOADING_MORE_REPOSITORIES)
                       : t(I18nKey.CONVERSATION$LOAD_MORE)}

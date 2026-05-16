@@ -65,7 +65,7 @@ export default function AutomationDetail() {
   // Show loading state while checking health
   if (isHealthLoading) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <DetailSkeleton />
         </div>
@@ -76,7 +76,7 @@ export default function AutomationDetail() {
   // Show backend not configured state if health check failed
   if (!isBackendHealthy) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <BackendNotConfigured onRetry={refetchHealth} />
         </div>
@@ -86,7 +86,7 @@ export default function AutomationDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <DetailSkeleton />
         </div>
@@ -96,7 +96,7 @@ export default function AutomationDetail() {
 
   if (is404) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <NotFoundState />
         </div>
@@ -106,7 +106,7 @@ export default function AutomationDetail() {
 
   if (isError || !automation) {
     return (
-      <div className="min-h-full bg-surface">
+      <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
           <ErrorState onRetry={() => refetch()} />
         </div>
@@ -130,7 +130,7 @@ export default function AutomationDetail() {
   };
 
   return (
-    <div className="min-h-full bg-surface">
+    <div className="min-h-full">
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex flex-col gap-4">
           <BackLink />

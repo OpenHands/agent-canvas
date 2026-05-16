@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import AgentServerRuntimeService, {
+  CommandResult,
+} from "#/api/runtime-service/agent-server-runtime-service";
+import { getAgentServerWorkingDir } from "#/api/agent-server-config";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { Provider } from "#/types/settings";
@@ -21,11 +23,73 @@ const EMPTY_LOCAL_GIT_INFO: LocalGitInfo = {
   remoteUrl: null,
 };
 
+type RunCommand = (
+  command: string,
+  cwd: string,
+  timeout: number,
+) => Promise<CommandResult>;
+
+async function probeGitInfoAtDir(
+  run: RunCommand,
+  directory: string,
+): Promise<LocalGitInfo> {
+  const [remoteResult, branchResult] = await Promise.all([
+    run("git remote get-url origin", directory, 10),
+    run("git rev-parse --abbrev-ref HEAD", directory, 10),
+  ]);
+
+  const remoteUrl =
+    remoteResult.exit_code === 0 ? remoteResult.stdout.trim() : "";
+  const rawBranch =
+    branchResult.exit_code === 0 ? branchResult.stdout.trim() : "";
+  const branch = rawBranch && rawBranch !== "HEAD" ? rawBranch : null;
+
+  if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
+
+  const parsedRemote = parseGitRemoteUrl(remoteUrl);
+  return {
+    repository: parsedRemote?.repository ?? null,
+    provider: parsedRemote?.provider ?? null,
+    remoteUrl: remoteUrl || null,
+    branch,
+  };
+}
+
+async function probeNestedRepoInDir(
+  run: RunCommand,
+  directory: string,
+): Promise<LocalGitInfo> {
+  const nestedReposResult = await run(
+    "find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | sed 's#^\\./##' | sed 's#/.git$##'",
+    directory,
+    10,
+  );
+
+  if (nestedReposResult.exit_code !== 0) return EMPTY_LOCAL_GIT_INFO;
+
+  const nestedRepos = Array.from(
+    new Set(
+      nestedReposResult.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (nestedRepos.length !== 1) return EMPTY_LOCAL_GIT_INFO;
+
+  const nestedDir = `${directory}/${nestedRepos[0]}`.replace(/\/+/g, "/");
+  return probeGitInfoAtDir(run, nestedDir);
+}
+
 /**
- * For local-workspace conversations (no `selected_repository` recorded on the
- * conversation), shell out via the agent server's bash-execute endpoint to
- * read `git remote get-url origin` and the current branch from the
- * conversation's working directory.
+ * Probe git metadata directly from the workspace checkout via the agent server
+ * (`git remote get-url origin`, `git rev-parse --abbrev-ref HEAD`).
+ *
+ * We intentionally keep this probe enabled until the active conversation has
+ * a complete repo tuple (`selected_repository`, `git_provider`,
+ * `selected_branch`) so the control bar can recover from partial metadata
+ * hydration after connect/clone flows.
  *
  * Returns `null` fields when the working dir is not a git checkout — callers
  * should treat that the same as "no repo detected".
@@ -37,8 +101,11 @@ export const useLocalGitInfo = () => {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
-  const workingDir = conversation?.workspace?.working_dir?.trim();
+  const workingDir =
+    conversation?.workspace?.working_dir?.trim() || getAgentServerWorkingDir();
   const hasConversationRepo = !!conversation?.selected_repository;
+  const hasConversationProvider = !!conversation?.git_provider;
+  const hasConversationBranch = !!conversation?.selected_branch;
 
   return useQuery<LocalGitInfo>({
     queryKey: [
@@ -49,43 +116,36 @@ export const useLocalGitInfo = () => {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = new RemoteWorkspace(
-        getAgentServerClientOptions({
+      const run: RunCommand = (command, cwd, timeout) =>
+        AgentServerRuntimeService.executeCommand(
           conversationUrl,
           sessionApiKey,
-        }),
+          command,
+          cwd,
+          timeout,
+        );
+      const candidateDirs = Array.from(
+        new Set([workingDir, "/workspace/project", "workspace/project"]),
       );
 
-      const [remoteResult, branchResult] = await Promise.all([
-        workspace.executeCommand("git remote get-url origin", workingDir, 10),
-        workspace.executeCommand(
-          "git rev-parse --abbrev-ref HEAD",
-          workingDir,
-          10,
-        ),
-      ]);
+      for (const candidateDir of candidateDirs) {
+        const directInfo = await probeGitInfoAtDir(run, candidateDir);
+        if (directInfo.repository || directInfo.branch) return directInfo;
 
-      const remoteUrl =
-        remoteResult.exit_code === 0 ? remoteResult.stdout.trim() : "";
-      const rawBranch =
-        branchResult.exit_code === 0 ? branchResult.stdout.trim() : "";
-      const branch = rawBranch && rawBranch !== "HEAD" ? rawBranch : null;
+        // Common local flow: user starts in a non-git parent workspace and
+        // clones a single repository into a child directory.
+        const nestedInfo = await probeNestedRepoInDir(run, candidateDir);
+        if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
+      }
 
-      if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
-
-      const parsedRemote = parseGitRemoteUrl(remoteUrl);
-      return {
-        repository: parsedRemote?.repository ?? null,
-        provider: parsedRemote?.provider ?? null,
-        remoteUrl: remoteUrl || null,
-        branch,
-      };
+      return EMPTY_LOCAL_GIT_INFO;
     },
     enabled:
       runtimeIsReady &&
       !!conversationId &&
-      !!workingDir &&
-      !hasConversationRepo,
+      (!hasConversationRepo ||
+        !hasConversationProvider ||
+        !hasConversationBranch),
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
     // changes (e.g. `git checkout`, adding a remote) without requiring a

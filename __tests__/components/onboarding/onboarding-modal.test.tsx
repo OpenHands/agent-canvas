@@ -187,13 +187,25 @@ describe("OnboardingModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("opts the Skip button into cursor-pointer so hovering it shows the pointer affordance", () => {
+    // Arrange: render the modal so the Skip button is mounted.
+    renderModal();
+
+    // Act: locate the Skip button the user hovers.
+    const skipButton = screen.getByTestId("onboarding-skip");
+
+    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
+    // the button must opt back into cursor-pointer for the hover affordance.
+    expect(skipButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
+  });
+
   it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
     // Arrange + act: render the modal once.
     renderModal();
 
     // Assert: the slide rail lives inside the scroll region. Long step
     // content overflows this region rather than the modal itself, so
-    // the progress bar and Skip control above it never scroll away.
+    // the progress bar above it never scrolls away. Skip sits below the modal.
     const scrollArea = screen.getByTestId("onboarding-scroll-area");
     const rail = screen.getByTestId("onboarding-slide-rail");
     expect(scrollArea.contains(rail)).toBe(true);

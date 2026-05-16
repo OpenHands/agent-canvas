@@ -68,7 +68,7 @@ export function getEnvironmentSwitchSnapshot() {
 }
 
 /** Test-only: clear the pending hide timer and reset the snapshot. */
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
 export function __resetEnvironmentSwitchOverlayForTests() {
   if (hideTimeoutId) {
     clearTimeout(hideTimeoutId);

@@ -71,11 +71,11 @@ describe("TaskListTab", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("renders empty state message using Text component (span)", () => {
+  it("renders empty state message in a centered caption", () => {
     render(<TaskListTab />);
 
     const message = screen.getByText("No tasks yet");
-    expect(message.tagName).toBe("SPAN");
+    expect(message.tagName).toBe("P");
   });
 
   it("renders task items when tasks exist", () => {
@@ -96,9 +96,7 @@ describe("TaskListTab", () => {
   });
 
   it("does not display task IDs", () => {
-    setTasks([
-      { id: "task-1", title: "First task", status: "todo" },
-    ]);
+    setTasks([{ id: "task-1", title: "First task", status: "todo" }]);
 
     render(<TaskListTab />);
 
@@ -117,13 +115,17 @@ describe("TaskListTab", () => {
     // Find each task item via its text, then check the wrapper div
     const activeItem = screen.getByText("Active task").closest("[data-name]");
     const activeWrapper = activeItem?.parentElement;
-    expect(activeWrapper?.className).toContain("bg-[#2D3039]");
+    expect(activeWrapper?.className).toContain("oh-surface-raised");
 
     const todoItem = screen.getByText("Todo task").closest("[data-name]");
-    expect(todoItem?.parentElement?.className).not.toContain("bg-[#2D3039]");
+    expect(todoItem?.parentElement?.className).not.toContain(
+      "oh-surface-raised",
+    );
 
     const doneItem = screen.getByText("Done task").closest("[data-name]");
-    expect(doneItem?.parentElement?.className).not.toContain("bg-[#2D3039]");
+    expect(doneItem?.parentElement?.className).not.toContain(
+      "oh-surface-raised",
+    );
   });
 
   it("displays task notes when present and omits when absent", () => {

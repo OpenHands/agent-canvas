@@ -34,7 +34,7 @@ export function HighlightedSourceView({
     return (
       <pre
         data-testid="file-content-viewer-plain"
-        className="h-full w-full overflow-auto whitespace-pre-wrap break-words bg-[#25272D] p-4 text-xs leading-5 text-white custom-scrollbar-always"
+        className="h-full w-full overflow-auto whitespace-pre-wrap break-words bg-[var(--oh-surface)] p-4 text-xs leading-5 text-white custom-scrollbar-always"
       >
         {text}
       </pre>
@@ -45,7 +45,7 @@ export function HighlightedSourceView({
     <div
       data-testid="file-content-viewer-highlighted"
       data-language={language}
-      className="h-full w-full overflow-auto bg-[#25272D] custom-scrollbar-always"
+      className="h-full w-full overflow-auto bg-[var(--oh-surface)] custom-scrollbar-always"
     >
       <SyntaxHighlighter
         language={language}
@@ -67,7 +67,7 @@ export function HighlightedSourceView({
           style: { background: "transparent", fontFamily: "inherit" },
         }}
         lineNumberStyle={{
-          color: "#5C5D62",
+          color: "var(--oh-border)",
           minWidth: "2.5em",
           paddingRight: "1em",
           userSelect: "none",

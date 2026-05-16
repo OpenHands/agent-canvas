@@ -168,6 +168,78 @@ pydantic_core.ValidationError: Extra inputs are not permitted
 
 **This is a production-breaking change.** Do not approve PRs that modify event types without proper backward compatibility handling and tests.
 
+## Frontend API Access Conventions
+
+These two rules are enforced by the CI test `src/api/no-direct-agent-server-calls.test.ts`.
+**Flag any PR that introduces a violation** -- these are correctness bugs, not style nits.
+
+### Rule 1 -- All agent-server calls must use `@openhands/typescript-client`
+
+**DO NOT APPROVE** a PR that introduces raw `axios`, `fetch`, or the shared `openHands`
+axios instance to call an agent-server endpoint (`/api/*`, `/server_info`). All such
+calls must go through typed client classes from `@openhands/typescript-client`,
+instantiated with options from `getAgentServerClientOptions()` or
+`getAgentServerHttpClientOptions()` in `src/api/agent-server-client-options.ts`.
+
+Forbidden patterns (caught by the CI guard):
+- `openHands.<method>(...)` -- shared axios instance
+- `createHttpClient(...)` -- creates a raw HTTP client
+- `axios(...)` / `axios.get/post/etc.(...)` (except in the two allowed files)
+- `fetch('/api/...')` or `fetch(\`${host}/api/...\`)`
+
+Correct pattern:
+```ts
+new ConversationClient(getAgentServerClientOptions()).getConversation(id)
+new FileClient(getAgentServerClientOptions()).downloadTextFile(path)
+new ServerClient(getAgentServerHttpClientOptions()).getServerInfo()
+new RemoteWorkspace(getAgentServerClientOptions()).gitChanges({ ref: "HEAD" })
+```
+
+Allowed exceptions (explicitly listed in `ALLOWED_AD_HOC_HTTP_FILES`):
+- `src/api/automation-service/automation-service.api.ts`
+- `src/api/cloud/proxy.ts`
+
+If a PR adds a new file to `ALLOWED_AD_HOC_HTTP_FILES` without a strong reason,
+flag it -- the allowlist should not grow casually.
+
+### Rule 2 -- All cloud backend calls must go through `callCloudProxy`
+
+**DO NOT APPROVE** a PR that issues a direct browser `fetch` or `axios` call to the
+cloud SaaS backend (`app.all-hands.dev`) or a cloud runtime sandbox
+(`*.prod-runtime.all-hands.dev`). Both origins block CORS from `localhost`. Cloud calls
+must go through `callCloudProxy()` in `src/api/cloud/proxy.ts`, which routes them
+server-side through `/api/cloud-proxy` on the local agent-server.
+
+Correct pattern -- cloud SaaS:
+```ts
+callCloudProxy({ backend, method: "GET", path: "/api/v1/app-conversations/search?..." })
+```
+
+Correct pattern -- cloud runtime sandbox (use `hostOverride` + `authMode: "session-api-key"`):
+```ts
+callCloudProxy({
+  backend,
+  method: "GET",
+  hostOverride: buildHttpBaseUrl(conversationUrl),
+  path: `/api/conversations/${id}`,
+  authMode: "session-api-key",
+  sessionApiKey,
+})
+```
+
+Standard branch structure every cloud-aware service method should follow:
+```ts
+if (getActiveBackend().backend.kind === "cloud") {
+  return callCloudProxy({ backend: active, ... });
+}
+// local path: typed typescript-client
+return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
+```
+
+Missing the `hostOverride` on a runtime-sandbox call is a silent bug: the proxy
+will target `backend.host` (the SaaS API) instead of the actual runtime URL.
+Flag any `callCloudProxy` call that targets a runtime URL without `hostOverride`.
+
 ## SDK Architecture Conventions
 
 These conventions codify patterns that are easy to violate when adding new features. Each was learned from a real bug.

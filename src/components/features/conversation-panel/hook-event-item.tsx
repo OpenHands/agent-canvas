@@ -39,18 +39,18 @@ export function HookEventItem({
       <button
         type="button"
         onClick={() => onToggle(hookEvent.event_type)}
-        className="w-full py-3 px-2 text-left flex items-center justify-between hover:bg-gray-700 transition-colors"
+        className="w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors"
       >
         <div className="flex items-center">
-          <Typography.Text className="font-bold text-gray-100">
+          <Typography.Text className="font-bold text-content-2">
             {eventTypeLabel}
           </Typography.Text>
         </div>
         <div className="flex items-center">
-          <Typography.Text className="px-2 py-1 text-xs rounded-full bg-gray-800 mr-2">
+          <Typography.Text className="px-2 py-1 text-xs rounded-full bg-[var(--oh-surface)] mr-2">
             {t(I18nKey.HOOKS_MODAL$HOOK_COUNT, { count: totalHooks })}
           </Typography.Text>
-          <Typography.Text className="text-gray-300">
+          <Typography.Text className="text-[var(--oh-text-tertiary)]">
             {isExpanded ? (
               <ChevronDown size={18} />
             ) : (

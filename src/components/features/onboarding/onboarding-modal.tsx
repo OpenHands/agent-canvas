@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -97,66 +96,60 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
       closeOnEscape={false}
       aria-label={t(I18nKey.ONBOARDING$TITLE)}
     >
-      <section
-        data-testid="onboarding-modal"
-        data-current-step={currentStep}
-        className={cn(
-          "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
-          "w-[560px] max-w-[92vw] max-h-[90vh]",
-        )}
-      >
-        <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-gray-400">
-              {t(I18nKey.ONBOARDING$STEP_LABEL, {
-                current: currentStep + 1,
-                total: TOTAL_STEPS,
-              })}
-            </p>
-            <button
-              type="button"
-              data-testid="onboarding-skip"
-              onClick={onClose}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-white/5 hover:text-white"
-            >
-              <span>{t(I18nKey.ONBOARDING$SKIP)}</span>
-              <X className="size-3.5" aria-hidden />
-            </button>
-          </div>
-          <OnboardingProgressBar
-            currentStep={currentStep}
-            totalSteps={TOTAL_STEPS}
-          />
-        </header>
-
-        <div
-          data-testid="onboarding-scroll-area"
-          className="flex-1 min-h-0 overflow-y-auto custom-scrollbar-always px-7"
+      <div className="relative flex flex-col items-center gap-4">
+        <section
+          data-testid="onboarding-modal"
+          data-current-step={currentStep}
+          className={cn(
+            "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
+            "w-[560px] max-w-[92vw] max-h-[90vh]",
+          )}
         >
+          <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
+            <OnboardingProgressBar
+              currentStep={currentStep}
+              totalSteps={TOTAL_STEPS}
+            />
+          </header>
+
           <div
-            data-testid="onboarding-slide-rail"
-            data-current-step={currentStep}
-            className="relative overflow-clip"
+            data-testid="onboarding-scroll-area"
+            className="flex-1 min-h-0 overflow-y-auto custom-scrollbar-always px-7"
           >
-            <Slide index={0} currentStep={currentStep}>
-              <ChooseAgentStep
-                selectedAgentId={selectedAgentId}
-                onSelect={setSelectedAgentId}
-                onNext={goNext}
-              />
-            </Slide>
-            <Slide index={1} currentStep={currentStep}>
-              <CheckBackendStep onBack={goBack} onNext={goNext} />
-            </Slide>
-            <Slide index={2} currentStep={currentStep}>
-              <SetupLlmStep onBack={goBack} onNext={goNext} />
-            </Slide>
-            <Slide index={3} currentStep={currentStep}>
-              <SayHelloStep onBack={goBack} onLaunched={onClose} />
-            </Slide>
+            <div
+              data-testid="onboarding-slide-rail"
+              data-current-step={currentStep}
+              className="relative overflow-clip"
+            >
+              <Slide index={0} currentStep={currentStep}>
+                <ChooseAgentStep
+                  selectedAgentId={selectedAgentId}
+                  onSelect={setSelectedAgentId}
+                  onNext={goNext}
+                />
+              </Slide>
+              <Slide index={1} currentStep={currentStep}>
+                <CheckBackendStep onBack={goBack} onNext={goNext} />
+              </Slide>
+              <Slide index={2} currentStep={currentStep}>
+                <SetupLlmStep onBack={goBack} onNext={goNext} />
+              </Slide>
+              <Slide index={3} currentStep={currentStep}>
+                <SayHelloStep onBack={goBack} onLaunched={onClose} />
+              </Slide>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <button
+          type="button"
+          data-testid="onboarding-skip"
+          onClick={onClose}
+          className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+        >
+          {t(I18nKey.ONBOARDING$SKIP)}
+        </button>
+      </div>
     </ModalBackdrop>
   );
 }

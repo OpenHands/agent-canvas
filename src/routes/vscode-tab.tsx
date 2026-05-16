@@ -6,6 +6,9 @@ import { useAgentState } from "#/hooks/use-agent-state";
 import { RUNTIME_STARTING_STATES } from "#/types/agent-state";
 import { VSCODE_IN_NEW_TAB } from "#/utils/feature-flags";
 import { WaitingForRuntimeMessage } from "#/components/features/chat/waiting-for-runtime-message";
+import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import VSCodeIcon from "#/icons/vscode.svg?react";
 
 function VSCodeTab() {
   const { t } = useTranslation("openhands");
@@ -65,18 +68,21 @@ function VSCodeTab() {
   // If cross-origin, show a button to open in new tab
   if (isCrossProtocol) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-        <div className="text-xl text-tertiary-light text-center max-w-md">
-          {t("VSCODE$CROSS_ORIGIN_WARNING")}
-        </div>
-        <button
-          type="button"
-          onClick={handleOpenInNewTab}
-          className="px-4 py-2 bg-primary text-white rounded-sm hover:bg-primary-dark transition-colors"
-        >
-          {t("VSCODE$OPEN_IN_NEW_TAB")}
-        </button>
-      </div>
+      <ConversationTabEmptyState
+        icon={<VSCodeIcon />}
+        action={
+          <BrandButton
+            type="button"
+            variant="secondary"
+            onClick={handleOpenInNewTab}
+            className="min-w-40 justify-center px-6"
+          >
+            {t("VSCODE$OPEN_IN_NEW_TAB")}
+          </BrandButton>
+        }
+      >
+        {t("VSCODE$CROSS_ORIGIN_WARNING")}
+      </ConversationTabEmptyState>
     );
   }
 

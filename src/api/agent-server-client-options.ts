@@ -1,6 +1,10 @@
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
-import { getAgentServerWorkingDir } from "./agent-server-config";
+import {
+  getAgentServerSessionApiKey,
+  getAgentServerWorkingDir,
+} from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import { DEFAULT_LOCAL_BACKEND_ID } from "./backend-registry/default-backend";
 import type { Backend } from "./backend-registry/types";
 
 export interface AgentServerClientOverrides {
@@ -37,8 +41,15 @@ export function getAgentServerClientOptions(
   overrides: AgentServerClientOverrides = {},
 ): AgentServerClientOptions {
   const backend = getEffectiveLocalBackend();
+  const configuredSessionApiKey = getAgentServerSessionApiKey();
+  const defaultLocalApiKeyOverride =
+    backend.id === DEFAULT_LOCAL_BACKEND_ID ? configuredSessionApiKey : null;
   const apiKey =
-    overrides.sessionApiKey ?? overrides.apiKey ?? backend.apiKey ?? undefined;
+    overrides.sessionApiKey ??
+    overrides.apiKey ??
+    defaultLocalApiKeyOverride ??
+    backend.apiKey ??
+    undefined;
 
   return {
     host: resolveHost(overrides, backend),

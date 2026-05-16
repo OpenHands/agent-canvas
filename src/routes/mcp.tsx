@@ -1,10 +1,9 @@
 import React from "react";
 import { AxiosError } from "axios";
+import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { Typography } from "#/ui/typography";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
@@ -118,96 +117,99 @@ export default function MCPPage() {
       onError: (err) => {
         const message = retrieveAxiosErrorMessage(err as AxiosError);
         displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+        setServerToDelete(null);
       },
     });
   };
 
   if (isLoading || !settings) {
     return (
-      <main
-        data-testid="mcp-page"
-        className="h-full flex items-center justify-center"
-      >
-        <div className="h-8 w-8 rounded-full border-2 border-tertiary border-t-primary animate-spin" />
-      </main>
+      <div data-testid="mcp-page" className="flex h-full gap-10">
+        <ExtensionsNavigation />
+        <div className="flex h-full flex-1 items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
+        </div>
+      </div>
     );
   }
 
   return (
-    <main
-      data-testid="mcp-page"
-      className="h-full overflow-auto custom-scrollbar-always px-6 md:px-10 pt-8 pb-12"
-    >
-      <div className="max-w-5xl mx-auto flex flex-col gap-8">
-        <header className="flex flex-col gap-2">
-          <div className="flex items-end justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <Typography.H2>{t(I18nKey.SETTINGS$MCP_TITLE)}</Typography.H2>
-              <BackendSyncedSettingsBadge />
+    <div data-testid="mcp-page" className="flex h-full gap-10">
+      <ExtensionsNavigation />
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
+        <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold leading-6 text-foreground">
+                  {t(I18nKey.SETTINGS$MCP_TITLE)}
+                </h2>
+                <div className="max-w-2xl text-sm text-tertiary-light">
+                  {t(I18nKey.MCP$PAGE_DESCRIPTION)}
+                </div>
+              </div>
+              <BrandButton
+                type="button"
+                variant="secondary"
+                testId="mcp-add-custom-server"
+                className="flex-shrink-0 whitespace-nowrap"
+                onClick={() => setEditingServer({ id: "", type: "sse" })}
+              >
+                {t(I18nKey.MCP$ADD_CUSTOM)}
+              </BrandButton>
             </div>
-            <BrandButton
-              type="button"
-              variant="secondary"
-              testId="mcp-add-custom-server"
-              onClick={() => setEditingServer({ id: "", type: "sse" })}
-            >
-              {t(I18nKey.MCP$ADD_CUSTOM)}
-            </BrandButton>
           </div>
-          <Typography.Paragraph className="text-sm text-tertiary-alt">
-            {t(I18nKey.MCP$PAGE_DESCRIPTION)}
-          </Typography.Paragraph>
-        </header>
 
-        <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
+          <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold">
-            {t(I18nKey.MCP$INSTALLED_TITLE)}
-          </h2>
-          <InstalledServersSection
-            servers={filteredInstalledServers}
-            hasAnyInstalled={allServers.length > 0}
+          <section className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold text-foreground">
+              {t(I18nKey.MCP$INSTALLED_TITLE)}
+            </h2>
+            <InstalledServersSection
+              servers={filteredInstalledServers}
+              hasAnyInstalled={allServers.length > 0}
+              query={searchQuery}
+              onEdit={handleEdit}
+              onDelete={handleDeleteClick}
+            />
+          </section>
+
+          <MarketplaceSection
+            isInstalled={isInstalled}
+            backendKind={backendKind}
+            onSelect={handleMarketplaceClick}
             query={searchQuery}
-            onEdit={handleEdit}
-            onDelete={handleDeleteClick}
           />
-        </section>
+        </div>
 
-        <MarketplaceSection
-          isInstalled={isInstalled}
-          backendKind={backendKind}
-          onSelect={handleMarketplaceClick}
-          query={searchQuery}
-        />
-      </div>
+        {installEntry && (
+          <InstallServerModal
+            entry={installEntry}
+            onClose={() => setInstallEntry(null)}
+          />
+        )}
 
-      {installEntry && (
-        <InstallServerModal
-          entry={installEntry}
-          onClose={() => setInstallEntry(null)}
-        />
-      )}
+        {/* Custom (or non-marketplace) server editor — falls back to the
+            legacy MCPServerForm for full control. The empty-id sentinel
+            (`{ id: "", type: "sse" }`) means "add new". */}
+        {editingServer && (
+          <CustomServerEditor
+            server={editingServer}
+            existingServers={allServers}
+            onClose={() => setEditingServer(null)}
+          />
+        )}
 
-      {/* Custom (or non-marketplace) server editor — falls back to the
-          legacy MCPServerForm for full control. The empty-id sentinel
-          (`{ id: "", type: "sse" }`) means "add new". */}
-      {editingServer && (
-        <CustomServerEditor
-          server={editingServer}
-          existingServers={allServers}
-          onClose={() => setEditingServer(null)}
-        />
-      )}
-
-      {serverToDelete && (
-        <ConfirmationModal
-          text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
-          onCancel={() => setServerToDelete(null)}
-          onConfirm={handleConfirmDelete}
-          isConfirming={isDeleting}
-        />
-      )}
-    </main>
+        {serverToDelete && (
+          <ConfirmationModal
+            text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
+            onCancel={() => setServerToDelete(null)}
+            onConfirm={handleConfirmDelete}
+            isConfirming={isDeleting}
+          />
+        )}
+      </main>
+    </div>
   );
 }

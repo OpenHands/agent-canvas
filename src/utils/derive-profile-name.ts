@@ -7,6 +7,19 @@
 export const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 /**
+ * Shared profile name validation. Any whitespace (including leading/trailing)
+ * makes the value invalid. When `isRequired`, empty values are invalid;
+ * otherwise empty is valid.
+ */
+export function isProfileNameValid(
+  value: string,
+  { isRequired = false }: { isRequired?: boolean } = {},
+): boolean {
+  if (value === "") return !isRequired;
+  return PROFILE_NAME_PATTERN.test(value);
+}
+
+/**
  * Derive a profile name from a model string.
  * Extracts the model portion after the provider prefix (e.g., "openai/gpt-4" -> "gpt-4")
  * and sanitizes it to match the profile name pattern.

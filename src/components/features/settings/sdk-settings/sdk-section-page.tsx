@@ -115,6 +115,8 @@ export interface SdkSectionSaveControl {
   isSaving: boolean;
   /** At least one field is dirty (or `extraDirty` was passed in). */
   isDirty: boolean;
+  /** Current form values (for custom save flows). */
+  values: SettingsFormValues;
 }
 
 /**
@@ -412,8 +414,9 @@ export function SdkSectionPage({
       save: stableSave,
       isSaving: isPending,
       isDirty: saveControlIsDirty,
+      values,
     });
-  }, [isPending, saveControlIsDirty]);
+  }, [isPending, saveControlIsDirty, values]);
 
   if (isLoading || isFetching || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
@@ -429,25 +432,17 @@ export function SdkSectionPage({
 
   if (Object.keys(values).length === 0) return <LlmSettingsInputsSkeleton />;
 
-  // In embedded mode the form body owns scrolling so the surrounding
-  // chrome (heading, tabs, footer) stays pinned. Otherwise we keep the
-  // historical block layout, reserving `pb-20` for the sticky Save bar
-  // when it is rendered.
-  let bodyClassName: string;
-  if (embedded) {
-    bodyClassName =
-      "flex-1 min-h-0 overflow-y-auto custom-scrollbar-always flex flex-col gap-8";
-  } else if (hideSaveButton) {
-    bodyClassName = "flex flex-col gap-8";
-  } else {
-    bodyClassName = "flex flex-col gap-8 pb-20";
-  }
+  // Scrolling is owned by the settings shell (or onboarding wrapper), not a
+  // nested scroll region. Save actions are inline after the last field.
+  const bodyClassName = "flex flex-col gap-8";
 
   return (
     <div
       data-testid={testId}
       className={
-        embedded ? "relative flex-1 min-h-0 flex flex-col" : "h-full relative"
+        embedded
+          ? "relative flex min-h-0 w-full flex-1 flex-col"
+          : "relative w-full min-h-0"
       }
     >
       <ViewToggle
@@ -466,9 +461,12 @@ export function SdkSectionPage({
           onChange: handleFieldChange,
         })}
 
-        {visibleSections.map((section) => (
-          <section key={section.key} className="flex flex-col gap-4">
-            <div className="grid gap-4 xl:grid-cols-2">
+        {visibleSections.map((section, sectionIndex) => (
+          <section
+            key={`${section.key}-${sectionIndex}`}
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-4">
               {section.fields.map((field) => (
                 <SchemaField
                   key={field.key}
@@ -483,25 +481,25 @@ export function SdkSectionPage({
             </div>
           </section>
         ))}
-      </div>
 
-      {!isReadOnly && !hideSaveButton ? (
-        <div className={embedded ? "pt-2" : "sticky bottom-0 bg-base py-4"}>
-          <BrandButton
-            testId="save-button"
-            type="button"
-            variant="primary"
-            isDisabled={
-              isPending || (Object.keys(dirty).length === 0 && !extraDirty)
-            }
-            onClick={handleSave}
-          >
-            {isPending
-              ? t(I18nKey.SETTINGS$SAVING)
-              : t(I18nKey.SETTINGS$SAVE_CHANGES)}
-          </BrandButton>
-        </div>
-      ) : null}
+        {!isReadOnly && !hideSaveButton ? (
+          <div className="flex justify-start pt-2">
+            <BrandButton
+              testId="save-button"
+              type="button"
+              variant="primary"
+              isDisabled={
+                isPending || (Object.keys(dirty).length === 0 && !extraDirty)
+              }
+              onClick={handleSave}
+            >
+              {isPending
+                ? t(I18nKey.SETTINGS$SAVING)
+                : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+            </BrandButton>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

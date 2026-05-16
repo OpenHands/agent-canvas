@@ -29,6 +29,7 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
+  emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
   toConversationPage,
@@ -38,10 +39,12 @@ import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
+  getStoredConversationMetadata,
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -428,7 +431,9 @@ class AgentServerConversationService {
     gitProvider?: string | null,
   ): Promise<AppConversation> {
     if (repository) {
+      const existing = getStoredConversationMetadata(conversationId);
       setStoredConversationMetadata(conversationId, {
+        ...(existing ?? {}),
         selected_repository: repository,
         selected_branch: branch ?? null,
         git_provider: (gitProvider as Provider | null | undefined) ?? null,
@@ -473,6 +478,13 @@ class AgentServerConversationService {
     return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
       conversationId,
     );
+  }
+
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
+    return emptyHooksResponse();
   }
 
   static async getRuntimeConversation(
@@ -565,6 +577,22 @@ class AgentServerConversationService {
       conversationId,
     ]);
     return requireAppConversation(conversation, conversationId);
+  }
+
+  static async switchProfile(
+    conversationId: string,
+    profileName: string,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "LLM profile switching is only supported for local agent-server backends.",
+      );
+    }
+
+    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
+      conversationId,
+      profileName,
+    );
   }
 }
 

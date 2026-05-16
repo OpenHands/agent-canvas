@@ -1,13 +1,13 @@
 # agent-canvas
 
 > [!WARNING]
-> This project is in sandbox phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+> This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).
 
 Agent Canvas is a web frontend for managing agents. You can:
 
 - ⌨️ prompt them manually
 - 🕐 run them on a schedule
-- ⚡ trigger them automatically—e.g. from Slack or GitHub.
+- ⚡ trigger them automatically — e.g. from Slack or GitHub.
 
 Agents can run anywhere:
 
@@ -32,19 +32,31 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 - `npm`
 - Docker
 
-Set `$PROJECT_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
+Set `$PROJECTS_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
 
-By default the container is kept isolated from your host home — only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off.
+By default the container runs as your host UID/GID so files written to bind mounts remain writable from your host account. The container is still kept isolated from your host home: its `/home/openhands` is a temporary writable home, and only `~/.openhands`, `~/.claude`, `~/.codex`, and `~/.ssh` are mounted individually under it (and only if they exist). If you want the **Add Workspace** dialog to browse your real host filesystem, set `OH_MOUNT_HOST_HOME=1` before `npm run dev:docker` to bind-mount your entire host home onto `/home/openhands` in the container. The Add Workspace modal also shows this hint inline when it detects the mount is off. Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
 
 ```sh
-export PROJECT_PATH=/path/to/your/projects
+export PROJECTS_PATH=/path/to/your/projects
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
 npm run dev:docker
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+This serves a static production build of the frontend behind the local ingress proxy. That is the recommended mode for normal use, remote access, and tunnels such as ngrok because it avoids Vite hot-reload restarts and large dev-module request bursts. If you are developing the Agent Canvas frontend itself and want live reload, use `npm run dev:docker:dynamic` instead.
+
+Windows PowerShell exception: if `npm run dev:docker` starts the backend but `localhost:8000` shows Bad Gateway, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
+
+```powershell
+$env:PROJECTS_PATH = "/path/to/your/projects"
+git clone https://github.com/OpenHands/agent-canvas.git
+cd agent-canvas
+npm install
+node --env-file-if-exists=.env .\scripts\dev-docker.mjs
+```
+
+Access the UI at [http://localhost:8000](http://localhost:8000). The OpenAPI docs for the agent server and the automation backend are also served through the ingress proxy at [http://localhost:8000/docs](http://localhost:8000/docs) and [http://localhost:8000/api/automation/docs](http://localhost:8000/api/automation/docs).
 
 ### Without Docker
 
@@ -68,7 +80,13 @@ npm install
 npm run dev:dangerously-dockerless
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+Access the UI at [http://localhost:8000](http://localhost:8000). The OpenAPI docs for the agent server and the automation backend are also served through the ingress proxy at [http://localhost:8000/docs](http://localhost:8000/docs) and [http://localhost:8000/api/automation/docs](http://localhost:8000/api/automation/docs).
+
+This also serves a static production build for stability. If you are developing the Agent Canvas frontend itself and want live reload, use the dynamic dockerless command instead:
+
+```sh
+npm run dev:dangerously-dockerless:dynamic
+```
 
 # Architecture
 

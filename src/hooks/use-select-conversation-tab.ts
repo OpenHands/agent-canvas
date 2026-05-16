@@ -7,7 +7,11 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 
 /**
  * Custom hook for selecting conversation tabs with consistent behavior.
- * Handles panel visibility, state persistence, and tab toggling logic.
+ *
+ * Handles panel visibility and tab toggling logic. The selected tab is
+ * persisted per conversation (so users land on the same tab when they
+ * come back), but the drawer's open/closed state is intentionally
+ * session-only — see `useConversationStore` for the rationale.
  */
 export function useSelectConversationTab() {
   const { conversationId } = useConversationId();
@@ -18,10 +22,8 @@ export function useSelectConversationTab() {
     setSelectedTab,
   } = useConversationStore();
 
-  const {
-    setSelectedTab: setPersistedSelectedTab,
-    setRightPanelShown: setPersistedRightPanelShown,
-  } = useConversationLocalStorageState(conversationId);
+  const { setSelectedTab: setPersistedSelectedTab } =
+    useConversationLocalStorageState(conversationId);
 
   const onTabChange = (value: ConversationTab | null) => {
     setSelectedTab(value);
@@ -35,15 +37,11 @@ export function useSelectConversationTab() {
    */
   const selectTab = (tab: ConversationTab) => {
     if (selectedTab === tab && isRightPanelShown) {
-      // If clicking the same active tab, close the drawer
       setHasRightPanelToggled(false);
-      setPersistedRightPanelShown(false);
     } else {
-      // If clicking a different tab or drawer is closed, open drawer and select tab
       onTabChange(tab);
       if (!isRightPanelShown) {
         setHasRightPanelToggled(true);
-        setPersistedRightPanelShown(true);
       }
     }
   };
@@ -57,7 +55,6 @@ export function useSelectConversationTab() {
     onTabChange(tab);
     if (!isRightPanelShown) {
       setHasRightPanelToggled(true);
-      setPersistedRightPanelShown(true);
     }
   };
 

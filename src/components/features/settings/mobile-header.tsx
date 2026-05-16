@@ -15,7 +15,7 @@ export function MobileHeader({
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="flex items-center justify-between mb-4 md:hidden">
+    <div className="flex items-center justify-between pt-8 mb-4 md:hidden">
       <div className="flex items-center gap-2">
         <SettingsIcon width={16} height={16} />
         <Typography.H2>{t(I18nKey.SETTINGS$TITLE)}</Typography.H2>
@@ -23,7 +23,7 @@ export function MobileHeader({
       <button
         type="button"
         onClick={onToggleMenu}
-        className="p-2 rounded-md bg-tertiary hover:bg-[#454545] transition-colors"
+        className="p-2 rounded-md bg-tertiary hover:bg-tertiary transition-colors"
         aria-label="Toggle settings menu"
       >
         <svg

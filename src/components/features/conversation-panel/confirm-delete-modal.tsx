@@ -44,7 +44,7 @@ export function ConfirmDeleteModal({
 
   return (
     <ModalBackdrop onClose={onCancel}>
-      <ModalBody className="items-start border border-tertiary">
+      <ModalBody className="items-start border border-[var(--oh-border)]">
         <div className="flex flex-col gap-2">
           <BaseModalTitle
             title={title ?? t(I18nKey.CONVERSATION$CONFIRM_DELETE)}
@@ -52,26 +52,24 @@ export function ConfirmDeleteModal({
           <BaseModalDescription>{confirmationMessage}</BaseModalDescription>
         </div>
         <div
-          className="flex flex-col gap-2 w-full"
+          className="flex justify-end gap-2 w-full"
           onClick={(event) => event.stopPropagation()}
         >
           <BrandButton
             type="button"
-            variant="primary"
-            onClick={onConfirm}
-            className="w-full"
-            data-testid="confirm-button"
-          >
-            {t(I18nKey.ACTION$CONFIRM_DELETE)}
-          </BrandButton>
-          <BrandButton
-            type="button"
             variant="secondary"
             onClick={onCancel}
-            className="w-full"
             data-testid="cancel-button"
           >
             {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+          <BrandButton
+            type="button"
+            variant="primary"
+            onClick={onConfirm}
+            data-testid="confirm-button"
+          >
+            {t(I18nKey.ACTION$CONFIRM_DELETE)}
           </BrandButton>
         </div>
       </ModalBody>
