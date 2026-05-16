@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { seedLocalStorage } from "./support/seed-local-storage";
+import { stubWebSocket } from "./support/stub-websocket";
 
 /**
  * Visual snapshot tests for the Changes (diff viewer) UI.
@@ -57,46 +58,7 @@ async function setupMocks(page: Page) {
     extra: [[CONVERSATION_STATE_KEY, CONVERSATION_STATE_VALUE]],
   });
 
-  // Stub WebSocket so the conversation page doesn't hang waiting for a real
-  // socket connection.  Copied from collapsible-thinking.snapshot.spec.ts.
-  await page.addInitScript(() => {
-    const noop = () => {};
-    class StubWebSocket extends EventTarget {
-      static CONNECTING = 0;
-      static OPEN = 1;
-      static CLOSING = 2;
-      static CLOSED = 3;
-      readyState = StubWebSocket.OPEN;
-      url: string;
-      protocol = "";
-      extensions = "";
-      bufferedAmount = 0;
-      binaryType: BinaryType = "blob";
-      onopen: ((ev: Event) => void) | null = null;
-      onclose: ((ev: CloseEvent) => void) | null = null;
-      onmessage: ((ev: MessageEvent) => void) | null = null;
-      onerror: ((ev: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = typeof url === "string" ? url : url.toString();
-        setTimeout(() => {
-          const evt = new Event("open");
-          this.onopen?.(evt);
-          this.dispatchEvent(evt);
-        }, 10);
-      }
-
-      send = noop;
-      close = noop;
-      CONNECTING = StubWebSocket.CONNECTING;
-      OPEN = StubWebSocket.OPEN;
-      CLOSING = StubWebSocket.CLOSING;
-      CLOSED = StubWebSocket.CLOSED;
-    }
-    (window as unknown as { WebSocket: unknown }).WebSocket =
-      StubWebSocket as unknown as typeof WebSocket;
-  });
+  await stubWebSocket(page);
 }
 
 async function dismissConsentModal(page: Page) {

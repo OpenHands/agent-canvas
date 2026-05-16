@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { seedLocalStorage } from "./support/seed-local-storage";
+import { stubWebSocket } from "./support/stub-websocket";
 
 /**
  * Visual snapshot tests for archived / sandbox-error conversation states.
@@ -77,6 +78,7 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     page,
   }) => {
     await seedLocalStorage(page);
+    await stubWebSocket(page);
     await page.goto(`/conversations/${ARCHIVED_CONVERSATION_ID}`, {
       waitUntil: "domcontentloaded",
     });
@@ -101,6 +103,7 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     page,
   }) => {
     await seedLocalStorage(page);
+    await stubWebSocket(page);
     await page.goto(`/conversations/${ERROR_CONVERSATION_ID}`, {
       waitUntil: "domcontentloaded",
     });
