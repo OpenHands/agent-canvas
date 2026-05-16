@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "#/ui/context-menu";
-import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
@@ -19,6 +18,8 @@ import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
+import { cn } from "#/utils/utils";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -39,6 +40,8 @@ export function ConversationTabsContextMenu({
   } = useConversationLocalStorageState(conversationId);
   const { selectedTab, isRightPanelShown, setSelectedTab } =
     useConversationStore();
+
+  const { navigateToTab } = useSelectConversationTab();
 
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
@@ -63,38 +66,36 @@ export function ConversationTabsContextMenu({
     });
   }
 
-  // Hide the VSCode pin/unpin entry on local backends, mirroring the tab bar.
   const visibleTabConfig = tabConfig.filter(
     ({ tab }) => tab !== "vscode" || backend.kind === "cloud",
   );
 
   if (!isOpen) return null;
 
-  const handleTabClick = (tab: string) => {
+  const handleOpenTab = (tab: string) => {
+    navigateToTab(tab as ConversationTab);
+    onClose();
+  };
+
+  const handlePinToggle = (tab: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (state.unpinnedTabs.includes(tab)) {
-      // Re-pinning a tab
       setUnpinnedTabs(state.unpinnedTabs.filter((item) => item !== tab));
     } else {
-      // Unpinning a tab
       const newUnpinnedTabs = [...state.unpinnedTabs, tab];
       setUnpinnedTabs(newUnpinnedTabs);
 
-      // If we're unpinning the currently selected tab while the panel is open,
-      // switch to another pinned tab instead of hiding the panel
       if (selectedTab === tab && isRightPanelShown) {
-        // Find the first tab that will still be pinned after this unpin
         const nextPinnedTab = visibleTabConfig.find(
           ({ tab: tabKey }) =>
             tabKey !== tab && !newUnpinnedTabs.includes(tabKey),
         );
 
         if (nextPinnedTab) {
-          // Switch to another pinned tab
           setSelectedTab(nextPinnedTab.tab as ConversationTab);
           setPersistedSelectedTab(nextPinnedTab.tab as ConversationTab);
         }
-        // If no other tabs are pinned, the panel will still show the last tab's content
-        // but the tab won't be highlighted (which is acceptable behavior)
       }
     }
   };
@@ -104,24 +105,49 @@ export function ConversationTabsContextMenu({
       ref={ref}
       alignment="right"
       position="bottom"
-      className="mt-2 w-fit z-[9999]"
+      className="z-[9999] mt-2 w-fit"
     >
       {visibleTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
-          <ContextMenuListItem
-            key={tab}
-            onClick={() => handleTabClick(tab)}
-            className="flex items-center gap-2 p-2 hover:bg-[var(--oh-interactive-hover)] rounded h-[30px]"
-          >
-            <Icon className="w-4 h-4" />
-            <span className="text-white text-sm">{t(i18nKey)}</span>
-            {pinned ? (
-              <PillFillIcon className="w-7 h-7 ml-auto -mr-[5px]" />
-            ) : (
-              <PillIcon className="w-4.5 h-4.5 ml-auto" />
-            )}
-          </ContextMenuListItem>
+          <li key={tab} className="list-none">
+            <div
+              className={cn(
+                "flex h-[30px] w-full min-w-0 items-stretch rounded",
+                "hover:bg-[var(--oh-interactive-hover)]",
+              )}
+            >
+              <button
+                type="button"
+                data-testid={`conversation-tabs-menu-open-${tab}`}
+                className={cn(
+                  "flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l p-2 text-start",
+                  "text-white transition-colors",
+                )}
+                onClick={() => handleOpenTab(tab)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="text-sm">{t(i18nKey)}</span>
+              </button>
+              <button
+                type="button"
+                data-testid={`conversation-tabs-menu-pin-${tab}`}
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-center justify-center rounded-r px-2",
+                  "text-white transition-colors hover:bg-white/10",
+                )}
+                aria-pressed={pinned}
+                aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
+                onClick={(e) => handlePinToggle(tab, e)}
+              >
+                {pinned ? (
+                  <PillFillIcon className="-mr-[5px] ml-auto h-7 w-7" />
+                ) : (
+                  <PillIcon className="ml-auto h-4.5 w-4.5" />
+                )}
+              </button>
+            </div>
+          </li>
         );
       })}
     </ContextMenu>

@@ -309,26 +309,24 @@ export function InstallServerModal({
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <BrandButton
-            type="submit"
-            variant="primary"
-            isDisabled={isPending}
-            testId="mcp-install-submit"
-            className="w-full text-center"
-          >
-            {isPending
-              ? t(I18nKey.SETTINGS$SAVING)
-              : t(I18nKey.MCP$INSTALL_BUTTON)}
-          </BrandButton>
+        <div className="flex justify-end gap-2 mt-2">
           <BrandButton
             type="button"
             variant="secondary"
             onClick={onClose}
             testId="mcp-install-cancel"
-            className="w-full text-center"
           >
             {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+          <BrandButton
+            type="submit"
+            variant="primary"
+            isDisabled={isPending}
+            testId="mcp-install-submit"
+          >
+            {isPending
+              ? t(I18nKey.SETTINGS$SAVING)
+              : t(I18nKey.MCP$INSTALL_BUTTON)}
           </BrandButton>
         </div>
       </form>

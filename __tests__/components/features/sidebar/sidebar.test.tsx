@@ -202,18 +202,19 @@ describe("Sidebar", () => {
     ["/automations"],
     ["/automations/abc-123"],
     ["/settings"],
+    ["/"],
   ])(
-    "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
+    "does not add md top padding to the sidebar shell on %s",
     (currentPath) => {
       renderSidebar(currentPath);
 
       const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).toMatch(/(^|\s)md:pt-4(\s|$)/);
+      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-4(\s|$)/);
       expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
     },
   );
 
-  it("renders sidebar nav links with the muted default text color", () => {
+  it("renders inactive sidebar nav links with the muted token color", () => {
     renderSidebar("/skills");
 
     const conversationsLink = screen.getByTestId("sidebar-conversations-link");

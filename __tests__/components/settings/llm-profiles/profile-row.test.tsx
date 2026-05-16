@@ -157,4 +157,15 @@ describe("ProfileRow", () => {
     const menuTrigger = screen.getByTestId("profile-menu-trigger");
     expect(menuTrigger).toHaveAttribute("aria-label", "Profile menu");
   });
+
+  it("renders the opened menu outside the row container so ancestor overflow cannot clip it", async () => {
+    const user = userEvent.setup();
+
+    const { container } = render(<ProfileRow {...defaultProps} />);
+
+    await user.click(screen.getByTestId("profile-menu-trigger"));
+
+    const menu = screen.getByTestId("profile-actions-menu");
+    expect(container.contains(menu)).toBe(false);
+  });
 });

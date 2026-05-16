@@ -41,4 +41,22 @@ describe("ConfirmDeleteModal", () => {
       screen.getByText("CONVERSATION$DELETE_WARNING"),
     ).toBeInTheDocument();
   });
+
+  it("places Cancel before Confirm in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    renderWithProviders(
+      <ConfirmDeleteModal onConfirm={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("BUTTON$CANCEL");
+    const confirm = screen.getByText("ACTION$CONFIRM_DELETE");
+
+    // Assert: Cancel precedes the dominant Confirm action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(confirm) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

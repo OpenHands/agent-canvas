@@ -15,7 +15,7 @@ import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -60,7 +60,9 @@ export function ChatInputActions({
   const unifiedPauseMutation = useUnifiedPauseConversation();
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
-  const { conversationId } = useConversationId();
+  // Optional because the chat input also renders on the home page (no
+  // conversation route yet). Conversation-scoped actions below guard on this.
+  const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const webSocketStatus = useUnifiedWebSocketStatus();
@@ -104,7 +106,7 @@ export function ChatInputActions({
     shouldShowAgentTools,
     shouldShowHooks,
   } = useConversationNameContextMenu({
-    conversationId,
+    conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
     showOptions: true,
     onContextMenuToggle: setIsOverflowOpen,
@@ -168,11 +170,13 @@ export function ChatInputActions({
   }, [isCloud]);
 
   const handlePauseAgent = () => {
+    if (!conversationId) return;
     // Pause the conversation (agent execution)
     pauseConversationMutation.mutate({ conversationId });
   };
 
   const handleResumeAgentClick = () => {
+    if (!conversationId) return;
     // Resume the conversation (agent execution)
     resumeConversationMutation.mutate({ conversationId });
   };
@@ -541,7 +545,7 @@ export function ChatInputActions({
         ref={rightSectionRef}
         className="ml-auto flex shrink-0 items-center gap-2"
       >
-        {showAgentStatusInline && (
+        {showAgentStatusInline && conversationId && (
           <AgentStatus
             handleStop={handlePauseAgent}
             handleResumeAgent={handleResumeAgentClick}

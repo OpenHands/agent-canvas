@@ -42,7 +42,18 @@ export interface DirectConversationInfo {
   } | null;
 }
 
-const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
+// Module qualname for the Canvas-UI tool. The agent-server imports this via
+// tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
+// (see scripts/dev-docker.mjs and scripts/dev-safe.mjs).
+const CANVAS_UI_TOOL_NAME = "canvas_ui";
+const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
+
+const DEFAULT_TOOL_NAMES = [
+  "terminal",
+  "file_editor",
+  "task_tracker",
+  CANVAS_UI_TOOL_NAME,
+];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
 const TASK_TOOL_SET_NAME = "task_tool_set";
 const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
@@ -620,9 +631,16 @@ export function buildStartConversationRequest(
     payload.hook_config = conversationSettings.hook_config;
   }
 
-  if (conversationSettings.tool_module_qualnames) {
-    payload.tool_module_qualnames = conversationSettings.tool_module_qualnames;
-  }
+  // Always include the canvas_ui tool module so the agent-server imports it
+  // and registers the tool. User-supplied entries from conversationSettings
+  // take precedence on key conflict (the canvas_ui key is ours and shouldn't
+  // collide in practice).
+  payload.tool_module_qualnames = {
+    [CANVAS_UI_TOOL_NAME]: CANVAS_UI_TOOL_MODULE,
+    ...((conversationSettings.tool_module_qualnames as
+      | Record<string, string>
+      | undefined) ?? {}),
+  };
 
   if (conversationSettings.agent_definitions) {
     payload.agent_definitions = conversationSettings.agent_definitions;

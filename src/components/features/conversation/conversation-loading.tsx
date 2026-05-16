@@ -13,12 +13,21 @@ export function ConversationLoading({ className }: ConversationLoadingProps) {
   return (
     <div
       className={cn(
-        "bg-[var(--oh-surface)] flex flex-col items-center justify-center h-full w-full",
+        "bg-[var(--oh-surface)] flex h-full w-full flex-col items-center justify-center gap-3",
         className,
       )}
     >
-      <LoaderCircle className="animate-spin w-16 h-16" color="white" />
-      <span className="text-2xl font-normal leading-5 text-white p-4">
+      <LoaderCircle
+        className="h-8 w-8 shrink-0 animate-spin text-[var(--oh-text-secondary)]"
+        aria-hidden
+      />
+      <span
+        className="text-base font-normal leading-5"
+        style={{
+          color: "var(--oh-focus, #ffffff)",
+          opacity: 0.8,
+        }}
+      >
         {t(I18nKey.HOME$LOADING)}
       </span>
     </div>

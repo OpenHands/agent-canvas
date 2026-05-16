@@ -205,7 +205,7 @@ describe("OnboardingModal", () => {
 
     // Assert: the slide rail lives inside the scroll region. Long step
     // content overflows this region rather than the modal itself, so
-    // the progress bar and Skip control above it never scroll away.
+    // the progress bar above it never scrolls away. Skip sits below the modal.
     const scrollArea = screen.getByTestId("onboarding-scroll-area");
     const rail = screen.getByTestId("onboarding-slide-rail");
     expect(scrollArea.contains(rail)).toBe(true);

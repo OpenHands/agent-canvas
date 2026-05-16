@@ -2,7 +2,7 @@ import React from "react";
 import { Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { ToolsContextMenu } from "./tools-context-menu";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
@@ -13,7 +13,9 @@ import { HooksModal } from "../conversation-panel/hooks-modal";
 
 export function Tools() {
   const { t } = useTranslation("openhands");
-  const { conversationId } = useConversationId();
+  // Optional because this control also renders inside the home-page chat
+  // input shell, before any conversation exists.
+  const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const [contextMenuOpen, setContextMenuOpen] = React.useState(false);
 
@@ -31,7 +33,7 @@ export function Tools() {
     shouldShowAgentTools,
     shouldShowHooks,
   } = useConversationNameContextMenu({
-    conversationId,
+    conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
     showOptions: true,
     onContextMenuToggle: setContextMenuOpen,
