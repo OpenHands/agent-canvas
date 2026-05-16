@@ -246,6 +246,10 @@ export function BackendForm({
   // already chose one, so don't re-infer over their choice.
   const [touchedKind, setTouchedKind] = React.useState(mode === "edit");
 
+  // Inline validation: only show errors after the user has left a field.
+  const [nameTouched, setNameTouched] = React.useState(false);
+  const [hostTouched, setHostTouched] = React.useState(false);
+
   // Auto-infer kind from host when user hasn't explicitly selected a kind via radio
   React.useEffect(() => {
     if (!touchedKind && host) {
@@ -260,6 +264,18 @@ export function BackendForm({
     name.trim().length > 0 &&
     isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
+
+  // Error messages — only surfaced after the user has blurred the field.
+  const nameError = nameTouched && !name.trim()
+    ? t(I18nKey.BACKEND$NAME_REQUIRED)
+    : undefined;
+  const hostError = hostTouched
+    ? (!host.trim()
+        ? t(I18nKey.BACKEND$HOST_REQUIRED)
+        : !isValidHostUrl(host)
+          ? t(I18nKey.BACKEND$HOST_INVALID)
+          : undefined)
+    : undefined;
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -300,8 +316,11 @@ export function BackendForm({
         label={t(I18nKey.BACKEND$NAME_LABEL)}
         value={name}
         onChange={setName}
+        onBlur={() => setNameTouched(true)}
         placeholder="Production"
         className="w-full"
+        showRequiredTag
+        error={nameError}
       />
 
       <SettingsInput
@@ -311,8 +330,11 @@ export function BackendForm({
         label={t(I18nKey.BACKEND$HOST_LABEL)}
         value={host}
         onChange={setHost}
+        onBlur={() => setHostTouched(true)}
         placeholder="https://app.all-hands.dev"
         className="w-full"
+        showRequiredTag
+        error={hostError}
       />
 
       {/* Device Flow auth for cloud backends in add mode - always visible */}

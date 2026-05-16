@@ -25787,5 +25787,14 @@
     "tr": "Çalışma alanınıza eklenecek yetenekleri keşfedin. İstemler, curl ve yükleme akışları için bir kart açın. Listeyi filtrelemek için kenar çubuğundan arama yapın. Varsayılan yetenekleri etkinleştirin veya devre dışı bırakın. Devre dışı bırakılan yetenekler ajan bağlamına yüklenmez.",
     "uk": "Відкривайте навички для додавання до вашого робочого простору. Відкрийте картку для запитів, curl та процесів встановлення. Шукайте на бічній панелі, щоб фільтрувати список. Увімкніть або вимкніть навички за замовчуванням. Вимкнені навички не завантажуватимуться в контекст агента.",
     "ca": "Descobreix habilitats per afegir al teu espai de treball. Obre una targeta per veure indicacions, curl i fluxos d'instal·lació. Cerca des de la barra lateral per filtrar la llista. Activeu o desactiveu les habilitats predeterminades. Les habilitats desactivades no es carregaran al context de l'agent."
+  },
+  "BACKEND$NAME_REQUIRED": {
+    "en": "Name is required"
+  },
+  "BACKEND$HOST_REQUIRED": {
+    "en": "Host is required"
+  },
+  "BACKEND$HOST_INVALID": {
+    "en": "Enter a valid URL (e.g. http://localhost:8080)"
   }
 }

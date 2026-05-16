@@ -180,7 +180,10 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     );
 
     // 2. Fill only the name; host still empty → Save still disabled.
+    //    Focus + blur the host field to reveal the "Host is required" error.
     await page.getByTestId("add-backend-name").fill("My Backend");
+    await page.getByTestId("add-backend-host").focus();
+    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-name-only-disabled.png",
@@ -495,7 +498,9 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     await page.getByTestId("add-backend-name").fill("Bad URL Test");
 
     // Whitespace-only host → isValidHostUrl returns false → disabled.
+    // Blur the field to reveal the inline "Host is required" error.
     await page.getByTestId("add-backend-host").fill("   ");
+    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-whitespace-host-disabled.png",
@@ -503,8 +508,9 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     );
 
     // A syntactically invalid URL (spaces + garbled scheme) is rejected by
-    // isValidHostUrl() — Save stays disabled.
+    // isValidHostUrl() — Save stays disabled and the inline error explains why.
     await page.getByTestId("add-backend-host").fill("not://:::a valid url!!!");
+    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-invalid-url-disabled.png",
