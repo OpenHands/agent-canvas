@@ -51,6 +51,11 @@ import {
   isPortBusy,
   releaseStaleConversationLeases,
 } from "./dev-safe.mjs";
+import {
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 import { buildAutomationCommand, buildConfig } from "./dev-with-automation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -205,12 +210,12 @@ const processes = new Map();
 let shuttingDown = false;
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, {
+  const proc = spawn(command, args, getProcessTreeSpawnOptions({
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...options.env },
     cwd: options.cwd,
     shell: process.platform === "win32",
-  });
+  }));
 
   const color = options.color || c.reset;
 
@@ -385,6 +390,12 @@ function startStaticServer(config) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
     ],
     {
       cwd: config.canvasPath,
@@ -419,6 +430,12 @@ function startIngress(config) {
       `/ready=http://localhost:${config.agentServerPort}`,
       "--route",
       `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
       "--default",
       `http://localhost:${config.vitePort}`,
     ],
@@ -442,13 +459,14 @@ function shutdown() {
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
-    proc.kill("SIGTERM");
+    signalProcessTree(proc, "SIGTERM");
   }
 
   setTimeout(() => {
-    for (const [, proc] of processes) {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+    for (const [name, proc] of processes) {
+      if (isProcessRunning(proc)) {
+        logService(name, "Force stopping...", c.dim);
+        signalProcessTree(proc, "SIGKILL");
       }
     }
     process.exit(0);

@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the Skills page (/skills).
@@ -78,9 +79,7 @@ async function dismissConsentModal(page: Page) {
  * Wire up the base routes every skills test needs.
  */
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 }
 
 /**

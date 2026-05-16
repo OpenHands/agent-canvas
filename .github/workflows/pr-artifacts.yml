@@ -3,14 +3,14 @@ name: PR Artifacts
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
     branches:
       - main
   pull_request_review:
     types: [submitted]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   cleanup-on-approval:
@@ -211,3 +211,19 @@ jobs:
                 body,
               });
             }
+
+  cleanup-snapshot-artifacts:
+    # Delete the snapshot-artifacts/pr-<N> branch when a PR is closed (merged or abandoned).
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete snapshot artifacts branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="snapshot-artifacts/pr-${{ github.event.pull_request.number }}"
+          if gh api --method DELETE "/repos/${{ github.repository }}/git/refs/heads/${BRANCH}" 2>/dev/null; then
+            echo "Deleted branch '${BRANCH}'."
+          else
+            echo "Branch '${BRANCH}' did not exist — nothing to clean up."
+          fi

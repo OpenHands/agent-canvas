@@ -92,6 +92,22 @@ describe("RenameProfileModal", () => {
     expect(screen.getByText("Cancel")).toBeInTheDocument();
   });
 
+  it("places Cancel before Rename in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    renderModal(mockProfile);
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("Cancel");
+    const submit = screen.getByTestId("rename-profile-submit");
+
+    // Assert: Cancel precedes the dominant Rename action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(submit) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("calls onClose when Cancel is clicked", async () => {
     const user = userEvent.setup();
     const handleClose = vi.fn();

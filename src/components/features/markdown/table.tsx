@@ -9,7 +9,7 @@ export function table({
   ExtraProps) {
   return (
     <div className="my-4 w-full overflow-x-auto">
-      <table className="w-full border-collapse border border-neutral-600 text-sm">
+      <table className="w-full border-collapse border border-[var(--oh-border)] text-sm">
         {children}
       </table>
     </div>
@@ -23,7 +23,7 @@ export function th({
   React.ThHTMLAttributes<HTMLTableCellElement> &
   ExtraProps) {
   return (
-    <th className="border border-neutral-600 bg-neutral-800 px-3 py-2 text-left font-semibold text-white">
+    <th className="border border-[var(--oh-border)] bg-[var(--oh-surface)] px-3 py-2 text-left font-semibold text-white">
       {children}
     </th>
   );
@@ -36,7 +36,7 @@ export function td({
   React.TdHTMLAttributes<HTMLTableCellElement> &
   ExtraProps) {
   return (
-    <td className="border border-neutral-600 px-3 py-2 align-top">
+    <td className="border border-[var(--oh-border)] px-3 py-2 align-top">
       {children}
     </td>
   );

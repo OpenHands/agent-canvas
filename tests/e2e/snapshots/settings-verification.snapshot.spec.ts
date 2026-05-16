@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for:
@@ -23,9 +24,7 @@ async function dismissConsentModal(page: Page) {
 }
 
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 }
 
 test.describe("Settings – Verification & Condenser Visual Snapshots", () => {

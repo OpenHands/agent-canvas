@@ -62,9 +62,9 @@ const beforeMount = (monaco: Monaco) => {
       "diffEditor.removedTextBackground": "#750000AA",
       "diffEditor.insertedLineBackground": "#003f00AA",
       "diffEditor.removedLineBackground": "#5a0000AA",
-      "diffEditor.border": "#444444",
+      "diffEditor.border": "var(--oh-border-subtle)",
       "editorUnnecessaryCode.border": "#00000000",
-      "editorUnnecessaryCode.opacity": "#00000077",
+      "editorUnnecessaryCode.opacity": "rgba(0, 0, 0, 0.467)",
     },
   });
 };
@@ -177,7 +177,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
     if (isMarkdownFile) {
       return (
         <div
-          className="w-full border-b border-[#474A54] overflow-auto p-4 bg-neutral-900 prose prose-invert max-w-none"
+          className="w-full border-b border-[var(--oh-border)] overflow-auto p-4 bg-base prose prose-invert max-w-none"
           data-testid="markdown-preview"
         >
           <MarkdownRenderer
@@ -208,7 +208,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
   return (
     <div data-testid="file-diff-viewer-outer" className="w-full flex flex-col">
       <div
-        className="flex justify-between items-center px-3 py-2.5 border-b border-[#474A54] hover:cursor-pointer"
+        className="flex justify-between items-center px-3 py-2.5 border-b border-[var(--oh-border)] hover:cursor-pointer"
         onClick={() => setIsCollapsed((prev) => !prev)}
       >
         <span className="text-sm w-full text-content flex items-center gap-2">
@@ -228,8 +228,8 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
                   className={cn(
                     "p-1 rounded transition-colors cursor-pointer",
                     viewMode === mode
-                      ? "bg-[#474A54] text-white"
-                      : "text-[#9099ac] hover:bg-[#474A54] hover:text-white",
+                      ? "bg-[var(--oh-interactive-hover)] text-white"
+                      : "text-[var(--oh-muted)] hover:bg-[var(--oh-interactive-hover)] hover:text-white",
                   )}
                 >
                   <Icon className="w-4 h-4" />
@@ -251,7 +251,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
       {!isCollapsed && isDeleted && (
         <div
           data-testid="file-deleted-message"
-          className="w-full border-b border-[#474A54] p-4 bg-neutral-900 text-[#8D95A9] text-sm"
+          className="w-full border-b border-[var(--oh-border)] p-4 bg-base text-[var(--oh-text-dim)] text-sm"
         >
           {t(I18nKey.DIFF_VIEWER$FILE_DELETED)}
         </div>

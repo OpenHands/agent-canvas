@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the 4-step onboarding modal.
@@ -26,10 +27,9 @@ import { test, expect, Page } from "@playwright/test";
 test.describe.configure({ mode: "serial" });
 
 async function setupMocks(page: Page) {
-  // Intentionally do NOT set openhands-onboarded so the modal appears
-  await page.addInitScript(() => {
-    window.localStorage.removeItem("openhands-onboarded");
-  });
+  // removeOnboarded: true ensures the onboarding modal appears.
+  // Analytics consent modal is suppressed (separate concern).
+  await seedLocalStorage(page, { removeOnboarded: true });
 }
 
 async function dismissConsentModal(page: Page) {

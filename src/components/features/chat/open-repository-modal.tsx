@@ -97,7 +97,7 @@ export function OpenRepositoryModal({
     <ModalBackdrop onClose={handleClose}>
       <ModalBody
         width="small"
-        className="items-start border border-tertiary !gap-4"
+        className="items-start border border-[var(--oh-border)] !gap-4"
       >
         <div className="flex flex-col gap-4 w-full">
           <div className="flex items-center gap-[10px]">
@@ -143,25 +143,19 @@ export function OpenRepositoryModal({
         </div>
 
         <div
-          className="flex flex-col gap-2 w-full"
+          className="flex justify-end gap-2 w-full"
           onClick={(event) => event.stopPropagation()}
         >
+          <BrandButton type="button" variant="secondary" onClick={handleClose}>
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
           <BrandButton
             type="button"
             variant="primary"
             onClick={handleLaunch}
-            className="w-full"
             isDisabled={!canLaunch}
           >
             {t(I18nKey.BUTTON$LAUNCH)}
-          </BrandButton>
-          <BrandButton
-            type="button"
-            variant="secondary"
-            onClick={handleClose}
-            className="w-full"
-          >
-            {t(I18nKey.BUTTON$CANCEL)}
           </BrandButton>
         </div>
       </ModalBody>

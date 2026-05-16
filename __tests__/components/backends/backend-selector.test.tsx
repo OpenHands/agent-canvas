@@ -733,7 +733,7 @@ describe("BackendSelector", () => {
     );
 
     const settingsButton = screen.getByTestId("backend-selector-settings-link");
-    expect(settingsButton.className).toContain("bg-[#1f1f1f99]");
+    expect(settingsButton.className).toContain("bg-tertiary");
     expect(settingsButton.className).toContain("text-white");
 
     const user = await openDropdown();

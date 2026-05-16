@@ -16,9 +16,9 @@ interface ConversationStatusDotProps {
 type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
 
 const SUCCESS_GREEN = "#1FBD53";
-const PAUSED_GRAY = "#A3A3A3";
+const PAUSED_GRAY = "var(--oh-muted)";
 const ERROR_RED = "#FF684E";
-const UNKNOWN_GRAY = "#3C3C49";
+const UNKNOWN_GRAY = "var(--oh-color-tertiary)";
 
 const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
@@ -139,7 +139,7 @@ export function ConversationStatusDot({
       content={label}
       placement="right"
       showArrow
-      tooltipClassName="bg-[#1a1a1a] text-white text-xs shadow-lg"
+      tooltipClassName="bg-base text-white text-xs shadow-lg"
     >
       {dot}
     </StyledTooltip>

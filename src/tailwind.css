@@ -19,49 +19,99 @@
   --color-basic: var(--oh-color-basic);
   --color-tertiary: var(--oh-color-tertiary);
   --color-tertiary-light: var(--oh-color-tertiary-light);
+  --color-tertiary-alt: var(--oh-text-dim);
   --color-content: var(--oh-color-content);
   --color-content-2: var(--oh-color-content-2);
+
+  /* Semantic surface aliases */
+  --color-surface: var(--oh-surface);
+  --color-surface-raised: var(--oh-surface-raised);
+  --color-surface-deep: var(--oh-surface-deep);
+
+  /* Semantic text aliases */
+  --color-foreground: var(--oh-foreground);
+  --color-text-secondary: var(--oh-text-secondary);
+  --color-text-tertiary: var(--oh-text-tertiary);
+  --color-muted: var(--oh-muted);
+  --color-text-dim: var(--oh-text-dim);
+  --color-text-subtle: var(--oh-text-subtle);
+
+  /* Semantic border aliases */
+  --color-border-input: var(--oh-border-input);
+  --color-border-subtle: var(--oh-border-subtle);
+
+  /* Interactive state aliases */
+  --color-interactive-hover: var(--oh-interactive-hover);
+  --color-interactive-hover-low: var(--oh-interactive-hover-low);
+  --color-interactive-active: var(--oh-interactive-active);
+
+  /* Cool Grey scale */
+  --color-cool-grey-50:  var(--cool-grey-50);
+  --color-cool-grey-100: var(--cool-grey-100);
+  --color-cool-grey-200: var(--cool-grey-200);
+  --color-cool-grey-300: var(--cool-grey-300);
+  --color-cool-grey-400: var(--cool-grey-400);
+  --color-cool-grey-500: var(--cool-grey-500);
+  --color-cool-grey-600: var(--cool-grey-600);
+  --color-cool-grey-700: var(--cool-grey-700);
+  --color-cool-grey-800: var(--cool-grey-800);
+  --color-cool-grey-900: var(--cool-grey-900);
+  --color-cool-grey-925: var(--cool-grey-925);
+  --color-cool-grey-950: var(--cool-grey-950);
+  --color-cool-grey-975: var(--cool-grey-975);
 }
 
 :root {
   color-scheme: dark;
   --oh-color-primary: #c9b974;
   --oh-color-logo: #cfb755;
-  --oh-color-base: #0d0f11;
-  --oh-color-base-secondary: #24272e;
+  --oh-color-base: var(--cool-grey-950);
+  --oh-color-base-secondary: var(--cool-grey-925);
   --oh-color-danger: #e76a5e;
   --oh-color-success: #a5e75e;
-  --oh-color-basic: #9099ac;
-  --oh-color-tertiary: #454545;
-  --oh-color-tertiary-light: #b7bdc2;
-  --oh-color-content: #ecedee;
-  --oh-color-content-2: #f9fbfe;
-  --oh-background: #0d0f11;
-  --oh-foreground: #ecedee;
-  --oh-surface: #24272e;
-  --oh-surface-foreground: #ecedee;
-  --oh-overlay: #24272e;
-  --oh-overlay-foreground: #ecedee;
-  --oh-muted: #9099ac;
+  --oh-color-basic: var(--cool-grey-400);
+  --oh-color-tertiary: var(--cool-grey-800);
+  --oh-color-tertiary-light: var(--cool-grey-300);
+  --oh-color-content: var(--cool-grey-100);
+  --oh-color-content-2: var(--cool-grey-50);
+  --oh-background: var(--cool-grey-950);
+  --oh-foreground: var(--cool-grey-100);
+  --oh-surface: var(--cool-grey-925);
+  --oh-surface-foreground: var(--cool-grey-100);
+  --oh-surface-raised: var(--cool-grey-900);  /* elevated within a panel */
+  --oh-surface-deep: var(--cool-grey-975);    /* deep inset, context menus */
+  --oh-overlay: var(--cool-grey-925);
+  --oh-overlay-foreground: var(--cool-grey-100);
+  --oh-muted: var(--cool-grey-400);
+  --oh-text-secondary: var(--cool-grey-300);  /* readable secondary text */
+  --oh-text-tertiary: var(--cool-grey-200);   /* tertiary, slightly dimmer */
+  --oh-text-dim: var(--cool-grey-500);        /* placeholders, very muted */
+  --oh-text-subtle: var(--cool-grey-600);     /* subtle labels, breadcrumbs */
+  --oh-interactive-hover: var(--cool-grey-700);      /* hover on mid surfaces (800 bg) */
+  --oh-interactive-hover-low: var(--cool-grey-900);  /* hover on dark base (950 bg) */
+  --oh-interactive-active: var(--cool-grey-800);     /* selected/active on dark base */
+  --oh-interactive-selected: var(--cool-grey-600);   /* selected within a panel (on 800/925 bg) */
   --oh-scrollbar: rgba(208, 217, 250, 0.3);
-  --oh-default: #454545;
-  --oh-default-foreground: #ecedee;
+  --oh-default: var(--cool-grey-800);
+  --oh-default-foreground: var(--cool-grey-100);
   --oh-accent: #c9b974;
-  --oh-accent-foreground: #0d0f11;
+  --oh-accent-foreground: var(--cool-grey-950);
   --oh-success: #a5e75e;
-  --oh-success-foreground: #0d0f11;
+  --oh-success-foreground: var(--cool-grey-950);
   --oh-warning: #c9b974;
-  --oh-warning-foreground: #0d0f11;
+  --oh-warning-foreground: var(--cool-grey-950);
   --oh-danger: #e76a5e;
-  --oh-danger-foreground: #f9fbfe;
-  --oh-segment: #24272e;
-  --oh-segment-foreground: #ecedee;
+  --oh-danger-foreground: var(--cool-grey-50);
+  --oh-segment: var(--cool-grey-925);
+  --oh-segment-foreground: var(--cool-grey-100);
   --oh-border-width: 1px;
   --oh-field-border-width: 1px;
-  --oh-border: #717888;
+  --oh-border: var(--cool-grey-700);
+  --oh-border-input: var(--cool-grey-700);   /* unified with --oh-border; same stroke weight everywhere */
+  --oh-border-subtle: var(--cool-grey-800);  /* within-panel separators, list dividers */
   --oh-separator: rgba(113, 120, 136, 0.5);
-  --oh-focus: #c9b974;
-  --oh-link: #ecedee;
+  --oh-focus: #ffffff;
+  --oh-link: var(--cool-grey-100);
   --oh-radius: 5px;
   --oh-field-radius: 5px;
   --oh-surface-shadow: none;
@@ -70,6 +120,8 @@
   --background: var(--oh-background);
   --foreground: var(--oh-foreground);
   --surface: var(--oh-surface);
+  --surface-raised: var(--oh-surface-raised);
+  --surface-deep: var(--oh-surface-deep);
   --surface-foreground: var(--oh-surface-foreground);
   --overlay: var(--oh-overlay);
   --overlay-foreground: var(--oh-overlay-foreground);
@@ -101,7 +153,7 @@
 }
 
 .button-base {
-  @apply bg-tertiary border border-neutral-600 rounded-xs;
+  @apply bg-tertiary border border-[var(--oh-border)] rounded-xs;
 }
 
 .skeleton {
@@ -184,7 +236,7 @@
 /* Custom styles for contenteditable */
 .chat-input:empty:before {
   content: attr(data-placeholder);
-  color: #959cb2;
+  color: var(--cool-grey-400);
   pointer-events: none;
   font-size: 16px;
   font-weight: 400;
@@ -247,7 +299,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #d0d9fa;
+  color: var(--cool-grey-200);
 }
 
 .file-preview .file-icon {
@@ -264,7 +316,7 @@
 }
 
 .file-preview .file-size {
-  color: #959cb2;
+  color: var(--cool-grey-400);
   font-size: 10px;
 }
 
@@ -278,7 +330,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #d0d9fa;
+  color: var(--cool-grey-200);
   font-size: 10px;
   transition: background-color 0.2s;
 }
@@ -438,7 +490,7 @@
 }
 
 .git-external-link-icon {
-  background: linear-gradient(90deg, rgba(69, 69, 69, 0) 0.35%, #454545 41.39%);
+  background: linear-gradient(90deg, rgba(69, 69, 69, 0) 0.35%, var(--cool-grey-800) 41.39%);
 }
 
 .api-configuration-modal {
@@ -468,7 +520,7 @@
   background:
     radial-gradient(circle at center, rgb(24 24 27 / 85%), transparent) -200%
       50% / 200% 100% no-repeat,
-    #f4f4f5;
+    var(--cool-grey-50);
 }
 
 /* CTA card gradient and shadow */

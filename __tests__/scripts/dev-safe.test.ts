@@ -1,3 +1,10 @@
+// @vitest-environment node
+// These tests load `scripts/dev-safe.mjs`, which constructs file:// URLs
+// relative to its own location via `new URL("../tools", import.meta.url)`.
+// jsdom's URL constructor ignores file:// base URLs (it falls back to its
+// document base, e.g. http://localhost:3000/), breaking that resolution;
+// the Node environment has the standard WHATWG URL behavior that honors
+// the file:// base.
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -12,6 +19,7 @@ import {
   buildSafeDevConfigAsync,
   buildNpmScriptCommand,
   buildAgentServerCommand,
+  buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
   formatMissingFrontendDependenciesGuidance,
   getMissingFrontendDependencyBins,
@@ -287,7 +295,9 @@ describe("formatMissingUvxGuidance", () => {
       "/workspace/project/agent-canvas",
     );
 
-    expect(guidance).toContain("curl -LsSf https://astral.sh/uv/install.sh | sh");
+    expect(guidance).toContain(
+      "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    );
     expect(guidance).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(guidance).toContain("command -v uvx");
     expect(guidance).toContain(
@@ -309,14 +319,14 @@ describe("buildAgentServerCommand", () => {
     // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "openhands-agent-server==1.22.0",
+      "openhands-agent-server==1.22.1",
       "--with",
-      "openhands-tools==1.22.0",
+      "openhands-tools==1.22.1",
       "--with",
-      "openhands-workspace==1.22.0",
+      "openhands-workspace==1.22.1",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("PyPI (1.22.0, default)");
+    expect(cmd.source).toBe("PyPI (1.22.1, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -338,7 +348,9 @@ describe("buildAgentServerCommand", () => {
   });
 
   it("uses git ref with subdirectory syntax for monorepo", () => {
-    const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_GIT_REF: "feature-branch" });
+    const cmd = buildAgentServerCommand({
+      OH_AGENT_SERVER_GIT_REF: "feature-branch",
+    });
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
@@ -734,5 +746,156 @@ describe("dev-safe CLI startup", () => {
     expect(output).toContain("README.md");
     expect(output).toContain("npm run dev:mock");
     expect(output).toContain("spawn uvx ENOENT");
+  });
+});
+
+interface RuntimeServiceEntry {
+  kind?: string;
+  description?: string;
+  url_from_agent?: string;
+  api_prefix?: string;
+  docs_url?: string;
+  openapi_url?: string;
+  auth_env_var?: string;
+}
+interface RuntimeServicesInfoShape {
+  mode: string;
+  agent_host_alias: string;
+  services: {
+    agent_server?: RuntimeServiceEntry;
+    ingress?: RuntimeServiceEntry;
+    frontend?: RuntimeServiceEntry;
+    automation?: RuntimeServiceEntry;
+  };
+}
+
+describe("buildRuntimeServicesInfo", () => {
+  it("describes only the agent-server in a minimal dev-safe stack", () => {
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+    }) as RuntimeServicesInfoShape;
+    expect(info).toEqual({
+      mode: "dev:safe",
+      agent_host_alias: "localhost",
+      services: {
+        agent_server: {
+          description: expect.any(String),
+          url_from_agent: "http://localhost:18000",
+        },
+      },
+    });
+  });
+
+  it("includes ingress, frontend (vite), and automation entries when ports are provided", () => {
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:automation",
+      agentServerPort: 18000,
+      ingressPort: 8000,
+      frontendPort: 3001,
+      automation: { port: 18001 },
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.ingress?.url_from_agent).toBe("http://localhost:8000");
+    expect(info.services.frontend).toMatchObject({
+      kind: "vite",
+      url_from_agent: "http://localhost:3001",
+    });
+    expect(info.services.frontend?.description).toMatch(/Vite dev server/i);
+    expect(info.services.automation).toMatchObject({
+      url_from_agent: "http://localhost:18001",
+      api_prefix: "/api/automation",
+      docs_url: "http://localhost:18001/api/automation/docs",
+      openapi_url: "http://localhost:18001/api/automation/openapi.json",
+      auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+    });
+  });
+
+  it("uses host.docker.internal as the agent host alias in docker mode", () => {
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:docker",
+      agentHostAlias: "host.docker.internal",
+      agentServerPort: 8000,
+      ingressPort: 8000,
+      frontendPort: 3001,
+      frontendKind: "static",
+      automation: { port: 18001 },
+    }) as RuntimeServicesInfoShape;
+    // Agent-server URL is always localhost (the agent is *inside* it).
+    expect(info.services.agent_server?.url_from_agent).toBe(
+      "http://localhost:8000",
+    );
+    // Host-side services use the docker alias.
+    expect(info.services.ingress?.url_from_agent).toBe(
+      "http://host.docker.internal:8000",
+    );
+    expect(info.services.frontend?.url_from_agent).toBe(
+      "http://host.docker.internal:3001",
+    );
+    // Static-mode description, not "Vite dev server".
+    expect(info.services.frontend?.kind).toBe("static");
+    expect(info.services.frontend?.description).toMatch(/Static-file server/i);
+    expect(info.services.frontend?.description).not.toMatch(/Vite/i);
+    expect(info.services.automation?.url_from_agent).toBe(
+      "http://host.docker.internal:18001",
+    );
+  });
+
+  it("allows overriding the api prefix and auth env var", () => {
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:custom",
+      agentServerPort: 18000,
+      automation: {
+        port: 9000,
+        apiPrefix: "/v2/auto",
+        authEnvVar: "MY_KEY",
+      },
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.automation).toMatchObject({
+      api_prefix: "/v2/auto",
+      docs_url: "http://localhost:9000/v2/auto/docs",
+      openapi_url: "http://localhost:9000/v2/auto/openapi.json",
+      auth_env_var: "MY_KEY",
+    });
+  });
+
+  it("omits the automation entry when none is provided", () => {
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+      ingressPort: 8000,
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.automation).toBeUndefined();
+  });
+
+  it("omits the automation entry when the object lacks a port", () => {
+    // A bare `{}` previously slipped through and produced
+    // `http://localhost:undefined`; require the port explicitly.
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+      automation: {},
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.automation).toBeUndefined();
+  });
+
+  it("throws when agentServerPort is missing", () => {
+    expect(() =>
+      buildRuntimeServicesInfo({
+        mode: "dev:safe",
+      }),
+    ).toThrow(/agentServerPort is required/);
+  });
+
+  it("accepts the legacy vitePort alias for frontendPort", () => {
+    // dev-safe.mjs's `main()` and some external callers still pass the
+    // older option name; keep them working for one release.
+    const info = buildRuntimeServicesInfo({
+      mode: "dev:safe",
+      agentServerPort: 18000,
+      vitePort: 3001,
+    }) as RuntimeServicesInfoShape;
+    expect(info.services.frontend?.url_from_agent).toBe(
+      "http://localhost:3001",
+    );
   });
 });

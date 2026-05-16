@@ -19,13 +19,96 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## Runtime Services in Dev Stacks
+
+- When the agent-canvas dev launchers (`npm run dev:safe` / `dev:automation` / `dev:docker` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
+- The block lists URLs **from the agent's point of view**:
+  - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
+  - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>` in dockerless modes and `http://host.docker.internal:<port>` in `dev:docker`.
+- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
+- The launcher → frontend → suffix plumbing is:
+  - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
+  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
+  - `scripts/dev-docker.mjs` and `bin/agent-canvas.mjs` pass `agentHostAlias: "host.docker.internal"` to `main()` because the agent-server runs in a container in those modes.
+  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
+
+### `VITE_RUNTIME_SERVICES_INFO` shape
+
+The env var is a JSON string of:
+
+```json
+{
+  "mode": "dev:docker",
+  "agent_host_alias": "host.docker.internal",
+  "services": {
+    "agent_server": {
+      "description": "The OpenHands Agent Server this agent is running inside. ...",
+      "url_from_agent": "http://localhost:8000"
+    },
+    "ingress": {
+      "description": "Unified entry point. Routes /api/automation/* ...",
+      "url_from_agent": "http://host.docker.internal:8000"
+    },
+    "frontend": {
+      "kind": "vite",
+      "description": "Vite dev server hosting the agent-canvas frontend.",
+      "url_from_agent": "http://host.docker.internal:3001"
+    },
+    "automation": {
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "url_from_agent": "http://host.docker.internal:18001",
+      "api_prefix": "/api/automation",
+      "docs_url": "http://host.docker.internal:18001/api/automation/docs",
+      "openapi_url": "http://host.docker.internal:18001/api/automation/openapi.json",
+      "auth_env_var": "OPENHANDS_AUTOMATION_API_KEY"
+    }
+  }
+}
+```
+
+All keys under `services` are optional and omitted when the corresponding service isn't running. `frontend.kind` is `"vite"` for dev launchers running the Vite dev server and `"static"` for stacks serving a pre-built `build/` directory (`dev:docker`, `dev:dangerously-dockerless`, the published `agent-canvas` binary). `services.vite` is accepted as a legacy alias for `services.frontend` by the renderer.
+
+### Example `<RUNTIME_SERVICES>` block (dev:docker with automation)
+
+```
+<RUNTIME_SERVICES>
+You are running inside an agent-canvas dev stack started in 'dev:docker' mode.
+The following services are reachable from your sandbox. URLs are written
+from your point of view (i.e., as you should curl/fetch them).
+
+* Agent Server (you): http://localhost:8000
+    The OpenHands Agent Server this agent is running inside. Tool calls (terminal, file_editor, browser, etc.) execute here.
+* Ingress: http://host.docker.internal:8000
+    Unified entry point. Routes /api/automation/* to the automation backend, /api/* and /sockets to the agent-server, and /* to the frontend.
+* Frontend: http://host.docker.internal:3001
+    Static-file server hosting the agent-canvas production build.
+* Automation backend: http://host.docker.internal:18001
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    Docs:    http://host.docker.internal:18001/api/automation/docs
+    OpenAPI: http://host.docker.internal:18001/api/automation/openapi.json
+    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+
+Trust this block over guessing: do not assume any other URLs are running.
+In particular, http://localhost:8000 inside your sandbox is the Agent Server
+you are running inside of — NOT the automation backend.
+</RUNTIME_SERVICES>
+```
+
 ## Visual Snapshot Testing
 
-- Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baseline images in `tests/e2e/__snapshots__/`.
-- Run with `npm run test:e2e:snapshots`; update baselines after intentional UI changes with `npm run test:e2e:snapshots:update`.
-- CI runs snapshots via `.github/workflows/snapshot-tests.yml` on every PR/push to main; failures upload diff artifacts.
-- **Updating snapshots in CI**: Snapshots must be generated in CI to avoid local/CI rendering differences. Run the workflow manually from Actions tab with "Update baseline snapshots" checked, or via CLI: `gh workflow run snapshot-tests.yml --ref <branch> -f update_snapshots=true`.
-- **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report with visual diffs.
+- Snapshot tests live in `tests/e2e/snapshots/` and compare screenshots against baselines stored as GitHub Actions artifacts (NOT in git).
+- **Baseline storage**: Baselines are stored as the `snapshot-baselines` artifact (90-day retention), uploaded on every push to `main`. They are never committed to the repository — `tests/e2e/__snapshots__/` is gitignored. The artifact is found by querying the artifacts API by name (not by workflow run status) so only runs that actually uploaded the artifact are matched.
+- Run locally with `npm run test:e2e:snapshots`; generate/update snapshots with `npm run test:e2e:snapshots:update`.
+- **CI workflow (`snapshot-tests.yml`)**:
+  - **On `main`**: Runs `test:e2e:snapshots:update`, uploads `tests/e2e/__snapshots__/` as the `snapshot-baselines` artifact (90 days).
+  - **On PRs**: Downloads the latest `snapshot-baselines` artifact, runs `test:e2e:snapshots` against it, generates current snapshots via `test:e2e:snapshots:update`, then posts a fresh PR comment (old comment is deleted first so image URLs always point to the current run). Changed snapshots are shown in a side-by-side expected/actual/diff table; new snapshots show the full screenshot. Images are force-pushed to a dedicated `snapshot-artifacts/pr-<N>` orphan branch (NOT the PR branch) so required CI checks are never invalidated. URLs are `raw.githubusercontent.com/<owner>/<repo>/<sha>/changed/...` or `.../new/...`. Triggers: `opened`, `synchronize`, `reopened`, `labeled`, `unlabeled`.
+  - **Force-regenerate baselines**: Trigger the `Snapshot Tests` workflow manually with `force_update=true`.
+- **PR comment**: `tests/e2e/snapshots/scripts/post-snapshot-comment.mjs` posts a fresh comment (`<!-- snapshot-test-report -->` marker) with collapsed `<details>` sections — 🔴 Changed (side-by-side expected/actual/diff), 🆕 New (full screenshot), ✅ Unchanged (list of names).
+- **Critical ordering note**: Playwright clears `test-results/` at the start of every new run. The workflow runs two Playwright passes: (1) `test:e2e:snapshots` (comparison, writes `*-diff.png`), then (2) `test:e2e:snapshots:update` (regenerates baselines, clears `test-results/`, no diffs written). The "Save comparison test-results" step copies `test-results/` to `/tmp/comparison-results` between these two passes and passes it as `COMPARISON_RESULTS_DIR` to the comment script, which reads `TEST_RESULTS_DIR` from that env var. Without this step all snapshots appear "unchanged" because the diff files are gone.
+- **Acknowledging intentional changes**: If snapshots changed on purpose (UI redesign, etc.), add the `update-snapshots` label to the PR. This causes: (1) the CI failure step to be skipped so the check passes, (2) the comment status to flip to ✅ with a note that changes are acknowledged, (3) the `labeled` trigger fires a fresh CI run automatically so no manual re-run is needed. Removing the label re-enables the failure. When the PR merges, the main-branch run uploads the new screenshots as the updated baseline — no separate "regenerate on main" step required.
+- **Viewing diffs**: On failure, Playwright generates `*-actual.png`, `*-expected.png`, and `*-diff.png` in `test-results/`. Run `npx playwright show-report` to view the HTML report. The PR comment also embeds these images directly.
+- **Bootstrap**: When no `snapshot-baselines` artifact exists on main yet, all snapshots are classified as "🆕 New" and CI passes. The first main-branch run after this state uploads the initial artifact.
+- **Image branch cleanup**: the `snapshot-artifacts/pr-<N>` branch is deleted automatically by the `cleanup-snapshot-artifacts` job in `pr-artifacts.yml` when the PR is closed (merged or abandoned). No manual cleanup needed.
 - Key patterns for writing snapshot tests:
   - Use `setupMocks(page, showConsentModal)` helper to configure API mocks consistently.
   - Use `dismissConsentModal(page)` after navigation to dismiss the analytics modal.
@@ -37,7 +120,7 @@
 - **Composing tests**: Use `test.step()` for iterative snapshots within a single test, or extract helper functions (like `navigateToSettings(page)`) to share setup across tests. For heavier reuse, use Playwright fixtures via `test.extend()`.
 - Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
 - **Conversation page snapshot tests**: The dev server uses MSW service workers for API mocking. For conversation-page tests, rely on MSW's pre-defined mock conversations (IDs "1", "2", "3" in `src/mocks/conversation-handlers.ts`) rather than fighting Playwright route interception. MSW's service worker intercepts requests before Playwright `page.route()` can; Playwright route interceptors only see requests that escape the service worker. Stub WebSocket via `page.addInitScript()` and inject events into the Zustand store via the exposed `window.__OH_EVENT_STORE__` API. Use `test.describe.configure({ mode: "serial" })` for conversation tests since the WebSocket stub + heavier page setup can cause intermittent failures in parallel mode.
-- **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Always regenerate baselines in CI after adding new snapshot tests: trigger the "Snapshot Tests" workflow manually with `update_snapshots=true`. The workflow commits updated baselines with `[skip ci]`, so push an empty commit afterward to trigger a fresh CI run that validates against the new baselines.
+- **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Baselines are regenerated automatically on every push to `main`. After adding new snapshot tests, open a PR — the new snapshots will be shown as "🆕 New" in the PR comment and become the baseline when the PR merges. To force-refresh baselines from main without waiting for a code push, trigger the "Snapshot Tests" workflow manually with `force_update=true`.
 - **MSW handler state is PAGE-level JS, not service-worker state**: In MSW 2.x browser mode the request handlers (including mutable Maps like `automations`) are compiled into the client bundle and run in the main thread. `page.reload()` re-initialises all module-level state (e.g. `const automations = new Map(...)` runs fresh on every page load). Tests that need to show an "empty list" state must NOT call `page.reload()` after deleting items. Instead: make the DELETE fetches from `page.evaluate()` (which DO go through MSW), then call `window.__TEST_INVALIDATE_QUERIES__()` (exposed in mock mode by `entry.client.tsx`) to trigger React Query's cache invalidation in-place without a reload. Example: the automations empty-state snapshot test in `tests/e2e/snapshots/automations.snapshot.spec.ts`.
 
 ## Live End-to-End Test Framework
@@ -56,7 +139,7 @@
 - Keep live E2E secrets out of job-level `env`. The workflow should check whether credentials exist before checkout, but inject the LLM key only into the trusted step that actually runs the live test.
 - The live job uploads the Playwright HTML report plus screenshot/video output as a GitHub Actions artifact, and also extracts the primary screenshot/video attachments. It converts the WebM recording to a GIF preview with `ffmpeg` so GitHub PR comments can inline the preview. Keep Playwright trace capture disabled for live tests because the setup flow sends LLM credentials to the Agent Server settings API, and traces can record request bodies. Failure messages around live Agent Server settings must not print response bodies from credential-bearing requests.
 - Inline PR-comment media is stored as PR-only files under `.pr/live-e2e/<github_run_id>/` on the PR branch, not on a long-lived orphan media branch. The comment uses `raw.githubusercontent.com/<repo>/<artifact_commit>/.pr/live-e2e/...` URLs for the GIF and PNG so GitHub can render them inline. The WebM is linked as the full recording because GitHub comments do not reliably inline WebM.
-- `.github/workflows/pr-artifacts.yml` owns `.pr/` cleanup. It comments when `.pr/` artifacts exist and removes `.pr/` after PR approval for same-repo PRs, keeping generated QA media out of the final squash merge. Fork PRs require manual cleanup.
+- `.github/workflows/pr-artifacts.yml` owns two cleanup responsibilities: (1) `.pr/live-e2e/` — comments when `.pr/` artifacts exist and removes them after PR approval for same-repo PRs (fork PRs require manual cleanup); (2) `snapshot-artifacts/pr-<N>` — deletes the snapshot image orphan branch when the PR is closed (merged or abandoned), via the `cleanup-snapshot-artifacts` job triggered on `pull_request: [closed]`.
 - The live reporting scripts live beside the live tests under `tests/e2e/live/scripts/`: `run-live-e2e.mjs`, `extract-live-e2e-media.mjs`, `render-live-e2e-report.mjs`, and `upsert-pr-comment.mjs`. Keep report/comment/local-runner logic there rather than in top-level `scripts/`, because these scripts are part of the live E2E framework.
 - When changing any part of this framework — live workflow triggers, artifact publishing, `.pr` cleanup, live Playwright config, live test file layout, helper locations, local runner behavior, or report/comment scripts — update this `AGENTS.md` section in the same PR so future agents have the current operating model.
 
@@ -76,6 +159,94 @@
 
 - `@openhands/typescript-client` is currently pinned to commit `ef62e82fc3dfb03991a1c8025429caf354427263` because the package metadata needed by this PR has not been published as a consistent npm/tagged release yet. That commit ships the needed typed clients plus subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
 - The `@openhands/typescript-client` git dep must be expressed as a `git+https://github.com/...` URL in both `package.json` and the top-level dep entry of `package-lock.json`; the `github:OpenHands/...` shorthand normalizes to `git+ssh://` inside the lockfile, and Vercel's build environment has no GitHub SSH key, so an ssh-pinned lockfile makes Vercel fall back to a stale cached tarball and the bundler then fails with `[MISSING_EXPORT] ConversationClient/FileClient/SharedClient is not exported by .../dist/clients.js`. `scripts/vercel-install.sh` (wired up via `vercel.json`'s `installCommand`) defensively rewrites any leftover `git+ssh://git@github.com/` resolved URLs to `git+https://github.com/` and adds matching `git config --global url..insteadOf` aliases before invoking `npm ci`, so a future regression that re-introduces an ssh-pinned lockfile entry still builds on Vercel. See GitHub issue #384 for the original failure and PR #382 for the prior single-shot lockfile fix that this generalizes.
+## API Access Rules
+
+Two strict conventions govern every REST call in the frontend. Violations break CI
+via `src/api/no-direct-agent-server-calls.test.ts`.
+
+### Rule 1 -- Agent-server calls must use `@openhands/typescript-client`
+
+All calls that target the local agent-server (`/api/*`, `/server_info`, `/sockets`)
+**must** go through typed client classes from `@openhands/typescript-client`, **never**
+raw `axios`, `fetch`, or the legacy shared `openHands` axios instance.
+
+Available clients and their subpath imports:
+- `ConversationClient` -- `@openhands/typescript-client/clients`
+- `FileClient` -- `@openhands/typescript-client/clients`
+- `VSCodeClient` -- `@openhands/typescript-client/clients`
+- `ServerClient` -- `@openhands/typescript-client/clients`
+- `HttpClient` -- `@openhands/typescript-client/client/http-client`
+- `RemoteWorkspace` -- `@openhands/typescript-client/workspace/remote-workspace`
+- `RemoteEventsList` -- `@openhands/typescript-client/events/remote-events-list`
+
+Client options are always assembled via helpers in `src/api/agent-server-client-options.ts`:
+- `getAgentServerClientOptions(overrides?)` -- for SDK client constructors
+- `getAgentServerHttpClientOptions(overrides?)` -- for `HttpClient`-based callers
+
+These helpers read host, session API key, and working directory from the active backend
+registry and env config, so callers never hardcode URLs or auth tokens.
+
+```ts
+// CORRECT
+const data = await new ConversationClient(getAgentServerClientOptions()).getConversation(id);
+const file = await new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
+
+// WRONG -- raw axios/fetch calls fail the no-direct-agent-server-calls.test.ts guard
+const data = await axios.get(`${host}/api/conversations/${id}`);
+const data = await fetch(`/api/conversations/${id}`);
+```
+
+**Allowed exceptions** (files that may use axios directly for infrastructure reasons):
+- `src/api/automation-service/automation-service.api.ts`
+- `src/api/cloud/proxy.ts` -- the proxy envelope POST itself
+
+### Rule 2 -- Cloud backend routes must go through `callCloudProxy`
+
+Any call from the browser to the cloud SaaS backend (`app.all-hands.dev`) or a cloud
+runtime sandbox (`*.prod-runtime.all-hands.dev`) **must** go through `callCloudProxy()`
+in `src/api/cloud/proxy.ts`. These origins do not permit CORS from `localhost`;
+`callCloudProxy` POSTs the request envelope to `/api/cloud-proxy` on the local
+agent-server, which forwards it server-side.
+
+```ts
+import { callCloudProxy } from "../cloud/proxy";
+
+// CORRECT -- cloud SaaS endpoint
+const result = await callCloudProxy<ResponseType>({
+  backend,
+  method: "GET",
+  path: `/api/v1/app-conversations/search?${params}`,
+});
+
+// CORRECT -- cloud runtime sandbox, auth via session key
+const result = await callCloudProxy<ResponseType>({
+  backend,
+  method: "GET",
+  hostOverride: buildHttpBaseUrl(conversationUrl),
+  path: `/api/git/changes?path=${path}`,
+  authMode: "session-api-key",
+  sessionApiKey,
+});
+
+// WRONG -- direct fetch/axios to a cloud host is blocked by CORS in the browser
+const result = await axios.get(`${backend.host}/api/v1/app-conversations`);
+```
+
+`callCloudProxy` key options:
+- `backend` -- the cloud `Backend` object (provides host and bearer token)
+- `hostOverride` -- override for runtime-sandbox calls; replaces `backend.host`
+- `authMode` -- `"bearer"` (default, cloud SaaS) | `"session-api-key"` (runtime sandbox) | `"none"`
+- `sessionApiKey` -- required when `authMode === "session-api-key"`
+
+Standard cloud/local branch pattern used throughout the service layer:
+
+```ts
+if (getActiveBackend().backend.kind === "cloud") {
+  return callCloudProxy({ backend: active, ... });
+}
+return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
+```
+
 - Use `@openhands/typescript-client` classes directly for agent-server-backed REST/workspace/event/VS Code calls. Centralize host/session API key/working-directory option assembly through `src/api/agent-server-client-options.ts`; the backend fallback policy itself lives in `src/api/backend-registry/active-store.ts`.
 - Local verification/build gotchas:
   - `npm run typecheck` assumes generated translation types exist; run `npm run make-i18n` first if `src/i18n/declaration.ts` is missing.
@@ -143,19 +314,19 @@
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.22.0")
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.22.1")
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
-  - Default: released PyPI version `1.22.0` for agent-server SDK libraries
-- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`, and serves a static frontend build by default for stable user/tunnel access. Use `npm run dev:docker:dynamic` or `node scripts/dev-docker.mjs --dynamic` for the Vite dev server. The default image uses versioned release tags:
-  - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.0-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
+  - Default: released PyPI version `1.22.1` for agent-server SDK libraries
+- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`, and serves a static frontend build by default for stable user/tunnel access. The required host-projects env var is `PROJECTS_PATH` and it is mounted into the container at `/projects`. Use `npm run dev:docker:dynamic` or `node scripts/dev-docker.mjs --dynamic` for the Vite dev server. The default image uses versioned release tags:
+  - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.1-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
   - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
   - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
   - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
   - The container runs as the host UID/GID when Node exposes `process.getuid()` / `process.getgid()`. In the default isolated-home mode, `/home/openhands` is a writable tmpfs and persistence remains at `/home/openhands/.openhands`, so host-owned bind mounts remain writable without persisting ordinary home cache/config files.
-- Security: Both `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys on each startup for better security isolation:
-  - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; auto-generated per session unless overridden via env var
-  - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; auto-generated per session unless overridden
+- Security: `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys when needed and persist the defaults so static builds, localStorage, and restarted services stay in sync:
+  - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; persisted at `~/.openhands/agent-canvas/session-api-key.txt` unless overridden via env var
+  - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; persisted at `~/.openhands/agent-canvas/automation-api-key.txt` unless overridden
   - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
 - `npm run dev` now runs the Docker full stack with automation and a static frontend by default (via `dev:docker`). `npm run dev:dangerously-dockerless` does the same without Docker through the `dev-static.mjs` launcher. Use `npm run dev:docker:dynamic` or `npm run dev:dangerously-dockerless:dynamic` for Vite/HMR.
@@ -163,9 +334,10 @@
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → frontend server (:3001), either Vite or static depending on launcher mode
-  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a2`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: auto-generated random key per session)
+  - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a3`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: persisted generated key), `OH_AUTOMATION_API_KEY_PATH` (override the persisted default key path)
+  - `scripts/check-sdk-version-sync.mjs` checks the released `openhands-automation` package against `DEFAULT_AUTOMATION_SDK_VERSION` in `scripts/dev-with-automation.mjs`; that value may intentionally lag `DEFAULT_AGENT_SERVER_VERSION` while automation has not yet published a matching release.
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
-  - Security: `AUTOMATION_LOCAL_API_KEY` is auto-generated using `crypto.randomBytes(32)` on each startup for better security isolation. Set the env var explicitly to use a consistent key across restarts. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
+  - Security: `AUTOMATION_LOCAL_API_KEY` defaults to a generated key persisted across restarts because static frontend builds bake it into `VITE_AUTOMATION_API_KEY`. Set the env var explicitly to rotate or pin it. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
 - `scripts/dev-safe.mjs` (now `npm run dev:minimal`) runs just agent-server + Vite without automation.
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
@@ -252,9 +424,9 @@
 
 - Worktree policy (this conversation): commits are made on the worktree branch and the user expects the worktree to stay attached to that branch. Do NOT run `git switch --detach` in the worktree and reattach the branch to the main workspace after each commit — only do that when the user explicitly asks. See `~/.openhands/skills/worktree-switch/SKILL.md` for the manual procedure the user invokes.
 
-- Files tab diff-view default logic: keyed off `useHasAttachedSource()` (`src/hooks/use-has-attached-source.ts`), which is true when the user explicitly attached *either* a repo (`conversation.selected_repository`) *or* a local workspace (`getStoredConversationMetadata(id).selected_workspace`, persisted by `createConversation` when `workingDirOverride` is supplied). The agent-server pre-initialises every conversation workspace as a git worktree for its own change tracking, so do NOT use a filesystem probe (`git status` / `useUnifiedGetGitChanges`) as the attachment signal — that was tried in earlier iterations and made every fresh no-attachment conversation incorrectly default to diff view. The companion `useHasGitCommits` probe (`src/hooks/query/use-has-git-commits.ts`) then suppresses diff view for attached-but-empty cases (unborn HEAD, non-git workspace).
+- Files tab diff-view default logic: keyed off `useHasAttachedSource()` (`src/hooks/use-has-attached-source.ts`), which is true when the user explicitly attached _either_ a repo (`conversation.selected_repository`) _or_ a local workspace (`getStoredConversationMetadata(id).selected_workspace`, persisted by `createConversation` when `workingDirOverride` is supplied). The agent-server pre-initialises every conversation workspace as a git worktree for its own change tracking, so do NOT use a filesystem probe (`git status` / `useUnifiedGetGitChanges`) as the attachment signal — that was tried in earlier iterations and made every fresh no-attachment conversation incorrectly default to diff view. The companion `useHasGitCommits` probe (`src/hooks/query/use-has-git-commits.ts`) then suppresses diff view for attached-but-empty cases (unborn HEAD, non-git workspace).
 
-- Files tab diff-view default logic: keyed off `useHasAttachedSource()` (`src/hooks/use-has-attached-source.ts`), which is true when the user explicitly attached *either* a repo (`conversation.selected_repository`) *or* a local workspace (`getStoredConversationMetadata(id).selected_workspace`, persisted by `createConversation` when `workingDirOverride` is supplied). The agent-server pre-initialises every conversation workspace as a git worktree for its own change tracking, so do NOT use a filesystem probe (`git status` / `useUnifiedGetGitChanges`) as the attachment signal — that was tried in earlier iterations and made every fresh no-attachment conversation incorrectly default to diff view. The companion `useHasGitCommits` probe (`src/hooks/query/use-has-git-commits.ts`) then suppresses diff view for attached-but-empty cases (unborn HEAD, non-git workspace).
+- Files tab diff-view default logic: keyed off `useHasAttachedSource()` (`src/hooks/use-has-attached-source.ts`), which is true when the user explicitly attached _either_ a repo (`conversation.selected_repository`) _or_ a local workspace (`getStoredConversationMetadata(id).selected_workspace`, persisted by `createConversation` when `workingDirOverride` is supplied). The agent-server pre-initialises every conversation workspace as a git worktree for its own change tracking, so do NOT use a filesystem probe (`git status` / `useUnifiedGetGitChanges`) as the attachment signal — that was tried in earlier iterations and made every fresh no-attachment conversation incorrectly default to diff view. The companion `useHasGitCommits` probe (`src/hooks/query/use-has-git-commits.ts`) then suppresses diff view for attached-but-empty cases (unborn HEAD, non-git workspace).
 
 - Collapsible thinking: `ThinkAction` events and LLM extended reasoning (`reasoning_content` / `thinking_blocks` on `ActionEvent`) are rendered as collapsible sections via `CollapsibleThinking` (`src/components/conversation-events/chat/event-message-components/collapsible-thinking.tsx`). Collapsed by default to keep the chat compact — the thinking is often in English regardless of the user's conversation language. The `getReasoningContent()` helper in `event-thought-helpers.ts` extracts the content, preferring `reasoning_content` (plain string) and falling back to Anthropic `thinking_blocks`. i18n keys: `THINKING$TITLE`, `THINKING$EXPAND`, `THINKING$COLLAPSE`. Tests: `__tests__/components/conversation-events/chat/event-message-think-action.test.tsx`.
 

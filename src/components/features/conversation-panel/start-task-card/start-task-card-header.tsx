@@ -19,7 +19,7 @@ export function StartTaskCardHeader({
       </div>
 
       {/* Title */}
-      <h3 className="text-sm font-medium text-neutral-100 truncate flex-1">
+      <h3 className="text-sm font-medium text-content-2 truncate flex-1">
         {title}
       </h3>
 

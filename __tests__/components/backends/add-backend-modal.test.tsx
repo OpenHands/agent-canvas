@@ -32,17 +32,13 @@ describe("AddBackendModal – two-column layout", () => {
   it("renders a two-column layout with manual and cloud sections", () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
-    // Left column: manual connection fields
     expect(screen.getByTestId("add-backend-name")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-host")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-api-key")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-submit")).toBeInTheDocument();
 
-    // Right column: cloud login
     expect(screen.getByTestId("add-backend-cloud-title")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-login-button")).toBeInTheDocument();
-
-    // Advanced toggle for cloud host override
     expect(
       screen.getByTestId("add-backend-advanced-toggle"),
     ).toBeInTheDocument();
