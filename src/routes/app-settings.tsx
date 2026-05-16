@@ -133,7 +133,7 @@ export function AppSettingsScreen() {
     <form
       data-testid="app-settings-screen"
       action={formAction}
-      className="flex flex-col h-full justify-between"
+      className="flex flex-col gap-6"
     >
       {shouldBeLoading && <AppSettingsInputsSkeleton />}
       {!shouldBeLoading && (
@@ -180,7 +180,7 @@ export function AppSettingsScreen() {
                 defaultValue={settings.git_user_name || ""}
                 onChange={checkIfGitUserNameHasChanged}
                 placeholder={t(I18nKey.SETTINGS$GIT_USERNAME_PLACEHOLDER)}
-                className="w-full max-w-[680px]"
+                className="w-full min-w-0"
               />
               <SettingsInput
                 testId="git-user-email-input"
@@ -190,24 +190,23 @@ export function AppSettingsScreen() {
                 defaultValue={settings.git_user_email || ""}
                 onChange={checkIfGitUserEmailHasChanged}
                 placeholder={t(I18nKey.SETTINGS$GIT_EMAIL_PLACEHOLDER)}
-                className="w-full max-w-[680px]"
+                className="w-full min-w-0"
               />
+            </div>
+            <div className="flex justify-start pt-4">
+              <BrandButton
+                testId="submit-button"
+                variant="primary"
+                type="submit"
+                isDisabled={isPending || formIsClean}
+              >
+                {!isPending && t("SETTINGS$SAVE_CHANGES")}
+                {isPending && t("SETTINGS$SAVING")}
+              </BrandButton>
             </div>
           </div>
         </div>
       )}
-
-      <div className="flex gap-6 p-6 justify-end">
-        <BrandButton
-          testId="submit-button"
-          variant="primary"
-          type="submit"
-          isDisabled={isPending || formIsClean}
-        >
-          {!isPending && t("SETTINGS$SAVE_CHANGES")}
-          {isPending && t("SETTINGS$SAVING")}
-        </BrandButton>
-      </div>
     </form>
   );
 }

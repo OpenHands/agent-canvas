@@ -9,6 +9,7 @@ const mockNavItem = {
   to: "/settings/test",
   icon: <span data-testid="test-icon">Icon</span>,
   text: I18nKey.SETTINGS$NAV_API_KEYS,
+  subtitle: I18nKey.SETTINGS$PAGE_SECRETS_SUBLINE,
 };
 
 const renderContextMenuNavLink = (item = mockNavItem, onClick = vi.fn()) =>

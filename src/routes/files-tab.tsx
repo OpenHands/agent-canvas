@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { I18nKey } from "#/i18n/declaration";
+import { useFilesTabStore } from "#/stores/files-tab-store";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useHasAttachedSource } from "#/hooks/use-has-attached-source";
@@ -64,7 +65,8 @@ function FilesTab() {
   const filesQuery = useWorkspaceFiles();
   const paths = useMemo(() => filesQuery.data ?? [], [filesQuery.data]);
 
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const selectedPath = useFilesTabStore((s) => s.selectedPath);
+  const setSelectedPath = useFilesTabStore((s) => s.setSelectedPath);
 
   // Pre-fetch the selected file's content here too so the toolbar's
   // "open in new window" link can reach for its `staticUrl`. react-query

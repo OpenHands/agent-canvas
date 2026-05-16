@@ -78,7 +78,7 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
       />
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-hello-back"
           type="button"

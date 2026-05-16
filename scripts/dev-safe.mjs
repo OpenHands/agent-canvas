@@ -14,7 +14,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   getProcessTreeSpawnOptions,
@@ -523,6 +523,7 @@ export async function buildSafeDevConfigAsync(
  * @property {string} workingDir
  * @property {string} secretKey
  * @property {string} sessionApiKey
+ * @property {string} canvasToolsDir
  */
 
 /**
@@ -562,6 +563,12 @@ function buildConfigFromPorts(ports, cwd, env) {
     env.VITE_SESSION_API_KEY ||
     getOrCreatePersistedSessionApiKey(persistedKeyPath);
 
+  // Host directory containing Agent-Canvas-specific Python tools (e.g. the
+  // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
+  // can import the modules listed in `tool_module_qualnames`. Lives at
+  // <repo-root>/tools relative to this script.
+  const canvasToolsDir = fileURLToPath(new URL("../tools", import.meta.url));
+
   return {
     cwd,
     backendPort,
@@ -576,6 +583,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
     secretKey,
     sessionApiKey,
+    canvasToolsDir,
   };
 }
 
@@ -597,6 +605,9 @@ export function buildAgentServerEnv(config) {
     OH_SECRET_KEY: config.secretKey,
     // Use OH_SESSION_API_KEYS_0 for agent-server V1 config format
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Make the host tools/ directory importable so the agent-server can
+    // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
+    OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
   };
 }
 

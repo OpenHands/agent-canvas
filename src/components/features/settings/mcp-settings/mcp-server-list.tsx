@@ -42,16 +42,16 @@ export function MCPServerList({
       <table className="w-full">
         <thead className="bg-base-tertiary">
           <tr className="grid grid-cols-[minmax(0,0.25fr)_120px_minmax(0,1fr)_120px] gap-4 items-start">
-            <th className="text-left p-3 text-sm font-medium">
+            <th className="px-3 py-2 text-left text-sm font-medium">
               {t(I18nKey.SETTINGS$NAME)}
             </th>
-            <th className="text-left p-3 text-sm font-medium">
+            <th className="px-3 py-2 text-left text-sm font-medium">
               {t(I18nKey.SETTINGS$MCP_SERVER_TYPE)}
             </th>
-            <th className="text-left p-3 text-sm font-medium">
+            <th className="px-3 py-2 text-left text-sm font-medium">
               {t(I18nKey.SETTINGS$MCP_SERVER_DETAILS)}
             </th>
-            <th className="text-right p-3 text-sm font-medium">
+            <th className="px-3 py-2 text-right text-sm font-medium">
               {t(I18nKey.SETTINGS$ACTIONS)}
             </th>
           </tr>
