@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Send } from "lucide-react";
+import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useNavigation } from "#/context/navigation-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
@@ -77,6 +78,10 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         disabled={isLaunching}
         className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
       />
+
+      <div data-testid="onboarding-recommended-automations">
+        <RecommendedAutomationsLauncher onLaunched={onLaunched} />
+      </div>
 
       <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton

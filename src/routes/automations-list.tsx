@@ -15,26 +15,9 @@ import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { CreateInstructions } from "#/components/features/automations/create-instructions";
-import { useSettings } from "#/hooks/query/use-settings";
-import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
-import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useNavigation } from "#/context/navigation-context";
-import type { RecommendedAutomation } from "#/constants/recommended-automations";
-import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
-import { parseMcpConfig } from "#/utils/mcp-config";
-import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
-import { getMarketplaceEntryById } from "#/utils/mcp-marketplace-utils";
-import { RecommendedAutomationsSection } from "#/components/features/automations/recommended-automations-section";
-import { RecommendedAutomationSetupModal } from "#/components/features/automations/recommended-automation-setup-modal";
-import { InstallServerModal } from "#/components/features/mcp-page";
+import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 
 const PAGE_SIZE = 50;
-
-function getRequiredMarketplaceEntries(automation: RecommendedAutomation) {
-  return automation.requiredMcpIds
-    .map((id) => getMarketplaceEntryById(id, MCP_MARKETPLACE))
-    .filter((entry): entry is MarketplaceEntry => !!entry);
-}
 
 export default function AutomationsList() {
   const { t } = useTranslation("openhands");
@@ -44,29 +27,6 @@ export default function AutomationsList() {
     id: string;
     name: string;
   } | null>(null);
-  const [selectedRecommendedAutomation, setSelectedRecommendedAutomation] =
-    useState<RecommendedAutomation | null>(null);
-  const [recommendedInstallEntry, setRecommendedInstallEntry] =
-    useState<MarketplaceEntry | null>(null);
-
-  const activeBackend = useActiveBackend();
-  const { navigate } = useNavigation();
-  const { data: settings, refetch: refetchSettings } = useSettings();
-  const createConversation = useCreateConversation();
-
-  const installedMcpServers = useMemo(
-    () =>
-      flattenMcpConfig(parseMcpConfig(settings?.agent_settings?.mcp_config)),
-    [settings?.agent_settings?.mcp_config],
-  );
-
-  const selectedRequiredMcpEntries = useMemo(
-    () =>
-      selectedRecommendedAutomation
-        ? getRequiredMarketplaceEntries(selectedRecommendedAutomation)
-        : [],
-    [selectedRecommendedAutomation],
-  );
 
   const {
     data: healthData,
@@ -120,19 +80,6 @@ export default function AutomationsList() {
       deleteMutation.mutate(deleteTarget.id);
       setDeleteTarget(null);
     }
-  };
-
-  const handleLaunchRecommendedAutomation = () => {
-    if (!selectedRecommendedAutomation) return;
-    createConversation.mutate(
-      { query: selectedRecommendedAutomation.prompt },
-      {
-        onSuccess: (conversation) => {
-          setSelectedRecommendedAutomation(null);
-          navigate(`/conversations/${conversation.conversation_id}`);
-        },
-      },
-    );
   };
 
   const hasMore = data ? data.total > data.automations.length : false;
@@ -241,12 +188,7 @@ export default function AutomationsList() {
         </div>
 
         <div className="mt-6">
-          <RecommendedAutomationsSection
-            backendKind={activeBackend.backend.kind}
-            installedServers={installedMcpServers}
-            query={searchQuery}
-            onSelect={setSelectedRecommendedAutomation}
-          />
+          <RecommendedAutomationsLauncher query={searchQuery} />
         </div>
 
         {/* Delete confirmation modal */}
@@ -256,26 +198,6 @@ export default function AutomationsList() {
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
         />
-
-        {selectedRecommendedAutomation && (
-          <RecommendedAutomationSetupModal
-            automation={selectedRecommendedAutomation}
-            requiredEntries={selectedRequiredMcpEntries}
-            installedServers={installedMcpServers}
-            isLaunching={createConversation.isPending}
-            onInstallMcp={setRecommendedInstallEntry}
-            onLaunch={handleLaunchRecommendedAutomation}
-            onClose={() => setSelectedRecommendedAutomation(null)}
-          />
-        )}
-
-        {recommendedInstallEntry && (
-          <InstallServerModal
-            entry={recommendedInstallEntry}
-            onSuccess={() => void refetchSettings()}
-            onClose={() => setRecommendedInstallEntry(null)}
-          />
-        )}
       </div>
     </div>
   );
