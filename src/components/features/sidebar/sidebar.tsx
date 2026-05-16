@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
+/* rbren branch: workspace-picker dropdown on the Code nav row. */
+import { RbrenWorkspacePicker } from "./rbren-workspace-picker";
 import { getErrorStatus, useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -253,15 +255,27 @@ export function Sidebar() {
               : "items-center md:items-stretch",
           )}
         >
-          <SidebarNavLink
-            to="/conversations"
-            end
-            label="Code" /* rbren branch: was "New" */
-            testId="sidebar-conversations-link"
-            disabled={linkDisabled}
-            collapsed={collapsed}
-            icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
-          />
+          {/* rbren branch: wrap the Code nav row with a flex container so a
+              chevron-down workspace picker can sit on the right edge of the
+              row. The wrap is purely a layout aid — the SidebarNavLink and
+              picker are independent siblings; SidebarNavLink stays unmodified
+              so this whole feature can be retired by deleting the wrap and
+              the picker file. In the collapsed (64px rail) layout the picker
+              renders nothing, so the wrapper degrades to a plain nav row. */}
+          <div className="flex items-center gap-1 w-full">
+            <div className="flex-1 min-w-0">
+              <SidebarNavLink
+                to="/conversations"
+                end
+                label="Code" /* rbren branch: was "New" */
+                testId="sidebar-conversations-link"
+                disabled={linkDisabled}
+                collapsed={collapsed}
+                icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
+              />
+            </div>
+            <RbrenWorkspacePicker collapsed={collapsed} />
+          </div>
           <SidebarNavLink
             to="/skills"
             label="Customize" /* rbren branch: was "Extensions" */
