@@ -1,8 +1,15 @@
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import { callCloudProxy } from "#/api/cloud/proxy";
+import type { Backend } from "#/api/backend-registry/types";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
@@ -27,6 +34,18 @@ vi.mock("#/api/agent-server-client-options", () => ({
     workingDir: "/workspace/project",
   })),
 }));
+
+vi.mock("#/api/cloud/proxy", () => ({
+  callCloudProxy: vi.fn(),
+}));
+
+const cloudBackend: Backend = {
+  id: "cloud-1",
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "cloud-api-key",
+  kind: "cloud",
+};
 
 const useActiveConversationMock = vi.fn();
 vi.mock("#/hooks/query/use-active-conversation", () => ({
@@ -60,9 +79,12 @@ describe("useWorkspaceFileContent", () => {
       configurable: true,
       value: vi.fn(() => "blob:preview-url"),
     });
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
     useWorkspaceMutationCounter.setState({ count: 0 });
     fileClientMock.mockClear();
     downloadFileMock.mockReset();
+    vi.mocked(callCloudProxy).mockReset();
     useActiveConversationMock.mockReset();
     useRuntimeIsReadyMock.mockReset();
     useRuntimeIsReadyMock.mockReturnValue(true);
@@ -74,6 +96,11 @@ describe("useWorkspaceFileContent", () => {
         workspace: { working_dir: "/workspace/project/agent-canvas" },
       },
     });
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
   });
 
   it("downloads selected files through the typed file API", async () => {
@@ -143,5 +170,50 @@ describe("useWorkspaceFileContent", () => {
         message: "Workspace file path must stay inside the workspace",
       }),
     );
+  });
+
+  describe("cloud backend", () => {
+    beforeEach(() => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id, orgId: null });
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-cloud",
+          conversation_url:
+            "https://runtime.example.com/api/conversations/conv-cloud",
+          session_api_key: "cloud-session-key",
+          workspace: { working_dir: "/workspace/project" },
+        },
+      });
+    });
+
+    it("fetches file content through callCloudProxy instead of FileClient", async () => {
+      vi.mocked(callCloudProxy).mockResolvedValue(
+        new Blob([new TextEncoder().encode("cloud file content")]),
+      );
+
+      const { result } = renderHook(
+        () => useWorkspaceFileContent("src/app.ts"),
+        { wrapper: makeWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // FileClient must never be called directly for cloud conversations.
+      expect(fileClientMock).not.toHaveBeenCalled();
+      expect(downloadFileMock).not.toHaveBeenCalled();
+
+      const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+      expect(proxyCall.method).toBe("GET");
+      expect(proxyCall.path).toContain("/api/file/download");
+      expect(proxyCall.path).toContain(
+        encodeURIComponent("/workspace/project/src/app.ts"),
+      );
+      expect(proxyCall.authMode).toBe("session-api-key");
+      expect(proxyCall.sessionApiKey).toBe("cloud-session-key");
+      expect(proxyCall.responseType).toBe("blob");
+
+      expect(result.current.data?.text).toBe("cloud file content");
+    });
   });
 });

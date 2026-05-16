@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileClient } from "@openhands/typescript-client/clients";
 
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
@@ -167,10 +166,11 @@ export function useWorkspaceFileContent(relativePath: string | null) {
       const kind = classifyKind(relativePath);
       const mimeType = guessMimeType(relativePath);
       const filePath = resolveWorkspacePath(workingDir, relativePath);
-      const fileClient = new FileClient(
-        getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+      const buffer = await AgentServerRuntimeService.downloadFile(
+        conversationUrl,
+        sessionApiKey,
+        filePath,
       );
-      const buffer = await fileClient.downloadFile(filePath);
 
       if (kind !== "text") {
         return {

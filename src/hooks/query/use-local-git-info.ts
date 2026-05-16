@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import AgentServerRuntimeService, {
+  CommandResult,
+} from "#/api/runtime-service/agent-server-runtime-service";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -22,13 +23,19 @@ const EMPTY_LOCAL_GIT_INFO: LocalGitInfo = {
   remoteUrl: null,
 };
 
+type RunCommand = (
+  command: string,
+  cwd: string,
+  timeout: number,
+) => Promise<CommandResult>;
+
 async function probeGitInfoAtDir(
-  workspace: RemoteWorkspace,
+  run: RunCommand,
   directory: string,
 ): Promise<LocalGitInfo> {
   const [remoteResult, branchResult] = await Promise.all([
-    workspace.executeCommand("git remote get-url origin", directory, 10),
-    workspace.executeCommand("git rev-parse --abbrev-ref HEAD", directory, 10),
+    run("git remote get-url origin", directory, 10),
+    run("git rev-parse --abbrev-ref HEAD", directory, 10),
   ]);
 
   const remoteUrl =
@@ -49,10 +56,10 @@ async function probeGitInfoAtDir(
 }
 
 async function probeNestedRepoInDir(
-  workspace: RemoteWorkspace,
+  run: RunCommand,
   directory: string,
 ): Promise<LocalGitInfo> {
-  const nestedReposResult = await workspace.executeCommand(
+  const nestedReposResult = await run(
     "find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | sed 's#^\\./##' | sed 's#/.git$##'",
     directory,
     10,
@@ -72,7 +79,7 @@ async function probeNestedRepoInDir(
   if (nestedRepos.length !== 1) return EMPTY_LOCAL_GIT_INFO;
 
   const nestedDir = `${directory}/${nestedRepos[0]}`.replace(/\/+/g, "/");
-  return probeGitInfoAtDir(workspace, nestedDir);
+  return probeGitInfoAtDir(run, nestedDir);
 }
 
 /**
@@ -109,23 +116,25 @@ export const useLocalGitInfo = () => {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = new RemoteWorkspace(
-        getAgentServerClientOptions({
+      const run: RunCommand = (command, cwd, timeout) =>
+        AgentServerRuntimeService.executeCommand(
           conversationUrl,
           sessionApiKey,
-        }),
-      );
+          command,
+          cwd,
+          timeout,
+        );
       const candidateDirs = Array.from(
         new Set([workingDir, "/workspace/project", "workspace/project"]),
       );
 
       for (const candidateDir of candidateDirs) {
-        const directInfo = await probeGitInfoAtDir(workspace, candidateDir);
+        const directInfo = await probeGitInfoAtDir(run, candidateDir);
         if (directInfo.repository || directInfo.branch) return directInfo;
 
         // Common local flow: user starts in a non-git parent workspace and
         // clones a single repository into a child directory.
-        const nestedInfo = await probeNestedRepoInDir(workspace, candidateDir);
+        const nestedInfo = await probeNestedRepoInDir(run, candidateDir);
         if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
       }
 
