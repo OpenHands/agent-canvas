@@ -200,6 +200,16 @@ describes. Specifically:
   Files: `.agents/skills/long-running-fork.md`
   Introduced: 82f2bc7
 
+- **`create-fork` skill** — meta-skill that teaches an agent how to set
+  up *another* long-running personal fork the same way this one is set
+  up (fork model, ssh:// remotes, MODLOG/SYNCLOG-bearing
+  `long-running-fork.md` in the new repo, upstream-sync recipe,
+  conflict-recurrence escalation, AI-disclosed upstream-issue template).
+  Defaults to `OpenHands/agent-sdk` as the upstream when no target is
+  specified. Lives only on this fork — upstream has no notion of it.
+  Files: `.agents/skills/create-fork.md`
+  Introduced: (this commit)
+
 ### Sanity-check the MODLOG against git
 
 Before any rebase, cross-check that the MODLOG matches reality:
