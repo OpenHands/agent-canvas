@@ -2,8 +2,40 @@ import { http, delay, HttpResponse } from "msw";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
 
+/** One minimal bash event — gives archived / error conversation views a stable
+ *  content anchor in snapshot tests so the chat area isn't blank. */
+const ARCHIVED_BASH_EVENT = {
+  id: "e1",
+  timestamp: "2026-01-01T00:00:01.000Z",
+  source: "agent",
+  thought: null,
+  reasoning_content: null,
+  thinking_blocks: [],
+  action: {
+    kind: "ExecuteBashAction",
+    command: "echo hello",
+    is_input: false,
+    timeout: null,
+    reset: false,
+  },
+  tool_name: "execute_bash",
+  tool_call_id: "call_1",
+  tool_call: {
+    id: "call_1",
+    type: "function",
+    function: { name: "execute_bash", arguments: '{"command":"echo hello"}' },
+  },
+  llm_response_id: null,
+  security_risk: "unknown",
+};
+
 /** Map from conversation id → events returned by GET /events/search */
-const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
+const CONVERSATION_EVENTS: Record<string, unknown[]> = {
+  // Conversations 4 (MISSING sandbox) and 5 (ERROR sandbox) carry one
+  // pre-seeded event so the chat view has visible content in snapshot tests.
+  "4": [ARCHIVED_BASH_EVENT],
+  "5": [ARCHIVED_BASH_EVENT],
+};
 
 const now = Date.now();
 

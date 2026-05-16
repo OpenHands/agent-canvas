@@ -8,16 +8,15 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *   4. "Archived Project"  — sandbox_status: "MISSING"
  *   5. "Errored Project"   — sandbox_status: "ERROR"
  *
+ * Both conversations carry one pre-seeded ExecuteBashAction event
+ * (`ARCHIVED_BASH_EVENT` in CONVERSATION_EVENTS) so the chat has a stable
+ * content anchor that loads through the normal REST history path.
+ *
  * Snapshots:
  *   1. conversation-panel-with-archived-badges — sidebar badges for MISSING/ERROR
- *   2. conversation-view-archived — chat interface for conv 4 with one injected
- *      event + the read-only "Sandbox no longer available" banner
+ *   2. conversation-view-archived — chat interface for conv 4 with the event
+ *      + the read-only "Sandbox no longer available" banner
  *   3. conversation-view-sandbox-error — same for conv 5, "Sandbox error" variant
- *
- * The MSW event-search handler returns [] for convs 4 and 5 (CONVERSATION_EVENTS
- * is empty). Tests 2 and 3 inject exactly one event via __OH_EVENT_STORE__ so
- * the chat has a single stable content anchor that survives the 3 s polling
- * re-renders without accumulating duplicates.
  */
 
 const ARCHIVED_CONVERSATION_ID = "4"; // sandbox_status: "MISSING"
@@ -36,32 +35,6 @@ async function dismissConsentModal(page: Page) {
     // Modal didn't appear — fine.
   }
 }
-
-/** One minimal bash event — gives the chat a stable content anchor. */
-const ONE_BASH_EVENT = {
-  id: "e1",
-  timestamp: "2026-01-01T00:00:01.000Z",
-  source: "agent",
-  thought: null,
-  reasoning_content: null,
-  thinking_blocks: [],
-  action: {
-    kind: "ExecuteBashAction",
-    command: "echo hello",
-    is_input: false,
-    timeout: null,
-    reset: false,
-  },
-  tool_name: "execute_bash",
-  tool_call_id: "call_1",
-  tool_call: {
-    id: "call_1",
-    type: "function",
-    function: { name: "execute_bash", arguments: '{"command":"echo hello"}' },
-  },
-  llm_response_id: null,
-  security_risk: "unknown",
-};
 
 test.describe("Archived Conversation Visual Snapshots", () => {
   test.describe.configure({ mode: "serial" });
@@ -106,32 +79,13 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
-    // Wait for the archived banner FIRST — its presence proves the route's
-    // useEffect (which calls clearEvents()) has already fired and
-    // useActiveConversation has resolved with sandbox_status: "MISSING".
-    // Injecting events before this point is a race: the effect can clear
-    // the store after the test writes to it.
+    // The pre-seeded event loads through the normal REST history path
+    // (useConversationHistory → addEvents). Wait for both the event text
+    // and the archived banner before taking the screenshot.
+    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
     await expect(
       page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 20_000 });
-
-    // Now inject one event so the chat has stable visible content.
-    await page.waitForFunction(
-      () =>
-        !!(window as unknown as Record<string, unknown>).__OH_EVENT_STORE__,
-      { timeout: 5_000 },
-    );
-    await page.evaluate((event) => {
-      (
-        window as unknown as {
-          __OH_EVENT_STORE__: { getState: () => { addEvents: (e: unknown[]) => void } };
-        }
-      ).__OH_EVENT_STORE__
-        .getState()
-        .addEvents([event]);
-    }, ONE_BASH_EVENT);
-
-    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
@@ -151,28 +105,10 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
-    // Same pattern: wait for the banner before injecting events to avoid
-    // the clearEvents() race (see test 2 above for details).
+    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
     await expect(
       page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 20_000 });
-
-    await page.waitForFunction(
-      () =>
-        !!(window as unknown as Record<string, unknown>).__OH_EVENT_STORE__,
-      { timeout: 5_000 },
-    );
-    await page.evaluate((event) => {
-      (
-        window as unknown as {
-          __OH_EVENT_STORE__: { getState: () => { addEvents: (e: unknown[]) => void } };
-        }
-      ).__OH_EVENT_STORE__
-        .getState()
-        .addEvents([event]);
-    }, ONE_BASH_EVENT);
-
-    await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
