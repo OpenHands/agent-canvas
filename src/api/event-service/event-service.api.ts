@@ -132,8 +132,7 @@ class EventService {
       if (options.pageId) params.set("page_id", options.pageId);
       if (options.timestampGte)
         params.set("timestamp__gte", options.timestampGte);
-      if (options.timestampLt)
-        params.set("timestamp__lt", options.timestampLt);
+      if (options.timestampLt) params.set("timestamp__lt", options.timestampLt);
 
       const doCloudSearch = (searchParams: URLSearchParams) =>
         callCloudProxy<EventSearchPage<OpenHandsEvent>>({
