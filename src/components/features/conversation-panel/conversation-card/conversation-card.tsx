@@ -149,7 +149,9 @@ export function ConversationCard({
           />
           {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
             <ConversationStatusBadges
-              conversationStatus={sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"}
+              conversationStatus={
+                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
+              }
             />
           )}
         </div>
