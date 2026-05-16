@@ -408,7 +408,7 @@ export function MCPServerForm({
         </>
       )}
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-end gap-2 w-full">
         <BrandButton
           testId="cancel-button"
           type="button"

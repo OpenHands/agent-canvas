@@ -177,7 +177,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             )}
           </div>
 
-          <div className="flex justify-between gap-2 px-5 py-3 border-t border-[var(--oh-border)]">
+          <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--oh-border)]">
             <BrandButton
               type="button"
               variant="secondary"

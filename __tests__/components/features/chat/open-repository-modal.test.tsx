@@ -160,6 +160,28 @@ describe("OpenRepositoryModal", () => {
     expect(screen.getByText("BUTTON$CANCEL")).toBeInTheDocument();
   });
 
+  it("places Cancel before Launch in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    render(
+      <OpenRepositoryModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onLaunch={mockOnLaunch}
+      />,
+    );
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("BUTTON$CANCEL");
+    const launch = screen.getByText("BUTTON$LAUNCH");
+
+    // Assert: Cancel precedes the dominant Launch action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(launch) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("should disable Launch button when no repository or branch is selected", () => {
     render(
       <OpenRepositoryModal
