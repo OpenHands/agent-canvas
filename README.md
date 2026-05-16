@@ -56,7 +56,7 @@ npm install
 node --env-file-if-exists=.env .\scripts\dev-docker.mjs
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+Access the UI at [http://localhost:8000](http://localhost:8000). The OpenAPI docs for the agent server and the automation backend are also served through the ingress proxy at [http://localhost:8000/docs](http://localhost:8000/docs) and [http://localhost:8000/api/automation/docs](http://localhost:8000/api/automation/docs).
 
 ### Without Docker
 
@@ -80,7 +80,7 @@ npm install
 npm run dev:dangerously-dockerless
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000)
+Access the UI at [http://localhost:8000](http://localhost:8000). The OpenAPI docs for the agent server and the automation backend are also served through the ingress proxy at [http://localhost:8000/docs](http://localhost:8000/docs) and [http://localhost:8000/api/automation/docs](http://localhost:8000/api/automation/docs).
 
 This also serves a static production build for stability. If you are developing the Agent Canvas frontend itself and want live reload, use the dynamic dockerless command instead:
 
