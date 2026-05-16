@@ -438,16 +438,32 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         </p>
       </div>
 
-      <SettingsInput
-        testId="add-backend-host"
-        name="add-backend-host"
-        type="text"
-        label={t(I18nKey.BACKEND$HOST_LABEL)}
-        value={host}
-        onChange={setHost}
-        placeholder="http://localhost:8000"
-        className="w-full"
-      />
+      <div className="flex flex-col gap-1">
+        <SettingsInput
+          testId="add-backend-host"
+          name="add-backend-host"
+          type="text"
+          label={t(I18nKey.BACKEND$HOST_LABEL)}
+          value={host}
+          onChange={setHost}
+          placeholder="http://localhost:8000"
+          className="w-full"
+        />
+        <p
+          className="text-xs text-gray-500"
+          data-testid="add-backend-host-helper"
+        >
+          {t(I18nKey.BACKEND$HOST_HELPER)}{" "}
+          <a
+            href="https://github.com/All-Hands-AI/OpenHands-Cloud"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:underline"
+          >
+            {t(I18nKey.BACKEND$SELF_HOSTED_CLOUD_LINK)}
+          </a>
+        </p>
+      </div>
 
       <SettingsInput
         testId="add-backend-api-key"

@@ -34,6 +34,7 @@ describe("AddBackendModal – two-column layout", () => {
 
     expect(screen.getByTestId("add-backend-name")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-host")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-host-helper")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-api-key")).toBeInTheDocument();
     expect(screen.getByTestId("add-backend-submit")).toBeInTheDocument();
 
