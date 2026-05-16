@@ -106,13 +106,20 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
-    // Inject one event so the chat has stable visible content that persists
-    // across the 3 s polling re-renders. The banner renders once
-    // useActiveConversation resolves with sandbox_status: "MISSING".
+    // Wait for the archived banner FIRST — its presence proves the route's
+    // useEffect (which calls clearEvents()) has already fired and
+    // useActiveConversation has resolved with sandbox_status: "MISSING".
+    // Injecting events before this point is a race: the effect can clear
+    // the store after the test writes to it.
+    await expect(
+      page.getByTestId("archived-conversation-banner"),
+    ).toBeVisible({ timeout: 20_000 });
+
+    // Now inject one event so the chat has stable visible content.
     await page.waitForFunction(
       () =>
         !!(window as unknown as Record<string, unknown>).__OH_EVENT_STORE__,
-      { timeout: 20_000 },
+      { timeout: 5_000 },
     );
     await page.evaluate((event) => {
       (
@@ -124,11 +131,7 @@ test.describe("Archived Conversation Visual Snapshots", () => {
         .addEvents([event]);
     }, ONE_BASH_EVENT);
 
-    // Wait for the injected event to appear, then wait for the banner.
     await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
@@ -148,10 +151,16 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     });
     await dismissConsentModal(page);
 
+    // Same pattern: wait for the banner before injecting events to avoid
+    // the clearEvents() race (see test 2 above for details).
+    await expect(
+      page.getByTestId("archived-conversation-banner"),
+    ).toBeVisible({ timeout: 20_000 });
+
     await page.waitForFunction(
       () =>
         !!(window as unknown as Record<string, unknown>).__OH_EVENT_STORE__,
-      { timeout: 20_000 },
+      { timeout: 5_000 },
     );
     await page.evaluate((event) => {
       (
@@ -164,9 +173,6 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     }, ONE_BASH_EVENT);
 
     await expect(page.getByText("echo hello")).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.getByTestId("archived-conversation-banner"),
-    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("interactive-chat-box")).toHaveCount(0);
 
     await expect(page.getByTestId("chat-interface")).toHaveScreenshot(
