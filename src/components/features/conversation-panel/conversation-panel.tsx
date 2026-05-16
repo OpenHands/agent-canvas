@@ -1,8 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ListFilter } from "lucide-react";
+import { ChevronDown, Folder } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
 import { useStartTasks } from "#/hooks/query/use-start-tasks";
 import { useDeleteConversation } from "#/hooks/mutation/use-delete-conversation";
@@ -26,6 +27,11 @@ import { ConversationCardSkeleton } from "./conversation-card/conversation-card-
 import { CompactConversationRow } from "./compact-conversation-row";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import { cn } from "#/utils/utils";
+import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
+import {
+  groupConversations,
+  sortConversationsByField,
+} from "./conversation-panel-list-helpers";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -40,8 +46,6 @@ interface ConversationPanelProps {
 const noop = () => {};
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
-const capitalizeLabel = (label: string) =>
-  label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : label;
 
 const partitionByCutoff = <T extends { updated_at: string }>(
   items: readonly T[],
@@ -71,6 +75,7 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
+  const { backend: activeBackend } = useActiveBackend();
   // Click-outside is only relevant in the legacy drawer mode where an
   // onClose handler is provided. When the panel is rendered inline (e.g.
   // as the always-visible conversation list pane), clicking outside should
@@ -87,9 +92,6 @@ export function ConversationPanel({
   ] = React.useState(false);
   const [confirmDeleteOlderVisible, setConfirmDeleteOlderVisible] =
     React.useState(false);
-  // Filter-menu toggles persist across reloads via the preferences store —
-  // the menu's open/closed state stays transient (React.useState) since
-  // users expect a dropdown to start closed every time they revisit.
   const showOlderConversations = useConversationPanelPreferencesStore(
     (state) => state.showOlderConversations,
   );
@@ -102,11 +104,56 @@ export function ConversationPanel({
   const toggleShowRepoBranchMetadata = useConversationPanelPreferencesStore(
     (state) => state.toggleShowRepoBranchMetadata,
   );
-  const [olderFilterMenuOpen, setOlderFilterMenuOpen] = React.useState(false);
+  const showLlmProfiles = useConversationPanelPreferencesStore(
+    (state) => state.showLlmProfiles,
+  );
+  const toggleShowLlmProfiles = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowLlmProfiles,
+  );
+  const organizeMode = useConversationPanelPreferencesStore(
+    (state) => state.organizeMode,
+  );
+  const setOrganizeMode = useConversationPanelPreferencesStore(
+    (state) => state.setOrganizeMode,
+  );
+  const conversationSort = useConversationPanelPreferencesStore(
+    (state) => state.conversationSort,
+  );
+  const setConversationSort = useConversationPanelPreferencesStore(
+    (state) => state.setConversationSort,
+  );
+  const threadScope = useConversationPanelPreferencesStore(
+    (state) => state.threadScope,
+  );
+  const setThreadScope = useConversationPanelPreferencesStore(
+    (state) => state.setThreadScope,
+  );
+  const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
-  const olderFilterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
-    setOlderFilterMenuOpen(false);
+  const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
+    setFilterMenuOpen(false);
   });
+  const [collapsedGroupIds, setCollapsedGroupIds] = React.useState<
+    ReadonlySet<string>
+  >(() => new Set());
+
+  const toggleGroupCollapsed = React.useCallback((groupId: string) => {
+    setCollapsedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (organizeMode !== "grouped") {
+      setCollapsedGroupIds(new Set());
+    }
+  }, [organizeMode]);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [selectedConversationId, setSelectedConversationId] = React.useState<
     string | null
@@ -128,15 +175,82 @@ export function ConversationPanel({
     [data],
   );
 
-  const { recent: recentConversations, older: olderConversations } =
-    React.useMemo(() => partitionByCutoff(conversations), [conversations]);
+  const scopedConversations = React.useMemo(() => {
+    if (threadScope === "relevant") {
+      return conversations.filter((c) => isExecutionActive(c.execution_status));
+    }
+    return conversations;
+  }, [conversations, threadScope]);
+
+  const { recent: recentScoped, older: olderScoped } = React.useMemo(
+    () => partitionByCutoff(scopedConversations),
+    [scopedConversations],
+  );
+
+  const sortedRecent = React.useMemo(
+    () => sortConversationsByField(recentScoped, conversationSort),
+    [recentScoped, conversationSort],
+  );
+
+  const sortedOlder = React.useMemo(
+    () => sortConversationsByField(olderScoped, conversationSort),
+    [olderScoped, conversationSort],
+  );
+
+  const groupLabels = React.useMemo(
+    () => ({
+      emptyWorkspace: t(I18nKey.CONVERSATION_PANEL$NO_WORKSPACE),
+      emptyRepository: t(I18nKey.CONVERSATION_PANEL$NO_REPOSITORY),
+    }),
+    [t],
+  );
+
+  const conversationGroups = React.useMemo(() => {
+    if (compact || organizeMode !== "grouped") {
+      return null;
+    }
+    const merged = [
+      ...sortedRecent,
+      ...(showOlderConversations ? sortedOlder : []),
+    ];
+    return groupConversations(
+      merged,
+      activeBackend.kind,
+      conversationSort,
+      groupLabels,
+    );
+  }, [
+    activeBackend.kind,
+    compact,
+    conversationSort,
+    groupLabels,
+    organizeMode,
+    showOlderConversations,
+    sortedOlder,
+    sortedRecent,
+  ]);
+
   const compactVisibleConversations = React.useMemo(
     () =>
-      recentConversations.filter((conversation) =>
-        isExecutionActive(conversation.execution_status),
+      sortConversationsByField(
+        recentScoped.filter((conversation) =>
+          isExecutionActive(conversation.execution_status),
+        ),
+        conversationSort,
       ),
-    [recentConversations],
+    [conversationSort, recentScoped],
   );
+
+  const visibleFlatCount =
+    sortedRecent.length +
+    (!compact && showOlderConversations ? sortedOlder.length : 0);
+
+  const visibleGroupedCount = React.useMemo(() => {
+    if (!conversationGroups) {
+      return 0;
+    }
+    return conversationGroups.reduce((n, g) => n + g.conversations.length, 0);
+  }, [conversationGroups]);
 
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
@@ -147,7 +261,7 @@ export function ConversationPanel({
   // more" link rendered at the end of the list — there is no scroll-driven
   // pagination, which previously caused the panel to feel like it had stray
   // scrollable space at the bottom.
-  const olderHidden = olderConversations.length > 0 && !showOlderConversations;
+  const olderHidden = olderScoped.length > 0 && !showOlderConversations;
   // Compact mode also hides "Load more" — paginating into archived
   // conversations contradicts the "active only" intent of the icon rail.
   const showLoadMore = !!hasNextPage && !olderHidden && !compact;
@@ -204,7 +318,7 @@ export function ConversationPanel({
   };
 
   const handleConfirmDeleteOlder = async () => {
-    const idsToDelete = olderConversations.map((c) => c.id);
+    const idsToDelete = olderScoped.map((c) => c.id);
     const results = await Promise.allSettled(
       idsToDelete.map((conversationId) =>
         deleteConversationAsync({ conversationId }),
@@ -250,6 +364,8 @@ export function ConversationPanel({
             isActive={conversation.id === currentConversationId}
             onClose={onClose}
             showRepositoryMetadata={showRepoBranchMetadata}
+            llmModel={conversation.llm_model}
+            showLlmProfiles={showLlmProfiles}
           />
         );
       }
@@ -285,6 +401,8 @@ export function ConversationPanel({
             isActive={conversation.id === currentConversationId}
             workspaceWorkingDir={conversation.workspace?.working_dir}
             showRepositoryMetadata={showRepoBranchMetadata}
+            llmModel={conversation.llm_model}
+            showLlmProfiles={showLlmProfiles}
           />
         </NavigationLink>
       );
@@ -298,6 +416,7 @@ export function ConversationPanel({
       onClose,
       openContextMenuId,
       showRepoBranchMetadata,
+      showLlmProfiles,
     ],
   );
 
@@ -310,9 +429,14 @@ export function ConversationPanel({
   // background refetch, causing the skeleton/empty-state to flicker when
   // the list is empty.
   const showInitialSkeleton = isLoading;
+  const listIsEffectivelyEmpty =
+    organizeMode === "grouped" && !compact
+      ? visibleGroupedCount === 0
+      : visibleFlatCount === 0;
   const showEmptyState =
-    !isLoading && conversations.length === 0 && !startTasks?.length;
-  const showSummaryBar = !compact && olderConversations.length > 0;
+    !isLoading && !compact && listIsEffectivelyEmpty && !startTasks?.length;
+
+  const showConversationHeader = !compact;
 
   return (
     <div
@@ -320,7 +444,7 @@ export function ConversationPanel({
       data-testid="conversation-panel"
       className="w-full h-full flex flex-col"
     >
-      {showSummaryBar && (
+      {showConversationHeader && (
         <div
           data-testid="older-conversations-summary"
           className={cn(
@@ -331,64 +455,26 @@ export function ConversationPanel({
           <span className="text-sm font-medium text-[var(--oh-muted)]">
             {t(I18nKey.SIDEBAR$CONVERSATIONS)}
           </span>
-          <div ref={olderFilterMenuRef} className="relative ml-auto">
-            <button
-              type="button"
-              data-testid="older-conversations-filter-toggle"
-              aria-label="Older conversations filter"
-              aria-expanded={olderFilterMenuOpen}
-              onClick={() => setOlderFilterMenuOpen((open) => !open)}
-              className="inline-flex items-center justify-center rounded-md p-1 text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors"
-            >
-              <ListFilter size={14} />
-            </button>
-
-            {olderFilterMenuOpen && (
-              <div
-                data-testid="older-conversations-filter-menu"
-                className="absolute right-0 top-full mt-0 z-50 min-w-[168px] overflow-hidden rounded-[6px] bg-tertiary px-1 py-[6px] text-white context-menu-box-shadow"
-              >
-                <button
-                  type="button"
-                  data-testid="toggle-older-conversations"
-                  onClick={() => {
-                    toggleShowOlderConversations();
-                    setOlderFilterMenuOpen(false);
-                  }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
-                >
-                  {showOlderConversations
-                    ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
-                    : capitalizeLabel(t(I18nKey.CONVERSATION$SHOW_ALL))}
-                </button>
-                <button
-                  type="button"
-                  data-testid="delete-older-conversations"
-                  onClick={() => {
-                    setConfirmDeleteOlderVisible(true);
-                    setOlderFilterMenuOpen(false);
-                  }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-danger hover:bg-[var(--oh-interactive-hover)]"
-                >
-                  {capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
-                </button>
-                <div className="my-1 h-[1px] w-full bg-[var(--oh-border)]" />
-                <button
-                  type="button"
-                  data-testid="toggle-repo-branch-metadata"
-                  onClick={() => {
-                    toggleShowRepoBranchMetadata();
-                    setOlderFilterMenuOpen(false);
-                  }}
-                  className="block w-full rounded px-2 py-2 text-left text-sm text-white hover:bg-[var(--oh-interactive-hover)]"
-                >
-                  {showRepoBranchMetadata
-                    ? "Hide Repo/Branch"
-                    : "Show Repo/Branch"}
-                </button>
-              </div>
-            )}
-          </div>
+          <ConversationPanelFilterMenu
+            filterMenuOpen={filterMenuOpen}
+            setFilterMenuOpen={setFilterMenuOpen}
+            menuRef={filterMenuRef}
+            backendKind={activeBackend.kind}
+            organizeMode={organizeMode}
+            setOrganizeMode={setOrganizeMode}
+            conversationSort={conversationSort}
+            setConversationSort={setConversationSort}
+            threadScope={threadScope}
+            setThreadScope={setThreadScope}
+            showOlderConversations={showOlderConversations}
+            toggleShowOlderConversations={toggleShowOlderConversations}
+            showRepoBranchMetadata={showRepoBranchMetadata}
+            toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
+            showLlmProfiles={showLlmProfiles}
+            toggleShowLlmProfiles={toggleShowLlmProfiles}
+            olderConversationsCount={olderScoped.length}
+            onRequestDeleteOlder={() => setConfirmDeleteOlderVisible(true)}
+          />
         </div>
       )}
 
@@ -431,16 +517,61 @@ export function ConversationPanel({
             </NavigationLink>
           ))}
 
-        {/* Recent conversations (last_updated within the past hour) */}
-        {(compact ? compactVisibleConversations : recentConversations).map(
-          renderConversationCard,
-        )}
+        {!showInitialSkeleton && compact
+          ? compactVisibleConversations.map(renderConversationCard)
+          : null}
 
-        {/* Older conversations render by default; users can hide them from the
-            summary's filter menu. Compact mode still omits the summary row. */}
-        {!compact &&
-          showOlderConversations &&
-          olderConversations.map(renderConversationCard)}
+        {!showInitialSkeleton &&
+        !compact &&
+        organizeMode === "grouped" &&
+        conversationGroups ? (
+          <nav
+            aria-label={t(I18nKey.SIDEBAR$CONVERSATIONS)}
+            className="space-y-1 px-1 pb-1"
+          >
+            {conversationGroups.map((group) => {
+              const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+              const expanded = !collapsedGroupIds.has(group.id);
+              return (
+                <section key={group.id} aria-labelledby={headingId}>
+                  <button
+                    type="button"
+                    id={headingId}
+                    aria-expanded={expanded}
+                    onClick={() => toggleGroupCollapsed(group.id)}
+                    className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.5 text-left text-sm font-medium text-[var(--oh-muted)] outline-none transition-colors hover:bg-[var(--oh-surface-raised)] hover:text-white focus-visible:ring-1 focus-visible:ring-[var(--oh-border)]"
+                  >
+                    <ChevronDown
+                      aria-hidden
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-transform",
+                        !expanded && "-rotate-90",
+                      )}
+                    />
+                    <Folder className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="truncate">{group.label}</span>
+                  </button>
+                  {expanded ? (
+                    <div className="mt-0.5 space-y-0.5">
+                      {group.conversations.map(renderConversationCard)}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </nav>
+        ) : null}
+
+        {!showInitialSkeleton &&
+        !compact &&
+        organizeMode === "chronological" ? (
+          <>
+            {sortedRecent.map(renderConversationCard)}
+            {showOlderConversations
+              ? sortedOlder.map(renderConversationCard)
+              : null}
+          </>
+        ) : null}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist
             *and* the older list is currently visible (or there are no older
@@ -483,7 +614,7 @@ export function ConversationPanel({
         <ConfirmDeleteModal
           title={t(I18nKey.CONVERSATION$CONFIRM_DELETE_OLDER_TITLE)}
           description={t(I18nKey.CONVERSATION$CONFIRM_DELETE_OLDER_DESC, {
-            count: olderConversations.length,
+            count: olderScoped.length,
           })}
           onConfirm={async () => {
             await handleConfirmDeleteOlder();

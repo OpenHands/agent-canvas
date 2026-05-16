@@ -28,6 +28,8 @@ interface ConversationCardProps {
   isActive?: boolean;
   workspaceWorkingDir?: string | null;
   showRepositoryMetadata?: boolean;
+  llmModel?: string | null;
+  showLlmProfiles?: boolean;
 }
 
 export function ConversationCard({
@@ -47,6 +49,8 @@ export function ConversationCard({
   isActive = false,
   workspaceWorkingDir,
   showRepositoryMetadata = true,
+  llmModel = null,
+  showLlmProfiles = false,
 }: ConversationCardProps) {
   const posthog = usePostHog();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
@@ -119,7 +123,8 @@ export function ConversationCard({
   };
 
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
-  const shouldRenderFooter = showRepositoryMetadata;
+  const shouldRenderFooter =
+    showRepositoryMetadata || (!!llmModel && showLlmProfiles);
 
   return (
     <div
@@ -192,6 +197,8 @@ export function ConversationCard({
           workspaceWorkingDir={workspaceWorkingDir}
           showRepositoryMetadata={showRepositoryMetadata}
           showTimestamp={false}
+          llmModel={llmModel}
+          showLlmModel={showLlmProfiles}
         />
       )}
     </div>

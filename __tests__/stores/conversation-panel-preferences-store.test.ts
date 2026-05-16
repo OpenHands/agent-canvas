@@ -8,10 +8,14 @@ describe("conversation-panel-preferences store", () => {
     window.localStorage.clear();
   });
 
-  it("defaults to showing older conversations and hiding repo/branch metadata", () => {
+  it("defaults to showing older conversations, chronological list, and expected toggles", () => {
     const state = useConversationPanelPreferencesStore.getState();
     expect(state.showOlderConversations).toBe(true);
     expect(state.showRepoBranchMetadata).toBe(false);
+    expect(state.showLlmProfiles).toBe(false);
+    expect(state.organizeMode).toBe("chronological");
+    expect(state.conversationSort).toBe("updated");
+    expect(state.threadScope).toBe("all");
   });
 
   it("toggles showOlderConversations and persists the new value to localStorage", () => {
@@ -66,8 +70,12 @@ describe("conversation-panel-preferences store", () => {
       window.localStorage.getItem(STORAGE_KEY) ?? "{}",
     );
     expect(Object.keys(persisted.state).sort()).toEqual([
+      "conversationSort",
+      "organizeMode",
+      "showLlmProfiles",
       "showOlderConversations",
       "showRepoBranchMetadata",
+      "threadScope",
     ]);
   });
 });

@@ -18,6 +18,8 @@ interface CompactConversationRowProps {
   isActive?: boolean;
   onClose?: () => void;
   showRepositoryMetadata?: boolean;
+  llmModel?: string | null;
+  showLlmProfiles?: boolean;
 }
 
 /**
@@ -36,6 +38,8 @@ export function CompactConversationRow({
   isActive = false,
   onClose,
   showRepositoryMetadata = true,
+  llmModel = null,
+  showLlmProfiles = false,
 }: CompactConversationRowProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -57,6 +61,8 @@ export function CompactConversationRow({
         executionStatus={executionStatus}
         workspaceWorkingDir={workspaceWorkingDir}
         showRepositoryMetadata={showRepositoryMetadata}
+        llmModel={llmModel}
+        showLlmModel={showLlmProfiles}
       />
     </div>
   );

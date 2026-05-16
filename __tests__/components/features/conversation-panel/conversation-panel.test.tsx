@@ -1188,7 +1188,7 @@ describe("ConversationPanel", () => {
       ).toBeInTheDocument();
     });
 
-    it("does not render the summary when no conversations are older than 1h", async () => {
+    it("always renders the conversations header with the filter control", async () => {
       vi.spyOn(
         AgentServerConversationService,
         "searchConversations",
@@ -1211,9 +1211,11 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       await screen.findAllByTestId("conversation-card");
+      const summary = screen.getByTestId("older-conversations-summary");
+      expect(summary).toBeInTheDocument();
       expect(
-        screen.queryByTestId("older-conversations-summary"),
-      ).not.toBeInTheDocument();
+        within(summary).getByTestId("older-conversations-filter-toggle"),
+      ).toBeInTheDocument();
     });
 
     it("toggles older conversations visibility via the filter dropdown", async () => {
