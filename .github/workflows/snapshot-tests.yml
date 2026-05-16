@@ -58,11 +58,7 @@ jobs:
         run: npm run test:e2e:snapshots:update
 
       - name: Upload baseline snapshots artifact
-        # Run even when generate exits non-zero (e.g. one spec crashes) so the
-        # partial baselines from passing specs are still available. Playwright
-        # writes snapshots as each test completes under --update-snapshots, so
-        # the directory has usable PNGs even when the overall step failed.
-        if: always() && (github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true')
+        if: github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: snapshot-baselines
