@@ -11,6 +11,7 @@ vi.mock("#/hooks/use-agent-state");
 
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: "test-id" }),
+  useOptionalConversationId: () => ({ conversationId: "test-id" }),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

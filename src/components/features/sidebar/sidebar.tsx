@@ -48,6 +48,9 @@ const ManageBackendsModal = React.lazy(() =>
 );
 
 const ICON_SIZE = 18;
+/** ~74% of the stock 46×30 mark; `max-w-none` keeps it from clamping in the icon column. */
+const SIDEBAR_LOGO_WIDTH = 34;
+const SIDEBAR_LOGO_HEIGHT = Math.round((SIDEBAR_LOGO_WIDTH * 30) / 46);
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
@@ -169,18 +172,23 @@ export function Sidebar() {
           collapsed
             ? "md:w-[64px] md:min-w-[64px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-2 md:pt-4" : "px-2 py-2 md:px-2 md:pt-4",
+          collapsed ? "md:px-2" : "px-2 pb-2 md:px-2",
           "flex-row md:flex-col",
-          currentPath === "/" && "md:pt-6.5 md:pb-3",
+          currentPath === "/" && "md:pb-3",
         )}
       >
         <div
           className={cn(
-            "flex items-center gap-2 md:py-1 md:pb-3",
+            "flex items-center gap-2 h-10 min-h-10 shrink-0",
+            // Collapsed desktop: stacked logo + chevron needs more than 40px.
+            collapsed && "md:h-auto md:min-h-0 md:py-2",
             // Collapsed: stack the chevron beneath the logo so the 64px rail
             // doesn't need to grow to fit two controls in a row. Expanded:
             // chevron is right-aligned via ml-auto further down.
-            collapsed ? "md:flex-col md:gap-2 md:px-0" : "md:pl-0 md:pr-0",
+            // `pl-2` matches SidebarNavLink horizontal inset; no right padding so
+            // the collapse control can sit flush against the rail edge (outer
+            // sidebar still provides `px-2`).
+            collapsed ? "md:flex-col md:gap-2 md:px-0" : "pl-2 pr-0",
           )}
         >
           {collapsed ? (
@@ -191,7 +199,12 @@ export function Sidebar() {
                   showCollapsedExpandButton && "opacity-0",
                 )}
               >
-                <OpenHandsLogoButton />
+                <OpenHandsLogoButton
+                  logoWidth={SIDEBAR_LOGO_WIDTH}
+                  logoHeight={SIDEBAR_LOGO_HEIGHT}
+                  logoClassName="max-w-none"
+                  className="inline-flex h-10 w-10 items-center justify-center overflow-visible"
+                />
               </div>
               <button
                 type="button"
@@ -213,7 +226,12 @@ export function Sidebar() {
             </div>
           ) : (
             <>
-              <OpenHandsLogoButton />
+              <OpenHandsLogoButton
+                logoWidth={SIDEBAR_LOGO_WIDTH}
+                logoHeight={SIDEBAR_LOGO_HEIGHT}
+                logoClassName="max-w-none"
+                className="inline-flex w-[18px] shrink-0 items-center justify-center overflow-visible"
+              />
               {/* Desktop-only collapse toggle. Hidden on mobile (the sidebar
                   there is the top bar and doesn't collapse). No tooltip —
                   the chevron direction already conveys what the button does. */}

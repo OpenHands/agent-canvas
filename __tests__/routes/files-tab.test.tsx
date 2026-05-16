@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router";
 
 import FilesTab from "#/routes/files-tab";
+import { useFilesTabStore } from "#/stores/files-tab-store";
 
 // Mocks must be declared before the SUT is imported.
 const useHasAttachedSourceMock = vi.fn();
@@ -58,6 +59,14 @@ function renderTab() {
 
 describe("FilesTab", () => {
   beforeEach(() => {
+    // `selectedPath` lives in a global Zustand store (useFilesTabStore) and
+    // the auto-select effect re-fires when the store is reset between tests,
+    // which can race with the Zustand mock's afterEach reset and leave the
+    // store polluted with the previous test's path. Resetting here, after
+    // the previous test's cleanup() has unmounted any FilesTab, defeats
+    // that race so each test starts with a clean selection.
+    useFilesTabStore.setState({ selectedPath: null });
+
     useHasAttachedSourceMock.mockReset();
     useHasGitCommitsMock.mockReset();
     useWorkspaceFilesMock.mockReset();

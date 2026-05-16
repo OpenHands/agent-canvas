@@ -102,19 +102,19 @@ export function SecretsSettingsScreen() {
       {view === "list" && !isLoadingSecrets && (
         <div
           ref={tableContainerRef}
-          className="border border-[var(--oh-border)] rounded-md overflow-auto max-h-[60vh]"
+          className="border border-[var(--oh-border)] rounded-md overflow-auto max-h-[min(40vh,22rem)] bg-base-secondary"
           onScroll={handleScroll}
         >
           <table className="w-full min-w-full table-fixed">
             <thead className="bg-base-tertiary sticky top-0">
               <tr>
-                <th className="w-1/4 text-left p-3 text-sm font-medium">
+                <th className="w-1/4 px-3 py-2 text-left text-sm font-medium">
                   {t(I18nKey.SETTINGS$NAME)}
                 </th>
-                <th className="w-1/2 text-left p-3 text-sm font-medium">
+                <th className="w-1/2 px-3 py-2 text-left text-sm font-medium">
                   {t(I18nKey.SECRETS$DESCRIPTION)}
                 </th>
-                <th className="w-1/4 text-right p-3 text-sm font-medium">
+                <th className="w-1/4 px-3 py-2 text-right text-sm font-medium">
                   {t(I18nKey.SETTINGS$ACTIONS)}
                 </th>
               </tr>

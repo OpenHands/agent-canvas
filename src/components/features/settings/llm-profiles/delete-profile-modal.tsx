@@ -50,10 +50,18 @@ export function DeleteProfileModal({
   const footer = (
     <>
       <BrandButton
+        ref={cancelButtonRef}
+        type="button"
+        variant="tertiary"
+        onClick={handleClose}
+        isDisabled={deleteProfile.isPending}
+      >
+        {t(I18nKey.BUTTON$CANCEL)}
+      </BrandButton>
+      <BrandButton
         testId="delete-profile-confirm"
         type="button"
         variant="danger"
-        className="grow"
         onClick={handleDelete}
         isDisabled={deleteProfile.isPending}
         aria-busy={deleteProfile.isPending}
@@ -66,16 +74,6 @@ export function DeleteProfileModal({
         ) : (
           t(I18nKey.BUTTON$DELETE)
         )}
-      </BrandButton>
-      <BrandButton
-        ref={cancelButtonRef}
-        type="button"
-        variant="tertiary"
-        className="grow"
-        onClick={handleClose}
-        isDisabled={deleteProfile.isPending}
-      >
-        {t(I18nKey.BUTTON$CANCEL)}
       </BrandButton>
     </>
   );

@@ -1,4 +1,4 @@
-import { FaPencil, FaTrash } from "react-icons/fa6";
+import { Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -67,18 +67,18 @@ export function MCPServerListItem({
       className="grid grid-cols-[minmax(0,0.25fr)_120px_minmax(0,1fr)_120px] gap-4 items-start border-t border-[var(--oh-border-subtle)]"
     >
       <td
-        className="p-3 text-sm text-content-2 truncate min-w-0"
+        className="px-3 py-2 text-sm text-content-2 truncate min-w-0"
         title={serverName}
       >
         {serverName}
       </td>
 
-      <td className="p-3 text-sm text-content-2 whitespace-nowrap">
+      <td className="px-3 py-2 text-sm text-content-2 whitespace-nowrap">
         {getServerTypeLabel(server.type)}
       </td>
 
       <td
-        className="p-3 text-sm text-content-2 opacity-80 italic min-w-0 truncate"
+        className="px-3 py-2 text-sm text-content-2 opacity-80 min-w-0 truncate"
         title={serverDescription}
       >
         <span className="inline-block max-w-full align-bottom">
@@ -86,24 +86,24 @@ export function MCPServerListItem({
         </span>
       </td>
 
-      <td className="p-3 flex items-start justify-end gap-4 whitespace-nowrap">
+      <td className="flex items-start justify-end gap-0.5 whitespace-nowrap px-3 py-2">
         <button
           data-testid="edit-mcp-server-button"
           type="button"
           onClick={onEdit}
           aria-label={`Edit ${serverName}`}
-          className="cursor-pointer hover:text-content-1 transition-colors"
+          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
         >
-          <FaPencil size={16} />
+          <Pencil aria-hidden className="size-4" strokeWidth={2} />
         </button>
         <button
           data-testid="delete-mcp-server-button"
           type="button"
           onClick={onDelete}
           aria-label={`Delete ${serverName}`}
-          className="cursor-pointer hover:text-content-1 transition-colors"
+          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
         >
-          <FaTrash size={16} />
+          <Trash2 aria-hidden className="size-4" strokeWidth={2} />
         </button>
       </td>
     </tr>

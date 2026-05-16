@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNavigation } from "#/context/navigation-context";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 
 /**
  * Hook that polls V1 conversation start tasks and navigates when ready.
@@ -20,12 +20,14 @@ import { useConversationId } from "#/hooks/use-conversation-id";
  * Note: This hook does NOT fetch conversation data. It only handles task polling and navigation.
  */
 export const useTaskPolling = () => {
-  const { conversationId } = useConversationId();
+  // Optional: the chat input shell renders on the home page too; polling
+  // simply no-ops when there's no conversation id yet.
+  const { conversationId } = useOptionalConversationId();
   const { navigate } = useNavigation();
 
   // Check if this is a task ID (format: "task-{uuid}")
-  const isTask = conversationId.startsWith("task-");
-  const taskId = isTask ? conversationId.replace("task-", "") : null;
+  const isTask = !!conversationId && conversationId.startsWith("task-");
+  const taskId = isTask ? conversationId!.replace("task-", "") : null;
 
   // Poll the task if this is a task ID
   const taskQuery = useQuery({
@@ -62,7 +64,7 @@ export const useTaskPolling = () => {
   return {
     isTask,
     taskId,
-    conversationId: isTask ? null : conversationId,
+    conversationId: isTask ? null : (conversationId ?? null),
     task: taskQuery.data,
     taskStatus: taskQuery.data?.status,
     taskDetail: taskQuery.data?.detail,

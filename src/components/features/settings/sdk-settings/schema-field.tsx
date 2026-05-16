@@ -167,7 +167,7 @@ export function SchemaField({
           disabled={isDisabled}
           onChange={(event) => onChange(event.target.value)}
           className={cn(
-            "bg-tertiary border border-[var(--oh-border-input)] min-h-32 w-full rounded-sm p-2 font-mono text-sm",
+            "bg-tertiary border border-[var(--oh-border-input)] min-h-32 w-full min-w-0 rounded-sm p-2 font-mono text-sm",
             "placeholder:italic placeholder:text-tertiary-alt",
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
           )}
