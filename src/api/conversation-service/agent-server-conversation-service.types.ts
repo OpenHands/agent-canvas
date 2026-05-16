@@ -123,10 +123,10 @@ export interface AppConversation {
   updated_at: string;
   execution_status: ExecutionStatus | null;
   /**
-   * Cloud-only field indicating the lifecycle state of the backing sandbox.
-   * Mirrors OpenHands' V1SandboxStatus. null for local agent-server conversations.
+   * Cloud-only sandbox lifecycle status. Mirrors OpenHands' V1SandboxStatus.
+   * Absent / null for local agent-server conversations.
    */
-  sandbox_status: SandboxStatus | null;
+  sandbox_status?: SandboxStatus | null;
   conversation_url: string | null;
   session_api_key: string | null;
   sandbox_id: string | null;
