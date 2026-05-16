@@ -191,15 +191,6 @@ export default function AutomationsList() {
           <SearchInput value={searchQuery} onChange={setSearchQuery} />
         </div>
 
-        <div className="mt-6">
-          <RecommendedAutomationsSection
-            backendKind={activeBackend.backend.kind}
-            installedServers={installedMcpServers}
-            query={searchQuery}
-            onSelect={setSelectedRecommendedAutomation}
-          />
-        </div>
-
         {/* Content */}
         <div className="mt-6 flex flex-col gap-6">
           {isLoading && (
@@ -247,6 +238,15 @@ export default function AutomationsList() {
               )}
             </>
           )}
+        </div>
+
+        <div className="mt-6">
+          <RecommendedAutomationsSection
+            backendKind={activeBackend.backend.kind}
+            installedServers={installedMcpServers}
+            query={searchQuery}
+            onSelect={setSelectedRecommendedAutomation}
+          />
         </div>
 
         {/* Delete confirmation modal */}
