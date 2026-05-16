@@ -209,7 +209,12 @@ export function RbrenRepoPicker({ collapsed }: RbrenRepoPickerProps) {
           data-testid="rbren-repo-picker-popover"
           role="menu"
           className={cn(
-            "absolute z-30 top-full right-0 mt-1 p-1 min-w-[280px]",
+            // Anchor the popover's left edge to the chevron rather than its
+            // right edge — at min-w-[280px] the popover is wider than the
+            // sidebar, so anchoring with `right-0` would push it leftward
+            // and run it off the left side of the screen. `left-0` lets it
+            // float rightward over the main content area instead.
+            "absolute z-30 top-full left-0 mt-1 p-1 min-w-[280px]",
             "bg-[var(--oh-surface)] border border-[var(--oh-border-input)]",
             "rounded-lg shadow-xl",
             "flex flex-col",
