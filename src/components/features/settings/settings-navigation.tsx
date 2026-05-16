@@ -9,6 +9,7 @@ import { SettingsNavHeader } from "./settings-nav-header";
 import { SettingsNavDivider } from "./settings-nav-divider";
 import { SettingsNavLink } from "./settings-nav-link";
 import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
+import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 
 interface SettingsNavigationProps {
   isMobileMenuOpen: boolean;
@@ -47,6 +48,9 @@ export function SettingsNavigation({
               icon={renderedItem.item.icon}
             />
           ))}
+        </div>
+        <div className="px-2 pt-3">
+          <BackendSyncedSettingsBadge />
         </div>
       </aside>
 
@@ -102,6 +106,10 @@ export function SettingsNavigation({
               />
             );
           })}
+        </div>
+
+        <div className="px-2 pt-3">
+          <BackendSyncedSettingsBadge />
         </div>
       </nav>
     </>

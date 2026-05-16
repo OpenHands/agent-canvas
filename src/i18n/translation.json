@@ -25789,12 +25789,54 @@
     "ca": "Descobreix habilitats per afegir al teu espai de treball. Obre una targeta per veure indicacions, curl i fluxos d'instal·lació. Cerca des de la barra lateral per filtrar la llista. Activeu o desactiveu les habilitats predeterminades. Les habilitats desactivades no es carregaran al context de l'agent."
   },
   "BACKEND$NAME_REQUIRED": {
-    "en": "Name is required"
+    "en": "Name is required",
+    "ja": "名前は必須です",
+    "zh-CN": "需要填写名称",
+    "zh-TW": "需要填寫名稱",
+    "ko-KR": "이름은 필수입니다",
+    "no": "Navn er påkrevd",
+    "ar": "الاسم مطلوب",
+    "de": "Name ist erforderlich",
+    "fr": "Le nom est obligatoire",
+    "it": "Il nome è obbligatorio",
+    "pt": "O nome é obrigatório",
+    "es": "El nombre es obligatorio",
+    "ca": "El nom és obligatori",
+    "tr": "Ad gerekli",
+    "uk": "Ім'я обов'язкове"
   },
   "BACKEND$HOST_REQUIRED": {
-    "en": "Host is required"
+    "en": "Host is required",
+    "ja": "ホストは必須です",
+    "zh-CN": "需要填写主机地址",
+    "zh-TW": "需要填寫主機位址",
+    "ko-KR": "호스트는 필수입니다",
+    "no": "Vert er påkrevd",
+    "ar": "المضيف مطلوب",
+    "de": "Host ist erforderlich",
+    "fr": "L'hôte est obligatoire",
+    "it": "L'host è obbligatorio",
+    "pt": "O host é obrigatório",
+    "es": "El host es obligatorio",
+    "ca": "L'amfitrió és obligatori",
+    "tr": "Ana bilgisayar gerekli",
+    "uk": "Хост обов'язковий"
   },
   "BACKEND$HOST_INVALID": {
-    "en": "Enter a valid URL (e.g. http://localhost:8080)"
+    "en": "Enter a valid URL (e.g. http://localhost:8080)",
+    "ja": "有効な URL を入力してください（例: http://localhost:8080）",
+    "zh-CN": "请输入有效的 URL（例如 http://localhost:8080）",
+    "zh-TW": "請輸入有效的 URL（例如 http://localhost:8080）",
+    "ko-KR": "유효한 URL을 입력하세요(예: http://localhost:8080)",
+    "no": "Angi en gyldig URL (f.eks. http://localhost:8080)",
+    "ar": "أدخل عنوان URL صالحًا (مثل http://localhost:8080)",
+    "de": "Geben Sie eine gültige URL ein (z. B. http://localhost:8080)",
+    "fr": "Saisissez une URL valide (p. ex. http://localhost:8080)",
+    "it": "Inserisci un URL valido (es. http://localhost:8080)",
+    "pt": "Insira um URL válido (ex.: http://localhost:8080)",
+    "es": "Introduce una URL válida (p. ej. http://localhost:8080)",
+    "ca": "Introdueix un URL vàlid (p. ex. http://localhost:8080)",
+    "tr": "Geçerli bir URL girin (ör. http://localhost:8080)",
+    "uk": "Введіть коректну URL-адресу (наприклад, http://localhost:8080)"
   }
 }
