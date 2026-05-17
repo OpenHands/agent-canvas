@@ -26,7 +26,6 @@ import {
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useConfig } from "#/hooks/query/use-config";
-import { useGetTrajectory } from "#/hooks/mutation/use-get-trajectory";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import type { MessageEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
@@ -42,7 +41,6 @@ vi.mock("#/hooks/use-send-message", () => ({
 }));
 
 vi.mock("#/hooks/query/use-config");
-vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: vi.fn(),
@@ -143,11 +141,6 @@ describe("ChatInterface - Chat Suggestions", () => {
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {},
     });
-    (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      mutate: vi.fn(),
-      mutateAsync: vi.fn(),
-      isLoading: false,
-    });
     (
       useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
     ).mockReturnValue({
@@ -229,11 +222,6 @@ describe("ChatInterface - Scroll-up loads older events", () => {
 
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {},
-    });
-    (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      mutate: vi.fn(),
-      mutateAsync: vi.fn(),
-      isLoading: false,
     });
     (
       useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
@@ -528,11 +516,6 @@ describe("ChatInterface - Pending message queue", () => {
     useErrorMessageStore.setState({ errorMessage: null });
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {},
-    });
-    (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      mutate: vi.fn(),
-      mutateAsync: vi.fn(),
-      isLoading: false,
     });
     (
       useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>

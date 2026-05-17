@@ -125,6 +125,10 @@ describe("LlmSettingsLocalView", () => {
     // Should show create view elements (profile name input and back button)
     expect(screen.getByTestId("profile-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("back-to-profiles")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Add LLM Profile|SETTINGS\$ADD_LLM_PROFILE/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("profile-editor-description")).toBeInTheDocument();
   });
 
   it("returns to list view when back button clicked", async () => {
@@ -332,6 +336,13 @@ describe("LlmSettingsLocalView", () => {
         const nameInput = screen.getByTestId("profile-name-input");
         expect(nameInput).toHaveValue("gpt-4-profile");
       });
+
+      expect(
+        screen.getByText(/Edit LLM Profile|SETTINGS\$EDIT_LLM_PROFILE/),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("profile-editor-description")).toHaveTextContent(
+        /gpt-4-profile|SETTINGS\$PROFILE_LOADED/,
+      );
 
       // Verify getProfile was called with the correct profile name
       expect(ProfilesService.getProfile).toHaveBeenCalledWith(

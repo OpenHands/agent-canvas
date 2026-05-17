@@ -1,9 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 interface ConversationStatusDotProps {
   executionStatus: ExecutionStatus | null | undefined;
+  /**
+   * Cloud-only sandbox lifecycle status. When provided, MISSING and ERROR
+   * override the execution-status visual so the dot reflects the sandbox
+   * state rather than the last agent execution state.
+   */
+  sandboxStatus?: SandboxStatus | null;
   /**
    * Wrap the dot in a tooltip showing the human-readable status label.
    * Disable this when the dot is already nested inside a larger tooltip
@@ -14,11 +21,6 @@ interface ConversationStatusDotProps {
 }
 
 type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
-
-const SUCCESS_GREEN = "#1FBD53";
-const PAUSED_GRAY = "var(--oh-muted)";
-const ERROR_RED = "#FF684E";
-const UNKNOWN_GRAY = "var(--oh-color-tertiary)";
 
 const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
@@ -39,7 +41,8 @@ const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   }
 };
 
-const labelKeyFor = (visual: Visual): string => {
+const labelKeyFor = (visual: Visual, isArchived?: boolean): string => {
+  if (isArchived) return "COMMON$ARCHIVED";
   switch (visual) {
     case "check":
       return "COMMON$FINISHED";
@@ -62,9 +65,8 @@ function renderIndicator(visual: Visual) {
         <svg
           data-testid="conversation-status-check"
           viewBox="0 0 12 12"
-          className="w-2.5 h-2.5"
+          className="w-2.5 h-2.5 stroke-[var(--oh-status-success)]"
           fill="none"
-          stroke={SUCCESS_GREEN}
           strokeWidth={2.25}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -77,40 +79,35 @@ function renderIndicator(visual: Visual) {
       return (
         <span
           data-testid="conversation-status-working"
-          className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ backgroundColor: SUCCESS_GREEN }}
+          className="w-1.5 h-1.5 rounded-full animate-pulse bg-[var(--oh-status-success)]"
         />
       );
     case "active":
       return (
         <span
           data-testid="conversation-status-active"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: SUCCESS_GREEN }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-status-success)]"
         />
       );
     case "paused":
       return (
         <span
           data-testid="conversation-status-paused"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: PAUSED_GRAY }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-muted)]"
         />
       );
     case "error":
       return (
         <span
           data-testid="conversation-status-error"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: ERROR_RED }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-status-error)]"
         />
       );
     default:
       return (
         <span
           data-testid="conversation-status-unknown"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: UNKNOWN_GRAY }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-color-tertiary)]"
         />
       );
   }
@@ -118,12 +115,24 @@ function renderIndicator(visual: Visual) {
 
 export function ConversationStatusDot({
   executionStatus,
+  sandboxStatus,
   showTooltip = true,
 }: ConversationStatusDotProps) {
   const { t } = useTranslation("openhands");
 
-  const visual = visualFor(executionStatus);
-  const label = t(labelKeyFor(visual));
+  // sandbox_status === "MISSING" → show archived (gray) dot
+  // sandbox_status === "ERROR"   → show error (red) dot
+  // Otherwise fall through to the execution-status visual.
+  const isArchived = sandboxStatus === "MISSING";
+  const effectiveVisual: Visual =
+    sandboxStatus === "ERROR"
+      ? "error"
+      : isArchived
+        ? "paused"
+        : visualFor(executionStatus);
+
+  const visual = effectiveVisual;
+  const label = t(labelKeyFor(visual, isArchived));
   const indicator = renderIndicator(visual);
 
   const dot = (

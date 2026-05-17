@@ -80,6 +80,7 @@ export function ApiKeyModalBase({
         aria-modal="true"
         aria-labelledby="modal-title"
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
+        // runtime prop-driven width; cannot move to className
         style={{ width }}
       >
         <h3 id="modal-title" className="text-xl font-bold">

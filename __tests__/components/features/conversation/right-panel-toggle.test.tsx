@@ -7,6 +7,7 @@ import { useConversationStore } from "#/stores/conversation-store";
 const CONVERSATION_ID = "conv-abc123";
 
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: CONVERSATION_ID }),
 }));
 

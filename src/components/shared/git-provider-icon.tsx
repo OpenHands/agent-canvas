@@ -1,6 +1,7 @@
 import { FaBitbucket, FaGithub, FaGitlab } from "react-icons/fa6";
 import { Provider } from "#/types/settings";
 import AzureDevOpsLogo from "#/assets/branding/azure-devops-logo.svg?react";
+import { cn } from "#/utils/utils";
 
 interface GitProviderIconProps {
   gitProvider: Provider;
@@ -22,7 +23,7 @@ export function GitProviderIcon({
         <FaBitbucket size={14} className={className} />
       )}
       {gitProvider === "azure_devops" && (
-        <AzureDevOpsLogo className={`${className} w-[14px] h-[14px]`} />
+        <AzureDevOpsLogo className={cn(className, "w-[14px] h-[14px]")} />
       )}
     </>
   );

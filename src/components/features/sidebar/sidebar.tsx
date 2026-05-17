@@ -363,6 +363,20 @@ export function Sidebar() {
                 data-testid="collapsed-backend-selector-link"
                 aria-label={t(I18nKey.BACKEND$MANAGE)}
                 aria-expanded={collapsedBackendPopoverOpen}
+                // The popover this button anchors mounts a downshift-driven
+                // Dropdown that attaches window-level mousedown/mouseup
+                // listeners; on mouseup with a target outside its own
+                // input/menu/toggle it calls handleBlur and closes the menu.
+                // This button is a sibling of the Dropdown — not one of those
+                // tracked elements — so without stopping propagation, clicking
+                // the tray icon would close the popover the user is still
+                // hovering. preventDefault on mousedown also keeps focus from
+                // shifting off anything currently focused inside the dropdown.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onMouseUp={(event) => event.stopPropagation()}
                 className={cn(
                   "relative inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
                   collapsedBackendPopoverOpen
@@ -378,7 +392,7 @@ export function Sidebar() {
               </button>
               {collapsedBackendPopoverOpen ? (
                 <div
-                  className="absolute bottom-0 left-full pl-2 z-40 w-[272px]"
+                  className="absolute bottom-[-4px] left-full pl-2 z-40 w-[272px]"
                   // Stop click propagation so dropdown option clicks
                   // (rendered as <li role="option">, which the rail's
                   // collapse handler does not match against `button/a`)

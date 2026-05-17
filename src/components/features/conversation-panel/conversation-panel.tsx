@@ -244,6 +244,7 @@ export function ConversationPanel({
               git_provider: conversation.git_provider as Provider,
             }}
             executionStatus={conversation.execution_status}
+            sandboxStatus={conversation.sandbox_status}
             lastUpdatedAt={conversation.updated_at}
             createdAt={conversation.created_at}
             workspaceWorkingDir={conversation.workspace?.working_dir}
@@ -277,6 +278,7 @@ export function ConversationPanel({
             lastUpdatedAt={conversation.updated_at}
             createdAt={conversation.created_at}
             executionStatus={conversation.execution_status}
+            sandboxStatus={conversation.sandbox_status}
             conversationId={conversation.id}
             contextMenuOpen={openContextMenuId === conversation.id}
             onContextMenuToggle={(isOpen) =>

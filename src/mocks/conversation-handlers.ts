@@ -7,6 +7,9 @@ import {
 } from "#/types/agent-server/core";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
 
+/** Map from conversation id → events returned by GET /events/search */
+const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
+
 const now = Date.now();
 const PAGINATION_LOCAL_CONVERSATION_ID = "pagination-local";
 const PAGINATION_CLOUD_CONVERSATION_ID = "pagination-cloud";
@@ -50,6 +53,27 @@ const conversations: MockConversation[] = [
     execution_status: "idle",
     selected_repository: "octocat/earth",
     selected_branch: "main",
+  },
+  // Conversation whose sandbox has been removed (MISSING). The conversation
+  // history is still readable but the sandbox cannot be resumed — the chat
+  // input is replaced with a read-only archived banner.
+  {
+    id: "4",
+    title: "Archived Project",
+    created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    sandbox_status: "MISSING",
+  },
+  // Conversation whose sandbox encountered an unrecoverable error. Same
+  // read-only treatment but with the "Sandbox error" variant of the banner.
+  {
+    id: "5",
+    title: "Errored Project",
+    created_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    sandbox_status: "ERROR",
   },
   {
     id: PAGINATION_LOCAL_CONVERSATION_ID,
@@ -175,6 +199,7 @@ function createConversationResponse(
     created_at: conversation.created_at,
     updated_at: conversation.updated_at,
     execution_status: conversation.execution_status ?? "idle",
+    sandbox_status: conversation.sandbox_status ?? null,
     metrics: conversation.metrics ?? null,
     agent: conversation.agent ?? null,
     workspace: conversation.workspace ?? null,
@@ -206,7 +231,12 @@ export const CONVERSATION_HANDLERS = [
 
   http.get("*/api/conversations", async ({ request }) => {
     const url = new URL(request.url);
-    const ids = url.searchParams.getAll("ids");
+    // Axios serializes arrays as `ids[]=a&ids[]=b` (bracket notation).
+    // Fall back to plain `ids` to support both formats.
+    const ids =
+      url.searchParams.getAll("ids[]").length > 0
+        ? url.searchParams.getAll("ids[]")
+        : url.searchParams.getAll("ids");
     return HttpResponse.json(listConversationResponses(ids));
   }),
 
@@ -271,12 +301,14 @@ export const CONVERSATION_HANDLERS = [
   http.get(
     "*/api/conversations/:conversationId/events/search",
     async ({ params, request }) => {
+      const conversationId = params.conversationId as string;
       const paginationPage = await maybeReturnPaginationEvents(
-        params.conversationId as string,
+        conversationId,
         new URL(request.url).searchParams,
       );
       if (paginationPage) return HttpResponse.json(paginationPage);
-      return HttpResponse.json({ items: [], next_page_id: null });
+      const items = CONVERSATION_EVENTS[conversationId] ?? [];
+      return HttpResponse.json({ items, next_page_id: null });
     },
   ),
 

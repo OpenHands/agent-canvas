@@ -11,6 +11,7 @@ import {
 // Mock useConversationId hook
 let mockConversationId = "test-conversation-id-123";
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({
     conversationId: mockConversationId,
   }),
