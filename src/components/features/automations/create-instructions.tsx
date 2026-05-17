@@ -4,6 +4,7 @@ import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
 import ChevronDownIcon from "#/icons/chevron-down.svg?react";
+import { cn } from "#/utils/utils";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
@@ -98,9 +99,10 @@ export function CreateInstructions({
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon
-            className={`size-5 text-muted transition-transform ${
-              isExpanded ? "rotate-180" : ""
-            }`}
+            className={cn(
+              "size-5 text-muted transition-transform",
+              isExpanded && "rotate-180",
+            )}
           />
         </button>
         {isExpanded && <div className="px-4 pb-4">{content}</div>}

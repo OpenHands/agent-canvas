@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "../settings/brand-button";
+import { cn } from "#/utils/utils";
 
 interface SkillsModalHeaderProps {
   isAgentReady: boolean;
@@ -34,7 +35,7 @@ export function SkillsModalHeader({
           >
             <RefreshCw
               size={16}
-              className={`${isRefetching ? "animate-spin" : ""}`}
+              className={cn(isRefetching && "animate-spin")}
             />
             {t(I18nKey.BUTTON$REFRESH)}
           </BrandButton>

@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Typography } from "#/ui/typography";
+import { cn } from "#/utils/utils";
 
 interface ToggleButtonProps {
   title: string;
@@ -19,7 +20,10 @@ export function ToggleButton({
       type="button"
       data-testid="toggle-button"
       onClick={onClick}
-      className={`w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors ${className || ""}`}
+      className={cn(
+        "w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors",
+        className,
+      )}
     >
       <div className="flex items-center">
         <Typography.Text className="font-bold text-content-2">
