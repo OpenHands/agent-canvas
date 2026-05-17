@@ -94,10 +94,10 @@ export function AutomationCard({
           icon={<ClockIcon className="size-3.5" />}
           label={scheduleLabel}
         />
-        {automation.model && (
+        {(automation.llm_profile ?? automation.model) && (
           <MetadataChip
             icon={<SparkleIcon className="size-3.5" />}
-            label={automation.model}
+            label={automation.llm_profile ?? automation.model ?? ""}
           />
         )}
       </div>

@@ -28,6 +28,7 @@ export const MOCK_AUTOMATIONS_RESPONSE: AutomationsResponse = {
       enabled: true,
       repository: "acme/frontend-app",
       model: "Claude Opus",
+      llm_profile: "triage-fast",
       created_at: daysAgo(90),
       updated_at: now,
       prompt:

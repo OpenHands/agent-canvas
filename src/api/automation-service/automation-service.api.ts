@@ -1,6 +1,7 @@
 import axios from "axios";
 import type {
   Automation,
+  AutomationRun,
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
@@ -125,6 +126,22 @@ class AutomationService {
     }
 
     await localAutomationAxios.delete(path);
+  }
+
+  static async dispatchAutomation(id: string): Promise<AutomationRun> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/dispatch`;
+
+    if (active.kind === "cloud") {
+      return callCloudProxy<AutomationRun>({
+        backend: active,
+        method: "POST",
+        path,
+      });
+    }
+
+    const { data } = await localAutomationAxios.post<AutomationRun>(path);
+    return data;
   }
 
   static async listAutomationRuns(
