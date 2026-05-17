@@ -42,12 +42,12 @@ export function AgentServerUIRoot({
       data-agent-server-ui=""
       {...divProps}
       className={className}
+      // CSS custom properties injected onto the scope root so descendants can resolve var(--oh-*)
       style={scopedStyle}
     >
       <div
-        className={cn(theme, contentClassName)}
+        className={cn(theme, contentClassName, "text-foreground")}
         data-theme={theme}
-        style={{ color: "var(--foreground)" }}
       >
         {children}
       </div>

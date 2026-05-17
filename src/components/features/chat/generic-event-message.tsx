@@ -4,6 +4,7 @@ import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { SuccessIndicator } from "./success-indicator";
 import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
+import { cn } from "#/utils/utils";
 
 interface GenericEventMessageProps {
   title: React.ReactNode;
@@ -35,15 +36,17 @@ export function GenericEventMessage({
     >
       {showDetails ? (
         <ArrowUp
-          className={`h-4 w-4 inline fill-[var(--oh-muted)] ${
-            chevronPosition === "after" ? "ml-2" : "mr-2"
-          }`}
+          className={cn(
+            "h-4 w-4 inline fill-[var(--oh-muted)]",
+            chevronPosition === "after" ? "ml-2" : "mr-2",
+          )}
         />
       ) : (
         <ArrowDown
-          className={`h-4 w-4 inline fill-[var(--oh-muted)] ${
-            chevronPosition === "after" ? "ml-2" : "mr-2"
-          }`}
+          className={cn(
+            "h-4 w-4 inline fill-[var(--oh-muted)]",
+            chevronPosition === "after" ? "ml-2" : "mr-2",
+          )}
         />
       )}
     </button>

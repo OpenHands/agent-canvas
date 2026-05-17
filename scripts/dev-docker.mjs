@@ -193,6 +193,18 @@ function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
  * Cache/config writes that libraries place under $HOME stay ephemeral in this
  * tmpfs. The only persisted default-home state is the explicit
  * ~/.openhands -> /home/openhands/.openhands bind mount below.
+ *
+ * We explicitly pass `exec` because docker's `--tmpfs` default option set is
+ * `rw,noexec,nosuid,nodev`. `noexec` breaks any agent flow that needs to run a
+ * binary out of `$HOME` -- most visibly stdio MCP servers installed via
+ * `npx -y @modelcontextprotocol/server-*`, which cache their executables under
+ * `~/.npm/_npx/...` and then exec them. With the default `noexec` flag, those
+ * execs fail with "Permission denied" regardless of the file mode bits, and
+ * the failure only surfaces when a conversation tries to spin the MCP server
+ * up -- aborting agent initialization with a confusing traceback.
+ *
+ * `nosuid` and `nodev` are preserved (the home dir has no business hosting
+ * setuid binaries or device nodes); only the `noexec` default is overridden.
  */
 function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
   if (!userSpec) {
@@ -204,7 +216,10 @@ function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
     return [];
   }
 
-  return ["--tmpfs", `${CONTAINER_HOME_DIR}:uid=${uid},gid=${gid},mode=700`];
+  return [
+    "--tmpfs",
+    `${CONTAINER_HOME_DIR}:exec,nosuid,nodev,uid=${uid},gid=${gid},mode=700`,
+  ];
 }
 
 /**

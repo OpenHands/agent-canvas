@@ -43,6 +43,7 @@ function Slide({ index, currentStep, children }: SlideProps) {
       data-testid={`onboarding-slide-${index}`}
       data-active={isActive}
       aria-hidden={!isActive}
+      // slide offset computed from step index at runtime
       style={{ transform: `translateX(${offsetPct}%)` }}
       className={cn(
         "w-full transition-transform duration-300 ease-out",

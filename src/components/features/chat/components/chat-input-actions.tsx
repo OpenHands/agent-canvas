@@ -538,6 +538,7 @@ export function ChatInputActions({
                 typeof document !== "undefined" &&
                 overflowPortalStyle &&
                 ReactDOM.createPortal(
+                  // portal position computed from DOM bounding rect at runtime
                   <div style={overflowPortalStyle}>{overflowMenu}</div>,
                   document.body,
                 )}

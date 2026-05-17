@@ -1,4 +1,4 @@
-import React from "react";
+import { cn } from "#/utils/utils";
 
 interface BudgetProgressBarProps {
   currentCost: number;
@@ -15,9 +15,11 @@ export function BudgetProgressBar({
   return (
     <div className="w-full h-1.5 bg-tertiary rounded-full overflow-hidden mt-1">
       <div
-        className={`h-full transition-all duration-300 ${
-          isNearLimit ? "bg-red-500" : "bg-blue-500"
-        }`}
+        className={cn(
+          "h-full transition-all duration-300",
+          isNearLimit ? "bg-red-500" : "bg-blue-500",
+        )}
+        // runtime usage-percentage width
         style={{
           width: `${Math.min(100, usagePercentage)}%`,
         }}

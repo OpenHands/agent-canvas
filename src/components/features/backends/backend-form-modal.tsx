@@ -580,8 +580,7 @@ export function BackendFormModal({
       >
         <div
           data-testid="add-backend-modal"
-          className="bg-base-secondary rounded-xl border border-tertiary"
-          style={{ width: "720px" }}
+          className="bg-base-secondary rounded-xl border border-tertiary w-[720px]"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-2">
@@ -635,8 +634,7 @@ export function BackendFormModal({
     >
       <div
         data-testid={`${testIdRoot}-modal`}
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
-        style={{ width: "480px" }}
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[480px]"
       >
         <h3 className="text-xl font-bold">{t(I18nKey.BACKEND$EDIT_TITLE)}</h3>
         <BackendForm

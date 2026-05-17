@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { isHookExecutionEvent } from "#/types/agent-server/type-guards";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { GenericEventMessage } from "#/components/features/chat/generic-event-message";
+import { cn } from "#/utils/utils";
 
 interface HookExecutionEventMessageProps {
   event: OpenHandsEvent;
@@ -79,7 +80,7 @@ export function HookExecutionEventMessage({
       {event.tool_name && (
         <span className="text-[var(--oh-muted)] ml-2">({event.tool_name})</span>
       )}
-      <span className={`ml-2 px-1 py-0.5 rounded text-xs ${statusClassName}`}>
+      <span className={cn("ml-2 px-1 py-0.5 rounded text-xs", statusClassName)}>
         {statusText}
       </span>
     </span>

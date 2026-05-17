@@ -4,6 +4,7 @@ import CheckCircleIcon from "#/icons/check-circle.svg?react";
 import XCircleIcon from "#/icons/x-circle.svg?react";
 import ClockIcon from "#/icons/clock.svg?react";
 import { AutomationRunStatus } from "#/types/automation";
+import { cn } from "#/utils/utils";
 
 interface RunStatusBadgeProps {
   status: AutomationRunStatus;
@@ -61,7 +62,10 @@ export function RunStatusBadge({ status }: RunStatusBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.style}`}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        config.style,
+      )}
     >
       <StatusIcon status={status} />
       {t(config.label)}

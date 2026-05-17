@@ -22,7 +22,7 @@ const PROBE_TIMEOUT_MS = 4000;
  *  - Local agent-server: GET `/server_info` via the typescript-client.
  *    That's the same endpoint the root compatibility check uses, so a
  *    healthy backend always answers it.
- *  - Cloud SaaS: GET `/api/keys/current` via the bundled local
+ *  - Cloud: GET `/api/keys/current` via the bundled local
  *    agent-server's `/api/cloud-proxy`. That endpoint is lightweight,
  *    requires auth, and `getCurrentCloudApiKey` already absorbs the
  *    legacy-key 400 fallback so we treat that as "connected" too.

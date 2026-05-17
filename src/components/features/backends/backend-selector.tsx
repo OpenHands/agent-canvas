@@ -73,7 +73,7 @@ function buildOptions(
         prefix,
       });
     } else {
-      // Personal-workspace rule (per the SaaS contract): the org whose
+      // Personal-workspace rule (per the cloud contract): the org whose
       // id matches the calling user's id is the user's personal
       // workspace. We resolve `user_id` once per backend (via /me on any
       // one org) and apply it across all orgs of that backend.
@@ -174,7 +174,7 @@ export function BackendSelector({
   // (UI says "Local", APIs hit cloud). When we detect the drift, snap
   // the selection onto the personal-workspace org (or, lacking a /me
   // result, the first org). The selection is recorded locally only;
-  // the SaaS request scope follows from the API key's bound org and the
+  // the cloud request scope follows from the API key's bound org and the
   // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
   // org choice is never mutated as a side effect.
   React.useEffect(() => {
