@@ -5,10 +5,8 @@ import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
   useDeleteAutomation,
-  useUpdateAutomation,
   useDispatchAutomation,
 } from "#/hooks/query/use-automations";
-import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
@@ -62,11 +60,6 @@ export default function AutomationDetail() {
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
-
-  const updateMutation = useUpdateAutomation();
-  const { data: profilesData } = useLlmProfiles({
-    enabled: isBackendHealthy && !backendChanged,
-  });
 
   const is404 =
     isError && isAxiosError(error) && error.response?.status === 404;
@@ -138,13 +131,6 @@ export default function AutomationDetail() {
     });
   };
 
-  const handleLlmProfileChange = (llmProfile: string | null) => {
-    updateMutation.mutate({
-      id: automation.id,
-      body: { llm_profile: llmProfile },
-    });
-  };
-
   const handleRunNow = () => {
     dispatchMutation.mutate(automation.id);
   };
@@ -162,12 +148,7 @@ export default function AutomationDetail() {
             isRunningNow={dispatchMutation.isPending}
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
-          <ConfigurationSection
-            automation={automation}
-            llmProfiles={profilesData?.profiles}
-            isUpdatingLlmProfile={updateMutation.isPending}
-            onLlmProfileChange={handleLlmProfileChange}
-          />
+          <ConfigurationSection automation={automation} />
           {automation.plugins && automation.plugins.length > 0 && (
             <PluginsSection plugins={automation.plugins} />
           )}

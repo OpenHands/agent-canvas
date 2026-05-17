@@ -30,23 +30,6 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
   });
 }
 
-export function useUpdateAutomation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      body,
-    }: {
-      id: string;
-      body: Parameters<typeof AutomationService.updateAutomation>[1];
-    }) => AutomationService.updateAutomation(id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
-    },
-  });
-}
-
 export function useToggleAutomation() {
   const queryClient = useQueryClient();
   return useMutation({
