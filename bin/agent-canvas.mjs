@@ -95,6 +95,12 @@ main({
   extraPrereqs: checkDockerPrereqs,
   startAgentServer: startAgentServerDocker,
   viteWorkingDir: CONTAINER_WORKSPACES_DIR,
+  // The automation backend ships `mkdir -p {work_dir} && tar xzf …` to
+  // the agent-server's bash API, so the work-dir base must be valid
+  // inside the agent-server's container. Use the in-container path
+  // (bind-mounted from the host's ~/.openhands/agent-canvas/workspaces)
+  // — the host's stateDir path doesn't exist inside the Linux container.
+  automationWorkspaceBase: CONTAINER_WORKSPACES_DIR,
   staticMode: true,
   staticDir: BUILD_DIR,
   // Agent-server runs in a Docker container; host services are reached
