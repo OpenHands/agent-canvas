@@ -46,20 +46,6 @@ vi.mock("#/components/shared/buttons/openhands-logo-button", () => ({
   OpenHandsLogoButton: () => <div data-testid="logo-button" />,
 }));
 
-vi.mock("#/components/shared/buttons/new-project-button", () => ({
-  NewProjectButton: () => <div data-testid="new-project-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/conversation-panel-button", () => ({
-  ConversationPanelButton: () => (
-    <div data-testid="conversation-panel-button" />
-  ),
-}));
-
-vi.mock("#/components/shared/buttons/automations-button", () => ({
-  AutomationsButton: () => <div data-testid="automations-button" />,
-}));
-
 vi.mock("#/components/features/sidebar/user-actions", () => ({
   UserActions: () => <div data-testid="user-actions" />,
 }));
