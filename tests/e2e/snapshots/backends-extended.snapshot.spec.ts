@@ -5,21 +5,22 @@ import { seedLocalStorage } from "./support/seed-local-storage";
 /**
  * Extended visual snapshot tests for the backend management UI.
  *
- * These tests exercise the full lifecycle of backend CRUD operations with
- * iterative screenshot captures at each meaningful state transition:
+ * The add-backend modal is a two-column layout:
+ *   Left — Manual connection: name, host, API-key, Connect button.
+ *          Kind is inferred from the host URL (local vs cloud).
+ *   Right — Cloud OAuth: one-click "Login with OpenHands" device flow.
  *
- * Flow 1 — Add form validation gates
- *   Form is disabled until both "Host Name" and "Host URL" are filled;
- *   cloud backends additionally require an API key.
+ * Flow 1 — Add form validation gates (manual connection column)
+ *   Connect is disabled until name + valid host are filled; cloud-inferred
+ *   hosts additionally require an API key.
  *
- * Flow 2 — Kind auto-inference (host → type)
- *   Typing a cloud-domain URL (all-hands.dev) auto-selects Cloud and
- *   shows the device-flow OAuth section.  A local URL flips back to Local
- *   and hides OAuth.  Manually selecting a kind stops auto-inference.
+ * Flow 2 — Two-column layout renders correctly
+ *   The add modal shows both manual-connection and cloud-login columns
+ *   side by side with an OR divider.
  *
- * Flow 3 — Cloud OAuth button gated by host
- *   The "Login with OpenHands" button is disabled when the host field is
- *   empty so the user can't start a device-flow with nowhere to point it.
+ * Flow 3 — Cloud login column renders OAuth section
+ *   The right column shows the OpenHands logo, description, and a
+ *   "Login with OpenHands" device-flow button.
  *
  * Flow 4 — Remove backend with confirmation step
  *   Clicking "Remove" opens a ConfirmationModal; confirming removes the
@@ -34,14 +35,12 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *   then updates the selector trigger label once the overlay fades.
  *
  * Flow 7 — Malformed / empty host blocks submission
- *   A host with only whitespace keeps the Submit button disabled.
- *   A syntactically invalid URL (e.g. containing spaces or a garbled
- *   scheme) also keeps Save disabled — isValidHostUrl() rejects it at
- *   the form level before normalisation can make it look superficially
- *   valid to the URL constructor.
+ *   A host with only whitespace keeps the Connect button disabled.
+ *   A syntactically invalid URL also keeps Connect disabled.
  *
- * Flow 8 — Cancel add form dismisses without saving
- *   Clicking Cancel closes the modal without altering the backend list.
+ * Flow 8 — Close add form dismisses without saving
+ *   Clicking the close (✕) button closes the modal without altering
+ *   the backend list.
  */
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -161,24 +160,21 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
 
   // ── Flow 1: Add-form validation gates ─────────────────────────────────
 
-  test("Flow 1a — add form blank: Save button disabled until required fields filled", async ({
+  test("Flow 1a — add form blank: Connect button disabled until required fields filled", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
-    // 1. Completely blank form — Save must be disabled.
+    // 1. Completely blank form — Connect must be disabled.
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-blank-disabled.png",
       SNAP_OPTS,
     );
 
-    // 2. Fill only the name; host still empty → Save still disabled.
-    //    Focus + blur the host field to reveal the "Host is required" error.
+    // 2. Fill only the name; host still empty → Connect still disabled.
     await page.getByTestId("add-backend-name").fill("My Backend");
-    await page.getByTestId("add-backend-host").focus();
-    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-name-only-disabled.png",
@@ -186,18 +182,17 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     );
   });
 
-  test("Flow 1b — local backend becomes Save-ready with name + host, no API key required", async ({
+  test("Flow 1b — local backend becomes Connect-ready with name + host, no API key required", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
-    // Switch to Local type first so API key is not required.
-    await page.getByTestId("add-backend-kind-local").click();
+    // A localhost URL infers local kind — no API key needed.
     await page.getByTestId("add-backend-name").fill("Dev Server");
     await page.getByTestId("add-backend-host").fill("http://localhost:8080");
 
-    // API key left empty — Save must be enabled for local kind.
+    // API key left empty — Connect must be enabled for local kind.
     await expect(page.getByTestId("add-backend-submit")).not.toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-local-ready.png",
@@ -205,27 +200,24 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     );
   });
 
-  test("Flow 1c — cloud backend requires API key; Save stays disabled without it", async ({
+  test("Flow 1c — cloud-inferred backend requires API key; Connect stays disabled without it", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
-    // Add form starts in Cloud mode; type a cloud URL to confirm.
+    // An all-hands.dev URL infers cloud kind — API key required.
     await page.getByTestId("add-backend-name").fill("Cloud Prod");
     await page.getByTestId("add-backend-host").fill("https://app.all-hands.dev");
 
-    // Cloud radio should now be selected (auto-inferred from domain).
-    await expect(page.getByTestId("add-backend-kind-cloud")).toBeChecked();
-
-    // No API key → Save disabled.
+    // No API key → Connect disabled.
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-cloud-no-key-disabled.png",
       SNAP_OPTS,
     );
 
-    // Fill API key → Save enabled.
+    // Fill API key → Connect enabled.
     await page.getByTestId("add-backend-api-key").fill("sk-live-abc123");
     await expect(page.getByTestId("add-backend-submit")).not.toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
@@ -234,92 +226,44 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     );
   });
 
-  // ── Flow 2: Kind auto-inference + manual override ─────────────────────
+  // ── Flow 2: Two-column layout ──────────────────────────────────────
 
-  test("Flow 2a — typing a local URL auto-infers Local kind and hides OAuth section", async ({
+  test("Flow 2 — add modal shows two-column layout with manual and cloud login", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
-    // Initially cloud (add-mode default).
-    await expect(page.getByTestId("add-backend-kind-cloud")).toBeChecked();
+    // Left column: manual connection form is visible.
+    await expect(page.getByTestId("add-backend-form")).toBeVisible();
 
-    // Type a localhost URL → should flip to Local, hiding device-flow.
-    await page.getByTestId("add-backend-host").fill("localhost:8888");
-    await expect(page.getByTestId("add-backend-kind-local")).toBeChecked({
-      timeout: 3_000,
-    });
-    // Device-flow section disappears for local kind.
-    await expect(page.getByTestId("add-backend-device-flow")).not.toBeVisible();
-    await expect(rootLayout).toHaveScreenshot(
-      "backend-add-kind-local-inferred.png",
-      SNAP_OPTS,
-    );
-  });
-
-  test("Flow 2b — typing a cloud URL keeps Cloud kind and shows OAuth section", async ({
-    page,
-  }) => {
-    await setupPage(page);
-    const rootLayout = await openAddModal(page);
-
-    // Type an all-hands.dev URL → stays/becomes Cloud, shows device-flow.
-    await page.getByTestId("add-backend-host").fill("https://app.all-hands.dev");
-    await expect(page.getByTestId("add-backend-kind-cloud")).toBeChecked({
-      timeout: 3_000,
-    });
+    // Right column: cloud login section with device-flow OAuth.
+    await expect(page.getByTestId("add-backend-cloud-title")).toBeVisible();
     await expect(page.getByTestId("add-backend-device-flow")).toBeVisible();
+    await expect(page.getByTestId("add-backend-login-button")).toBeVisible();
+
     await expect(rootLayout).toHaveScreenshot(
-      "backend-add-kind-cloud-inferred.png",
+      "backend-add-two-column-layout.png",
       SNAP_OPTS,
     );
   });
 
-  test("Flow 2c — manually selecting Local locks the kind even when a cloud URL is typed", async ({
+  // ── Flow 3: Cloud login column ────────────────────────────────────────
+
+  test("Flow 3 — cloud login column shows advanced host override", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
-    // Explicitly click Local radio → touchedKind = true.
-    await page.getByTestId("add-backend-kind-local").click();
-    await expect(page.getByTestId("add-backend-kind-local")).toBeChecked();
+    // Expand advanced settings in the cloud column.
+    await page.getByTestId("add-backend-advanced-toggle").click();
+    await expect(page.getByTestId("add-backend-cloud-host")).toBeVisible({
+      timeout: 3_000,
+    });
 
-    // Now type a cloud URL — kind must STAY local (manual override).
-    await page.getByTestId("add-backend-host").fill("https://app.all-hands.dev");
-    // Wait a tick for any potential effect to run.
-    await page.waitForTimeout(200);
-    await expect(page.getByTestId("add-backend-kind-local")).toBeChecked();
-    await expect(page.getByTestId("add-backend-device-flow")).not.toBeVisible();
     await expect(rootLayout).toHaveScreenshot(
-      "backend-add-manual-override-local.png",
-      SNAP_OPTS,
-    );
-  });
-
-  // ── Flow 3: OAuth button gated by host ────────────────────────────────
-
-  test("Flow 3 — cloud Login button disabled until both name and host are filled", async ({
-    page,
-  }) => {
-    await setupPage(page);
-    const rootLayout = await openAddModal(page);
-
-    // Cloud form, host empty → login button disabled.
-    await expect(page.getByTestId("add-backend-kind-cloud")).toBeChecked();
-    await expect(page.getByTestId("add-backend-login-button")).toBeDisabled();
-    await expect(rootLayout).toHaveScreenshot(
-      "backend-add-oauth-button-disabled.png",
-      SNAP_OPTS,
-    );
-
-    // Fill name + host → login button enabled.
-    await page.getByTestId("add-backend-name").fill("My Cloud");
-    await page.getByTestId("add-backend-host").fill("https://app.all-hands.dev");
-    await expect(page.getByTestId("add-backend-login-button")).not.toBeDisabled();
-    await expect(rootLayout).toHaveScreenshot(
-      "backend-add-oauth-button-enabled.png",
+      "backend-add-cloud-advanced-open.png",
       SNAP_OPTS,
     );
   });
@@ -483,30 +427,25 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
 
   // ── Flow 7: Malformed/empty host ──────────────────────────────────────
 
-  test("Flow 7 — empty or invalid host keeps Save disabled; valid host enables Save", async ({
+  test("Flow 7 — empty or invalid host keeps Connect disabled", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
     // Seed just the name, leave host blank.
-    await page.getByTestId("add-backend-kind-local").click();
     await page.getByTestId("add-backend-name").fill("Bad URL Test");
 
     // Whitespace-only host → isValidHostUrl returns false → disabled.
-    // Blur the field to reveal the inline "Host is required" error.
     await page.getByTestId("add-backend-host").fill("   ");
-    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-whitespace-host-disabled.png",
       SNAP_OPTS,
     );
 
-    // A syntactically invalid URL (spaces + garbled scheme) is rejected by
-    // isValidHostUrl() — Save stays disabled and the inline error explains why.
+    // A syntactically invalid URL is rejected by isValidHostUrl().
     await page.getByTestId("add-backend-host").fill("not://:::a valid url!!!");
-    await page.getByTestId("add-backend-host").blur();
     await expect(page.getByTestId("add-backend-submit")).toBeDisabled();
     await expect(rootLayout).toHaveScreenshot(
       "backend-add-invalid-url-disabled.png",
@@ -516,14 +455,13 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
 
   // ── Flow 8: Cancel add form ───────────────────────────────────────────
 
-  test("Flow 8 — canceling the add form closes modal without persisting data", async ({
+  test("Flow 8 — closing the add form dismisses modal without persisting data", async ({
     page,
   }) => {
     await setupPage(page);
     const rootLayout = await openAddModal(page);
 
     // Partially fill the form.
-    await page.getByTestId("add-backend-kind-local").click();
     await page.getByTestId("add-backend-name").fill("Temp Backend");
     await page.getByTestId("add-backend-host").fill("http://localhost:9999");
 
@@ -532,8 +470,8 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
       SNAP_OPTS,
     );
 
-    // Click Cancel.
-    await page.getByTestId("add-backend-cancel").click();
+    // Click the close (✕) button.
+    await page.getByTestId("add-backend-close").click();
 
     // Modal is dismissed.
     await expect(page.getByTestId("add-backend-modal")).not.toBeVisible({
