@@ -56,7 +56,8 @@ test.describe("Archived Conversation Visual Snapshots", () => {
 
     const conversationPanel = page.getByTestId("conversation-panel");
     await expect(conversationPanel).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(5, {
+    // 6 mock conversations: 1–3 normal + 4 MISSING + 5 ERROR + pagination-local
+    await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
     await expect(page.getByTestId("archived-badge")).toBeVisible({
