@@ -63,7 +63,10 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
-import { startSetupServer, DEFAULT_PORT as SETUP_SERVER_PORT } from "./setup-server.mjs";
+import {
+  startSetupServer,
+  DEFAULT_PORT as SETUP_SERVER_PORT,
+} from "./setup-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -285,7 +288,8 @@ async function buildConfig(args, env = process.env) {
 
   // Preferred ports (from env or defaults)
   const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const preferredBackendPort = DEFAULT_BACKEND_PORT;
+  const preferredBackendPort =
+    parseInt(env.OH_CANVAS_SAFE_BACKEND_PORT, 10) || DEFAULT_BACKEND_PORT;
   const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
   const preferredVitePort = 3001;
 

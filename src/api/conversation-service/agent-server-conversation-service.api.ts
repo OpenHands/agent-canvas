@@ -270,7 +270,9 @@ class AgentServerConversationService {
     agentType?: "default" | "plan",
     sandboxId?: string,
   ): Promise<AppConversationStartTask> {
-    if (getActiveBackend().backend.kind === "cloud") {
+    const activeBackend = getActiveBackend().backend;
+
+    if (activeBackend.kind === "cloud") {
       // Cloud SaaS path mirrors OpenHands' frontend: build a flat
       // AppConversationStartRequest, POST /api/v1/app-conversations
       // (returns a WORKING task), and let the conversation route's
@@ -298,7 +300,9 @@ class AgentServerConversationService {
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
     const workingDir =
-      workingDirOverride ?? buildConversationWorkingDir(conversationId);
+      workingDirOverride ??
+      activeBackend.workingDir ??
+      buildConversationWorkingDir(conversationId);
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({

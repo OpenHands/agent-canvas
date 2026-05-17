@@ -9,6 +9,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { getAgentServerSessionApiKey } from "#/api/agent-server-config";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import {
@@ -17,6 +18,7 @@ import {
   stopDockerBackend,
   type SetupStatus,
 } from "#/api/setup-service";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
 
 interface ChooseBackendStepProps {
   onBack: () => void;
@@ -24,6 +26,20 @@ interface ChooseBackendStepProps {
 }
 
 type DockerState = "idle" | "checking" | "starting" | "running" | "error";
+
+const DOCKER_BACKEND_WORKING_DIR = "/projects";
+
+function dockerBackendHost(port: number): string {
+  return `http://127.0.0.1:${port}`;
+}
+
+function normalizeBackendHost(host: string): string {
+  try {
+    return new URL(host).origin;
+  } catch {
+    return host.trim().replace(/\/+$/, "");
+  }
+}
 
 /**
  * Step 1: Choose Backend — multi-select Local + Docker.
@@ -33,6 +49,8 @@ type DockerState = "idle" | "checking" | "starting" | "running" | "error";
  */
 export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
   const { t } = useTranslation("openhands");
+  const { backends, addBackend, updateBackend, removeBackend } =
+    useActiveBackendContext();
   const [localSelected, setLocalSelected] = React.useState(true);
   const [dockerSelected, setDockerSelected] = React.useState(false);
   const [projectPath, setProjectPath] = React.useState("");
@@ -42,6 +60,51 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
     null,
   );
   const [setupAvailable, setSetupAvailable] = React.useState(true);
+  const dockerBackendName = t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_TITLE);
+
+  const findRegisteredDockerBackend = React.useCallback(
+    (host?: string) => {
+      const normalizedHost = host ? normalizeBackendHost(host) : null;
+      return backends.find(
+        (backend) =>
+          backend.kind === "local" &&
+          ((normalizedHost &&
+            normalizeBackendHost(backend.host) === normalizedHost) ||
+            backend.name === dockerBackendName),
+      );
+    },
+    [backends, dockerBackendName],
+  );
+
+  const registerDockerBackend = React.useCallback(
+    (host: string) => {
+      const normalizedHost = normalizeBackendHost(host);
+      const payload = {
+        name: dockerBackendName,
+        host: normalizedHost,
+        apiKey: getAgentServerSessionApiKey() ?? "",
+        kind: "local" as const,
+        workingDir: DOCKER_BACKEND_WORKING_DIR,
+      };
+      const existing = findRegisteredDockerBackend(normalizedHost);
+
+      if (existing) {
+        if (
+          existing.name !== payload.name ||
+          normalizeBackendHost(existing.host) !== payload.host ||
+          existing.apiKey !== payload.apiKey ||
+          existing.kind !== payload.kind ||
+          existing.workingDir !== payload.workingDir
+        ) {
+          updateBackend(existing.id, payload);
+        }
+        return existing;
+      }
+
+      return addBackend(payload);
+    },
+    [addBackend, dockerBackendName, findRegisteredDockerBackend, updateBackend],
+  );
 
   // Check Docker availability on mount
   React.useEffect(() => {
@@ -57,6 +120,10 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
 
   const handleDockerToggle = React.useCallback(() => {
     if (dockerSelected && dockerState === "running") {
+      const registeredDocker = findRegisteredDockerBackend();
+      if (registeredDocker) {
+        removeBackend(registeredDocker.id);
+      }
       stopDockerBackend().catch((err) => {
         console.error("Failed to stop Docker backend", err);
       });
@@ -65,7 +132,7 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
     setDockerSelected((prev) => !prev);
     setDockerError(null);
     setDockerState("idle");
-  }, [dockerSelected, dockerState]);
+  }, [dockerSelected, dockerState, findRegisteredDockerBackend, removeBackend]);
 
   const handleStartDocker = React.useCallback(async () => {
     if (!projectPath.trim()) {
@@ -95,12 +162,17 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
       }
 
       if (status.dockerBackendRunning) {
+        registerDockerBackend(
+          status.dockerBackendUrl ??
+            dockerBackendHost(status.dockerBackendPort),
+        );
         setDockerState("running");
         return;
       }
 
       setDockerState("starting");
-      await startDockerBackend(projectPath.trim());
+      const result = await startDockerBackend(projectPath.trim());
+      registerDockerBackend(result.url || `${result.host}:${result.port}`);
       setDockerState("running");
     } catch (err) {
       setDockerState("error");
@@ -110,10 +182,11 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
         }),
       );
     }
-  }, [projectPath, t]);
+  }, [projectPath, registerDockerBackend, t]);
 
   const canProceed =
-    localSelected || (dockerSelected && dockerState === "running");
+    (localSelected && (!dockerSelected || dockerState === "running")) ||
+    (!localSelected && dockerSelected && dockerState === "running");
   const dockerStartDisabled = !setupAvailable;
   const dockerAvailabilityWarning = !setupAvailable
     ? t(I18nKey.ONBOARDING$CHOOSE_BACKEND_SETUP_UNAVAILABLE)
@@ -196,6 +269,7 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
       >
         <button
           type="button"
+          data-testid="choose-backend-docker-toggle"
           onClick={handleDockerToggle}
           aria-pressed={dockerSelected}
           className="flex flex-col gap-2 text-left"
@@ -289,7 +363,10 @@ export function ChooseBackendStep({ onBack, onNext }: ChooseBackendStepProps) {
             )}
 
             {dockerState === "running" && (
-              <div className="flex items-center gap-2 text-xs text-green-400">
+              <div
+                data-testid="choose-backend-docker-status-running"
+                className="flex items-center gap-2 text-xs text-green-400"
+              >
                 <CheckCircle2 className="size-4" />
                 <span>
                   {t(I18nKey.ONBOARDING$CHOOSE_BACKEND_DOCKER_STARTED)}

@@ -23,6 +23,7 @@ describe("backend-registry storage", () => {
         host: "http://127.0.0.1:9000",
         apiKey: "key-1",
         kind: "local",
+        workingDir: "/projects",
       },
       {
         id: "xyz",
@@ -80,15 +81,37 @@ describe("backend-registry storage", () => {
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([
-        { id: "ok", name: "x", host: "y", apiKey: "z", kind: "local" },
+        {
+          id: "ok",
+          name: "x",
+          host: "y",
+          apiKey: "z",
+          kind: "local",
+          workingDir: "/projects",
+        },
         { id: "missing-kind", name: "x", host: "y", apiKey: "z" },
+        {
+          id: "bad-working-dir",
+          name: "x",
+          host: "y",
+          apiKey: "z",
+          kind: "local",
+          workingDir: 123,
+        },
         { kind: "cloud" },
         "not-an-object",
       ]),
     );
 
     expect(readStoredBackends()).toEqual([
-      { id: "ok", name: "x", host: "y", apiKey: "z", kind: "local" },
+      {
+        id: "ok",
+        name: "x",
+        host: "y",
+        apiKey: "z",
+        kind: "local",
+        workingDir: "/projects",
+      },
     ]);
   });
 

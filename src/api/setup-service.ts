@@ -11,6 +11,8 @@ export interface SetupStatus {
   dockerRunning: boolean;
   dockerBackendRunning: boolean;
   dockerBackendPort: number;
+  dockerBackendUrl?: string;
+  projectPath?: string | null;
 }
 
 export interface DockerStartResult {

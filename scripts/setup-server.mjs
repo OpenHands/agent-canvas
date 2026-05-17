@@ -26,16 +26,26 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const DEFAULT_PORT = 18099;
 const DOCKER_BACKEND_PORT = 18002;
 const CONTAINER_NAME = "agent-canvas-dev-docker-backend";
 const AGENT_SERVER_REPO = "ghcr.io/openhands/agent-server";
-const DEFAULT_AGENT_SERVER_TAG = "1.22.0-python";
+const DEFAULT_AGENT_SERVER_TAG = "1.22.1-python";
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
+const CONTAINER_CANVAS_TOOLS_DIR = "/canvas-tools";
+const HOST_CANVAS_TOOLS_DIR = (() => {
+  try {
+    return fileURLToPath(new URL("../tools", import.meta.url));
+  } catch {
+    return resolve(process.cwd(), "tools");
+  }
+})();
 
 // Track the running Docker process
 let dockerProcess = null;
+let dockerProjectPath = null;
 let shutdownHandlersRegistered = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -82,7 +92,7 @@ function getAgentServerImage() {
 }
 
 function getDockerBackendEndpoint() {
-  return { host: "http://localhost", port: DOCKER_BACKEND_PORT };
+  return { host: "http://127.0.0.1", port: DOCKER_BACKEND_PORT };
 }
 
 function startDockerBackend(projectPath, options = {}) {
@@ -93,6 +103,7 @@ function startDockerBackend(projectPath, options = {}) {
   }
 
   const image = getAgentServerImage();
+  dockerProjectPath = projectPath;
 
   // Best-effort cleanup of any leftover container
   spawnSync("docker", ["rm", "-f", CONTAINER_NAME], { stdio: "ignore" });
@@ -104,8 +115,12 @@ function startDockerBackend(projectPath, options = {}) {
     "--name",
     CONTAINER_NAME,
     "--init",
-    "-v", `${projectPath}:/projects`,
-    "-p", `${DOCKER_BACKEND_PORT}:8000`,
+    "-v",
+    `${projectPath}:/projects`,
+    "-v",
+    `${HOST_CANVAS_TOOLS_DIR}:${CONTAINER_CANVAS_TOOLS_DIR}:ro`,
+    "-p",
+    `${DOCKER_BACKEND_PORT}:8000`,
   ];
 
   // Mount credentials when available
@@ -123,10 +138,12 @@ function startDockerBackend(projectPath, options = {}) {
 
   // Container environment
   const containerEnv = {
-    OH_CONVERSATIONS_PATH: "/home/openhands/.openhands/agent-canvas/conversations",
+    OH_CONVERSATIONS_PATH:
+      "/home/openhands/.openhands/agent-canvas/conversations",
     OH_PERSISTENCE_DIR: "/home/openhands/.openhands",
     OH_BASH_EVENTS_DIR: "/home/openhands/.openhands/agent-canvas/bash_events",
     OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
+    OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
   };
   if (sessionApiKey) {
     containerEnv.OH_SESSION_API_KEYS_0 = sessionApiKey;
@@ -158,6 +175,7 @@ function stopDockerBackend() {
     stdio: "ignore",
     timeout: 10_000,
   });
+  dockerProjectPath = null;
   if (dockerProcess) {
     dockerProcess.kill("SIGTERM");
     dockerProcess = null;
@@ -201,6 +219,8 @@ function handleStatus(_req, res) {
     dockerRunning: installed && isDockerRunning(),
     dockerBackendRunning: installed && isDockerBackendRunning(),
     dockerBackendPort: DOCKER_BACKEND_PORT,
+    dockerBackendUrl: `${getDockerBackendEndpoint().host}:${DOCKER_BACKEND_PORT}`,
+    projectPath: dockerProjectPath,
   });
 }
 
@@ -321,18 +341,21 @@ export {
   DEFAULT_PORT,
   DOCKER_BACKEND_PORT,
   CONTAINER_NAME,
+  CONTAINER_CANVAS_TOOLS_DIR,
+  HOST_CANVAS_TOOLS_DIR,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Standalone entry point
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { pathToFileURL } from "node:url";
-
 const isMainModule =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
-  const port = parseInt(process.argv[2] || process.env.SETUP_SERVER_PORT || DEFAULT_PORT, 10);
+  const port = parseInt(
+    process.argv[2] || process.env.SETUP_SERVER_PORT || DEFAULT_PORT,
+    10,
+  );
   startSetupServer({ port });
 }
