@@ -43,6 +43,39 @@ const MOCK_REPOSITORIES = {
 // Mock branches (same for all repos for simplicity)
 const MOCK_BRANCHES = generateMockBranches(25);
 
+// ── Git workspace test helpers ────────────────────────────────────────────────
+// MSW 2.x browser-mode handlers run in the page's main thread (PAGE-level JS),
+// not in the service worker. Module-level state is therefore shared across all
+// requests in the same page session — the same pattern as the `automations` Map.
+//
+// Pre-seeded with one modified, one added, and one deleted file so snapshot
+// tests can exercise the full file-list / diff-editor / deleted-file-placeholder
+// UI without any per-test MSW manipulation.
+//
+// Playwright specs that need a different set of changes (e.g. empty state) can:
+//   1. Call window.__setMockGitChanges__([]) via page.evaluate() after boot.
+//   2. Trigger a refetch via window.__TEST_INVALIDATE_QUERIES__?.()
+
+// Three representative files: modified, added, deleted.
+// Uses AgentServerGitChangeStatus values ("UPDATED", "ADDED", "DELETED") as
+// returned by the real /api/git/changes endpoint; AgentServerGitService maps
+// them via mapAnyGitStatusToClientStatus before handing them to the UI.
+export let MOCK_GIT_CHANGES: Array<{ path: string; status: string }> = [
+  { path: "src/components/hello.tsx", status: "UPDATED" },
+  { path: "src/utils/new-helper.ts", status: "ADDED" },
+  { path: "src/old-module.py", status: "DELETED" },
+];
+
+export const setMockGitChanges = (changes: typeof MOCK_GIT_CHANGES): void => {
+  MOCK_GIT_CHANGES = changes;
+};
+
+// Expose on window so Playwright specs can call it via page.evaluate().
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__setMockGitChanges__ =
+    setMockGitChanges;
+}
+
 export const GIT_REPOSITORY_HANDLERS = [
   http.get("*/api/user/repositories", async ({ request }) => {
     await delay(500); // Simulate network delay
@@ -230,9 +263,23 @@ export const GIT_REPOSITORY_HANDLERS = [
     return HttpResponse.json(limitedBranches);
   }),
 
-  http.get("*/api/git/changes", async () => HttpResponse.json([])),
+  // Pre-seeded git changes so snapshot tests can exercise the file list,
+  // the Monaco diff editor, and the deleted-file placeholder without any
+  // per-test MSW manipulation.
+  //
+  // Tests that need to override this (e.g. empty-state test) can call
+  //   window.__setMockGitChanges__([])
+  // via page.evaluate() after the app has loaded, then trigger a refetch
+  // via window.__TEST_INVALIDATE_QUERIES__?.()
+  http.get("*/api/git/changes", async () =>
+    HttpResponse.json(MOCK_GIT_CHANGES),
+  ),
 
   http.get("*/api/git/diff", async () =>
-    HttpResponse.json({ original: "", modified: "" }),
+    HttpResponse.json({
+      original: 'def greet(name):\n    return f"Hello, {name}!"\n',
+      modified:
+        'def greet(name: str) -> str:\n    return f"Hello, {name}! Welcome."\n',
+    }),
   ),
 ];

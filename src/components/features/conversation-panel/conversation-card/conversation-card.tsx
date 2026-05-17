@@ -4,11 +4,13 @@ import { cn } from "#/utils/utils";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCardHeader } from "./conversation-card-header";
 import { ConversationCardActions } from "./conversation-card-actions";
 import { ConversationCardFooter } from "./conversation-card-footer";
+import { ConversationStatusBadges } from "./conversation-status-badges";
 import { useDownloadConversation } from "#/hooks/use-download-conversation";
 
 interface ConversationCardProps {
@@ -22,6 +24,7 @@ interface ConversationCardProps {
   lastUpdatedAt: string;
   createdAt?: string;
   executionStatus?: ExecutionStatus | null;
+  sandboxStatus?: SandboxStatus | null;
   conversationId?: string;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
@@ -42,6 +45,7 @@ export function ConversationCard({
   createdAt,
   conversationId,
   executionStatus,
+  sandboxStatus,
   contextMenuOpen = false,
   onContextMenuToggle,
   isActive = false,
@@ -129,26 +133,34 @@ export function ConversationCard({
       onClick={onClick}
       className={cn(
         "group relative h-auto w-full rounded-md px-3 pt-1 pb-1 cursor-pointer transition-colors",
-        "data-[context-menu-open=false]:hover:bg-[#1f2228]",
-        "data-[active=true]:bg-[#25272D]",
+        "data-[context-menu-open=false]:hover:bg-[var(--oh-surface)]",
+        "data-[active=true]:bg-[var(--oh-surface)]",
         "data-[context-menu-open=true]:z-20",
       )}
     >
       <div className="flex items-center w-full min-w-0">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
           <ConversationCardHeader
             title={title}
             titleMode={titleMode}
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
+            sandboxStatus={sandboxStatus}
           />
+          {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
+            <ConversationStatusBadges
+              conversationStatus={
+                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
+              }
+            />
+          )}
         </div>
 
         <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">
           {(createdAt ?? lastUpdatedAt) && (
             <p
               className={cn(
-                "text-xs text-[#A3A3A3] text-right whitespace-nowrap transition-opacity",
+                "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity",
                 hasContextMenu &&
                   "group-hover:opacity-0 group-focus-within:opacity-0",
                 contextMenuOpen && "opacity-0",

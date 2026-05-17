@@ -47,14 +47,14 @@ export function ProfilesBody({
 
   if (profiles.length === 0) {
     return (
-      <p className="text-sm text-gray-400 italic">
+      <p className="text-sm text-[var(--oh-muted)] italic">
         {t(I18nKey.SETTINGS$PROFILES_EMPTY)}
       </p>
     );
   }
 
   return (
-    <div className="border border-tertiary rounded-md divide-y divide-tertiary">
+    <div className="border border-[var(--oh-border)] rounded-md divide-y divide-[var(--oh-border-subtle)]">
       {profiles.map((profile) => (
         <ProfileRow
           key={profile.name}

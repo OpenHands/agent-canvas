@@ -36,10 +36,10 @@ export function MarketplaceCard({
       data-testid={`mcp-marketplace-card-${entry.id}`}
       className={cn(
         "group flex flex-col text-left",
-        "rounded-xl border border-tertiary bg-base-secondary",
+        "rounded-xl border border-[var(--oh-border)] bg-base-secondary",
         "p-4 gap-3 cursor-pointer",
-        "hover:border-white/40 hover:bg-base-tertiary/30 transition-colors",
-        "focus:outline-none focus:ring-2 focus:ring-primary/60",
+        "hover:border-[var(--cool-grey-500)] hover:bg-base-tertiary/30 transition-colors",
+        "focus:outline-none focus:ring-2 focus:ring-[var(--oh-border)]",
       )}
     >
       <div className="flex items-start gap-3">
@@ -49,6 +49,7 @@ export function MarketplaceCard({
             "shrink-0 inline-flex items-center justify-center",
             "h-10 w-10 rounded-lg",
           )}
+          // data-driven icon colors from marketplace entry
           style={{
             backgroundColor: entry.iconBg,
             color: entry.iconColor ?? "#FFFFFF",

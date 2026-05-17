@@ -8,6 +8,8 @@ type ConversationTabNavProps = {
   isActive?: boolean;
   label?: string;
   className?: string;
+  /** Omit test id (e.g. offscreen width measurement clones). */
+  measureOnly?: boolean;
 };
 
 export function ConversationTabNav({
@@ -17,6 +19,7 @@ export function ConversationTabNav({
   isActive,
   label,
   className,
+  measureOnly,
 }: ConversationTabNavProps) {
   return (
     <button
@@ -24,16 +27,21 @@ export function ConversationTabNav({
       onClick={() => {
         onClick();
       }}
-      data-testid={`conversation-tab-${tabValue}`}
+      {...(measureOnly
+        ? {}
+        : { "data-testid": `conversation-tab-${tabValue}` as const })}
+      data-tab-measure={measureOnly ? "true" : undefined}
       className={cn(
         "flex items-center gap-2 rounded-md cursor-pointer",
         "pl-1.5 pr-2 py-1 lg:py-1.5",
-        "text-[#9299AA] bg-transparent",
-        isActive && "bg-[#0D0F11] text-white",
+        "text-[var(--oh-muted)] bg-transparent",
+        isActive && "bg-[var(--oh-interactive-active)] text-white",
         isActive
-          ? "hover:text-white hover:bg-[#0D0F11]"
+          ? "hover:text-white hover:bg-[var(--oh-interactive-hover)]"
           : "hover:text-white hover:bg-white/5",
-        isActive ? "focus-within:text-white" : "focus-within:text-[#9299AA]",
+        isActive
+          ? "focus-within:text-white"
+          : "focus-within:text-[var(--oh-muted)]",
         className,
       )}
     >

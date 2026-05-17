@@ -7,7 +7,7 @@ import { Settings } from "#/types/settings";
  * identity) have no native home there, so we persist them in localStorage
  * — the same approach `secrets-service.ts` uses for git provider tokens.
  *
- * In cloud mode the SaaS backend accepts these fields as flat top-level
+ * In cloud mode the cloud backend accepts these fields as flat top-level
  * keys at POST /api/v1/settings, and the cloud fetch returns them. We
  * still write through to localStorage so the values survive momentary
  * fetch failures and so the merge logic in `syncDerivedSettings` has a

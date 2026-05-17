@@ -8,7 +8,6 @@ import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
-import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import {
   getFirstAvailablePath,
@@ -43,15 +42,27 @@ function SettingsScreen() {
   const matches = useMatches();
   const navItems = useSettingsNavItems();
 
-  const currentSectionTitle = useMemo(() => {
+  const { currentSectionTitle, currentSectionSubtitle } = useMemo(() => {
     const currentRenderedItem = navItems.find(
       (item) => item.type === "item" && item.item.to === location.pathname,
     );
     if (currentRenderedItem?.type === "item") {
-      return currentRenderedItem.item.text;
+      return {
+        currentSectionTitle: currentRenderedItem.item.text,
+        currentSectionSubtitle: currentRenderedItem.item.subtitle,
+      };
     }
     const firstItem = navItems.find((item) => item.type === "item");
-    return firstItem?.type === "item" ? firstItem.item.text : "SETTINGS$TITLE";
+    if (firstItem?.type === "item") {
+      return {
+        currentSectionTitle: firstItem.item.text,
+        currentSectionSubtitle: firstItem.item.subtitle,
+      };
+    }
+    return {
+      currentSectionTitle: "SETTINGS$TITLE",
+      currentSectionSubtitle: null as string | null,
+    };
   }, [navItems, location.pathname]);
 
   const routeHandle = matches.find((m) => m.pathname === location.pathname)
@@ -59,18 +70,23 @@ function SettingsScreen() {
   const shouldHideTitle = routeHandle?.hideTitle === true;
 
   return (
-    <main data-testid="settings-screen" className="h-full">
+    <main data-testid="settings-screen" className="min-h-0">
       <SettingsLayout navigationItems={navItems}>
-        <div className="flex flex-col gap-6 h-full">
+        <div className="flex flex-col gap-6 pb-8">
           {!shouldHideTitle && (
-            <div className="flex flex-col items-start gap-2">
+            <header className="space-y-1">
               <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
-              <BackendSyncedSettingsBadge />
-            </div>
+              {currentSectionSubtitle ? (
+                <p
+                  data-testid="settings-page-subtitle"
+                  className="text-sm leading-5 text-tertiary-light"
+                >
+                  {t(currentSectionSubtitle)}
+                </p>
+              ) : null}
+            </header>
           )}
-          <div className="flex-1 overflow-auto custom-scrollbar-always">
-            <Outlet />
-          </div>
+          <Outlet />
         </div>
       </SettingsLayout>
     </main>

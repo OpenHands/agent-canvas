@@ -7,7 +7,9 @@ const defaultConversationState = {
   conversationMode: "code" as const,
 };
 
-const mockGetConversationState = vi.fn((_id: string) => defaultConversationState);
+const mockGetConversationState = vi.fn(
+  (_id: string) => defaultConversationState,
+);
 const mockSetConversationState = vi.fn();
 
 vi.mock("#/utils/conversation-local-storage", () => ({

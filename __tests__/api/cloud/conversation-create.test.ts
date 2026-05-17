@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService cloud branch", () => {
-  it("createConversation POSTs the SaaS payload through the proxy and returns a WORKING task", async () => {
+  it("createConversation POSTs the cloud payload through the proxy and returns a WORKING task", async () => {
     vi.mocked(axios.post).mockResolvedValue({
       data: {
         id: "task-123",
@@ -72,7 +72,7 @@ describe("AgentServerConversationService cloud branch", () => {
     });
     const proxiedBody = (body as { body: Record<string, unknown> }).body;
 
-    // SaaS payload shape — flat fields, NO encrypted-settings round-trip.
+    // cloud payload shape — flat fields, NO encrypted-settings round-trip.
     expect(proxiedBody.selected_repository).toBe("user/repo");
     expect(proxiedBody.selected_branch).toBe("main");
     expect(proxiedBody.git_provider).toBe("github");

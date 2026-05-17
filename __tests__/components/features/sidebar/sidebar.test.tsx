@@ -46,20 +46,6 @@ vi.mock("#/components/shared/buttons/openhands-logo-button", () => ({
   OpenHandsLogoButton: () => <div data-testid="logo-button" />,
 }));
 
-vi.mock("#/components/shared/buttons/new-project-button", () => ({
-  NewProjectButton: () => <div data-testid="new-project-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/conversation-panel-button", () => ({
-  ConversationPanelButton: () => (
-    <div data-testid="conversation-panel-button" />
-  ),
-}));
-
-vi.mock("#/components/shared/buttons/automations-button", () => ({
-  AutomationsButton: () => <div data-testid="automations-button" />,
-}));
-
 vi.mock("#/components/features/sidebar/user-actions", () => ({
   UserActions: () => <div data-testid="user-actions" />,
 }));
@@ -202,22 +188,25 @@ describe("Sidebar", () => {
     ["/automations"],
     ["/automations/abc-123"],
     ["/settings"],
+    ["/"],
   ])(
-    "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
+    "does not add md top padding to the sidebar shell on %s",
     (currentPath) => {
       renderSidebar(currentPath);
 
       const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).toMatch(/(^|\s)md:pt-4(\s|$)/);
+      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-4(\s|$)/);
       expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
     },
   );
 
-  it("renders sidebar nav links with the default text color (text-[#8C8C8C])", () => {
+  it("renders inactive sidebar nav links with the muted token color", () => {
     renderSidebar("/skills");
 
     const conversationsLink = screen.getByTestId("sidebar-conversations-link");
-    expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
+    expect(conversationsLink.className).toMatch(
+      /(^|\s)text-\[var\(--oh-muted\)\](\s|$)/,
+    );
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {
@@ -378,6 +367,38 @@ describe("Sidebar", () => {
     expect(
       await screen.findByTestId("manage-backends-modal"),
     ).toBeInTheDocument();
+  });
+
+  it("does not bubble mouse events to window when the collapsed backend icon is clicked, so the downshift-driven popover is not torn down mid-hover", () => {
+    // Bug: while the popover was open, left-clicking the tray icon closed
+    // the dropdown menu because downshift attaches its outside-click logic
+    // to window-level mousedown/mouseup. The tray icon is a sibling of the
+    // Dropdown (not one of its tracked elements), so the event reached
+    // downshift and was treated as "outside". The fix stops propagation on
+    // the button so neither event reaches the window listeners that close
+    // the menu.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    const windowMouseDown = vi.fn();
+    const windowMouseUp = vi.fn();
+    window.addEventListener("mousedown", windowMouseDown);
+    window.addEventListener("mouseup", windowMouseUp);
+
+    try {
+      renderSidebar("/conversations");
+      const trigger = screen.getByTestId("collapsed-backend-selector-link");
+      const wrapper = trigger.parentElement;
+      if (!wrapper) throw new Error("Popover wrapper not found");
+      fireEvent.mouseEnter(wrapper);
+
+      fireEvent.mouseDown(trigger);
+      fireEvent.mouseUp(trigger);
+
+      expect(windowMouseDown).not.toHaveBeenCalled();
+      expect(windowMouseUp).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("mousedown", windowMouseDown);
+      window.removeEventListener("mouseup", windowMouseUp);
+    }
   });
 
   it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {

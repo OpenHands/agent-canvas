@@ -66,7 +66,7 @@ describe("callCloudProxy X-Org-Id injection", () => {
     });
 
     // Assert — the upstream envelope carries the X-Org-Id of the active
-    // selection so the SaaS can scope this request to the user's
+    // selection so the cloud backend can scope this request to the user's
     // locally-chosen org without depending on user.current_org_id.
     const [, body] = vi.mocked(axios.post).mock.calls[0]!;
     expect(
@@ -78,7 +78,7 @@ describe("callCloudProxy X-Org-Id injection", () => {
     // Arrange — the BackendSelector fan-out (e.g. useAllCloudOrganizations)
     // calls callCloudProxy(b) for every registered cloud backend. Sending
     // the active backend's orgId across an unrelated API key would cause
-    // the SaaS to 403 on api_key_org_id / X-Org-Id mismatch.
+    // the cloud backend to 403 on api_key_org_id / X-Org-Id mismatch.
     setRegisteredBackends([cloudPersonal, cloudAcme]);
     setActiveSelection({
       backendId: cloudPersonal.id,

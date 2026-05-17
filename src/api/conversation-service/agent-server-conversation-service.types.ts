@@ -3,6 +3,17 @@ import { Provider } from "#/types/settings";
 import { SuggestedTask } from "#/utils/types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 
+/**
+ * Lifecycle state of a cloud sandbox. Mirrors OpenHands' V1SandboxStatus.
+ * Local agent-server conversations do not carry this field (null).
+ */
+export type SandboxStatus =
+  | "PAUSED"
+  | "RUNNING"
+  | "STARTING"
+  | "MISSING"
+  | "ERROR";
+
 // Plugin specification for starting conversations with plugins
 export interface PluginSpec {
   source: string; // Plugin source: 'github:owner/repo', git URL, or local path
@@ -116,6 +127,11 @@ export interface AppConversation {
   created_at: string;
   updated_at: string;
   execution_status: ExecutionStatus | null;
+  /**
+   * Cloud-only sandbox lifecycle status. Mirrors OpenHands' V1SandboxStatus.
+   * Absent / null for local agent-server conversations.
+   */
+  sandbox_status?: SandboxStatus | null;
   conversation_url: string | null;
   session_api_key: string | null;
   sandbox_id: string | null;

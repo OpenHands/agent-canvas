@@ -1,4 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
+import { stubWebSocket } from "./support/stub-websocket";
 
 /**
  * Visual snapshot tests for the CollapsibleThinking component.
@@ -173,10 +175,7 @@ async function injectEvents(page: Page, events: unknown[]) {
  * Uses mock conversation "1" which exists in the MSW handlers.
  */
 async function navigateToConversation(page: Page, events: unknown[]) {
-  // Skip onboarding
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 
   await page.route("**/api/bash/execute_bash_command", async (route) => {
     await route.fulfill({
@@ -198,43 +197,7 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     });
   });
 
-  // Stub WebSocket to prevent connection errors
-  await page.addInitScript(() => {
-    const noop = () => {};
-    class StubWebSocket extends EventTarget {
-      static CONNECTING = 0;
-      static OPEN = 1;
-      static CLOSING = 2;
-      static CLOSED = 3;
-      readyState = StubWebSocket.OPEN;
-      url: string;
-      protocol = "";
-      extensions = "";
-      bufferedAmount = 0;
-      binaryType: BinaryType = "blob";
-      onopen: ((ev: Event) => void) | null = null;
-      onclose: ((ev: CloseEvent) => void) | null = null;
-      onmessage: ((ev: MessageEvent) => void) | null = null;
-      onerror: ((ev: Event) => void) | null = null;
-      constructor(url: string | URL) {
-        super();
-        this.url = typeof url === "string" ? url : url.toString();
-        setTimeout(() => {
-          const evt = new Event("open");
-          this.onopen?.(evt);
-          this.dispatchEvent(evt);
-        }, 10);
-      }
-      send = noop;
-      close = noop;
-      CONNECTING = StubWebSocket.CONNECTING;
-      OPEN = StubWebSocket.OPEN;
-      CLOSING = StubWebSocket.CLOSING;
-      CLOSED = StubWebSocket.CLOSED;
-    }
-    (window as unknown as { WebSocket: unknown }).WebSocket =
-      StubWebSocket as unknown as typeof WebSocket;
-  });
+  await stubWebSocket(page);
 
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
     waitUntil: "domcontentloaded",

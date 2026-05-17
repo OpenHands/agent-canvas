@@ -545,21 +545,17 @@ export function SdkSectionPage({
     return <LlmSettingsInputsSkeleton />;
   }
 
-  let bodyClassName: string;
-  if (embedded) {
-    bodyClassName =
-      "flex-1 min-h-0 overflow-y-auto custom-scrollbar-always flex flex-col gap-8";
-  } else if (hideSaveButton) {
-    bodyClassName = "flex flex-col gap-8";
-  } else {
-    bodyClassName = "flex flex-col gap-8 pb-20";
-  }
+  // Scrolling is owned by the settings shell (or onboarding wrapper), not a
+  // nested scroll region. Save actions are inline after the last field.
+  const bodyClassName = "flex flex-col gap-8";
 
   return (
     <div
       data-testid={testId}
       className={
-        embedded ? "relative flex-1 min-h-0 flex flex-col" : "h-full relative"
+        embedded
+          ? "relative flex min-h-0 w-full flex-1 flex-col"
+          : "relative w-full min-h-0"
       }
     >
       <ViewToggle
@@ -608,23 +604,23 @@ export function SdkSectionPage({
             </section>
           ));
         })}
-      </div>
 
-      {!isReadOnly && !hideSaveButton ? (
-        <div className={embedded ? "pt-2" : "sticky bottom-0 bg-base py-4"}>
-          <BrandButton
-            testId="save-button"
-            type="button"
-            variant="primary"
-            isDisabled={isPending || (!isDirty && !extraDirty)}
-            onClick={handleSave}
-          >
-            {isPending
-              ? t(I18nKey.SETTINGS$SAVING)
-              : t(I18nKey.SETTINGS$SAVE_CHANGES)}
-          </BrandButton>
-        </div>
-      ) : null}
+        {!isReadOnly && !hideSaveButton ? (
+          <div className="flex justify-start pt-2">
+            <BrandButton
+              testId="save-button"
+              type="button"
+              variant="primary"
+              isDisabled={isPending || (!isDirty && !extraDirty)}
+              onClick={handleSave}
+            >
+              {isPending
+                ? t(I18nKey.SETTINGS$SAVING)
+                : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+            </BrandButton>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

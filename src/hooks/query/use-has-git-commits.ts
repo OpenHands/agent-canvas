@@ -1,7 +1,6 @@
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { useQuery } from "@tanstack/react-query";
 
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 
@@ -45,13 +44,6 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = new RemoteWorkspace(
-        getAgentServerClientOptions({
-          conversationUrl,
-          sessionApiKey,
-        }),
-      );
-
       // `git rev-parse --verify HEAD` exits 0 iff HEAD resolves to a
       // real commit. Returns non-zero in three cases that all collapse
       // to "no diff base, show files view":
@@ -61,7 +53,9 @@ export function useHasGitCommits(options?: { enabled?: boolean }): {
       // Callers gate this hook on the user having attached a source
       // (see `useHasAttachedSource`) so we don't shell out for the
       // unattached-conversation case where the answer is moot.
-      const result = await workspace.executeCommand(
+      const result = await AgentServerRuntimeService.executeCommand(
+        conversationUrl,
+        sessionApiKey,
         "git rev-parse --verify HEAD",
         workingDir,
         10,

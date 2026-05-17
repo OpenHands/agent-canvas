@@ -1,14 +1,14 @@
-import { FaPencil, FaTrash } from "react-icons/fa6";
+import { Pencil, Trash2 } from "lucide-react";
 
 export function SecretListItemSkeleton() {
   return (
-    <div className="border-t border-[#717888] last-of-type:border-b max-w-[830px] pr-2.5 py-[13px] flex items-center justify-between">
+    <div className="border-t border-[var(--oh-border-input)] last-of-type:border-b w-full min-w-0 pr-2.5 py-[13px] flex items-center justify-between">
       <div className="flex items-center justify-between w-1/3">
         <span className="skeleton h-4 w-1/2" />
         <span className="skeleton h-4 w-1/4" />
       </div>
 
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-1">
         <span className="skeleton h-4 w-4" />
         <span className="skeleton h-4 w-4" />
       </div>
@@ -30,37 +30,40 @@ export function SecretListItem({
   onDelete,
 }: SecretListItemProps) {
   return (
-    <tr data-testid="secret-item" className="border-t border-tertiary">
-      <td className="p-3 text-sm text-content-2 truncate" title={title}>
+    <tr
+      data-testid="secret-item"
+      className="border-t border-[var(--oh-border)]"
+    >
+      <td className="px-3 py-2 text-sm text-content-2 truncate" title={title}>
         {title}
       </td>
 
       <td
-        className="p-3 truncate overflow-hidden whitespace-nowrap text-sm text-content-2 opacity-80 italic"
+        className="px-3 py-2 truncate overflow-hidden whitespace-nowrap text-sm text-content-2 opacity-80"
         title={description || ""}
       >
         {description || ""}
       </td>
 
-      <td className="p-3">
-        <div className="flex items-center justify-end gap-4">
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-end gap-0.5">
           <button
             data-testid="edit-secret-button"
             type="button"
             onClick={onEdit}
             aria-label={`Edit ${title}`}
-            className="cursor-pointer"
+            className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
           >
-            <FaPencil size={16} />
+            <Pencil aria-hidden className="size-4" strokeWidth={2} />
           </button>
           <button
             data-testid="delete-secret-button"
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${title}`}
-            className="cursor-pointer"
+            className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
           >
-            <FaTrash size={16} />
+            <Trash2 aria-hidden className="size-4" strokeWidth={2} />
           </button>
         </div>
       </td>

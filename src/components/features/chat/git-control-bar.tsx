@@ -11,6 +11,7 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
+import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { Provider } from "#/types/settings";
 import { Branch, GitRepository } from "#/types/git";
 import { I18nKey } from "#/i18n/declaration";
@@ -31,6 +32,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const workspaceMenuContainerRef = useRef<HTMLDivElement>(null);
   const { addRecentRepository } = useHomeStore();
   const enqueuePendingMessage = useOptimisticUserMessageStore(
     (state) => state.enqueuePendingMessage,
@@ -55,6 +58,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
     sendRef.current = send;
   }, [send]);
   const { mutate: updateRepository } = useUpdateConversationRepository();
+  const { mutate: _createConversation, isPending: _isCreatingConversation } =
+    useCreateConversation();
 
   // Priority: conversation data > task data > locally-detected git info.
   // The local fallback runs `git remote get-url origin` / `git rev-parse --abbrev-ref HEAD`
@@ -93,6 +98,31 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
 
   // Enable buttons only when conversation exists and WS is connected
   const isConversationReady = !!conversation && webSocketStatus === "OPEN";
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen) return undefined;
+    const onMouseDown = (event: MouseEvent) => {
+      if (
+        workspaceMenuContainerRef.current &&
+        !workspaceMenuContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [isWorkspaceMenuOpen]);
+
+  useEffect(() => {
+    if (!isWorkspaceMenuOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isWorkspaceMenuOpen]);
 
   const handleLaunchRepository = (
     repository: GitRepository,
@@ -168,6 +198,14 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   // modal — that flow is cloud-only. Disable the button in that case so the
   // click is a no-op. Linkable repos render as <a> and ignore `disabled`.
   const isRepoButtonInert = isLocalBackend && !hasRepository;
+
+  // True when the bar will render at least one chip (cloud always shows
+  // "Open Repository"; local needs a repo or a workspace name; selected
+  // branch or push/pull/PR also count). When false, the bar has nothing to
+  // show — return null so the wrapper above collapses to its natural padding
+  // instead of leaving an empty DOM node below the chat input.
+  const hasAnyContent = showRepoButton || !!selectedBranch || hasRepository;
+  if (!hasAnyContent) return null;
 
   return (
     <div className="flex flex-row items-center">

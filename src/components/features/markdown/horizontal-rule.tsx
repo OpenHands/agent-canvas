@@ -7,5 +7,10 @@ export function hr({
 }: React.ClassAttributes<HTMLHRElement> &
   React.HTMLAttributes<HTMLHRElement> &
   ExtraProps) {
-  return <hr {...props} className="my-4 border-0 border-t border-[#4B505F]" />;
+  return (
+    <hr
+      {...props}
+      className="my-4 border-0 border-t border-[var(--oh-border)]"
+    />
+  );
 }

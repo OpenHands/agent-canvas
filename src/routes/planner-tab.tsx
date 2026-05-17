@@ -2,12 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
 import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
 import { planComponents } from "#/components/features/markdown/plan-components";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
-import { cn } from "#/utils/utils";
 
 function PlannerTab() {
   const { t } = useTranslation("openhands");
@@ -45,25 +46,22 @@ function PlannerTab() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full p-10">
-      <LessonPlanIcon width={109} height={109} color="#A1A1A1" />
-      <span className="text-[#8D95A9] text-[19px] font-normal leading-5 pb-9">
-        {t(I18nKey.PLANNER$EMPTY_MESSAGE)}
-      </span>
-      <button
-        type="button"
-        onClick={handlePlanClick}
-        disabled={isPlanMode}
-        className={cn(
-          "flex w-[164px] h-[40px] p-2 justify-center items-center shrink-0 rounded-lg bg-white overflow-hidden text-black text-ellipsis font-sans text-[16px] not-italic font-normal leading-[20px]",
-          isPlanMode
-            ? "opacity-50 cursor-not-allowed"
-            : "hover:cursor-pointer hover:opacity-80",
-        )}
-      >
-        {t(I18nKey.COMMON$CREATE_A_PLAN)}
-      </button>
-    </div>
+    <ConversationTabEmptyState
+      icon={<LessonPlanIcon />}
+      action={
+        <BrandButton
+          type="button"
+          variant="secondary"
+          onClick={handlePlanClick}
+          isDisabled={isPlanMode}
+          className="min-w-40 justify-center px-6"
+        >
+          {t(I18nKey.COMMON$CREATE_A_PLAN)}
+        </BrandButton>
+      }
+    >
+      {t(I18nKey.PLANNER$EMPTY_MESSAGE)}
+    </ConversationTabEmptyState>
   );
 }
 
