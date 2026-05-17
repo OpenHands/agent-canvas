@@ -202,7 +202,7 @@ const data = await fetch(`/api/conversations/${id}`);
 
 ### Rule 2 -- Cloud backend routes must go through `callCloudProxy`
 
-Any call from the browser to the cloud SaaS backend (`app.all-hands.dev`) or a cloud
+Any call from the browser to the cloud backend (`app.all-hands.dev`) or a cloud
 runtime sandbox (`*.prod-runtime.all-hands.dev`) **must** go through `callCloudProxy()`
 in `src/api/cloud/proxy.ts`. These origins do not permit CORS from `localhost`;
 `callCloudProxy` POSTs the request envelope to `/api/cloud-proxy` on the local
@@ -211,7 +211,7 @@ agent-server, which forwards it server-side.
 ```ts
 import { callCloudProxy } from "../cloud/proxy";
 
-// CORRECT -- cloud SaaS endpoint
+// CORRECT -- cloud endpoint
 const result = await callCloudProxy<ResponseType>({
   backend,
   method: "GET",
@@ -235,7 +235,7 @@ const result = await axios.get(`${backend.host}/api/v1/app-conversations`);
 `callCloudProxy` key options:
 - `backend` -- the cloud `Backend` object (provides host and bearer token)
 - `hostOverride` -- override for runtime-sandbox calls; replaces `backend.host`
-- `authMode` -- `"bearer"` (default, cloud SaaS) | `"session-api-key"` (runtime sandbox) | `"none"`
+- `authMode` -- `"bearer"` (default, cloud) | `"session-api-key"` (runtime sandbox) | `"none"`
 - `sessionApiKey` -- required when `authMode === "session-api-key"`
 
 Standard cloud/local branch pattern used throughout the service layer:
@@ -412,7 +412,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
   - The terminal tab (`components/features/terminal/terminal.tsx`) is `React.lazy`'d in `conversation-tab-content.tsx` alongside the other tabs, so xterm + addon-fit + xterm.css don't enter the conversation route's eager graph (they ship as a separate `terminal-*.js` chunk now).
   - Avoid importing app code through `#/components/conversation-events/chat` or its `event-message-components/index.ts` barrel — they exist for `lib/index.ts` (npm subpath) consumers only. Internal callers use deep paths (`./messages`, `./event-message-components/<name>`, `./event-content-helpers/should-render-event`) so Vite dev doesn't fan out the barrel.
 
-- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud SaaS backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` through the bundled `/api/cloud-proxy`). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`, which now opts into a one-shot re-probe for previously disabled backends so opening the modal can clear stale persisted error state when a server has recovered. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
+- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` through the bundled `/api/cloud-proxy`). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`, which now opts into a one-shot re-probe for previously disabled backends so opening the modal can clear stale persisted error state when a server has recovered. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
 
 - Manage Backends modal: `src/components/features/backends/manage-backends-modal.tsx` lets users edit (host/name/api-key/kind) and remove existing backends, plus add new ones inline via a "+ Add Backend" footer button that opens a `BackendFormModal`. Both the dropdown footer's "Add backend" and the manage modal's "+ Add Backend" reuse `BackendFormModal` (see `backend-form-modal.tsx`), with `mode="add"` or `mode="edit"`; `AddBackendModal` is now a thin compatibility wrapper for `BackendFormModal mode="add"`. The modal is also auto-rendered (with a no-op `onClose`) by `src/root.tsx` when the active backend is unreachable, replacing the old full-screen `MissingAgentServerNotice` onboarding screen.
 

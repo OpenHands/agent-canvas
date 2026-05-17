@@ -205,12 +205,12 @@ flag it -- the allowlist should not grow casually.
 ### Rule 2 -- All cloud backend calls must go through `callCloudProxy`
 
 **DO NOT APPROVE** a PR that issues a direct browser `fetch` or `axios` call to the
-cloud SaaS backend (`app.all-hands.dev`) or a cloud runtime sandbox
+cloud backend (`app.all-hands.dev`) or a cloud runtime sandbox
 (`*.prod-runtime.all-hands.dev`). Both origins block CORS from `localhost`. Cloud calls
 must go through `callCloudProxy()` in `src/api/cloud/proxy.ts`, which routes them
 server-side through `/api/cloud-proxy` on the local agent-server.
 
-Correct pattern -- cloud SaaS:
+Correct pattern -- cloud:
 ```ts
 callCloudProxy({ backend, method: "GET", path: "/api/v1/app-conversations/search?..." })
 ```
@@ -237,7 +237,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 ```
 
 Missing the `hostOverride` on a runtime-sandbox call is a silent bug: the proxy
-will target `backend.host` (the SaaS API) instead of the actual runtime URL.
+will target `backend.host` (the cloud API) instead of the actual runtime URL.
 Flag any `callCloudProxy` call that targets a runtime URL without `hostOverride`.
 
 ## SDK Architecture Conventions

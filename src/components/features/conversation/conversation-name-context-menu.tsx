@@ -115,7 +115,7 @@ export function ConversationNameContextMenu({
     backend.kind === "cloud"
       ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
       : I18nKey.COMMON$STOP_CONVERSATION;
-  // Public sharing is a cloud-only SaaS feature; hide it on local backends.
+  // Public sharing is a cloud-only feature; hide it on local backends.
   const shouldShowPublicSharing =
     backend.kind === "cloud" && Boolean(onTogglePublic);
 
@@ -304,6 +304,7 @@ export function ConversationNameContextMenu({
       return null;
     }
     return ReactDOM.createPortal(
+      // portal position computed from DOM bounding rect at runtime
       <div style={portalStyle}>{menu}</div>,
       document.body,
     );

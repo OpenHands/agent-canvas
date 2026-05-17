@@ -168,7 +168,7 @@ describe("BackendSelector", () => {
     expect(screen.getByText("Production")).toBeInTheDocument();
   });
 
-  it("expands a cloud backend into one row per org and records the org locally without calling SaaS /switch", async () => {
+  it("expands a cloud backend into one row per org and records the org locally without calling cloud /switch", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
         { id: "org-personal", name: "Personal" },
@@ -203,7 +203,7 @@ describe("BackendSelector", () => {
     await user.click(screen.getByText("Production – Acme Inc"));
 
     // Selecting an org row updates the active selection locally only —
-    // it must never trigger the SaaS-mutating /switch call that used to
+    // it must never trigger the cloud-mutating /switch call that used to
     // leak the local-UI choice into the cloud UI's `current_org_id`.
     await waitFor(() => {
       const stored = JSON.parse(
@@ -350,7 +350,7 @@ describe("BackendSelector", () => {
 
     // After orgs + /me resolve, the selector snaps the active selection
     // onto the personal-workspace org locally — without round-tripping
-    // /switch on the SaaS (which would have mutated the cloud UI's
+    // /switch on the cloud backend (which would have mutated the cloud UI's
     // user.current_org_id as a side effect).
     await waitFor(() => {
       const stored = JSON.parse(

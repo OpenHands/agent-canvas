@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 
@@ -12,11 +11,3 @@ export async function fetchVerifiedModelsByProvider(): Promise<
   const client = new LLMMetadataClient(getAgentServerClientOptions());
   return (await client.getVerifiedModels()) ?? {};
 }
-
-export const useVerifiedModelsByProvider = () =>
-  useQuery({
-    queryKey: VERIFIED_MODELS_QUERY_KEY,
-    queryFn: fetchVerifiedModelsByProvider,
-    staleTime: VERIFIED_MODELS_STALE_TIME,
-    gcTime: VERIFIED_MODELS_GC_TIME,
-  });

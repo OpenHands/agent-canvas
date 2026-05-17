@@ -10,7 +10,7 @@ import type { Backend } from "../backend-registry/types";
 import { callCloudProxy } from "./proxy";
 
 /**
- * The cloud SaaS Settings response is mostly flat — top-level fields like
+ * The cloud Settings response is mostly flat — top-level fields like
  * `llm_model`, `provider_tokens_set`, etc., rather than the nested
  * `{ agent_settings, conversation_settings }` shape the local agent-server
  * uses. We deliberately do NOT remap cloud fields into the local shape:
@@ -120,7 +120,7 @@ function deriveConversationSettings(
 }
 
 /**
- * Fetch the cloud SaaS settings and return them as a `Partial<Settings>`.
+ * Fetch the cloud settings and return them as a `Partial<Settings>`.
  *
  * Top-level fields like `provider_tokens_set` are preserved unchanged so
  * the existing `useUserProviders` → `useAppInstallations` →

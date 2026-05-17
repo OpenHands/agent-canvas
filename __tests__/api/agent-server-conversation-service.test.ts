@@ -581,7 +581,7 @@ describe("AgentServerConversationService", () => {
       });
     });
 
-    it("routes readConversationFile to the SaaS file endpoint with the file_path query param", async () => {
+    it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
       vi.mocked(axios.post).mockResolvedValue({ data: "# PLAN content" });
 

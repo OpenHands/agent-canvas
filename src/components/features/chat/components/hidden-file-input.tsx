@@ -15,7 +15,7 @@ export function HiddenFileInput({
       ref={fileInputRef}
       multiple
       accept="*/*"
-      style={{ display: "none" }}
+      className="hidden"
       onChange={onChange}
       data-testid="upload-image-input"
     />
