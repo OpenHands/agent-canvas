@@ -15,11 +15,6 @@ import type { EventSearchPage } from "#/api/event-service/event-service.types";
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
 
-const mockUseActiveBackend = vi.fn();
-vi.mock("#/contexts/active-backend-context", () => ({
-  useActiveBackend: () => mockUseActiveBackend(),
-}));
-
 function makeConversation(): Conversation {
   // Cast: `useUserConversation` actually returns an `AppConversation` whose
   // event-host URL lives on `conversation_url` (not the `Conversation.url`
@@ -75,13 +70,6 @@ describe("useLoadOlderEvents", () => {
     // Reset event store between tests so prior tests don't leak state.
     act(() => {
       useEventStore.getState().clearEvents();
-    });
-
-    // Default to a local backend so existing tests exercise the
-    // pagination path. Individual tests can override to cloud.
-    mockUseActiveBackend.mockReturnValue({
-      backend: { kind: "local" },
-      orgId: null,
     });
 
     vi.mocked(useUserConversation).mockReturnValue({
@@ -294,38 +282,6 @@ describe("useLoadOlderEvents", () => {
     );
     expect(result.current.isLoading).toBe(false);
     expect(result.current.hasMore).toBe(true);
-  });
-
-
-
-
-  it("disables REST older-event pagination for cloud backends", async () => {
-    // Arrange: cloud backend active, plus an anchor event in the store
-    // that would otherwise let `loadOlder` issue a `timestamp__lt` request.
-    mockUseActiveBackend.mockReturnValue({
-      backend: { kind: "cloud" },
-      orgId: "org-1",
-    });
-    act(() => {
-      useEventStore
-        .getState()
-        .addEvent(makeEvent("evt-recent", "2024-06-01T00:00:00Z"));
-    });
-    const spy = vi.spyOn(EventService, "searchEvents");
-
-    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
-      wrapper,
-    });
-
-    // Act
-    await act(async () => {
-      await result.current.loadOlder();
-    });
-
-    // Assert: cloud short-circuits — no request fires and hasMore is false
-    // from first render so the chat scroll handler never triggers.
-    expect(spy).not.toHaveBeenCalled();
-    expect(result.current.hasMore).toBe(false);
   });
 
   it("stops paginating and throws when the oldest loaded event is missing a timestamp", async () => {

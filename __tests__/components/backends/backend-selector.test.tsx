@@ -533,7 +533,7 @@ describe("BackendSelector", () => {
     await user.click(screen.getByTestId("add-backend-menu-item"));
     expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("add-backend-cancel"));
+    await user.click(screen.getByTestId("add-backend-close"));
     await waitFor(() => {
       expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
     });
