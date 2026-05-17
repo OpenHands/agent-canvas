@@ -18,6 +18,7 @@ export function BudgetProgressBar({
         className={`h-full transition-all duration-300 ${
           isNearLimit ? "bg-red-500" : "bg-blue-500"
         }`}
+        // runtime usage-percentage width
         style={{
           width: `${Math.min(100, usagePercentage)}%`,
         }}
