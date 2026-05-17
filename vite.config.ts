@@ -11,6 +11,8 @@ import {
   AGENT_SERVER_UI_SCOPE_SELECTOR,
   transformAgentServerUISelector,
 } from "./src/styles/agent-server-ui-style-scope";
+// @ts-ignore - Node-only dev middleware implemented as an ESM script.
+import { handleSetupServerRequest } from "./scripts/setup_server/handle-setup-server-request.mjs";
 
 const LIB_ENTRY = fileURLToPath(new URL("./src/index.ts", import.meta.url));
 const LIB_EXTERNALS = [
@@ -61,9 +63,17 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       {
-        name: "suppress-chrome-devtools-well-known",
+        name: "agent-canvas-local-dev-middleware",
         apply: "serve",
         configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            handleSetupServerRequest(req, res)
+              .then((handled: boolean) => {
+                if (!handled) next();
+              })
+              .catch(next);
+          });
+
           server.middlewares.use(
             "/.well-known/appspecific/com.chrome.devtools.json",
             (_req, res) => {

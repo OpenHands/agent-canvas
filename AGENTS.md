@@ -159,6 +159,7 @@ you are running inside of — NOT the automation backend.
 
 - `@openhands/typescript-client` is currently pinned to commit `ef62e82fc3dfb03991a1c8025429caf354427263` because the package metadata needed by this PR has not been published as a consistent npm/tagged release yet. That commit ships the needed typed clients plus subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
 - The `@openhands/typescript-client` git dep must be expressed as a `git+https://github.com/...` URL in both `package.json` and the top-level dep entry of `package-lock.json`; the `github:OpenHands/...` shorthand normalizes to `git+ssh://` inside the lockfile, and Vercel's build environment has no GitHub SSH key, so an ssh-pinned lockfile makes Vercel fall back to a stale cached tarball and the bundler then fails with `[MISSING_EXPORT] ConversationClient/FileClient/SharedClient is not exported by .../dist/clients.js`. `scripts/vercel-install.sh` (wired up via `vercel.json`'s `installCommand`) defensively rewrites any leftover `git+ssh://git@github.com/` resolved URLs to `git+https://github.com/` and adds matching `git config --global url..insteadOf` aliases before invoking `npm ci`, so a future regression that re-introduces an ssh-pinned lockfile entry still builds on Vercel. See GitHub issue #384 for the original failure and PR #382 for the prior single-shot lockfile fix that this generalizes.
+
 ## API Access Rules
 
 Two strict conventions govern every REST call in the frontend. Violations break CI
@@ -171,6 +172,7 @@ All calls that target the local agent-server (`/api/*`, `/server_info`, `/socket
 raw `axios`, `fetch`, or the legacy shared `openHands` axios instance.
 
 Available clients and their subpath imports:
+
 - `ConversationClient` -- `@openhands/typescript-client/clients`
 - `FileClient` -- `@openhands/typescript-client/clients`
 - `VSCodeClient` -- `@openhands/typescript-client/clients`
@@ -180,6 +182,7 @@ Available clients and their subpath imports:
 - `RemoteEventsList` -- `@openhands/typescript-client/events/remote-events-list`
 
 Client options are always assembled via helpers in `src/api/agent-server-client-options.ts`:
+
 - `getAgentServerClientOptions(overrides?)` -- for SDK client constructors
 - `getAgentServerHttpClientOptions(overrides?)` -- for `HttpClient`-based callers
 
@@ -188,8 +191,12 @@ registry and env config, so callers never hardcode URLs or auth tokens.
 
 ```ts
 // CORRECT
-const data = await new ConversationClient(getAgentServerClientOptions()).getConversation(id);
-const file = await new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
+const data = await new ConversationClient(
+  getAgentServerClientOptions(),
+).getConversation(id);
+const file = await new FileClient(
+  getAgentServerClientOptions(),
+).downloadTextFile(path);
 
 // WRONG -- raw axios/fetch calls fail the no-direct-agent-server-calls.test.ts guard
 const data = await axios.get(`${host}/api/conversations/${id}`);
@@ -197,6 +204,7 @@ const data = await fetch(`/api/conversations/${id}`);
 ```
 
 **Allowed exceptions** (files that may use axios directly for infrastructure reasons):
+
 - `src/api/automation-service/automation-service.api.ts`
 - `src/api/cloud/proxy.ts` -- the proxy envelope POST itself
 
@@ -233,6 +241,7 @@ const result = await axios.get(`${backend.host}/api/v1/app-conversations`);
 ```
 
 `callCloudProxy` key options:
+
 - `backend` -- the cloud `Backend` object (provides host and bearer token)
 - `hostOverride` -- override for runtime-sandbox calls; replaces `backend.host`
 - `authMode` -- `"bearer"` (default, cloud) | `"session-api-key"` (runtime sandbox) | `"none"`
@@ -429,6 +438,10 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 - Files tab diff-view default logic: keyed off `useHasAttachedSource()` (`src/hooks/use-has-attached-source.ts`), which is true when the user explicitly attached _either_ a repo (`conversation.selected_repository`) _or_ a local workspace (`getStoredConversationMetadata(id).selected_workspace`, persisted by `createConversation` when `workingDirOverride` is supplied). The agent-server pre-initialises every conversation workspace as a git worktree for its own change tracking, so do NOT use a filesystem probe (`git status` / `useUnifiedGetGitChanges`) as the attachment signal — that was tried in earlier iterations and made every fresh no-attachment conversation incorrectly default to diff view. The companion `useHasGitCommits` probe (`src/hooks/query/use-has-git-commits.ts`) then suppresses diff view for attached-but-empty cases (unborn HEAD, non-git workspace).
 
 - Collapsible thinking: `ThinkAction` events and LLM extended reasoning (`reasoning_content` / `thinking_blocks` on `ActionEvent`) are rendered as collapsible sections via `CollapsibleThinking` (`src/components/conversation-events/chat/event-message-components/collapsible-thinking.tsx`). Collapsed by default to keep the chat compact — the thinking is often in English regardless of the user's conversation language. The `getReasoningContent()` helper in `event-thought-helpers.ts` extracts the content, preferring `reasoning_content` (plain string) and falling back to Anthropic `thinking_blocks`. i18n keys: `THINKING$TITLE`, `THINKING$EXPAND`, `THINKING$COLLAPSE`. Tests: `__tests__/components/conversation-events/chat/event-message-think-action.test.tsx`.
+
+- LLM settings OpenHands API key auth: When an `openhands/*` model is selected in `src/routes/llm-settings.tsx`, the API key section renders `OpenHandsApiKeyAuth` instead of the static `HelpLink`. This component offers three ways to set the key: (1) if OpenHands Cloud API keys are already available, fetch the distinct OpenHands-provided LM API key via Cloud `/api/keys/llm/byor`, (2) "Login with OpenHands" device-flow OAuth via `DeviceFlowAuth` (reused from `backend-form-modal.tsx`) to obtain/persist a Cloud API key and then fetch the LM API key, and (3) manual entry in the standard `SettingsInput`. Reusable Cloud auth candidates come from the per-backend JSON credentials returned by `/setup/backends` and are de-duped by host + key; one candidate is selected automatically, but multiple candidates must render a backend selector so the user explicitly chooses which login to reuse. The device flow always targets `DEFAULT_OPENHANDS_CLOUD_HOST` (`https://app.all-hands.dev`). Keep shared Cloud host/display/proxy constants in `src/utils/constants.ts`; do not re-declare `DEFAULT_OPENHANDS_CLOUD_HOST` in feature files. For non-openhands models, the existing `HelpLink` for general API key instructions is preserved. i18n keys: `SETTINGS$OPENHANDS_CLOUD_LOGIN_DETECTED`, `SETTINGS$OPENHANDS_CLOUD_LOGIN_SELECT_LABEL`, `SETTINGS$OPENHANDS_CLOUD_LOGIN_SELECT_PLACEHOLDER`, `SETTINGS$GET_OPENHANDS_LM_API_KEY`, `SETTINGS$FETCHING_OPENHANDS_LM_API_KEY`, `SETTINGS$OPENHANDS_LM_API_KEY_FETCH_FAILED`, `SETTINGS$OR_ENTER_MANUALLY`.
+- OpenHands Cloud backend credentials are persisted locally by the frontend dev/static server through `/setup/backends`, not through the OpenHands CLI single `cloud/api_key.txt` path. The setup endpoint stores one JSON file per Cloud backend under `${OPENHANDS_PERSISTENCE_DIR:-~/.openhands}/agent-canvas/backends/` with `0600` file permissions, using the backend id as an encoded filename. Credential writes require process start-token support for lock metadata (Linux `/proc`, macOS `ps` with extra identity fields); unsupported platforms fail closed instead of falling back to PID-only lock metadata. Windows credential writes are currently fail-closed because secure NTFS ACL enforcement is not implemented; do not claim Windows support until ACL handling is added and tested. Lock files are created with atomic `wx`; when acquisition hits `EEXIST`, the endpoint validates the lock holder's process token, removes dead/reused-PID locks, and retries once. Lock metadata, credential temp files, and the credential directory are fsynced in the write path. Missing directory segments below the nearest existing parent are created/chmodded `0700`, and existing credential directories or credential files with insecure permissions fail closed. Existing credential directory/file symlinks are rejected; stale temp/lock symlinks are removed without following their targets. Stale `*.tmp` credential files older than 24h are cleaned before writes. This is the first minimal local companion API surface for browser flows that need trusted local filesystem/process access; it stays outside agent-server `/api/*` and uses the local session API key when available (`X-Session-API-Key` / bearer), so do not expose that route without the normal dev-stack auth. Vite/static-server call the general `handleSetupServerRequest` entry point from `scripts/setup_server/handle-setup-server-request.mjs`; concrete setup endpoint handlers live under `scripts/setup_server/endpoints/`. In `scripts/static-server.mjs`, keep setup handling as a direct async `if (await handleSetupServerRequest(req, res)) return;` before proxy/static fallback rather than nesting promise `.then()` chains. `scripts/setup_server/endpoints/backend-credentials.mjs` owns the `/setup/backends` file API, and `src/api/cloud-backend-credentials-service.ts` is the browser-side client. The backend registry writes/deletes Cloud credentials when Cloud backends are added, edited, or removed; it uses provider-instance refs for per-backend persistence versions, abort controllers, pending-new IDs, and a last-successfully-persisted backend map so stale save/delete failures cannot roll back newer state or unpersisted intermediate state. Pending-new IDs must only be cleared by the current persistence operation or provider unmount, so an aborted superseded save cannot make an unpersisted backend look persisted. LLM settings read those per-backend Cloud credentials, require an explicit selection when multiple Cloud logins exist, then call Cloud `/api/keys/llm/byor` to fetch the distinct OpenHands-provided LM API key before writing `llm.api_key`.
+- `/setup/backends` auth rate limiting uses `req.socket.remoteAddress` by default, with both per-client windows and configurable global windows (`SETUP_SERVER_AUTH_RATE_LIMIT_GLOBAL_MAX_FAILURES`, `SETUP_SERVER_REQUEST_RATE_LIMIT_GLOBAL_MAX_REQUESTS`) to avoid client-map churn bypasses. Only set `SETUP_SERVER_TRUST_PROXY=true` when the setup server is behind a trusted reverse proxy that overwrites `X-Forwarded-For` (not appends to it), and set `SETUP_SERVER_TRUSTED_PROXY_IPS` to the comma-separated remote proxy IPs allowed to supply that header; invalid allowlist entries are ignored with a warning. Otherwise clients can spoof `X-Forwarded-For` and bypass per-client rate limiting.
 
 - Settings naming is backend-aware today: local `/settings` is profile-oriented (`use-settings-nav-items.ts` renames the first settings item/title/subtitle to `LLM Profiles` and `chat-input-model.tsx` / `chat-input-actions.tsx` link there as `LLM Profiles`), while cloud keeps the generic `LLM Settings` copy because cloud still edits raw settings rather than saved profiles. The local profile editor (`llm-settings-local-view.tsx`) should keep explicit create/edit profile headings plus helper text so users know they are saving a profile, not mutating the current conversation directly.
 

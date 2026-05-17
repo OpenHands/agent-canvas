@@ -11,6 +11,11 @@ import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import {
+  DEFAULT_OPENHANDS_CLOUD_HOST,
+  OPENHANDS_CLOUD_DISPLAY_NAME,
+} from "#/utils/constants";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -24,11 +29,7 @@ interface BackendFormModalProps {
 }
 
 function inferKindFromHost(host: string): BackendKind {
-  const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
-  }
-  return "local";
+  return isOpenHandsCloudHost(normalizeHost(host)) ? "cloud" : "local";
 }
 
 /**
@@ -103,8 +104,6 @@ function isValidHostUrl(host: string): boolean {
     return false;
   }
 }
-
-const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 /**
  * Live status row for the edit form: shows a connection dot, a
@@ -497,7 +496,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
 
   const handleLoginSuccess = (apiKey: string) => {
     addBackend({
-      name: "OpenHands Cloud",
+      name: OPENHANDS_CLOUD_DISPLAY_NAME,
       host: normalizeHost(effectiveHost),
       apiKey,
       kind: "cloud",

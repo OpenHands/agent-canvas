@@ -123,6 +123,14 @@ export function setRegisteredBackends(backends: Backend[]): void {
   notify();
 }
 
+export function updateRegisteredBackends(
+  updater: (backends: Backend[]) => Backend[],
+): Backend[] {
+  const nextBackends = updater(snapshot.backends);
+  setRegisteredBackends(nextBackends);
+  return nextBackends;
+}
+
 export function subscribeActiveBackend(listener: Listener): () => void {
   listeners.add(listener);
   return () => {

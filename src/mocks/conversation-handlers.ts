@@ -6,6 +6,10 @@ import {
   type OpenHandsEvent,
 } from "#/types/agent-server/core";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
+import {
+  MOCK_AGENT_SETTINGS_SCHEMA,
+  MOCK_CONVERSATION_SETTINGS_SCHEMA,
+} from "./settings-handlers";
 
 /** Map from conversation id → events returned by GET /events/search */
 const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
@@ -372,6 +376,14 @@ export const CONVERSATION_HANDLERS = [
         user_consents_to_analytics: false,
         provider_tokens_set: { github: "" },
       });
+    }
+
+    if (upstreamUrl.pathname === "/api/v1/settings/agent-schema") {
+      return HttpResponse.json(MOCK_AGENT_SETTINGS_SCHEMA);
+    }
+
+    if (upstreamUrl.pathname === "/api/v1/settings/conversation-schema") {
+      return HttpResponse.json(MOCK_CONVERSATION_SETTINGS_SCHEMA);
     }
 
     if (upstreamUrl.pathname === "/api/keys/current") {

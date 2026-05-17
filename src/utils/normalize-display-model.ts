@@ -1,7 +1,8 @@
-const OPENHANDS_PROXY_BASE_URLS = new Set([
-  "https://llm-proxy.app.all-hands.dev",
-  "https://llm-proxy.app.all-hands.dev/v1",
-]);
+import { OPENHANDS_LLM_PROXY_BASE_URLS } from "./constants";
+
+const OPENHANDS_PROXY_BASE_URLS = new Set<string>(
+  OPENHANDS_LLM_PROXY_BASE_URLS,
+);
 
 const LITELLM_PROXY_PREFIX = "litellm_proxy/";
 

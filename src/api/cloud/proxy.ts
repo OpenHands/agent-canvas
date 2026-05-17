@@ -48,6 +48,8 @@ interface CloudProxyRequest {
    * payload (e.g. ZIP downloads); leave undefined for default JSON.
    */
   responseType?: "blob";
+  /** Optional cancellation signal for the local proxy request. */
+  signal?: AbortSignal;
 }
 
 function buildUpstreamAuthHeaders(
@@ -114,6 +116,7 @@ export async function callCloudProxy<TResponse = unknown>(
     {
       headers: localAuthHeaders,
       timeout: 30_000,
+      signal: req.signal,
       ...(req.responseType ? { responseType: req.responseType } : {}),
     },
   );

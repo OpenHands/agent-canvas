@@ -57,7 +57,7 @@ export const createMockWebClientConfig = (
   ...overrides,
 });
 
-const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
+export const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
   Settings["agent_settings_schema"]
 > = {
   model_name: "AgentSettings",
@@ -207,7 +207,7 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
   ],
 };
 
-const MOCK_CONVERSATION_SETTINGS_SCHEMA: NonNullable<
+export const MOCK_CONVERSATION_SETTINGS_SCHEMA: NonNullable<
   Settings["conversation_settings_schema"]
 > = {
   model_name: "ConversationSettings",
