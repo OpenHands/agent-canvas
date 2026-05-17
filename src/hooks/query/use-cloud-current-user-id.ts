@@ -10,7 +10,7 @@ import { useAllCloudOrganizations } from "./use-cloud-organizations";
  * Resolve the current user's `user_id` per cloud backend with one
  * `/api/organizations/{orgId}/me` call per backend (NOT one per org).
  *
- * The SaaS contract: `/me` returns `{ org_id, user_id, … }`. `user_id`
+ * The cloud contract: `/me` returns `{ org_id, user_id, … }`. `user_id`
  * is identical regardless of which org you ask, so we make a single
  * call per backend.
  *

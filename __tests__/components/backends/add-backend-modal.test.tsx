@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
@@ -28,28 +28,31 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("AddBackendModal", () => {
-  it("places Cancel before Save in the footer so the dominant action is the last focusable button", () => {
-    // Arrange: render the modal so both footer buttons are mounted.
+describe("AddBackendModal – two-column layout", () => {
+  it("renders a two-column layout with manual and cloud sections", () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
-    // Act: locate the two footer buttons.
-    const cancel = screen.getByTestId("add-backend-cancel");
-    const submit = screen.getByTestId("add-backend-submit");
+    expect(screen.getByTestId("add-backend-name")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-host")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-host-helper")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-api-key")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-submit")).toBeInTheDocument();
 
-    // Assert: Cancel precedes Save in DOM order — this is what governs
-    // tab order and screen-reader reading order, so the dominant Save
-    // action is the rightmost / last-reached button.
-    // eslint-disable-next-line no-bitwise
+    expect(screen.getByTestId("add-backend-cloud-title")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-login-button")).toBeInTheDocument();
     expect(
-      cancel.compareDocumentPosition(submit) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      screen.getByTestId("add-backend-advanced-toggle"),
+    ).toBeInTheDocument();
   });
 
-  it("disables submit until all fields are filled", async () => {
-    const onClose = vi.fn();
-    renderWithProviders(<AddBackendModal onClose={onClose} />);
+  it("starts with an empty host field (no prefilled value)", () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("add-backend-host")).toHaveValue("");
+  });
+
+  it("disables Connect until name and host are filled (local backend)", async () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
     const submit = screen.getByTestId(
       "add-backend-submit",
@@ -57,35 +60,15 @@ describe("AddBackendModal", () => {
     expect(submit).toBeDisabled();
 
     const user = userEvent.setup();
-    await user.type(screen.getByTestId("add-backend-name"), "Production");
+    await user.type(screen.getByTestId("add-backend-name"), "My Server");
     expect(submit).toBeDisabled();
 
+    // A localhost host infers "local" kind → no API key required
     await user.type(
       screen.getByTestId("add-backend-host"),
-      "https://app.all-hands.dev",
+      "http://localhost:8000",
     );
-    expect(submit).toBeDisabled();
-
-    await user.type(screen.getByTestId("add-backend-api-key"), "secret-key");
     expect(submit).not.toBeDisabled();
-  });
-
-  it("infers cloud kind from an all-hands.dev host", async () => {
-    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
-
-    const cloudRadio = screen.getByTestId(
-      "add-backend-kind-cloud",
-    ) as HTMLInputElement;
-    const localRadio = screen.getByTestId(
-      "add-backend-kind-local",
-    ) as HTMLInputElement;
-
-    fireEvent.change(screen.getByTestId("add-backend-host"), {
-      target: { value: "https://app.all-hands.dev" },
-    });
-
-    expect(cloudRadio.checked).toBe(true);
-    expect(localRadio.checked).toBe(false);
   });
 
   it("allows submitting a local backend with a blank API key", async () => {
@@ -98,15 +81,12 @@ describe("AddBackendModal", () => {
       screen.getByTestId("add-backend-host"),
       "http://127.0.0.1:18002",
     );
-    // No API key entered; kind auto-infers to "local" from the host.
 
     await user.click(screen.getByTestId("add-backend-submit"));
 
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    // The seeded default ("Local") is in the list alongside the new
-    // entry. Find the user-added one to assert its shape.
     const added = stored.find(
       (b: { name: string }) => b.name === "Local Extra",
     );
@@ -118,7 +98,7 @@ describe("AddBackendModal", () => {
     });
   });
 
-  it("keeps submit disabled for cloud backends until an API key is entered", async () => {
+  it("requires API key when host infers cloud kind", async () => {
     renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
 
     const submit = screen.getByTestId(
@@ -129,8 +109,9 @@ describe("AddBackendModal", () => {
     await user.type(screen.getByTestId("add-backend-name"), "Cloud");
     await user.type(
       screen.getByTestId("add-backend-host"),
-      "https://app.all-hands.dev",
+      "https://app.openhands.dev",
     );
+    // Cloud host without API key → submit should be disabled
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByTestId("add-backend-api-key"), "token");
@@ -148,7 +129,6 @@ describe("AddBackendModal", () => {
       "http://localhost:9000",
     );
     await user.type(screen.getByTestId("add-backend-api-key"), "k");
-    await user.click(screen.getByTestId("add-backend-kind-local"));
 
     await user.click(screen.getByTestId("add-backend-submit"));
 
@@ -157,8 +137,6 @@ describe("AddBackendModal", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    // The seeded default ("Local") is in the list alongside the new
-    // entry. Find the user-added one to assert its shape.
     expect(stored).toHaveLength(2);
     const added = stored.find((b: { name: string }) => b.name === "Local 1");
     expect(added).toMatchObject({
@@ -168,9 +146,14 @@ describe("AddBackendModal", () => {
       kind: "local",
     });
 
-    // Adding a backend must NOT change the active selection. Auto-switch
-    // would write `(backendId, null)` for a cloud backend, which the
-    // dropdown can't render once orgs load — UI/API would drift.
+    // Adding a backend must NOT change the active selection.
     expect(window.localStorage.getItem("openhands-active-backend")).toBeNull();
+  });
+
+  it("shows the close button", () => {
+    const onClose = vi.fn();
+    renderWithProviders(<AddBackendModal onClose={onClose} />);
+
+    expect(screen.getByTestId("add-backend-close")).toBeInTheDocument();
   });
 });

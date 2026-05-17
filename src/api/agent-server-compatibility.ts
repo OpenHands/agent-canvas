@@ -55,7 +55,7 @@ export function isAgentServerToolAvailable(toolName: string) {
 export async function loadAgentServerInfo() {
   // The probe is a *local* agent-server concern — it verifies the runtime
   // hosting the GUI is reachable. It must NEVER run against the active
-  // backend when that backend is cloud, because cloud SaaS hosts don't
+  // backend when that backend is cloud, because cloud hosts don't
   // expose /api/server_info and would fail with a CORS error besides.
   const local = getEffectiveLocalBackend();
   let serverInfo: AgentServerInfo;

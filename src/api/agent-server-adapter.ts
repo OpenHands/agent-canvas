@@ -10,6 +10,7 @@ import {
   PluginSpec,
   AppConversation,
   AppConversationPage,
+  SandboxStatus,
 } from "./conversation-service/agent-server-conversation-service.types";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
@@ -20,6 +21,8 @@ export interface DirectConversationInfo {
   created_at: string;
   updated_at: string;
   execution_status?: string | null;
+  /** Cloud-only sandbox lifecycle state. Omitted / null for local agent-server conversations. */
+  sandbox_status?: string | null;
   metrics?: {
     accumulated_cost?: number | null;
     max_budget_per_task?: number | null;
@@ -260,6 +263,7 @@ export function toAppConversation(
     execution_status:
       (info.execution_status as AppConversation["execution_status"]) ??
       ExecutionStatus.IDLE,
+    sandbox_status: (info.sandbox_status as SandboxStatus | null) ?? null,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getEffectiveLocalBackend().apiKey || null,
     sandbox_id: null,

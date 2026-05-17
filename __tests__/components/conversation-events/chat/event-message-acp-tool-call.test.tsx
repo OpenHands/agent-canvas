@@ -8,10 +8,11 @@ import { AgentState } from "#/types/agent-state";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
 
 vi.mock("#/hooks/query/use-config", () => ({
-  useConfig: () => ({ data: { APP_MODE: "saas" } }),
+  useConfig: () => ({ data: { APP_MODE: "local" } }),
 }));
 vi.mock("#/hooks/use-agent-state");
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 

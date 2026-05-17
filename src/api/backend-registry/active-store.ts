@@ -78,7 +78,7 @@ export function getActiveBackend(): ResolvedActiveBackend {
  *
  * Most of the GUI's services (settings reads/writes, conversation CRUD,
  * skills/MCP/secrets, etc.) speak the local agent-server's protocol —
- * they would fail against a cloud SaaS host. When the user has chosen a
+ * they would fail against a cloud host. When the user has chosen a
  * cloud backend as active, those calls fall back to the first registered
  * local backend (or the env-derived default if none exists). Cloud-only
  * call sites import `getActiveBackend` directly.

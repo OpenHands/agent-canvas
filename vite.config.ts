@@ -60,6 +60,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      {
+        name: "suppress-chrome-devtools-well-known",
+        apply: "serve",
+        configureServer(server) {
+          server.middlewares.use(
+            "/.well-known/appspecific/com.chrome.devtools.json",
+            (_req, res) => {
+              res.statusCode = 204;
+              res.end();
+            },
+          );
+        },
+      },
       !process.env.VITEST && !isLibraryBuild && reactRouter(),
       svgr(),
       tailwindcss(),

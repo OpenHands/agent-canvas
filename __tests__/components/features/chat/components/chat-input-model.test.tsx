@@ -46,7 +46,7 @@ describe("ChatInputModel", () => {
     const popover = screen.getByTestId("chat-input-llm-model-popover");
     expect(popover).toHaveTextContent("openai/gpt-4o");
     const llmSettingsLink = screen.getByRole("link", {
-      name: /LLM Settings|SETTINGS\$LLM_SETTINGS/,
+      name: /LLM Profiles|SETTINGS\$LLM_PROFILES|LLM Settings|SETTINGS\$LLM_SETTINGS/,
     });
     expect(llmSettingsLink).toHaveAttribute("href", "/settings");
   });

@@ -51,10 +51,15 @@ describe("docker host user", () => {
     expect(getDockerUserArgs(null)).toEqual([]);
   });
 
-  it("mounts a writable tmpfs home for the mapped host user", () => {
+  it("mounts a writable, executable tmpfs home for the mapped host user", () => {
+    // `exec` is critical: docker's --tmpfs default is rw,noexec,nosuid,nodev,
+    // which breaks stdio MCP servers that exec binaries cached under ~/.npm
+    // (e.g. `npx -y @modelcontextprotocol/server-github`). We keep `nosuid`
+    // and `nodev` as defense-in-depth -- $HOME has no business hosting
+    // setuid binaries or device nodes -- but the `noexec` default has to go.
     expect(getDockerHomeTmpfsArgs("1000:1000")).toEqual([
       "--tmpfs",
-      "/home/openhands:uid=1000,gid=1000,mode=700",
+      "/home/openhands:exec,nosuid,nodev,uid=1000,gid=1000,mode=700",
     ]);
     expect(getDockerHomeTmpfsArgs(null)).toEqual([]);
   });

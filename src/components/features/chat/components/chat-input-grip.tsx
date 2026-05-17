@@ -26,10 +26,9 @@ export function ChatInputGrip({
     >
       {/* Tall hit target; 1px line is drawn at top-0 (flush with chat input box) */}
       <div
-        className="absolute inset-0 z-[1] cursor-ns-resize"
+        className="absolute inset-0 z-[1] cursor-ns-resize select-none"
         onMouseDown={handleGripMouseDown}
         onTouchStart={handleGripTouchStart}
-        style={{ userSelect: "none" }}
         aria-hidden
       />
       <div

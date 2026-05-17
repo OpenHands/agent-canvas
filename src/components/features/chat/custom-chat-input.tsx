@@ -9,6 +9,7 @@ import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
 import { useConversationStore } from "#/stores/conversation-store";
+import { cn } from "#/utils/utils";
 
 export interface CustomChatInputProps {
   disabled?: boolean;
@@ -154,7 +155,7 @@ export function CustomChatInput({
     syncCanSubmit();
   }, [syncCanSubmit]);
   return (
-    <div className={`w-full ${className}`}>
+    <div className={cn("w-full", className)}>
       {/* Hidden file input */}
       <HiddenFileInput
         fileInputRef={fileInputRef}

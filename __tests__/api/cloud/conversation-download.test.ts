@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService.downloadConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to the SaaS download endpoint with responseType blob and returns the Blob", async () => {
+  it("routes through /api/cloud-proxy to the cloud download endpoint with responseType blob and returns the Blob", async () => {
     const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
     vi.mocked(axios.post).mockResolvedValue({ data: zipBlob });
 

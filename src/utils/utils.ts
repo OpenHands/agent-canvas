@@ -166,7 +166,7 @@ export const getFileExtension = (fileName: string): string => {
  * (`/api/v1/git/installations/search` → `/api/v1/git/repositories/search?installation_id=…`)
  * for the given provider/backend combo.
  *
- * Mirrors OpenHands' SaaS frontend (parameterized by `app_mode`):
+ * Mirrors OpenHands' cloud frontend (parameterized by `app_mode`):
  *   - bitbucket / bitbucket_data_center → always installation-based
  *   - github → installation-based ONLY when the active backend is cloud
  *   - gitlab / azure_devops / forgejo → direct (search) flow

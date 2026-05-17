@@ -200,7 +200,7 @@ const data = await fetch(`/api/conversations/${id}`);
 
 ### Rule 2 -- Cloud backend routes must go through `callCloudProxy`
 
-Any call from the browser to the cloud SaaS backend (`app.all-hands.dev`) or a cloud
+Any call from the browser to the cloud backend (`app.all-hands.dev`) or a cloud
 runtime sandbox (`*.prod-runtime.all-hands.dev`) **must** go through `callCloudProxy()`
 in `src/api/cloud/proxy.ts`. These origins do not permit CORS from `localhost`;
 `callCloudProxy` POSTs the request envelope to `/api/cloud-proxy` on the local
@@ -209,7 +209,7 @@ agent-server, which forwards it server-side.
 ```ts
 import { callCloudProxy } from "../cloud/proxy";
 
-// CORRECT -- cloud SaaS endpoint
+// CORRECT -- cloud endpoint
 const result = await callCloudProxy<ResponseType>({
   backend,
   method: "GET",
@@ -233,7 +233,7 @@ const result = await axios.get(`${backend.host}/api/v1/app-conversations`);
 `callCloudProxy` key options:
 - `backend` -- the cloud `Backend` object (provides host and bearer token)
 - `hostOverride` -- override for runtime-sandbox calls; replaces `backend.host`
-- `authMode` -- `"bearer"` (default, cloud SaaS) | `"session-api-key"` (runtime sandbox) | `"none"`
+- `authMode` -- `"bearer"` (default, cloud) | `"session-api-key"` (runtime sandbox) | `"none"`
 - `sessionApiKey` -- required when `authMode === "session-api-key"`
 
 Standard cloud/local branch pattern used throughout the service layer:
@@ -412,7 +412,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
   - The terminal tab (`components/features/terminal/terminal.tsx`) is `React.lazy`'d in `conversation-tab-content.tsx` alongside the other tabs, so xterm + addon-fit + xterm.css don't enter the conversation route's eager graph (they ship as a separate `terminal-*.js` chunk now).
   - Avoid importing app code through `#/components/conversation-events/chat` or its `event-message-components/index.ts` barrel — they exist for `lib/index.ts` (npm subpath) consumers only. Internal callers use deep paths (`./messages`, `./event-message-components/<name>`, `./event-content-helpers/should-render-event`) so Vite dev doesn't fan out the barrel.
 
-- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud SaaS backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` through the bundled `/api/cloud-proxy`). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
+- Backend dropdown connectivity indicator: `useBackendsHealth` (`src/hooks/query/use-backends-health.ts`) polls each registered backend every 10s. Local agent-server backends are probed via `ServerClient.getServerInfo()` (`/server_info`); cloud backends are probed via `getCurrentCloudApiKey()` (`/api/keys/current` through the bundled `/api/cloud-proxy`). Verdicts are surfaced as a colored dot rendered through `DropdownOption.prefix` (added to `src/ui/dropdown/types.ts`); the trigger reads its prefix from the live `options` array (not downshift's frozen `selectedItem`) so the indicator updates without remounting. The same dot is also rendered in each row of `ManageBackendsModal`, which now opts into a one-shot re-probe for previously disabled backends so opening the modal can clear stale persisted error state when a server has recovered. Tests live in `__tests__/hooks/query/use-backends-health.test.tsx`, the `connection indicator` block of `__tests__/components/backends/backend-selector.test.tsx`, and `__tests__/components/backends/manage-backends-modal.test.tsx`.
 
 - Manage Backends modal: `src/components/features/backends/manage-backends-modal.tsx` lets users edit (host/name/api-key/kind) and remove existing backends, plus add new ones inline via a "+ Add Backend" footer button that opens a `BackendFormModal`. Both the dropdown footer's "Add backend" and the manage modal's "+ Add Backend" reuse `BackendFormModal` (see `backend-form-modal.tsx`), with `mode="add"` or `mode="edit"`; `AddBackendModal` is now a thin compatibility wrapper for `BackendFormModal mode="add"`. The modal is also auto-rendered (with a no-op `onClose`) by `src/root.tsx` when the active backend is unreachable, replacing the old full-screen `MissingAgentServerNotice` onboarding screen.
 
@@ -434,4 +434,8 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 
 - i18n completeness: all new keys MUST include translations for all 15 languages (en, ja, zh-CN, zh-TW, ko-KR, no, ar, de, fr, it, pt, es, ca, tr, uk). Use English as fallback for non-English languages. The pre-commit hook runs `check-translation-completeness.cjs` and will reject commits with missing translations.
 
+- Settings naming is backend-aware today: local `/settings` is profile-oriented (`use-settings-nav-items.ts` renames the first settings item/title/subtitle to `LLM Profiles` and `chat-input-model.tsx` / `chat-input-actions.tsx` link there as `LLM Profiles`), while cloud keeps the generic `LLM Settings` copy because cloud still edits raw settings rather than saved profiles. The local profile editor (`llm-settings-local-view.tsx`) should keep explicit create/edit profile headings plus helper text so users know they are saving a profile, not mutating the current conversation directly.
+
 - ESLint config (flat, ESLint 9): the project uses `eslint.config.js` (not `.eslintrc`) and runs on `eslint@9.x`, not 10. The constraint pinning us below 10 is `eslint-plugin-react@7.37.x`, which still calls `context.getFilename()` at rule-load time — that API was removed in ESLint 10 and `@eslint/compat`'s `fixupPluginRules` does NOT shim it. Don't try to bump eslint past 9 until eslint-plugin-react ships a v10-compatible release. Import rules come from `eslint-plugin-import-x` (the maintained fork of `eslint-plugin-import`) but are registered under both `import-x/` and `import/` prefixes via `plugins: { import: importXPlugin, ... }` so existing `// eslint-disable-next-line import/...` directives keep working. `linterOptions.reportUnusedDisableDirectives` is set to `"warn"` (not "off") so stale airbnb-era disable comments still surface in lint output without failing CI. The TS-overrides block has an `ignores: ["src/hooks/query/query-keys.ts"]` so the `no-restricted-syntax` rule banning raw `["settings", ...]` query keys doesn't fire on the file that defines the helpers themselves. No `.npmrc` / `legacy-peer-deps` flag is needed — all our plugins declare ESLint 9 peer compatibility.
+
+- Cloud conversation resume gating: when a cloud conversation is closed from the UI (`pauseCloudSandbox` is called), the conversation's `conversation_url` is NOT cleared -- it still points to the old sandbox host. `WebSocketProviderWrapper` must suppress the URL (pass `null` to `ConversationWebSocketProvider`) while `sandbox_status === "PAUSED"`, otherwise the WebSocket immediately tries the stale URL before the sandbox wakes. Symmetrically, `useActiveConversation`'s refetch interval must fast-poll (3 s) on both `!conversation_url` AND `sandbox_status === "PAUSED"` -- checking only the missing URL would leave the hook on the 30 s interval while the sandbox is resuming. The resume sequence: navigate -> sandbox PAUSED detected -> `resumeCloudSandbox` called (in `conversation.tsx`) -> fast-poll detects RUNNING -> `conversationUrl` unblocked -> WebSocket connects.

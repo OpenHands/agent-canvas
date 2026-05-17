@@ -4,11 +4,13 @@ import { seedLocalStorage } from "./support/seed-local-storage";
 /**
  * Visual snapshot tests for the sidebar / conversation panel.
  *
- * MSW pre-seeds four conversations in src/mocks/conversation-handlers.ts:
+ * MSW pre-seeds six conversations in src/mocks/conversation-handlers.ts:
  *   1. "My New Project"   — execution_status: "waiting_for_confirmation"
  *   2. "Repo Testing"     — execution_status: "idle"
  *   3. "Another Project"  — execution_status: "idle"
- *   4. "Local pagination fixture" — execution_status: "idle"
+ *   4. "Archived Project" — execution_status: "archived"
+ *   5. "Errored Project"  — execution_status: "error"
+ *   6. "Local pagination fixture" — execution_status: "idle"
  *
  * Three snapshots:
  *   1. conversation-panel — the panel itself with status dots + relative timestamps
@@ -46,10 +48,10 @@ test.describe("Sidebar Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for all mock conversation cards to be present
+    // Wait for all six conversation cards to be present
     const conversationPanel = page.getByTestId("conversation-panel");
     await expect(conversationPanel).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(4, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
 
@@ -95,7 +97,7 @@ test.describe("Sidebar Visual Snapshots", () => {
     await expect(page.getByTestId("conversation-panel")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(4, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
 
