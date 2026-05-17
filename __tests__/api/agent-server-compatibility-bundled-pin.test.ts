@@ -54,7 +54,7 @@ describe("loadAgentServerInfo", () => {
     ];
     const overrides = callArgs[0];
 
-    // Must NOT use the cloud host — that endpoint doesn't exist on SaaS
+    // Must NOT use the cloud host — that endpoint doesn't exist on cloud
     // and would fail with a CORS preflight error.
     expect(overrides.host).toBeDefined();
     expect(overrides.host).not.toBe(cloudBackend.host);

@@ -129,9 +129,9 @@ afterEach(() => {
 });
 
 describe("useUnifiedVSCodeUrl", () => {
-  it("returns the SaaS-computed VSCode URL from sandbox.exposed_urls in cloud mode", async () => {
+  it("returns the cloud-computed VSCode URL from sandbox.exposed_urls in cloud mode", async () => {
     // Arrange — cloud backend, sandbox returned with a VSCODE entry.
-    // This is the steady-state happy path: the SaaS pre-builds the
+    // This is the steady-state happy path: the cloud backend pre-builds the
     // public vscode subdomain URL and the GUI must surface it directly
     // instead of asking the runtime for /api/vscode/url (which only
     // knows its own localhost:8001).

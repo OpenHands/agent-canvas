@@ -4,7 +4,7 @@ import { getCloudSuggestedTasks } from "../cloud/suggestions-service.api";
 
 export class SuggestionsService {
   /**
-   * Aggregate suggested tasks for the calling user. Cloud SaaS exposes
+   * Aggregate suggested tasks for the calling user. Cloud exposes
    * `/api/v1/git/suggested-tasks/search` which the proxy forwards to.
    * Local agent-server has no equivalent endpoint, so we return an
    * empty list there — the home page's `<TaskSuggestions />` already

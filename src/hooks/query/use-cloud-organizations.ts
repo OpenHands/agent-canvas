@@ -21,7 +21,7 @@ export function useAllCloudOrganizations() {
     queries: cloudBackends.map((backend) => ({
       queryKey: ["cloud-organizations", backend.id],
       // Filter the user's full org membership down to the single org the
-      // backend's API key is bound to. The SaaS enforces one-key-one-org
+      // backend's API key is bound to. The cloud enforces one-key-one-org
       // server-side (HTTP 403 otherwise); without this filter the
       // selector would advertise orgs the key cannot use. Legacy keys
       // with no binding fall through unfiltered.

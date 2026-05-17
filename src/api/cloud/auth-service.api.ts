@@ -3,7 +3,7 @@ import type { Backend } from "../backend-registry/types";
 import { callCloudProxy } from "./proxy";
 
 /**
- * Cloud (SaaS) authentication probe. Routed through the bundled local
+ * Cloud authentication probe. Routed through the bundled local
  * agent-server's `/api/cloud-proxy` to avoid cross-origin browser calls.
  *
  * Returns true if the API key is accepted by the cloud backend.
