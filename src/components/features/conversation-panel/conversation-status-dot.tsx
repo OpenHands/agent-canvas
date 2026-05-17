@@ -15,11 +15,6 @@ interface ConversationStatusDotProps {
 
 type Visual = "check" | "working" | "active" | "paused" | "error" | "unknown";
 
-const SUCCESS_GREEN = "#1FBD53";
-const PAUSED_GRAY = "var(--oh-muted)";
-const ERROR_RED = "#FF684E";
-const UNKNOWN_GRAY = "var(--oh-color-tertiary)";
-
 const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   switch (status) {
     case ExecutionStatus.FINISHED:
@@ -62,9 +57,8 @@ function renderIndicator(visual: Visual) {
         <svg
           data-testid="conversation-status-check"
           viewBox="0 0 12 12"
-          className="w-2.5 h-2.5"
+          className="w-2.5 h-2.5 stroke-[var(--oh-status-success)]"
           fill="none"
-          stroke={SUCCESS_GREEN}
           strokeWidth={2.25}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -77,40 +71,35 @@ function renderIndicator(visual: Visual) {
       return (
         <span
           data-testid="conversation-status-working"
-          className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ backgroundColor: SUCCESS_GREEN }}
+          className="w-1.5 h-1.5 rounded-full animate-pulse bg-[var(--oh-status-success)]"
         />
       );
     case "active":
       return (
         <span
           data-testid="conversation-status-active"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: SUCCESS_GREEN }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-status-success)]"
         />
       );
     case "paused":
       return (
         <span
           data-testid="conversation-status-paused"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: PAUSED_GRAY }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-muted)]"
         />
       );
     case "error":
       return (
         <span
           data-testid="conversation-status-error"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: ERROR_RED }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-status-error)]"
         />
       );
     default:
       return (
         <span
           data-testid="conversation-status-unknown"
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: UNKNOWN_GRAY }}
+          className="w-1.5 h-1.5 rounded-full bg-[var(--oh-color-tertiary)]"
         />
       );
   }

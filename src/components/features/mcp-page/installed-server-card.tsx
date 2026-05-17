@@ -67,6 +67,7 @@ export function InstalledServerCard({
       <span
         aria-hidden="true"
         className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
+        // data-driven icon colors from catalog entry
         style={{
           backgroundColor: catalog?.iconBg ?? "var(--oh-color-tertiary)",
           color: catalog?.iconColor ?? "#FFFFFF",

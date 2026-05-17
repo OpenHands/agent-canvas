@@ -44,6 +44,7 @@ export function ConversationMain() {
           "flex flex-1 overflow-hidden",
           isMobile ? "flex-col" : "transition-all duration-300 ease-in-out",
         )}
+        // transition toggled at runtime based on drag state
         style={
           !isMobile
             ? { transitionProperty: isDragging ? "none" : "all" }
@@ -60,6 +61,7 @@ export function ConversationMain() {
               ? getMobileChatPanelClass(isRightPanelShown)
               : "transition-all duration-300 ease-in-out",
           )}
+          // panel width computed at runtime by resize hook; transition toggled by drag state
           style={
             !isMobile
               ? {
@@ -102,6 +104,7 @@ export function ConversationMain() {
                 )
               : getDesktopTabPanelClass(isRightPanelShown),
           )}
+          // panel width computed at runtime by resize hook; transition toggled by drag state
           style={
             !isMobile
               ? {

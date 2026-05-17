@@ -36,6 +36,7 @@ function TreeNode({ node, depth, selectedPath, onSelectFile }: TreeNodeProps) {
             "flex w-full items-center gap-1.5 py-1 pr-2 text-left text-sm text-white",
             "hover:bg-tertiary cursor-pointer",
           )}
+          // per-row indentation computed from tree depth at runtime
           style={{ paddingLeft: `${indentPx}px` }}
         >
           <span
@@ -81,6 +82,7 @@ function TreeNode({ node, depth, selectedPath, onSelectFile }: TreeNodeProps) {
             ? "bg-[var(--oh-interactive-hover)] text-white"
             : "text-[var(--oh-text-tertiary)]",
         )}
+        // per-row indentation computed from tree depth at runtime
         style={{ paddingLeft: `${indentPx + 16}px` }}
       >
         <FileIcon className="w-3.5 h-3.5 shrink-0" />

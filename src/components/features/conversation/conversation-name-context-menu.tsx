@@ -304,6 +304,7 @@ export function ConversationNameContextMenu({
       return null;
     }
     return ReactDOM.createPortal(
+      // portal position computed from DOM bounding rect at runtime
       <div style={portalStyle}>{menu}</div>,
       document.body,
     );

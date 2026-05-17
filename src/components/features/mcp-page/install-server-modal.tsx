@@ -270,6 +270,7 @@ export function InstallServerModal({
           <span
             aria-hidden="true"
             className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
+            // data-driven icon colors from marketplace entry
             style={{
               backgroundColor: entry.iconBg,
               color: entry.iconColor ?? "#FFFFFF",
