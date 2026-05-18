@@ -2,8 +2,10 @@ import { ConversationSortOrder } from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
+  ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
+import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -35,7 +37,10 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  getAgentServerClientOptions,
+  getAgentServerHttpClientOptions,
+} from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -580,8 +585,18 @@ class AgentServerConversationService {
     return requireAppConversation(conversation, conversationId);
   }
 
+  /**
+   * Switches the LLM profile for the running conversation when one is open
+   * (POST /switch_llm — per-conversation swap, doesn't change the user's
+   * default profile). When called without a conversationId (home page),
+   * falls back to POST /activate so the next conversation created picks up
+   * the chosen profile.
+   *
+   * The /switch_llm body needs the LLM config, which we fetch with encrypted
+   * secrets — same flow as conversation-start.
+   */
   static async switchProfile(
-    conversationId: string,
+    conversationId: string | null,
     profileName: string,
   ): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
@@ -590,9 +605,20 @@ class AgentServerConversationService {
       );
     }
 
-    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
-      conversationId,
-      profileName,
+    const profilesClient = new ProfilesClient(getAgentServerClientOptions());
+
+    if (!conversationId) {
+      await profilesClient.activateProfile(profileName);
+      return;
+    }
+
+    const profile = await profilesClient.getProfile(profileName, {
+      exposeSecrets: "encrypted",
+    });
+
+    await new HttpClient(getAgentServerHttpClientOptions()).post(
+      `/api/conversations/${conversationId}/switch_llm`,
+      { llm: profile.config },
     );
   }
 }

@@ -17,7 +17,10 @@ const profile: ProfileInfo = {
 
 describe("model store", () => {
   beforeEach(() => {
-    useModelStore.setState({ entriesByConversation: {} });
+    useModelStore.setState({
+      entriesByConversation: {},
+      activeProfileByConversation: {},
+    });
   });
 
   it("adds profile-list entries scoped to the conversation", () => {
@@ -48,6 +51,24 @@ describe("model store", () => {
         switchedTo: "gpt",
       }),
     ]);
+    // recordSwitch also tags this as the conversation's optimistic active
+    // profile so the SwitchProfileButton reflects the new selection instantly.
+    expect(useModelStore.getState().activeProfileByConversation[CONV_A]).toBe(
+      "gpt",
+    );
+  });
+
+  it("clearActiveProfile drops only the optimistic profile entry", () => {
+    useModelStore.getState().show(CONV_A, "event-1", [profile]);
+    useModelStore.getState().recordSwitch(CONV_A, "event-2", "gpt");
+
+    useModelStore.getState().clearActiveProfile(CONV_A);
+
+    expect(
+      useModelStore.getState().activeProfileByConversation[CONV_A],
+    ).toBeUndefined();
+    // Chat-history entries for the conversation are preserved.
+    expect(entriesFor(CONV_A)).toHaveLength(2);
   });
 
   it("clears entries for one conversation or all conversations", () => {
