@@ -1,7 +1,7 @@
 import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
 import { OSS_NAV_ITEMS, SettingsNavItem } from "#/constants/settings-nav";
-import { ACP_PROVIDERS } from "#/constants/acp-providers";
+import { ACP_PROVIDERS } from "@openhands/typescript-client";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -29,7 +29,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
       ? agentSettings.acp_server
       : undefined;
   const acpServerName = isAcpAgent
-    ? (ACP_PROVIDERS.find(({ key }) => key === acpServerKey)?.display_name ??
+    ? ((acpServerKey ? ACP_PROVIDERS[acpServerKey]?.displayName : undefined) ??
       "ACP Agent")
     : undefined;
 
