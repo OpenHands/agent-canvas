@@ -564,7 +564,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     getOrCreatePersistedSessionApiKey(persistedKeyPath);
 
   // Host directory containing Agent-Canvas-specific Python tools (e.g. the
-  // canvas_ui tool). Added to PYTHONPATH below so the agent-server
+  // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
   // can import the modules listed in `tool_module_qualnames`. Lives at
   // <repo-root>/tools relative to this script.
   const canvasToolsDir = fileURLToPath(new URL("../tools", import.meta.url));
@@ -597,10 +597,6 @@ function buildConfigFromPorts(ports, cwd, env) {
  * @returns {Record<string, string>} Environment variables for agent-server
  */
 export function buildAgentServerEnv(config) {
-  const pythonPath = [config.canvasToolsDir, process.env.PYTHONPATH]
-    .filter(Boolean)
-    .join(path.delimiter);
-
   return {
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
@@ -611,9 +607,7 @@ export function buildAgentServerEnv(config) {
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
-    // OH_EXTRA_PYTHON_PATH is retained for older agent-server releases.
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    PYTHONPATH: pythonPath,
   };
 }
 
