@@ -1,3 +1,5 @@
+import { I18nKey } from "#/i18n/declaration";
+
 /**
  * Built-in ACP (Agent Client Protocol) provider registry.
  *
@@ -13,7 +15,7 @@
  * (api-key env var, session mode, set-session-model protocol, etc.)
  * is intentionally not mirrored here — canvas only renders this
  * registry in the Settings → Agent and onboarding UIs, so it only
- * needs the three fields below.
+ * needs the fields below.
  */
 export interface ACPProviderConfig {
   /** Stable registry key, also stored on conversations as ``tags.acpserver``. */
@@ -32,6 +34,13 @@ export interface ACPProviderConfig {
    * ``@zed-industries/codex-acp`` (the Zed-shipped wrapper) instead.
    */
   default_command: string[];
+  /**
+   * i18n key for the one-line provider description rendered under the
+   * onboarding tile. Stored on the registry so adding a new ACP
+   * provider only requires editing this file (not the onboarding tile
+   * list separately).
+   */
+  description_key: I18nKey;
 }
 
 export const ACP_PROVIDERS: ACPProviderConfig[] = [
@@ -39,17 +48,66 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     key: "claude-code",
     display_name: "Claude Code",
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+    description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
   },
   {
     key: "codex",
     display_name: "Codex",
     default_command: ["npx", "-y", "@zed-industries/codex-acp"],
+    description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
   },
   {
     key: "gemini-cli",
     display_name: "Gemini CLI",
     default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
+    description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
   },
 ];
 
 export const ACP_CUSTOM_PRESET_KEY = "custom";
+
+/**
+ * Build the ``agent_settings_diff`` payload PATCH /api/settings expects
+ * for the agent-kind/provider choice the user just made.
+ *
+ * Used by both the Settings → Agent page and the onboarding "choose
+ * agent" step — keeping the shape in one helper means a future change
+ * (e.g. always seeding ``acp_command`` from the registry instead of
+ * sending ``[]``, or adding new ``acp_*`` reset fields) lands in both
+ * surfaces atomically.
+ *
+ * Returns ``null`` for an unknown ACP provider key — the caller can
+ * skip the save (the UI shouldn't surface unknown options, but the
+ * defensive path keeps a buggy preset list from corrupting settings).
+ */
+export function buildAcpAgentSettingsDiff(
+  providerKey: string,
+  options: { command?: string[]; model?: string | null } = {},
+): Record<string, unknown> | null {
+  if (providerKey === "openhands") {
+    // Switching back to OpenHands. The agent-server's ``Settings.update``
+    // applies a fresh ``{'agent_kind': ...}`` base whenever the kind
+    // flips, so any ``acp_*`` fields would be discarded before
+    // validation. Send the kind alone.
+    return { agent_kind: "openhands" };
+  }
+
+  const isCustom = providerKey === ACP_CUSTOM_PRESET_KEY;
+  const provider = isCustom
+    ? undefined
+    : ACP_PROVIDERS.find(({ key }) => key === providerKey);
+  if (!isCustom && !provider) {
+    return null;
+  }
+
+  // ``acp_args: []`` resets any API-set ``acp_args`` that would
+  // otherwise survive and concatenate to ``acp_command`` at spawn time
+  // (the agent-server merges the two before exec).
+  return {
+    agent_kind: "acp",
+    acp_server: providerKey,
+    acp_command: options.command ?? [],
+    acp_args: [],
+    acp_model: options.model ?? null,
+  };
+}

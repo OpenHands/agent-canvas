@@ -272,6 +272,23 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
+
+    // Progress bar reflects the *visited* step count, not the slide
+    // index — 3 segments total (not 4), and segment 2 is current (not
+    // segment 3, which would imply LLM was completed). Without this
+    // mapping, picking an ACP agent makes the bar show segment 2 as
+    // "completed" despite the user never visiting it.
+    expect(
+      screen.queryByTestId("onboarding-progress-step-3"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
+      "data-state",
+      "completed",
+    );
   });
 
   it("pre-fills the say-hello input with the default greeting on step 3", async () => {

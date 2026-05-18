@@ -106,6 +106,16 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
     [skipLlmStep],
   );
 
+  // The progress bar should show the user's actual visited-step count,
+  // not the underlying index. On the ACP path the LLM-setup slide is
+  // skipped, so:
+  //   * the bar renders 3 segments instead of 4, and
+  //   * the SayHello slide (modal index 3) maps to logical step 2 so
+  //     segment 2 doesn't pop "completed" on a slide the user never saw.
+  const progressTotal = skipLlmStep ? TOTAL_STEPS - 1 : TOTAL_STEPS;
+  const progressStep =
+    skipLlmStep && currentStep > 1 ? currentStep - 1 : currentStep;
+
   return (
     <ModalBackdrop
       onClose={onClose}
@@ -123,8 +133,8 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         >
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
             <OnboardingProgressBar
-              currentStep={currentStep}
-              totalSteps={TOTAL_STEPS}
+              currentStep={progressStep}
+              totalSteps={progressTotal}
             />
           </header>
 

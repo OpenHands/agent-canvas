@@ -124,6 +124,10 @@ describe("AgentSettingsScreen", () => {
       // resolve it on the agent-server side. Round-tripping verbatim would
       // pin a stale command if the registry default changes upstream.
       acp_command: [],
+      // ``acp_args: []`` is reset on every save so an API-set
+      // ``acp_args`` can't survive and concatenate onto the spawn
+      // command at conversation-create time.
+      acp_args: [],
       acp_model: null,
     });
   });
@@ -160,5 +164,99 @@ describe("AgentSettingsScreen", () => {
       agent_settings_diff?: Record<string, unknown>;
     };
     expect(call.agent_settings_diff).toEqual({ agent_kind: "openhands" });
+  });
+
+  it("disables Save when the user has cleared the command on the ACP path", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+        },
+      }),
+    );
+
+    renderAgentSettingsScreen();
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+    const save = screen.getByTestId("agent-save-button") as HTMLButtonElement;
+
+    // Clear the field. Save should be disabled (the agent-server would
+    // crash on an empty acp_command and the adapter has no way to
+    // recover — better to block the save than silently submit garbage).
+    await user.clear(cmd);
+    expect(save).toBeDisabled();
+  });
+
+  it("treats whitespace-only as empty and keeps Save disabled", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+        },
+      }),
+    );
+
+    renderAgentSettingsScreen();
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+    const save = screen.getByTestId("agent-save-button") as HTMLButtonElement;
+    await user.clear(cmd);
+    await user.type(cmd, "   \t   ");
+    expect(save).toBeDisabled();
+  });
+
+  it("preserves a Custom command with quoted args end-to-end", async () => {
+    // Regression guard for the .split-vs-shell-quote bug: a Custom
+    // command like ``bash -c "echo hi"`` used to get tokenised as
+    // ``["bash","-c","\"echo","hi\""]`` and silently fail at spawn.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    await user.click(screen.getByTestId("agent-type-selector"));
+    await user.click(
+      await screen.findByRole("option", { name: "SETTINGS$AGENT_TYPE_ACP" }),
+    );
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+    await user.clear(cmd);
+    await user.type(cmd, 'bash -c "echo hi"');
+    await user.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_command).toEqual([
+      "bash",
+      "-c",
+      "echo hi",
+    ]);
+    // Anything that diverges from a built-in default-command snaps to
+    // the Custom preset.
+    expect(call.agent_settings_diff?.acp_server).toBe("custom");
   });
 });

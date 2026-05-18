@@ -116,6 +116,10 @@ describe("ChooseAgentStep", () => {
       // Default-command path: the backend resolves the command from its
       // own registry, so we don't pin a stale command here.
       acp_command: [],
+      // ``acp_args: []`` is reset on every save so an API-set
+      // ``acp_args`` can't survive and concatenate onto the spawn
+      // command at conversation-create time.
+      acp_args: [],
       acp_model: null,
     });
   });
@@ -139,6 +143,67 @@ describe("ChooseAgentStep", () => {
     expect(
       (call.agent_settings_diff as Record<string, unknown>).acp_server,
     ).toBe(expected);
+  });
+
+  it("rebuilds the diff cleanly when the user flips between ACP providers", async () => {
+    // Bot-flagged: would a stale claude-code selection leak into a
+    // subsequent codex save? The helper rebuilds from the current
+    // selectedAgentId on each Next click, so no — but pin it.
+    const save = vi.spyOn(SettingsService, "saveSettings");
+    const { rerender } = render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ChooseAgentStep
+          selectedAgentId="claude-code"
+          onSelect={vi.fn()}
+          onNext={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      (
+        save.mock.calls[0]?.[0] as {
+          agent_settings_diff?: Record<string, unknown>;
+        }
+      ).agent_settings_diff?.acp_server,
+    ).toBe("claude-code");
+
+    // Switch the *parent's* selection (the modal's setSelectedAgentId)
+    // and click Next again — the second save should carry codex, not
+    // a stale claude-code value.
+    save.mockClear();
+    rerender(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ChooseAgentStep
+          selectedAgentId="codex"
+          onSelect={vi.fn()}
+          onNext={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      (
+        save.mock.calls[0]?.[0] as {
+          agent_settings_diff?: Record<string, unknown>;
+        }
+      ).agent_settings_diff?.acp_server,
+    ).toBe("codex");
   });
 
   it("does not advance when the save mutation fails", async () => {

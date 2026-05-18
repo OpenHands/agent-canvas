@@ -11,6 +11,7 @@ import {
   CONFIG_CACHE_OPTIONS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { Typography } from "#/ui/typography";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
@@ -53,10 +54,30 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const currentNavItem = OSS_NAV_ITEMS.find((item) => item.to === pathname);
   if (currentNavItem?.disabledByAcp) {
     try {
+      // Build the same query key ``useSettings`` uses (scope + backend +
+      // org), so the loader's fetchQuery and the in-render hook share a
+      // cache entry rather than thrashing the same data through two
+      // different keys. Drift between these keys would mean the redirect
+      // decision runs against one snapshot of the personal settings
+      // while the page renders with another — visible as the nav
+      // briefly showing the disabled state while the page lets the user
+      // click through, or vice versa.
+      const active = getActiveBackend();
+      // ``staleTime: 0`` here is intentional: this read drives the
+      // redirect, and a 5-minute stale tolerance turns a cross-tab
+      // agent-kind flip into "navigate to /settings/condenser, get a
+      // stale 'OpenHands' answer, render the page, watch the nav grey
+      // out a moment later." Settings PATCHes invalidate the cache, so
+      // a forced refetch only happens when something might actually
+      // have changed.
       const personalSettings = await queryClient.fetchQuery({
-        queryKey: SETTINGS_QUERY_KEYS.byScope("personal"),
+        queryKey: [
+          ...SETTINGS_QUERY_KEYS.byScope("personal"),
+          active.backend.id,
+          active.orgId,
+        ],
         queryFn: () => getSettingsQueryFn("personal"),
-        staleTime: 1000 * 60 * 5,
+        staleTime: 0,
       });
       if (personalSettings?.agent_settings?.agent_kind === "acp") {
         return redirect("/settings/agent");

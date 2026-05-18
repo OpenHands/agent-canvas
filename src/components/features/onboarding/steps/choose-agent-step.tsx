@@ -7,7 +7,10 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
-import { ACP_PROVIDERS } from "#/constants/acp-providers";
+import {
+  ACP_PROVIDERS,
+  buildAcpAgentSettingsDiff,
+} from "#/constants/acp-providers";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -83,57 +86,22 @@ interface AgentOption {
   descriptionKey: I18nKey;
 }
 
+// Onboarding tile list is *derived* from the ACP registry so adding a
+// new provider (or changing a display name) only needs one edit in
+// ``acp-providers.ts``. The OpenHands tile is the only synthetic
+// entry — it isn't an ACP provider, just the canonical default.
 const AGENT_OPTIONS: AgentOption[] = [
   {
     id: "openhands",
     label: "OpenHands",
     descriptionKey: I18nKey.ONBOARDING$AGENT_OPENHANDS_DESCRIPTION,
   },
-  {
-    id: "claude-code",
-    label: "Claude Code",
-    descriptionKey: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
-  },
-  {
-    id: "codex",
-    label: "Codex",
-    descriptionKey: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
-  },
-  {
-    id: "gemini-cli",
-    label: "Gemini CLI",
-    descriptionKey: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
-  },
+  ...ACP_PROVIDERS.map<AgentOption>((provider) => ({
+    id: provider.key as OnboardingAgentId,
+    label: provider.display_name,
+    descriptionKey: provider.description_key,
+  })),
 ];
-
-/**
- * Resolve the ``agent_settings_diff`` payload for an onboarding selection.
- *
- * - ``openhands`` is the default and only needs ``agent_kind`` (the existing
- *   LLM-shaped fields stay put).
- * - The ACP options use ``ACP_PROVIDERS`` for the provider key + default
- *   command, matching what the Settings → Agent page emits. ``acp_command``
- *   is intentionally ``[]`` on the default-command path: the backend
- *   resolves the actual command from its own registry, so we don't pin a
- *   stale command here if the SDK registry changes upstream.
- */
-function buildAgentSettingsDiff(
-  agentId: OnboardingAgentId,
-): Record<string, unknown> | null {
-  if (agentId === "openhands") {
-    return { agent_kind: "openhands" };
-  }
-  const provider = ACP_PROVIDERS.find(({ key }) => key === agentId);
-  if (!provider) {
-    return null;
-  }
-  return {
-    agent_kind: "acp",
-    acp_server: provider.key,
-    acp_command: [],
-    acp_model: null,
-  };
-}
 
 interface ChooseAgentStepProps {
   selectedAgentId: OnboardingAgentId;
@@ -150,7 +118,7 @@ export function ChooseAgentStep({
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
 
   const handleNext = () => {
-    const diff = buildAgentSettingsDiff(selectedAgentId);
+    const diff = buildAcpAgentSettingsDiff(selectedAgentId);
     if (!diff) {
       // Unknown id (shouldn't be reachable through the UI). Advance
       // without writing — better to show the next step than block the

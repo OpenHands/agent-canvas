@@ -16,22 +16,16 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import {
   ACP_PROVIDERS,
   ACP_CUSTOM_PRESET_KEY,
+  buildAcpAgentSettingsDiff,
   type ACPProviderConfig,
 } from "#/constants/acp-providers";
+import { parseCommand, formatCommand } from "#/utils/acp-command";
 
 export const handle = { hideTitle: true };
 
 type AgentType = "openhands" | "acp";
 
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
-
-function tokenizeCommand(value: string): string[] {
-  return value.split(/\s+/).filter(Boolean);
-}
-
-function formatCommand(command: string[]): string {
-  return command.join(" ");
-}
 
 /** Coerce a possibly-undefined unknown to ``string[]`` by keeping only string
  *  entries; non-arrays and non-string entries are discarded. Used when
@@ -46,7 +40,7 @@ function detectPreset(
   commandText: string,
   providers: ACPProviderConfig[],
 ): string {
-  const normalized = tokenizeCommand(commandText).join(" ");
+  const normalized = parseCommand(commandText).join(" ");
   for (const provider of providers) {
     if (normalized === provider.default_command.join(" ")) {
       return provider.key;
@@ -108,7 +102,7 @@ function AgentSettingsScreen() {
   if (isLoading) return null;
 
   const isAcp = agentType === "acp";
-  const commandTokens = tokenizeCommand(commandText);
+  const commandTokens = parseCommand(commandText);
   const isAcpInvalid = isAcp && commandTokens.length === 0;
   // ``selectedPreset`` is derived from ``commandText`` rather than tracked as
   // state. Keeping it in state would mean three sync points (effect, textarea
@@ -126,29 +120,29 @@ function AgentSettingsScreen() {
     COMMAND_PLACEHOLDER_FALLBACK;
 
   const handleSave = () => {
-    let agentSettingsDiff: Record<string, unknown>;
-    if (isAcp) {
-      // ``acp_args`` is intentionally omitted: there is no UI for it, the
-      // textarea contributes every token via ``acp_command``, and the
-      // backend's default ``[]`` on the ACPAgent model is correct. Sending
-      // it would only matter for users who set it via the raw API, and we
-      // don't want to clobber that.
-      agentSettingsDiff = {
-        agent_kind: "acp",
-        acp_server:
-          selectedProvider && isDefaultProviderCommand
-            ? selectedProvider.key
-            : ACP_CUSTOM_PRESET_KEY,
-        acp_command:
-          selectedProvider && isDefaultProviderCommand ? [] : commandTokens,
-        acp_model: acpModel.trim() || null,
-      };
-    } else {
-      // Switching back to OpenHands. The agent-server's ``Settings.update``
-      // applies a fresh ``{'agent_kind': ...}`` base whenever the kind flips
-      // — any ``acp_*`` fields sent here would be discarded before
-      // validation, so send the kind alone.
-      agentSettingsDiff = { agent_kind: "openhands" };
+    // The textarea is the single source of truth for the launch tokens:
+    // when a built-in preset is selected and untouched, we save the
+    // empty ``acp_command`` shortcut + provider key (the adapter
+    // expands it from the registry at conversation-create time, see
+    // ``buildConfiguredAcpAgentSettings``). When a preset has been
+    // edited or the user picked Custom, we save the literal tokens.
+    // Either way, ``acp_args: []`` is reset so API-set args can't
+    // duplicate at spawn time.
+    const useDefault = !!(selectedProvider && isDefaultProviderCommand);
+    const providerKey = isAcp
+      ? selectedProvider && isDefaultProviderCommand
+        ? selectedProvider.key
+        : ACP_CUSTOM_PRESET_KEY
+      : "openhands";
+    const agentSettingsDiff = buildAcpAgentSettingsDiff(providerKey, {
+      command: useDefault ? [] : commandTokens,
+      model: acpModel.trim() || null,
+    });
+
+    if (!agentSettingsDiff) {
+      // Unreachable through the UI (the providerKey is derived from
+      // either a known preset or the custom sentinel), but defensive.
+      return;
     }
 
     saveSettings(

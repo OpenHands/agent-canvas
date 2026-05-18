@@ -35,13 +35,28 @@ describe("settings route", () => {
     queryClient.clear();
   });
 
-  it("prefers OSS fallback routes only", () => {
+  it("prefers /settings/agent when LLM settings are hidden", () => {
+    // /settings/agent is the ACP landing page and is always available.
+    // When ``hide_llm_settings`` flips on, the user is steered there
+    // rather than to ``/settings/app`` (which is a far less useful
+    // landing for first-time setup).
     expect(
       getFirstAvailablePath({
         hide_llm_settings: true,
         hide_users_page: true,
       }),
-    ).toBe("/settings/app");
+    ).toBe("/settings/agent");
+  });
+
+  it("still prefers /settings/agent even when LLM settings are visible", () => {
+    // The Agent page is the single place to switch kinds, so it wins
+    // the fallback unconditionally.
+    expect(
+      getFirstAvailablePath({
+        hide_llm_settings: false,
+        hide_users_page: true,
+      }),
+    ).toBe("/settings/agent");
   });
 
   it("redirects hidden OSS settings pages to the first available route", async () => {
@@ -66,7 +81,7 @@ describe("settings route", () => {
     } as never)) as Response;
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/settings/app");
+    expect(response.headers.get("Location")).toBe("/settings/agent");
   });
 
   it("does not redirect unrelated removed nested paths through the settings loader", async () => {

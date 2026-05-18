@@ -295,6 +295,29 @@ type SettingsRecord = Record<string, unknown>;
 // ``Agent`` or an ``ACPAgent`` payload, and stripped on the LLM branch.
 const AGENT_SETTINGS_METADATA_KEYS = new Set(["schema_version", "agent"]);
 
+/**
+ * All ACPAgent-specific settings the adapter handles. Serves two opposite
+ * roles depending on the active ``agent_kind``:
+ *
+ *   1. **Allow-list for the ACP branch** — ``buildConfiguredAcpAgentSettings``
+ *      iterates this list to decide what to forward into the ACPAgent
+ *      payload. Anything not in the list (``llm``, ``condenser``,
+ *      ``mcp_config``, ``tools``, ``agent``, …) is dropped so the
+ *      agent-server's pydantic model doesn't reject the create as a
+ *      pydantic extra.
+ *
+ *   2. **Deny-list for the OpenHands branch** — ``buildConfiguredAgentSettings``
+ *      deletes these same keys to prevent leftover ACP state (set either
+ *      from a previous ACP run via the UI, or via the raw API) from
+ *      leaking into an Agent payload where pydantic would reject them.
+ *
+ * That's why the list intentionally covers fields that have no UI yet
+ * (``acp_args``, ``acp_env``, ``acp_session_mode``, ``acp_prompt_timeout``):
+ * trimming it to UI-visible fields would solve role (1) at the cost of
+ * silently leaking those API-set fields when the user toggles back to
+ * an OpenHands agent. Keep them in sync with ``ACP_SETTINGS_KEYS`` in
+ * the Python SDK's ``openhands.sdk.settings.ACPAgentSettings``.
+ */
 const ACP_SETTINGS_KEYS = [
   "acp_command",
   "acp_args",
