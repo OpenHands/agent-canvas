@@ -26,7 +26,7 @@ export const useModelInterceptor = (
 ) => {
   const showProfiles = useModelStore((s) => s.show);
   const queryClient = useQueryClient();
-  const switchAndLog = useSwitchLlmProfileAndLog();
+  const { switchAndLog } = useSwitchLlmProfileAndLog();
   const { backend, orgId } = useActiveBackend();
   const isLocal = backend.kind === "local";
   const { t } = useTranslation();
@@ -36,7 +36,7 @@ export const useModelInterceptor = (
       const trimmed = message.trim();
       const isModel =
         trimmed === MODEL_COMMAND || trimmed.startsWith(MODEL_PREFIX);
-      if (!conversationId || !isLocal || !isModel) {
+      if (!isModel || !isLocal) {
         onSubmit(message);
         return;
       }
@@ -44,9 +44,16 @@ export const useModelInterceptor = (
       const arg = trimmed.slice(MODEL_COMMAND.length).trim();
 
       if (arg) {
-        switchAndLog(conversationId, arg);
+        // `activateProfile` is global; works whether or not we have an active
+        // conversation. Pass conversationId through so the inline "Switched
+        // to" message gets anchored when one is open.
+        switchAndLog(conversationId ?? null, arg);
         return;
       }
+
+      // Bare `/model` — list profiles inline. Needs a conversation to anchor
+      // the entry to; swallow silently on the home page.
+      if (!conversationId) return;
 
       const anchorEventId = getLastRenderableEventId();
 
