@@ -579,11 +579,60 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
-        AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+        // The automation backend uses this to call the agent-server's REST
+        // API for uploads and bash dispatch (host-side) AND it propagates
+        // the same value into the in-sandbox bash command as the
+        // `AGENT_SERVER_URL` env var that main.py reads to connect back.
+        //
+        // In dev:docker that script runs inside the agent-server container,
+        // so the URL has to be reachable from *both* the host and the
+        // container. `host.docker.internal:${agentServerPort}` satisfies
+        // both: from the host it's a loopback alias, and from inside the
+        // container Docker's host-gateway routes back through the published
+        // port. A little wasteful (the in-container script bounces through
+        // the host port-forward) but it's the only single value that works
+        // both ways without changes to the automation backend.
+        //
+        // Priority:
+        //   1. AUTOMATION_AGENT_SERVER_URL explicitly set in the user's env
+        //   2. launcher-provided host (dev-docker.mjs sets
+        //      `automationApiHost: "host.docker.internal"`)
+        //   3. `localhost` (correct for dockerless mode where backend and
+        //      agent-server both run on the host)
+        AUTOMATION_AGENT_SERVER_URL:
+          process.env.AUTOMATION_AGENT_SERVER_URL ||
+          `http://${config.automationApiHost ?? "localhost"}:${config.agentServerPort}`,
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
-        AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
+        // The automation backend uses this as its publicly-reachable base
+        // URL: it's appended to callback URLs and injected into each
+        // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
+        // /sdk-version and by the SDK for run completion). In dev:docker
+        // the sandbox is a separate container, so `localhost` won't reach
+        // the host ingress — the launcher therefore passes
+        // `automationApiHost: "host.docker.internal"` to override the host.
+        // Priority:
+        //   1. AUTOMATION_BASE_URL explicitly set in the user's env
+        //   2. launcher-provided host (dev-docker.mjs)
+        //   3. `localhost` (correct for dockerless mode)
+        AUTOMATION_BASE_URL:
+          process.env.AUTOMATION_BASE_URL ||
+          `http://${config.automationApiHost ?? "localhost"}:${config.ingressPort}`,
+        // The dispatcher (running on the host) resolves this path and
+        // embeds it into a `mkdir -p ...` shell command that is then
+        // executed *inside* the agent-server container. So the value must
+        // be valid in the container's filesystem, not just on the host.
+        // Priority:
+        //   1. AUTOMATION_WORKSPACE_BASE explicitly set in the user's env
+        //   2. `automationWorkspaceBase` option passed by the launcher
+        //      (dev-docker.mjs sets this to a container-safe path)
+        //   3. host-side default that lives under config.stateDir — fine
+        //      for dockerless mode where the dispatcher and agent-server
+        //      share the host filesystem.
+        AUTOMATION_WORKSPACE_BASE:
+          process.env.AUTOMATION_WORKSPACE_BASE ||
+          config.automationWorkspaceBase ||
+          join(config.stateDir, "workspaces"),
         // Local API key for self-hosted auth (no cloud API needed)
         AUTOMATION_LOCAL_API_KEY: config.localApiKey,
         // CORS: allow localhost origins for dev
@@ -862,6 +911,17 @@ async function main(options = {}) {
     startAgentServer: startAgentServerOverride,
     extraPrereqs,
     viteWorkingDir,
+    // Path (in whatever filesystem the agent-server can mkdir into) used
+    // as `AUTOMATION_WORKSPACE_BASE` by the automation backend. dev-docker
+    // sets this to a path that exists inside the agent-server container;
+    // dockerless mode leaves it undefined so the host-side default applies.
+    automationWorkspaceBase,
+    // Host used in `AUTOMATION_BASE_URL` (the URL the automation sandbox
+    // uses to call back into the automation backend). dev-docker sets
+    // this to `host.docker.internal` so the sandbox container can reach
+    // the host ingress; dockerless mode leaves it undefined and the
+    // default `localhost` applies.
+    automationApiHost,
     staticMode: staticModeOverride,
     defaultStaticMode = false,
     buildStaticFrontend,
@@ -903,6 +963,12 @@ async function main(options = {}) {
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
+  if (automationWorkspaceBase) {
+    config.automationWorkspaceBase = automationWorkspaceBase;
+  }
+  if (automationApiHost) {
+    config.automationApiHost = automationApiHost;
+  }
   // Stamp the dev-mode label, host alias, and frontend kind on the config
   // so downstream helpers (Vite spawn, static build) can produce a
   // runtime-services info object describing what the agent can reach.

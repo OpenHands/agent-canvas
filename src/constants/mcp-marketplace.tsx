@@ -24,7 +24,6 @@ import {
   Folder,
   GitBranch,
   Globe,
-  Image as ImageIcon,
   ListTree,
   MousePointerClick,
   Search,
@@ -46,7 +45,6 @@ import {
   SiHuggingface,
   SiKagi,
   SiLinear,
-  SiMattermost,
   SiMongodb,
   SiNotion,
   SiObsidian,
@@ -147,8 +145,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "GitHub",
     description:
       "Search code, manage issues and pull requests, and inspect repos via the GitHub API.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+    docsUrl: "https://github.com/github/github-mcp-server",
     logo: <SiGithub className={LOGO} />,
     iconBg: "var(--oh-surface)",
     keywords: ["git", "pr", "repo", "issues", "code"],
@@ -173,8 +170,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Slack",
     description:
       "Read channels, post messages, and search workspace history from your agent.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
     logo: <SiSlack className={LOGO} />,
     iconBg: "#4A154B",
     keywords: ["chat", "messaging", "team"],
@@ -389,7 +384,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Hugging Face",
     description:
       "Search models, datasets, and Spaces on the Hugging Face Hub from your agent.",
-    docsUrl: "https://huggingface.co/docs/hub/en/mcp",
+    docsUrl: "https://huggingface.co/docs/huggingface_hub/en/guides/mcp",
     logo: <SiHuggingface className={LOGO} />,
     iconBg: "#FFD21E",
     iconColor: "#000000",
@@ -422,8 +417,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "GitLab",
     description:
       "Search projects, browse merge requests, and update issues on GitLab.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab",
     logo: <SiGitlab className={LOGO} />,
     iconBg: "#FC6D26",
     keywords: ["git", "mr", "repo", "issues", "code"],
@@ -490,8 +483,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Brave Search",
     description:
       "Privacy-first web and local search using the Brave Search API.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
+    docsUrl: "https://github.com/brave/brave-search-mcp-server",
     logo: <SiBrave className={LOGO} />,
     iconBg: "#FB542B",
     keywords: ["search", "web"],
@@ -636,8 +628,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Puppeteer",
     description:
       "Headless Chrome via Puppeteer — navigate, screenshot, and scrape pages.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer",
     logo: <SiPuppeteer className={LOGO} />,
     iconBg: "#40B5A4",
     keywords: ["browser", "automation", "scrape", "chrome"],
@@ -653,8 +643,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Google Maps",
     description:
       "Geocoding, directions, places search, and distance matrix lookups.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps",
     logo: <SiGooglemaps className={LOGO} />,
     iconBg: "#4285F4",
     keywords: ["maps", "geocode", "directions", "places"],
@@ -680,8 +668,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Postgres",
     description:
       "Read-only SQL queries and schema introspection against any Postgres database.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
     logo: <SiPostgresql className={LOGO} />,
     iconBg: "#336791",
     availability: "local",
@@ -783,8 +769,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Redis",
     description:
       "Get, set, scan, and inspect data on a Redis or Redis-compatible instance.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/redis",
+    docsUrl: "https://github.com/redis/mcp-redis",
     logo: <SiRedis className={LOGO} />,
     iconBg: "#DC382D",
     availability: "local",
@@ -811,8 +796,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "SQLite",
     description:
       "Open a SQLite database file and run queries, schema dumps, and explorations.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite",
     logo: <SiSqlite className={LOGO} />,
     iconBg: "#003B57",
     availability: "local",
@@ -921,30 +904,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       args: ["mcp-server-time"],
     },
   },
-  {
-    id: "everart",
-    name: "EverArt",
-    description: "Generate AI images via EverArt's image models.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/everart",
-    logo: <ImageIcon className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#EC4899",
-    keywords: ["image", "ai", "generation"],
-    template: {
-      kind: "stdio",
-      serverName: "everart",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-everart"],
-      envFields: [
-        {
-          key: "EVERART_API_KEY",
-          label: "EverArt API key",
-          type: "password",
-          required: true,
-        },
-      ],
-    },
-  },
+
   {
     id: "everything",
     name: "Everything (demo)",
@@ -962,46 +922,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       args: ["-y", "@modelcontextprotocol/server-everything"],
     },
   },
-  {
-    id: "aws-kb",
-    name: "AWS Knowledge Base",
-    description:
-      "Retrieval-augmented search against AWS Bedrock knowledge bases.",
-    docsUrl:
-      "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
-    logo: <BookOpen className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#FF9900",
-    iconColor: "var(--oh-surface-deep)",
-    keywords: ["aws", "bedrock", "rag", "knowledge"],
-    template: {
-      kind: "stdio",
-      serverName: "aws_kb_retrieval",
-      command: "npx",
-      args: ["-y", "@modelcontextprotocol/server-aws-kb-retrieval"],
-      envFields: [
-        {
-          key: "AWS_ACCESS_KEY_ID",
-          label: "AWS access key ID",
-          type: "password",
-          required: true,
-        },
-        {
-          key: "AWS_SECRET_ACCESS_KEY",
-          label: "AWS secret access key",
-          type: "password",
-          required: true,
-        },
-        {
-          key: "AWS_REGION",
-          label: "AWS region",
-          type: "text",
-          placeholder: "us-east-1",
-          required: true,
-        },
-      ],
-    },
-  },
-
   // -- Productivity / design / media -----------------------------------
   {
     id: "figma",
@@ -1106,7 +1026,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     id: "resend",
     name: "Resend",
     description: "Send transactional and marketing emails via the Resend API.",
-    docsUrl: "https://resend.com/docs/send-with-mcp",
+    docsUrl: "https://resend.com/docs/mcp",
     logo: <SiResend className={LOGO} />,
     iconBg: "var(--oh-surface-deep)",
     keywords: ["email", "transactional", "smtp"],
@@ -1167,7 +1087,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     name: "Kagi Search",
     description:
       "Paid, privacy-first search with high signal-to-noise — great for research.",
-    docsUrl: "https://help.kagi.com/kagi/api/mcp.html",
+    docsUrl: "https://github.com/kagisearch/kagimcp",
     logo: <SiKagi className={LOGO} />,
     iconBg: "#FFB319",
     iconColor: "var(--oh-surface-deep)",
@@ -1218,36 +1138,6 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
         {
           key: "CLICKHOUSE_PASSWORD",
           label: "Password",
-          type: "password",
-          required: true,
-        },
-      ],
-    },
-  },
-  {
-    id: "mattermost",
-    name: "Mattermost",
-    description: "Post and read messages in self-hosted Mattermost workspaces.",
-    docsUrl: "https://github.com/EvilFreelancer/mattermost-mcp-server",
-    logo: <SiMattermost className={LOGO} />,
-    iconBg: "#0058CC",
-    keywords: ["chat", "messaging", "team", "open source"],
-    template: {
-      kind: "stdio",
-      serverName: "mattermost",
-      command: "npx",
-      args: ["-y", "mattermost-mcp-server"],
-      envFields: [
-        {
-          key: "MATTERMOST_URL",
-          label: "Server URL",
-          type: "text",
-          placeholder: "https://mattermost.example.com",
-          required: true,
-        },
-        {
-          key: "MATTERMOST_TOKEN",
-          label: "Personal access token",
           type: "password",
           required: true,
         },
