@@ -582,7 +582,20 @@ function startAutomationBackend(config) {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
+        // The automation backend uses this as its publicly-reachable base
+        // URL: it's appended to callback URLs and injected into each
+        // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
+        // /sdk-version and by the SDK for run completion). In dev:docker
+        // the sandbox is a separate container, so `localhost` won't reach
+        // the host ingress — the launcher therefore passes
+        // `automationApiHost: "host.docker.internal"` to override the host.
+        // Priority:
+        //   1. AUTOMATION_BASE_URL explicitly set in the user's env
+        //   2. launcher-provided host (dev-docker.mjs)
+        //   3. `localhost` (correct for dockerless mode)
+        AUTOMATION_BASE_URL:
+          process.env.AUTOMATION_BASE_URL ||
+          `http://${config.automationApiHost ?? "localhost"}:${config.ingressPort}`,
         // The dispatcher (running on the host) resolves this path and
         // embeds it into a `mkdir -p ...` shell command that is then
         // executed *inside* the agent-server container. So the value must
@@ -881,6 +894,12 @@ async function main(options = {}) {
     // sets this to a path that exists inside the agent-server container;
     // dockerless mode leaves it undefined so the host-side default applies.
     automationWorkspaceBase,
+    // Host used in `AUTOMATION_BASE_URL` (the URL the automation sandbox
+    // uses to call back into the automation backend). dev-docker sets
+    // this to `host.docker.internal` so the sandbox container can reach
+    // the host ingress; dockerless mode leaves it undefined and the
+    // default `localhost` applies.
+    automationApiHost,
     staticMode: staticModeOverride,
     defaultStaticMode = false,
     buildStaticFrontend,
@@ -924,6 +943,9 @@ async function main(options = {}) {
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
   if (automationWorkspaceBase) {
     config.automationWorkspaceBase = automationWorkspaceBase;
+  }
+  if (automationApiHost) {
+    config.automationApiHost = automationApiHost;
   }
   // Stamp the dev-mode label, host alias, and frontend kind on the config
   // so downstream helpers (Vite spawn, static build) can produce a

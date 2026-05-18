@@ -409,6 +409,14 @@ if (isMainModule) {
     // /Users/<you>/... inside Linux. Users can still override by setting
     // AUTOMATION_WORKSPACE_BASE in their environment.
     automationWorkspaceBase: CONTAINER_WORKSPACES_DIR,
+    // The automation backend tells each automation sandbox where to
+    // reach it back via `AUTOMATION_API_URL` (used by setup.sh to fetch
+    // /sdk-version and by the SDK to POST run completion). The sandbox
+    // is a separate Docker container, so `localhost` inside it is the
+    // sandbox itself — it cannot resolve `http://localhost:<ingress>`
+    // to the host ingress. Use the cross-container hostname instead.
+    // Users can still override by setting AUTOMATION_BASE_URL.
+    automationApiHost: "host.docker.internal",
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
     // The agent-server runs inside a Docker container in this mode, so
