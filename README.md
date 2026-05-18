@@ -68,7 +68,6 @@ Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=Benk
 
 Set `$PROJECTS_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
 
-
 ```sh
 export PROJECTS_PATH=/path/to/your/projects
 git clone https://github.com/OpenHands/agent-canvas.git
