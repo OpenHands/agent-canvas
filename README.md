@@ -3,7 +3,7 @@
 > [!WARNING]
 > This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).
 
-OpenHands is a platform for managing agents across a variety of environments. You can:
+OpenHands is a platform for managing coding agents in any environment. You can:
 
 - ⌨️ prompt agents manually
 - 🕐 run agents on a schedule
