@@ -582,7 +582,16 @@ function startAutomationBackend(config) {
         AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
-        AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
+        // AUTOMATION_BASE_URL is the URL the automation backend stamps into
+        // the bash chain sent to the agent-server (it becomes
+        // AUTOMATION_API_URL and the callback URL). In dev:docker mode the
+        // bash chain runs *inside* the agent-server container, so it can't
+        // reach the host via "localhost" — it has to use the same alias
+        // the rest of the agent uses to talk to host services
+        // (host.docker.internal). dev-with-automation.mjs defaults
+        // agentHostAlias to "localhost", which is correct for the
+        // host-side (dockerless) mode.
+        AUTOMATION_BASE_URL: `http://${config.agentHostAlias ?? "localhost"}:${config.ingressPort}`,
         AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
         // Local API key for self-hosted auth (no cloud API needed)
         AUTOMATION_LOCAL_API_KEY: config.localApiKey,
