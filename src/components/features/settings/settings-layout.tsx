@@ -26,14 +26,14 @@ export function SettingsLayout({
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="flex h-full flex-col px-[14px] md:px-0">
+    <div className="flex h-full flex-col px-[14px] md:px-0 md:pt-8">
       <MobileHeader
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMenu={toggleMobileMenu}
       />
       <div className="flex min-h-0 flex-1 gap-10 md:items-start">
         <SettingsDesktopSidebar navigationItems={navigationItems} />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always md:pr-[14px] md:pt-8 md:pb-12">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always md:pr-[14px] md:pb-12">
           <div className="mx-auto w-full min-w-0 max-w-[800px]">{children}</div>
         </main>
       </div>

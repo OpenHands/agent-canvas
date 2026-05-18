@@ -200,4 +200,40 @@ test.describe("UI Visual Snapshots", () => {
       animations: "disabled",
     });
   });
+
+  test("Add backend modal renders correctly", async ({ page }) => {
+    await setupMocks(page, false);
+
+    // Mock the server-info health-check endpoint. Without this, the
+    // periodic health poll may prevent networkidle or cause hangs.
+    await page.route("**/server_info", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ version: "mock" }),
+      });
+    });
+
+    await page.goto("/conversations");
+    await dismissConsentModal(page);
+
+    const homeScreen = page.getByTestId("home-screen");
+    await expect(homeScreen).toBeVisible();
+
+    // The backend selector uses openOnHover, so hovering opens the
+    // dropdown. Clicking the toggle would close it again, so we hover
+    // to open and then click the menu item directly.
+    const backendSelector = page.getByTestId("backend-selector");
+    await expect(backendSelector).toBeVisible({ timeout: 15_000 });
+    await backendSelector.hover();
+    await page.getByTestId("add-backend-menu-item").click();
+
+    const addBackendModal = page.getByTestId("add-backend-modal");
+    await expect(addBackendModal).toBeVisible();
+
+    await expect(addBackendModal).toHaveScreenshot("add-backend-modal.png", {
+      maxDiffPixelRatio: 0.01,
+      animations: "disabled",
+    });
+  });
 });

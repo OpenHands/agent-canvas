@@ -178,6 +178,7 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     created_at: readTimestamp(item, "created_at", "createdAt"),
     updated_at: readTimestamp(item, "updated_at", "updatedAt"),
     execution_status: stringOrNull(item.execution_status),
+    sandbox_status: stringOrNull(item.sandbox_status),
     metrics: normalizeMetrics(item.metrics),
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
@@ -271,11 +272,11 @@ class AgentServerConversationService {
     sandboxId?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
-      // Cloud SaaS path mirrors OpenHands' frontend: build a flat
+      // Cloud path mirrors OpenHands' frontend: build a flat
       // AppConversationStartRequest, POST /api/v1/app-conversations
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
-      // round-trip — the SaaS holds secrets server-side.
+      // round-trip — the cloud backend holds secrets server-side.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -365,7 +366,7 @@ class AgentServerConversationService {
     sessionApiKey?: string | null,
   ): Promise<GetVSCodeUrlResponse> {
     // Local-only path. Cloud conversations read the VSCode URL straight
-    // from the SaaS-computed `sandbox.exposed_urls` (see
+    // from the cloud-computed `sandbox.exposed_urls` (see
     // `useUnifiedVSCodeUrl` + `useCloudSandbox`); the runtime's own
     // `/api/vscode/url` only knows its internal `localhost:8001`, which
     // the user's browser can't reach.
@@ -452,7 +453,7 @@ class AgentServerConversationService {
     filePath?: string,
   ): Promise<string> {
     if (getActiveBackend().backend.kind === "cloud") {
-      // Cloud SaaS exposes a per-conversation file endpoint; the sandbox
+      // Cloud exposes a per-conversation file endpoint; the sandbox
       // working dir is fixed (`/workspace/project`), so PLAN.md lives at
       // a known absolute path. Mirrors OpenHands' readConversationFile.
       const path = requirePathInsideDirectory(

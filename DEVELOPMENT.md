@@ -161,4 +161,3 @@ You can create a `.env` file in the project directory with these variables based
 | `VITE_USE_TLS`              | Use HTTPS/WSS for the Vite proxy target                                            | `false`                |
 | `VITE_FRONTEND_PORT`        | Port to run the frontend application                                               | `3001`                 |
 | `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                     | `false`                |
-| `VITE_GITHUB_TOKEN`         | GitHub token for repository access (used in some tests)                            | -                      |

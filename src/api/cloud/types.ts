@@ -1,5 +1,5 @@
 /**
- * Minimal slice of the OpenHands SaaS organization shape that the GUI needs
+ * Minimal slice of the OpenHands cloud organization shape that the GUI needs
  * to render the backend selector. Full shape lives in the OpenHands repo;
  * we keep only the fields actually read by this codebase.
  */

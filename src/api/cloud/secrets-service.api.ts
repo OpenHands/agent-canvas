@@ -19,7 +19,7 @@ function getActiveCloudBackend(): Backend {
 }
 
 /**
- * Walk every page of the cloud SaaS `/api/v1/secrets/search` endpoint via the
+ * Walk every page of the cloud `/api/v1/secrets/search` endpoint via the
  * bundled `/api/cloud-proxy` and return the merged list. The cloud shape
  * (name + description) matches `CustomSecretWithoutValue`, so items pass
  * through unchanged.

@@ -11,7 +11,7 @@
  * and the secret-seeding step can reach it via http://localhost:18000.
  *
  * Required environment variables:
- *   - PROJECT_PATH: Absolute host path to your projects. Mounted into the
+ *   - PROJECTS_PATH: Absolute host path to your projects. Mounted into the
  *     container at /projects so the agent can read/edit your code. The
  *     frontend always treats /projects as a "workspace parent", so the
  *     dropdown lists its immediate subdirectories as workspaces.
@@ -43,9 +43,9 @@
  *   the host home unless you opt in.
  *
  * Usage:
- *   PROJECT_PATH=/path/to/your/projects npm run dev:docker
- *   PROJECT_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
- *   OH_AGENT_SERVER_GIT_REF=main PROJECT_PATH=... npm run dev:docker
+ *   PROJECTS_PATH=/path/to/your/projects npm run dev:docker
+ *   PROJECTS_PATH=/path/to/your/projects npm run dev:docker -- --dynamic
+ *   OH_AGENT_SERVER_GIT_REF=main PROJECTS_PATH=... npm run dev:docker
  */
 
 import { spawnSync } from "node:child_process";
@@ -193,6 +193,18 @@ function getDockerUserArgs(userSpec = getHostDockerUserSpec()) {
  * Cache/config writes that libraries place under $HOME stay ephemeral in this
  * tmpfs. The only persisted default-home state is the explicit
  * ~/.openhands -> /home/openhands/.openhands bind mount below.
+ *
+ * We explicitly pass `exec` because docker's `--tmpfs` default option set is
+ * `rw,noexec,nosuid,nodev`. `noexec` breaks any agent flow that needs to run a
+ * binary out of `$HOME` -- most visibly stdio MCP servers installed via
+ * `npx -y @modelcontextprotocol/server-*`, which cache their executables under
+ * `~/.npm/_npx/...` and then exec them. With the default `noexec` flag, those
+ * execs fail with "Permission denied" regardless of the file mode bits, and
+ * the failure only surfaces when a conversation tries to spin the MCP server
+ * up -- aborting agent initialization with a confusing traceback.
+ *
+ * `nosuid` and `nodev` are preserved (the home dir has no business hosting
+ * setuid binaries or device nodes); only the `noexec` default is overridden.
  */
 function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
   if (!userSpec) {
@@ -204,7 +216,10 @@ function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
     return [];
   }
 
-  return ["--tmpfs", `${CONTAINER_HOME_DIR}:uid=${uid},gid=${gid},mode=700`];
+  return [
+    "--tmpfs",
+    `${CONTAINER_HOME_DIR}:exec,nosuid,nodev,uid=${uid},gid=${gid},mode=700`,
+  ];
 }
 
 /**
@@ -213,6 +228,10 @@ function getDockerHomeTmpfsArgs(userSpec = getHostDockerUserSpec()) {
  * installed, which is not enough -- on macOS / Windows the daemon may be
  * stopped, and on Linux the user may not have permissions to talk to it.
  */
+function getProjectsPathDockerArgs(env = process.env) {
+  return env.PROJECTS_PATH ? ["-v", `${env.PROJECTS_PATH}:/projects`] : [];
+}
+
 function checkDockerPrereqs(config) {
   if (!commandExists("docker")) {
     logError("docker is required for dev:docker but was not found on PATH.");
@@ -236,13 +255,13 @@ function checkDockerPrereqs(config) {
   }
   logSuccess("docker daemon is running");
 
-  if (!process.env.PROJECT_PATH) {
-    logError("PROJECT_PATH is required for dev:docker.");
+  if (!process.env.PROJECTS_PATH) {
+    logError("PROJECTS_PATH is required for dev:docker.");
     logError("Set it to the directory containing your projects, e.g.:");
-    logError("  export PROJECT_PATH=/path/to/your/projects");
+    logError("  export PROJECTS_PATH=/path/to/your/projects");
     process.exit(1);
   }
-  logSuccess(`PROJECT_PATH=${process.env.PROJECT_PATH}`);
+  logSuccess(`PROJECTS_PATH=${process.env.PROJECTS_PATH}`);
 }
 
 function startAgentServerDocker(config) {
@@ -278,7 +297,7 @@ function startAgentServerDocker(config) {
   const userSpec = getHostDockerUserSpec();
   const dockerArgs = ["run", "--rm", "--name", CONTAINER_NAME, "--init"];
   dockerArgs.push(...getDockerUserArgs(userSpec));
-  dockerArgs.push("-v", `${process.env.PROJECT_PATH}:/projects`);
+  dockerArgs.push(...getProjectsPathDockerArgs());
   // Read-only mount of the Agent-Canvas tools directory. Coupled with
   // OH_EXTRA_PYTHON_PATH below so the agent-server can import
   // canvas_ui_tool when the conversation request lists it under
@@ -413,6 +432,7 @@ export {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectsPathDockerArgs,
   isDockerPermissionDenied,
   resolveAgentServerImage,
   startAgentServerDocker,

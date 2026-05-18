@@ -18,11 +18,11 @@ import type {
 
 /**
  * Cloud-mode REST calls are split between two upstream hosts (matching
- * OpenHands' SaaS frontend):
+ * OpenHands' cloud frontend):
  *
  *   - **App API** (`backend.host`, default in `callCloudProxy`):
  *     event *history* (`/api/v1/conversation/{id}/events/search`).
- *     Persisted by the SaaS — survives the runtime sandbox.
+ *     Persisted by the cloud backend — survives the runtime sandbox.
  *
  *   - **Runtime sandbox** (extracted from `conversation.conversation_url`
  *     and passed as `hostOverride`): live runtime endpoints like
@@ -32,7 +32,7 @@ import type {
  *
  * Both go through the bundled local agent-server's `/api/cloud-proxy`,
  * which sidesteps the cross-origin restrictions that block the GUI at
- * `localhost` from talking directly to either the SaaS or the runtime.
+ * `localhost` from talking directly to either the cloud backend or the runtime.
  *
  * Local mode keeps the existing typescript-client path: it targets the
  * conversation's host directly via typed client classes.
@@ -110,33 +110,57 @@ class EventService {
     const limit = options.limit ?? 100;
 
     if (active.kind === "cloud") {
-      // Event *history* lives on the SaaS App API, not the runtime
+      // Event *history* lives on the cloud App API, not the runtime
       // sandbox. Path is singular `conversation` and v1-prefixed.
       //
-      // Mirror the OpenHands SaaS frontend's request shape and send ONLY
-      // `limit`. The SaaS app-server's `search_events` has a server-side
-      // TypeError when filtering by `timestamp__lt` / `timestamp__gte`
-      // (it compares the stored `event.timestamp` str against the parsed
-      // datetime, which raises in Python 3 and surfaces as HTTP 500). The
-      // cloud frontend has never sent timestamp/sort/page filters here,
-      // so the broken path is untested; the safe contract is "limit
-      // only" until the server is fixed. `sort_order` and `page_id` are
-      // also dropped — neither is part of the proven-working shape, and
-      // older-event pagination is gated off in `useLoadOlderEvents` for
-      // cloud, so they have no caller to satisfy.
+      // Full pagination params (sort_order, page_id, timestamp filters)
+      // require the server-side fix from OpenHands/OpenHands#14399. If
+      // the cloud backend hasn't been updated yet, the timestamp filters
+      // trigger a 500 (str-vs-datetime comparison). We attempt the full
+      // request first and fall back to a limit-only request on failure.
       const cloudLimit = Math.min(limit, 100);
+      const hasFilterParams = !!(
+        options.sortOrder ||
+        options.pageId ||
+        options.timestampGte ||
+        options.timestampLt
+      );
+
       const params = new URLSearchParams();
       params.set("limit", String(cloudLimit));
+      if (options.sortOrder) params.set("sort_order", options.sortOrder);
+      if (options.pageId) params.set("page_id", options.pageId);
+      if (options.timestampGte)
+        params.set("timestamp__gte", options.timestampGte);
+      if (options.timestampLt) params.set("timestamp__lt", options.timestampLt);
 
-      const data = await callCloudProxy<EventSearchPage<OpenHandsEvent>>({
-        backend: active,
-        method: "GET",
-        path: `/api/v1/conversation/${conversationId}/events/search?${params.toString()}`,
-      });
-      return {
-        items: data?.items ?? [],
-        next_page_id: data?.next_page_id ?? null,
-      };
+      const doCloudSearch = (searchParams: URLSearchParams) =>
+        callCloudProxy<EventSearchPage<OpenHandsEvent>>({
+          backend: active,
+          method: "GET",
+          path: `/api/v1/conversation/${conversationId}/events/search?${searchParams.toString()}`,
+        });
+
+      try {
+        const data = await doCloudSearch(params);
+        return {
+          items: data?.items ?? [],
+          next_page_id: data?.next_page_id ?? null,
+        };
+      } catch (err) {
+        if (!hasFilterParams) throw err;
+
+        // Server doesn't support timestamp filters yet — stop pagination
+        // by returning an empty page so the UI doesn't retry indefinitely.
+        // A limit-only fallback would return the same most-recent events
+        // already in the store, which get deduped but keep hasMore=true.
+        console.warn(
+          "[EventService] Cloud backend doesn't support pagination filters. " +
+            "Falling back to initial load only. " +
+            "Server needs OpenHands/OpenHands#14399.",
+        );
+        return { items: [], next_page_id: null };
+      }
     }
 
     const page = await new RemoteEventsList(

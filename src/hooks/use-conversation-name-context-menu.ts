@@ -150,7 +150,7 @@ export function useConversationNameContextMenu({
   const shareUrl = React.useMemo(() => {
     if (!conversationId) return "";
     // On cloud backends, the shareable URL must point at the cloud
-    // environment's host (e.g. the SaaS app domain) rather than the local
+    // environment's host (e.g. the cloud app domain) rather than the local
     // dev origin so the link works for anyone the user shares it with.
     const origin =
       backend.kind === "cloud"

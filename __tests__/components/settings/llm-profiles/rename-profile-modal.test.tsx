@@ -92,6 +92,22 @@ describe("RenameProfileModal", () => {
     expect(screen.getByText("Cancel")).toBeInTheDocument();
   });
 
+  it("places Cancel before Rename in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    renderModal(mockProfile);
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("Cancel");
+    const submit = screen.getByTestId("rename-profile-submit");
+
+    // Assert: Cancel precedes the dominant Rename action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(submit) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("calls onClose when Cancel is clicked", async () => {
     const user = userEvent.setup();
     const handleClose = vi.fn();
@@ -151,7 +167,7 @@ describe("RenameProfileModal", () => {
     expect(submitButton).toBeDisabled();
   });
 
-  it("shows validation error styling for invalid names", async () => {
+  it("marks the input as invalid for names violating the format rule", async () => {
     const user = userEvent.setup();
     renderModal(mockProfile);
 
@@ -159,8 +175,7 @@ describe("RenameProfileModal", () => {
     await user.clear(input);
     await user.type(input, ".invalid-name");
 
-    const rule = screen.getByTestId("rename-profile-rule");
-    expect(rule).toHaveClass("text-red-400");
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   it("updates input value when a different profile is passed", () => {

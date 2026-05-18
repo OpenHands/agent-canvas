@@ -14,7 +14,7 @@ interface UseResolvedWorkspacesResult {
 
 /**
  * Implicit workspace parents that are always considered when resolving
- * workspaces. The `dev:docker` script mounts the host's PROJECT_PATH at
+ * workspaces. The `dev:docker` script mounts the host's PROJECTS_PATH at
  * `/projects` inside the agent-server container, so this directory is
  * effectively the user's projects root in the dockerized dev stack. We
  * surface its immediate subdirectories as workspaces automatically.

@@ -185,14 +185,13 @@ describe("ConversationCard", () => {
       />,
     );
 
-    // Context menu is always in the DOM but hidden by CSS classes when contextMenuOpen is false
-    const contextMenu = screen.queryByTestId("context-menu");
-    if (contextMenu) {
-      const contextMenuParent = contextMenu.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
-    }
+    // The closed state is observable via the `data-context-menu-open` attr
+    // on the conversation-card root; visual hiding is a CSS consequence
+    // covered by the Playwright snapshot suite.
+    expect(screen.getByTestId("conversation-card")).toHaveAttribute(
+      "data-context-menu-open",
+      "false",
+    );
 
     const ellipsisButton = screen.getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
@@ -303,14 +302,11 @@ describe("ConversationCard", () => {
     const title = screen.getByTestId("conversation-card-title");
 
     expect(title).toBeEnabled();
-    // Context menu should be hidden after edit button is clicked (check CSS classes on parent div)
-    const contextMenu = screen.queryByTestId("context-menu");
-    if (contextMenu) {
-      const contextMenuParent = contextMenu.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
-    }
+    // Context menu should be closed after edit button is clicked.
+    expect(screen.getByTestId("conversation-card")).toHaveAttribute(
+      "data-context-menu-open",
+      "false",
+    );
     // expect to be focused
     expect(document.activeElement).toBe(title);
 

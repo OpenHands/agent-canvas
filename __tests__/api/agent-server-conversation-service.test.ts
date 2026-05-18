@@ -369,7 +369,69 @@ describe("AgentServerConversationService", () => {
       );
     });
 
-    it("sanitizes malformed optional conversation fields", async () => {
+    it("preserves sandbox_status from batchGetAppConversations response", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-paused",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            sandbox_status: "PAUSED",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-paused",
+        ]);
+
+      expect(conversation?.sandbox_status).toBe("PAUSED");
+    });
+
+    it("preserves sandbox_status from searchConversations response", async () => {
+      const searchSpy = vi.fn().mockResolvedValue({
+        items: [
+          {
+            id: "conv-paused-search",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            sandbox_status: "PAUSED",
+          },
+        ],
+        next_page_id: null,
+      });
+      // Only searchConversations is called by the service method under test,
+      // so we don't need to reproduce the full client mock object.
+      mockConversationClient.mockReturnValue({
+        searchConversations: searchSpy,
+      });
+
+      const result = await AgentServerConversationService.searchConversations(10);
+
+      expect(result.items[0]?.sandbox_status).toBe("PAUSED");
+    });
+
+    it("passes sandbox_status null through when field is absent", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-no-status",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-no-status",
+        ]);
+
+      expect(conversation?.sandbox_status).toBeNull();
+    });
+
+      it("sanitizes malformed optional conversation fields", async () => {
       mockHttpGet.mockResolvedValue({
         data: [
           {
@@ -519,7 +581,7 @@ describe("AgentServerConversationService", () => {
       });
     });
 
-    it("routes readConversationFile to the SaaS file endpoint with the file_path query param", async () => {
+    it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
       vi.mocked(axios.post).mockResolvedValue({ data: "# PLAN content" });
 

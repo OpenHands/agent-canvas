@@ -10,6 +10,7 @@ import {
   PluginSpec,
   AppConversation,
   AppConversationPage,
+  SandboxStatus,
 } from "./conversation-service/agent-server-conversation-service.types";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
@@ -20,6 +21,8 @@ export interface DirectConversationInfo {
   created_at: string;
   updated_at: string;
   execution_status?: string | null;
+  /** Cloud-only sandbox lifecycle state. Omitted / null for local agent-server conversations. */
+  sandbox_status?: string | null;
   metrics?: {
     accumulated_cost?: number | null;
     max_budget_per_task?: number | null;
@@ -55,6 +58,7 @@ const DEFAULT_TOOL_NAMES = [
   CANVAS_UI_TOOL_NAME,
 ];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
+const TASK_TOOL_SET_NAME = "task_tool_set";
 const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
 const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
@@ -226,6 +230,7 @@ export function toAppConversation(
     selected_repository: metadata?.selected_repository ?? null,
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
+    selected_workspace: metadata?.selected_workspace ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -259,6 +264,7 @@ export function toAppConversation(
     execution_status:
       (info.execution_status as AppConversation["execution_status"]) ??
       ExecutionStatus.IDLE,
+    sandbox_status: (info.sandbox_status as SandboxStatus | null) ?? null,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getEffectiveLocalBackend().apiKey || null,
     sandbox_id: null,
@@ -348,6 +354,14 @@ function getAgentTools() {
     isAgentServerToolAvailable(BROWSER_TOOL_SET_NAME)
   ) {
     tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
+  }
+  // Enables sub-agent delegation. The agent server's tool_router preloads
+  // `task_tool_set` and registers the built-in subagents (code-explorer,
+  // bash-runner, web-researcher, general-purpose), so exposing the tool here
+  // is all the client needs to do. Older servers that don't advertise it in
+  // /api/server_info's `usable_tools` are skipped via the capability probe.
+  if (isAgentServerToolAvailable(TASK_TOOL_SET_NAME)) {
+    tools.push({ name: TASK_TOOL_SET_NAME, params: {} });
   }
   return tools;
 }

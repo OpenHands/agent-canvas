@@ -7,7 +7,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import {
   pauseConversation,
-  updateConversationExecutionStatusInCache,
+  patchConversationInCache,
 } from "./conversation-mutation-utils";
 
 export const useUnifiedPauseConversation = () => {
@@ -52,11 +52,15 @@ export const useUnifiedPauseConversation = () => {
       }
       toast.success(t(I18nKey.TOAST$CONVERSATION_STOPPED), TOAST_OPTIONS);
 
-      updateConversationExecutionStatusInCache(
-        queryClient,
-        variables.conversationId,
-        ExecutionStatus.PAUSED,
-      );
+      // Update both execution_status and sandbox_status together so that
+      // WebSocketProviderWrapper's sandbox_status === "PAUSED" gate fires
+      // immediately when the user reopens this conversation — preventing a
+      // WebSocket connection attempt against the now-paused sandbox host
+      // before the next useActiveConversation poll returns.
+      patchConversationInCache(queryClient, variables.conversationId, {
+        execution_status: ExecutionStatus.PAUSED,
+        sandbox_status: "PAUSED",
+      });
 
       if (currentConversationId === variables.conversationId) {
         navigate("/conversations");

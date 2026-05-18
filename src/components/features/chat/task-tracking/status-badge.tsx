@@ -1,4 +1,4 @@
-import { getStatusClassName } from "#/utils/utils";
+import { cn, getStatusClassName } from "#/utils/utils";
 
 interface StatusBadgeProps {
   status: string;
@@ -7,9 +7,10 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <span
-      className={`text-xs px-2 py-1 rounded uppercase font-semibold ${getStatusClassName(
-        status,
-      )}`}
+      className={cn(
+        "text-xs px-2 py-1 rounded uppercase font-semibold",
+        getStatusClassName(status),
+      )}
     >
       {status.replace("_", " ")}
     </span>
