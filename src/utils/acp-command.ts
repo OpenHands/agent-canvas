@@ -1,4 +1,11 @@
-import { parse, quote } from "shell-quote";
+// ``shell-quote`` is a CJS module that does ``module.exports = { parse, quote }``;
+// Vite's ESM interop can resolve a default/namespace import but not named
+// imports against that shape (the dev server crashes with "does not provide
+// an export named 'parse'"). Namespace import works on both the dev server
+// and the Rollup-based prod build.
+import * as shellQuote from "shell-quote";
+
+const { parse, quote } = shellQuote;
 
 /**
  * Parse a single-string shell-style command into argv tokens.
