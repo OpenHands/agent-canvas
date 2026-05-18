@@ -85,4 +85,60 @@ describe("SettingsNavigation", () => {
 
     expect(onCloseMobileMenu).toHaveBeenCalledTimes(1);
   });
+
+  it("renders disabled-by-ACP items as disabled in the desktop sidebar", () => {
+    // Regression guard: when ACP is active, the LLM and Condenser items
+    // come through with ``disabled: true`` from ``useSettingsNavItems``;
+    // both the mobile drawer (via SettingsNavLink) and the desktop
+    // sidebar (via SidebarNavLink) must propagate that. Earlier the
+    // desktop branch dropped it and the items stayed clickable.
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[
+          {
+            type: "item",
+            item: llmItem,
+            disabled: true,
+            disabledAgentName: "Claude Code",
+          },
+          {
+            type: "item",
+            item: condenserItem,
+            disabled: true,
+            disabledAgentName: "Claude Code",
+          },
+        ]}
+      />,
+    );
+
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+
+    // SidebarNavLink renders disabled items as a non-link span with
+    // ``aria-disabled="true"`` and ``opacity-50`` styling.
+    const llmLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings",
+    );
+    const condenserLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings/condenser",
+    );
+    expect(llmLink).toHaveAttribute("aria-disabled", "true");
+    expect(condenserLink).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("leaves enabled items clickable in the desktop sidebar", () => {
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[{ type: "item", item: llmItem }]}
+      />,
+    );
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+    const llmLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings",
+    );
+    expect(llmLink).not.toHaveAttribute("aria-disabled", "true");
+  });
 });

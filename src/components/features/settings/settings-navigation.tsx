@@ -51,6 +51,14 @@ export function SettingsDesktopSidebar({
             end
             testId={`sidebar-settings-${renderedItem.item.to}`}
             icon={renderedItem.item.icon}
+            // Items marked ``disabledByAcp`` (LLM, Condenser, …) are greyed
+            // out and un-clickable while an ACP agent is active — those
+            // pages have nothing to configure while a separate sub-agent
+            // owns the LLM/condenser/MCP layers. The mobile drawer below
+            // already does this via ``SettingsNavLink``; do the same on
+            // desktop. The clientLoader-side redirect in ``routes/
+            // settings.tsx`` handles direct URL navigation.
+            disabled={renderedItem.disabled}
           />
         ))}
       </div>
