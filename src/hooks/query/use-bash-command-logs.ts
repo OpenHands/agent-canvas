@@ -1,21 +1,77 @@
 import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import BashService from "#/api/bash-service/bash-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import type { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { useUserConversation } from "./use-user-conversation";
 
 export const BASH_COMMAND_LOGS_QUERY_KEY = ["bash-command-logs"] as const;
 
+/**
+ * Reasons the modal can't fetch logs from a cloud sandbox, in priority
+ * order. The hook surfaces at most one of these so the UI can render a
+ * targeted message instead of a raw error.
+ */
+export type SandboxIssue =
+  | "missing" // sandbox has been deleted (or conversation has no runtime URL)
+  | "paused" // sandbox is paused — needs resuming
+  | "starting" // sandbox is still booting
+  | "errored" // sandbox is in a terminal error state
+  | "unreachable"; // bash query attempted and failed at the network layer
+
 interface UseBashCommandLogsOptions {
   /**
    * The agent-server conversation that hosts the bash command. Used to
-   * resolve `conversation_url` and `session_api_key` for cloud backends.
-   * Optional in local mode: when the conversation lookup hasn't
-   * resolved yet (or returns no runtime URL), local-mode queries fall
-   * back to the active backend's host.
+   * resolve `conversation_url` and `session_api_key` for cloud
+   * backends, and to gate the query on `sandbox_status` so we don't
+   * fire requests at known-unreachable sandboxes.
    */
   conversationId: string | null | undefined;
   bashCommandId: string | null | undefined;
   enabled?: boolean;
+}
+
+/**
+ * Map a cloud sandbox status to a stable issue code (or null when the
+ * sandbox is healthy enough to attempt the fetch).
+ */
+function sandboxIssueFromStatus(
+  status: SandboxStatus | null | undefined,
+): SandboxIssue | null {
+  switch (status) {
+    case "MISSING":
+      return "missing";
+    case "PAUSED":
+      return "paused";
+    case "STARTING":
+      return "starting";
+    case "ERROR":
+      return "errored";
+    case "RUNNING":
+    case null:
+    case undefined:
+    default:
+      return null;
+  }
+}
+
+/**
+ * Detect "the runtime is unreachable" axios errors from the cloud
+ * proxy. The proxy itself returns 5xx when the upstream sandbox is
+ * gone; runtimes return 4xx/5xx for various ephemeral states. We
+ * classify 5xx and network errors as "unreachable" so the modal can
+ * render the sandbox-gone state instead of dumping an axios string.
+ */
+function classifyFetchError(error: unknown): SandboxIssue | null {
+  if (!axios.isAxiosError(error)) return null;
+  // No response at all → DNS/connect/abort
+  if (!error.response) return "unreachable";
+  const status = error.response.status;
+  // Treat 502/503/504 (proxy can't reach upstream) and 404 (sandbox or
+  // resource no longer exists) as the sandbox being gone. We do not
+  // collapse 401/403 here — those are auth bugs we want to surface.
+  if (status === 404 || status >= 500) return "unreachable";
+  return null;
 }
 
 /**
@@ -27,11 +83,12 @@ interface UseBashCommandLogsOptions {
  *   those are passed through, but a missing/stale conversation does not
  *   block the bash query (the local agent-server hosts events under a
  *   single root).
- * - **Cloud backend**: the query is gated on `conversation_url` being
- *   available because cloud runtime endpoints live on per-conversation
- *   sub-domains. We surface `isResolvingConversation` /
- *   `conversationMissing` / `hasNoRuntime` so the modal can render
- *   meaningful empty states instead of an endless spinner.
+ * - **Cloud backend**: pre-checks `sandbox_status` and the existence of
+ *   a `conversation_url` before firing — paused, starting, errored, or
+ *   missing sandboxes report a `sandboxIssue` and skip the request
+ *   entirely (saves a doomed round-trip and gives the UI a targeted
+ *   empty state). If the request does fire and fails with a 5xx /
+ *   network error / 404 we re-classify it as `unreachable`.
  */
 export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
   const { conversationId, bashCommandId, enabled = true } = options;
@@ -42,8 +99,32 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
   const sessionApiKey = conversation?.session_api_key ?? null;
 
   const isCloud = active.backend.kind === "cloud";
-  // Cloud requires the runtime URL; local does not.
+  const conversationFetched = conversationQuery.isFetched;
+
+  // Resolve a single "sandbox issue" only for cloud backends. Local
+  // backends don't carry sandbox_status, and the agent-server hosts
+  // events under a single root so there's nothing to gate on.
+  let preflightIssue: SandboxIssue | null = null;
+  let conversationMissing = false;
+  if (isCloud && conversationFetched) {
+    if (!conversation) {
+      conversationMissing = true;
+    } else {
+      preflightIssue =
+        sandboxIssueFromStatus(conversation.sandbox_status) ??
+        (!conversation.conversation_url ? "missing" : null);
+    }
+  }
+
+  // Cloud needs the conversation URL before it can talk to the
+  // runtime; local does not.
   const hasRequiredAuth = isCloud ? !!conversationUrl : true;
+  const canFire =
+    enabled &&
+    !!bashCommandId &&
+    hasRequiredAuth &&
+    !preflightIssue &&
+    !conversationMissing;
 
   const query = useQuery({
     queryKey: [
@@ -60,7 +141,7 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
         sessionApiKey,
         bashCommandId as string,
       ),
-    enabled: enabled && !!bashCommandId && hasRequiredAuth,
+    enabled: canFire,
     // Completed-run logs don't change — cache long enough that reopening
     // the modal is instant but not forever.
     staleTime: 60 * 1000,
@@ -68,21 +149,30 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
     retry: false,
   });
 
+  // If the request fired and failed in a way that suggests the
+  // sandbox is gone/unreachable, surface it as a sandbox issue so the
+  // modal can render the matching empty state instead of a raw error.
+  const fetchIssue = isCloud ? classifyFetchError(query.error) : null;
+  const sandboxIssue: SandboxIssue | null = preflightIssue ?? fetchIssue;
+
   return {
     data: query.data,
-    error: query.error,
+    /**
+     * Set only when the request actually fired and failed AND the
+     * failure isn't already classified as a sandbox issue. The modal
+     * should render `sandboxIssue` first and only fall back to this.
+     */
+    error: fetchIssue ? null : query.error,
     isFetching: query.isFetching,
     isPending: query.isPending,
     /** True while we're still resolving the conversation runtime URL. */
     isResolvingConversation: isCloud && conversationQuery.isPending,
-    /** Cloud-only: conversation exists but has no runtime URL (sandbox gone). */
-    hasNoRuntime:
-      isCloud &&
-      conversationQuery.isFetched &&
-      !!conversation &&
-      !conversation.conversation_url,
     /** Cloud-only: conversation lookup failed (deleted or no access). */
-    conversationMissing:
-      isCloud && conversationQuery.isFetched && !conversation,
+    conversationMissing,
+    /**
+     * Reason the bash query couldn't / didn't usefully complete. Always
+     * null for healthy cloud sandboxes and for local backends.
+     */
+    sandboxIssue,
   };
 }

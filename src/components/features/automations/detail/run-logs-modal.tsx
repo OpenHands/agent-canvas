@@ -2,8 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import XMarkIcon from "#/icons/x-mark.svg?react";
-import { useBashCommandLogs } from "#/hooks/query/use-bash-command-logs";
+import {
+  useBashCommandLogs,
+  type SandboxIssue,
+} from "#/hooks/query/use-bash-command-logs";
 import type { BashOutput } from "@openhands/typescript-client";
+
+/**
+ * Localized empty-state message key for each `SandboxIssue` reason.
+ * Centralised so we don't sprinkle conditional renders for each code.
+ */
+const SANDBOX_ISSUE_I18N: Record<SandboxIssue, I18nKey> = {
+  missing: I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_MISSING,
+  paused: I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_PAUSED,
+  starting: I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_STARTING,
+  errored: I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_ERROR,
+  unreachable: I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_UNREACHABLE,
+};
 
 type LogTab = "stdout" | "stderr";
 
@@ -43,7 +58,7 @@ export function RunLogsModal({
     data: outputs,
     isFetching,
     isResolvingConversation,
-    hasNoRuntime,
+    sandboxIssue,
     conversationMissing,
     error,
   } = useBashCommandLogs({
@@ -168,28 +183,36 @@ export function RunLogsModal({
             </p>
           )}
 
-          {!noBashCommand && !conversationMissing && hasNoRuntime && (
-            <p className="text-muted italic">
-              {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_GONE)}
+          {!noBashCommand && !conversationMissing && sandboxIssue && (
+            <p
+              data-testid={`run-logs-sandbox-issue-${sandboxIssue}`}
+              className="text-muted italic"
+            >
+              {t(SANDBOX_ISSUE_I18N[sandboxIssue])}
             </p>
           )}
 
           {!noBashCommand &&
             !conversationMissing &&
-            !hasNoRuntime &&
+            !sandboxIssue &&
             loading && (
               <p className="text-muted italic">
                 {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_LOADING)}
               </p>
             )}
 
-          {!loading && error && !outputs && (
-            <p className="text-danger">
-              {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_ERROR)}: {String(error)}
-            </p>
-          )}
+          {!noBashCommand &&
+            !conversationMissing &&
+            !sandboxIssue &&
+            !loading &&
+            error &&
+            !outputs && (
+              <p className="text-danger">
+                {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_ERROR)}: {String(error)}
+              </p>
+            )}
 
-          {!loading && outputs && (
+          {!loading && !sandboxIssue && outputs && (
             <pre
               data-testid={`run-logs-output-${activeTab}`}
               className={`whitespace-pre-wrap break-words ${

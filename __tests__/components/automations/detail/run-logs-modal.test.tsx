@@ -24,7 +24,13 @@ function baseResult() {
     isFetching: false,
     isPending: false,
     isResolvingConversation: false,
-    hasNoRuntime: false,
+    sandboxIssue: null as
+      | null
+      | "missing"
+      | "paused"
+      | "starting"
+      | "errored"
+      | "unreachable",
     conversationMissing: false,
   };
 }
@@ -203,6 +209,55 @@ describe("RunLogsModal", () => {
       screen.getByText(I18nKey.AUTOMATIONS$DETAIL$LOGS_LOADING),
     ).toBeInTheDocument();
   });
+
+  it.each([
+    ["missing", I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_MISSING],
+    ["paused", I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_PAUSED],
+    ["starting", I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_STARTING],
+    ["errored", I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_ERROR],
+    ["unreachable", I18nKey.AUTOMATIONS$DETAIL$LOGS_SANDBOX_UNREACHABLE],
+  ] as const)(
+    "renders the matching message for sandboxIssue=%s instead of the log output",
+    (issue, key) => {
+      useBashCommandLogsMock.mockReturnValue(
+        makeHookResult({
+          sandboxIssue: issue,
+          // Even if outputs are somehow present in the cache, the
+          // sandbox-issue branch should still render — the issue
+          // takes precedence.
+          data: [
+            {
+              id: "o1",
+              kind: "BashOutput",
+              timestamp: "2026-01-01T10:00:00Z",
+              command_id: "cmd-1",
+              order: 0,
+              stdout: "stale",
+              stderr: null,
+            },
+          ],
+        }),
+      );
+      render(
+        <RunLogsModal
+          isOpen
+          conversationId="conv-1"
+          bashCommandId="cmd-1"
+          onClose={() => {}}
+        />,
+      );
+
+      expect(
+        screen.getByTestId(`run-logs-sandbox-issue-${issue}`),
+      ).toHaveTextContent(key);
+      // The stdout tab should not be rendered when a sandbox issue
+      // is set — we don't want stale "Output" content competing with
+      // the empty-state message.
+      expect(
+        screen.queryByTestId("run-logs-output-stdout"),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("invokes onClose when Escape is pressed", () => {
     useBashCommandLogsMock.mockReturnValue(makeHookResult());
