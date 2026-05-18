@@ -25,8 +25,6 @@ or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax,
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack).
 
-Agent Canvas is being prepared for OpenHands Incubator review. The current readiness checklist and remaining approval steps are tracked in [docs/incubator-readiness.md](./docs/incubator-readiness.md). The project should only switch to the Incubator badge after Tech Council approves the status change.
-
 <img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
 
 ## Project ownership and support
@@ -121,7 +119,5 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 
 - [Documentation index](./docs/README.md)
 - [Architecture overview](./docs/architecture.md)
-- [Architecture review](./docs/architecture-review.md)
-- [Incubator readiness checklist](./docs/incubator-readiness.md)
-- [Development guide](./DEVELOPMENT.md)
-- [Self-hosting guide](./SELF_HOSTING.md)
+- [Development guide](./docs/DEVELOPMENT.md)
+- [Self-hosting guide](./docs/SELF_HOSTING.md)
