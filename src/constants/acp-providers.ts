@@ -20,7 +20,11 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
   {
     key: "claude-code",
     display_name: "Claude Code",
-    default_command: ["npx", "-y", "@zed-industries/claude-code-acp"],
+    // The `@zed-industries/claude-code-acp` package was renamed to
+    // `@agentclientprotocol/claude-agent-acp` upstream; the old name still
+    // works but emits an npm deprecation warning. The SDK's own
+    // ``acp_command`` example in OpenAPI uses the new name — match it.
+    default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
   },
   {
     key: "codex",

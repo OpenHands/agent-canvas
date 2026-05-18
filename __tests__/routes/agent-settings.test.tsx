@@ -63,7 +63,7 @@ describe("AgentSettingsScreen", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@zed-industries/claude-code-acp"],
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           acp_model: "claude-opus-4-5",
         },
       }),
@@ -73,7 +73,7 @@ describe("AgentSettingsScreen", () => {
     const commandInput = (await screen.findByTestId(
       "agent-command-input",
     )) as HTMLTextAreaElement;
-    expect(commandInput.value).toBe("npx -y @zed-industries/claude-code-acp");
+    expect(commandInput.value).toBe("npx -y @agentclientprotocol/claude-agent-acp");
     const modelInput = screen.getByTestId(
       "agent-model-input",
     ) as HTMLInputElement;
@@ -106,7 +106,7 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     )) as HTMLTextAreaElement;
     expect(commandInput.value).toBe(
-      "npx -y @zed-industries/claude-code-acp",
+      "npx -y @agentclientprotocol/claude-agent-acp",
     );
 
     await user.click(screen.getByTestId("agent-save-button"));
@@ -136,7 +136,7 @@ describe("AgentSettingsScreen", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@zed-industries/claude-code-acp"],
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
         },
       }),
     );

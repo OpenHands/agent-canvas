@@ -647,7 +647,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@zed-industries/claude-code-acp"],
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into the ACP payload.
           agent: "CodeActAgent",
@@ -675,7 +675,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent.acp_command).toEqual([
       "npx",
       "-y",
-      "@zed-industries/claude-code-acp",
+      "@agentclientprotocol/claude-agent-acp",
     ]);
     expect(payload.agent.acp_model).toBe("claude-opus-4-5");
     // LLM-only fields must not leak into the ACPAgent payload.
