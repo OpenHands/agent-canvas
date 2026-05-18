@@ -6,6 +6,27 @@ import {
   NavigationProvider,
   type NavigationContextValue,
 } from "#/context/navigation-context";
+import translations from "#/i18n/translation.json";
+
+// The global `useTranslation` mock in `vitest.setup.ts` returns the key
+// as-is. Override it here so `t(...)` resolves keys via the source-of-truth
+// `translation.json` (English values), letting the test assert real
+// user-facing labels rather than raw keys.
+vi.mock("react-i18next", async () => {
+  const actual = await vi.importActual("react-i18next");
+  return {
+    ...(actual as object),
+    useTranslation: () => ({
+      t: (key: string) => {
+        const entry = (
+          translations as Record<string, Record<string, string>>
+        )[key];
+        return entry?.en ?? key;
+      },
+      i18n: { language: "en", exists: () => false },
+    }),
+  };
+});
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
@@ -373,5 +394,21 @@ describe("Sidebar", () => {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
     }
+  });
+
+  it("renders the renamed top-level nav labels", () => {
+    // Arrange
+    renderSidebar("/conversations");
+
+    // Act + Assert: each top-level nav link surfaces its new user-facing label.
+    expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
+      "Code",
+    );
+    expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
+      "Customize",
+    );
+    expect(screen.getByTestId("sidebar-automations-link")).toHaveTextContent(
+      "Automate",
+    );
   });
 });
