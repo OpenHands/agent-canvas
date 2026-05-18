@@ -30,7 +30,7 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 ## Project ownership and support
 
 - **Current status**: Sandbox; preparing an Incubator status-change request.
-- **Project owner**: Ash Clarke.
+- **Project owner**: erisfully
 - **Support channel**: [#proj-agent-canvas](https://openhands.dev/joinslack).
 - **Support level**: Best effort while the project remains pre-Incubator.
 
