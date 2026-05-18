@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import XMarkIcon from "#/icons/x-mark.svg?react";
 import { useBashCommandLogs } from "#/hooks/query/use-bash-command-logs";
-import type { BashCommandLogs } from "#/api/bash-service/bash-service.api";
+import type { BashOutput } from "@openhands/typescript-client";
+
+type LogTab = "stdout" | "stderr";
 
 interface RunLogsModalProps {
   /** Conversation that owns the bash command. */
@@ -14,58 +16,18 @@ interface RunLogsModalProps {
   onClose: () => void;
 }
 
-interface InterleavedLine {
-  /** "stdout" | "stderr" | "meta" — controls colour. */
-  stream: "stdout" | "stderr" | "meta";
-  text: string;
-}
-
-function joinOutputs(logs: BashCommandLogs): InterleavedLine[] {
-  const lines: InterleavedLine[] = [
-    { stream: "meta", text: `$ ${logs.command.command}` },
-  ];
-  if (logs.command.cwd) {
-    lines.push({ stream: "meta", text: `cwd: ${logs.command.cwd}` });
-  }
-
-  // Outputs are paged with sort_order=TIMESTAMP, but split across pages
-  // we re-sort by (timestamp, order) to keep stdout/stderr interleaved
-  // in the order the runtime emitted them.
-  const sorted = [...logs.outputs].sort((a, b) => {
-    const ts = a.timestamp.localeCompare(b.timestamp);
-    if (ts !== 0) return ts;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
-
-  let sawAnyOutput = false;
-  let finalExitCode: number | null | undefined;
-  sorted.forEach((output) => {
-    if (output.stdout) {
-      sawAnyOutput = true;
-      lines.push({ stream: "stdout", text: output.stdout });
-    }
-    if (output.stderr) {
-      sawAnyOutput = true;
-      lines.push({ stream: "stderr", text: output.stderr });
-    }
-    if (output.exit_code !== undefined && output.exit_code !== null) {
-      finalExitCode = output.exit_code;
-    }
-  });
-
-  if (!sawAnyOutput) {
-    lines.push({ stream: "meta", text: "(no output)" });
-  }
-  if (finalExitCode !== undefined && finalExitCode !== null) {
-    lines.push({ stream: "meta", text: `exit code: ${finalExitCode}` });
-  }
-  return lines;
-}
-
-function streamClassName(stream: InterleavedLine["stream"]): string {
-  if (stream === "stderr") return "text-danger";
-  if (stream === "meta") return "text-muted italic";
-  return "text-content";
+function concatStream(outputs: BashOutput[], key: "stdout" | "stderr"): string {
+  // Outputs come back from the API sorted by timestamp, but pages can
+  // arrive out-of-order, so re-sort by (timestamp, order) before
+  // concatenating to keep the stream chronological.
+  return [...outputs]
+    .sort((a, b) => {
+      const ts = a.timestamp.localeCompare(b.timestamp);
+      if (ts !== 0) return ts;
+      return (a.order ?? 0) - (b.order ?? 0);
+    })
+    .map((output) => output[key] ?? "")
+    .join("");
 }
 
 export function RunLogsModal({
@@ -75,9 +37,10 @@ export function RunLogsModal({
   onClose,
 }: RunLogsModalProps) {
   const { t } = useTranslation("openhands");
+  const [activeTab, setActiveTab] = useState<LogTab>("stdout");
 
   const {
-    data,
+    data: outputs,
     isFetching,
     isResolvingConversation,
     hasNoRuntime,
@@ -89,6 +52,11 @@ export function RunLogsModal({
     enabled: isOpen,
   });
 
+  // Reset to the default tab whenever the modal opens for a different run.
+  useEffect(() => {
+    if (isOpen) setActiveTab("stdout");
+  }, [isOpen, bashCommandId]);
+
   // Close on Escape.
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -99,12 +67,24 @@ export function RunLogsModal({
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
-  const lines = useMemo(() => (data ? joinOutputs(data) : []), [data]);
+  const { stdout, stderr } = useMemo(() => {
+    if (!outputs) return { stdout: "", stderr: "" };
+    return {
+      stdout: concatStream(outputs, "stdout"),
+      stderr: concatStream(outputs, "stderr"),
+    };
+  }, [outputs]);
 
   if (!isOpen) return null;
 
-  const loading = isResolvingConversation || isFetching;
+  const loading = isResolvingConversation || (isFetching && !outputs);
   const noBashCommand = !bashCommandId;
+  const activeBody = activeTab === "stdout" ? stdout : stderr;
+
+  const tabBaseClass =
+    "border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none";
+  const tabActiveClass = "border-[var(--oh-primary)] text-white";
+  const tabInactiveClass = "border-transparent text-muted hover:text-content";
 
   return (
     <div
@@ -135,7 +115,47 @@ export function RunLogsModal({
           {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TITLE)}
         </h2>
 
-        <div className="mt-4 min-h-[8rem] flex-1 overflow-auto rounded-lg border border-[var(--oh-border)] bg-black/40 p-4 font-mono text-xs">
+        <div
+          role="tablist"
+          aria-label={t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TITLE)}
+          className="mt-4 flex gap-1 border-b border-[var(--oh-border)]"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "stdout"}
+            aria-controls="run-logs-panel-stdout"
+            id="run-logs-tab-stdout"
+            tabIndex={activeTab === "stdout" ? 0 : -1}
+            onClick={() => setActiveTab("stdout")}
+            className={`${tabBaseClass} ${
+              activeTab === "stdout" ? tabActiveClass : tabInactiveClass
+            }`}
+          >
+            {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TAB_OUTPUT)}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "stderr"}
+            aria-controls="run-logs-panel-stderr"
+            id="run-logs-tab-stderr"
+            tabIndex={activeTab === "stderr" ? 0 : -1}
+            onClick={() => setActiveTab("stderr")}
+            className={`${tabBaseClass} ${
+              activeTab === "stderr" ? tabActiveClass : tabInactiveClass
+            }`}
+          >
+            {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TAB_ERROR)}
+          </button>
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`run-logs-panel-${activeTab}`}
+          aria-labelledby={`run-logs-tab-${activeTab}`}
+          className="mt-3 min-h-[12rem] flex-1 overflow-auto rounded-lg border border-[var(--oh-border)] bg-black/40 p-4 font-mono text-xs"
+        >
           {noBashCommand && (
             <p className="text-muted italic">
               {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_NO_COMMAND)}
@@ -157,29 +177,32 @@ export function RunLogsModal({
           {!noBashCommand &&
             !conversationMissing &&
             !hasNoRuntime &&
-            loading &&
-            !data && (
+            loading && (
               <p className="text-muted italic">
                 {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_LOADING)}
               </p>
             )}
 
-          {!loading && error && !data && (
+          {!loading && error && !outputs && (
             <p className="text-danger">
               {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_ERROR)}: {String(error)}
             </p>
           )}
 
-          {data && (
-            <pre className="whitespace-pre-wrap break-words">
-              {lines.map((line, idx) => (
-                <span
-                  key={`${line.stream}-${idx}`}
-                  className={`block ${streamClassName(line.stream)}`}
-                >
-                  {line.text}
+          {!loading && outputs && (
+            <pre
+              data-testid={`run-logs-output-${activeTab}`}
+              className={`whitespace-pre-wrap break-words ${
+                activeTab === "stderr" ? "text-danger" : "text-content"
+              }`}
+            >
+              {activeBody.length > 0 ? (
+                activeBody
+              ) : (
+                <span className="text-muted italic">
+                  {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_EMPTY)}
                 </span>
-              ))}
+              )}
             </pre>
           )}
         </div>

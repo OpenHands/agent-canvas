@@ -7,9 +7,11 @@ export const BASH_COMMAND_LOGS_QUERY_KEY = ["bash-command-logs"] as const;
 
 interface UseBashCommandLogsOptions {
   /**
-   * The agent-server conversation that hosts the bash command. The hook
-   * fetches it to resolve `conversation_url` and `session_api_key`, which
-   * are required to read bash events from the runtime.
+   * The agent-server conversation that hosts the bash command. Used to
+   * resolve `conversation_url` and `session_api_key` for cloud backends.
+   * Optional in local mode: when the conversation lookup hasn't
+   * resolved yet (or returns no runtime URL), local-mode queries fall
+   * back to the active backend's host.
    */
   conversationId: string | null | undefined;
   bashCommandId: string | null | undefined;
@@ -17,12 +19,19 @@ interface UseBashCommandLogsOptions {
 }
 
 /**
- * Fetch the bash command + its outputs for an automation run.
+ * Search `BashOutput` events for an automation run's bash command.
  *
- * Bash events live on the same agent-server that hosts the conversation,
- * so we first hydrate the conversation (to resolve its runtime URL and
- * session API key) and then page through `BashOutput` events for the
- * command. Disabled until both ids and a runtime URL are available.
+ * - **Local backend**: the query fires as soon as the modal opens and
+ *   we have a `bash_command_id`. The conversation lookup runs in
+ *   parallel; if it resolves with `session_api_key`/`conversation_url`
+ *   those are passed through, but a missing/stale conversation does not
+ *   block the bash query (the local agent-server hosts events under a
+ *   single root).
+ * - **Cloud backend**: the query is gated on `conversation_url` being
+ *   available because cloud runtime endpoints live on per-conversation
+ *   sub-domains. We surface `isResolvingConversation` /
+ *   `conversationMissing` / `hasNoRuntime` so the modal can render
+ *   meaningful empty states instead of an endless spinner.
  */
 export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
   const { conversationId, bashCommandId, enabled = true } = options;
@@ -31,6 +40,10 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
   const conversation = conversationQuery.data;
   const conversationUrl = conversation?.conversation_url ?? null;
   const sessionApiKey = conversation?.session_api_key ?? null;
+
+  const isCloud = active.backend.kind === "cloud";
+  // Cloud requires the runtime URL; local does not.
+  const hasRequiredAuth = isCloud ? !!conversationUrl : true;
 
   const query = useQuery({
     queryKey: [
@@ -42,14 +55,14 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
       active.orgId,
     ],
     queryFn: () =>
-      BashService.getCommandLogs(
-        conversationUrl as string,
+      BashService.listOutputs(
+        conversationUrl,
         sessionApiKey,
         bashCommandId as string,
       ),
-    enabled: enabled && !!bashCommandId && !!conversationUrl,
-    // Logs of a completed run don't change; cache long enough that
-    // reopening the modal is instant but not forever.
+    enabled: enabled && !!bashCommandId && hasRequiredAuth,
+    // Completed-run logs don't change — cache long enough that reopening
+    // the modal is instant but not forever.
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
     retry: false,
@@ -61,13 +74,15 @@ export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
     isFetching: query.isFetching,
     isPending: query.isPending,
     /** True while we're still resolving the conversation runtime URL. */
-    isResolvingConversation: conversationQuery.isPending,
-    /** Conversation exists but has no runtime URL yet (sandbox paused/gone). */
+    isResolvingConversation: isCloud && conversationQuery.isPending,
+    /** Cloud-only: conversation exists but has no runtime URL (sandbox gone). */
     hasNoRuntime:
+      isCloud &&
       conversationQuery.isFetched &&
       !!conversation &&
       !conversation.conversation_url,
-    /** Conversation lookup failed (e.g. deleted or no access). */
-    conversationMissing: conversationQuery.isFetched && !conversation,
+    /** Cloud-only: conversation lookup failed (deleted or no access). */
+    conversationMissing:
+      isCloud && conversationQuery.isFetched && !conversation,
   };
 }

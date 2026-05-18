@@ -9,14 +9,13 @@ import BashService from "#/api/bash-service/bash-service.api";
 import { callCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
 
-const { getEventMock, searchEventsMock } = vi.hoisted(() => ({
-  getEventMock: vi.fn(),
+const { searchEventsMock } = vi.hoisted(() => ({
   searchEventsMock: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   BashClient: vi.fn(function BashClientMock() {
-    return { getEvent: getEventMock, searchEvents: searchEventsMock };
+    return { searchEvents: searchEventsMock };
   }),
 }));
 
@@ -52,15 +51,7 @@ const CONVERSATION_URL = "https://runtime.example.com/api/conversations/conv-1";
 const SESSION_KEY = "session-key-abc";
 const BASH_CMD_ID = "cmd-123";
 
-const COMMAND_EVENT = {
-  id: BASH_CMD_ID,
-  timestamp: "2026-01-01T10:00:00Z",
-  kind: "BashCommand",
-  command: "echo hello",
-  cwd: "/workspace",
-};
-
-const OUTPUT_EVENT_1 = {
+const OUTPUT_1 = {
   id: "out-1",
   timestamp: "2026-01-01T10:00:00.100Z",
   kind: "BashOutput",
@@ -71,22 +62,21 @@ const OUTPUT_EVENT_1 = {
   exit_code: null,
 };
 
-const OUTPUT_EVENT_2 = {
+const OUTPUT_2 = {
   id: "out-2",
   timestamp: "2026-01-01T10:00:00.200Z",
   kind: "BashOutput",
   command_id: BASH_CMD_ID,
   order: 1,
   stdout: null,
-  stderr: null,
-  exit_code: 0,
+  stderr: "boom\n",
+  exit_code: 1,
 };
 
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(BashClient).mockClear();
-  getEventMock.mockReset();
   searchEventsMock.mockReset();
   vi.mocked(callCloudProxy).mockReset();
 });
@@ -96,31 +86,27 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("BashService.getCommandLogs — local backend", () => {
+describe("BashService.listOutputs — local backend", () => {
   beforeEach(() => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id, orgId: null });
   });
 
-  it("fetches the BashCommand and paginates BashOutput events via BashClient", async () => {
-    getEventMock.mockResolvedValue(COMMAND_EVENT);
+  it("pages BashOutput events via BashClient with command_id__eq filter", async () => {
     searchEventsMock
       .mockResolvedValueOnce({
-        items: [OUTPUT_EVENT_1],
+        items: [OUTPUT_1],
         next_page_id: "next",
       })
-      .mockResolvedValueOnce({
-        items: [OUTPUT_EVENT_2],
-      });
+      .mockResolvedValueOnce({ items: [OUTPUT_2] });
 
-    const logs = await BashService.getCommandLogs(
+    const outputs = await BashService.listOutputs(
       CONVERSATION_URL,
       SESSION_KEY,
       BASH_CMD_ID,
     );
 
     expect(BashClient).toHaveBeenCalled();
-    expect(getEventMock).toHaveBeenCalledWith(BASH_CMD_ID);
     expect(searchEventsMock).toHaveBeenCalledTimes(2);
     expect(searchEventsMock.mock.calls[0][0]).toMatchObject({
       kind__eq: "BashOutput",
@@ -131,62 +117,59 @@ describe("BashService.getCommandLogs — local backend", () => {
       page_id: "next",
     });
     expect(callCloudProxy).not.toHaveBeenCalled();
-
-    expect(logs.command).toEqual(COMMAND_EVENT);
-    expect(logs.outputs).toEqual([OUTPUT_EVENT_1, OUTPUT_EVENT_2]);
+    expect(outputs).toEqual([OUTPUT_1, OUTPUT_2]);
   });
 
-  it("throws if the fetched event is not a BashCommand", async () => {
-    getEventMock.mockResolvedValue({
-      id: BASH_CMD_ID,
-      timestamp: "2026-01-01T10:00:00Z",
-      kind: "BashOutput",
-    });
+  it("works without a conversation URL (falls back to backend host)", async () => {
+    searchEventsMock.mockResolvedValueOnce({ items: [OUTPUT_1] });
 
-    await expect(
-      BashService.getCommandLogs(CONVERSATION_URL, SESSION_KEY, BASH_CMD_ID),
-    ).rejects.toThrow(/Expected BashCommand/);
+    const outputs = await BashService.listOutputs(null, null, BASH_CMD_ID);
+
+    expect(BashClient).toHaveBeenCalled();
+    expect(callCloudProxy).not.toHaveBeenCalled();
+    expect(outputs).toEqual([OUTPUT_1]);
   });
 });
 
-describe("BashService.getCommandLogs — cloud backend", () => {
+describe("BashService.listOutputs — cloud backend", () => {
   beforeEach(() => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: null });
   });
 
-  it("routes through callCloudProxy with the runtime hostOverride and session-api-key", async () => {
-    vi.mocked(callCloudProxy)
-      .mockResolvedValueOnce(COMMAND_EVENT)
-      .mockResolvedValueOnce({ items: [OUTPUT_EVENT_1, OUTPUT_EVENT_2] });
+  it("routes through callCloudProxy with hostOverride and session-api-key", async () => {
+    vi.mocked(callCloudProxy).mockResolvedValueOnce({
+      items: [OUTPUT_1, OUTPUT_2],
+    });
 
-    const logs = await BashService.getCommandLogs(
+    const outputs = await BashService.listOutputs(
       CONVERSATION_URL,
       SESSION_KEY,
       BASH_CMD_ID,
     );
 
     expect(BashClient).not.toHaveBeenCalled();
-    const [eventCall, searchCall] = vi.mocked(callCloudProxy).mock.calls;
+    const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+    expect(proxyCall.method).toBe("GET");
+    expect(proxyCall.path).toMatch(/^\/api\/bash\/bash_events\/search\?/);
+    expect(proxyCall.hostOverride).toBe("http://runtime.example.com");
+    expect(proxyCall.authMode).toBe("session-api-key");
+    expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
 
-    expect(eventCall[0].method).toBe("GET");
-    expect(eventCall[0].path).toBe(`/api/bash/bash_events/${BASH_CMD_ID}`);
-    expect(eventCall[0].hostOverride).toBe("http://runtime.example.com");
-    expect(eventCall[0].authMode).toBe("session-api-key");
-    expect(eventCall[0].sessionApiKey).toBe(SESSION_KEY);
-
-    expect(searchCall[0].path).toMatch(
-      /^\/api\/bash\/bash_events\/search\?/,
-    );
     const searchUrl = new URL(
-      `http://x.example.com${searchCall[0].path as string}`,
+      `http://x.example.com${proxyCall.path as string}`,
     );
     expect(searchUrl.searchParams.get("kind__eq")).toBe("BashOutput");
     expect(searchUrl.searchParams.get("command_id__eq")).toBe(BASH_CMD_ID);
     expect(searchUrl.searchParams.get("sort_order")).toBe("TIMESTAMP");
-    expect(searchCall[0].authMode).toBe("session-api-key");
 
-    expect(logs.command).toEqual(COMMAND_EVENT);
-    expect(logs.outputs).toEqual([OUTPUT_EVENT_1, OUTPUT_EVENT_2]);
+    expect(outputs).toEqual([OUTPUT_1, OUTPUT_2]);
+  });
+
+  it("throws when no conversation URL is provided on cloud backends", async () => {
+    await expect(
+      BashService.listOutputs(null, SESSION_KEY, BASH_CMD_ID),
+    ).rejects.toThrow(/requires a conversation URL/);
+    expect(callCloudProxy).not.toHaveBeenCalled();
   });
 });
