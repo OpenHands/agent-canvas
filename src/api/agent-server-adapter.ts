@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
+import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
@@ -513,6 +514,31 @@ function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
       payload[key] = agentSettings[key];
     }
   }
+
+  // The Settings → Agent page (and onboarding) stores ``acp_command: []``
+  // for the "default preset" path, expecting the registry to resolve it.
+  // The agent-server's ACPAgent model takes only an explicit ``acp_command``
+  // though — empty list means ``subprocess(command[0], ...)`` raises
+  // ``IndexError: list index out of range`` at spawn time, the agent loop
+  // dies silently, and the conversation hangs in ``idle``. Resolve the
+  // command from ``ACP_PROVIDERS`` here so the agent-server sees a real
+  // command for every built-in preset, while leaving ``acp_server: custom``
+  // (and any unknown key) untouched — those genuinely require the user's
+  // ``acp_command`` entry.
+  const cmd = payload.acp_command;
+  const isEmpty = Array.isArray(cmd) && cmd.length === 0;
+  const noCommand = cmd === undefined;
+  if (isEmpty || noCommand) {
+    const serverKey =
+      typeof agentSettings.acp_server === "string"
+        ? agentSettings.acp_server
+        : undefined;
+    const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
+    if (provider) {
+      payload.acp_command = [...provider.default_command];
+    }
+  }
+
   return payload;
 }
 

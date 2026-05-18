@@ -731,4 +731,81 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect((payload.agent as { kind: string }).kind).toBe("ACPAgent");
     expect(payload.agent.acp_model).toBeUndefined();
   });
+
+  it("resolves an empty acp_command from the registry by acp_server", () => {
+    // The Settings → Agent page and onboarding both store ``acp_command:
+    // []`` for the default-preset path on the assumption that the agent-
+    // server resolves it from ``acp_server``. The agent-server's ACPAgent
+    // model does no such resolution — empty list crashes the spawn with
+    // ``IndexError: list index out of range`` (acp_agent.py:1013) and the
+    // conversation hangs in ``idle`` forever. The adapter has to expand
+    // the command before the payload leaves the client.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@agentclientprotocol/claude-agent-acp",
+    ]);
+  });
+
+  it("resolves an absent acp_command for built-in providers too", () => {
+    // The acp_command field may also be omitted entirely (e.g. on an older
+    // settings shape that predates the field). Same fix applies.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "codex",
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@zed-industries/codex-acp",
+    ]);
+  });
+
+  it("leaves acp_command alone when acp_server is 'custom'", () => {
+    // Custom servers carry the user's explicit command. If they submitted
+    // an empty one, that is their bug to see — the registry has no entry
+    // to fall back to, and silently inventing one would be worse than the
+    // explicit spawn error.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: [],
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([]);
+  });
 });
