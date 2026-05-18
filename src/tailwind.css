@@ -159,11 +159,34 @@
 }
 
 .skeleton {
-  @apply bg-gray-400 rounded-md animate-pulse;
+  @apply bg-neutral-700 rounded-md animate-pulse motion-reduce:animate-none;
 }
 
 .skeleton-round {
-  @apply bg-gray-400 rounded-full animate-pulse;
+  @apply bg-neutral-700 rounded-full animate-pulse motion-reduce:animate-none;
+}
+
+/**
+ * Stagger pulse in a 3-step wave for sibling groups (same rhythm as the
+ * conversation list loading rows).
+ */
+.skeleton-stagger > :nth-child(3n + 1) .skeleton,
+.skeleton-stagger > :nth-child(3n + 1) .skeleton-round,
+.skeleton-stagger > :nth-child(3n + 1).skeleton,
+.skeleton-stagger > :nth-child(3n + 1).skeleton-round {
+  animation-delay: 0ms;
+}
+.skeleton-stagger > :nth-child(3n + 2) .skeleton,
+.skeleton-stagger > :nth-child(3n + 2) .skeleton-round,
+.skeleton-stagger > :nth-child(3n + 2).skeleton,
+.skeleton-stagger > :nth-child(3n + 2).skeleton-round {
+  animation-delay: 180ms;
+}
+.skeleton-stagger > :nth-child(3n + 3) .skeleton,
+.skeleton-stagger > :nth-child(3n + 3) .skeleton-round,
+.skeleton-stagger > :nth-child(3n + 3).skeleton,
+.skeleton-stagger > :nth-child(3n + 3).skeleton-round {
+  animation-delay: 360ms;
 }
 
 .heading {

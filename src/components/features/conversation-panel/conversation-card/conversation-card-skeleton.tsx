@@ -2,6 +2,11 @@ interface ConversationCardSkeletonProps {
   compact?: boolean;
 }
 
+/**
+ * Loading placeholders for the conversation list. Non-compact: three bars;
+ * compact: three small bars for the icon rail. Pulse stagger comes from
+ * `.skeleton-stagger` in `tailwind.css`.
+ */
 export function ConversationCardSkeleton({
   compact = false,
 }: ConversationCardSkeletonProps) {
@@ -9,9 +14,15 @@ export function ConversationCardSkeleton({
     return (
       <div
         data-testid="conversation-card-skeleton-compact"
-        className="flex items-center justify-center px-2 py-2"
+        className="skeleton-stagger flex flex-col items-center gap-1.5 py-1"
+        aria-hidden
       >
-        <div className="skeleton-round h-2 w-2" />
+        {[0, 1, 2].map((i) => (
+          <div
+            key={`conversation-skeleton-compact-${i}`}
+            className="h-1.5 w-7 shrink-0 skeleton"
+          />
+        ))}
       </div>
     );
   }
@@ -19,26 +30,15 @@ export function ConversationCardSkeleton({
   return (
     <div
       data-testid="conversation-card-skeleton"
-      className="relative h-auto w-full px-3 py-2 border-b border-[var(--oh-border-subtle)]"
+      className="skeleton-stagger flex flex-col gap-1.5 py-0.5"
+      aria-hidden
     >
-      <div className="flex items-center w-full min-w-0 h-6">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div
-            data-testid="conversation-card-skeleton-status-dot"
-            className="skeleton-round h-2.5 w-2.5 shrink-0"
-          />
-          <div
-            data-testid="conversation-card-skeleton-title"
-            className="skeleton h-3 w-2/3 rounded"
-          />
-        </div>
-        <div className="ml-auto pl-2 shrink-0">
-          <div
-            data-testid="conversation-card-skeleton-timestamp"
-            className="skeleton h-2 w-8 rounded"
-          />
-        </div>
-      </div>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={`conversation-skeleton-row-${i}`}
+          className="h-6 min-h-6 w-full skeleton"
+        />
+      ))}
     </div>
   );
 }
