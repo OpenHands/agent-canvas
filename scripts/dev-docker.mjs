@@ -28,19 +28,50 @@
  *     edits on the host are reflected in the running container on module
  *     reload / process restart, matching the non-Docker dev loop.
  *
- * Optional credential mounts (only mounted when the host path exists):
+ * Optional state mounts (only mounted when the host path exists):
  *   - ~/.openhands -> /home/openhands/.openhands  (persistence)
- *   - ~/.claude    -> /home/openhands/.claude     (Claude credentials)
- *   - ~/.codex     -> /home/openhands/.codex      (Codex credentials)
+ *   - ~/.claude    -> /home/openhands/.claude     (Claude CLI state)
+ *   - ~/.codex     -> /home/openhands/.codex      (Codex CLI state)
  *   - ~/.ssh       -> /home/openhands/.ssh        (git/ssh access)
+ *
+ * IMPORTANT — ACP authentication caveat for ``dev:docker``:
+ *
+ * The mounts above carry *CLI state* (preferences, MCP cache, agent
+ * memory, project trust, etc.) but **not** auth credentials in a way
+ * the in-container CLI can use:
+ *
+ *   - Claude Code v2+ stores its OAuth tokens in the OS keychain
+ *     (macOS ``Claude Code-credentials`` service, Linux libsecret),
+ *     which the container has no access to.
+ *   - Codex stores tokens in ``~/.codex/auth.json`` so the mount does
+ *     carry them through, but the ChatGPT-mode tokens periodically
+ *     need a refresh that only the interactive ``codex login`` flow
+ *     can perform — a mounted-but-stale auth.json fails with
+ *     ``[-32603] Internal error`` on the first model call.
+ *
+ * If you want your existing host CLI login to "just work" with an
+ * ACP agent (Claude Code / Codex / Gemini CLI) selected under
+ * Settings → Agent, run ``npm run dev:dangerously-dockerless``
+ * instead — the agent-server then runs natively on the host and the
+ * ACP subprocess inherits your shell's credential access.
+ *
+ * If you're keeping Docker for sandboxing, the two working in-container
+ * auth paths are:
+ *
+ *   - Set ``ANTHROPIC_API_KEY`` (Claude Code) or ``OPENAI_API_KEY``
+ *     (Codex) via Settings → Secrets, and reference it from the
+ *     ACPAgent's ``acp_env`` map.
+ *   - Or run ``claude login`` / ``codex login`` inside the container
+ *     once via ``docker exec -it``.
  *
  * Optional host home mount (opt-in):
  *   Set `OH_MOUNT_HOST_HOME=1` to bind-mount your entire host home onto
  *   the container user's home at `/home/openhands`. This lets the
  *   "Add Workspace" file browser navigate your real host filesystem
- *   (and credentials/persistence dirs above are picked up automatically
- *   as subpaths). Off by default so the container stays isolated from
- *   the host home unless you opt in.
+ *   (and the state dirs above are picked up automatically as subpaths).
+ *   Off by default so the container stays isolated from the host home
+ *   unless you opt in. The keychain-only OAuth caveats above still
+ *   apply — opting in to the home mount does not change them.
  *
  * Usage:
  *   PROJECTS_PATH=/path/to/your/projects npm run dev:docker
@@ -314,12 +345,17 @@ function startAgentServerDocker(config) {
     dockerArgs.push("-v", `${localSdkPath}:${CONTAINER_LOCAL_SDK_DIR}`);
   }
 
-  // Mount credentials / state individually by default so the container
-  // stays isolated from the host home. Opt in to bind-mounting the
-  // entire host home with OH_MOUNT_HOST_HOME=1 — useful when you want
-  // the Add Workspace file browser to navigate your real host
-  // filesystem (those credential subpaths come along automatically as
-  // part of the same mount).
+  // Mount CLI state directories individually by default so the container
+  // stays isolated from the host home. Opt in to bind-mounting the entire
+  // host home with OH_MOUNT_HOST_HOME=1 — useful when you want the Add
+  // Workspace file browser to navigate your real host filesystem.
+  //
+  // These directories carry preferences / MCP cache / agent memory — not
+  // OAuth tokens for Claude Code (keychain-only) or refreshable ChatGPT
+  // tokens for Codex. For ACP agents that need to inherit your host CLI
+  // login (Claude Code / Codex / Gemini CLI), the simplest path is
+  // ``npm run dev:dangerously-dockerless``, which runs the agent-server
+  // natively. See the file-top doc for the in-container alternatives.
   if (process.env.OH_MOUNT_HOST_HOME === "1") {
     dockerArgs.push("-v", `${home}:${CONTAINER_HOME_DIR}`);
   } else {

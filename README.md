@@ -89,6 +89,19 @@ node --env-file-if-exists=.env .\scripts\dev-docker.mjs
 
 Access the UI at [http://localhost:8000](http://localhost:8000).
 
+### Using Claude Code, Codex, or Gemini CLI (ACP agents)
+
+Selecting an ACP agent under **Settings → Agent** spawns the corresponding CLI (Claude Code, Codex, Gemini CLI) as a subprocess of the agent-server. The CLI looks for its credentials wherever it normally would: the OS keychain for Claude Code, `~/.codex/auth.json` for Codex, and so on.
+
+**Direct Install (`dev:dangerously-dockerless`) — recommended for ACP.** The agent-server runs natively on the host, so the spawned CLI has the same access to your keychain, `~/.codex`, etc. as if you ran it from a terminal. If `claude` / `codex` / `gemini` already work in your shell, they work here too — no extra configuration.
+
+**Docker Sandbox (`dev:docker`) — extra setup required for ACP.** The agent-server runs inside a container that can't reach the host keychain, so the ACP CLI inside the container starts unauthenticated. The two working options are:
+
+1. **Provide an API key via Settings → Secrets** and reference it from the ACPAgent's `acp_env` map — `ANTHROPIC_API_KEY` for Claude Code, `OPENAI_API_KEY` for Codex, `GEMINI_API_KEY` for Gemini CLI. The agent-server passes `acp_env` straight through to the spawned ACP subprocess.
+2. **Run the CLI's login flow inside the container once** — `docker exec -it agent-canvas-dev-agent-server claude login` (or `codex login`). The persisted state lives under the bind-mounted `~/.claude`/`~/.codex` so it survives container restarts.
+
+The default `~/.claude` and `~/.codex` mounts on `dev:docker` carry through CLI *state* (preferences, MCP cache, agent memory), but they don't carry through Claude Code's keychain-stored OAuth tokens or refresh stale Codex ChatGPT tokens — see [`scripts/dev-docker.mjs`](scripts/dev-docker.mjs) for the gory details.
+
 # Architecture
 
 Agent Canvas is powered by the [OpenHands Agent Server](https://github.com/OpenHands/software-agent-sdk/tree/main/openhands-agent-server/openhands/agent_server), a REST API for running multiple agents on a single machine. Each Agent Server runs on a single host/port; the Agent Canvas can connect to multiple Agent Servers and easily flip between them.
