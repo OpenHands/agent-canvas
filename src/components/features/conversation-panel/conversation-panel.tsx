@@ -191,15 +191,18 @@ export function ConversationPanel({
     [scopedConversations],
   );
 
-  const sortedRecent = React.useMemo(
-    () => sortConversationsByField(recentScoped, conversationSort),
-    [recentScoped, conversationSort],
-  );
-
-  const sortedOlder = React.useMemo(
-    () => sortConversationsByField(olderScoped, conversationSort),
-    [olderScoped, conversationSort],
-  );
+  // Sort the full visible set as one list. The recent/older partition is
+  // still computed (it gates the "Show older" toggle and "Load more"
+  // visibility), but the rendering must not use it as a visual boundary —
+  // when sorting by `created`, a stale-but-recently-touched conversation
+  // would otherwise land in `recent` and render above an actually-newer-
+  // by-`created_at` conversation sitting in `older`.
+  const sortedVisibleConversations = React.useMemo(() => {
+    const visible = showOlderConversations
+      ? [...recentScoped, ...olderScoped]
+      : recentScoped;
+    return sortConversationsByField(visible, conversationSort);
+  }, [recentScoped, olderScoped, showOlderConversations, conversationSort]);
 
   const groupLabels = React.useMemo(
     () => ({
@@ -248,9 +251,7 @@ export function ConversationPanel({
     [conversationSort, recentScoped],
   );
 
-  const visibleFlatCount =
-    sortedRecent.length +
-    (!compact && showOlderConversations ? sortedOlder.length : 0);
+  const visibleFlatCount = sortedVisibleConversations.length;
 
   const visibleGroupedCount = React.useMemo(() => {
     if (!conversationGroups) {
@@ -631,12 +632,7 @@ export function ConversationPanel({
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "chronological" ? (
-          <>
-            {sortedRecent.map(renderConversationCard)}
-            {showOlderConversations
-              ? sortedOlder.map(renderConversationCard)
-              : null}
-          </>
+          <>{sortedVisibleConversations.map(renderConversationCard)}</>
         ) : null}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist

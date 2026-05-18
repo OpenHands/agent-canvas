@@ -17,6 +17,7 @@ import { createRoutesStub } from "react-router";
 import React from "react";
 import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
+import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
@@ -532,6 +533,75 @@ describe("ConversationPanel", () => {
       expect(searchConversationsSpy).toHaveBeenCalledWith(20, "page-2");
     });
     expect(await screen.findByText("Paged Conversation")).toBeInTheDocument();
+  });
+
+  it("orders the entire visible list by created_at when Created sort is selected, across the recent/older partition", async () => {
+    // Arrange: three conversations whose `created_at` ordering diverges
+    // from `updated_at` across the 1-hour partition cutoff. If the panel
+    // honored only the within-bucket sort, "Old Touched" (created 10d ago
+    // but touched 30m ago) would render in the recent bucket *above* the
+    // "Mid Stale" / "Newest Stale" entries that live in the older bucket
+    // but were created more recently. Created-sort must order the whole
+    // visible list by `created_at`, not just within each partition.
+    const now = Date.now();
+    const isoMinutesAgo = (m: number) =>
+      new Date(now - m * 60 * 1000).toISOString();
+    const isoDaysAgo = (d: number) =>
+      new Date(now - d * 24 * 60 * 60 * 1000).toISOString();
+
+    useConversationPanelPreferencesStore.setState({
+      conversationSort: "updated",
+      organizeMode: "chronological",
+      showOlderConversations: true,
+    });
+
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [
+        createMockConversation({
+          id: "old-touched",
+          title: "Old Touched",
+          created_at: isoDaysAgo(10),
+          updated_at: isoMinutesAgo(30),
+        }),
+        createMockConversation({
+          id: "newest-stale",
+          title: "Newest Stale",
+          created_at: isoDaysAgo(1),
+          updated_at: isoDaysAgo(1),
+        }),
+        createMockConversation({
+          id: "mid-stale",
+          title: "Mid Stale",
+          created_at: isoDaysAgo(3),
+          updated_at: isoDaysAgo(3),
+        }),
+      ],
+      next_page_id: null,
+    });
+
+    const user = userEvent.setup();
+    renderConversationPanel();
+    await screen.findByText("Old Touched");
+
+    // Act: open the filter menu and switch sort to Created.
+    await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+    await user.click(
+      screen.getByRole("menuitemradio", {
+        name: /CONVERSATION_PANEL\$SORT_CREATED/,
+      }),
+    );
+
+    // Assert: rendered cards are in strict created_at desc order across
+    // the full visible list, regardless of which partition they came from.
+    const cards = await screen.findAllByTestId("conversation-card");
+    expect(cards.map((card) => card.textContent ?? "")).toEqual([
+      expect.stringContaining("Newest Stale"),
+      expect.stringContaining("Mid Stale"),
+      expect.stringContaining("Old Touched"),
+    ]);
   });
 
   it("should cancel stopping a conversation", async () => {
