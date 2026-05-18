@@ -29,18 +29,46 @@ function normalizeHostForComparison(host: string): string {
   }
 }
 
+/**
+ * Sync the API key of the default local backend with the environment-provided
+ * value. This ensures that if the session key changes (e.g., regenerated on
+ * a fresh dev stack start), the stored backend entry picks up the new key
+ * instead of keeping a stale one that causes 401 errors.
+ *
+ * We only sync when:
+ *   - The backend is the default local backend (matching id)
+ *   - The hosts match (so we don't overwrite a user-customized local backend
+ *     that happens to share the same id but points elsewhere)
+ *   - The environment provides an API key (nothing to sync otherwise)
+ *
+ * When these conditions are met, we always use the environment key because
+ * the dev launcher is authoritative — it determines what key the agent-server
+ * was started with.
+ */
 function syncDefaultLocalBackendAuth(backend: Backend): Backend {
   const defaultBackend = makeDefaultLocalBackend();
 
+  // Only sync the default local backend
+  if (backend.id !== defaultBackend.id || backend.kind !== "local") {
+    return backend;
+  }
+
+  // Only sync if the environment provides an API key
+  if (!defaultBackend.apiKey) {
+    return backend;
+  }
+
+  // Only sync if the hosts match (origin comparison to ignore trailing slashes)
   if (
-    backend.id !== defaultBackend.id ||
-    backend.kind !== "local" ||
-    backend.apiKey ||
-    !defaultBackend.apiKey ||
     normalizeHostForComparison(backend.host) !==
-      normalizeHostForComparison(defaultBackend.host)
+    normalizeHostForComparison(defaultBackend.host)
   ) {
     return backend;
+  }
+
+  // Sync the API key from the environment (even if the stored one differs)
+  if (backend.apiKey === defaultBackend.apiKey) {
+    return backend; // Already in sync
   }
 
   return {

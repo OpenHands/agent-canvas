@@ -121,6 +121,39 @@ describe("backend-registry storage", () => {
     });
   });
 
+  it("updates a stale API key on the default Local backend from env defaults", () => {
+    // Scenario: localStorage has an old session key, but the dev launcher
+    // started with a new one (VITE_SESSION_API_KEY). The frontend should
+    // pick up the fresh key so requests don't fail with 401.
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: window.location.origin,
+          apiKey: "stale-old-session-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+    // Persists the updated key so subsequent reads don't need to sync again.
+    expect(
+      JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY)!)[0],
+    ).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+  });
+
   it("does not fill the default Local backend API key after its host is edited", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
@@ -140,6 +173,32 @@ describe("backend-registry storage", () => {
       id: "default-local",
       host: "http://127.0.0.1:9999",
       apiKey: "",
+    });
+  });
+
+  it("does not update the API key when the backend host differs from env", () => {
+    // If the user edited the host on the default-local backend to point
+    // elsewhere, don't overwrite their custom API key.
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "My Custom Local",
+          host: "http://192.168.1.100:8000",
+          apiKey: "custom-api-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      host: "http://192.168.1.100:8000",
+      apiKey: "custom-api-key", // Should NOT be overwritten
     });
   });
 
