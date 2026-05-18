@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
-import CircuitIcon from "#/icons/u-circuit.svg?react";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -72,12 +71,6 @@ export function SwitchProfileButton() {
         aria-expanded={contextMenuOpen}
         className="flex items-center gap-1 border border-[#4B505F] rounded-[100px] transition-opacity cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed pl-2 max-w-[200px]"
       >
-        <CircuitIcon
-          width={16}
-          height={16}
-          color="#ffffff"
-          className="shrink-0"
-        />
         <Typography.Text className="text-white text-sm not-italic font-normal leading-5 truncate">
           {activeProfileName ?? t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
         </Typography.Text>

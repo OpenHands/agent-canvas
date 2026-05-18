@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { ContextMenu } from "#/ui/context-menu";
 import { Divider } from "#/ui/divider";
+import { Typography } from "#/ui/typography";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenuListItem } from "../context-menu/context-menu-list-item";
-import { SettingsNavHeader } from "../settings/settings-nav-header";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 import SettingsIcon from "#/icons/settings.svg?react";
@@ -13,10 +13,15 @@ import CheckIcon from "#/icons/checkmark.svg?react";
 import { cn } from "#/utils/utils";
 import type { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 
-const rowClassName = cn(
-  "h-auto w-full flex items-center gap-3 px-3 py-2.5 rounded",
+const rowBaseClassName = cn(
+  "w-full flex gap-3 px-3 rounded",
   "text-start hover:bg-white/10 cursor-pointer text-nowrap",
 );
+const profileRowClassName = cn(
+  rowBaseClassName,
+  "h-auto items-start py-2.5",
+);
+const linkRowClassName = cn(rowBaseClassName, "h-10 items-center");
 
 interface SwitchProfileContextMenuProps {
   profiles: ProfileInfo[];
@@ -60,10 +65,11 @@ export function SwitchProfileContextMenu({
       alignment="left"
       className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto p-1"
     >
-      <SettingsNavHeader
-        text={I18nKey.SETTINGS$AVAILABLE_PROFILES}
-        className="px-3 pt-2 pb-2"
-      />
+      <div className="px-3 pt-1 pb-0.5">
+        <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+          {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
+        </Typography.Text>
+      </div>
       {profiles.map((profile) => {
         const isActive = profile.name === activeProfileName;
         return (
@@ -71,7 +77,7 @@ export function SwitchProfileContextMenu({
             key={profile.name}
             testId={`switch-profile-option-${profile.name}`}
             onClick={(event) => handleSelect(event, profile.name)}
-            className={cn(rowClassName, isActive && "bg-[#5C5D62]")}
+            className={cn(profileRowClassName, isActive && "bg-[#5C5D62]")}
           >
             <CircuitIcon width={16} height={16} className="shrink-0" />
             <span
@@ -96,7 +102,7 @@ export function SwitchProfileContextMenu({
         to="/settings"
         onClick={onClose}
         data-testid="switch-profile-open-settings"
-        className={rowClassName}
+        className={linkRowClassName}
       >
         <SettingsIcon width={16} height={16} className="shrink-0" />
         <span className="text-sm leading-5">
