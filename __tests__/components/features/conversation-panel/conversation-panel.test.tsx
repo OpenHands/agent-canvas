@@ -333,14 +333,9 @@ describe("ConversationPanel", () => {
     renderConversationPanel();
 
     let cards = await screen.findAllByTestId("conversation-card");
-    // Delete button should not be visible initially (context menu is closed)
-    // The context menu is always in the DOM but hidden by CSS classes on the parent div
-    const contextMenuParent = within(cards[0]).queryByTestId(
-      "context-menu",
-    )?.parentElement;
-    if (contextMenuParent) {
-      expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-    }
+    // Closed state is observable via the data-context-menu-open attr on the
+    // conversation-card root; visual hiding is covered by Playwright.
+    expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
 
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
@@ -705,14 +700,9 @@ describe("ConversationPanel", () => {
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close (check CSS classes on parent div)
+    // Wait for context menu to close.
     await waitFor(() => {
-      const contextMenuParent = within(cards[0]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
     });
 
     // Test STARTING conversation - should show stop button
@@ -726,14 +716,9 @@ describe("ConversationPanel", () => {
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close (check CSS classes on parent div)
+    // Wait for context menu to close.
     await waitFor(() => {
-      const contextMenuParent = within(cards[1]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(cards[1]).toHaveAttribute("data-context-menu-open", "false");
     });
 
     // Test STOPPED conversation - should NOT show stop button
@@ -982,14 +967,9 @@ describe("ConversationPanel", () => {
     const editButton = within(cards[0]).getByTestId("edit-button");
     await user.click(editButton);
 
-    // Wait for context menu to close after edit button click (check CSS classes on parent div)
+    // Wait for context menu to close after edit button click.
     await waitFor(() => {
-      const contextMenuParent = within(cards[0]).queryByTestId(
-        "context-menu",
-      )?.parentElement;
-      if (contextMenuParent) {
-        expect(contextMenuParent).toHaveClass("opacity-0", "invisible");
-      }
+      expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
     });
   });
 

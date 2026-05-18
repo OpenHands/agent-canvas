@@ -119,23 +119,6 @@ describe("ConversationMain - Layout Transition Stability", () => {
     expect(screen.getByTestId("chat-interface")).toBeInTheDocument();
   });
 
-  it("does not give the right pane inner content min-w-max so its content stays visible at narrow widths", () => {
-    // Repro for the bug where dragging the divider very far to the right made
-    // the right pane appear blank: `min-w-max` made the inner div wider than
-    // its `overflow-hidden` wrapper, pushing right-aligned tab content out of
-    // view.
-    mockIsMobile = false;
-    mockIsRightPanelShown = true;
-    mockLeftWidth = 80;
-
-    render(<ConversationMain />);
-
-    const tabsHeader = screen.getByTestId("tabs-pane-header");
-    const tabsInnerWrapper = tabsHeader.parentElement!;
-
-    expect(tabsInnerWrapper.className).not.toMatch(/(^|\s)min-w-max(\s|$)/);
-  });
-
   it("survives rapid back-and-forth resize without unmounting ChatInterface", () => {
     mockIsMobile = false;
     const { rerender } = render(<ConversationMain />);

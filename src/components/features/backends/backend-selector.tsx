@@ -311,6 +311,7 @@ export function BackendSelector({
           <button
             type="button"
             data-testid="backend-selector-settings-link"
+            data-active={isSettingsActive}
             aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
             onClick={() => navigate("/settings")}
             className={

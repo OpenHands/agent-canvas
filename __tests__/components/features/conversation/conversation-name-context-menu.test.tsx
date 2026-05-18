@@ -52,6 +52,10 @@ function createAnchor(rect: Partial<DOMRect> = {}) {
   return anchor;
 }
 
+// The `style.left/top/bottom` assertions in this file verify the numeric
+// output of the portal positioning math (anchor rect → menu coordinates).
+// They are functional logic checks, not visual styling; visual styling is
+// covered by the Playwright snapshot suite.
 describe("ConversationNameContextMenu portal rendering", () => {
   afterEach(() => {
     document
