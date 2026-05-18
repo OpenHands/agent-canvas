@@ -39,9 +39,7 @@ the "Next" / "Back" buttons between snapshots.
 | Snapshot name | State to capture |
 |---|---|
 | `onboarding-step-0-choose-agent` | Step 0 – agent cards; OpenHands selected, others "coming soon" |
-| `onboarding-step-1-check-backend-connecting` | Step 1 – backend form with status banner in connecting state |
-| `onboarding-step-1-check-backend-connected` | Step 1 – status banner green (mock `/server_info` 200) |
-| `onboarding-step-1-check-backend-error` | Step 1 – status banner red (mock `/server_info` 500) |
+| `onboarding-step-1-choose-backend` | Step 1 – Local + Docker backend selection cards |
 | `onboarding-step-2-setup-llm` | Step 2 – LLM settings form embedded (basic view) |
 | `onboarding-step-3-say-hello` | Step 3 – pre-filled message input |
 | `onboarding-progress-bar-step-2` | Progress bar at step 2 (two segments completed) |

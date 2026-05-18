@@ -12,8 +12,10 @@ dist/
 
 /test-results/
 /test-results-live/
+/test-results-live-onboarding/
 /playwright-report/
 /playwright-report-live/
+/playwright-report-live-onboarding/
 /blob-report/
 /playwright/.cache/
 # Snapshot baselines are stored as GitHub Actions artifacts — not in git.

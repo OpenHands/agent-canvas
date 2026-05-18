@@ -10,7 +10,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *
  * Steps:
  *   0. Choose agent  — agent cards; OpenHands selected, others "coming soon"
- *   1. Check backend — backend form + connection status banner
+ *   1. Choose backend — multi-select Local + Docker cards
  *   2. Setup LLM     — LLM settings form (pre-filled with Anthropic/Claude Opus)
  *   3. Say hello     — pre-filled message input to start a conversation
  *
@@ -20,8 +20,9 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  * `toBeVisible()` for the step container elements, which can be unreliable
  * for absolutely-positioned off-screen slides.
  *
- * In MSW mock mode `/server_info` returns HTTP 200 so the backend health
- * probe in step 1 resolves to "connected", enabling the Next button.
+ * In MSW mock mode `/setup/status` returns Docker as available, but
+ * Local remains the default selection so users can continue without
+ * starting Docker.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -73,7 +74,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     });
   });
 
-  test("onboarding step 1 shows backend connection form", async ({ page }) => {
+  test("onboarding step 1 shows backend selection cards", async ({ page }) => {
     await setupMocks(page);
     await page.goto("/conversations");
     await dismissConsentModal(page);
@@ -87,16 +88,18 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await page.getByTestId("onboarding-agent-next").click();
     await waitForStep(page, 1);
 
-    // Wait for the backend connection banner to settle.
-    // In MSW mode /server_info returns 200, so the health probe should
-    // quickly resolve to "connected".
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
+    await expect(
+      page.getByTestId("onboarding-step-choose-backend"),
+    ).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("choose-backend-local")).toBeVisible({
       timeout: 10_000,
     });
 
     const modal = page.getByTestId("onboarding-modal");
     await expect(modal).toHaveScreenshot(
-      "onboarding-step-1-check-backend.png",
+      "onboarding-step-1-choose-backend.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
     );
   });
@@ -115,8 +118,12 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await page.getByTestId("onboarding-agent-next").click();
     await waitForStep(page, 1);
 
-    // Wait for backend connected banner then advance
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
+    await expect(
+      page.getByTestId("onboarding-step-choose-backend"),
+    ).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("onboarding-backend-next")).toBeEnabled({
       timeout: 10_000,
     });
     await page.getByTestId("onboarding-backend-next").click();
@@ -146,8 +153,8 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await page.getByTestId("onboarding-agent-next").click();
     await waitForStep(page, 1);
 
-    // Step 1 → 2 (requires backend connected)
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
+    // Step 1 → 2 (Local backend is selected by default)
+    await expect(page.getByTestId("onboarding-backend-next")).toBeEnabled({
       timeout: 10_000,
     });
     await page.getByTestId("onboarding-backend-next").click();

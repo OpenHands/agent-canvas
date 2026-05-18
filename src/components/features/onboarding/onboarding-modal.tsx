@@ -8,7 +8,7 @@ import {
   ChooseAgentStep,
   type OnboardingAgentId,
 } from "./steps/choose-agent-step";
-import { CheckBackendStep } from "./steps/check-backend-step";
+import { ChooseBackendStep } from "./steps/choose-backend-step";
 import { SetupLlmStep } from "./steps/setup-llm-step";
 import { SayHelloStep } from "./steps/say-hello-step";
 
@@ -68,7 +68,7 @@ interface OnboardingModalProps {
  *
  * The flow is a fixed sequence of four steps:
  *   0. Choose agent
- *   1. Check backend
+ *   1. Choose backend (multi-select: Local + Docker)
  *   2. Set up LLM
  *   3. Say hello (creates a fresh conversation, then closes)
  *
@@ -130,7 +130,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
                 />
               </Slide>
               <Slide index={1} currentStep={currentStep}>
-                <CheckBackendStep onBack={goBack} onNext={goNext} />
+                <ChooseBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
               <Slide index={2} currentStep={currentStep}>
                 <SetupLlmStep onBack={goBack} onNext={goNext} />

@@ -6,6 +6,7 @@ export interface Backend {
   host: string;
   apiKey: string;
   kind: BackendKind;
+  workingDir?: string;
 }
 
 export interface BackendSelection {

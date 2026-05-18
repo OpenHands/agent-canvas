@@ -54,7 +54,8 @@ export function getAgentServerClientOptions(
   return {
     host: resolveHost(overrides, backend),
     ...(apiKey ? { apiKey } : {}),
-    workingDir: overrides.workingDir ?? getAgentServerWorkingDir(),
+    workingDir:
+      overrides.workingDir ?? backend.workingDir ?? getAgentServerWorkingDir(),
     ...(overrides.timeout !== undefined ? { timeout: overrides.timeout } : {}),
   };
 }

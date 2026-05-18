@@ -61,9 +61,16 @@ function escapeRegExp(value: string) {
 }
 
 export async function routeBackendSessionApiKey(page: Page) {
-  const backendOrigin = new URL(BACKEND_URL).origin;
+  await routeBackendSessionApiKeyFor(page, BACKEND_URL);
+}
+
+export async function routeBackendSessionApiKeyFor(
+  page: Page,
+  backendUrl: string,
+) {
+  const targetOrigin = new URL(backendUrl).origin;
   await page.route(
-    new RegExp(`^${escapeRegExp(backendOrigin)}(?:/|$)`),
+    new RegExp(`^${escapeRegExp(targetOrigin)}(?:/|$)`),
     async (route) => {
       await route.continue({
         headers: {
@@ -91,7 +98,10 @@ export function getLiveArtifactMask(page: Page): Locator[] {
   ];
 }
 
-export async function configureLiveAgentServer(request: APIRequestContext) {
+export async function configureLiveAgentServer(
+  request: APIRequestContext,
+  backendUrl = BACKEND_URL,
+) {
   if (!llmApiKey.trim()) {
     throw new Error(missingLiveLLMConfigMessage);
   }
@@ -107,7 +117,7 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
     llmSettings.base_url = llmBaseUrl;
   }
 
-  const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
+  const settingsResponse = await request.patch(`${backendUrl}/api/settings`, {
     headers: {
       "X-Session-API-Key": sessionApiKey,
     },
@@ -130,14 +140,22 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
   ).toBeTruthy();
 }
 
-export async function enableLiveE2EFlags(page: Page) {
-  await page.addInitScript(() => {
+export async function enableLiveE2EFlags(
+  page: Page,
+  options: { skipOnboarding?: boolean } = {},
+) {
+  const { skipOnboarding = true } = options;
+  await page.addInitScript((shouldSkipOnboarding) => {
     window.localStorage.setItem("analytics-consent", "false");
     window.localStorage.setItem("openhands-telemetry-consent", "denied");
     window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
+    if (shouldSkipOnboarding) {
+      window.localStorage.setItem("openhands-onboarded", "1");
+    } else {
+      window.localStorage.removeItem("openhands-onboarded");
+    }
     window.localStorage.setItem("FEATURE_AUTOMATIONS", "true");
-  });
+  }, skipOnboarding);
 }
 
 export async function guardAgainstPostHogRequests(page: Page) {
@@ -241,6 +259,7 @@ export async function dismissAnalyticsModal(page: Page) {
 
 export async function clickButtonByTestId(page: Page, testId: string) {
   await waitForTestId(page, testId);
+  await expect(page.getByTestId(testId)).toBeEnabled({ timeout: 30_000 });
 
   await page.evaluate((testId) => {
     const button = document.querySelector(`[data-testid="${testId}"]`);
@@ -297,23 +316,15 @@ export async function clickButtonByTestIdOrText(
 }
 
 export async function fillChatInput(page: Page, text: string) {
-  await waitForTestId(page, "chat-input");
-
-  await page.evaluate((text) => {
-    const input = document.querySelector('[data-testid="chat-input"]');
-    if (!(input instanceof HTMLElement)) {
-      throw new Error("Chat input not found");
-    }
-    input.focus();
-    input.textContent = text;
-    input.dispatchEvent(
-      new InputEvent("input", {
-        bubbles: true,
-        data: text,
-        inputType: "insertText",
-      }),
-    );
-  }, text);
+  const input = page.getByTestId("chat-input");
+  await expect(input).toBeVisible({ timeout: 60_000 });
+  await input.fill(text);
+  for (const line of text.split("\n").filter(Boolean)) {
+    await expect(input).toContainText(line, { timeout: 10_000 });
+  }
+  await expect(page.getByTestId("submit-button")).toBeEnabled({
+    timeout: 10_000,
+  });
 }
 
 export async function waitForNonUserMessageText(page: Page, text: string) {
@@ -364,7 +375,10 @@ export async function expandVisibleEventDetails(page: Page) {
     .toBe(0);
 }
 
-export async function waitForAgentReply(page: Page) {
+export async function waitForAgentReply(
+  page: Page,
+  expectedReplyToken = EXPECTED_REPLY_TOKEN,
+) {
   await expect
     .poll(
       async () =>
@@ -382,7 +396,7 @@ export async function waitForAgentReply(page: Page) {
               return "error";
             }
             return "pending";
-          }, EXPECTED_REPLY_TOKEN)
+          }, expectedReplyToken)
           .catch(() => "pending"),
       { timeout: 120_000 },
     )
@@ -425,7 +439,7 @@ function eventTextContent(event: unknown) {
     .join("\n");
 }
 
-function isSuccessfulBashObservation(event: unknown) {
+function isSuccessfulBashObservation(event: unknown, expectedToken: string) {
   if (!event || typeof event !== "object") {
     return false;
   }
@@ -453,8 +467,8 @@ function isSuccessfulBashObservation(event: unknown) {
     observation.timeout === true;
 
   return (
-    command.includes(EXPECTED_BASH_OUTPUT_TOKEN) &&
-    output.includes(EXPECTED_BASH_OUTPUT_TOKEN) &&
+    command.includes(expectedToken) &&
+    output.includes(expectedToken) &&
     exitCode === 0 &&
     !failed
   );
@@ -463,12 +477,14 @@ function isSuccessfulBashObservation(event: unknown) {
 export async function waitForSuccessfulBashObservation(
   request: APIRequestContext,
   conversationId: string,
+  backendUrl = BACKEND_URL,
+  expectedToken = EXPECTED_BASH_OUTPUT_TOKEN,
 ) {
   await expect
     .poll(
       async () => {
         const response = await request.get(
-          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+          `${backendUrl}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
           {
             headers: {
               "X-Session-API-Key": sessionApiKey,
@@ -485,7 +501,11 @@ export async function waitForSuccessfulBashObservation(
         }
 
         const body = (await response.json()) as { items?: unknown[] };
-        return body.items?.some(isSuccessfulBashObservation) ?? false;
+        return (
+          body.items?.some((event) =>
+            isSuccessfulBashObservation(event, expectedToken),
+          ) ?? false
+        );
       },
       { timeout: 120_000 },
     )

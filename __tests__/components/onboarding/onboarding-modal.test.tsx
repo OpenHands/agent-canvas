@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -25,6 +27,24 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
     orgId: null,
     isLegacyKey: true,
   }),
+}));
+
+vi.mock("#/api/setup-service", () => ({
+  getSetupStatus: vi.fn().mockResolvedValue({
+    dockerInstalled: true,
+    dockerRunning: true,
+    dockerBackendRunning: false,
+    dockerBackendPort: 18002,
+    dockerBackendUrl: "http://127.0.0.1:18002",
+    projectPath: null,
+  }),
+  startDockerBackend: vi.fn().mockResolvedValue({
+    status: "starting",
+    host: "http://127.0.0.1",
+    port: 18002,
+    url: "http://127.0.0.1:18002",
+  }),
+  stopDockerBackend: vi.fn().mockResolvedValue(undefined),
 }));
 
 // The LLM step renders the full `LlmSettingsScreen`, which transitively
@@ -124,7 +144,7 @@ describe("OnboardingModal", () => {
       "true",
     );
 
-    // Once the backend health probe resolves, step 1's Next is enabled.
+    // Local backend is selected by default, so step 1's Next is enabled.
     await waitFor(() =>
       expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
     );

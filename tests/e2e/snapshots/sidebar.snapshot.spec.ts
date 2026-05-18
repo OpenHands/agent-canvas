@@ -4,10 +4,13 @@ import { seedLocalStorage } from "./support/seed-local-storage";
 /**
  * Visual snapshot tests for the sidebar / conversation panel.
  *
- * MSW pre-seeds three conversations in src/mocks/conversation-handlers.ts:
+ * MSW pre-seeds six conversations in src/mocks/conversation-handlers.ts:
  *   1. "My New Project"   — execution_status: "waiting_for_confirmation"
  *   2. "Repo Testing"     — execution_status: "idle"
  *   3. "Another Project"  — execution_status: "idle"
+ *   4. "Archived Project" — execution_status: "archived"
+ *   5. "Errored Project"  — execution_status: "error"
+ *   6. "Local pagination fixture" — execution_status: "idle"
  *
  * Three snapshots:
  *   1. conversation-panel — the panel itself with status dots + relative timestamps
@@ -37,7 +40,7 @@ async function setupMocks(page: Page) {
 test.describe("Sidebar Visual Snapshots", () => {
   test.setTimeout(60_000);
 
-  test("conversation panel shows three conversations with status dots", async ({
+  test("conversation panel shows current mock conversations with status dots", async ({
     page,
   }) => {
     await setupMocks(page);
@@ -45,7 +48,7 @@ test.describe("Sidebar Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for all five conversation cards to be present
+    // Wait for all six conversation cards to be present
     const conversationPanel = page.getByTestId("conversation-panel");
     await expect(conversationPanel).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("conversation-card")).toHaveCount(6, {

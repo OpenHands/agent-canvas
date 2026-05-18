@@ -213,6 +213,16 @@ describe("AgentServerConversationService", () => {
   });
 
   describe("createConversation", () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
+    afterEach(() => {
+      window.localStorage.clear();
+      __resetActiveStoreForTests();
+    });
+
     it("generates a unique conversation_id and isolated working_dir per call", async () => {
       mockGetSettings.mockResolvedValue({
         agent_settings: { llm: { model: "gpt-4o" } },
@@ -263,6 +273,47 @@ describe("AgentServerConversationService", () => {
       expect(secondPayload.workspace.working_dir).toBe(
         `/state/workspaces/${secondHex}`,
       );
+    });
+
+    it("uses the active backend workingDir when one is registered", async () => {
+      const dockerBackend: Backend = {
+        id: "docker-backend",
+        name: "Docker Backend",
+        host: "http://127.0.0.1:18002",
+        apiKey: "docker-key",
+        kind: "local",
+        workingDir: "/projects",
+      };
+      setRegisteredBackends([dockerBackend]);
+      setActiveSelection({ backendId: dockerBackend.id });
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation();
+
+      expect(ConversationClient).toHaveBeenCalledWith({
+        host: "http://127.0.0.1:18002",
+        apiKey: "docker-key",
+        workingDir: "/projects",
+      });
+      const payload = mockHttpPost.mock.calls[0]![1] as {
+        workspace: { working_dir: string };
+      };
+      expect(payload.workspace.working_dir).toBe("/projects");
     });
   });
 

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Issue #348 — Mini Setup Server + Multi-Select Backend</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e;
+    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --purple: #bc8cff; --orange: #db6d28;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.7; padding: 2rem 1rem;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--text-dim); font-size: 1rem; margin-bottom: 2.5rem; }
+  h2 {
+    font-size: 1.3rem; margin: 2.5rem 0 1rem;
+    padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: var(--bg);
+    font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+  }
+  h3 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  p { margin-bottom: 1rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;
+  }
+  .card h3 { display: flex; align-items: center; gap: 0.4rem; }
+  code {
+    background: rgba(110,118,129,0.2); padding: 0.15rem 0.4rem;
+    border-radius: 4px; font-size: 0.88em;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+  }
+  .tag {
+    display: inline-block; padding: 0.15rem 0.5rem;
+    border-radius: 4px; font-size: 0.78rem; font-weight: 600;
+    margin-right: 0.3rem;
+  }
+  .tag.local  { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag.docker { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag.new    { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag.curr   { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .tag.file   { background: rgba(219,109,40,0.15); color: var(--orange); }
+
+  .mockup {
+    background: #1c2128; border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin: 1.5rem 0;
+  }
+  .mockup-bar {
+    background: #21262d; padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--text-dim);
+  }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .mockup-body { padding: 1.5rem 2rem; }
+  .mockup-body h4 { font-size: 1.15rem; margin-bottom: 0.3rem; color: white; }
+  .mockup-body .step-label { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.8rem; }
+
+  .opt-card {
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.2rem; margin-bottom: 0.8rem;
+    cursor: pointer; transition: all 0.15s; position: relative;
+  }
+  .opt-card.selected { border-color: var(--accent); background: rgba(88,166,255,0.06); }
+  .opt-card.selected-green { border-color: var(--green); background: rgba(63,185,80,0.06); }
+  .opt-card .opt-title {
+    font-weight: 600; font-size: 0.95rem; display: flex;
+    align-items: center; gap: 0.4rem; margin-bottom: 0.3rem;
+  }
+  .opt-card .opt-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.5; }
+  .opt-card .opt-check {
+    position: absolute; top: 1rem; right: 1rem;
+    width: 20px; height: 20px; border-radius: 4px;
+    border: 2px solid var(--border); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.7rem; color: transparent;
+  }
+  .opt-card.selected .opt-check { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.1); }
+  .opt-card.selected-green .opt-check { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
+
+  .mock-input {
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.5rem 0.8rem;
+    color: var(--text-dim); font-size: 0.85rem;
+    margin: 0.6rem 0 0.4rem; display: block; width: 100%;
+  }
+  .mock-btn {
+    display: inline-block; padding: 0.45rem 1.2rem;
+    border-radius: 8px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer;
+  }
+  .mock-btn.primary { background: var(--accent); color: #000; }
+  .mock-btn.secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .mock-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+  .progress-bar { display: flex; gap: 4px; margin-bottom: 1rem; }
+  .progress-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
+  .progress-seg.done { background: var(--accent); }
+  .progress-seg.current { background: var(--accent); opacity: 0.6; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; justify-content: center; margin: 1.5rem 0; }
+  .flow-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.5rem 0.9rem;
+    text-align: center; font-size: 0.85rem; min-width: 100px;
+  }
+  .flow-box.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .flow-box.green { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+  .flow-box.purple { border-color: var(--purple); box-shadow: 0 0 0 1px var(--purple); }
+  .flow-arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+  th, td { padding: 0.5rem 0.8rem; text-align: left; border: 1px solid var(--border); }
+  th { background: #1c2128; font-weight: 600; }
+  td { background: var(--surface); }
+
+  .summary-box {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.08));
+    border: 1px solid rgba(88,166,255,0.3); border-radius: 8px;
+    padding: 1.4rem; margin: 2rem 0;
+  }
+  .summary-box h3 { color: var(--accent); margin-bottom: 0.6rem; }
+  .summary-box ul { padding-left: 1.2rem; }
+  .summary-box li { margin-bottom: 0.3rem; }
+
+  .arch {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.5rem; margin: 1.2rem 0;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.8rem; line-height: 1.6; white-space: pre; overflow-x: auto;
+    color: var(--text-dim);
+  }
+  .arch .hi { color: var(--accent); }
+  .arch .gr { color: var(--green); }
+  .arch .pu { color: var(--purple); }
+  .arch .ye { color: var(--yellow); }
+  .arch .or { color: var(--orange); }
+
+  .vs { display: flex; gap: 1rem; margin: 1rem 0; }
+  .vs > div { flex: 1; }
+  @media (max-width: 640px) { .vs { flex-direction: column; } }
+
+  .issue-ref {
+    display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600;
+    background: rgba(88,166,255,0.1); color: var(--accent);
+    text-decoration: none; border: 1px solid rgba(88,166,255,0.3);
+  }
+  .issue-ref:hover { background: rgba(88,166,255,0.2); }
+
+  .diff {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin: 1rem 0; overflow: hidden;
+    font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.78rem;
+  }
+  .diff-header {
+    background: #1c2128; padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim); font-size: 0.78rem;
+  }
+  .diff-body { padding: 0.6rem 1rem; line-height: 1.5; white-space: pre-wrap; }
+  .diff-add { color: var(--green); }
+  .diff-del { color: var(--red); }
+  .diff-ctx { color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Issue <span>#348</span> — Phase 1 Implementation</h1>
+<p class="subtitle">Mini setup server + multi-select backend onboarding</p>
+
+<p style="font-size:0.88rem;">
+  <a class="issue-ref" href="https://github.com/OpenHands/agent-canvas/issues/348">Issue #348</a>
+  This walkthrough covers the concrete changes in this PR.
+</p>
+
+<!-- ================================================================== -->
+<h2><span class="num">1</span> What Changed</h2>
+
+<div class="vs">
+  <div class="card">
+    <h3>&cross; Before</h3>
+    <ul style="font-size:0.88rem;color:var(--text-dim); padding-left:1.2rem;">
+      <li><code>npm run dev</code> &rarr; runs Docker mode by default</li>
+      <li>Fails if Docker isn&rsquo;t installed</li>
+      <li>Step 1: &ldquo;Check Backend&rdquo; &mdash; just verifies connection, single backend</li>
+      <li>No way to run Local + Docker simultaneously</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color:rgba(88,166,255,0.3);">
+    <h3>&check; After</h3>
+    <ul style="font-size:0.88rem;color:var(--text-dim); padding-left:1.2rem;">
+      <li><code>npm run dev</code> &rarr; always works (local mode, no Docker needed)</li>
+      <li>Step 1: &ldquo;Choose Backend&rdquo; &mdash; multi-select Local + Docker</li>
+      <li>Mini setup server bridges frontend &harr; Docker lifecycle</li>
+      <li>Docker is started on-demand through the UI</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">2</span> Architecture</h2>
+
+<div class="arch"><span class="ye">npm run dev</span>
+  &boxvr;&boxh; <span class="gr">Vite dev server</span>          :3001
+  &boxvr;&boxh; <span class="gr">Local agent-server</span>       :18000  (always started)
+  &boxvr;&boxh; <span class="gr">Automation backend</span>        :18001
+  &boxvr;&boxh; <span class="gr">Ingress proxy</span>             :8000   (routes all traffic)
+  &boxvr;&boxh; <span class="pu">Mini Setup Server</span>         :18099  <span class="hi">&larr; NEW</span>
+  &boxv;    &boxvr;&boxh; <span class="hi">GET  /setup/status</span>     &rarr; { dockerInstalled, dockerRunning, dockerBackendRunning }
+  &boxv;    &boxvr;&boxh; <span class="hi">POST /setup/docker</span>     &rarr; Start Docker backend, returns { host, port }
+  &boxv;    &boxur;&boxh; <span class="hi">DELETE /setup/docker</span>   &rarr; Stop Docker backend
+  &boxv;
+  &boxur;&boxh; <span class="or">[spawned on demand by setup server]</span>
+       <span class="gr">Docker agent-server</span>   :18002
+
+The ingress proxy routes <span class="hi">/setup/*</span> to the setup server,
+so the browser frontend accesses it via the same origin.</div>
+
+<div class="card">
+  <h3>Why a setup server?</h3>
+  <ul style="font-size:0.88rem; padding-left:1.2rem;">
+    <li>The browser <strong>cannot</strong> spawn Docker containers</li>
+    <li>The Node.js <code>npm run dev</code> process <strong>can</strong></li>
+    <li>A tiny HTTP server (~110 lines) bridges the gap</li>
+    <li><code>127.0.0.1</code> only &mdash; not network-exposed</li>
+    <li>Reuses Docker logic from existing <code>dev-docker.mjs</code></li>
+  </ul>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">3</span> Onboarding Flow</h2>
+
+<p>Step count stays at 4. The key change is Step 1:</p>
+
+<div class="flow" style="gap:0.3rem;">
+  <div class="flow-box" style="font-size:0.8rem;">Step 0<br>Choose Agent</div>
+  <span class="flow-arrow">&rarr;</span>
+  <div class="flow-box active" style="font-size:0.8rem;"><span class="tag new">changed</span> Step 1<br><strong>Choose Backend</strong></div>
+  <span class="flow-arrow">&rarr;</span>
+  <div class="flow-box" style="font-size:0.8rem;">Step 2<br>Setup LLM</div>
+  <span class="flow-arrow">&rarr;</span>
+  <div class="flow-box" style="font-size:0.8rem;">Step 3<br>Say Hello</div>
+</div>
+
+<table>
+  <tr><th></th><th>Before (<code>CheckBackendStep</code>)</th><th>After (<code>ChooseBackendStep</code>)</th></tr>
+  <tr><td><strong>Purpose</strong></td><td>Verify single backend is reachable</td><td>Pick one or both backends (Local + Docker)</td></tr>
+  <tr><td><strong>Local</strong></td><td>Always used (if running)</td><td>Always selected, always running</td></tr>
+  <tr><td><strong>Docker</strong></td><td>Requires <code>npm run dev:docker</code></td><td>Started on-demand from UI via setup server</td></tr>
+  <tr><td><strong>Multi-backend</strong></td><td>&cross;</td><td>&check; Both in dropdown simultaneously</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2><span class="num">4</span> UI Mockup &mdash; Choose Backend</h2>
+
+<div class="mockup">
+  <div class="mockup-bar">
+    <span class="mockup-dot" style="background:#ff5f57;"></span>
+    <span class="mockup-dot" style="background:#febc2e;"></span>
+    <span class="mockup-dot" style="background:#28c840;"></span>
+    <span style="margin-left:0.5rem;">Agent Canvas &mdash; Onboarding</span>
+  </div>
+  <div class="mockup-body">
+    <div class="step-label">Step 2 of 4</div>
+    <div class="progress-bar">
+      <div class="progress-seg done"></div>
+      <div class="progress-seg current"></div>
+      <div class="progress-seg"></div>
+      <div class="progress-seg"></div>
+    </div>
+
+    <h4>Choose your backend</h4>
+    <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1.2rem;">
+      Select one or both &mdash; you can always change this later in Settings.
+    </p>
+
+    <div class="opt-card selected-green">
+      <div class="opt-check">&check;</div>
+      <div class="opt-title">
+        <span class="tag local">Default</span>
+        Local Backend
+      </div>
+      <div class="opt-desc">
+        Runs the agent directly on your machine. No Docker needed.
+        <br>
+        <span style="color:var(--green);">✓</span> Zero-config, local credentials, local tools
+        <br>
+        <span style="color:var(--red);">✗</span> Unsandboxed &mdash; full filesystem access
+        <br>
+        <span style="color:var(--text);font-size:0.8rem;">Confirmation mode <strong>enabled by default</strong>.</span>
+      </div>
+    </div>
+
+    <div class="opt-card selected">
+      <div class="opt-check">&check;</div>
+      <div class="opt-title">
+        <span class="tag docker">Recommended</span>
+        Docker Backend
+      </div>
+      <div class="opt-desc">
+        Runs inside a Docker container for isolation.
+        <br>
+        <span style="color:var(--green);">✓</span> Sandboxed &mdash; can&rsquo;t affect host environment
+        <br>
+        <span style="color:var(--red);">✗</span> Requires Docker Desktop
+      </div>
+      <div style="margin-top:0.8rem; padding-top:0.6rem; border-top:1px solid var(--border);">
+        <div style="font-size:0.78rem; color:var(--text-dim);">Workspace directory</div>
+        <div class="mock-input">/Users/you/projects</div>
+        <div style="margin-top:0.5rem;">
+          <span class="mock-btn secondary" style="font-size:0.8rem;">Start Docker Backend</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-footer">
+      <span class="mock-btn secondary">&larr; Back</span>
+      <span class="mock-btn primary">Next &rarr;</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">5</span> What happens when the user clicks &ldquo;Next&rdquo;</h2>
+
+<div class="card">
+  <h3>If only Local is selected</h3>
+  <p style="font-size:0.88rem;">Nothing to do &mdash; local backend is already running since <code>npm run dev</code>. Proceeds immediately.</p>
+</div>
+
+<div class="card">
+  <h3>If Docker is selected</h3>
+  <ol style="font-size:0.88rem; padding-left:1.2rem;">
+    <li>User enters workspace directory and clicks &ldquo;Start Docker Backend&rdquo;</li>
+    <li>Frontend calls <code>GET /setup/status</code> to check Docker availability</li>
+    <li>If Docker is available, calls <code>POST /setup/docker</code> with <code>{ projectPath }</code></li>
+    <li>Setup server spawns Docker container on port 18002</li>
+    <li>Shows &ldquo;Docker backend started&rdquo; confirmation</li>
+    <li>&ldquo;Next&rdquo; button becomes enabled once Docker is running or Local is selected</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">6</span> Setup Server API</h2>
+
+<table>
+  <tr><th>Endpoint</th><th>Method</th><th>Response</th></tr>
+  <tr>
+    <td><code>/setup/status</code></td>
+    <td>GET</td>
+    <td><code>{ dockerInstalled, dockerRunning, dockerBackendRunning, dockerBackendPort }</code></td>
+  </tr>
+  <tr>
+    <td><code>/setup/docker</code></td>
+    <td>POST</td>
+    <td>Body: <code>{ projectPath }</code> &rarr; <code>{ status, host, port, url }</code></td>
+  </tr>
+  <tr>
+    <td><code>/setup/docker</code></td>
+    <td>DELETE</td>
+    <td><code>{ status: "stopped" }</code></td>
+  </tr>
+</table>
+
+<p style="font-size:0.85rem;color:var(--text-dim);">
+  All endpoints return JSON with CORS headers. The ingress proxy routes <code>/setup/*</code> to the setup server, so the frontend uses the same origin.
+</p>
+
+<!-- ================================================================== -->
+<h2><span class="num">7</span> Files Changed</h2>
+
+<table>
+  <tr><th>File</th><th>Status</th><th>Change</th></tr>
+  <tr>
+    <td><code>scripts/setup-server.mjs</code></td>
+    <td><span class="tag new">new</span></td>
+    <td>Mini HTTP server for Docker lifecycle (~110 lines)</td>
+  </tr>
+  <tr>
+    <td><code>scripts/dev-with-automation.mjs</code></td>
+    <td><span class="tag file">modified</span></td>
+    <td>Import + start setup server; add <code>/setup</code> route to ingress</td>
+  </tr>
+  <tr>
+    <td><code>src/api/setup-service.ts</code></td>
+    <td><span class="tag new">new</span></td>
+    <td>Frontend API client for setup server endpoints</td>
+  </tr>
+  <tr>
+    <td><code>src/.../steps/choose-backend-step.tsx</code></td>
+    <td><span class="tag new">new</span></td>
+    <td>Multi-select backend UI (Local + Docker)</td>
+  </tr>
+  <tr>
+    <td><code>src/.../onboarding-modal.tsx</code></td>
+    <td><span class="tag file">modified</span></td>
+    <td>Swap <code>CheckBackendStep</code> &rarr; <code>ChooseBackendStep</code></td>
+  </tr>
+  <tr>
+    <td><code>src/i18n/translation.json</code></td>
+    <td><span class="tag file">modified</span></td>
+    <td>21 new i18n keys for backend selection UI</td>
+  </tr>
+  <tr>
+    <td><code>walkthrough.html</code></td>
+    <td><span class="tag new">new</span></td>
+    <td>This document &mdash; visual walkthrough of the changes</td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2><span class="num">8</span> Key Code Snippets</h2>
+
+<div class="diff">
+  <div class="diff-header">scripts/setup-server.mjs — Setup Server core</div>
+  <div class="diff-body"><span class="diff-ctx">// Endpoints served on 127.0.0.1:18099</span>
+<span class="diff-add">GET  /setup/status  → isDockerInstalled() + isDockerRunning() + isDockerBackendRunning()</span>
+<span class="diff-add">POST /setup/docker  → startDockerBackend(projectPath, { sessionApiKey })</span>
+<span class="diff-add">DEL  /setup/docker  → stopDockerBackend()</span>
+
+<span class="diff-ctx">// Docker lifecycle reuses the same image + mount logic as dev-docker.mjs:</span>
+<span class="diff-add">docker run --rm --name agent-canvas-dev-docker-backend \</span>
+<span class="diff-add">  -v $PROJECT_PATH:/projects \</span>
+<span class="diff-add">  -v ~/.openhands:/home/openhands/.openhands \</span>
+<span class="diff-add">  -v ~/.claude:/home/openhands/.claude \</span>
+<span class="diff-add">  -p 18002:8000 \</span>
+<span class="diff-add">  ghcr.io/openhands/agent-server:1.22.0-python</span></div>
+</div>
+
+<div class="diff">
+  <div class="diff-header">scripts/dev-with-automation.mjs — Wiring</div>
+  <div class="diff-body"><span class="diff-add">+ import { startSetupServer, DEFAULT_PORT as SETUP_SERVER_PORT } from "./setup-server.mjs";</span>
+
+<span class="diff-ctx">  // In main():</span>
+<span class="diff-add">+ // 7. Start setup server (lets the frontend manage Docker lifecycle)</span>
+<span class="diff-add">+ startSetupServer({ port: SETUP_SERVER_PORT, sessionApiKey: config.sessionApiKey });</span>
+
+<span class="diff-ctx">  // In startIngress():</span>
+<span class="diff-add">+ "--route", `/setup=http://127.0.0.1:${SETUP_SERVER_PORT}`,</span></div>
+</div>
+
+<div class="diff">
+  <div class="diff-header">src/components/.../onboarding-modal.tsx — Swap step</div>
+  <div class="diff-body"><span class="diff-del">- import { CheckBackendStep } from "./steps/check-backend-step";</span>
+<span class="diff-add">+ import { ChooseBackendStep } from "./steps/choose-backend-step";</span>
+
+<span class="diff-ctx">  &lt;Slide index={1} currentStep={currentStep}&gt;</span>
+<span class="diff-del">-   &lt;CheckBackendStep onBack={goBack} onNext={goNext} /&gt;</span>
+<span class="diff-add">+   &lt;ChooseBackendStep onBack={goBack} onNext={goNext} /&gt;</span>
+<span class="diff-ctx">  &lt;/Slide&gt;</span></div>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">9</span> Backend Comparison</h2>
+
+<table>
+  <tr>
+    <th></th>
+    <th><span class="tag local">Local</span></th>
+    <th><span class="tag docker">Docker</span></th>
+  </tr>
+  <tr><td><strong>Sandbox</strong></td><td>✗ None</td><td>✓ Container</td></tr>
+  <tr><td><strong>Confirmation Mode</strong></td><td>✓ On by default</td><td>Optional</td></tr>
+  <tr><td><strong>File Access</strong></td><td>Entire filesystem</td><td>Mounted dir only</td></tr>
+  <tr><td><strong>Prerequisites</strong></td><td>None (uvx only)</td><td>Docker Desktop</td></tr>
+  <tr><td><strong>How Started</strong></td><td>Always (via <code>npm run dev</code>)</td><td>On demand (via setup server)</td></tr>
+  <tr><td><strong>Port</strong></td><td>:18000</td><td>:18002</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<div class="summary-box">
+  <h3>Summary of Changes</h3>
+  <ul>
+    <li><strong>New: <code>scripts/setup-server.mjs</code></strong> &mdash; ~110 line HTTP server that manages Docker lifecycle for the frontend</li>
+    <li><strong>New: <code>src/api/setup-service.ts</code></strong> &mdash; Frontend API client for <code>/setup/*</code> endpoints</li>
+    <li><strong>New: <code>choose-backend-step.tsx</code></strong> &mdash; Multi-select backend step (replaces <code>CheckBackendStep</code> in onboarding)</li>
+    <li><strong>Modified: <code>dev-with-automation.mjs</code></strong> &mdash; Starts setup server + routes <code>/setup/*</code> through ingress</li>
+    <li><strong>Modified: <code>onboarding-modal.tsx</code></strong> &mdash; Uses new <code>ChooseBackendStep</code></li>
+    <li><strong>21 new i18n keys</strong> for the Choose Backend UI</li>
+  </ul>
+  <p style="margin-top:0.8rem; font-size:0.88rem;"><strong>Not in scope (future work):</strong> Agent auto-discovery, ACP session listing, conversation agent tags. See <a href="https://github.com/OpenHands/agent-canvas/issues/405" style="color:var(--accent);">agent-canvas #405</a> and <a href="https://github.com/OpenHands/software-agent-sdk/issues/3236" style="color:var(--accent);">software-agent-sdk #3236</a>.</p>
+</div>
+
+</div>
+</body>
+</html>
