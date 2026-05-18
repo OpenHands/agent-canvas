@@ -167,7 +167,7 @@ describe("RenameProfileModal", () => {
     expect(submitButton).toBeDisabled();
   });
 
-  it("shows validation error styling for invalid names", async () => {
+  it("marks the input as invalid for names violating the format rule", async () => {
     const user = userEvent.setup();
     renderModal(mockProfile);
 
@@ -175,8 +175,7 @@ describe("RenameProfileModal", () => {
     await user.clear(input);
     await user.type(input, ".invalid-name");
 
-    const rule = screen.getByTestId("rename-profile-rule");
-    expect(rule).toHaveClass("text-red-400");
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   it("updates input value when a different profile is passed", () => {

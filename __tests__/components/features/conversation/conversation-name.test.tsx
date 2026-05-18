@@ -504,7 +504,7 @@ describe("ConversationNameContextMenu", () => {
     expect(onShowSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("should apply correct positioning class when position is top", () => {
+  it("forwards the position prop as a data-position attribute (top)", () => {
     const handlers = {
       onRename: vi.fn(),
     };
@@ -517,11 +517,12 @@ describe("ConversationNameContextMenu", () => {
       />,
     );
 
-    const contextMenu = screen.getByTestId("conversation-name-context-menu");
-    expect(contextMenu).toHaveClass("bottom-full");
+    expect(
+      screen.getByTestId("conversation-name-context-menu"),
+    ).toHaveAttribute("data-position", "top");
   });
 
-  it("should apply correct positioning class when position is bottom", () => {
+  it("forwards the position prop as a data-position attribute (bottom)", () => {
     const handlers = {
       onRename: vi.fn(),
     };
@@ -534,8 +535,9 @@ describe("ConversationNameContextMenu", () => {
       />,
     );
 
-    const contextMenu = screen.getByTestId("conversation-name-context-menu");
-    expect(contextMenu).toHaveClass("top-full");
+    expect(
+      screen.getByTestId("conversation-name-context-menu"),
+    ).toHaveAttribute("data-position", "bottom");
   });
 
   it("should render correct text content for each menu option", () => {

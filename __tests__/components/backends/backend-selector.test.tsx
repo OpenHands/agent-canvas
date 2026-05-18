@@ -733,8 +733,7 @@ describe("BackendSelector", () => {
     );
 
     const settingsButton = screen.getByTestId("backend-selector-settings-link");
-    expect(settingsButton.className).toContain("bg-tertiary");
-    expect(settingsButton.className).toContain("text-white");
+    expect(settingsButton).toHaveAttribute("data-active", "true");
 
     const user = await openDropdown();
     await user.click(screen.getByText("Local 1"));

@@ -7,7 +7,7 @@
  * Process a regular file by reading its content into memory
  * For large files (1GB+), this will take significant time
  */
-export const processFile = async (file: File): Promise<void> =>
+const processFile = async (file: File): Promise<void> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -33,7 +33,7 @@ export const processFile = async (file: File): Promise<void> =>
  * Process an image file by reading its content
  * This validates the image can be read and prepares it for display
  */
-export const processImage = async (image: File): Promise<void> =>
+const processImage = async (image: File): Promise<void> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
 

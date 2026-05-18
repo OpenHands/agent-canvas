@@ -178,6 +178,7 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     created_at: readTimestamp(item, "created_at", "createdAt"),
     updated_at: readTimestamp(item, "updated_at", "updatedAt"),
     execution_status: stringOrNull(item.execution_status),
+    sandbox_status: stringOrNull(item.sandbox_status),
     metrics: normalizeMetrics(item.metrics),
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),

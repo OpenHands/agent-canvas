@@ -205,6 +205,25 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
 }
 
 /**
+ * Resume a paused cloud sandbox. Mirrors OpenHands' `SandboxService.resumeSandbox`
+ * — routes through the bundled agent-server's cloud proxy and hits
+ * `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
+ *
+ * This is the correct endpoint for waking a PAUSED sandbox. It is a
+ * lightweight unpause — NOT the same as creating a new start task via
+ * `POST /api/v1/app-conversations`, which provisions a fresh conversation
+ * and is subject to the 120-second sandbox-start timeout.
+ */
+export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudProxy<unknown>({
+    backend,
+    method: "POST",
+    path: `/api/v1/sandboxes/${sandboxId}/resume`,
+  });
+}
+
+/**
  * Read a file from a cloud conversation's sandbox workspace. Mirrors
  * OpenHands' `AgentServerConversationService.readConversationFile` — hits
  * `GET /api/v1/app-conversations/{id}/file?file_path=...` on the cloud backend

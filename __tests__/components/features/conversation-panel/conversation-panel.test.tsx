@@ -333,8 +333,10 @@ describe("ConversationPanel", () => {
     renderConversationPanel();
 
     let cards = await screen.findAllByTestId("conversation-card");
-    // Delete button should not be visible initially (context menu is closed)
-    expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
+    // Closed state is observable via the data-context-menu-open attr on the
+    // conversation-card root; visual hiding is covered by Playwright.
+    expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
+
     const ellipsisButton = within(cards[0]).getByTestId("ellipsis-button");
     await user.click(ellipsisButton);
     const deleteButton = screen.getByTestId("delete-button");
@@ -698,8 +700,9 @@ describe("ConversationPanel", () => {
     // Click outside to close the menu
     await user.click(document.body);
 
+    // Wait for context menu to close.
     await waitFor(() => {
-      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
+      expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
     });
 
     // Test STARTING conversation - should show stop button
@@ -713,8 +716,9 @@ describe("ConversationPanel", () => {
     // Click outside to close the menu
     await user.click(document.body);
 
+    // Wait for context menu to close.
     await waitFor(() => {
-      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
+      expect(cards[1]).toHaveAttribute("data-context-menu-open", "false");
     });
 
     // Test STOPPED conversation - should NOT show stop button
@@ -961,8 +965,9 @@ describe("ConversationPanel", () => {
     const editButton = screen.getByTestId("edit-button");
     await user.click(editButton);
 
+    // Wait for context menu to close after edit button click.
     await waitFor(() => {
-      expect(screen.queryByTestId("context-menu")).not.toBeInTheDocument();
+      expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
     });
   });
 

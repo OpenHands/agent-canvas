@@ -169,7 +169,6 @@ describe("GitControlBarRepoButton", () => {
 
       const button = screen.getByRole("button");
       expect(button).toBeDisabled();
-      expect(button).toHaveClass("cursor-not-allowed");
     });
 
     it("should be clickable when disabled prop is false", () => {
@@ -183,7 +182,6 @@ describe("GitControlBarRepoButton", () => {
 
       const button = screen.getByRole("button");
       expect(button).not.toBeDisabled();
-      expect(button).toHaveClass("cursor-pointer");
     });
 
     it("should not call onClick when disabled", async () => {

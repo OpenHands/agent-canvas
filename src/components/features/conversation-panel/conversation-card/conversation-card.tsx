@@ -4,11 +4,13 @@ import { cn } from "#/utils/utils";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCardHeader } from "./conversation-card-header";
 import { ConversationCardActions } from "./conversation-card-actions";
 import { ConversationCardFooter } from "./conversation-card-footer";
+import { ConversationStatusBadges } from "./conversation-status-badges";
 import { useDownloadConversation } from "#/hooks/use-download-conversation";
 
 interface ConversationCardProps {
@@ -22,6 +24,7 @@ interface ConversationCardProps {
   lastUpdatedAt: string;
   createdAt?: string;
   executionStatus?: ExecutionStatus | null;
+  sandboxStatus?: SandboxStatus | null;
   conversationId?: string;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
@@ -44,6 +47,7 @@ export function ConversationCard({
   createdAt,
   conversationId,
   executionStatus,
+  sandboxStatus,
   contextMenuOpen = false,
   onContextMenuToggle,
   isActive = false,
@@ -139,13 +143,21 @@ export function ConversationCard({
       )}
     >
       <div className="flex items-center w-full min-w-0">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
           <ConversationCardHeader
             title={title}
             titleMode={titleMode}
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
+            sandboxStatus={sandboxStatus}
           />
+          {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
+            <ConversationStatusBadges
+              conversationStatus={
+                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
+              }
+            />
+          )}
         </div>
 
         <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">

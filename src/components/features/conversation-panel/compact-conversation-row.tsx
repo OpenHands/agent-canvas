@@ -2,6 +2,7 @@ import React from "react";
 import { Tooltip } from "@heroui/react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
 import { ConversationStatusDot } from "./conversation-status-dot";
@@ -12,6 +13,7 @@ interface CompactConversationRowProps {
   title: string;
   selectedRepository: RepositorySelection | null;
   executionStatus?: ExecutionStatus | null;
+  sandboxStatus?: SandboxStatus | null;
   lastUpdatedAt: string;
   createdAt?: string;
   workspaceWorkingDir?: string | null;
@@ -32,6 +34,7 @@ export function CompactConversationRow({
   title,
   selectedRepository,
   executionStatus,
+  sandboxStatus,
   lastUpdatedAt,
   createdAt,
   workspaceWorkingDir,
@@ -48,6 +51,7 @@ export function CompactConversationRow({
       <div className="flex items-center gap-2 mb-1">
         <ConversationStatusDot
           executionStatus={executionStatus}
+          sandboxStatus={sandboxStatus}
           showTooltip={false}
         />
         <span className="text-sm font-medium text-white truncate" title={title}>
@@ -93,6 +97,7 @@ export function CompactConversationRow({
       >
         <ConversationStatusDot
           executionStatus={executionStatus}
+          sandboxStatus={sandboxStatus}
           showTooltip={false}
         />
       </NavigationLink>

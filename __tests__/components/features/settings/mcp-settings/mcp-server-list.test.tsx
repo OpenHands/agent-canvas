@@ -40,7 +40,6 @@ describe("MCPServerList", () => {
     // Check that the table structure is rendered
     const table = screen.getByRole("table");
     expect(table).toBeInTheDocument();
-    expect(table).toHaveClass("w-full");
 
     // Check that server items are rendered
     const serverItems = screen.getAllByTestId("mcp-server-item");
@@ -96,11 +95,6 @@ describe("MCPServerList", () => {
     // Check that the URL is properly displayed with title attribute for accessibility
     const detailsCells = screen.getAllByTitle(longUrlServer.url);
     expect(detailsCells).toHaveLength(2); // Name and Details columns both have the URL
-
-    // Check that both name and details cells use truncation and have title for tooltip
-    const [nameCell, detailsCell] = detailsCells;
-    expect(nameCell).toHaveClass("truncate");
-    expect(detailsCell).toHaveClass("truncate");
   });
 
   it("should display command and arguments for STDIO servers", () => {

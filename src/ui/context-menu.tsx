@@ -78,6 +78,7 @@ export function ContextMenu({
   return (
     <ul
       data-testid={testId}
+      data-position={position}
       ref={ref}
       style={style}
       className={cn(
