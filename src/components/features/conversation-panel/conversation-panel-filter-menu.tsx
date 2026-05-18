@@ -26,7 +26,10 @@ const capitalizeLabel = (label: string) =>
 
 function MenuHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--oh-muted)]">
+    <div
+      role="presentation"
+      className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--oh-muted)]"
+    >
       {children}
     </div>
   );
@@ -54,9 +57,18 @@ function MenuRow({
   onClick: () => void;
   testId?: string;
 }) {
+  // Rows that show a selection checkmark are toggleable preferences, so
+  // they get `role="menuitemradio"` when they're part of a selectable
+  // group and `role="menuitemcheckbox"` when they're a standalone toggle.
+  // For simplicity we use `menuitemradio` whenever `selected` is provided
+  // (every selectable row in this menu is part of a mutually exclusive
+  // group in practice) and fall back to plain `menuitem` otherwise.
+  const role = selected === undefined ? "menuitem" : "menuitemradio";
   return (
     <button
       type="button"
+      role={role}
+      aria-checked={selected === undefined ? undefined : Boolean(selected)}
       data-testid={testId}
       onClick={onClick}
       className={cn(
@@ -145,6 +157,9 @@ export function ConversationPanelFilterMenu({
 
       {filterMenuOpen ? (
         <div
+          role="menu"
+          aria-orientation="vertical"
+          aria-label={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
           data-testid="older-conversations-filter-menu"
           className="absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-white shadow-lg"
         >
@@ -234,7 +249,10 @@ export function ConversationPanelFilterMenu({
           />
 
           <MenuSeparator />
-          <div className="flex items-baseline justify-between gap-2 px-2 py-1">
+          <div
+            role="presentation"
+            className="flex items-baseline justify-between gap-2 px-2 py-1"
+          >
             <span className="min-w-0 truncate text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--oh-muted)]">
               {t(I18nKey.CONVERSATION_PANEL$OLDER_SECTION)}
             </span>
@@ -244,6 +262,7 @@ export function ConversationPanelFilterMenu({
           </div>
           <button
             type="button"
+            role="menuitem"
             data-testid="toggle-older-conversations"
             onClick={() => {
               toggleShowOlderConversations();
@@ -259,6 +278,7 @@ export function ConversationPanelFilterMenu({
           <MenuSeparator />
           <button
             type="button"
+            role="menuitem"
             data-testid="delete-all-conversations"
             disabled={totalConversationsCount === 0}
             onClick={() => {

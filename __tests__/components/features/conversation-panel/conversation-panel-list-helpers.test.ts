@@ -68,10 +68,15 @@ describe("conversation-panel-list-helpers", () => {
   });
 
   it("normalizes group keys and labels across edge-case inputs", () => {
-    // Bundles four edge cases the implementation already handles into one
-    // assertion so each is covered without proliferating tests:
+    // Bundles edge cases the implementation must handle into one assertion
+    // so each is covered without proliferating tests:
     //  - workspace paths with trailing slashes are normalized
     //  - whitespace-only `selected_workspace` falls back to "No workspace"
+    //  - root-only paths ("/", "///") trim+strip to "" and bucket to the
+    //    "no workspace" / "no repository" fallback instead of producing
+    //    stray `ws:` / `repo:/` groups
+    //  - repository paths ignore trailing slashes (so `org/repo` and
+    //    `org/repo/` collapse into the same group)
     //  - repository names ending in `.git` strip the suffix in the label
     //  - missing/invalid timestamps don't break group ordering (they sort
     //    to the bottom rather than throwing)
@@ -80,7 +85,7 @@ describe("conversation-panel-list-helpers", () => {
       id: "ws-trailing",
       title: "ws-trailing",
       selected_workspace: "/workspace/agent-server-gui///",
-      updated_at: "2024-01-03T00:00:00.000Z",
+      updated_at: "2024-01-04T00:00:00.000Z",
     };
     const whitespaceOnly: AppConversation = {
       ...base,
@@ -89,17 +94,38 @@ describe("conversation-panel-list-helpers", () => {
       selected_workspace: "   ",
       updated_at: "2024-01-02T00:00:00.000Z",
     };
+    const rootOnly: AppConversation = {
+      ...base,
+      id: "ws-root",
+      title: "ws-root",
+      selected_workspace: "/",
+      updated_at: "2024-01-03T00:00:00.000Z",
+    };
     const localGroups = groupConversations(
-      [trailingSlash, whitespaceOnly],
+      [trailingSlash, whitespaceOnly, rootOnly],
       "local",
       "updated",
       { emptyWorkspace: "No workspace", emptyRepository: "No repository" },
     );
     expect(
-      localGroups.map((g) => ({ id: g.id, label: g.label })),
+      localGroups.map((g) => ({
+        id: g.id,
+        label: g.label,
+        ids: g.conversations.map((c) => c.id),
+      })),
     ).toEqual([
-      { id: "ws:/workspace/agent-server-gui", label: "agent-server-gui" },
-      { id: "__none_workspace", label: "No workspace" },
+      {
+        id: "ws:/workspace/agent-server-gui",
+        label: "agent-server-gui",
+        ids: ["ws-trailing"],
+      },
+      // Both whitespace-only and "/" collapse into the same fallback
+      // bucket — ordered by updated_at desc within the group.
+      {
+        id: "__none_workspace",
+        label: "No workspace",
+        ids: ["ws-root", "ws-blank"],
+      },
     ]);
 
     const dotGit: AppConversation = {
@@ -110,6 +136,23 @@ describe("conversation-panel-list-helpers", () => {
       // Unparseable timestamp — must not throw; falls to 0 ms and sorts last.
       updated_at: "not-a-date",
     };
+    const repoTrailingSlash: AppConversation = {
+      ...base,
+      id: "repo-slash",
+      title: "repo-slash",
+      // Same logical repo as `dotGit` would be without `.git`; with the
+      // trailing-slash normalization both forms must collapse together
+      // when they share the same path.
+      selected_repository: "org/sdk/",
+      updated_at: "2024-01-05T00:00:00.000Z",
+    };
+    const repoNoSlash: AppConversation = {
+      ...base,
+      id: "repo-noslash",
+      title: "repo-noslash",
+      selected_repository: "org/sdk",
+      updated_at: "2024-01-06T00:00:00.000Z",
+    };
     const blankRepo: AppConversation = {
       ...base,
       id: "repo-blank",
@@ -117,17 +160,44 @@ describe("conversation-panel-list-helpers", () => {
       selected_repository: "  ",
       updated_at: "2024-01-04T00:00:00.000Z",
     };
+    const rootRepo: AppConversation = {
+      ...base,
+      id: "repo-root",
+      title: "repo-root",
+      selected_repository: "/",
+      updated_at: "2024-01-03T00:00:00.000Z",
+    };
     const cloudGroups = groupConversations(
-      [dotGit, blankRepo],
+      [dotGit, repoTrailingSlash, repoNoSlash, blankRepo, rootRepo],
       "cloud",
       "updated",
       { emptyWorkspace: "No workspace", emptyRepository: "No repository" },
     );
     expect(
-      cloudGroups.map((g) => ({ id: g.id, label: g.label })),
+      cloudGroups.map((g) => ({
+        id: g.id,
+        label: g.label,
+        ids: g.conversations.map((c) => c.id),
+      })),
     ).toEqual([
-      { id: "__none_repo", label: "No repository" },
-      { id: "repo:org/canvas.git", label: "canvas" },
+      // `org/sdk` and `org/sdk/` collapse to one group.
+      {
+        id: "repo:org/sdk",
+        label: "sdk",
+        ids: ["repo-noslash", "repo-slash"],
+      },
+      // Whitespace and "/" both bucket into the empty-repo fallback,
+      // sorted by updated_at desc within the group.
+      {
+        id: "__none_repo",
+        label: "No repository",
+        ids: ["repo-blank", "repo-root"],
+      },
+      {
+        id: "repo:org/canvas.git",
+        label: "canvas",
+        ids: ["repo-git"],
+      },
     ]);
   });
 

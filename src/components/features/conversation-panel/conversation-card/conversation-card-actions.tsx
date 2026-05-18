@@ -64,12 +64,24 @@ export function ConversationCardActions({
     if (!contextMenuOpen || !anchorRef.current) return undefined;
     const rect = anchorRef.current.getBoundingClientRect();
     const vw = Number(window.innerWidth) || 0;
+    const vh = Number(window.innerHeight) || 0;
     const bottom = Number(rect.bottom) || 0;
     const rectRight = Number(rect.right) || 0;
+    // Conservative cap on this menu's intrinsic height (~7 items at
+    // ~36px + padding). When the anchor is so close to the viewport
+    // bottom that opening downward would clip the menu, flip it above
+    // the anchor instead. Slight over-estimate is fine — it just means
+    // we flip a few pixels earlier than strictly necessary.
+    const ESTIMATED_MENU_HEIGHT = 280;
+    const gutter = 8;
+    const overflowsDownward = bottom + ESTIMATED_MENU_HEIGHT + gutter > vh;
+    const top = overflowsDownward
+      ? Math.max(gutter, rect.top - ESTIMATED_MENU_HEIGHT - 4)
+      : bottom + 4;
     return {
       position: "fixed",
-      top: bottom + 4,
-      right: Math.max(8, vw - rectRight),
+      top,
+      right: Math.max(gutter, vw - rectRight),
       zIndex: 100_000,
     };
   })();

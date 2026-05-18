@@ -76,11 +76,16 @@ function workspaceGroup(conversation: AppConversation): {
   // `workspace.working_dir` — that field holds the per-conversation
   // worktree path the agent-server creates, which is unique per
   // conversation and would fragment the grouping.
-  const dir = conversation.selected_workspace;
-  if (!dir?.trim()) {
+  //
+  // Normalize first, then check emptiness: inputs like "/", "///", or
+  // "   ///" trim+strip to "" and must fall back to the "no workspace"
+  // bucket rather than producing a stray `ws:` group with no label.
+  const normalized = conversation.selected_workspace
+    ?.trim()
+    .replace(/\/+$/, "");
+  if (!normalized) {
     return { id: "__none_workspace", label: "" };
   }
-  const normalized = dir.replace(/\/+$/, "");
   const label = normalized.split("/").filter(Boolean).pop() ?? normalized;
   return { id: `ws:${normalized}`, label };
 }
@@ -89,16 +94,20 @@ function repositoryGroup(conversation: AppConversation): {
   id: string;
   label: string;
 } {
-  const repo = conversation.selected_repository;
-  if (!repo?.trim()) {
+  // Mirror `workspaceGroup`'s normalize-then-check order so "/", "///",
+  // and trailing-slash variants of the same repo all collapse to one
+  // group instead of producing a stray `repo:/` bucket.
+  const normalized = conversation.selected_repository
+    ?.trim()
+    .replace(/\/+$/, "");
+  if (!normalized) {
     return { id: "__none_repo", label: "" };
   }
-  const s = repo.trim();
-  const parts = s.split("/").filter(Boolean);
+  const parts = normalized.split("/").filter(Boolean);
   const label = parts.length
-    ? (parts[parts.length - 1] ?? s).replace(/\.git$/, "")
-    : s.replace(/\.git$/, "");
-  return { id: `repo:${s}`, label };
+    ? (parts[parts.length - 1] ?? normalized).replace(/\.git$/, "")
+    : normalized.replace(/\.git$/, "");
+  return { id: `repo:${normalized}`, label };
 }
 
 export function groupConversations(
