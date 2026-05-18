@@ -6,6 +6,7 @@ import { AgentStatus } from "#/components/features/controls/agent-status";
 import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
 import { ChatInputModel } from "./chat-input-model";
+import { SwitchProfileButton } from "../switch-profile-button";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -506,7 +507,7 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            <ChatInputModel />
+            {isCloud ? <ChatInputModel /> : <SwitchProfileButton />}
           </div>
 
           {hasOverflowItems && (
