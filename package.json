@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#openhands/catalog-mcps-automations",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#main",
     "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v0.6.0",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",

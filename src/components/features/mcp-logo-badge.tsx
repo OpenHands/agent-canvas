@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
-import {
-  MCP_FALLBACK_LOGO,
-  MCP_LOGOS,
-  type McpCatalogEntry,
-} from "@openhands/extensions/mcps";
+import type { McpCatalogEntry } from "@openhands/extensions/mcps";
+import { MCP_FALLBACK_LOGO, MCP_LOGOS } from "@openhands/extensions/mcps/logos";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<

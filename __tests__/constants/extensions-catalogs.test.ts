@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
-import {
-  MCP_CATALOG,
-  MCP_LOGO_IDS,
-  MCP_LOGOS,
-} from "@openhands/extensions/mcps";
+import { MCP_CATALOG } from "@openhands/extensions/mcps";
+import { MCP_LOGO_IDS, MCP_LOGOS } from "@openhands/extensions/mcps/logos";
 
 describe("OpenHands extensions catalogs", () => {
   it("hydrates the MCP marketplace from @openhands/extensions", () => {
