@@ -85,8 +85,37 @@ function makeSettingsResponse() {
   };
 }
 
-async function seedCloudBackend(page: Page) {
+async function seedLocalBackend(page: Page) {
   await page.addInitScript(() => {
+    const testWindow = window as Window & {
+      __SETUP_BACKENDS_REQUESTS__?: number;
+    };
+    testWindow.__SETUP_BACKENDS_REQUESTS__ = 0;
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const requestUrl =
+        typeof input === "string" || input instanceof URL
+          ? input.toString()
+          : input.url;
+      const url = new URL(requestUrl, window.location.href);
+      if (url.pathname === "/setup/backends") {
+        testWindow.__SETUP_BACKENDS_REQUESTS__ =
+          (testWindow.__SETUP_BACKENDS_REQUESTS__ ?? 0) + 1;
+        return Response.json({
+          backends: [
+            {
+              id: "cloud-prod",
+              name: "OpenHands Cloud",
+              host: "https://app.all-hands.dev",
+              api_key: "cloud-api-key-from-setup-backend",
+              kind: "cloud",
+            },
+          ],
+        });
+      }
+      return originalFetch(input, init);
+    };
+
     window.localStorage.setItem("openhands-onboarded", "true");
     window.localStorage.setItem("analytics-consent", "true");
     window.localStorage.setItem(
@@ -103,7 +132,7 @@ async function seedCloudBackend(page: Page) {
           id: "cloud-prod",
           name: "OpenHands Cloud",
           host: "https://app.all-hands.dev",
-          apiKey: "cloud-api-key-from-registry",
+          apiKey: "",
           kind: "cloud",
         },
       ]),
@@ -165,22 +194,11 @@ async function mockSettingsApis(page: Page) {
   });
 }
 
-test("OpenHands LLM settings reuse Cloud backend registry credentials", async ({
+test("OpenHands LLM settings reuse setup backend Cloud credentials", async ({
   page,
 }) => {
-  await seedCloudBackend(page);
+  await seedLocalBackend(page);
   await mockSettingsApis(page);
-
-  let setupBackendsRequests = 0;
-
-  await page.route("**/setup/backends", async (route) => {
-    setupBackendsRequests += 1;
-    await route.fulfill({
-      status: 500,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "obsolete endpoint should not be called" }),
-    });
-  });
 
   await page.goto("/settings", { waitUntil: "networkidle" });
   await page
@@ -200,5 +218,13 @@ test("OpenHands LLM settings reuse Cloud backend registry credentials", async ({
   await expect(page.getByTestId("llm-api-key-input")).toHaveValue(
     "mock-openhands-lm-api-key",
   );
-  expect(setupBackendsRequests).toBe(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __SETUP_BACKENDS_REQUESTS__?: number })
+            .__SETUP_BACKENDS_REQUESTS__ ?? 0,
+      ),
+    )
+    .toBeGreaterThan(0);
 });

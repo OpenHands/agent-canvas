@@ -1,8 +1,7 @@
 import axios from "axios";
-import {
-  getRegisteredBackends,
-  updateRegisteredBackends,
-} from "./backend-registry/active-store";
+import { getAgentServerHeaders } from "./agent-server-config";
+import { getEffectiveLocalBackend } from "./backend-registry/active-store";
+import { buildAuthHeaders } from "./backend-registry/auth";
 import type { Backend } from "./backend-registry/types";
 import { callCloudProxy } from "./cloud/proxy";
 import {
@@ -10,6 +9,7 @@ import {
   OPENHANDS_CLOUD_DISPLAY_NAME,
 } from "#/utils/constants";
 
+const SETUP_BACKENDS_ENDPOINT = "/setup/backends";
 const DEFAULT_OPENHANDS_CLOUD_BACKEND_ID = "openhands-cloud";
 
 export interface StoredCloudBackendCredential {
@@ -37,22 +37,6 @@ function normalizeHost(host?: string): string {
   return (host || DEFAULT_OPENHANDS_CLOUD_HOST).trim().replace(/\/+$/, "");
 }
 
-function toStoredCloudBackendCredential(
-  backend: Backend,
-): StoredCloudBackendCredential | null {
-  if (backend.kind !== "cloud") return null;
-
-  const cloudApiKey = backend.apiKey.trim();
-  if (!cloudApiKey) return null;
-
-  return {
-    id: backend.id,
-    name: backend.name,
-    host: normalizeHost(backend.host),
-    cloudApiKey,
-  };
-}
-
 function formatSafeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
@@ -63,6 +47,69 @@ function readErrorMessageFromPayload(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
   const record = value as { error?: unknown; message?: unknown };
   return readString(record.error) ?? readString(record.message);
+}
+
+function readCloudBackendCredential(
+  value: unknown,
+): StoredCloudBackendCredential | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as {
+    id?: unknown;
+    name?: unknown;
+    host?: unknown;
+    kind?: unknown;
+    api_key?: unknown;
+  };
+  if (record.kind !== "cloud") return null;
+
+  const id = readString(record.id);
+  const name = readString(record.name);
+  const host = readString(record.host);
+  const cloudApiKey = readString(record.api_key);
+  if (!id || !name || !host || !cloudApiKey) return null;
+
+  return { id, name, host: normalizeHost(host), cloudApiKey };
+}
+
+function readCloudBackendCredentialsFromPayload(
+  value: unknown,
+): StoredCloudBackendCredential[] {
+  if (!value || typeof value !== "object") return [];
+  const backends = (value as { backends?: unknown }).backends;
+  if (!Array.isArray(backends)) return [];
+  return backends
+    .map(readCloudBackendCredential)
+    .filter((backend): backend is StoredCloudBackendCredential =>
+      Boolean(backend),
+    );
+}
+
+function readCloudBackendCredentialFromPayload(
+  value: unknown,
+): StoredCloudBackendCredential | null {
+  if (!value || typeof value !== "object") return null;
+  return readCloudBackendCredential((value as { backend?: unknown }).backend);
+}
+
+function buildSetupHeaders(hasBody: boolean): Record<string, string> {
+  return {
+    ...(hasBody ? { "Content-Type": "application/json" } : {}),
+    ...buildAuthHeaders(getEffectiveLocalBackend()),
+    ...getAgentServerHeaders(),
+  };
+}
+
+async function readSetupBackendsErrorMessage(
+  response: Response,
+): Promise<string> {
+  const body = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  const serverMessage = readErrorMessageFromPayload(body);
+  return serverMessage
+    ? `${response.status}: ${serverMessage}`
+    : String(response.status);
 }
 
 async function readThrownErrorMessage(error: unknown): Promise<string> {
@@ -76,88 +123,104 @@ async function readThrownErrorMessage(error: unknown): Promise<string> {
   return formatSafeError(error);
 }
 
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) {
-    throw new DOMException("Aborted", "AbortError");
-  }
+function makeSetupError(operation: string, message: string, status?: number) {
+  return new CloudBackendCredentialsError(
+    `Failed to ${operation} OpenHands Cloud credentials (${message})`,
+    status,
+  );
 }
 
 export async function getStoredCloudBackendCredentials(
   options: { signal?: AbortSignal } = {},
 ): Promise<StoredCloudBackendCredential[]> {
-  throwIfAborted(options.signal);
-  return getRegisteredBackends()
-    .map(toStoredCloudBackendCredential)
-    .filter((credential): credential is StoredCloudBackendCredential =>
-      Boolean(credential),
-    );
+  try {
+    const response = await fetch(SETUP_BACKENDS_ENDPOINT, {
+      method: "GET",
+      headers: buildSetupHeaders(false),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const message = await readSetupBackendsErrorMessage(response);
+      throw makeSetupError("load saved", message, response.status);
+    }
+
+    return readCloudBackendCredentialsFromPayload(await response.json());
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
+    if (error instanceof CloudBackendCredentialsError) throw error;
+    const message = await readThrownErrorMessage(error);
+    throw makeSetupError("load saved", message);
+  }
 }
 
 export async function saveCloudBackendCredential(
   credential: StoredCloudBackendCredential,
   options: { signal?: AbortSignal } = {},
 ): Promise<StoredCloudBackendCredential> {
-  throwIfAborted(options.signal);
-
-  const normalizedCredential: StoredCloudBackendCredential = {
-    ...credential,
+  const normalizedCredential = {
+    id: credential.id.trim(),
+    name: credential.name.trim(),
     host: normalizeHost(credential.host),
-    cloudApiKey: credential.cloudApiKey.trim(),
-  };
-
-  if (!normalizedCredential.id.trim() || !normalizedCredential.cloudApiKey) {
-    throw new CloudBackendCredentialsError(
-      "Cloud backend credential is invalid",
-    );
-  }
-
-  let savedCredential = normalizedCredential;
-  const nextBackend: Backend = {
-    id: normalizedCredential.id,
-    name: normalizedCredential.name,
-    host: normalizedCredential.host,
-    apiKey: normalizedCredential.cloudApiKey,
     kind: "cloud",
+    api_key: credential.cloudApiKey.trim(),
   };
 
-  updateRegisteredBackends((currentBackends) => {
-    const sameCredential = currentBackends.find(
-      (backend) =>
-        backend.kind === "cloud" &&
-        normalizeHost(backend.host) === normalizedCredential.host &&
-        backend.apiKey.trim() === normalizedCredential.cloudApiKey,
-    );
+  try {
+    const response = await fetch(SETUP_BACKENDS_ENDPOINT, {
+      method: "POST",
+      headers: buildSetupHeaders(true),
+      body: JSON.stringify(normalizedCredential),
+      signal: options.signal,
+    });
 
-    if (sameCredential) {
-      const existing = toStoredCloudBackendCredential(sameCredential);
-      if (existing) savedCredential = existing;
-      return currentBackends;
+    if (!response.ok) {
+      const message = await readSetupBackendsErrorMessage(response);
+      throw makeSetupError("save", message, response.status);
     }
 
-    if (currentBackends.some((backend) => backend.id === nextBackend.id)) {
-      return currentBackends.map((backend) =>
-        backend.id === nextBackend.id ? nextBackend : backend,
+    const saved = readCloudBackendCredentialFromPayload(await response.json());
+    if (!saved) {
+      throw new CloudBackendCredentialsError(
+        "Malformed response from setup server",
       );
     }
-
-    return [...currentBackends, nextBackend];
-  });
-
-  return savedCredential;
+    return saved;
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
+    if (error instanceof CloudBackendCredentialsError) throw error;
+    const message = await readThrownErrorMessage(error);
+    throw makeSetupError("save", message);
+  }
 }
 
 export async function deleteCloudBackendCredential(
   id: string,
   options: { signal?: AbortSignal } = {},
 ): Promise<void> {
-  throwIfAborted(options.signal);
-
   const trimmedId = id.trim();
   if (!trimmedId) return;
 
-  updateRegisteredBackends((currentBackends) =>
-    currentBackends.filter((backend) => backend.id !== trimmedId),
-  );
+  try {
+    const response = await fetch(
+      `${SETUP_BACKENDS_ENDPOINT}/${encodeURIComponent(trimmedId)}`,
+      {
+        method: "DELETE",
+        headers: buildSetupHeaders(false),
+        signal: options.signal,
+      },
+    );
+
+    if (!response.ok) {
+      const message = await readSetupBackendsErrorMessage(response);
+      throw makeSetupError("delete", message, response.status);
+    }
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
+    if (error instanceof CloudBackendCredentialsError) throw error;
+    const message = await readThrownErrorMessage(error);
+    throw makeSetupError("delete", message);
+  }
 }
 
 export function makeDefaultOpenHandsCloudCredential(

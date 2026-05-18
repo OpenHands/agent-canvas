@@ -13,10 +13,7 @@ import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import * as activeBackendContext from "#/contexts/active-backend-context";
 import type { Backend } from "#/api/backend-registry/types";
-import {
-  __resetActiveStoreForTests,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { DEFAULT_OPENHANDS_CLOUD_HOST } from "#/utils/constants";
 
 afterEach(() => {
@@ -98,14 +95,22 @@ interface StoredCloudBackendFixture {
 function mockStoredCloudBackends(
   credentials: StoredCloudBackendFixture[] = [],
 ) {
-  setRegisteredBackends(
-    credentials.map((credential) => ({
-      id: credential.id,
-      name: credential.name,
-      host: credential.host,
-      kind: "cloud" as const,
-      apiKey: credential.cloudApiKey,
-    })),
+  server.use(
+    http.get("*/setup/backends", () =>
+      HttpResponse.json({
+        backends: credentials.map((credential) => ({
+          id: credential.id,
+          name: credential.name,
+          host: credential.host,
+          kind: "cloud",
+          api_key: credential.cloudApiKey,
+        })),
+      }),
+    ),
+    http.post("*/setup/backends", async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ backend: body });
+    }),
   );
 }
 
@@ -340,6 +345,13 @@ describe("LlmSettingsScreen", () => {
       }),
     );
     const proxyRequests = mockCloudProxy({ lmApiKey: "lm-api-key" });
+    let persistedCredential: Record<string, unknown> | null = null;
+    server.use(
+      http.post("*/setup/backends", async ({ request }) => {
+        persistedCredential = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ backend: persistedCredential });
+      }),
+    );
     vi.spyOn(window, "open").mockReturnValue({
       closed: false,
       close: vi.fn(),
@@ -354,8 +366,11 @@ describe("LlmSettingsScreen", () => {
     );
 
     await waitFor(() => {
-      expect(window.localStorage.getItem("openhands-backends")).toContain(
-        "cloud-api-key",
+      expect(persistedCredential).toEqual(
+        expect.objectContaining({
+          api_key: "cloud-api-key",
+          kind: "cloud",
+        }),
       );
     });
     expect(proxyRequests).toEqual(

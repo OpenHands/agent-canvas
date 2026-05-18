@@ -17,6 +17,10 @@ import {
   type BackendSelection,
   type ResolvedActiveBackend,
 } from "#/api/backend-registry/types";
+import {
+  deleteCloudBackendCredential,
+  saveCloudBackendCredential,
+} from "#/api/cloud-backend-credentials-service";
 
 interface ActiveBackendContextValue {
   backends: Backend[];
@@ -29,6 +33,30 @@ interface ActiveBackendContextValue {
 
 const ActiveBackendContext =
   React.createContext<ActiveBackendContextValue | null>(null);
+
+function persistCloudBackendCredential(backend: Backend): void {
+  if (backend.kind !== "cloud" || !backend.apiKey.trim()) return;
+
+  void saveCloudBackendCredential({
+    id: backend.id,
+    name: backend.name,
+    host: backend.host,
+    cloudApiKey: backend.apiKey,
+  }).catch((error) => {
+    console.error(
+      "Failed to persist OpenHands Cloud backend credential",
+      error,
+    );
+  });
+}
+
+function deletePersistedCloudBackendCredential(backend?: Backend): void {
+  if (backend?.kind !== "cloud") return;
+
+  void deleteCloudBackendCredential(backend.id).catch((error) => {
+    console.error("Failed to delete OpenHands Cloud backend credential", error);
+  });
+}
 
 function generateId(): string {
   if (
@@ -78,6 +106,7 @@ export function ActiveBackendProvider({
       const next: Backend = { ...backend, id: generateId() };
       const list = [...getRegisteredBackends(), next];
       setRegisteredBackends(list);
+      persistCloudBackendCredential(next);
       return next;
     },
     [],
@@ -89,7 +118,14 @@ export function ActiveBackendProvider({
       const list = getRegisteredBackends().map((b) =>
         b.id === id ? { ...b, ...patch } : b,
       );
+      const next = list.find((backend) => backend.id === id);
       setRegisteredBackends(list);
+
+      if (next?.kind === "cloud" && next.apiKey.trim()) {
+        persistCloudBackendCredential(next);
+      } else {
+        deletePersistedCloudBackendCredential(prev);
+      }
 
       // Re-arm health polling when the user edits the fields that
       // actually drive the probe. Cosmetic edits (name) shouldn't
@@ -110,8 +146,12 @@ export function ActiveBackendProvider({
   );
 
   const removeBackend = React.useCallback((id: string) => {
+    const removed = getRegisteredBackends().find(
+      (backend) => backend.id === id,
+    );
     const list = getRegisteredBackends().filter((b) => b.id !== id);
     setRegisteredBackends(list);
+    deletePersistedCloudBackendCredential(removed);
     dropBackendHealth(id);
     // If the active selection pointed at this backend, the active
     // store falls back to the first remaining local backend (or the

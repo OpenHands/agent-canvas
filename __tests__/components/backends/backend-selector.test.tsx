@@ -34,6 +34,11 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
   getCurrentCloudApiKey: vi.fn(),
 }));
 
+vi.mock("#/api/cloud-backend-credentials-service", () => ({
+  saveCloudBackendCredential: vi.fn().mockResolvedValue(undefined),
+  deleteCloudBackendCredential: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(),
 }));

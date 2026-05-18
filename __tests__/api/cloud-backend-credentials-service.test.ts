@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "#/mocks/node";
-import {
-  __resetActiveStoreForTests,
-  getRegisteredBackends,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
   deleteCloudBackendCredential,
   getOpenHandsProvidedLlmApiKey,
@@ -21,23 +17,29 @@ afterEach(() => {
 });
 
 describe("cloud backend credentials service", () => {
-  it("loads reusable Cloud credentials from the backend registry", async () => {
-    setRegisteredBackends([
-      {
-        id: "local-1",
-        name: "Local",
-        host: "http://localhost:18000",
-        apiKey: "local-key",
-        kind: "local",
-      },
-      {
-        id: "cloud-1",
-        name: "OpenHands Cloud",
-        host: `${DEFAULT_OPENHANDS_CLOUD_HOST}/`,
-        apiKey: "oh-key",
-        kind: "cloud",
-      },
-    ]);
+  it("loads reusable Cloud credentials from the setup backend", async () => {
+    server.use(
+      http.get("*/setup/backends", () =>
+        HttpResponse.json({
+          backends: [
+            {
+              id: "cloud-1",
+              name: "OpenHands Cloud",
+              host: `${DEFAULT_OPENHANDS_CLOUD_HOST}/`,
+              api_key: "oh-key",
+              kind: "cloud",
+            },
+            {
+              id: "local-1",
+              name: "Local",
+              host: "http://localhost:18000",
+              api_key: "local-key",
+              kind: "local",
+            },
+          ],
+        }),
+      ),
+    );
 
     await expect(getStoredCloudBackendCredentials()).resolves.toEqual([
       {
@@ -49,7 +51,15 @@ describe("cloud backend credentials service", () => {
     ]);
   });
 
-  it("saves a Cloud credential into the backend registry", async () => {
+  it("saves a Cloud credential through the setup backend", async () => {
+    let requestBody: unknown = null;
+    server.use(
+      http.post("*/setup/backends", async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json({ backend: requestBody });
+      }),
+    );
+
     await expect(
       saveCloudBackendCredential({
         id: "cloud-1",
@@ -64,65 +74,50 @@ describe("cloud backend credentials service", () => {
       cloudApiKey: "oh-key",
     });
 
-    expect(getRegisteredBackends()).toEqual(
-      expect.arrayContaining([
-        {
-          id: "cloud-1",
-          name: "OpenHands Cloud",
-          host: DEFAULT_OPENHANDS_CLOUD_HOST,
-          apiKey: "oh-key",
-          kind: "cloud",
-        },
-      ]),
-    );
+    expect(requestBody).toEqual({
+      id: "cloud-1",
+      name: "OpenHands Cloud",
+      host: DEFAULT_OPENHANDS_CLOUD_HOST,
+      api_key: "oh-key",
+      kind: "cloud",
+    });
   });
 
-  it("reuses an existing Cloud backend with the same host and key", async () => {
-    setRegisteredBackends([
-      {
-        id: "cloud-existing",
-        name: "Existing Cloud",
-        host: DEFAULT_OPENHANDS_CLOUD_HOST,
-        apiKey: "oh-key",
-        kind: "cloud",
-      },
-    ]);
+  it("surfaces setup backend save failures", async () => {
+    server.use(
+      http.post("*/setup/backends", () =>
+        HttpResponse.json({ error: "disk full" }, { status: 507 }),
+      ),
+    );
 
     await expect(
       saveCloudBackendCredential({
-        id: "openhands-cloud",
+        id: "cloud-1",
         name: "OpenHands Cloud",
         host: DEFAULT_OPENHANDS_CLOUD_HOST,
         cloudApiKey: "oh-key",
       }),
-    ).resolves.toEqual({
-      id: "cloud-existing",
-      name: "Existing Cloud",
-      host: DEFAULT_OPENHANDS_CLOUD_HOST,
-      cloudApiKey: "oh-key",
-    });
-
-    expect(getRegisteredBackends()).toHaveLength(1);
+    ).rejects.toThrow(
+      "Failed to save OpenHands Cloud credentials (507: disk full)",
+    );
   });
 
-  it("deletes a Cloud credential from the backend registry", async () => {
-    setRegisteredBackends([
-      {
-        id: "cloud-1",
-        name: "OpenHands Cloud",
-        host: DEFAULT_OPENHANDS_CLOUD_HOST,
-        apiKey: "oh-key",
-        kind: "cloud",
-      },
-    ]);
+  it("deletes a Cloud credential through the setup backend", async () => {
+    let deletedPath = "";
+    server.use(
+      http.delete("*/setup/backends/:id", ({ params }) => {
+        deletedPath = String(params.id);
+        return HttpResponse.json({ ok: true });
+      }),
+    );
 
     await expect(
       deleteCloudBackendCredential("cloud-1"),
     ).resolves.toBeUndefined();
-    expect(getRegisteredBackends()).toEqual([]);
+    expect(deletedPath).toBe("cloud-1");
   });
 
-  it("aborts registry operations when requested", async () => {
+  it("aborts setup backend operations when requested", async () => {
     const controller = new AbortController();
     controller.abort();
 

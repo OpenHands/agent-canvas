@@ -149,6 +149,23 @@ async function setupMocks({
             : input.url;
         const url = new URL(requestUrl, window.location.href);
 
+        if (url.pathname === "/setup/backends") {
+          if (!init?.method || init.method === "GET") {
+            return Response.json({
+              backends: storedCloudBackends.map((backend) => ({
+                ...backend,
+                kind: "cloud",
+              })),
+            });
+          }
+          if (init.method === "POST") {
+            const body =
+              typeof init.body === "string" ? JSON.parse(init.body) : {};
+            return Response.json({ backend: body });
+          }
+          return Response.json({ ok: true });
+        }
+
         if (url.pathname.endsWith("/api/cloud-proxy")) {
           const body =
             typeof init?.body === "string" ? JSON.parse(init.body) : {};
@@ -202,36 +219,20 @@ async function setupMocks({
         apiKey: "",
         kind: "local",
       };
-      const registeredBackends = [
-        localBackend,
-        ...(storedCloudBackends.length > 0
-          ? storedCloudBackends.map((backend) => ({
-              id: backend.id,
-              name: backend.name,
-              host: backend.host,
-              apiKey: backend.api_key,
-              kind: "cloud",
-            }))
-          : [
-              {
-                id: "snapshot-cloud",
-                name: "OpenHands Cloud",
-                host: "https://app.all-hands.dev",
-                apiKey: "",
-                kind: "cloud",
-              },
-            ]),
-      ];
+      const cloudBackend = {
+        id: "snapshot-cloud",
+        name: "OpenHands Cloud",
+        host: "https://app.all-hands.dev",
+        apiKey: "",
+        kind: "cloud",
+      };
       window.localStorage.setItem(
         "openhands-backends",
-        JSON.stringify(registeredBackends),
-      );
-      const activeCloudBackend = registeredBackends.find(
-        (backend) => backend.kind === "cloud",
+        JSON.stringify([localBackend, cloudBackend]),
       );
       window.localStorage.setItem(
         "openhands-active-backend",
-        JSON.stringify({ backendId: activeCloudBackend?.id, orgId: null }),
+        JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
       );
     },
     { storedCloudBackends, cloudProxyMode },
