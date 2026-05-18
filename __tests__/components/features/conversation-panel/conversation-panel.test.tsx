@@ -1283,31 +1283,28 @@ describe("ConversationPanel", () => {
       ).toHaveTextContent("main");
     });
 
-    it("delete-all confirms then deletes every older conversation", async () => {
+    it("delete-all is enabled when no conversations are older than the cutoff and deletes every loaded conversation", async () => {
       const user = userEvent.setup();
       const deleteSpy = vi
         .spyOn(AgentServerConversationService, "deleteConversation")
         .mockResolvedValue();
 
+      // Fixture: only recent conversations (none older than 1h). Before the
+      // fix the "Delete all" button was disabled in this state.
       vi.spyOn(
         AgentServerConversationService,
         "searchConversations",
       ).mockResolvedValue({
         items: [
           createMockConversation({
-            id: "recent",
-            title: "Recent",
+            id: "recent-1",
+            title: "Recent 1",
             updated_at: recentIso(),
           }),
           createMockConversation({
-            id: "old1",
-            title: "Old 1",
-            updated_at: olderIso(),
-          }),
-          createMockConversation({
-            id: "old2",
-            title: "Old 2",
-            updated_at: olderIso(),
+            id: "recent-2",
+            title: "Recent 2",
+            updated_at: recentIso(),
           }),
         ],
         next_page_id: null,
@@ -1317,29 +1314,31 @@ describe("ConversationPanel", () => {
       await screen.findAllByTestId("conversation-card");
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("delete-older-conversations"));
+      const deleteAllButton = await screen.findByTestId(
+        "delete-all-conversations",
+      );
+      expect(deleteAllButton).toBeEnabled();
 
-      const confirmButton = await screen.findByRole("button", {
-        name: /confirm/i,
-      });
-      expect(confirmButton).toBeInTheDocument();
-
-      await user.click(confirmButton);
+      await user.click(deleteAllButton);
+      await user.click(await screen.findByRole("button", { name: /confirm/i }));
 
       await waitFor(() => {
         expect(deleteSpy).toHaveBeenCalledTimes(2);
       });
-      expect(deleteSpy).toHaveBeenCalledWith("old1");
-      expect(deleteSpy).toHaveBeenCalledWith("old2");
+      expect(deleteSpy).toHaveBeenCalledWith("recent-1");
+      expect(deleteSpy).toHaveBeenCalledWith("recent-2");
     });
 
-    it("shows an error toast and still navigates away when the active older conversation was deleted successfully", async () => {
+    it("navigates away after the active conversation is deleted successfully even when another deletion fails", async () => {
       const user = userEvent.setup();
       const navigate = vi.fn();
       const deleteSpy = vi
         .spyOn(AgentServerConversationService, "deleteConversation")
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("delete failed"));
+        .mockImplementation(async (conversationId: string) => {
+          if (conversationId === "old2") {
+            throw new Error("delete failed");
+          }
+        });
 
       vi.spyOn(
         AgentServerConversationService,
@@ -1365,33 +1364,36 @@ describe("ConversationPanel", () => {
         next_page_id: null,
       });
 
+      // Active conversation is "old1" — it is among the conversations that
+      // get deleted successfully, so we should navigate away.
       renderConversationPanel({
         navigation: { conversationId: "old1", navigate },
       });
       await screen.findAllByTestId("conversation-card");
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("delete-older-conversations"));
+      await user.click(screen.getByTestId("delete-all-conversations"));
       await user.click(await screen.findByRole("button", { name: /confirm/i }));
 
       await waitFor(() => {
-        expect(deleteSpy).toHaveBeenCalledTimes(2);
+        expect(deleteSpy).toHaveBeenCalledTimes(3);
       });
-      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
-      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
       expect(displayErrorToast).toHaveBeenCalledWith(
         "1 conversation could not be deleted.",
       );
       expect(navigate).toHaveBeenCalledWith("/conversations");
     });
 
-    it("does not navigate away when the active older conversation fails to delete", async () => {
+    it("does not navigate away when the active conversation fails to delete", async () => {
       const user = userEvent.setup();
       const navigate = vi.fn();
       const deleteSpy = vi
         .spyOn(AgentServerConversationService, "deleteConversation")
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("delete failed"));
+        .mockImplementation(async (conversationId: string) => {
+          if (conversationId === "old1") {
+            throw new Error("delete failed");
+          }
+        });
 
       vi.spyOn(
         AgentServerConversationService,
@@ -1417,20 +1419,20 @@ describe("ConversationPanel", () => {
         next_page_id: null,
       });
 
+      // Active conversation is "old1" — its deletion fails, so we must
+      // not navigate away from it.
       renderConversationPanel({
-        navigation: { conversationId: "old2", navigate },
+        navigation: { conversationId: "old1", navigate },
       });
       await screen.findAllByTestId("conversation-card");
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("delete-older-conversations"));
+      await user.click(screen.getByTestId("delete-all-conversations"));
       await user.click(await screen.findByRole("button", { name: /confirm/i }));
 
       await waitFor(() => {
-        expect(deleteSpy).toHaveBeenCalledTimes(2);
+        expect(deleteSpy).toHaveBeenCalledTimes(3);
       });
-      expect(deleteSpy).toHaveBeenNthCalledWith(1, "old1");
-      expect(deleteSpy).toHaveBeenNthCalledWith(2, "old2");
       expect(displayErrorToast).toHaveBeenCalledWith(
         "1 conversation could not be deleted.",
       );

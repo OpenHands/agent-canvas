@@ -93,8 +93,8 @@ export interface ConversationPanelFilterMenuProps {
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
   toggleShowLlmProfiles: () => void;
-  olderConversationsCount: number;
-  onRequestDeleteOlder: () => void;
+  totalConversationsCount: number;
+  onRequestDeleteAll: () => void;
 }
 
 export function ConversationPanelFilterMenu({
@@ -114,8 +114,8 @@ export function ConversationPanelFilterMenu({
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
   toggleShowLlmProfiles,
-  olderConversationsCount,
-  onRequestDeleteOlder,
+  totalConversationsCount,
+  onRequestDeleteAll,
 }: ConversationPanelFilterMenuProps) {
   const { t } = useTranslation("openhands");
 
@@ -255,18 +255,20 @@ export function ConversationPanelFilterMenu({
               ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
               : capitalizeLabel(t(I18nKey.CONVERSATION$SHOW_ALL))}
           </button>
+
+          <MenuSeparator />
           <button
             type="button"
-            data-testid="delete-older-conversations"
-            disabled={olderConversationsCount === 0}
+            data-testid="delete-all-conversations"
+            disabled={totalConversationsCount === 0}
             onClick={() => {
-              if (olderConversationsCount === 0) return;
-              onRequestDeleteOlder();
+              if (totalConversationsCount === 0) return;
+              onRequestDeleteAll();
               setFilterMenuOpen(false);
             }}
             className={cn(
               "block w-full rounded px-2 py-2 text-left text-sm hover:bg-[var(--oh-interactive-hover)]",
-              olderConversationsCount === 0
+              totalConversationsCount === 0
                 ? "cursor-not-allowed text-[var(--oh-muted)]"
                 : "text-danger",
             )}

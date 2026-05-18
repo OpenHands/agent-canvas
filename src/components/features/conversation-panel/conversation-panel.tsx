@@ -94,7 +94,7 @@ export function ConversationPanel({
     confirmExitConversationModalVisible,
     setConfirmExitConversationModalVisible,
   ] = React.useState(false);
-  const [confirmDeleteOlderVisible, setConfirmDeleteOlderVisible] =
+  const [confirmDeleteAllVisible, setConfirmDeleteAllVisible] =
     React.useState(false);
   const showOlderConversations = useConversationPanelPreferencesStore(
     (state) => state.showOlderConversations,
@@ -342,8 +342,8 @@ export function ConversationPanel({
     }
   };
 
-  const handleConfirmDeleteOlder = async () => {
-    const idsToDelete = olderScoped.map((c) => c.id);
+  const handleConfirmDeleteAll = async () => {
+    const idsToDelete = conversations.map((c) => c.id);
     const results = await Promise.allSettled(
       idsToDelete.map((conversationId) =>
         deleteConversationAsync({ conversationId }),
@@ -512,8 +512,8 @@ export function ConversationPanel({
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
                 showLlmProfiles={showLlmProfiles}
                 toggleShowLlmProfiles={toggleShowLlmProfiles}
-                olderConversationsCount={olderScoped.length}
-                onRequestDeleteOlder={() => setConfirmDeleteOlderVisible(true)}
+                totalConversationsCount={conversations.length}
+                onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
               />
             </div>
           </div>
@@ -673,17 +673,17 @@ export function ConversationPanel({
         />
       )}
 
-      {confirmDeleteOlderVisible && (
+      {confirmDeleteAllVisible && (
         <ConfirmDeleteModal
-          title={t(I18nKey.CONVERSATION$CONFIRM_DELETE_OLDER_TITLE)}
-          description={t(I18nKey.CONVERSATION$CONFIRM_DELETE_OLDER_DESC, {
-            count: olderScoped.length,
+          title={t(I18nKey.CONVERSATION$CONFIRM_DELETE_ALL_TITLE)}
+          description={t(I18nKey.CONVERSATION$CONFIRM_DELETE_ALL_DESC, {
+            count: conversations.length,
           })}
           onConfirm={async () => {
-            await handleConfirmDeleteOlder();
-            setConfirmDeleteOlderVisible(false);
+            await handleConfirmDeleteAll();
+            setConfirmDeleteAllVisible(false);
           }}
-          onCancel={() => setConfirmDeleteOlderVisible(false)}
+          onCancel={() => setConfirmDeleteAllVisible(false)}
         />
       )}
 
