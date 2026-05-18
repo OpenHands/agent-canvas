@@ -259,4 +259,66 @@ describe("AgentSettingsScreen", () => {
     // the Custom preset.
     expect(call.agent_settings_diff?.acp_server).toBe("custom");
   });
+
+  it("preserves the registry default when acp_command:[] + non-empty acp_args is loaded", async () => {
+    // Regression guard for the data-corruption bug:
+    //
+    //   stored: acp_server: 'claude-code', acp_command: [], acp_args:
+    //           ['--extra-arg']
+    //   actual spawn: ['npx', '-y', '@agentclientprotocol/claude-agent-acp',
+    //                  '--extra-arg']
+    //
+    // The form used to merge acp_command + acp_args literally and would
+    // show only ``--extra-arg`` in the textarea. Saving then sent
+    // ``acp_command: ['--extra-arg']`` and flipped the preset to
+    // ``custom``, silently dropping the registry-default prefix.
+    // The load path must expand the default *before* merging with args.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_args: ["--extra-arg"],
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+    expect(cmd.value).toBe(
+      "npx -y @agentclientprotocol/claude-agent-acp --extra-arg",
+    );
+
+    // Touch the form to mark it dirty (Save is disabled until isDirty),
+    // then submit. The data the form sends has to carry the registry-
+    // default prefix the user can now SEE in the textarea, not the bare
+    // ``--extra-arg`` that was stored.
+    await user.click(cmd);
+    await user.keyboard("{End} ");
+    await user.keyboard("{Backspace}");
+
+    await user.click(screen.getByTestId("agent-save-button"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_server).toBe("custom");
+    expect(call.agent_settings_diff?.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@agentclientprotocol/claude-agent-acp",
+      "--extra-arg",
+    ]);
+    // ``acp_args: []`` resets the API-set args so they don't double up
+    // at spawn time.
+    expect(call.agent_settings_diff?.acp_args).toEqual([]);
+  });
 });

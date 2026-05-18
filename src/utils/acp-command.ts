@@ -62,6 +62,15 @@ const SHELL_UNSAFE = /[\s"'\\$`&|;<>(){}*?#!~[\]]/;
  */
 export function formatCommand(command: readonly string[]): string {
   return command
-    .map((tok) => (SHELL_UNSAFE.test(tok) ? quote([tok]) : tok))
+    .map((tok) =>
+      // Quote any token that:
+      //   * contains a shell-significant character (whitespace, quotes,
+      //     redirects, …), so it doesn't get re-split on parse, OR
+      //   * is the empty string — without explicit quoting,
+      //     ``["bash", "-c", ""]`` would render as ``"bash -c "`` and
+      //     round-trip back to ``["bash", "-c"]``, silently dropping
+      //     the (rare but valid) empty argument.
+      SHELL_UNSAFE.test(tok) || tok === "" ? quote([tok]) : tok,
+    )
     .join(" ");
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
@@ -8,6 +8,26 @@ import { SettingsNavigation } from "#/components/features/settings/settings-navi
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+
+// HeroUI's Tooltip (the engine behind ``StyledTooltip``) only mounts
+// its content when the trigger is interacted with via real-DOM events.
+// jsdom + userEvent.hover doesn't reliably fire that, so we stub the
+// wrapper to render its content eagerly — every test below can then
+// assert "the tooltip would say X" by looking for X in the DOM.
+vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
+  StyledTooltip: ({
+    content,
+    children,
+  }: {
+    content: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <>
+      {children}
+      <span data-testid="styled-tooltip-content">{content}</span>
+    </>
+  ),
+}));
 
 const llmItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings")!;
 const condenserItem = OSS_NAV_ITEMS.find(
@@ -140,5 +160,58 @@ describe("SettingsNavigation", () => {
       "sidebar-settings-/settings",
     );
     expect(llmLink).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("wraps disabled-by-ACP desktop items in the explanatory tooltip", () => {
+    // The mobile drawer already builds + shows this string ("Disabled
+    // while Claude Code is active"); the desktop sidebar used to just
+    // grey the item out with no explanation. SettingsDesktopSidebar
+    // now formats the i18n string and forwards it as ``disabledReason``
+    // to SidebarNavLink, which wraps the link in StyledTooltip when
+    // both flags are set.
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[
+          {
+            type: "item",
+            item: condenserItem,
+            disabled: true,
+            disabledAgentName: "Claude Code",
+          },
+        ]}
+      />,
+    );
+
+    // The StyledTooltip mock above renders its ``content`` prop into a
+    // <span data-testid="styled-tooltip-content">…</span>. Its presence
+    // proves SidebarNavLink wrapped the link with the explanatory
+    // tooltip — i.e. ``disabledReason`` was forwarded. (We can't
+    // assert on the resolved string content because the test
+    // environment returns raw i18n keys without interpolation; the
+    // wiring itself is what we care about. The enabled-control test
+    // below verifies the wrap doesn't appear without the prop.)
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+    expect(
+      within(desktopNav).queryByTestId("styled-tooltip-content"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not wrap enabled items in a tooltip on the desktop sidebar", () => {
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[{ type: "item", item: condenserItem }]}
+      />,
+    );
+    // No ``disabled`` + no ``disabledReason`` → SidebarNavLink returns
+    // the bare NavigationLink (no StyledTooltip wrap), so the mock's
+    // marker element doesn't appear at all.
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+    expect(
+      within(desktopNav).queryByTestId("styled-tooltip-content"),
+    ).not.toBeInTheDocument();
   });
 });

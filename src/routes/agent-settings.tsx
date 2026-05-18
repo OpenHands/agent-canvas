@@ -76,18 +76,32 @@ function AgentSettingsScreen() {
     if (kind === "acp") {
       setAgentType("acp");
 
-      const tokens = [
-        ...toStringArray(settings.agent_settings?.acp_command),
-        ...toStringArray(settings.agent_settings?.acp_args),
-      ];
-      const joined = tokens.join(" ");
+      // Reconstruct the textarea contents from the persisted settings:
+      //
+      //   spawn = acp_command + acp_args
+      //
+      // BUT acp_command may be the "default-preset shortcut" ``[]``, with
+      // the real command living in the registry under ``acp_server``.
+      // Without expanding the default before merging, a user with
+      // ``acp_command: []`` + ``acp_args: ["--extra-arg"]`` would see
+      // just ``--extra-arg`` in the textarea (no prefix), and saving
+      // would persist ``acp_command: ["--extra-arg"]`` + flip the
+      // preset to ``custom`` — silently losing the registry-default
+      // prefix. Expand first, then merge.
       const rawAcpServer = settings.agent_settings?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
       const provider = ACP_PROVIDERS.find(({ key }) => key === acpServer);
-      const effectiveCommand =
-        joined || formatCommand(provider?.default_command ?? []);
-      setCommandText(effectiveCommand);
+      const storedCommand = toStringArray(settings.agent_settings?.acp_command);
+      const effectiveBaseCommand =
+        storedCommand.length > 0
+          ? storedCommand
+          : (provider?.default_command ?? []);
+      const tokens = [
+        ...effectiveBaseCommand,
+        ...toStringArray(settings.agent_settings?.acp_args),
+      ];
+      setCommandText(tokens.length > 0 ? formatCommand(tokens) : "");
 
       const savedModel = settings.agent_settings?.acp_model;
       setAcpModel(typeof savedModel === "string" ? savedModel : "");

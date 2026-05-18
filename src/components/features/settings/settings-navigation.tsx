@@ -59,6 +59,13 @@ export function SettingsDesktopSidebar({
             // desktop. The clientLoader-side redirect in ``routes/
             // settings.tsx`` handles direct URL navigation.
             disabled={renderedItem.disabled}
+            disabledReason={
+              renderedItem.disabled && renderedItem.disabledAgentName
+                ? t(I18nKey.SETTINGS$AGENT_DISABLED_TOOLTIP, {
+                    agentName: renderedItem.disabledAgentName,
+                  })
+                : undefined
+            }
           />
         ))}
       </div>

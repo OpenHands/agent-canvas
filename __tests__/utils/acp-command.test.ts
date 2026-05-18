@@ -47,6 +47,20 @@ describe("parseCommand", () => {
     ]);
   });
 
+  it.each([
+    // Each operator becomes a ``{op}`` entry from shell-quote that the
+    // string filter drops — only the bare-string tokens survive. We
+    // cover the common operators a user might type ahead of switching
+    // to a ``bash -c`` wrapper.
+    ["pipe", "npx a | tee log", ["npx", "a", "tee", "log"]],
+    ["semicolon", "npx a ; npx b", ["npx", "a", "npx", "b"]],
+    ["and", "npx a && npx b", ["npx", "a", "npx", "b"]],
+    ["or", "npx a || npx b", ["npx", "a", "npx", "b"]],
+    ["append redirect", "npx a >> log", ["npx", "a", "log"]],
+  ])("filters %s operator out of the argv", (_label, input, expected) => {
+    expect(parseCommand(input)).toEqual(expected);
+  });
+
   it("treats blank input as an empty argv", () => {
     expect(parseCommand("")).toEqual([]);
     expect(parseCommand("   \t\n   ")).toEqual([]);
@@ -80,6 +94,12 @@ describe("formatCommand", () => {
       ["bash", "-c", "echo hello world"],
       ["env", "FOO=bar baz", "npx", "-y", "my-acp"],
       ["./bin/my-agent", "--flag=value"],
+      // Empty-string tokens are rare but valid (some CLIs treat an
+      // empty positional as "no argument supplied" rather than missing).
+      // Without explicit quoting in formatCommand they round-trip back
+      // as fewer tokens, silently dropping the empty slot.
+      ["bash", "-c", ""],
+      ["program", "", "--flag"],
     ];
     for (const argv of cases) {
       expect(parseCommand(formatCommand(argv))).toEqual(argv);
@@ -88,5 +108,12 @@ describe("formatCommand", () => {
 
   it("renders an empty argv as an empty string", () => {
     expect(formatCommand([])).toBe("");
+  });
+
+  it("explicitly quotes empty-string tokens so they survive the round trip", () => {
+    // Direct assertion on the rendered form — without this rule,
+    // formatCommand(["bash","-c",""]) would render ``"bash -c "`` and
+    // parseCommand would return ``["bash", "-c"]``, losing the empty arg.
+    expect(formatCommand(["bash", "-c", ""])).toBe("bash -c ''");
   });
 });
