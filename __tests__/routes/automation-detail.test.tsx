@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 
@@ -13,10 +13,8 @@ import {
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import AutomationDetail from "#/routes/automation-detail";
 import type { Backend } from "#/api/backend-registry/types";
-import type {
-  Automation,
-  AutomationRunsResponse,
-} from "#/types/automation";
+import { AutomationRunStatus } from "#/types/automation";
+import type { Automation, AutomationRunsResponse } from "#/types/automation";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
@@ -24,6 +22,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     getAutomationRuns: vi.fn(),
     toggleAutomation: vi.fn(),
     deleteAutomation: vi.fn(),
+    dispatchAutomation: vi.fn(),
     checkHealth: vi.fn(),
   },
 }));
@@ -83,6 +82,16 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   vi.mocked(AutomationService.checkHealth).mockReset();
   vi.mocked(AutomationService.checkHealth).mockResolvedValue({ status: "ok" });
+  vi.mocked(AutomationService.dispatchAutomation).mockReset();
+  vi.mocked(AutomationService.dispatchAutomation).mockResolvedValue({
+    id: "run-1",
+    status: AutomationRunStatus.PENDING,
+    conversation_id: null,
+    error_detail: null,
+    started_at: "2026-01-02T00:00:00Z",
+    completed_at: null,
+  });
+
   vi.mocked(AutomationService.getAutomation).mockReset();
   vi.mocked(AutomationService.getAutomation).mockResolvedValue(automation);
   vi.mocked(AutomationService.getAutomationRuns).mockReset();
@@ -118,5 +127,19 @@ describe("AutomationDetail — backend-change guard", () => {
       setTimeout(resolve, 50);
     });
     expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispatches the automation when Run now is clicked", async () => {
+    renderDetail();
+
+    const runNow = await screen.findByRole("button", { name: "Run now" });
+    fireEvent.click(runNow);
+
+    await waitFor(() => {
+      expect(AutomationService.dispatchAutomation).toHaveBeenCalledWith(
+        "auto-1",
+      );
+    });
+    expect(AutomationService.dispatchAutomation).toHaveBeenCalledTimes(1);
   });
 });

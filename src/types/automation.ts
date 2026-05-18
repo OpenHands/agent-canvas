@@ -11,6 +11,8 @@ export interface Automation {
   enabled: boolean;
   repository?: string;
   model?: string;
+  llm_profile?: string | null;
+
   created_at: string;
   updated_at: string;
   prompt: string | null;

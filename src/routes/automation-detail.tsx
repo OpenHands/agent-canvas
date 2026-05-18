@@ -5,6 +5,7 @@ import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
   useDeleteAutomation,
+  useDispatchAutomation,
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -58,6 +59,7 @@ export default function AutomationDetail() {
 
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
+  const dispatchMutation = useDispatchAutomation();
 
   const is404 =
     isError && isAxiosError(error) && error.response?.status === 404;
@@ -129,6 +131,10 @@ export default function AutomationDetail() {
     });
   };
 
+  const handleRunNow = () => {
+    dispatchMutation.mutate(automation.id);
+  };
+
   return (
     <div className="min-h-full">
       <div className="p-6 max-w-4xl mx-auto">
@@ -138,6 +144,8 @@ export default function AutomationDetail() {
             automation={automation}
             onToggle={handleToggle}
             onDelete={() => setShowDeleteModal(true)}
+            onRunNow={handleRunNow}
+            isRunningNow={dispatchMutation.isPending}
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
           <ConfigurationSection automation={automation} />
