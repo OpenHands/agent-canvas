@@ -2,7 +2,7 @@ import { cn } from "#/utils/utils";
 
 interface ToolsContextMenuIconTextProps {
   icon: React.ReactNode;
-  text: string;
+  text: React.ReactNode;
   rightIcon?: React.ReactNode;
   className?: string;
 }
@@ -16,13 +16,13 @@ export function ToolsContextMenuIconText({
   return (
     <div
       className={cn(
-        "flex items-center justify-between p-2 hover:bg-[#5C5D62] rounded",
+        "flex items-center justify-between p-2 hover:bg-[var(--oh-interactive-hover)] rounded",
         className,
       )}
     >
       <div className="flex items-center gap-2">
         {icon}
-        {text}
+        <span className="text-sm font-normal leading-5">{text}</span>
       </div>
       {rightIcon && <div className="flex items-center">{rightIcon}</div>}
     </div>

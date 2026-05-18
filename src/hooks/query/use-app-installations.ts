@@ -36,7 +36,7 @@ export const useAppInstallations = (selectedProvider: Provider | null) => {
       !!selectedProvider &&
       // Gate on providers length too: when settings haven't yet told
       // us which providers the user has connected we must not fire,
-      // otherwise we'd hit the SaaS for a provider it can't service.
+      // otherwise we'd hit the cloud backend for a provider it can't service.
       providers.length > 0 &&
       shouldUseInstallationRepos(selectedProvider, active.backend.kind),
     staleTime: 1000 * 60 * 5, // 5 minutes

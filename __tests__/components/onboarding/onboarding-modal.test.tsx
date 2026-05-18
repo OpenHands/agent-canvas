@@ -96,24 +96,9 @@ describe("OnboardingModal", () => {
       screen.getByTestId("onboarding-step-choose-agent"),
     ).toBeInTheDocument();
 
-    // Active slide sits at offset 0; later slides are translated 100%
-    // per index away to the right and absolute-positioned so they
-    // don't bleed into the modal box.
     expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
       "data-active",
       "true",
-    );
-    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
-      "translateX(0%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
-      "translateX(100%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
-      "translateX(200%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
-      "translateX(300%)",
     );
 
     // Progress bar reflects step 1 of 4.
@@ -148,15 +133,6 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
-      "translateX(-100%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
-      "translateX(0%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
-      "translateX(100%)",
-    );
 
     // Once the backend health probe resolves, step 1's Next is enabled.
     await waitFor(() =>
@@ -182,9 +158,6 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
-      "translateX(0%)",
-    );
   });
 
   it("Skip immediately closes the modal", async () => {
@@ -203,7 +176,7 @@ describe("OnboardingModal", () => {
 
     // Assert: the slide rail lives inside the scroll region. Long step
     // content overflows this region rather than the modal itself, so
-    // the progress bar and Skip control above it never scroll away.
+    // the progress bar above it never scrolls away. Skip sits below the modal.
     const scrollArea = screen.getByTestId("onboarding-scroll-area");
     const rail = screen.getByTestId("onboarding-slide-rail");
     expect(scrollArea.contains(rail)).toBe(true);

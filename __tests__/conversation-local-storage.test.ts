@@ -30,7 +30,6 @@ describe("conversation localStorage utilities", () => {
 
       expect(state.conversationMode).toBe("code");
       expect(state.selectedTab).toBe("files");
-      expect(state.rightPanelShown).toBe(true);
       expect(
         localStorage.getItem(
           `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-task-uuid-123`,
@@ -49,7 +48,53 @@ describe("conversation localStorage utilities", () => {
 
       expect(state.conversationMode).toBe("plan");
       expect(state.selectedTab).toBe("terminal");
-      expect(state.rightPanelShown).toBe(true);
+    });
+
+    it("silently drops the legacy rightPanelShown field from older persisted blobs", () => {
+      // Older builds persisted the right-drawer state alongside the
+      // selected tab. The schema no longer carries that field — verify
+      // the read path strips it instead of leaking the unknown property
+      // onto consumers (and that legacy `false` values don't somehow
+      // pin the panel closed forever).
+      const conversationId = "conv-legacy-right-panel";
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          selectedTab: "terminal",
+          rightPanelShown: false,
+          unpinnedTabs: ["browser"],
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      expect(state.selectedTab).toBe("terminal");
+      expect(state.unpinnedTabs).toEqual(["browser"]);
+      expect(state).not.toHaveProperty("rightPanelShown");
+    });
+
+    it("also drops legacy rightPanelShown: true (not just the falsy variant)", () => {
+      // Older builds could persist either boolean. The previous test
+      // covered `false`; this one covers `true` so an upgrading user
+      // with the drawer open can't have it leak through into the new
+      // schema either.
+      const conversationId = "conv-legacy-right-panel-true";
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          selectedTab: "terminal",
+          rightPanelShown: true,
+          unpinnedTabs: ["browser"],
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      expect(state.selectedTab).toBe("terminal");
+      expect(state.unpinnedTabs).toEqual(["browser"]);
+      expect(state).not.toHaveProperty("rightPanelShown");
     });
 
     it("returns default state when key is missing or invalid", () => {
@@ -86,13 +131,11 @@ describe("conversation localStorage utilities", () => {
     it("removes the consolidated conversation-state localStorage entry", () => {
       const conversationId = "conv-123";
 
-      // Set up the consolidated key
       const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
       localStorage.setItem(
         consolidatedKey,
         JSON.stringify({
           selectedTab: "editor",
-          rightPanelShown: true,
           unpinnedTabs: [],
         }),
       );
@@ -116,7 +159,6 @@ describe("conversation localStorage utilities", () => {
 
       expect(state.subConversationTaskId).toBeNull();
       expect(state.selectedTab).toBe("files");
-      expect(state.rightPanelShown).toBe(true);
       expect(state.unpinnedTabs).toEqual([]);
     });
 
@@ -129,7 +171,6 @@ describe("conversation localStorage utilities", () => {
         consolidatedKey,
         JSON.stringify({
           selectedTab: "editor",
-          rightPanelShown: true,
           unpinnedTabs: [],
           subConversationTaskId: taskId,
         }),
@@ -155,7 +196,6 @@ describe("conversation localStorage utilities", () => {
 
       expect(state.subConversationTaskId).toBe("task-123");
       expect(state.selectedTab).toBe("files");
-      expect(state.rightPanelShown).toBe(true);
       expect(state.unpinnedTabs).toEqual([]);
     });
 
@@ -168,7 +208,6 @@ describe("conversation localStorage utilities", () => {
         consolidatedKey,
         JSON.stringify({
           selectedTab: "editor",
-          rightPanelShown: true,
           unpinnedTabs: [],
         }),
       );
@@ -193,7 +232,6 @@ describe("conversation localStorage utilities", () => {
         consolidatedKey,
         JSON.stringify({
           selectedTab: "files",
-          rightPanelShown: true,
           unpinnedTabs: ["editor", "changes", "served", "app", "terminal"],
         }),
       );
@@ -232,7 +270,6 @@ describe("conversation localStorage utilities", () => {
         consolidatedKey,
         JSON.stringify({
           selectedTab: "browser",
-          rightPanelShown: false,
           unpinnedTabs: ["tab-1"],
           subConversationTaskId: "old-task-id",
         }),
@@ -248,7 +285,6 @@ describe("conversation localStorage utilities", () => {
 
       expect(parsed.subConversationTaskId).toBe("new-task-id");
       expect(parsed.selectedTab).toBe("browser");
-      expect(parsed.rightPanelShown).toBe(false);
       expect(parsed.unpinnedTabs).toEqual(["tab-1"]);
     });
 
@@ -372,7 +408,6 @@ describe("conversation localStorage utilities", () => {
           consolidatedKey,
           JSON.stringify({
             selectedTab: "terminal",
-            rightPanelShown: false,
             unpinnedTabs: ["tab-1", "tab-2"],
             conversationMode: "plan",
             subConversationTaskId: "task-123",
@@ -390,7 +425,6 @@ describe("conversation localStorage utilities", () => {
 
         expect(parsed.draftMessage).toBe("Updated draft");
         expect(parsed.selectedTab).toBe("terminal");
-        expect(parsed.rightPanelShown).toBe(false);
         expect(parsed.unpinnedTabs).toEqual(["tab-1", "tab-2"]);
         expect(parsed.conversationMode).toBe("plan");
         expect(parsed.subConversationTaskId).toBe("task-123");

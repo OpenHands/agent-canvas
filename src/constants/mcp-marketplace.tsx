@@ -150,7 +150,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
     logo: <SiGithub className={LOGO} />,
-    iconBg: "#24292F",
+    iconBg: "var(--oh-surface)",
     keywords: ["git", "pr", "repo", "issues", "code"],
     template: {
       kind: "stdio",
@@ -407,7 +407,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Ask grounded questions about any public GitHub repository via Devin's DeepWiki MCP.",
     docsUrl: "https://docs.devin.ai/work-with-devin/deepwiki-mcp",
     logo: <BookOpen className={LOGO} />,
-    iconBg: "#0B0E14",
+    iconBg: "var(--oh-color-base)",
     keywords: ["devin", "code", "wiki", "github", "docs", "qa"],
     template: {
       kind: "sse",
@@ -517,7 +517,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Neural web search with semantic ranking, content extraction, and similar-page lookup.",
     docsUrl: "https://docs.exa.ai/reference/exa-mcp",
     logo: <Telescope className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#1F1F1F",
+    iconBg: "var(--oh-surface)",
     keywords: ["search", "web", "research", "neural"],
     template: {
       kind: "stdio",
@@ -590,7 +590,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
     logo: <Globe className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#4B5563",
+    iconBg: "var(--oh-interactive-hover)",
     keywords: ["http", "web", "url", "scrape"],
     template: {
       kind: "stdio",
@@ -736,7 +736,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl: "https://neon.com/docs/ai/neon-mcp-server",
     logo: <Database className={LOGO} strokeWidth={2.25} />,
     iconBg: "#00E599",
-    iconColor: "#0A0A0A",
+    iconColor: "var(--oh-surface-deep)",
     keywords: ["database", "postgres", "serverless"],
     template: {
       kind: "stdio",
@@ -847,7 +847,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
     logo: <Folder className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#525B6F",
+    iconBg: "var(--oh-interactive-hover)",
     availability: "local",
     keywords: ["files", "local", "disk"],
     installHint:
@@ -895,7 +895,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
     logo: <ListTree className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#0F172A",
+    iconBg: "var(--oh-color-base)",
     keywords: ["reasoning", "planning", "thoughts"],
     template: {
       kind: "stdio",
@@ -912,7 +912,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl:
       "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
     logo: <Clock className={LOGO} strokeWidth={2.25} />,
-    iconBg: "#1F2937",
+    iconBg: "var(--oh-surface)",
     keywords: ["clock", "timezone", "date"],
     template: {
       kind: "stdio",
@@ -971,7 +971,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
     logo: <BookOpen className={LOGO} strokeWidth={2.25} />,
     iconBg: "#FF9900",
-    iconColor: "#0A0A0A",
+    iconColor: "var(--oh-surface-deep)",
     keywords: ["aws", "bedrock", "rag", "knowledge"],
     template: {
       kind: "stdio",
@@ -1010,7 +1010,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Read Figma frames, components, and styles to ground UI work in your designs.",
     docsUrl: "https://github.com/GLips/Figma-Context-MCP",
     logo: <SiFigma className={LOGO} />,
-    iconBg: "#1E1E1E",
+    iconBg: "var(--oh-surface)",
     keywords: ["design", "ui", "frames", "components"],
     template: {
       kind: "stdio",
@@ -1035,7 +1035,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl: "https://github.com/domdomegg/airtable-mcp-server",
     logo: <SiAirtable className={LOGO} />,
     iconBg: "#FCB400",
-    iconColor: "#0A0A0A",
+    iconColor: "var(--oh-surface-deep)",
     keywords: ["spreadsheet", "database", "records", "bases"],
     template: {
       kind: "stdio",
@@ -1085,7 +1085,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
       "Generate speech, clone voices, and transcribe audio via ElevenLabs.",
     docsUrl: "https://elevenlabs.io/docs/api-reference/mcp",
     logo: <SiElevenlabs className={LOGO} />,
-    iconBg: "#0F0F0F",
+    iconBg: "var(--oh-color-base)",
     keywords: ["tts", "speech", "voice", "audio"],
     template: {
       kind: "stdio",
@@ -1108,7 +1108,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     description: "Send transactional and marketing emails via the Resend API.",
     docsUrl: "https://resend.com/docs/send-with-mcp",
     logo: <SiResend className={LOGO} />,
-    iconBg: "#0A0A0A",
+    iconBg: "var(--oh-surface-deep)",
     keywords: ["email", "transactional", "smtp"],
     template: {
       kind: "stdio",
@@ -1170,7 +1170,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl: "https://help.kagi.com/kagi/api/mcp.html",
     logo: <SiKagi className={LOGO} />,
     iconBg: "#FFB319",
-    iconColor: "#0A0A0A",
+    iconColor: "var(--oh-surface-deep)",
     keywords: ["search", "web", "privacy"],
     template: {
       kind: "stdio",
@@ -1194,7 +1194,7 @@ export const MCP_MARKETPLACE: MarketplaceEntry[] = [
     docsUrl: "https://github.com/ClickHouse/mcp-clickhouse",
     logo: <SiClickhouse className={LOGO} />,
     iconBg: "#FFFF00",
-    iconColor: "#0A0A0A",
+    iconColor: "var(--oh-surface-deep)",
     keywords: ["analytics", "olap", "database", "sql"],
     template: {
       kind: "stdio",

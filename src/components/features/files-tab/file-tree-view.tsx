@@ -34,14 +34,15 @@ function TreeNode({ node, depth, selectedPath, onSelectFile }: TreeNodeProps) {
           data-testid={`file-tree-dir-${node.path}`}
           className={cn(
             "flex w-full items-center gap-1.5 py-1 pr-2 text-left text-sm text-white",
-            "hover:bg-[#3A3D44] cursor-pointer",
+            "hover:bg-tertiary cursor-pointer",
           )}
+          // per-row indentation computed from tree depth at runtime
           style={{ paddingLeft: `${indentPx}px` }}
         >
           <span
             aria-hidden
             className={cn(
-              "inline-block w-3 text-[10px] text-[#9299AA] transition-transform",
+              "inline-block w-3 text-[10px] text-[var(--oh-muted)] transition-transform",
               isOpen ? "rotate-90" : "rotate-0",
             )}
           >
@@ -76,9 +77,12 @@ function TreeNode({ node, depth, selectedPath, onSelectFile }: TreeNodeProps) {
         data-testid={`file-tree-file-${node.path}`}
         className={cn(
           "flex w-full items-center gap-1.5 py-1 pr-2 text-left text-sm",
-          "hover:bg-[#3A3D44] cursor-pointer",
-          isSelected ? "bg-[#474A54] text-white" : "text-[#D6D6D6]",
+          "hover:bg-tertiary cursor-pointer",
+          isSelected
+            ? "bg-[var(--oh-interactive-hover)] text-white"
+            : "text-[var(--oh-text-tertiary)]",
         )}
+        // per-row indentation computed from tree depth at runtime
         style={{ paddingLeft: `${indentPx + 16}px` }}
       >
         <FileIcon className="w-3.5 h-3.5 shrink-0" />
@@ -98,7 +102,7 @@ export function FileTreeView({
 
   if (root.children.length === 0) {
     return (
-      <div className="px-3 py-4 text-sm text-[#9299AA]">
+      <div className="px-3 py-4 text-sm text-[var(--oh-muted)]">
         {t(I18nKey.FILES$NO_FILES)}
       </div>
     );

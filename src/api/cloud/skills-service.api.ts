@@ -19,7 +19,7 @@ function getActiveCloudBackend(): Backend {
 }
 
 /**
- * Fetch the full list of skills from the cloud SaaS via the bundled
+ * Fetch the full list of skills from the cloud backend via the bundled
  * /api/cloud-proxy. The cloud endpoint is paginated (page_id cursor); we
  * walk all pages so the settings UI gets a complete list in one call. The
  * cloud SkillInfo shape (name/type/source/triggers) matches the GUI's
@@ -35,7 +35,6 @@ export async function fetchCloudSkills(): Promise<SkillInfo[]> {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    // eslint-disable-next-line no-await-in-loop
     const page = await callCloudProxy<CloudSkillsPage>({
       backend,
       method: "GET",

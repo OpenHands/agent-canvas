@@ -21,6 +21,34 @@ function isValidBackend(value: unknown): value is Backend {
   );
 }
 
+function normalizeHostForComparison(host: string): string {
+  try {
+    return new URL(host).origin;
+  } catch {
+    return host.replace(/\/+$/, "");
+  }
+}
+
+function syncDefaultLocalBackendAuth(backend: Backend): Backend {
+  const defaultBackend = makeDefaultLocalBackend();
+
+  if (
+    backend.id !== defaultBackend.id ||
+    backend.kind !== "local" ||
+    backend.apiKey ||
+    !defaultBackend.apiKey ||
+    normalizeHostForComparison(backend.host) !==
+      normalizeHostForComparison(defaultBackend.host)
+  ) {
+    return backend;
+  }
+
+  return {
+    ...backend,
+    apiKey: defaultBackend.apiKey,
+  };
+}
+
 export function writeStoredBackends(backends: Backend[]): void {
   if (typeof window === "undefined") return;
   try {
@@ -61,7 +89,12 @@ export function readStoredBackends(): Backend[] {
       return seeded;
     }
 
-    return valid;
+    const synced = valid.map(syncDefaultLocalBackendAuth);
+    if (synced.some((backend, index) => backend !== valid[index])) {
+      writeStoredBackends(synced);
+    }
+
+    return synced;
   } catch {
     return [];
   }

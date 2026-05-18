@@ -49,8 +49,16 @@ describe("ChooseAgentStep", () => {
     expect(codex).not.toBeDisabled();
     expect(gemini).not.toBeDisabled();
 
+    // Neither the legacy "coming soon" banner nor the per-option badges
+    // should render now that all four agent kinds work end-to-end.
     expect(
       screen.queryByTestId("onboarding-agent-coming-soon"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-agent-badge-claude-code"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-agent-badge-codex"),
     ).not.toBeInTheDocument();
   });
 

@@ -17,13 +17,21 @@ const DRAFT_SAVE_DEBOUNCE_MS = 500;
 /**
  * Hook for persisting draft messages to localStorage.
  * Handles debounced saving on input, restoration on mount, and clearing on confirmed delivery.
+ *
+ * `conversationId` may be undefined when the chat input renders on the home
+ * page (no conversation exists yet). In that case the hook short-circuits:
+ * no localStorage reads/writes happen and the returned callbacks are no-ops.
  */
 export const useDraftPersistence = (
-  conversationId: string,
+  conversationId: string | null | undefined,
   chatInputRef: React.RefObject<HTMLDivElement | null>,
 ) => {
-  const { state, setDraftMessage } =
-    useConversationLocalStorageState(conversationId);
+  // Pass an empty string when conversationId is missing to keep the hook
+  // call unconditional (rules of hooks). The early-return branches below
+  // ensure we never actually touch localStorage with an empty key.
+  const { state, setDraftMessage } = useConversationLocalStorageState(
+    conversationId ?? "",
+  );
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasRestoredRef = useRef(false);
   const [isRestored, setIsRestored] = useState(false);
@@ -39,6 +47,9 @@ export const useDraftPersistence = (
   // 2. Task-to-real transition: Preserve draft typed during initialization
   // 3. DOM reset: Clear stale content before restoration effect runs
   useEffect(() => {
+    if (!conversationId) {
+      return;
+    }
     const previousConversationId = currentConversationIdRef.current;
     const isInitialMount = isFirstMountRef.current;
     currentConversationIdRef.current = conversationId;
@@ -58,7 +69,11 @@ export const useDraftPersistence = (
     // that transitions to a real conversation ID once ready. Task IDs don't persist
     // to localStorage, so any draft typed during this phase would be lost.
     // We detect this transition and transfer the draft to the new real ID.
-    if (!isInitialMount && previousConversationId !== conversationId) {
+    if (
+      !isInitialMount &&
+      previousConversationId &&
+      previousConversationId !== conversationId
+    ) {
       const wasTaskId = isTaskId(previousConversationId);
       const isNowRealId = !isTaskId(conversationId);
 
@@ -91,6 +106,9 @@ export const useDraftPersistence = (
 
   // Restore draft from localStorage - reads directly to avoid state sync timing issues
   useEffect(() => {
+    if (!conversationId) {
+      return;
+    }
     if (hasRestoredRef.current) {
       return;
     }
@@ -122,6 +140,9 @@ export const useDraftPersistence = (
 
   // Debounced save function - called from onInput handler
   const saveDraft = useCallback(() => {
+    if (!conversationId) {
+      return;
+    }
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -152,13 +173,16 @@ export const useDraftPersistence = (
 
   // Clear draft - called after message delivery is confirmed
   const clearDraft = useCallback(() => {
+    if (!conversationId) {
+      return;
+    }
     // Cancel any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
     setDraftMessage(null);
-  }, [setDraftMessage]);
+  }, [conversationId, setDraftMessage]);
 
   // Cleanup timeout on unmount
   useEffect(

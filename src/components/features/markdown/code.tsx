@@ -2,6 +2,7 @@ import React from "react";
 import { ExtraProps } from "react-markdown";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-content-wrapper";
+import { cn } from "#/utils/utils";
 import { SyntaxHighlighter } from "./syntax-highlighter";
 
 // See https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
@@ -24,14 +25,10 @@ export function code({
     if (!isMultiline) {
       return (
         <code
-          className={className}
-          style={{
-            backgroundColor: "#2a3038",
-            padding: "0.2em 0.4em",
-            borderRadius: "4px",
-            color: "#e6edf3",
-            border: "1px solid #30363d",
-          }}
+          className={cn(
+            className,
+            "bg-surface-raised text-foreground border border-surface-raised rounded px-[0.4em] py-[0.2em]",
+          )}
         >
           {children}
         </code>
@@ -40,16 +37,7 @@ export function code({
 
     return (
       <CopyableContentWrapper text={codeString}>
-        <pre
-          style={{
-            backgroundColor: "#2a3038",
-            padding: "1em",
-            borderRadius: "4px",
-            color: "#e6edf3",
-            border: "1px solid #30363d",
-            overflow: "auto",
-          }}
-        >
+        <pre className="bg-surface-raised text-foreground border border-surface-raised rounded p-[1em] overflow-auto">
           <code className={className}>{codeString}</code>
         </pre>
       </CopyableContentWrapper>

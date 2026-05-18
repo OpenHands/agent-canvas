@@ -14,6 +14,10 @@ interface ConversationCardFooterProps {
   createdAt?: string;
   executionStatus?: ExecutionStatus | null;
   workspaceWorkingDir?: string | null;
+  showRepositoryMetadata?: boolean;
+  showTimestamp?: boolean;
+  llmModel?: string | null;
+  showLlmModel?: boolean;
 }
 
 export function ConversationCardFooter({
@@ -22,6 +26,10 @@ export function ConversationCardFooter({
   createdAt,
   executionStatus,
   workspaceWorkingDir,
+  showRepositoryMetadata = true,
+  showTimestamp = true,
+  llmModel,
+  showLlmModel = false,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -30,25 +38,40 @@ export function ConversationCardFooter({
   return (
     <div
       className={cn(
-        // Left padding aligns the repo/workspace icon with the title text in
-        // the header (status dot 10px + gap-2 8px = 18px).
-        "flex flex-row justify-between items-center mt-1 pl-[18px]",
+        "flex flex-col gap-0.5 mt-0.5 w-full min-w-0",
         isPaused && "opacity-60",
       )}
     >
-      {selectedRepository?.selected_repository ? (
-        <ConversationRepoLink selectedRepository={selectedRepository} />
-      ) : (
-        <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
-      )}
-      <div className="flex items-center gap-2 flex-1 justify-end">
-        {(createdAt ?? lastUpdatedAt) && (
-          <p className="text-xs text-[#A3A3A3] text-right">
-            <time>
-              {`${formatTimeDelta(lastUpdatedAt ?? createdAt)} ${t(I18nKey.CONVERSATION$AGO)}`}
-            </time>
-          </p>
+      {showLlmModel && llmModel ? (
+        <span
+          className="min-w-0 max-w-full truncate pl-[18px] text-xs text-[var(--oh-muted)]"
+          title={llmModel}
+        >
+          {llmModel}
+        </span>
+      ) : null}
+      <div
+        className={cn(
+          // Align repo/workspace row with the title (status dot + gap).
+          "flex flex-row items-center gap-2 w-full min-w-0",
+          showRepositoryMetadata && "pl-[18px]",
         )}
+      >
+        {showRepositoryMetadata &&
+          (selectedRepository?.selected_repository ? (
+            <ConversationRepoLink selectedRepository={selectedRepository} />
+          ) : (
+            <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
+          ))}
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {showTimestamp && (createdAt ?? lastUpdatedAt) && (
+            <p className="text-xs text-[var(--oh-muted)] text-right">
+              <time>
+                {`${formatTimeDelta(lastUpdatedAt ?? createdAt)} ${t(I18nKey.CONVERSATION$AGO)}`}
+              </time>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

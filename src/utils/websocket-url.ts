@@ -3,9 +3,7 @@
  * @param conversationUrl The conversation URL containing host/port (e.g., "http://localhost:3000/api/conversations/123")
  * @returns Base host (e.g., "localhost:3000") or window.location.host as fallback
  */
-export function extractBaseHost(
-  conversationUrl: string | null | undefined,
-): string {
+function extractBaseHost(conversationUrl: string | null | undefined): string {
   if (conversationUrl && !conversationUrl.startsWith("/")) {
     try {
       const url = new URL(conversationUrl);
@@ -36,9 +34,7 @@ export function extractBaseHost(
  * @param conversationUrl The conversation URL (e.g., "http://localhost:3000/runtime/55313/api/conversations/123")
  * @returns Path prefix without trailing slash (e.g., "/runtime/55313") or empty string
  */
-export function extractPathPrefix(
-  conversationUrl: string | null | undefined,
-): string {
+function extractPathPrefix(conversationUrl: string | null | undefined): string {
   if (conversationUrl && !conversationUrl.startsWith("/")) {
     try {
       const url = new URL(conversationUrl);
@@ -65,6 +61,20 @@ export function buildHttpBaseUrl(
   return `${protocol}//${baseHost}${pathPrefix}`;
 }
 
+function getConversationUrlProtocol(
+  conversationUrl: string | null | undefined,
+): string | null {
+  if (!conversationUrl || conversationUrl.startsWith("/")) {
+    return null;
+  }
+
+  try {
+    return new URL(conversationUrl).protocol;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Builds the WebSocket URL for V1 conversations (without query params)
  * @param conversationId The conversation ID
@@ -85,7 +95,16 @@ export function buildWebSocketUrl(
   // Build WebSocket URL: ws://host:port[/path-prefix]/sockets/events/{conversationId}
   // The path prefix (e.g., /runtime/55313) is needed for proxy deployments
   // Note: Query params should be passed via the useWebSocket hook options
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  //
+  // Protocol selection follows the actual HTTP access path. A page served
+  // over HTTPS must use WSS, but an HTTP page that reaches a remote dev ingress
+  // over plain HTTP (for example a Tailscale hostname) must use WS; forcing WSS
+  // sends a TLS handshake to the HTTP-only ingress and Node reports it as a
+  // malformed HTTP method.
+  const pageIsSecure = window.location.protocol === "https:";
+  const targetIsSecure =
+    getConversationUrlProtocol(conversationUrl) === "https:";
+  const protocol = pageIsSecure || targetIsSecure ? "wss:" : "ws:";
 
   return `${protocol}//${baseHost}${pathPrefix}/sockets/events/${conversationId}`;
 }

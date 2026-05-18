@@ -1,5 +1,6 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
+import { getStoredConversationMetadata } from "../conversation-metadata-store";
 import type {
   AppConversation,
   AppConversationPage,
@@ -7,6 +8,39 @@ import type {
   AppConversationStartTask,
 } from "../conversation-service/agent-server-conversation-service.types";
 import { callCloudProxy } from "./proxy";
+
+/**
+ * The cloud backend does not always echo `selected_repository` /
+ * `selected_branch` / `git_provider` back from
+ * `GET /api/v1/app-conversations` until its own background hydration
+ * completes. We persist the selection to local storage at connect time
+ * (see `AgentServerConversationService.updateConversationRepository`)
+ * and overlay it here so the chat-page git control bar reflects the
+ * connection immediately, instead of snapping back to the empty
+ * "Connect Repo" state on every refetch.
+ *
+ * Server values take precedence whenever they're populated; the
+ * local-storage fallback only fills in fields the server returned as
+ * `null`/`undefined`.
+ */
+function overlayStoredRepoSelection(
+  conversation: AppConversation | null,
+): AppConversation | null {
+  if (!conversation?.id) return conversation;
+  const stored = getStoredConversationMetadata(conversation.id);
+  if (!stored) return conversation;
+
+  return {
+    ...conversation,
+    selected_repository:
+      conversation.selected_repository ?? stored.selected_repository ?? null,
+    selected_branch:
+      conversation.selected_branch ?? stored.selected_branch ?? null,
+    git_provider: conversation.git_provider ?? stored.git_provider ?? null,
+    selected_workspace:
+      conversation.selected_workspace ?? stored.selected_workspace ?? null,
+  };
+}
 
 function getActiveCloudBackend(): Backend {
   const active = getActiveBackend().backend;
@@ -17,9 +51,9 @@ function getActiveCloudBackend(): Backend {
 }
 
 /**
- * Search the cloud SaaS app-conversations list. Mirrors the local
+ * Search the cloud app-conversations list. Mirrors the local
  * `AgentServerConversationService.searchConversations` interface but routes
- * through the bundled agent-server's cloud proxy and hits the SaaS
+ * through the bundled agent-server's cloud proxy and hits the cloud
  * endpoint `/api/v1/app-conversations/search`.
  */
 export async function searchCloudConversations(
@@ -42,7 +76,9 @@ export async function searchCloudConversations(
   });
 
   return {
-    items: data?.items ?? [],
+    items: (data?.items ?? []).map(
+      (item) => overlayStoredRepoSelection(item) as AppConversation,
+    ),
     next_page_id: data?.next_page_id ?? null,
   };
 }
@@ -63,13 +99,13 @@ export async function batchGetCloudConversations(
     method: "GET",
     path: `/api/v1/app-conversations?${params.toString()}`,
   });
-  return data ?? [];
+  return (data ?? []).map(overlayStoredRepoSelection);
 }
 
 /**
- * Create a v1 app-conversation on the cloud SaaS.
+ * Create a v1 app-conversation on the cloud backend.
  *
- * Mirrors OpenHands' SaaS flow: POST /api/v1/app-conversations with the
+ * Mirrors OpenHands' cloud flow: POST /api/v1/app-conversations with the
  * `AppConversationStartRequest` payload, returning a
  * `AppConversationStartTask`. The task is initially WORKING; the caller
  * polls `getCloudAppConversationStartTask` (3s cadence per OpenHands)
@@ -77,7 +113,7 @@ export async function batchGetCloudConversations(
  * and `session_api_key` are populated) or ERROR.
  *
  * This path does NOT use encrypted-settings round-tripping. Secrets stay
- * server-side on the SaaS — the only auth carried is the cloud bearer
+ * server-side on the cloud backend — the only auth carried is the cloud bearer
  * token (via the proxy's headers), and the conversation runtime is
  * provisioned with its own ephemeral session_api_key returned in the
  * task.
@@ -96,11 +132,11 @@ export async function createCloudAppConversation(
 }
 
 /**
- * Download a v1 app-conversation as a ZIP from the cloud SaaS. Mirrors
+ * Download a v1 app-conversation as a ZIP from the cloud backend. Mirrors
  * the local `AgentServerConversationService.downloadConversation` interface but
  * routes through the bundled agent-server's cloud proxy and hits
  * `GET /api/v1/app-conversations/{id}/download`, which returns
- * `application/zip` with `Content-Disposition` set by the SaaS.
+ * `application/zip` with `Content-Disposition` set by the cloud backend.
  */
 export async function downloadCloudConversation(
   conversationId: string,
@@ -115,7 +151,7 @@ export async function downloadCloudConversation(
 }
 
 /**
- * Delete a v1 app-conversation on the cloud SaaS. Mirrors the local
+ * Delete a v1 app-conversation on the cloud backend. Mirrors the local
  * `AgentServerConversationService.deleteConversation` interface but routes
  * through the bundled agent-server's cloud proxy and hits
  * `DELETE /api/v1/app-conversations/{id}`, which returns a JSON
@@ -158,7 +194,7 @@ export async function updateCloudConversationPublicFlag(
  * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
  * OpenHands' `SandboxService.pauseSandbox` — routes through the
  * bundled agent-server's cloud proxy and hits
- * `POST /api/v1/sandboxes/{sandboxId}/pause` on the SaaS, which stops
+ * `POST /api/v1/sandboxes/{sandboxId}/pause` on the cloud backend, which stops
  * the runtime owning the conversation.
  */
 export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
@@ -171,9 +207,28 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
 }
 
 /**
+ * Resume a paused cloud sandbox. Mirrors OpenHands' `SandboxService.resumeSandbox`
+ * — routes through the bundled agent-server's cloud proxy and hits
+ * `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
+ *
+ * This is the correct endpoint for waking a PAUSED sandbox. It is a
+ * lightweight unpause — NOT the same as creating a new start task via
+ * `POST /api/v1/app-conversations`, which provisions a fresh conversation
+ * and is subject to the 120-second sandbox-start timeout.
+ */
+export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudProxy<unknown>({
+    backend,
+    method: "POST",
+    path: `/api/v1/sandboxes/${sandboxId}/resume`,
+  });
+}
+
+/**
  * Read a file from a cloud conversation's sandbox workspace. Mirrors
  * OpenHands' `AgentServerConversationService.readConversationFile` — hits
- * `GET /api/v1/app-conversations/{id}/file?file_path=...` on the SaaS
+ * `GET /api/v1/app-conversations/{id}/file?file_path=...` on the cloud backend
  * and returns the file content as a string.
  */
 export async function readCloudConversationFile(

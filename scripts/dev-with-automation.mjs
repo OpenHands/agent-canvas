@@ -31,6 +31,7 @@
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
+ *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
  *
  * Secrets:
  *   The automation API key is automatically seeded into agent-server secrets
@@ -50,10 +51,18 @@ import {
   buildSafeDevConfig,
   buildAgentServerEnv,
   buildNpmScriptCommand,
+  buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  generateRandomApiKey,
   findFreePorts,
+  getOrCreatePersistedApiKey,
+  validateFrontendDependencies,
 } from "./dev-safe.mjs";
+import {
+  createShutdownHookRegistry,
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -62,15 +71,21 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
 // Default automation version (released PyPI version)
 // Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AUTOMATION_VERSION = "1.0.0a2";
+const DEFAULT_AUTOMATION_VERSION = "1.0.0a3";
+// SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
+// DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
+const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
-
-// Auto-generate a random API key for this dev session.
-// This ensures services share the same key during a single invocation,
-// but each restart gets a fresh key for better security isolation.
-// Set AUTOMATION_LOCAL_API_KEY env var to use a consistent key across restarts.
-const DEFAULT_LOCAL_API_KEY = generateRandomApiKey();
+// Where the auto-generated default automation API key is persisted. Static
+// frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
+// must remain stable across restarts and --skip-build reuse.
+const DEFAULT_AUTOMATION_API_KEY_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "automation-api-key.txt",
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -117,7 +132,9 @@ function parseArgs() {
     automationRepo: null,
     verbose: false,
     static: false,
+    dynamic: false,
     staticDir: null,
+    skipBuild: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -139,8 +156,14 @@ function parseArgs() {
       case "--static":
         config.static = true;
         break;
+      case "--dynamic":
+        config.dynamic = true;
+        break;
       case "--static-dir":
         config.staticDir = args[++i];
+        break;
+      case "--skip-build":
+        config.skipBuild = true;
         break;
       case "-h":
       case "--help":
@@ -166,6 +189,10 @@ OPTIONS:
   -p, --port <port>           Ingress port (default: 8000)
   --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
   --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
+  --static                    Serve an existing production build instead of Vite
+  --static-dir <dir>          Static build directory (default: build/)
+  --skip-build                Reuse build/ when the launcher builds static assets
+  --dynamic                   Force Vite dev server when a wrapper defaults static
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -177,6 +204,7 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
   AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
+  OH_AUTOMATION_API_KEY_PATH  Override persisted default automation key path
 
 SECRETS:
   The automation API key is automatically seeded into agent-server secrets
@@ -210,15 +238,31 @@ function buildAutomationCommand(env = process.env) {
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
     const gitUrl = `git+${repoUrl}@${gitRef}`;
-    uvxArgs.push("--refresh", "--from", gitUrl, "uvicorn", "openhands.automation.app:app");
+    uvxArgs.push(
+      "--refresh",
+      "--from",
+      gitUrl,
+      "uvicorn",
+      "openhands.automation.app:app",
+    );
     source = `git (${gitRef})`;
   } else if (version) {
     // Use specific PyPI version
-    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`, "uvicorn", "openhands.automation.app:app");
+    uvxArgs.push(
+      "--from",
+      `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
+      "uvicorn",
+      "openhands.automation.app:app",
+    );
     source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
-    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`, "uvicorn", "openhands.automation.app:app");
+    uvxArgs.push(
+      "--from",
+      `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
+      "uvicorn",
+      "openhands.automation.app:app",
+    );
     source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
   }
 
@@ -255,23 +299,44 @@ async function buildConfig(args, env = process.env) {
 
   // Log any port changes
   if (ports.ingress !== preferredIngressPort) {
-    logService("ports", `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`, c.yellow);
+    logService(
+      "ports",
+      `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`,
+      c.yellow,
+    );
   }
   if (ports.backend !== preferredBackendPort) {
-    logService("ports", `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`, c.yellow);
+    logService(
+      "ports",
+      `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
+      c.yellow,
+    );
   }
   if (ports.automation !== preferredAutomationPort) {
-    logService("ports", `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`, c.yellow);
+    logService(
+      "ports",
+      `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`,
+      c.yellow,
+    );
   }
   if (ports.vite !== preferredVitePort) {
-    logService("ports", `Port ${preferredVitePort} busy, using ${ports.vite} for vite`, c.yellow);
+    logService(
+      "ports",
+      `Port ${preferredVitePort} busy, using ${ports.vite} for vite`,
+      c.yellow,
+    );
   }
 
   const vscodePort = ports.backend + 1000;
 
-  // Local API key for automation backend auth
-  const localApiKey = env.AUTOMATION_LOCAL_API_KEY || DEFAULT_LOCAL_API_KEY;
-  
+  // Local API key for automation backend auth. Keep the generated default
+  // stable across restarts because static frontend builds bake this value.
+  const automationApiKeyPath =
+    env.OH_AUTOMATION_API_KEY_PATH || DEFAULT_AUTOMATION_API_KEY_PATH;
+  const localApiKey =
+    env.AUTOMATION_LOCAL_API_KEY ||
+    getOrCreatePersistedApiKey(automationApiKeyPath, "automation");
+
   // Session API key for agent-server auth
   // Build a preliminary safe config to get the auto-generated session key
   // This ensures both agent-server and frontend use the same key
@@ -321,7 +386,7 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites() {
+function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
   logStep("1/2", "Checking prerequisites...");
 
   if (!commandExists("uvx")) {
@@ -335,6 +400,16 @@ function checkPrerequisites() {
     process.exit(1);
   }
   logSuccess("npm found");
+
+  if (checkFrontendDependencies) {
+    try {
+      validateFrontendDependencies(projectRoot);
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    logSuccess("frontend dependencies found");
+  }
 }
 
 function ensureDirectories(config) {
@@ -356,14 +431,25 @@ function ensureDirectories(config) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const processes = new Map();
+const shutdownHooks = createShutdownHookRegistry((err) => {
+  logService("cleanup", `Cleanup hook failed: ${err.message}`, c.yellow);
+});
+
+function registerShutdownHook(hook) {
+  return shutdownHooks.add(hook);
+}
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, ...options.env },
-    cwd: options.cwd,
-    shell: process.platform === "win32",
-  });
+  const proc = spawn(
+    command,
+    args,
+    getProcessTreeSpawnOptions({
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...options.env },
+      cwd: options.cwd,
+      shell: process.platform === "win32",
+    }),
+  );
 
   const color = options.color || c.reset;
 
@@ -433,7 +519,11 @@ async function waitForService(name, url, timeoutMs = 30000) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function startAgentServer(config) {
-  logService("agent-server", `Starting on port ${config.agentServerPort}...`, c.blue);
+  logService(
+    "agent-server",
+    `Starting on port ${config.agentServerPort}...`,
+    c.blue,
+  );
 
   const agentServerCmd = buildAgentServerCommand(process.env);
   logService("agent-server", `Using ${agentServerCmd.source}`, c.dim);
@@ -451,17 +541,27 @@ function startAgentServer(config) {
   spawnService(
     "agent-server",
     agentServerCmd.command,
-    [...agentServerCmd.args, "--host", "127.0.0.1", "--port", String(config.agentServerPort)],
+    [
+      ...agentServerCmd.args,
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(config.agentServerPort),
+    ],
     {
       cwd: safeConfig.workspacesPath,
       env: agentServerEnv,
       color: c.blue,
-    }
+    },
   );
 }
 
 function startAutomationBackend(config) {
-  logService("automation", `Starting on port ${config.autoBackendPort}...`, c.green);
+  logService(
+    "automation",
+    `Starting on port ${config.autoBackendPort}...`,
+    c.green,
+  );
 
   const automationCmd = buildAutomationCommand(process.env);
   logService("automation", `Using ${automationCmd.source}`, c.dim);
@@ -471,8 +571,10 @@ function startAutomationBackend(config) {
     automationCmd.command,
     [
       ...automationCmd.args,
-      "--host", "127.0.0.1",
-      "--port", config.autoBackendPort.toString(),
+      "--host",
+      "127.0.0.1",
+      "--port",
+      config.autoBackendPort.toString(),
     ],
     {
       cwd: config.stateDir,
@@ -491,7 +593,7 @@ function startAutomationBackend(config) {
         OPENHANDS_SUPPRESS_BANNER: "1",
       },
       color: c.green,
-    }
+    },
   );
 }
 
@@ -510,15 +612,17 @@ function shutdown() {
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
-    proc.kill("SIGTERM");
+    signalProcessTree(proc, "SIGTERM");
   }
 
   setTimeout(() => {
-    for (const [, proc] of processes) {
-      if (!proc.killed) {
-        proc.kill("SIGKILL");
+    for (const [name, proc] of processes) {
+      if (isProcessRunning(proc)) {
+        logService(name, "Force stopping...", c.dim);
+        signalProcessTree(proc, "SIGKILL");
       }
     }
+    shutdownHooks.run();
     process.exit(0);
   }, 3000);
 }
@@ -536,27 +640,64 @@ function startIngress(config) {
     "node",
     [
       ingressScript,
-      "--port", config.ingressPort.toString(),
-      "--route", `/api/automation=http://localhost:${config.autoBackendPort}`,
-      "--route", `/api=http://localhost:${config.agentServerPort}`,
-      "--route", `/sockets=http://localhost:${config.agentServerPort}`,
-      "--route", `/server_info=http://localhost:${config.agentServerPort}`,
-      "--route", `/health=http://localhost:${config.agentServerPort}`,
-      "--route", `/ready=http://localhost:${config.agentServerPort}`,
-      "--route", `/alive=http://localhost:${config.agentServerPort}`,
-      "--default", `http://localhost:${config.vitePort}`,
+      "--port",
+      config.ingressPort.toString(),
+      "--route",
+      `/api/automation=http://localhost:${config.autoBackendPort}`,
+      "--route",
+      `/api=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/sockets=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/server_info=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/health=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/ready=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
+      "--default",
+      `http://localhost:${config.vitePort}`,
     ],
     {
       cwd: projectRoot,
       color: c.yellow,
-    }
+    },
   );
+}
+
+/**
+ * Build the JSON-serializable runtime services info for an automation
+ * stack. Used by both the Vite dev server (dev mode) and static-build.mjs
+ * (static mode) so the frontend can populate the agent's
+ * `<RUNTIME_SERVICES>` system-prompt block.
+ */
+export function buildAutomationRuntimeServicesInfo(config) {
+  return buildRuntimeServicesInfo({
+    mode: config.mode ?? "dev:automation",
+    agentHostAlias: config.agentHostAlias ?? "localhost",
+    agentServerPort: config.agentServerPort,
+    ingressPort: config.ingressPort,
+    frontendPort: config.vitePort,
+    // The same port hosts Vite in dynamic mode and a static-file server
+    // in static mode. The launcher records this on the config so the
+    // description shown to the agent matches reality.
+    frontendKind: config.frontendKind ?? "vite",
+    automation: { port: config.autoBackendPort },
+  });
 }
 
 function startVite(config) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
@@ -564,14 +705,20 @@ function startVite(config) {
       // Point Vite at the ingress (so client-side fetches work)
       VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
       VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR: config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+      VITE_WORKING_DIR:
+        config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
       // Session API key for frontend to authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,
       // Automation API key for frontend to authenticate with automation backend
       VITE_AUTOMATION_API_KEY: config.localApiKey,
+      // Inform the frontend (and downstream, the agent's system prompt) about
+      // which services are available in this dev stack.
+      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
       // Session API key for agent-server auth (when SESSION_API_KEY is set)
-      ...(config.sessionApiKey && { VITE_SESSION_API_KEY: config.sessionApiKey }),
+      ...(config.sessionApiKey && {
+        VITE_SESSION_API_KEY: config.sessionApiKey,
+      }),
     },
     color: c.magenta,
   });
@@ -591,14 +738,11 @@ function startVite(config) {
  * @returns {Promise<boolean>} True if seeding succeeded, false otherwise
  */
 async function seedAutomationSecret(config, options = {}) {
-  const {
-    maxRetries = 5,
-    retryDelayMs = 2000,
-    timeoutMs = 10000,
-  } = options;
+  const { maxRetries = 5, retryDelayMs = 2000, timeoutMs = 10000 } = options;
 
   const secretName = "OPENHANDS_AUTOMATION_API_KEY";
-  const secretDescription = "API key for authenticating with the automation backend";
+  const secretDescription =
+    "API key for authenticating with the automation backend";
 
   logService("secrets", `Seeding ${secretName} into agent-server...`, c.dim);
 
@@ -636,13 +780,21 @@ async function seedAutomationSecret(config, options = {}) {
 
       // Don't retry on authentication errors - they won't resolve with retries
       if (response.status === 401 || response.status === 403) {
-        logService("secrets", `Warning: Failed to seed secret (${response.status}): ${text}`, c.yellow);
+        logService(
+          "secrets",
+          `Warning: Failed to seed secret (${response.status}): ${text}`,
+          c.yellow,
+        );
         return false;
       }
 
       // Retry on server errors or service unavailable
       if (attempt < maxRetries) {
-        logService("secrets", `Retry ${attempt}/${maxRetries} after ${response.status}...`, c.dim);
+        logService(
+          "secrets",
+          `Retry ${attempt}/${maxRetries} after ${response.status}...`,
+          c.dim,
+        );
         await delay(retryDelayMs);
       }
     } catch (err) {
@@ -650,41 +802,53 @@ async function seedAutomationSecret(config, options = {}) {
 
       // Connection errors likely mean server isn't ready - wait and retry
       if (attempt < maxRetries) {
-        logService("secrets", `Retry ${attempt}/${maxRetries}: ${err.message}`, c.dim);
+        logService(
+          "secrets",
+          `Retry ${attempt}/${maxRetries}: ${err.message}`,
+          c.dim,
+        );
         await delay(retryDelayMs);
       }
     }
   }
 
-  logService("secrets", `Warning: Failed to seed secret after ${maxRetries} attempts: ${lastError}`, c.yellow);
+  logService(
+    "secrets",
+    `Warning: Failed to seed secret after ${maxRetries} attempts: ${lastError}`,
+    c.yellow,
+  );
   return false;
 }
 
 function printBanner(config) {
   console.log("");
   console.log(
-    `${c.green}${c.bold}╔══════════════════════════════════════════════════════════════╗${c.reset}`
+    `${c.green}${c.bold}╔══════════════════════════════════════════════════════════════╗${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  ${c.bold}Agent Canvas + Automation Stack${c.reset}                            ${c.green}${c.bold}║${c.reset}`
+    `${c.green}${c.bold}║${c.reset}  ${c.bold}Agent Canvas + Automation Stack${c.reset}                            ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}╠══════════════════════════════════════════════════════════════╣${c.reset}`
+    `${c.green}${c.bold}╠══════════════════════════════════════════════════════════════╣${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`
+    `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(75) + `${c.green}${c.bold}║${c.reset}`
+    `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(
+      75,
+    ) + `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(75) + `${c.green}${c.bold}║${c.reset}`
+    `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(
+      75,
+    ) + `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`
+    `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}╚══════════════════════════════════════════════════════════════╝${c.reset}`
+    `${c.green}${c.bold}╚══════════════════════════════════════════════════════════════╝${c.reset}`,
   );
   console.log("");
   console.log(`${c.dim}State directory: ${config.stateDir}${c.reset}`);
@@ -699,14 +863,27 @@ async function main(options = {}) {
     extraPrereqs,
     viteWorkingDir,
     staticMode: staticModeOverride,
+    defaultStaticMode = false,
+    buildStaticFrontend,
     staticDir: staticDirOverride,
+    // Hostname the agent uses to reach services running on the host.
+    // dev-docker.mjs overrides this to "host.docker.internal" because the
+    // agent-server runs in a container and the host is not "localhost"
+    // from its perspective.
+    agentHostAlias = "localhost",
+    // Human-readable label for the dev mode, surfaced in the agent's
+    // <RUNTIME_SERVICES> system-prompt block.
+    mode = "dev:automation",
   } = options;
 
   const args = parseArgs();
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
-  const useStaticMode = staticModeOverride ?? args.static;
-  const staticDir = staticDirOverride ?? args.staticDir ?? join(projectRoot, "build", "client");
+  const useStaticMode =
+    staticModeOverride ??
+    (args.dynamic ? false : args.static || defaultStaticMode);
+  const staticDir =
+    staticDirOverride ?? args.staticDir ?? join(projectRoot, "build");
 
   const modeLabel = useStaticMode ? "(Static)" : "";
   const titleWithMode = modeLabel ? `${bannerTitle} ${modeLabel}` : bannerTitle;
@@ -718,21 +895,34 @@ async function main(options = {}) {
   // Setup phase
   // (uvx is still required even in docker mode because the automation
   // backend runs via uvx; only the agent-server is dockerized.)
-  checkPrerequisites();
-
-  // In static mode, verify build exists
-  if (useStaticMode && !existsSync(staticDir)) {
-    logError(`Static directory not found: ${staticDir}`);
-    logError(`Run 'npm run build' first to create the static files.`);
-    process.exit(1);
-  }
+  checkPrerequisites({
+    checkFrontendDependencies:
+      !useStaticMode || typeof buildStaticFrontend === "function",
+  });
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
+  // Stamp the dev-mode label, host alias, and frontend kind on the config
+  // so downstream helpers (Vite spawn, static build) can produce a
+  // runtime-services info object describing what the agent can reach.
+  config.mode = mode;
+  config.agentHostAlias = agentHostAlias;
+  config.frontendKind = useStaticMode ? "static" : "vite";
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
+  }
+
+  if (useStaticMode && typeof buildStaticFrontend === "function") {
+    buildStaticFrontend(config, args);
+  }
+
+  // In static mode, verify build exists after any launcher-managed build.
+  if (useStaticMode && !existsSync(staticDir)) {
+    logError(`Static directory not found: ${staticDir}`);
+    logError(`Run 'npm run build' first to create the static files.`);
+    process.exit(1);
   }
 
   // Start services phase
@@ -746,7 +936,7 @@ async function main(options = {}) {
   const agentServerReady = await waitForService(
     "agent-server",
     `http://localhost:${config.agentServerPort}/server_info`,
-    60000  // 60 second timeout for initial startup
+    60000, // 60 second timeout for initial startup
   );
 
   // 2. Seed automation API key into agent-server secrets
@@ -755,7 +945,11 @@ async function main(options = {}) {
   if (agentServerReady) {
     await seedAutomationSecret(config);
   } else {
-    logService("secrets", "Skipping secret seeding - agent-server not ready", c.yellow);
+    logService(
+      "secrets",
+      "Skipping secret seeding - agent-server not ready",
+      c.yellow,
+    );
   }
 
   // 3. Start automation backend
@@ -790,22 +984,38 @@ function startStaticFrontend(config, staticDir) {
     "node",
     [
       staticServerScript,
-      "--dir", staticDir,
-      "--host", "0.0.0.0",
-      "--port", String(config.vitePort),
+      "--dir",
+      staticDir,
+      "--host",
+      "0.0.0.0",
+      "--port",
+      String(config.vitePort),
       // Proxy routes to backends (same as ingress but for direct access to vitePort)
-      "--route", `/api/automation=http://localhost:${config.autoBackendPort}`,
-      "--route", `/api=http://localhost:${config.agentServerPort}`,
-      "--route", `/sockets=http://localhost:${config.agentServerPort}`,
-      "--route", `/server_info=http://localhost:${config.agentServerPort}`,
-      "--route", `/health=http://localhost:${config.agentServerPort}`,
-      "--route", `/ready=http://localhost:${config.agentServerPort}`,
-      "--route", `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/api/automation=http://localhost:${config.autoBackendPort}`,
+      "--route",
+      `/api=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/sockets=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/server_info=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/health=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/ready=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/alive=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/docs=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/redoc=http://localhost:${config.agentServerPort}`,
+      "--route",
+      `/openapi.json=http://localhost:${config.agentServerPort}`,
     ],
     {
       cwd: config.canvasPath,
       color: c.magenta,
-    }
+    },
   );
 }
 
@@ -816,8 +1026,8 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAutomationCommand,
   buildConfig,
-  generateRandomApiKey,
   main,
+  registerShutdownHook,
   spawnService,
   commandExists,
   logService,
@@ -828,8 +1038,10 @@ export {
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
+  DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
+  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

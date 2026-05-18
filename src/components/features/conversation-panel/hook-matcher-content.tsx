@@ -12,9 +12,9 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="mb-4 p-3 bg-gray-800 rounded-md">
+    <div className="mb-4 p-3 bg-[var(--oh-surface)] rounded-md">
       <div className="mb-2">
-        <Typography.Text className="text-sm font-semibold text-gray-300">
+        <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)]">
           {t(I18nKey.HOOKS_MODAL$MATCHER)}
         </Typography.Text>
         <Typography.Text className="ml-2 px-2 py-1 text-xs rounded-full bg-blue-900">
@@ -23,7 +23,7 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
       </div>
 
       <div className="mt-3">
-        <Typography.Text className="text-sm font-semibold text-gray-300 mb-2">
+        <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)] mb-2">
           {t(I18nKey.HOOKS_MODAL$COMMANDS)}
         </Typography.Text>
         {(matcher.hooks ?? []).map((hook, index) => (
@@ -42,7 +42,7 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
             >
               {hook.command}
             </Pre>
-            <div className="flex gap-4 mt-1 text-xs text-gray-400">
+            <div className="flex gap-4 mt-1 text-xs text-[var(--oh-muted)]">
               <span>{t(I18nKey.HOOKS_MODAL$TYPE, { type: hook.type })}</span>
               <span>
                 {t(I18nKey.HOOKS_MODAL$TIMEOUT, { timeout: hook.timeout })}

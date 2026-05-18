@@ -1,8 +1,9 @@
 import React from "react";
+import { Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { useConversationId } from "#/hooks/use-conversation-id";
-import ToolsIcon from "#/icons/tools.svg?react";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { ToolsContextMenu } from "./tools-context-menu";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -12,7 +13,9 @@ import { HooksModal } from "../conversation-panel/hooks-modal";
 
 export function Tools() {
   const { t } = useTranslation("openhands");
-  const { conversationId } = useConversationId();
+  // Optional because this control also renders inside the home-page chat
+  // input shell, before any conversation exists.
+  const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const [contextMenuOpen, setContextMenuOpen] = React.useState(false);
 
@@ -30,13 +33,13 @@ export function Tools() {
     shouldShowAgentTools,
     shouldShowHooks,
   } = useConversationNameContextMenu({
-    conversationId,
+    conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
     showOptions: true,
     onContextMenuToggle: setContextMenuOpen,
   });
 
-  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setContextMenuOpen(!contextMenuOpen);
@@ -44,15 +47,26 @@ export function Tools() {
 
   return (
     <div className="relative">
-      <div
-        className="flex items-center gap-1 cursor-pointer"
+      <button
+        type="button"
+        className="group flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-[var(--oh-muted)] transition-[border-color,color] cursor-pointer hover:text-white hover:bg-white/10"
         onClick={handleClick}
       >
-        <ToolsIcon width={18} height={18} color="#959CB2" />
-        <span className="text-sm font-normal leading-5 text-white">
+        <Wrench
+          className="h-[13px] w-[13px] shrink-0"
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+        <span className="text-sm font-normal leading-5">
           {t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
         </span>
-      </div>
+        <ChevronDownSmallIcon
+          width={18}
+          height={18}
+          color="currentColor"
+          aria-hidden
+        />
+      </button>
       {contextMenuOpen && (
         <ToolsContextMenu
           onClose={() => setContextMenuOpen(false)}

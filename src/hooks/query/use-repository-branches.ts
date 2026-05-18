@@ -8,7 +8,7 @@ export const useRepositoryBranchesPaginated = (
   perPage: number = 30,
   selectedProvider?: Provider,
 ) => {
-  const result = useInfiniteQuery<
+  return useInfiniteQuery<
     BranchPage,
     Error,
     InfiniteData<BranchPage>,
@@ -44,8 +44,4 @@ export const useRepositoryBranchesPaginated = (
       lastPage.next_page_id ? lastPage.next_page_id : undefined,
     initialPageParam: null,
   });
-
-  return {
-    ...result,
-  };
 };

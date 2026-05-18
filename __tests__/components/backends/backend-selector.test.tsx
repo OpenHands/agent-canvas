@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRoutesStub, MemoryRouter, useParams } from "react-router";
+import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
@@ -70,7 +70,11 @@ function TestSeed({
 async function openDropdown() {
   const user = userEvent.setup();
   const wrapper = screen.getByTestId("backend-selector");
-  await user.click(within(wrapper).getByTestId("dropdown-trigger"));
+  // BackendSelector renders Dropdown with `openOnHover` while the trigger is
+  // visible — clicking the toggle button would open via hover and then
+  // immediately close via the click handler. Hovering the wrapper alone is
+  // enough to surface the menu.
+  await user.hover(wrapper);
   return user;
 }
 
@@ -164,7 +168,7 @@ describe("BackendSelector", () => {
     expect(screen.getByText("Production")).toBeInTheDocument();
   });
 
-  it("expands a cloud backend into one row per org and records the org locally without calling SaaS /switch", async () => {
+  it("expands a cloud backend into one row per org and records the org locally without calling cloud /switch", async () => {
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
         { id: "org-personal", name: "Personal" },
@@ -199,7 +203,7 @@ describe("BackendSelector", () => {
     await user.click(screen.getByText("Production – Acme Inc"));
 
     // Selecting an org row updates the active selection locally only —
-    // it must never trigger the SaaS-mutating /switch call that used to
+    // it must never trigger the cloud-mutating /switch call that used to
     // leak the local-UI choice into the cloud UI's `current_org_id`.
     await waitFor(() => {
       const stored = JSON.parse(
@@ -346,7 +350,7 @@ describe("BackendSelector", () => {
 
     // After orgs + /me resolve, the selector snaps the active selection
     // onto the personal-workspace org locally — without round-tripping
-    // /switch on the SaaS (which would have mutated the cloud UI's
+    // /switch on the cloud backend (which would have mutated the cloud UI's
     // user.current_org_id as a side effect).
     await waitFor(() => {
       const stored = JSON.parse(
@@ -419,80 +423,6 @@ describe("BackendSelector", () => {
     await user.click(screen.getByText("Local 1"));
 
     expect(await screen.findByTestId("home")).toBeInTheDocument();
-  });
-
-  it("jumps to the target backend's most recently selected conversation when switching from a conversation route", async () => {
-    // Pre-seed two local backends and the per-backend "last selected"
-    // slot for the target. The BackendSelector reads the remembered
-    // slot synchronously during `onChange`, so the localStorage write
-    // has to happen before the snapshot is rebuilt.
-    const sourceBackendId = "source-local";
-    const targetBackendId = "target-local";
-    window.localStorage.setItem(
-      "openhands-backends",
-      JSON.stringify([
-        {
-          id: sourceBackendId,
-          name: "Source Local",
-          host: "http://localhost:9000",
-          apiKey: "k",
-          kind: "local",
-        },
-        {
-          id: targetBackendId,
-          name: "Local 1",
-          host: "http://localhost:9001",
-          apiKey: "k",
-          kind: "local",
-        },
-      ]),
-    );
-    window.localStorage.setItem(
-      "openhands-active-backend",
-      JSON.stringify({ backendId: sourceBackendId, orgId: null }),
-    );
-    window.localStorage.setItem(
-      "openhands-last-conversation-by-backend",
-      JSON.stringify({ [targetBackendId]: "remembered-convo" }),
-    );
-    // Reset the in-memory snapshot so the seeded localStorage is read.
-    __resetActiveStoreForTests();
-
-    // One conversation route that renders the BackendSelector for the
-    // initial id and a probe div for the remembered id so we can
-    // observe the navigation target.
-    function ConversationRoute() {
-      const { conversationId } = useParams<{ conversationId: string }>();
-      if (conversationId === "remembered-convo") {
-        return <div data-testid="convo-route">{conversationId}</div>;
-      }
-      return <BackendSelector />;
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/conversations", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/conversations/old-convo-on-A"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
-
-    const convo = await screen.findByTestId("convo-route");
-    expect(convo).toHaveTextContent("remembered-convo");
-    // The home route should never have been visited.
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 
   it("stays on the current page when switching backends from a non-conversation route", async () => {
@@ -603,7 +533,7 @@ describe("BackendSelector", () => {
     await user.click(screen.getByTestId("add-backend-menu-item"));
     expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("add-backend-cancel"));
+    await user.click(screen.getByTestId("add-backend-close"));
     await waitFor(() => {
       expect(screen.queryByTestId("add-backend-modal")).not.toBeInTheDocument();
     });
@@ -801,6 +731,9 @@ describe("BackendSelector", () => {
         </ActiveBackendProvider>
       </QueryClientProvider>,
     );
+
+    const settingsButton = screen.getByTestId("backend-selector-settings-link");
+    expect(settingsButton).toHaveAttribute("data-active", "true");
 
     const user = await openDropdown();
     await user.click(screen.getByText("Local 1"));

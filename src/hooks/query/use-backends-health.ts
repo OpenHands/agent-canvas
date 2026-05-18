@@ -22,7 +22,7 @@ const PROBE_TIMEOUT_MS = 4000;
  *  - Local agent-server: GET `/server_info` via the typescript-client.
  *    That's the same endpoint the root compatibility check uses, so a
  *    healthy backend always answers it.
- *  - Cloud SaaS: GET `/api/keys/current` via the bundled local
+ *  - Cloud: GET `/api/keys/current` via the bundled local
  *    agent-server's `/api/cloud-proxy`. That endpoint is lightweight,
  *    requires auth, and `getCurrentCloudApiKey` already absorbs the
  *    legacy-key 400 fallback so we treat that as "connected" too.
@@ -57,11 +57,19 @@ export interface BackendHealth {
   lastError: string | null;
   /**
    * `true` once `consecutiveFailures` reaches the cap. While disabled,
-   * the hook stops polling and survives a page refresh in that state.
-   * Polling resumes only when the user edits the backend's host or
-   * api key (see `active-backend-context.tsx`).
+   * ordinary background polling stops and survives a page refresh in
+   * that state.
    */
   disabled: boolean;
+}
+
+export interface UseBackendsHealthOptions {
+  /**
+   * Re-probe disabled backends once when the hook mounts. Used by the
+   * Manage Backends modal so a recovered backend can clear its stale
+   * persisted error state without forcing the user to edit the config.
+   */
+  probeDisabledOnce?: boolean;
 }
 
 /**
@@ -72,15 +80,19 @@ export interface BackendHealth {
  * connection details re-keys the query and triggers an immediate
  * refetch instead of waiting for the next tick.
  *
- * After `MAX_CONSECUTIVE_FAILURES` failures in a row, polling stops
- * for that backend until the user updates its host / apiKey. The
+ * After `MAX_CONSECUTIVE_FAILURES` failures in a row, ordinary polling
+ * stops for that backend until the user updates its host / apiKey.
+ * Callers can still opt into a one-shot recheck for disabled backends
+ * (for example when the user explicitly opens Manage Backends). The
  * failure count and last error live in localStorage so a page refresh
  * does not silently re-arm polling against a backend that's known to
  * be unreachable.
  */
 export function useBackendsHealth(
   backends: Backend[],
+  options: UseBackendsHealthOptions = {},
 ): Record<string, BackendHealth> {
+  const { probeDisabledOnce = false } = options;
   const healthMap = React.useSyncExternalStore(
     subscribeBackendHealth,
     getHealthSnapshot,
@@ -90,6 +102,7 @@ export function useBackendsHealth(
   const results = useQueries({
     queries: backends.map((b) => {
       const isDisabled = healthMap[b.id]?.disabled === true;
+      const shouldProbe = !isDisabled || probeDisabledOnce;
       return {
         queryKey: [
           "backend-health",
@@ -108,13 +121,16 @@ export function useBackendsHealth(
             throw err;
           }
         },
-        enabled: !isDisabled,
+        enabled: shouldProbe,
         refetchInterval: isDisabled ? (false as const) : REFRESH_INTERVAL_MS,
         refetchIntervalInBackground: false,
+        refetchOnMount: isDisabled && probeDisabledOnce ? "always" : true,
+        refetchOnReconnect: !isDisabled,
+        refetchOnWindowFocus: !isDisabled,
         retry: false,
         // Keep the previous verdict visible while the next probe is in
-        // flight so the indicator doesn't flicker every 2s.
-        staleTime: REFRESH_INTERVAL_MS,
+        // flight so the indicator doesn't flicker on routine polling.
+        staleTime: isDisabled ? 0 : REFRESH_INTERVAL_MS,
         meta: { disableToast: true },
       };
     }),

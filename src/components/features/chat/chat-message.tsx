@@ -112,14 +112,10 @@ export function ChatMessage({
         />
       </div>
 
-      <div
-        className="text-sm"
-        style={{
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-        }}
-      >
-        <MarkdownRenderer includeStandard>{message}</MarkdownRenderer>
+      <div className="text-sm whitespace-normal [word-break:break-word]">
+        <MarkdownRenderer includeStandard includeHeadings>
+          {message}
+        </MarkdownRenderer>
       </div>
 
       {pendingStatus === "sending" && (

@@ -85,6 +85,22 @@ describe("DeleteProfileModal", () => {
     expect(screen.getByText("Cancel")).toBeInTheDocument();
   });
 
+  it("places Cancel before Delete in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    renderModal(mockProfile);
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("Cancel");
+    const danger = screen.getByTestId("delete-profile-confirm");
+
+    // Assert: Cancel precedes the dominant Delete action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(danger) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("calls onClose when Cancel is clicked", async () => {
     const user = userEvent.setup();
     const handleClose = vi.fn();

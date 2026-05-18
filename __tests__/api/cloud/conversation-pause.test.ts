@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe("pauseConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to POST the SaaS sandbox pause endpoint", async () => {
+  it("routes through /api/cloud-proxy to POST the cloud sandbox pause endpoint", async () => {
     vi.spyOn(
       AgentServerConversationService,
       "batchGetAppConversations",

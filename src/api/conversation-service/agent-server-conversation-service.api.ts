@@ -29,6 +29,7 @@ import {
 import {
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
+  emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
   toConversationPage,
@@ -38,10 +39,12 @@ import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
+  getStoredConversationMetadata,
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
@@ -175,6 +178,7 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     created_at: readTimestamp(item, "created_at", "createdAt"),
     updated_at: readTimestamp(item, "updated_at", "updatedAt"),
     execution_status: stringOrNull(item.execution_status),
+    sandbox_status: stringOrNull(item.sandbox_status),
     metrics: normalizeMetrics(item.metrics),
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
@@ -268,11 +272,11 @@ class AgentServerConversationService {
     sandboxId?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
-      // Cloud SaaS path mirrors OpenHands' frontend: build a flat
+      // Cloud path mirrors OpenHands' frontend: build a flat
       // AppConversationStartRequest, POST /api/v1/app-conversations
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
-      // round-trip — the SaaS holds secrets server-side.
+      // round-trip — the cloud backend holds secrets server-side.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -362,7 +366,7 @@ class AgentServerConversationService {
     sessionApiKey?: string | null,
   ): Promise<GetVSCodeUrlResponse> {
     // Local-only path. Cloud conversations read the VSCode URL straight
-    // from the SaaS-computed `sandbox.exposed_urls` (see
+    // from the cloud-computed `sandbox.exposed_urls` (see
     // `useUnifiedVSCodeUrl` + `useCloudSandbox`); the runtime's own
     // `/api/vscode/url` only knows its internal `localhost:8001`, which
     // the user's browser can't reach.
@@ -428,7 +432,9 @@ class AgentServerConversationService {
     gitProvider?: string | null,
   ): Promise<AppConversation> {
     if (repository) {
+      const existing = getStoredConversationMetadata(conversationId);
       setStoredConversationMetadata(conversationId, {
+        ...(existing ?? {}),
         selected_repository: repository,
         selected_branch: branch ?? null,
         git_provider: (gitProvider as Provider | null | undefined) ?? null,
@@ -447,7 +453,7 @@ class AgentServerConversationService {
     filePath?: string,
   ): Promise<string> {
     if (getActiveBackend().backend.kind === "cloud") {
-      // Cloud SaaS exposes a per-conversation file endpoint; the sandbox
+      // Cloud exposes a per-conversation file endpoint; the sandbox
       // working dir is fixed (`/workspace/project`), so PLAN.md lives at
       // a known absolute path. Mirrors OpenHands' readConversationFile.
       const path = requirePathInsideDirectory(
@@ -473,6 +479,13 @@ class AgentServerConversationService {
     return new FileClient(getAgentServerClientOptions()).downloadTrajectory(
       conversationId,
     );
+  }
+
+  static async getHooks(conversationId: string): Promise<GetHooksResponse> {
+    if (!conversationId) {
+      return emptyHooksResponse();
+    }
+    return emptyHooksResponse();
   }
 
   static async getRuntimeConversation(
@@ -565,6 +578,22 @@ class AgentServerConversationService {
       conversationId,
     ]);
     return requireAppConversation(conversation, conversationId);
+  }
+
+  static async switchProfile(
+    conversationId: string,
+    profileName: string,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "LLM profile switching is only supported for local agent-server backends.",
+      );
+    }
+
+    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
+      conversationId,
+      profileName,
+    );
   }
 }
 

@@ -4,6 +4,7 @@ import React from "react";
 
 // Mock modules before importing the component
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 

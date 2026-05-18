@@ -21,7 +21,6 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
-import { getLastConversationId } from "#/api/backend-registry/last-conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
@@ -74,7 +73,7 @@ function buildOptions(
         prefix,
       });
     } else {
-      // Personal-workspace rule (per the SaaS contract): the org whose
+      // Personal-workspace rule (per the cloud contract): the org whose
       // id matches the calling user's id is the user's personal
       // workspace. We resolve `user_id` once per backend (via /me on any
       // one org) and apply it across all orgs of that backend.
@@ -100,10 +99,31 @@ function buildOptions(
 interface BackendSelectorProps {
   /** Render the menu above the trigger (e.g. when pinned to bottom of sidebar). */
   openUpward?: boolean;
+  /** Hide the selector input trigger and only render the dropdown menu. */
+  hideTrigger?: boolean;
+  /** Whether the dropdown menu should start open on mount. */
+  defaultOpen?: boolean;
+  /** Callback fired after selecting a backend/org option. */
+  onSelectOption?: () => void;
+  /**
+   * Override the internal Add Backend modal handling. When provided,
+   * clicking "Add Backend" calls this instead of opening BackendSelector's
+   * own modal. Useful when the selector is mounted inside an ephemeral
+   * container (e.g. the collapsed-sidebar popover) and the modal must
+   * survive the parent unmounting.
+   */
+  onOpenAddBackend?: () => void;
+  /** Same as onOpenAddBackend but for the Manage Backends modal. */
+  onOpenManageBackends?: () => void;
 }
 
 export function BackendSelector({
   openUpward = false,
+  hideTrigger = false,
+  defaultOpen = false,
+  onSelectOption,
+  onOpenAddBackend,
+  onOpenManageBackends,
 }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, active, setActive } = useActiveBackendContext();
@@ -112,6 +132,8 @@ export function BackendSelector({
   // Probe each registered backend every 10s.
   const healthByBackendId = useBackendsHealth(backends);
   const navigate = useNavigate();
+  const settingsMatch = useMatch("/settings");
+  const settingsSubrouteMatch = useMatch("/settings/*");
   const conversationMatch = useMatch("/conversations/:conversationId");
   const automationDetailMatch = useMatch("/automations/:automationId");
   const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
@@ -140,6 +162,7 @@ export function BackendSelector({
 
   const activeValue = makeOptionValue(active.backend.id, active.orgId);
   const activeOption = options.find((o) => o.value === activeValue);
+  const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
 
   const someCloudLoading = Object.values(cloudOrgs).some((c) => c.isLoading);
 
@@ -151,7 +174,7 @@ export function BackendSelector({
   // (UI says "Local", APIs hit cloud). When we detect the drift, snap
   // the selection onto the personal-workspace org (or, lacking a /me
   // result, the first org). The selection is recorded locally only;
-  // the SaaS request scope follows from the API key's bound org and the
+  // the cloud request scope follows from the API key's bound org and the
   // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
   // org choice is never mutated as a side effect.
   React.useEffect(() => {
@@ -171,12 +194,22 @@ export function BackendSelector({
   }, [active, cloudOrgs, currentUserIds, setActive]);
 
   const openAddBackendModal = React.useCallback(() => {
+    if (onOpenAddBackend) {
+      onOpenAddBackend();
+      onSelectOption?.();
+      return;
+    }
     setAddBackendModalOpen(true);
-  }, []);
+  }, [onOpenAddBackend, onSelectOption]);
 
   const openManageBackendsModal = React.useCallback(() => {
+    if (onOpenManageBackends) {
+      onOpenManageBackends();
+      onSelectOption?.();
+      return;
+    }
     setManageBackendsModalOpen(true);
-  }, []);
+  }, [onOpenManageBackends, onSelectOption]);
 
   const preventDropdownMenuClose = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -193,7 +226,7 @@ export function BackendSelector({
         data-testid="add-backend-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openAddBackendModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
       >
         <Plus width={16} height={16} className="text-white shrink-0" />
         {t(I18nKey.BACKEND$ADD)}
@@ -203,7 +236,7 @@ export function BackendSelector({
         data-testid="manage-backends-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openManageBackendsModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[#5C5D62]"
+        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
       >
         <Settings width={16} height={16} className="text-white shrink-0" />
         {t(I18nKey.BACKEND$MANAGE)}
@@ -211,71 +244,86 @@ export function BackendSelector({
     </div>
   );
 
+  const handleSelectBackend = React.useCallback(
+    async (value: string) => {
+      if (value === activeValue) return;
+
+      const { backendId, orgId } = parseOptionValue(value);
+      const target = backends.find((b) => b.id === backendId);
+      if (!target) return;
+
+      triggerEnvironmentSwitch(
+        options.find((option) => option.value === value)?.label ?? target.name,
+      );
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
+      });
+
+      if (conversationMatch) navigate("/conversations");
+      else if (automationDetailMatch) navigate("/automations");
+
+      setActive(target.id, orgId);
+      onSelectOption?.();
+    },
+    [
+      activeValue,
+      backends,
+      conversationMatch,
+      automationDetailMatch,
+      navigate,
+      options,
+      setActive,
+      t,
+      onSelectOption,
+    ],
+  );
+
   return (
     <>
-      <Dropdown
-        testId="backend-selector"
-        key={`${activeValue}-${activeOption?.label ?? ""}`}
-        defaultValue={
-          activeOption ?? {
-            value: activeValue,
-            label: active.backend.name,
-            prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
-          }
-        }
-        footer={addBackendFooter}
-        openUpward={openUpward}
-        onChange={async (item) => {
-          if (!item || item.value === activeValue) return;
-          const { backendId, orgId } = parseOptionValue(item.value);
-          const target = backends.find((b) => b.id === backendId);
-          if (!target) return;
-
-          triggerEnvironmentSwitch(item.label);
-          await new Promise<void>((resolve) => {
-            setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
-          });
-
-          // Compute where the user should land on the target backend.
-          // The rule:
-          //   - on `/conversations/:id`: jump to the target backend's
-          //     most recently selected conversation, or to
-          //     `/conversations` if it has none. Either way the URL
-          //     stops referring to the source backend's conversation
-          //     id, which avoids a "conversation not available" 404
-          //     once we re-key backend-scoped queries below.
-          //   - on `/automations/:id`: jump to the automations list
-          //     (automation ids are not portable across backends and
-          //     we don't currently remember a per-backend selection).
-          //   - on any other route (settings, /conversations,
-          //     /skills, …): stay on the same path.
-          //
-          // `await navigate(...)` waits for the router transition to
-          // commit before `setActive` notifies its listeners. Without
-          // that wait, react-router defers the URL change as a
-          // transition while `useSyncExternalStore`-based backend
-          // listeners run at sync priority — the conversation route
-          // would re-render once with `(newBackendId, oldConvoId)` and
-          // `useUserConversation` would fire a 404 against the new
-          // backend before unmounting.
-          let destination: string | null = null;
-          if (conversationMatch) {
-            const remembered = getLastConversationId(target.id, orgId);
-            destination = remembered
-              ? `/conversations/${remembered}`
-              : "/conversations";
-          } else if (automationDetailMatch) {
-            destination = "/automations";
-          }
-          if (destination) await navigate(destination);
-
-          setActive(target.id, orgId);
-        }}
-        placeholder={active.backend.name}
-        loading={someCloudLoading}
-        options={options}
-        className="bg-[#1F1F1F66] border-[#242424]"
-      />
+      <div className="flex items-center gap-2 w-full">
+        <div className="flex-1 min-w-0">
+          <Dropdown
+            testId="backend-selector"
+            key={`${activeValue}-${activeOption?.label ?? ""}`}
+            defaultValue={
+              activeOption ?? {
+                value: activeValue,
+                label: active.backend.name,
+                prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
+              }
+            }
+            footer={addBackendFooter}
+            openUpward={openUpward}
+            hideTrigger={hideTrigger}
+            defaultOpen={defaultOpen}
+            openOnHover={!hideTrigger}
+            onChange={(item) => {
+              if (!item) return;
+              void handleSelectBackend(item.value);
+            }}
+            placeholder={active.backend.name}
+            loading={someCloudLoading}
+            options={options}
+            className="bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
+          />
+        </div>
+        {!hideTrigger ? (
+          <button
+            type="button"
+            data-testid="backend-selector-settings-link"
+            data-active={isSettingsActive}
+            aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
+            onClick={() => navigate("/settings")}
+            className={
+              isSettingsActive
+                ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
+                : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
+            }
+          >
+            <Settings width={16} height={16} />
+          </button>
+        ) : null}
+      </div>
       {addBackendModalOpen ? (
         <AddBackendModal onClose={() => setAddBackendModalOpen(false)} />
       ) : null}

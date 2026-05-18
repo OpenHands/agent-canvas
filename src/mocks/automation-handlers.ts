@@ -20,6 +20,12 @@ export const resetAutomationMockData = () => {
 };
 
 export const AUTOMATION_HANDLERS = [
+  // GET /api/automation/health — Health check
+  http.get("*/api/automation/health", async () => {
+    await delay(100);
+    return HttpResponse.json({ status: "ok" });
+  }),
+
   // GET /api/automation/v1 — List automations
   http.get("*/api/automation/v1", async ({ request }) => {
     await delay(300);
@@ -86,6 +92,9 @@ export const AUTOMATION_HANDLERS = [
     await delay(200);
 
     const id = params.id as string;
+    // Clone the request before reading the body to avoid "Body has already been read" errors
+    // when MSW internally consumes the body during handler resolution.
+    const body = (await request.clone().json()) as Partial<Automation>;
     const automation = automations.get(id);
     if (!automation) {
       return HttpResponse.json(
@@ -94,7 +103,6 @@ export const AUTOMATION_HANDLERS = [
       );
     }
 
-    const body = (await request.json()) as Partial<Automation>;
     const updated: Automation = {
       ...automation,
       ...body,

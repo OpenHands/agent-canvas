@@ -14,7 +14,13 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import {
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_VITE_PORT = 3001;
@@ -32,7 +38,8 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
 const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
 // Default agent-server version (released PyPI version)
 // Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.22.0";
+const DEFAULT_AGENT_SERVER_VERSION = "1.22.1";
+const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**
  * Generate a cryptographically secure random API key.
@@ -61,7 +68,7 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
 
 // Cache so repeated lookups within a single process return the same key,
 // keyed by file path so tests can use temp paths in isolation.
-const persistedSessionApiKeyCache = new Map();
+const persistedApiKeyCache = new Map();
 
 /**
  * Load the persisted default session API key, generating + persisting one if
@@ -77,21 +84,37 @@ const persistedSessionApiKeyCache = new Map();
 export function getOrCreatePersistedSessionApiKey(
   filePath = DEFAULT_SESSION_API_KEY_PATH,
 ) {
-  const cached = persistedSessionApiKeyCache.get(filePath);
+  return getOrCreatePersistedApiKey(filePath, "session");
+}
+
+/**
+ * Load a persisted default API key, generating + persisting one if the file
+ * doesn't exist yet.
+ *
+ * Best-effort: if the file can't be written (e.g. read-only home dir), we
+ * fall back to an in-memory key for this process so dev still works -- the
+ * key just won't survive a restart.
+ *
+ * @param {string} filePath - Where to read/write the key.
+ * @param {string} label - Human-readable key label for warning messages.
+ * @returns {string} The (hex) API key.
+ */
+export function getOrCreatePersistedApiKey(filePath, label = "API") {
+  const cached = persistedApiKeyCache.get(filePath);
   if (cached) return cached;
 
   // Try to read an existing key.
   try {
     const existing = readFileSync(filePath, "utf8").trim();
     if (existing) {
-      persistedSessionApiKeyCache.set(filePath, existing);
+      persistedApiKeyCache.set(filePath, existing);
       return existing;
     }
     // File exists but is empty -- treat as if missing and regenerate.
   } catch (error) {
     if (!isEnoentError(error)) {
       console.warn(
-        `Could not read persisted session API key from ${filePath}: ${error.message}. Regenerating.`,
+        `Could not read persisted ${label} API key from ${filePath}: ${error.message}. Regenerating.`,
       );
     }
   }
@@ -103,10 +126,10 @@ export function getOrCreatePersistedSessionApiKey(
     writeFileSync(filePath, `${newKey}\n`, { mode: 0o600 });
   } catch (error) {
     console.warn(
-      `Could not persist session API key to ${filePath}: ${error.message}. Falling back to in-memory key (will not survive restarts).`,
+      `Could not persist ${label} API key to ${filePath}: ${error.message}. Falling back to in-memory key (will not survive restarts).`,
     );
   }
-  persistedSessionApiKeyCache.set(filePath, newKey);
+  persistedApiKeyCache.set(filePath, newKey);
   return newKey;
 }
 
@@ -115,7 +138,7 @@ export function getOrCreatePersistedSessionApiKey(
  * Intended for tests that swap the persisted file path between cases.
  */
 export function resetPersistedSessionApiKeyCache() {
-  persistedSessionApiKeyCache.clear();
+  persistedApiKeyCache.clear();
 }
 
 function isEnoentError(error) {
@@ -250,6 +273,56 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
   ].join("\n");
 }
 
+function npmBinCandidates(binName, platform = process.platform) {
+  const candidates = [binName];
+  if (platform === "win32") {
+    candidates.push(`${binName}.cmd`, `${binName}.ps1`);
+  }
+  return candidates;
+}
+
+export function getMissingFrontendDependencyBins(
+  cwd = process.cwd(),
+  platform = process.platform,
+) {
+  const binDir = path.join(cwd, "node_modules", ".bin");
+  return FRONTEND_REQUIRED_BINS.filter(
+    (binName) =>
+      !npmBinCandidates(binName, platform).some((candidate) =>
+        existsSync(path.join(binDir, candidate)),
+      ),
+  );
+}
+
+export function formatMissingFrontendDependenciesGuidance(
+  missingBins,
+  cwd = process.cwd(),
+) {
+  const missingList = missingBins.join(", ");
+  return [
+    "Frontend dependencies are not installed or are incomplete.",
+    "",
+    `Missing npm binaries: ${missingList}`,
+    "",
+    "Run this from the repository root:",
+    "  npm ci",
+    "",
+    `Repository root: ${cwd}`,
+  ].join("\n");
+}
+
+export function validateFrontendDependencies(
+  cwd = process.cwd(),
+  platform = process.platform,
+) {
+  const missingBins = getMissingFrontendDependencyBins(cwd, platform);
+  if (missingBins.length > 0) {
+    throw new Error(
+      formatMissingFrontendDependenciesGuidance(missingBins, cwd),
+    );
+  }
+}
+
 /**
  * Build the uvx command and arguments for running agent-server.
  *
@@ -260,7 +333,7 @@ export function formatMissingUvxGuidance(cwd = process.cwd()) {
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -381,10 +454,7 @@ export function buildSafeDevConfig(cwd = process.cwd(), env = process.env) {
     env.OH_CANVAS_SAFE_BACKEND_PORT,
     DEFAULT_BACKEND_PORT,
   );
-  const vscodePort = parsePort(
-    env.OH_CANVAS_SAFE_VSCODE_PORT,
-    backendPort + 1,
-  );
+  const vscodePort = parsePort(env.OH_CANVAS_SAFE_VSCODE_PORT, backendPort + 1);
 
   return buildConfigFromPorts({ backendPort, vscodePort }, cwd, env);
 }
@@ -453,6 +523,7 @@ export async function buildSafeDevConfigAsync(
  * @property {string} workingDir
  * @property {string} secretKey
  * @property {string} sessionApiKey
+ * @property {string} canvasToolsDir
  */
 
 /**
@@ -492,6 +563,12 @@ function buildConfigFromPorts(ports, cwd, env) {
     env.VITE_SESSION_API_KEY ||
     getOrCreatePersistedSessionApiKey(persistedKeyPath);
 
+  // Host directory containing Agent-Canvas-specific Python tools (e.g. the
+  // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
+  // can import the modules listed in `tool_module_qualnames`. Lives at
+  // <repo-root>/tools relative to this script.
+  const canvasToolsDir = fileURLToPath(new URL("../tools", import.meta.url));
+
   return {
     cwd,
     backendPort,
@@ -506,6 +583,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
     secretKey,
     sessionApiKey,
+    canvasToolsDir,
   };
 }
 
@@ -527,6 +605,127 @@ export function buildAgentServerEnv(config) {
     OH_SECRET_KEY: config.secretKey,
     // Use OH_SESSION_API_KEYS_0 for agent-server V1 config format
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Make the host tools/ directory importable so the agent-server can
+    // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
+    OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
+  };
+}
+
+/**
+ * Build a structured description of the dev-stack services that are
+ * reachable from inside the agent's sandbox. The frontend forwards this
+ * (verbatim, as a JSON string in `VITE_RUNTIME_SERVICES_INFO`) and renders
+ * it into the system prompt via `AgentContext.system_message_suffix`, so
+ * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
+ * without having to probe.
+ *
+ * URLs are written from the *agent's* point of view. In dev-safe /
+ * dev-with-automation the agent-server runs on the host, so the host
+ * alias is "localhost". In dev-docker the agent-server runs inside a
+ * container and reaches host services via "host.docker.internal".
+ *
+ * @param {object} options
+ * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
+ * @param {string} [options.agentHostAlias="localhost"] - Hostname the agent
+ *   uses to reach services running on the host machine.
+ * @param {number} [options.agentServerPort] - Port the agent-server listens on.
+ *   Required at runtime; the function throws if missing because the resulting
+ *   URL would otherwise bake `undefined` into the agent's system prompt.
+ *   Typed as optional only so TypeScript callers can negative-test the guard.
+ * @param {number} [options.ingressPort] - Ingress port (omit if no ingress).
+ * @param {number} [options.frontendPort] - Frontend port (Vite dev server
+ *   or static-file server). Omit if no frontend is exposed.
+ * @param {number} [options.vitePort] - Deprecated alias for `frontendPort`,
+ *   accepted for backward compat with older launchers. Remove after one release.
+ * @param {"vite"|"static"} [options.frontendKind="vite"] - Whether the
+ *   frontend port hosts Vite or a static build. Only affects the
+ *   description shown to the agent.
+ * @param {object} [options.automation] - Automation backend info. Skipped
+ *   entirely if `.port` is missing, so passing `{}` is safe.
+ * @param {number} [options.automation.port] - Automation backend port.
+ * @param {string} [options.automation.apiPrefix="/api/automation"] - Path
+ *   prefix all automation routes are mounted under.
+ * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
+ *   - Env var holding the API key.
+ * @returns {object} A JSON-serializable runtime services info object.
+ */
+export function buildRuntimeServicesInfo(options) {
+  const {
+    mode,
+    agentHostAlias = "localhost",
+    agentServerPort,
+    ingressPort,
+    // Accept legacy `vitePort` for one release so external callers keep working.
+    vitePort,
+    frontendPort = vitePort,
+    frontendKind = "vite",
+    automation,
+  } = options;
+
+  if (agentServerPort === undefined || agentServerPort === null) {
+    // Without this the URL becomes `http://localhost:undefined` and ends up
+    // verbatim in the agent's system prompt, which is worse than failing fast.
+    throw new Error(
+      "buildRuntimeServicesInfo: agentServerPort is required " +
+        "(otherwise the agent_server URL would be `http://localhost:undefined`).",
+    );
+  }
+
+  const services = {
+    agent_server: {
+      description:
+        "The OpenHands Agent Server this agent is running inside. " +
+        "Tool calls (terminal, file_editor, browser, etc.) execute here.",
+      // From the agent's POV, the agent-server it's *inside* is on
+      // localhost, regardless of where the host is.
+      url_from_agent: `http://localhost:${agentServerPort}`,
+    },
+  };
+
+  if (ingressPort !== undefined) {
+    services.ingress = {
+      description:
+        "Unified entry point. Routes /api/automation/* to the automation " +
+        "backend, /api/* and /sockets to the agent-server, and /* to the " +
+        "frontend.",
+      url_from_agent: `http://${agentHostAlias}:${ingressPort}`,
+    };
+  }
+
+  if (frontendPort !== undefined) {
+    services.frontend = {
+      kind: frontendKind,
+      description:
+        frontendKind === "static"
+          ? "Static-file server hosting the agent-canvas production build."
+          : "Vite dev server hosting the agent-canvas frontend.",
+      url_from_agent: `http://${agentHostAlias}:${frontendPort}`,
+    };
+  }
+
+  // Require an explicit port so we don't bake `:undefined` into the
+  // automation URL when the caller passes `automation: {}`.
+  if (automation?.port !== undefined && automation.port !== null) {
+    const apiPrefix = automation.apiPrefix ?? "/api/automation";
+    const authEnvVar = automation.authEnvVar ?? "OPENHANDS_AUTOMATION_API_KEY";
+    const baseUrl = `http://${agentHostAlias}:${automation.port}`;
+    services.automation = {
+      description:
+        "OpenHands Automations service. All routes are mounted under " +
+        `'${apiPrefix}'. Authenticate with header ` +
+        `'X-API-Key: $${authEnvVar}'.`,
+      url_from_agent: baseUrl,
+      api_prefix: apiPrefix,
+      docs_url: `${baseUrl}${apiPrefix}/docs`,
+      openapi_url: `${baseUrl}${apiPrefix}/openapi.json`,
+      auth_env_var: authEnvVar,
+    };
+  }
+
+  return {
+    mode,
+    agent_host_alias: agentHostAlias,
+    services,
   };
 }
 
@@ -563,9 +762,7 @@ export function validateLocalAgentServerPath(localPath) {
     );
   }
   if (!existsSync(localPath)) {
-    throw new Error(
-      `OH_AGENT_SERVER_LOCAL_PATH does not exist: ${localPath}`,
-    );
+    throw new Error(`OH_AGENT_SERVER_LOCAL_PATH does not exist: ${localPath}`);
   }
   for (const subdir of LOCAL_AGENT_SERVER_SUBDIRS) {
     const subdirPath = path.join(localPath, subdir);
@@ -596,8 +793,15 @@ async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   throw new Error(`Timed out waiting for agent-server at ${url}`);
 }
 
-function spawnProcess(command, args, options) {
-  const child = spawn(command, args, { stdio: "inherit", ...options });
+function spawnProcess(command, args, options = {}) {
+  const child = spawn(
+    command,
+    args,
+    getProcessTreeSpawnOptions({
+      stdio: "inherit",
+      ...options,
+    }),
+  );
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
@@ -616,6 +820,8 @@ function spawnProcess(command, args, options) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  validateFrontendDependencies();
+  console.log("Frontend dependencies found.");
   console.log("Allocating ports...");
 
   // Use async config builder with dynamic port allocation
@@ -686,8 +892,20 @@ async function main() {
     }
 
     shuttingDown = true;
-    frontend?.kill(signal);
-    backend.kill(signal);
+    if (frontend) {
+      signalProcessTree(frontend, signal);
+    }
+    signalProcessTree(backend, signal);
+
+    setTimeout(() => {
+      if (frontend && isProcessRunning(frontend)) {
+        signalProcessTree(frontend, "SIGKILL");
+      }
+      if (isProcessRunning(backend)) {
+        signalProcessTree(backend, "SIGKILL");
+      }
+      process.exit(process.exitCode ?? 0);
+    }, 3000);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
@@ -720,6 +938,10 @@ async function main() {
   }
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
+  const runtimeServicesInfo = buildRuntimeServicesInfo({
+    mode: "dev:safe",
+    agentServerPort: config.backendPort,
+  });
   frontend = spawnProcess(frontendCommand.command, frontendCommand.args, {
     cwd: config.cwd,
     env: {
@@ -729,6 +951,9 @@ async function main() {
       VITE_WORKING_DIR: config.workingDir,
       // Pass session API key so frontend can authenticate with agent-server
       VITE_SESSION_API_KEY: config.sessionApiKey,
+      // Inform the frontend (and downstream, the agent's system prompt) about
+      // which services are available in this dev stack.
+      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
     },
   });
 

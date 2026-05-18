@@ -75,63 +75,79 @@ describe("ProfileNameInput", () => {
     expect(screen.getByTestId("profile-name")).toHaveValue("my-profile");
   });
 
-  it("shows rule text in gray for valid names", () => {
+  it("marks the input as valid for valid names", () => {
     render(
       <ProfileNameInput
+        testId="profile-name"
         value="valid-name"
         onChange={() => {}}
-        ruleTestId="rule-text"
       />,
     );
 
-    const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
-    expect(rule).not.toHaveClass("text-red-400");
+    expect(screen.getByTestId("profile-name")).toHaveAttribute(
+      "aria-invalid",
+      "false",
+    );
   });
 
-  it("shows rule text in red for invalid names", () => {
+  it("marks the input as invalid for names starting with a special character", () => {
     render(
       <ProfileNameInput
+        testId="profile-name"
         value=".invalid-start"
         onChange={() => {}}
-        ruleTestId="rule-text"
       />,
     );
 
-    const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-red-400");
-    expect(rule).not.toHaveClass("text-gray-400");
-  });
-
-  it("shows rule text in gray for empty value (treated as valid)", () => {
-    render(
-      <ProfileNameInput value="" onChange={() => {}} ruleTestId="rule-text" />,
+    expect(screen.getByTestId("profile-name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
     );
-
-    const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
   });
 
-  it("shows rule text in gray for whitespace-only value", () => {
-    render(
-      <ProfileNameInput value="   " onChange={() => {}} ruleTestId="rule-text" />,
-    );
-
-    const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-gray-400");
-  });
-
-  it("validates names with special characters as invalid", () => {
+  it("treats an empty optional value as valid", () => {
     render(
       <ProfileNameInput
-        value="name with spaces"
+        testId="profile-name"
+        value=""
         onChange={() => {}}
-        ruleTestId="rule-text"
       />,
     );
 
-    const rule = screen.getByTestId("rule-text");
-    expect(rule).toHaveClass("text-red-400");
+    expect(screen.getByTestId("profile-name")).toHaveAttribute(
+      "aria-invalid",
+      "false",
+    );
+  });
+
+  it("marks whitespace-only values as invalid", () => {
+    render(
+      <ProfileNameInput
+        testId="profile-name"
+        value="   "
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("profile-name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("marks names containing disallowed characters as invalid", () => {
+    render(
+      <ProfileNameInput
+        testId="profile-name"
+        value="name with spaces"
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("profile-name")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("can be disabled", () => {
@@ -200,81 +216,100 @@ describe("ProfileNameInput", () => {
       const name64 = "a".repeat(64);
       render(
         <ProfileNameInput
+          testId="profile-name"
           value={name64}
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      // Valid names show gray rule text
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "false",
+      );
     });
 
     it("rejects 65 character names", () => {
       const name65 = "a".repeat(65);
       render(
         <ProfileNameInput
+          testId="profile-name"
           value={name65}
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      // Invalid names show red rule text
-      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
 
     it("accepts names starting with numbers", () => {
       render(
         <ProfileNameInput
+          testId="profile-name"
           value="1profile"
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "false",
+      );
     });
 
     it("accepts names with all allowed special characters", () => {
       render(
         <ProfileNameInput
+          testId="profile-name"
           value="valid.name_with-chars"
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-gray-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "false",
+      );
     });
 
     it("rejects names starting with special characters", () => {
       render(
         <ProfileNameInput
+          testId="profile-name"
           value=".invalid"
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
 
     it("rejects names starting with hyphen", () => {
       render(
         <ProfileNameInput
+          testId="profile-name"
           value="-invalid"
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
 
     it("rejects names starting with underscore", () => {
       render(
         <ProfileNameInput
+          testId="profile-name"
           value="_invalid"
           onChange={() => {}}
-          ruleTestId="rule"
         />,
       );
-      expect(screen.getByTestId("rule")).toHaveClass("text-red-400");
+      expect(screen.getByTestId("profile-name")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
   });
 });

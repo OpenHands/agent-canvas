@@ -89,7 +89,6 @@ function resolveSchemaFieldText(
 
   // Log warning when falling back to untranslated schema value
   if (schemaValue) {
-    // eslint-disable-next-line no-console
     console.warn(
       `[i18n] Missing translation for key "${conventionalKey}", falling back to: "${schemaValue}"`,
     );
@@ -162,7 +161,7 @@ export function resolveSchemaChoiceLabel(
   }
 
   // Log warning when falling back to untranslated schema label
-  // eslint-disable-next-line no-console
+
   console.warn(
     `[i18n] Missing translation for key "${conventionalKey}", falling back to: "${schemaLabel}"`,
   );

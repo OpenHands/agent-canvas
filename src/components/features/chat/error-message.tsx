@@ -20,7 +20,7 @@ export function ErrorMessage({ errorId, defaultMessage }: ErrorMessageProps) {
     : "CHAT_INTERFACE$AGENT_ERROR_MESSAGE";
 
   return (
-    <div className="flex flex-col gap-2 border-l-2 pl-2 my-2 py-2 border-danger text-sm w-full">
+    <div className="flex flex-col gap-2 my-2 py-2 text-sm w-full">
       <div className="font-bold text-danger">
         {t(errorKey)}
         <button

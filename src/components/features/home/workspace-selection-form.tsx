@@ -17,10 +17,19 @@ import { ManageWorkspacesModal } from "./workspace-dropdown/manage-workspaces-mo
 
 interface WorkspaceSelectionFormProps {
   isLoadingSettings?: boolean;
+  /**
+   * When provided, the form skips its own conversation creation + navigation
+   * and just calls back with the selected workspace. Callers (e.g. the home
+   * launcher dialog) use this to capture the selection and create the
+   * conversation themselves once the user submits a message. The button label
+   * also flips from "Launch" to "Confirm" so the action matches the new flow.
+   */
+  onConfirm?: (workspace: LocalWorkspace) => void;
 }
 
 export function WorkspaceSelectionForm({
   isLoadingSettings = false,
+  onConfirm,
 }: WorkspaceSelectionFormProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
@@ -63,6 +72,10 @@ export function WorkspaceSelectionForm({
 
   const handleLaunch = () => {
     if (!selectedWorkspace) return;
+    if (onConfirm) {
+      onConfirm(selectedWorkspace);
+      return;
+    }
     createConversation(
       { workingDir: selectedWorkspace.path },
       {
@@ -73,12 +86,16 @@ export function WorkspaceSelectionForm({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-[10px] pb-4">
-        <FolderIcon width={24} height={24} />
-        <span className="leading-5 font-bold text-base text-white">
-          {t(I18nKey.HOME$WORKSPACES_TAB)}
-        </span>
-      </div>
+      {/* Skip the in-form "Workspaces" header in dialog mode — the dialog
+          already shows an "Open Workspace" title, so this would be redundant. */}
+      {!onConfirm && (
+        <div className="flex items-center gap-[10px] pb-4">
+          <FolderIcon width={24} height={24} />
+          <span className="leading-5 font-bold text-base text-white">
+            {t(I18nKey.HOME$WORKSPACES_TAB)}
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-[10px] pb-4">
         <WorkspaceDropdown
@@ -95,7 +112,7 @@ export function WorkspaceSelectionForm({
 
         {showWorkspaceStatus && workspaceStatusText && (
           <p
-            className="px-1 text-xs text-[#B7BDC2]"
+            className="px-1 text-xs text-[var(--oh-text-secondary)]"
             data-testid="workspace-status-message"
           >
             {workspaceStatusText}
@@ -108,13 +125,22 @@ export function WorkspaceSelectionForm({
         variant="primary"
         type="button"
         isDisabled={
-          !selectedWorkspace || isCreatingConversation || isLoadingSettings
+          !selectedWorkspace ||
+          (!onConfirm && isCreatingConversation) ||
+          isLoadingSettings
         }
         onClick={handleLaunch}
-        className="w-auto absolute bottom-5 left-5 right-5 font-semibold"
+        className={
+          onConfirm
+            ? "w-full font-semibold"
+            : "w-auto absolute bottom-5 left-5 right-5 font-semibold"
+        }
       >
-        {!isCreatingConversation && "Launch"}
-        {isCreatingConversation && t(I18nKey.HOME$LOADING)}
+        {onConfirm
+          ? t(I18nKey.BUTTON$CONFIRM)
+          : !isCreatingConversation
+            ? "Launch"
+            : t(I18nKey.HOME$LOADING)}
       </BrandButton>
 
       <FolderBrowserModal

@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa6";
 import type { IconType } from "react-icons";
 import type { AlertType } from "./remark-github-alerts";
+import { cn } from "#/utils/utils";
 
 interface AlertConfig {
   label: string;
@@ -89,12 +90,18 @@ export function blockquote({
     return (
       <div
         data-testid={`markdown-alert-${alertType}`}
-        className={`my-3 rounded-r-sm border-l-4 px-3 py-2 ${config.containerClass}`}
+        className={cn(
+          "my-3 rounded-r-sm border-l-4 px-3 py-2",
+          config.containerClass,
+        )}
       >
         <p
-          className={`flex items-center gap-2 font-semibold ${config.titleClass}`}
+          className={cn(
+            "flex items-center gap-2 font-semibold",
+            config.titleClass,
+          )}
         >
-          <Icon aria-hidden className={`shrink-0 ${config.iconClass}`} />
+          <Icon aria-hidden className={cn("shrink-0", config.iconClass)} />
           <span>{config.label}</span>
         </p>
         <div className="text-content">{children}</div>

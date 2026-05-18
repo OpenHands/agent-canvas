@@ -14,12 +14,12 @@ export const ASSET_FILE_TYPES = [
 
 export const JSON_VIEW_THEME = {
   base00: "transparent", // background
-  base01: "#2d2d2d", // lighter background
-  base02: "#4e4e4e", // selection background
-  base03: "#6c6c6c", // comments, invisibles
-  base04: "#969896", // dark foreground
-  base05: "#d9d9d9", // default foreground
-  base06: "#e8e8e8", // light foreground
+  base01: "var(--cool-grey-900)", // lighter background
+  base02: "var(--cool-grey-700)", // selection background
+  base03: "var(--cool-grey-600)", // comments, invisibles
+  base04: "var(--cool-grey-500)", // dark foreground
+  base05: "var(--cool-grey-200)", // default foreground
+  base06: "var(--cool-grey-100)", // light foreground
   base07: "#ffffff", // light background
   base08: "#ff5370", // variables, red
   base09: "#f78c6c", // integers, orange
@@ -74,6 +74,9 @@ export const EPS = 1.5; // px tolerance for "near min" height comparisons
 /** The /btw slash command — asks a side question via the ask_agent endpoint. */
 export const BTW_COMMAND = "/btw";
 
+/** The /model slash command — lists or switches the conversation's LLM profile. */
+export const MODEL_COMMAND = "/model";
+
 /** Built-in slash commands surfaced in the menu for V1 conversations. */
 export const BUILT_IN_COMMANDS: SlashCommandItem[] = [
   {
@@ -93,6 +96,16 @@ export const BUILT_IN_COMMANDS: SlashCommandItem[] = [
       triggers: [BTW_COMMAND],
     },
     command: BTW_COMMAND,
+  },
+  {
+    skill: {
+      name: "model",
+      type: "agentskills",
+      content:
+        "List saved LLM profiles, or switch the conversation LLM profile with /model <name>",
+      triggers: [MODEL_COMMAND],
+    },
+    command: MODEL_COMMAND,
   },
 ];
 

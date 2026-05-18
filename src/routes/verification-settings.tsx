@@ -82,7 +82,7 @@ function VerificationSettingsHeader({
                 onSecurityAnalyzerChange(key ? String(key) : null)
               }
             />
-            <p className="text-tertiary-alt text-xs leading-5 max-w-[680px] ">
+            <p className="text-tertiary-alt text-xs leading-5">
               {t(I18nKey.SETTINGS$SECURITY_ANALYZER_DESCRIPTION)}
             </p>
           </div>

@@ -6,6 +6,12 @@ import { WebClientConfig } from "#/api/option-service/option.types";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
+const useActiveBackendMock = vi.fn<
+  () => { backend: { kind: "local" | "cloud" }; orgId: string | null }
+>(() => ({
+  backend: { kind: "local" },
+  orgId: null,
+}));
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
@@ -13,6 +19,10 @@ vi.mock("#/hooks/query/use-config", () => ({
 
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
+}));
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => useActiveBackendMock(),
 }));
 
 const createConfig = (
@@ -44,10 +54,39 @@ describe("useSettingsNavItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSettingsMock.mockReturnValue({ data: openHandsSettings });
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "local" },
+      orgId: null,
+    });
   });
 
-  it("returns the OSS settings items in order", () => {
+  it("renames the LLM settings item to LLM profiles on local backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const llmItem = result.current.find(
+      (item) => item.type === "item" && item.item.to === "/settings",
+    );
+
+    // ``OSS_NAV_ITEMS[0]`` is the Agent settings entry now; look up the
+    // LLM entry by path rather than index.
+    const baseLlm = OSS_NAV_ITEMS.find((item) => item.to === "/settings")!;
+    expect(llmItem).toEqual({
+      type: "item",
+      item: {
+        ...baseLlm,
+        text: "SETTINGS$LLM_PROFILES",
+        subtitle: "SETTINGS$PAGE_LLM_PROFILES_SUBLINE",
+      },
+    });
+  });
+
+  it("keeps the generic LLM settings item on cloud backends", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "cloud" },
+      orgId: "org-123",
+    });
 
     const { result } = renderHook(() => useSettingsNavItems());
 
@@ -82,8 +121,6 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/agent-server");
     expect(paths).not.toContain("/settings/integrations");
     expect(paths).not.toContain("/settings/skills");
-    // MCP was elevated to a top-level /mcp nav entry; it must no
-    // longer appear as a Settings sub-page.
     expect(paths).not.toContain("/settings/mcp");
   });
 

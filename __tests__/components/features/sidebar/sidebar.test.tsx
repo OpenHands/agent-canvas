@@ -6,6 +6,27 @@ import {
   NavigationProvider,
   type NavigationContextValue,
 } from "#/context/navigation-context";
+import translations from "#/i18n/translation.json";
+
+// The global `useTranslation` mock in `vitest.setup.ts` returns the key
+// as-is. Override it here so `t(...)` resolves keys via the source-of-truth
+// `translation.json` (English values), letting the test assert real
+// user-facing labels rather than raw keys.
+vi.mock("react-i18next", async () => {
+  const actual = await vi.importActual("react-i18next");
+  return {
+    ...(actual as object),
+    useTranslation: () => ({
+      t: (key: string) => {
+        const entry = (
+          translations as Record<string, Record<string, string>>
+        )[key];
+        return entry?.en ?? key;
+      },
+      i18n: { language: "en", exists: () => false },
+    }),
+  };
+});
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
@@ -21,26 +42,29 @@ vi.mock("#/hooks/query/use-settings", () => ({
   getErrorStatus: () => undefined,
 }));
 
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackendContext: () => ({
+    backends: [{ id: "local", name: "Local", kind: "local" }],
+    active: {
+      backend: { id: "local", name: "Local", kind: "local" },
+      orgId: null,
+    },
+    setActive: vi.fn(),
+  }),
+}));
+
+vi.mock("#/hooks/query/use-backends-health", () => ({
+  useBackendsHealth: () => ({
+    local: { isConnected: true },
+  }),
+}));
+
 vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
   StyledTooltip: ({ children }: { children: unknown }) => children,
 }));
 
 vi.mock("#/components/shared/buttons/openhands-logo-button", () => ({
   OpenHandsLogoButton: () => <div data-testid="logo-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/new-project-button", () => ({
-  NewProjectButton: () => <div data-testid="new-project-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/conversation-panel-button", () => ({
-  ConversationPanelButton: () => (
-    <div data-testid="conversation-panel-button" />
-  ),
-}));
-
-vi.mock("#/components/shared/buttons/automations-button", () => ({
-  AutomationsButton: () => <div data-testid="automations-button" />,
 }));
 
 vi.mock("#/components/features/sidebar/user-actions", () => ({
@@ -63,8 +87,83 @@ vi.mock("#/components/shared/modals/settings/settings-modal", () => ({
 }));
 
 vi.mock("#/components/features/backends/backend-selector", () => ({
-  BackendSelector: () => <div data-testid="backend-selector" />,
+  BackendSelector: ({
+    onSelectOption,
+    onOpenAddBackend,
+    onOpenManageBackends,
+  }: {
+    onSelectOption?: () => void;
+    onOpenAddBackend?: () => void;
+    onOpenManageBackends?: () => void;
+  } = {}) => (
+    <div data-testid="backend-selector">
+      {/*
+        Mimic a backend OPTION row in the dropdown menu — same role/tag the
+        real Dropdown emits. Clicking this should not bubble up to the rail
+        collapse handler.
+       */}
+      <ul>
+        <li
+          data-testid="mock-backend-option"
+          role="option"
+          aria-selected={false}
+          onClick={() => onSelectOption?.()}
+        >
+          Switch backend
+        </li>
+      </ul>
+      <button
+        type="button"
+        data-testid="mock-add-backend"
+        onClick={() => onOpenAddBackend?.()}
+      >
+        Add Backend
+      </button>
+      <button
+        type="button"
+        data-testid="mock-manage-backends"
+        onClick={() => onOpenManageBackends?.()}
+      >
+        Manage Backends
+      </button>
+    </div>
+  ),
 }));
+
+vi.mock("#/components/features/backends/add-backend-modal", () => ({
+  AddBackendModal: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="add-backend-modal">
+      <button
+        type="button"
+        data-testid="add-backend-modal-close"
+        onClick={onClose}
+      >
+        Close
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("#/components/features/backends/manage-backends-modal", () => ({
+  ManageBackendsModal: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="manage-backends-modal">
+      <button
+        type="button"
+        data-testid="manage-backends-modal-close"
+        onClick={onClose}
+      >
+        Close
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock(
+  "#/components/features/conversation-panel/new-conversation-button",
+  () => ({
+    NewConversationButton: () => <div data-testid="new-conversation-button" />,
+  }),
+);
 
 vi.mock("#/components/features/sidebar/sidebar-conversation-list", () => ({
   SidebarConversationList: () => (
@@ -77,20 +176,23 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
 }));
 
 function renderSidebar(currentPath: string) {
+  const navigate = vi.fn();
   const value: NavigationContextValue = {
     currentPath,
     conversationId: null,
     isNavigating: false,
-    navigate: vi.fn(),
+    navigate,
   };
 
-  return render(
+  const rendered = render(
     <QueryClientProvider client={new QueryClient()}>
       <NavigationProvider value={value}>
         <Sidebar />
       </NavigationProvider>
     </QueryClientProvider>,
   );
+
+  return { ...rendered, navigate };
 }
 
 describe("Sidebar", () => {
@@ -102,61 +204,16 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it.each([
-    ["/conversations"],
-    ["/automations"],
-    ["/automations/abc-123"],
-    ["/settings"],
-  ])(
-    "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
-    (currentPath) => {
-      renderSidebar(currentPath);
-
-      const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).toMatch(/(^|\s)md:pt-4(\s|$)/);
-      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
-    },
-  );
-
-  it("renders sidebar nav links and the settings toggle with the default text color shared by the settings page nav (text-[#8C8C8C])", () => {
-    renderSidebar("/skills");
-
-    const conversationsLink = screen.getByTestId("sidebar-conversations-link");
-    expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
-
-    const settingsToggle = screen.getByTestId("sidebar-settings-toggle");
-    expect(settingsToggle.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
-  });
-
-  it("labels the MCP nav item as MCP Directory instead of Integrations", () => {
-    renderSidebar("/mcp");
-
-    expect(screen.getByRole("link", { name: "SIDEBAR$MCP_DIRECTORY" })).toBe(
-      screen.getByTestId("sidebar-mcp-link"),
-    );
-    expect(
-      screen.queryByRole("link", { name: "SIDEBAR$INTEGRATIONS" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("toggles between expanded and collapsed states and persists the choice", () => {
     const { unmount } = renderSidebar("/conversations");
 
     const sidebar = screen.getByRole("navigation").parentElement;
     expect(sidebar?.dataset.collapsed).toBe("false");
-    // Settings inline toggle is rendered in expanded mode only.
-    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
 
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     fireEvent.click(toggle);
 
     expect(sidebar?.dataset.collapsed).toBe("true");
-    // Inline settings submenu toggle disappears in the collapsed rail; the
-    // single Settings link remains as the icon entry point.
-    expect(
-      screen.queryByTestId("sidebar-settings-toggle"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-settings-link")).toBeInTheDocument();
 
     // The choice survives a remount via localStorage.
     unmount();
@@ -173,11 +230,157 @@ describe("Sidebar", () => {
     // Act
     fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
 
-    // Assert: state flips back to expanded and the inline settings submenu
-    // toggle (rendered only when expanded) reappears.
+    // Assert: state flips back to expanded.
     const sidebar = screen.getByRole("navigation").parentElement;
     expect(sidebar?.dataset.collapsed).toBe("false");
-    expect(screen.getByTestId("sidebar-settings-toggle")).toBeInTheDocument();
+  });
+
+  it("expands the sidebar when collapsed rail empty space is clicked", () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    const sidebar = screen.getByRole("navigation").parentElement;
+    expect(sidebar?.dataset.collapsed).toBe("true");
+
+    if (!sidebar) {
+      throw new Error("Sidebar root not found");
+    }
+
+    fireEvent.click(sidebar);
+    expect(sidebar.dataset.collapsed).toBe("false");
+  });
+
+  it("shows collapsed server/settings action icons when sidebar is collapsed", () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    expect(screen.getByTestId("collapsed-settings-link")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("collapsed-backend-selector-link"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("backend-status-dot")).toBeInTheDocument();
+  });
+
+  it("navigates to settings when collapsed settings icon is clicked", () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    const { navigate } = renderSidebar("/conversations");
+
+    fireEvent.click(screen.getByTestId("collapsed-settings-link"));
+    expect(navigate).toHaveBeenCalledWith("/settings");
+  });
+
+  it("opens the backend popover when hovering the collapsed backend icon", async () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    expect(screen.queryByTestId("backend-selector")).not.toBeInTheDocument();
+    const trigger = screen.getByTestId("collapsed-backend-selector-link");
+    const wrapper = trigger.parentElement;
+    if (!wrapper) throw new Error("Popover wrapper not found");
+    fireEvent.mouseEnter(wrapper);
+    expect(await screen.findByTestId("backend-selector")).toBeInTheDocument();
+  });
+
+  it("does NOT expand the sidebar when a backend option in the popover is clicked", async () => {
+    // Bug: clicking a backend <li role='option'> bubbled up to the aside's
+    // rail-collapse handler (which only bails on a/button/[role=button]),
+    // so selecting a backend would expand the sidebar mid-switch.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    const sidebar = screen.getByRole("navigation").parentElement;
+    if (!sidebar) throw new Error("Sidebar not found");
+    expect(sidebar.dataset.collapsed).toBe("true");
+
+    const trigger = screen.getByTestId("collapsed-backend-selector-link");
+    const popoverContainer = trigger.parentElement;
+    if (!popoverContainer) throw new Error("Popover container not found");
+    fireEvent.mouseEnter(popoverContainer);
+    const option = await screen.findByTestId("mock-backend-option");
+
+    fireEvent.click(option);
+
+    // Sidebar should remain collapsed — selecting a backend should not
+    // collapse-toggle the rail.
+    expect(sidebar.dataset.collapsed).toBe("true");
+  });
+
+  it("keeps the Add Backend modal open after the popover closes", async () => {
+    // Bug: modal state lived inside BackendSelector; once the cursor moved
+    // out of the popover toward the centred modal, mouseLeave closed the
+    // popover, which unmounted BackendSelector and tore the modal down with
+    // it. Modal state must live above the popover to survive its unmount.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    const trigger = screen.getByTestId("collapsed-backend-selector-link");
+    const popoverContainer = trigger.parentElement;
+    if (!popoverContainer) throw new Error("Popover container not found");
+    fireEvent.mouseEnter(popoverContainer);
+
+    fireEvent.click(await screen.findByTestId("mock-add-backend"));
+
+    // Cursor moves toward the modal -> popover times out and closes.
+    fireEvent.mouseLeave(popoverContainer);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+
+    expect(screen.queryByTestId("backend-selector")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("add-backend-modal")).toBeInTheDocument();
+  });
+
+  it("keeps the Manage Backends modal open after the popover closes", async () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    const trigger = screen.getByTestId("collapsed-backend-selector-link");
+    const popoverContainer = trigger.parentElement;
+    if (!popoverContainer) throw new Error("Popover container not found");
+    fireEvent.mouseEnter(popoverContainer);
+
+    fireEvent.click(await screen.findByTestId("mock-manage-backends"));
+    fireEvent.mouseLeave(popoverContainer);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+
+    expect(screen.queryByTestId("backend-selector")).not.toBeInTheDocument();
+    expect(
+      await screen.findByTestId("manage-backends-modal"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not bubble mouse events to window when the collapsed backend icon is clicked, so the downshift-driven popover is not torn down mid-hover", () => {
+    // Bug: while the popover was open, left-clicking the tray icon closed
+    // the dropdown menu because downshift attaches its outside-click logic
+    // to window-level mousedown/mouseup. The tray icon is a sibling of the
+    // Dropdown (not one of its tracked elements), so the event reached
+    // downshift and was treated as "outside". The fix stops propagation on
+    // the button so neither event reaches the window listeners that close
+    // the menu.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    const windowMouseDown = vi.fn();
+    const windowMouseUp = vi.fn();
+    window.addEventListener("mousedown", windowMouseDown);
+    window.addEventListener("mouseup", windowMouseUp);
+
+    try {
+      renderSidebar("/conversations");
+      const trigger = screen.getByTestId("collapsed-backend-selector-link");
+      const wrapper = trigger.parentElement;
+      if (!wrapper) throw new Error("Popover wrapper not found");
+      fireEvent.mouseEnter(wrapper);
+
+      fireEvent.mouseDown(trigger);
+      fireEvent.mouseUp(trigger);
+
+      expect(windowMouseDown).not.toHaveBeenCalled();
+      expect(windowMouseUp).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("mousedown", windowMouseDown);
+      window.removeEventListener("mouseup", windowMouseUp);
+    }
   });
 
   it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {
@@ -187,11 +390,25 @@ describe("Sidebar", () => {
       "sidebar-conversations-link",
       "sidebar-automations-link",
       "sidebar-skills-link",
-      "sidebar-mcp-link",
-      "sidebar-settings-toggle",
     ]) {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
     }
+  });
+
+  it("renders the renamed top-level nav labels", () => {
+    // Arrange
+    renderSidebar("/conversations");
+
+    // Act + Assert: each top-level nav link surfaces its new user-facing label.
+    expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
+      "Code",
+    );
+    expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
+      "Customize",
+    );
+    expect(screen.getByTestId("sidebar-automations-link")).toHaveTextContent(
+      "Automate",
+    );
   });
 });

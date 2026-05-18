@@ -8,10 +8,11 @@ import { AgentState } from "#/types/agent-state";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
 
 vi.mock("#/hooks/query/use-config", () => ({
-  useConfig: () => ({ data: { APP_MODE: "saas" } }),
+  useConfig: () => ({ data: { APP_MODE: "local" } }),
 }));
 vi.mock("#/hooks/use-agent-state");
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 
@@ -59,7 +60,7 @@ describe("EventMessage - ACPToolCallEvent dispatch", () => {
     expect(screen.getByText("ACTION_MESSAGE$ACP_RUN")).toBeInTheDocument();
   });
 
-  it("shows the success check mark for completed tool calls", () => {
+  it("does not show a success icon for completed tool calls", () => {
     renderWithProviders(
       <EventMessage
         event={makeEvent()}
@@ -69,8 +70,7 @@ describe("EventMessage - ACPToolCallEvent dispatch", () => {
       />,
     );
 
-    // Same status-icon testid as regular successful observations.
-    expect(screen.getByTestId("status-icon")).toBeInTheDocument();
+    expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
   });
 
   it("omits the status icon while a call is in progress", () => {

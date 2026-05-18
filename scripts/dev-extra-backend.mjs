@@ -12,6 +12,11 @@ import {
   formatMissingUvxGuidance,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
+import {
+  getProcessTreeSpawnOptions,
+  isProcessRunning,
+  signalProcessTree,
+} from "./dev-process-utils.mjs";
 
 const DEFAULT_EXTRA_BACKEND_PORT = 18002;
 const DEFAULT_EXTRA_VSCODE_PORT = 18003;
@@ -88,8 +93,11 @@ async function waitForServer(url, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
   throw new Error(`Timed out waiting for agent-server at ${url}`);
 }
 
-function spawnProcess(command, args, options) {
-  const child = spawn(command, args, { stdio: "inherit", ...options });
+function spawnProcess(command, args, options = {}) {
+  const child = spawn(command, args, getProcessTreeSpawnOptions({
+    stdio: "inherit",
+    ...options,
+  }));
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
@@ -170,7 +178,14 @@ async function main() {
     }
 
     shuttingDown = true;
-    backend.kill(signal);
+    signalProcessTree(backend, signal);
+
+    setTimeout(() => {
+      if (isProcessRunning(backend)) {
+        signalProcessTree(backend, "SIGKILL");
+      }
+      process.exit(process.exitCode ?? 0);
+    }, 3000);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));

@@ -117,7 +117,7 @@ export function ModelSelector({
   return (
     <div
       className={cn(
-        "flex flex-col md:flex-row w-full max-w-[680px] justify-between gap-4 md:gap-[46px]",
+        "flex flex-col md:flex-row w-full min-w-0 justify-between gap-4 md:gap-[46px]",
         wrapperClassName,
       )}
     >
@@ -141,16 +141,23 @@ export function ModelSelector({
           defaultSelectedKey={selectedProvider ?? undefined}
           selectedKey={selectedProvider}
           classNames={{
-            popoverContent: "bg-tertiary rounded-xl border border-[#717888]",
+            popoverContent:
+              "bg-content1 rounded-xl border border-[var(--oh-border)]",
+            selectorButton:
+              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
           }}
+          selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
               inputWrapper:
-                "bg-tertiary border border-[#717888] h-10 w-full rounded-sm p-2 placeholder:italic",
+                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2 placeholder:italic",
             },
           }}
         >
-          <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
+          <AutocompleteSection
+            title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}
+            classNames={{ heading: "text-[var(--oh-muted)]" }}
+          >
             {verifiedProviders.map((provider) => (
               <AutocompleteItem
                 data-testid={`provider-item-${provider.name}`}
@@ -161,7 +168,10 @@ export function ModelSelector({
             ))}
           </AutocompleteSection>
           {unverifiedProviders.length > 0 ? (
-            <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
+            <AutocompleteSection
+              title={t(I18nKey.MODEL_SELECTOR$OTHERS)}
+              classNames={{ heading: "text-[var(--oh-muted)]" }}
+            >
               {unverifiedProviders.map((provider) => (
                 <AutocompleteItem key={provider.name}>
                   {mapProvider(provider.name)}
@@ -203,22 +213,32 @@ export function ModelSelector({
           selectedKey={selectedModel}
           defaultSelectedKey={selectedModel ?? undefined}
           classNames={{
-            popoverContent: "bg-tertiary rounded-xl border border-[#717888]",
+            popoverContent:
+              "bg-content1 rounded-xl border border-[var(--oh-border)]",
+            selectorButton:
+              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
           }}
+          selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
               inputWrapper:
-                "bg-tertiary border border-[#717888] h-10 w-full rounded-sm p-2 placeholder:italic",
+                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2 placeholder:italic",
             },
           }}
         >
-          <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
+          <AutocompleteSection
+            title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}
+            classNames={{ heading: "text-[var(--oh-muted)]" }}
+          >
             {verifiedModels.map((model) => (
               <AutocompleteItem key={model.name}>{model.name}</AutocompleteItem>
             ))}
           </AutocompleteSection>
           {unverifiedModels.length > 0 ? (
-            <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
+            <AutocompleteSection
+              title={t(I18nKey.MODEL_SELECTOR$OTHERS)}
+              classNames={{ heading: "text-[var(--oh-muted)]" }}
+            >
               {unverifiedModels.map((model) => (
                 <AutocompleteItem
                   data-testid={`model-item-${model.name}`}

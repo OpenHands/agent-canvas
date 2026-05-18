@@ -33,16 +33,15 @@ export function ConfirmationModal({
     >
       <div
         data-testid="confirmation-modal"
-        className="bg-base-secondary p-4 rounded-xl flex flex-col gap-4 border border-tertiary"
+        className="bg-base-secondary p-4 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
       >
         <p>{text}</p>
-        <div className="w-full flex gap-2">
+        <div className="w-full flex justify-end gap-2">
           <BrandButton
             testId="cancel-button"
             type="button"
             onClick={onCancel}
             variant="secondary"
-            className="grow"
             isDisabled={isConfirming}
           >
             {t(I18nKey.BUTTON$CANCEL)}
@@ -52,7 +51,6 @@ export function ConfirmationModal({
             type="button"
             onClick={onConfirm}
             variant="primary"
-            className="grow"
             isDisabled={isConfirming}
           >
             {t(I18nKey.BUTTON$CONFIRM)}

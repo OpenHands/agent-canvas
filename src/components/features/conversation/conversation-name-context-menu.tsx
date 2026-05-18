@@ -115,7 +115,7 @@ export function ConversationNameContextMenu({
     backend.kind === "cloud"
       ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
       : I18nKey.COMMON$STOP_CONVERSATION;
-  // Public sharing is a cloud-only SaaS feature; hide it on local backends.
+  // Public sharing is a cloud-only feature; hide it on local backends.
   const shouldShowPublicSharing =
     backend.kind === "cloud" && Boolean(onTogglePublic);
 
@@ -248,7 +248,7 @@ export function ConversationNameContextMenu({
                 type="button"
                 data-testid="copy-share-link-button"
                 onClick={onCopyShareLink}
-                className="p-1 hover:bg-[#717888] rounded cursor-pointer"
+                className="p-1 hover:bg-[var(--oh-interactive-selected)] rounded cursor-pointer"
                 title={t(I18nKey.BUTTON$COPY_TO_CLIPBOARD)}
               >
                 <CopyIcon width={16} height={16} />
@@ -259,7 +259,7 @@ export function ConversationNameContextMenu({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="p-1 hover:bg-[#717888] rounded cursor-pointer"
+                className="p-1 hover:bg-[var(--oh-interactive-selected)] rounded cursor-pointer"
                 title={t(I18nKey.BUTTON$OPEN_IN_NEW_TAB)}
               >
                 <LinkIcon width={16} height={16} />
@@ -304,6 +304,7 @@ export function ConversationNameContextMenu({
       return null;
     }
     return ReactDOM.createPortal(
+      // portal position computed from DOM bounding rect at runtime
       <div style={portalStyle}>{menu}</div>,
       document.body,
     );

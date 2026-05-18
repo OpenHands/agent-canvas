@@ -4,6 +4,8 @@ import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
 import ChevronDownIcon from "#/icons/chevron-down.svg?react";
+import { cn } from "#/utils/utils";
+import { NavigationLink } from "#/components/shared/navigation-link";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
@@ -27,57 +29,57 @@ export function CreateInstructions({
     <>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {/* Option 1: Claude Code / Codex */}
-        <div className="rounded-lg border border-border bg-surface-card p-4">
+        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
           <div className="flex items-center gap-2">
-            <TerminalIcon className="size-5 text-content-muted" />
+            <TerminalIcon className="size-5 text-muted" />
             <span className="text-sm font-medium text-content">
               {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_TITLE)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-content-muted">
+          <p className="mt-2 text-sm text-muted">
             <a
               href={PLUGIN_INSTALL_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:text-content transition-colors"
+              className="underline hover:text-foreground transition-colors"
             >
               {t(I18nKey.AUTOMATIONS$EMPTY_INSTALL_PLUGIN)}
             </a>{" "}
             {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_DESC)}
           </p>
-          <code className="mt-2 block rounded bg-surface-elevated px-3 py-2 font-mono text-xs text-content">
+          <code className="mt-2 block rounded bg-surface-raised px-3 py-2 font-mono text-xs text-content">
             {PLUGIN_COMMAND}
           </code>
         </div>
 
         {/* Option 2: OpenHands Cloud conversation */}
-        <div className="rounded-lg border border-border bg-surface-card p-4">
+        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
           <div className="flex items-center gap-2">
-            <SparkleIcon className="size-5 text-content-muted" />
+            <SparkleIcon className="size-5 text-muted" />
             <span className="text-sm font-medium text-content">
               {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_TITLE)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-content-muted">
+          <p className="mt-2 text-sm text-muted">
             {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC)}
           </p>
-          <a
-            href={NEW_CONVERSATION_URL}
-            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-elevated px-3 py-2 text-xs font-medium text-content hover:bg-border transition-colors"
+          <NavigationLink
+            to={NEW_CONVERSATION_URL}
+            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-medium text-content hover:bg-surface-raised transition-colors"
           >
             {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
             <span aria-hidden="true">→</span>
-          </a>
+          </NavigationLink>
         </div>
       </div>
 
       {/* Documentation link */}
-      <p className="mt-4 text-center text-sm text-content-muted">
+      <p className="mt-4 text-center text-sm text-muted">
         <a
           href={DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:text-content transition-colors"
+          className="underline hover:text-foreground transition-colors"
         >
           {t(I18nKey.AUTOMATIONS$EMPTY_LEARN_MORE)}
         </a>
@@ -87,20 +89,21 @@ export function CreateInstructions({
 
   if (collapsible) {
     return (
-      <div className="w-full rounded-lg border border-border bg-surface-card">
+      <div className="w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)]">
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           aria-expanded={isExpanded}
-          className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-elevated transition-colors rounded-lg"
+          className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-raised transition-colors rounded-lg"
         >
           <span className="text-sm font-medium text-content">
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon
-            className={`size-5 text-content-muted transition-transform ${
-              isExpanded ? "rotate-180" : ""
-            }`}
+            className={cn(
+              "size-5 text-muted transition-transform",
+              isExpanded && "rotate-180",
+            )}
           />
         </button>
         {isExpanded && <div className="px-4 pb-4">{content}</div>}

@@ -3,6 +3,7 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
+import { getAgentServerHeaders } from "../agent-server-config";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
@@ -27,7 +28,7 @@ interface CloudProxyRequest {
    * Override the upstream host. When set, the proxy targets this host
    * instead of `backend.host`. Used for runtime-sandbox calls where the
    * upstream lives at the conversation's runtime URL (e.g.
-   * `http://<id>.prod-runtime.all-hands.dev`) rather than the SaaS API.
+   * `http://<id>.prod-runtime.all-hands.dev`) rather than the cloud API.
    * The host must still pass the proxy's allowlist server-side.
    */
   hostOverride?: string;
@@ -63,7 +64,7 @@ function buildUpstreamAuthHeaders(
 /**
  * POST a cloud-proxy envelope to the local agent-server. The local server
  * forwards the request to the upstream host server-side, which sidesteps
- * the cross-origin restrictions that would block a direct browser → SaaS
+ * the cross-origin restrictions that would block a direct browser → cloud
  * or browser → runtime-sandbox call.
  *
  * Auth headers (bearer or session-api-key) are attached server-side; they
@@ -73,12 +74,16 @@ export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
 ): Promise<TResponse> {
   const local = getEffectiveLocalBackend();
+  const localAuthHeaders = {
+    ...buildAuthHeaders(local),
+    ...getAgentServerHeaders(),
+  };
   // Send `X-Org-Id` so the upstream scopes per-request to the org the user
   // selected locally, instead of the user's globally-shared
-  // `current_org_id` on the SaaS. Restricted to calls against the active
+  // `current_org_id` on the cloud backend. Restricted to calls against the active
   // backend: the selector also fans out per-backend bookkeeping calls
   // (e.g. `getCloudOrganizations(b)`) that would otherwise carry the
-  // active backend's orgId across an unrelated API key, which the SaaS
+  // active backend's orgId across an unrelated API key, which the cloud backend
   // rejects when api_key_org_id and X-Org-Id disagree.
   const active = getActiveBackend();
   const orgIdHeader =
@@ -107,7 +112,7 @@ export async function callCloudProxy<TResponse = unknown>(
       ...(req.timeoutSeconds ? { timeout_seconds: req.timeoutSeconds } : {}),
     },
     {
-      headers: buildAuthHeaders(local),
+      headers: localAuthHeaders,
       timeout: 30_000,
       ...(req.responseType ? { responseType: req.responseType } : {}),
     },

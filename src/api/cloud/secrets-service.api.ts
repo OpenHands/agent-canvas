@@ -19,7 +19,7 @@ function getActiveCloudBackend(): Backend {
 }
 
 /**
- * Walk every page of the cloud SaaS `/api/v1/secrets/search` endpoint via the
+ * Walk every page of the cloud `/api/v1/secrets/search` endpoint via the
  * bundled `/api/cloud-proxy` and return the merged list. The cloud shape
  * (name + description) matches `CustomSecretWithoutValue`, so items pass
  * through unchanged.
@@ -34,7 +34,6 @@ export async function fetchCloudSecrets(): Promise<CustomSecretWithoutValue[]> {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    // eslint-disable-next-line no-await-in-loop
     const page = await callCloudProxy<CloudSecretsPage>({
       backend,
       method: "GET",
