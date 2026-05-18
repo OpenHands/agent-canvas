@@ -5,7 +5,7 @@ import { useCreateConversation } from "#/hooks/mutation/use-create-conversation"
 import { useSettings } from "#/hooks/query/use-settings";
 import { useConversationStore } from "#/stores/conversation-store";
 import { setConversationState } from "#/utils/conversation-local-storage";
-import type { RecommendedAutomation } from "#/constants/recommended-automations";
+import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {

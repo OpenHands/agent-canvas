@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import type { RecommendedAutomation } from "#/constants/recommended-automations";
-import { getRecommendedAutomationsByPopularity } from "#/constants/recommended-automations";
+import {
+  AUTOMATION_CATALOG,
+  type RecommendedAutomation,
+} from "@openhands/extensions/automations";
 import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
@@ -22,6 +24,10 @@ interface RecommendedAutomationsSectionProps {
   query?: string;
   onSelect: (automation: RecommendedAutomation) => void;
 }
+
+const RECOMMENDED_AUTOMATIONS = [...AUTOMATION_CATALOG].sort(
+  (a, b) => b.popularityRank - a.popularityRank,
+);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
   return automation.requiredMcpIds
@@ -66,15 +72,13 @@ export function RecommendedAutomationsSection({
 }: RecommendedAutomationsSectionProps) {
   const { t } = useTranslation("openhands");
 
-  const visibleAutomations = getRecommendedAutomationsByPopularity().filter(
-    (automation) => {
-      const requiredEntries = getRequiredEntries(automation);
-      return (
-        isAutomationAvailable(automation, backendKind) &&
-        automationMatchesQuery(automation, requiredEntries, query)
-      );
-    },
-  );
+  const visibleAutomations = RECOMMENDED_AUTOMATIONS.filter((automation) => {
+    const requiredEntries = getRequiredEntries(automation);
+    return (
+      isAutomationAvailable(automation, backendKind) &&
+      automationMatchesQuery(automation, requiredEntries, query)
+    );
+  });
 
   if (visibleAutomations.length === 0) return null;
 

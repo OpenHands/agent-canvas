@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { RecommendedAutomationsSection } from "#/components/features/automations/recommended-automations-section";
-import { RECOMMENDED_AUTOMATIONS } from "#/constants/recommended-automations";
+import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
 
 const { mockCreateConversationMutate, mockUseSettings } = vi.hoisted(() => ({
   mockCreateConversationMutate: vi.fn(),
@@ -101,7 +101,7 @@ describe("recommended automations", () => {
   });
 
   it("selects a recommendation directly from its card", () => {
-    const automation = RECOMMENDED_AUTOMATIONS.find(
+    const automation = AUTOMATION_CATALOG.find(
       (item) => item.id === "github-pr-reviewer",
     )!;
     const onSelect = vi.fn();
