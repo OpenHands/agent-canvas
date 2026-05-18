@@ -8,7 +8,7 @@
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -17,6 +17,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   buildAutomationCommand,
   buildConfig,
+  validateLocalAutomationPath,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
@@ -24,6 +25,21 @@ import {
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
 import { resetPersistedSessionApiKeyCache } from "../../scripts/dev-safe.mjs";
+
+/**
+ * Create a fake automation checkout that satisfies validateLocalAutomationPath:
+ * has `pyproject.toml` at the root and an `openhands/automation/` directory.
+ * Returns the absolute path; caller is responsible for cleanup.
+ */
+function makeFakeAutomationCheckout(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "fake-automation-"));
+  writeFileSync(
+    path.join(dir, "pyproject.toml"),
+    '[project]\nname = "openhands-automation"\nversion = "0.0.0"\n',
+  );
+  mkdirSync(path.join(dir, "openhands", "automation"), { recursive: true });
+  return dir;
+}
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -112,6 +128,92 @@ describe("buildAutomationCommand", () => {
     expect(cmd.args).toContain(`git+${DEFAULT_AUTOMATION_REPO}@main`);
     expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
     expect(cmd.source).toBe("git (main)");
+  });
+
+  it("uses local checkout when OH_AUTOMATION_LOCAL_PATH is set", () => {
+    const localPath = "/abs/path/to/automation";
+    const cmd = buildAutomationCommand({
+      OH_AUTOMATION_LOCAL_PATH: localPath,
+    });
+
+    expect(cmd.command).toBe("uvx");
+    // Rebuilds from source each invocation so working-tree edits land
+    expect(cmd.args).toContain("--reinstall");
+    expect(cmd.args).toContain("--from");
+    expect(cmd.args).toContain(localPath);
+    // Still launches uvicorn with the automation ASGI app
+    expect(cmd.args).toContain("uvicorn");
+    expect(cmd.args).toContain("openhands.automation.app:app");
+    expect(cmd.source).toBe(`local (${localPath})`);
+  });
+
+  it("local path takes precedence over git ref and version", () => {
+    const localPath = "/abs/path/to/automation";
+    const cmd = buildAutomationCommand({
+      OH_AUTOMATION_LOCAL_PATH: localPath,
+      OH_AUTOMATION_GIT_REF: "main",
+      OH_AUTOMATION_VERSION: "1.0.0",
+    });
+
+    expect(cmd.command).toBe("uvx");
+    expect(cmd.args).toContain(localPath);
+    expect(cmd.args).not.toContain(`git+${DEFAULT_AUTOMATION_REPO}@main`);
+    expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
+    expect(cmd.source).toBe(`local (${localPath})`);
+  });
+});
+
+describe("validateLocalAutomationPath", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    while (tempDirs.length > 0) {
+      const dir = tempDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a well-formed automation checkout", () => {
+    const dir = makeFakeAutomationCheckout();
+    tempDirs.push(dir);
+
+    expect(() => validateLocalAutomationPath(dir)).not.toThrow();
+  });
+
+  it("rejects a relative path", () => {
+    expect(() => validateLocalAutomationPath("relative/path")).toThrow(
+      /must be an absolute path/,
+    );
+  });
+
+  it("rejects an empty value", () => {
+    expect(() => validateLocalAutomationPath("")).toThrow(/non-empty string/);
+  });
+
+  it("rejects a non-existent path", () => {
+    expect(() =>
+      validateLocalAutomationPath("/definitely/does/not/exist/automation"),
+    ).toThrow(/does not exist/);
+  });
+
+  it("rejects a directory missing pyproject.toml", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "fake-automation-bad-"));
+    tempDirs.push(dir);
+    mkdirSync(path.join(dir, "openhands", "automation"), { recursive: true });
+
+    expect(() => validateLocalAutomationPath(dir)).toThrow(
+      /missing pyproject\.toml/,
+    );
+  });
+
+  it("rejects a directory missing openhands/automation", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "fake-automation-bad-"));
+    tempDirs.push(dir);
+    writeFileSync(path.join(dir, "pyproject.toml"), "[project]\n");
+
+    expect(() => validateLocalAutomationPath(dir)).toThrow(
+      /openhands-automation checkout/,
+    );
   });
 });
 
@@ -258,6 +360,26 @@ describe("buildConfig", () => {
     await buildConfig({ automationRepo: "https://example.com/repo" }, env);
 
     expect(env.OH_AUTOMATION_REPO).toBe("https://example.com/repo");
+  });
+
+  it("applies automationLocalPath from args to env when path is valid", async () => {
+    const localPath = makeFakeAutomationCheckout();
+    keyDirs.push(localPath); // reuse cleanup list to remove on teardown
+
+    const env = envWithIsolatedKeyPath();
+    await buildConfig({ automationLocalPath: localPath }, env);
+
+    expect(env.OH_AUTOMATION_LOCAL_PATH).toBe(localPath);
+  });
+
+  it("rejects an invalid automationLocalPath up front", async () => {
+    const env = envWithIsolatedKeyPath();
+    await expect(
+      buildConfig(
+        { automationLocalPath: "/definitely/does/not/exist/automation" },
+        env,
+      ),
+    ).rejects.toThrow(/OH_AUTOMATION_LOCAL_PATH/);
   });
 
   it("uses correct state directory path", async () => {
@@ -436,8 +558,10 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--port");
     expect(output).toContain("--automation-ref");
     expect(output).toContain("--automation-repo");
+    expect(output).toContain("--automation-local-path");
     expect(output).toContain("--static");
     expect(output).toContain("--dynamic");
+    expect(output).toContain("OH_AUTOMATION_LOCAL_PATH");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
