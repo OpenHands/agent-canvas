@@ -1,7 +1,9 @@
 # agent-canvas
 
 > [!WARNING]
-> This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).
+> This project is in the **Sandbox** phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+
+[![Project Status: Sandbox](https://img.shields.io/badge/status-sandbox-yellow)](https://github.com/OpenHands/incubator-program)
 
 OpenHands is a platform for orchestrating coding agents across different environments. You can:
 
@@ -21,9 +23,18 @@ The same Agent Canvas frontend can swap between each of these environments, so y
 OpenHands works with any agent harness (e.g. Claude Code, Codex)
 or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
 
-If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
+If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack).
+
+Agent Canvas is being prepared for OpenHands Incubator review. The current readiness checklist and remaining approval steps are tracked in [docs/incubator-readiness.md](./docs/incubator-readiness.md). The project should only switch to the Incubator badge after Tech Council approves the status change.
 
 <img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
+
+## Project ownership and support
+
+- **Current status**: Sandbox; preparing an Incubator status-change request.
+- **Project owner**: Ash Clarke.
+- **Support channel**: [#proj-agent-canvas](https://openhands.dev/joinslack).
+- **Support level**: Best effort while the project remains pre-Incubator.
 
 ## Quickstart
 
@@ -108,4 +119,9 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 
 ## More documentation
 
-For contributor and developer workflows, including frontend-only mode, mock mode, environment variables, and build/test commands, see [DEVELOPMENT.md](./DEVELOPMENT.md).
+- [Documentation index](./docs/README.md)
+- [Architecture overview](./docs/architecture.md)
+- [Architecture review](./docs/architecture-review.md)
+- [Incubator readiness checklist](./docs/incubator-readiness.md)
+- [Development guide](./DEVELOPMENT.md)
+- [Self-hosting guide](./SELF_HOSTING.md)
