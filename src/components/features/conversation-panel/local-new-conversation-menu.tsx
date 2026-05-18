@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
 
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useNavigation } from "#/context/navigation-context";
@@ -10,36 +9,57 @@ import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import RepoIcon from "#/icons/repo.svg?react";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
 import { ManageWorkspacesModal } from "#/components/features/home/workspace-dropdown/manage-workspaces-modal";
 
-interface LocalNewConversationButtonProps {
+import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
+import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
+
+export type LocalNewConversationMenuTriggerProps = {
+  onClick: () => void;
+  "aria-expanded": boolean;
+  "aria-haspopup": "menu";
+  disabled?: boolean;
+};
+
+export interface LocalNewConversationMenuProps {
+  trigger: (props: LocalNewConversationMenuTriggerProps) => React.ReactNode;
+  /** Root wrapper class (e.g. `relative` + alignment in header row) */
+  className?: string;
+  /** Panel positioning / dimensions when using absolute placement (sidebar) */
+  popoverClassName: string;
+  /** Optional test id for the popover surface */
+  popoverTestId?: string;
   /**
-   * Render the trigger as a "+" icon-only button (used by the collapsed
-   * sidebar). The popover content is unchanged; only the trigger pill
-   * collapses.
+   * Use `position: fixed` from the trigger rect so the menu is not clipped by
+   * sidebar overflow (conversation panel header).
    */
-  compact?: boolean;
+  useFixedPlacement?: boolean;
 }
 
 /**
- * Local-backend variant of the sidebar "+ New Conversation" trigger.
- *
- * Opens an inline popover on top of the conversation list. The popover is a
- * flat list: each entry (including a leading "No workspace" option)
- * immediately starts a conversation when clicked. The sticky footer still
- * exposes "+ Add Workspace" / "Manage Workspaces" entries.
+ * Workspace/repo picker + launch flow for local agent-server backends.
+ * Shared by the sidebar "+ New conversation" control and the conversation
+ * panel "new thread folder" control.
  */
-export function LocalNewConversationButton({
-  compact = false,
-}: LocalNewConversationButtonProps = {}) {
+export function LocalNewConversationMenu({
+  trigger,
+  className,
+  popoverClassName,
+  popoverTestId = "new-conversation-popover",
+  useFixedPlacement = false,
+}: LocalNewConversationMenuProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
   const [open, setOpen] = React.useState(false);
   const popoverRef = React.useRef<HTMLDivElement>(null);
+  const triggerWrapRef = React.useRef<HTMLSpanElement>(null);
+  const fixedBox = usePopoverFixedPlacement(triggerWrapRef, {
+    open,
+    enabled: useFixedPlacement,
+  });
 
   const {
     workspaceParents,
@@ -54,14 +74,8 @@ export function LocalNewConversationButton({
 
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
-  // `isCreatingElsewhere` already covers in-flight mutations and the
-  // post-submit navigation window (`isNavigating`). We deliberately do not
-  // include `isSuccess` here: this component stays mounted across navigation,
-  // so a sticky `isSuccess` would lock the button as disabled forever.
   const isCreating = isPending || isCreatingElsewhere;
 
-  // Close the popover on outside click. Modal-based children portal out of
-  // the popover, so we ignore clicks while a modal is showing.
   React.useEffect(() => {
     if (!open || browserOpen || manageOpen) return undefined;
     const onDown = (e: MouseEvent) => {
@@ -101,9 +115,9 @@ export function LocalNewConversationButton({
   };
 
   const itemClass = cn(
-    "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left cursor-pointer",
-    "hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal",
-    "disabled:opacity-60 disabled:cursor-not-allowed",
+    "flex w-full cursor-pointer items-center gap-2 rounded px-2 py-2 text-left text-sm text-white",
+    "font-normal transition-colors hover:bg-[var(--oh-interactive-hover)]",
+    "disabled:cursor-not-allowed disabled:opacity-60",
   );
 
   const keepPopoverOpenOnMouseDown = React.useCallback(
@@ -114,53 +128,47 @@ export function LocalNewConversationButton({
     [],
   );
 
-  const newConversationLabel = t(I18nKey.SIDEBAR$NEW_CONVERSATION);
+  const toggleOpen = React.useCallback(() => {
+    setOpen((o) => !o);
+  }, []);
 
-  const triggerButton = (
-    <button
-      type="button"
-      data-testid="new-conversation-button"
-      onClick={() => setOpen((o) => !o)}
-      aria-expanded={open}
-      aria-label={compact ? newConversationLabel : undefined}
-      className={cn(
-        "flex items-center rounded-md cursor-pointer transition-colors",
-        "text-sm font-medium text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
-        "border border-[var(--oh-border)]",
-        compact
-          ? "justify-center w-10 h-10 p-0 mx-auto"
-          : "gap-1.5 w-full px-3 py-2",
-      )}
-    >
-      <Plus width={16} height={16} className="shrink-0" />
-      {!compact && newConversationLabel}
-    </button>
-  );
+  const showPopover = open && (!useFixedPlacement || fixedBox !== null);
+
+  const fixedStyle: React.CSSProperties | undefined =
+    useFixedPlacement && fixedBox
+      ? {
+          position: "fixed",
+          top: fixedBox.top,
+          left: fixedBox.left,
+          width: fixedBox.width,
+        }
+      : undefined;
 
   return (
     <div
-      className={cn("relative", compact && "flex justify-center")}
+      className={cn(!useFixedPlacement && "relative", className)}
       ref={popoverRef}
     >
-      {compact ? (
-        <StyledTooltip content={newConversationLabel} placement="right">
-          {triggerButton}
-        </StyledTooltip>
-      ) : (
-        triggerButton
-      )}
+      <span ref={triggerWrapRef} className="inline-flex">
+        {trigger({
+          onClick: toggleOpen,
+          "aria-expanded": open,
+          "aria-haspopup": "menu",
+          disabled: isCreating,
+        })}
+      </span>
 
-      {open && (
+      {showPopover && (
         <div
-          data-testid="new-conversation-popover"
+          data-testid={popoverTestId}
           className={cn(
-            "absolute z-30 top-full mt-2 p-1",
-            "bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-lg shadow-xl",
-            "flex flex-col",
-            compact ? "left-0 w-[260px]" : "left-0 right-0",
+            NEW_CONVERSATION_DROPDOWN_SURFACE,
+            !useFixedPlacement &&
+              cn("absolute top-full mt-0", popoverClassName),
           )}
+          style={fixedStyle}
         >
-          <ul className="flex flex-col max-h-[40vh] sm:max-h-[280px] overflow-y-auto">
+          <ul className="flex max-h-[40vh] flex-col overflow-y-auto sm:max-h-[280px]">
             <li>
               <button
                 type="button"
@@ -169,7 +177,7 @@ export function LocalNewConversationButton({
                 onClick={() => launch()}
                 className={itemClass}
               >
-                <span className="italic text-[var(--oh-muted)]">
+                <span className="text-[var(--oh-muted)]">
                   {t(I18nKey.HOME$NO_WORKSPACE_OPTION)}
                 </span>
               </button>
@@ -191,7 +199,7 @@ export function LocalNewConversationButton({
             ))}
           </ul>
 
-          <div className="flex flex-col border-t border-[var(--oh-border)] mt-1 pt-1">
+          <div className="mt-1 flex flex-col pt-1">
             <button
               type="button"
               data-testid="add-workspaces-button"

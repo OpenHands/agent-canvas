@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  ConversationSortField,
+  OrganizeMode,
+  ThreadScope,
+} from "#/components/features/conversation-panel/conversation-panel-list-helpers";
 
 /**
  * User-toggleable display preferences for the sidebar conversation list
@@ -17,6 +22,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 interface ConversationPanelPreferencesState {
   showOlderConversations: boolean;
   showRepoBranchMetadata: boolean;
+  showLlmProfiles: boolean;
+  organizeMode: OrganizeMode;
+  conversationSort: ConversationSortField;
+  threadScope: ThreadScope;
 }
 
 interface ConversationPanelPreferencesActions {
@@ -24,6 +33,11 @@ interface ConversationPanelPreferencesActions {
   toggleShowOlderConversations: () => void;
   setShowRepoBranchMetadata: (value: boolean) => void;
   toggleShowRepoBranchMetadata: () => void;
+  setShowLlmProfiles: (value: boolean) => void;
+  toggleShowLlmProfiles: () => void;
+  setOrganizeMode: (value: OrganizeMode) => void;
+  setConversationSort: (value: ConversationSortField) => void;
+  setThreadScope: (value: ThreadScope) => void;
 }
 
 type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
@@ -32,6 +46,10 @@ type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
 const initialState: ConversationPanelPreferencesState = {
   showOlderConversations: true,
   showRepoBranchMetadata: false,
+  showLlmProfiles: false,
+  organizeMode: "chronological",
+  conversationSort: "updated",
+  threadScope: "all",
 };
 
 export const useConversationPanelPreferencesStore =
@@ -53,6 +71,17 @@ export const useConversationPanelPreferencesStore =
           set((state) => ({
             showRepoBranchMetadata: !state.showRepoBranchMetadata,
           })),
+
+        setShowLlmProfiles: (value) => set(() => ({ showLlmProfiles: value })),
+        toggleShowLlmProfiles: () =>
+          set((state) => ({
+            showLlmProfiles: !state.showLlmProfiles,
+          })),
+
+        setOrganizeMode: (value) => set(() => ({ organizeMode: value })),
+        setConversationSort: (value) =>
+          set(() => ({ conversationSort: value })),
+        setThreadScope: (value) => set(() => ({ threadScope: value })),
       }),
       {
         name: "conversation-panel-preferences",
@@ -61,6 +90,10 @@ export const useConversationPanelPreferencesStore =
         partialize: (state): ConversationPanelPreferencesState => ({
           showOlderConversations: state.showOlderConversations,
           showRepoBranchMetadata: state.showRepoBranchMetadata,
+          showLlmProfiles: state.showLlmProfiles,
+          organizeMode: state.organizeMode,
+          conversationSort: state.conversationSort,
+          threadScope: state.threadScope,
         }),
       },
     ),

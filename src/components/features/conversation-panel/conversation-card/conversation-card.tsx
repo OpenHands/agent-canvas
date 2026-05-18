@@ -31,6 +31,8 @@ interface ConversationCardProps {
   isActive?: boolean;
   workspaceWorkingDir?: string | null;
   showRepositoryMetadata?: boolean;
+  llmModel?: string | null;
+  showLlmProfiles?: boolean;
 }
 
 export function ConversationCard({
@@ -51,6 +53,8 @@ export function ConversationCard({
   isActive = false,
   workspaceWorkingDir,
   showRepositoryMetadata = true,
+  llmModel = null,
+  showLlmProfiles = false,
 }: ConversationCardProps) {
   const posthog = usePostHog();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
@@ -123,7 +127,8 @@ export function ConversationCard({
   };
 
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
-  const shouldRenderFooter = showRepositoryMetadata;
+  const shouldRenderFooter =
+    showRepositoryMetadata || (!!llmModel && showLlmProfiles);
 
   return (
     <div
@@ -132,10 +137,9 @@ export function ConversationCard({
       data-active={isActive ? "true" : "false"}
       onClick={onClick}
       className={cn(
-        "group relative h-auto w-full rounded-md px-3 pt-1 pb-1 cursor-pointer transition-colors",
+        "group relative h-auto w-full cursor-pointer rounded-md py-1 pl-2 pr-1 transition-colors",
         "data-[context-menu-open=false]:hover:bg-[var(--oh-surface)]",
         "data-[active=true]:bg-[var(--oh-surface)]",
-        "data-[context-menu-open=true]:z-20",
       )}
     >
       <div className="flex items-center w-full min-w-0">
@@ -160,7 +164,7 @@ export function ConversationCard({
           {(createdAt ?? lastUpdatedAt) && (
             <p
               className={cn(
-                "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity",
+                "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity -translate-x-1.5",
                 hasContextMenu &&
                   "group-hover:opacity-0 group-focus-within:opacity-0",
                 contextMenuOpen && "opacity-0",
@@ -175,7 +179,7 @@ export function ConversationCard({
               className={cn(
                 "absolute right-0 top-1/2 -translate-y-1/2 transition-opacity",
                 "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
-                contextMenuOpen && "opacity-100 visible z-[60]",
+                contextMenuOpen && "visible opacity-100",
               )}
             >
               <ConversationCardActions
@@ -204,6 +208,8 @@ export function ConversationCard({
           workspaceWorkingDir={workspaceWorkingDir}
           showRepositoryMetadata={showRepositoryMetadata}
           showTimestamp={false}
+          llmModel={llmModel}
+          showLlmModel={showLlmProfiles}
         />
       )}
     </div>

@@ -136,6 +136,14 @@ export interface AppConversation {
   session_api_key: string | null;
   sandbox_id: string | null;
   workspace?: ConversationWorkspace | null;
+  /**
+   * The local workspace the user explicitly attached when creating this
+   * conversation. Client-side only — never round-tripped to the agent-server
+   * or cloud. Null/undefined for conversations created via "No workspace".
+   * Distinct from `workspace.working_dir` (the per-conversation worktree path
+   * the runtime actually operates in).
+   */
+  selected_workspace?: string | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }
