@@ -5,7 +5,10 @@ import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
-import { MCP_MARKETPLACE, MarketplaceEntry } from "#/constants/mcp-marketplace";
+import {
+  MCP_CATALOG as MCP_MARKETPLACE,
+  type McpCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/mcps";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -118,7 +121,6 @@ describe("InstallServerModal", () => {
       id: "synthetic-required",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
-      logo: null,
       iconBg: "#000000",
       template: {
         kind: "shttp",
@@ -153,7 +155,6 @@ describe("InstallServerModal", () => {
       id: "synthetic-optional",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
-      logo: null,
       iconBg: "#000000",
       template: {
         kind: "shttp",

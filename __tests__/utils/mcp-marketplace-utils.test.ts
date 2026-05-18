@@ -6,7 +6,7 @@ import {
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import { MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
+import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
 
 const slackEntry = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
 const tavilyEntry = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;

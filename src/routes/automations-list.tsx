@@ -15,6 +15,7 @@ import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { CreateInstructions } from "#/components/features/automations/create-instructions";
+import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 
 const PAGE_SIZE = 50;
 
@@ -184,6 +185,10 @@ export default function AutomationsList() {
               )}
             </>
           )}
+        </div>
+
+        <div className="mt-6">
+          <RecommendedAutomationsLauncher query={searchQuery} />
         </div>
 
         {/* Delete confirmation modal */}
