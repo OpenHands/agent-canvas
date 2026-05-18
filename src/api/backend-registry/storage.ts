@@ -35,11 +35,14 @@ function syncDefaultLocalBackendAuth(backend: Backend): Backend {
   if (
     backend.id !== defaultBackend.id ||
     backend.kind !== "local" ||
-    backend.apiKey ||
     !defaultBackend.apiKey ||
     normalizeHostForComparison(backend.host) !==
       normalizeHostForComparison(defaultBackend.host)
   ) {
+    return backend;
+  }
+
+  if (backend.apiKey === defaultBackend.apiKey) {
     return backend;
   }
 

@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
+import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
@@ -210,7 +211,8 @@ export function toConversationUrl(conversationId: string): string {
   // Local-format conversation URL — points at whichever local agent-server
   // is actually serving the conversation (the bundled one when the active
   // selection is cloud).
-  return `${getEffectiveLocalBackend().host}/api/conversations/${conversationId}`;
+  const { host } = getAgentServerClientOptions();
+  return `${host}/api/conversations/${conversationId}`;
 }
 
 // TODO(i18n): extract "Conversation" once we add CONVERSATION$DEFAULT_TITLE
@@ -266,7 +268,7 @@ export function toAppConversation(
       ExecutionStatus.IDLE,
     sandbox_status: (info.sandbox_status as SandboxStatus | null) ?? null,
     conversation_url: toConversationUrl(info.id),
-    session_api_key: getEffectiveLocalBackend().apiKey || null,
+    session_api_key: getAgentServerClientOptions().apiKey ?? null,
     sandbox_id: null,
     workspace: {
       working_dir: info.workspace?.working_dir ?? getAgentServerWorkingDir(),
