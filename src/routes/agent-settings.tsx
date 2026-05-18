@@ -15,16 +15,9 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import {
   ACP_PROVIDERS,
-  type ACPProviderInfo,
-} from "@openhands/typescript-client";
-import { ACP_CUSTOM_PRESET_KEY } from "#/constants/acp-presets";
-
-// Cache the registry as a sorted array for the dropdown + iteration sites
-// below. ``ACP_PROVIDERS`` is a frozen Record keyed by provider id; turning
-// it into an array once per module load avoids re-allocating an array on
-// every render of the form.
-const ACP_PROVIDER_LIST: readonly ACPProviderInfo[] =
-  Object.values(ACP_PROVIDERS);
+  ACP_CUSTOM_PRESET_KEY,
+  type ACPProviderConfig,
+} from "#/constants/acp-providers";
 
 export const handle = { hideTitle: true };
 
@@ -51,11 +44,11 @@ function toStringArray(value: unknown): string[] {
 
 function detectPreset(
   commandText: string,
-  providers: readonly ACPProviderInfo[],
+  providers: ACPProviderConfig[],
 ): string {
   const normalized = tokenizeCommand(commandText).join(" ");
   for (const provider of providers) {
-    if (normalized === provider.defaultCommand.join(" ")) {
+    if (normalized === provider.default_command.join(" ")) {
       return provider.key;
     }
   }
@@ -97,9 +90,9 @@ function AgentSettingsScreen() {
       const rawAcpServer = settings.agent_settings?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
-      const provider = acpServer ? ACP_PROVIDERS[acpServer] : undefined;
+      const provider = ACP_PROVIDERS.find(({ key }) => key === acpServer);
       const effectiveCommand =
-        joined || formatCommand([...(provider?.defaultCommand ?? [])]);
+        joined || formatCommand(provider?.default_command ?? []);
       setCommandText(effectiveCommand);
 
       const savedModel = settings.agent_settings?.acp_model;
@@ -121,16 +114,15 @@ function AgentSettingsScreen() {
   // state. Keeping it in state would mean three sync points (effect, textarea
   // onChange, dropdown onSelectionChange) that can drift — deriving inline
   // keeps the dropdown honest about what would actually be saved.
-  const selectedPreset = detectPreset(commandText, ACP_PROVIDER_LIST);
-  const selectedProvider =
-    selectedPreset !== ACP_CUSTOM_PRESET_KEY
-      ? ACP_PROVIDERS[selectedPreset]
-      : undefined;
+  const selectedPreset = detectPreset(commandText, ACP_PROVIDERS);
+  const selectedProvider = ACP_PROVIDERS.find(
+    ({ key }) => key === selectedPreset,
+  );
   const isDefaultProviderCommand =
     !!selectedProvider &&
-    commandTokens.join(" ") === selectedProvider.defaultCommand.join(" ");
+    commandTokens.join(" ") === selectedProvider.default_command.join(" ");
   const commandPlaceholder =
-    formatCommand([...(ACP_PROVIDER_LIST[0]?.defaultCommand ?? [])]) ||
+    formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
 
   const handleSave = () => {
@@ -207,9 +199,9 @@ function AgentSettingsScreen() {
           if (newType === "acp" && !commandText) {
             // First-time switch into ACP: prefill the textarea with the
             // first registered provider.
-            const preferred = ACP_PROVIDER_LIST[0];
+            const preferred = ACP_PROVIDERS[0];
             if (preferred) {
-              setCommandText(formatCommand([...preferred.defaultCommand]));
+              setCommandText(formatCommand(preferred.default_command));
             }
           }
           setIsDirty(true);
@@ -223,9 +215,9 @@ function AgentSettingsScreen() {
             name="agent-preset"
             label={t(I18nKey.SETTINGS$AGENT_PRESET)}
             items={[
-              ...ACP_PROVIDER_LIST.map((provider) => ({
+              ...ACP_PROVIDERS.map((provider) => ({
                 key: provider.key,
-                label: provider.displayName,
+                label: provider.display_name,
               })),
               {
                 key: ACP_CUSTOM_PRESET_KEY,
@@ -236,9 +228,9 @@ function AgentSettingsScreen() {
             onSelectionChange={(key) => {
               if (!key) return;
               const preset = String(key);
-              const provider = ACP_PROVIDERS[preset];
+              const provider = ACP_PROVIDERS.find(({ key: k }) => k === preset);
               if (provider) {
-                setCommandText(formatCommand([...provider.defaultCommand]));
+                setCommandText(formatCommand(provider.default_command));
               }
               setIsDirty(true);
             }}

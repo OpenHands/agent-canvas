@@ -7,7 +7,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
-import { ACP_PROVIDERS } from "@openhands/typescript-client";
+import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -123,7 +123,7 @@ function buildAgentSettingsDiff(
   if (agentId === "openhands") {
     return { agent_kind: "openhands" };
   }
-  const provider = ACP_PROVIDERS[agentId];
+  const provider = ACP_PROVIDERS.find(({ key }) => key === agentId);
   if (!provider) {
     return null;
   }
