@@ -605,6 +605,16 @@ export function buildAgentServerEnv(config) {
     OH_SECRET_KEY: config.secretKey,
     // Use OH_SESSION_API_KEYS_0 for agent-server V1 config format
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Aliases consumed by the OpenHands SDK boilerplate emitted by
+    // automation prompt/plugin presets. The agent-server sets
+    // OH_INTERNAL_SERVER_URL at startup, but the auto-generated `main.py`
+    // and `setup.sh` read AGENT_SERVER_URL / SESSION_API_KEY (the
+    // canonical SDK names) when calling back into the agent-server from
+    // an automation run's bash subprocess. Mirroring them here means
+    // automation runs work out of the box without forcing every preset
+    // tarball to know about the OH_-prefixed variants.
+    AGENT_SERVER_URL: config.backendBaseUrl,
+    SESSION_API_KEY: config.sessionApiKey,
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,

@@ -354,6 +354,17 @@ function startAgentServerDocker(config) {
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Aliases consumed by the OpenHands SDK boilerplate emitted by
+    // automation prompt/plugin presets. The agent-server sets
+    // OH_INTERNAL_SERVER_URL=http://127.0.0.1:8000 at startup (host 0.0.0.0
+    // is rewritten to loopback) and the value is inherited by every bash
+    // subprocess it spawns — including the automation run's main.py /
+    // setup.sh. Those scripts read AGENT_SERVER_URL / SESSION_API_KEY (the
+    // canonical SDK names) instead of the OH_-prefixed variants, so we
+    // mirror them here. 127.0.0.1:8000 is the agent-server's own URL from
+    // *inside* its container (it always listens on port 8000 in dev:docker).
+    AGENT_SERVER_URL: "http://127.0.0.1:8000",
+    SESSION_API_KEY: config.sessionApiKey,
     // Make the mounted canvas-tools directory importable so the agent-server
     // can resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
