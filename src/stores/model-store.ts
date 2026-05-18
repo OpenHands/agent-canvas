@@ -17,6 +17,13 @@ export interface ModelListEntry {
 
 interface ModelState {
   entriesByConversation: Record<string, ModelListEntry[]>;
+  /**
+   * Most-recently-switched profile name per conversation. Updated by
+   * `recordSwitch` so the UI (button label, popover check mark) reflects the
+   * new selection instantly, before the conversation refetch from the agent
+   * server lands.
+   */
+  activeProfileByConversation: Record<string, string>;
 }
 
 interface ModelActions {
@@ -30,6 +37,8 @@ interface ModelActions {
     anchorEventId: string | null,
     profileName: string,
   ) => void;
+  /** Drops only the optimistic active-profile entry for a conversation. */
+  clearActiveProfile: (conversationId: string) => void;
   clear: (conversationId: string) => void;
   clearAll: () => void;
 }
@@ -54,6 +63,7 @@ export const useModelStore = create<ModelStore>()(
   devtools(
     (set) => ({
       entriesByConversation: {},
+      activeProfileByConversation: {},
       show: (conversationId, anchorEventId, profiles) =>
         set((s) =>
           appendEntry(s, conversationId, {
@@ -63,21 +73,39 @@ export const useModelStore = create<ModelStore>()(
           }),
         ),
       recordSwitch: (conversationId, anchorEventId, profileName) =>
-        set((s) =>
-          appendEntry(s, conversationId, {
+        set((s) => ({
+          ...appendEntry(s, conversationId, {
             id: uuidv4(),
             anchorEventId,
             profiles: [],
             switchedTo: profileName,
           }),
-        ),
+          activeProfileByConversation: {
+            ...s.activeProfileByConversation,
+            [conversationId]: profileName,
+          },
+        })),
+      clearActiveProfile: (conversationId) =>
+        set((s) => {
+          if (!(conversationId in s.activeProfileByConversation)) return s;
+          const activeProfileByConversation = {
+            ...s.activeProfileByConversation,
+          };
+          delete activeProfileByConversation[conversationId];
+          return { activeProfileByConversation };
+        }),
       clear: (conversationId) =>
         set((s) => {
           const entriesByConversation = { ...s.entriesByConversation };
           delete entriesByConversation[conversationId];
-          return { entriesByConversation };
+          const activeProfileByConversation = {
+            ...s.activeProfileByConversation,
+          };
+          delete activeProfileByConversation[conversationId];
+          return { entriesByConversation, activeProfileByConversation };
         }),
-      clearAll: () => set({ entriesByConversation: {} }),
+      clearAll: () =>
+        set({ entriesByConversation: {}, activeProfileByConversation: {} }),
     }),
     { name: "ModelStore" },
   ),

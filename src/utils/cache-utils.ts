@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import type { ActionEvent } from "#/types/agent-server/core/events/action-event";
+import { useModelStore } from "#/stores/model-store";
 import { stripWorkspacePrefix } from "./path-utils";
 
 /**
@@ -45,5 +46,16 @@ export const handleActionEventCacheInvalidation = (
     queryClient.invalidateQueries({
       queryKey: ["file_diff", conversationId, strippedPath],
     });
+  }
+
+  // When the agent autonomously swaps the LLM via SwitchLLMTool, refresh the
+  // conversation so SwitchProfileButton / ChatInputModel pick up the new
+  // `llm_model`, and drop any previously-set optimistic profile name (it
+  // would now misrepresent the agent's choice).
+  if (event.tool_name === "SwitchLLMTool") {
+    queryClient.invalidateQueries({
+      queryKey: ["user", "conversation", conversationId],
+    });
+    useModelStore.getState().clearActiveProfile(conversationId);
   }
 };
