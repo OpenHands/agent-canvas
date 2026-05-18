@@ -3,7 +3,7 @@
 > [!WARNING]
 > This project is in alpha phase. It may be vibecoded, untested, or out of date. [Learn more](https://github.com/OpenHands/incubator-program).
 
-OpenHands is a platform for managing agents across a variety of environments. You can:
+OpenHands is a platform for orchestrating coding agents across different environments. You can:
 
 - ⌨️ prompt agents manually
 - 🕐 run agents on a schedule
@@ -16,7 +16,10 @@ Agents can run anywhere:
 - ☁️ in our hosted cloud
 - 🏢 or inside your company’s infrastructure
 
-You can work with any agent (e.g. Claude Code, Codex) or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
+The same Agent Canvas frontend can swap between each of these environments, so you can see everything in one place.
+
+OpenHands works with any agent harness (e.g. Claude Code, Codex)
+or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
@@ -26,18 +29,19 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ### Direct Install
 
-> [!WARNING]
-> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
->
-> We recommend running on a dedicated machine, such as a VM in DigitalOcean or a dedicated Mac Mini.
-> See [SELF_HOSTING.md](SELF_HOSTING.md) for details, especially with respect to security hardening.
+You can install OpenHands to run agents on any machine: on your laptop, on a dedicated computer like a Mac Mini,
+or on a server in the cloud.
 
 The most powerful way to run OpenHands is on a server in the cloud. This allows your agents to continue running
 even when your laptop is shut, and makes it easier to trigger your agents through third-party services
-like Slack, GitHub, and Datadog.
+like Slack, GitHub, and Datadog. See [SELF_HOSTING.md](SELF_HOSTING.md) for details, especially with respect to security hardening.
 
-Notably, you can run the OpenHands Agent Server backend on _multiple different VMs_ and switch between
-them from the same Agent Canvas frontend!
+Notably, you can run the backend in _multiple different environments_, and switch between
+them from the same Agent Canvas frontend. E.g. you can share an Agent Server with your team for agents doing
+code review and dependency updates, then have your personal agents running on your laptop.
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
 **Prerequisites**:
 
@@ -52,7 +56,7 @@ npm install
 npm run dev:dangerously-dockerless
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000).
+Access the UI at [http://localhost:8000](http://localhost:8000). You can add additional backends directly from the UI.
 
 ### With Docker Sandbox
 
@@ -74,6 +78,13 @@ git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
 npm run dev:docker
+```
+
+Windows PowerShell workaround: if `npm run dev:docker` starts the backend but `http://localhost:8000` shows **Bad Gateway** and the logs include a Vite error like `'C:\\Program' is not recognized`, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
+
+```powershell
+$env:PROJECTS_PATH = "/path/to/your/projects"
+node --env-file-if-exists=.env .\scripts\dev-docker.mjs
 ```
 
 Access the UI at [http://localhost:8000](http://localhost:8000).
