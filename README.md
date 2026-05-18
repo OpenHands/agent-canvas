@@ -26,18 +26,19 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ### Direct Install
 
-> [!WARNING]
-> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
->
-> We recommend running on a dedicated machine, such as a VM in DigitalOcean or a dedicated Mac Mini.
-> See [SELF_HOSTING.md](SELF_HOSTING.md) for details, especially with respect to security hardening.
+You can install OpenHands to run agents on any machine: on your laptop, n a dedicated computer like a Mac Mini,
+or on a server in the cloud.
 
 The most powerful way to run OpenHands is on a server in the cloud. This allows your agents to continue running
 even when your laptop is shut, and makes it easier to trigger your agents through third-party services
-like Slack, GitHub, and Datadog.
+like Slack, GitHub, and Datadog. See [SELF_HOSTING.md](SELF_HOSTING.md) for details, especially with respect to security hardening.
 
-Notably, you can run the OpenHands Agent Server backend on _multiple different VMs_ and switch between
-them from the same Agent Canvas frontend!
+Notably, you can run the backend in _multiple different environments_, and switch between
+them from the same Agent Canvas frontend. E.g. you can share an Agent Server with your team for agents doing
+code review and dependency updates, then have your personal agents running on your laptop.
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
 
 **Prerequisites**:
 
@@ -52,7 +53,7 @@ npm install
 npm run dev:dangerously-dockerless
 ```
 
-Access the UI at [http://localhost:8000](http://localhost:8000).
+Access the UI at [http://localhost:8000](http://localhost:8000). You can add additional backends directly from the UI.
 
 ### With Docker Sandbox
 
