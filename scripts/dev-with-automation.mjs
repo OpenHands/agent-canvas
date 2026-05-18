@@ -579,7 +579,29 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
-        AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
+        // The automation backend uses this to call the agent-server's REST
+        // API for uploads and bash dispatch (host-side) AND it propagates
+        // the same value into the in-sandbox bash command as the
+        // `AGENT_SERVER_URL` env var that main.py reads to connect back.
+        //
+        // In dev:docker that script runs inside the agent-server container,
+        // so the URL has to be reachable from *both* the host and the
+        // container. `host.docker.internal:${agentServerPort}` satisfies
+        // both: from the host it's a loopback alias, and from inside the
+        // container Docker's host-gateway routes back through the published
+        // port. A little wasteful (the in-container script bounces through
+        // the host port-forward) but it's the only single value that works
+        // both ways without changes to the automation backend.
+        //
+        // Priority:
+        //   1. AUTOMATION_AGENT_SERVER_URL explicitly set in the user's env
+        //   2. launcher-provided host (dev-docker.mjs sets
+        //      `automationApiHost: "host.docker.internal"`)
+        //   3. `localhost` (correct for dockerless mode where backend and
+        //      agent-server both run on the host)
+        AUTOMATION_AGENT_SERVER_URL:
+          process.env.AUTOMATION_AGENT_SERVER_URL ||
+          `http://${config.automationApiHost ?? "localhost"}:${config.agentServerPort}`,
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         // The automation backend uses this as its publicly-reachable base
