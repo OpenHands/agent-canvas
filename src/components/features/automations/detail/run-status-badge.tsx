@@ -4,6 +4,7 @@ import CheckCircleIcon from "#/icons/check-circle.svg?react";
 import XCircleIcon from "#/icons/x-circle.svg?react";
 import ClockIcon from "#/icons/clock.svg?react";
 import { AutomationRunStatus } from "#/types/automation";
+import { cn } from "#/utils/utils";
 
 interface RunStatusBadgeProps {
   status: AutomationRunStatus;
@@ -16,19 +17,19 @@ const statusConfig: Record<
   [AutomationRunStatus.COMPLETED]: {
     label: I18nKey.AUTOMATIONS$DETAIL$SUCCESSFUL,
     style:
-      "border-status-success-border bg-status-success-bg text-status-success-text",
+      "border-[var(--oh-success)]/50 bg-[var(--oh-success)]/10 text-[var(--oh-success)]",
   },
   [AutomationRunStatus.FAILED]: {
     label: I18nKey.AUTOMATIONS$DETAIL$FAILED,
-    style: "border-status-fail-border bg-status-fail-bg text-status-fail-text",
+    style: "border-[var(--oh-danger)]/50 bg-[var(--oh-danger)]/10 text-danger",
   },
   [AutomationRunStatus.PENDING]: {
     label: I18nKey.AUTOMATIONS$DETAIL$PENDING,
-    style: "border-border bg-surface-elevated text-content-muted",
+    style: "border-[var(--oh-border)] bg-surface-raised text-muted",
   },
   [AutomationRunStatus.RUNNING]: {
     label: I18nKey.AUTOMATIONS$DETAIL$RUNNING,
-    style: "border-border bg-surface-elevated text-content-muted",
+    style: "border-[var(--oh-border)] bg-surface-raised text-muted",
   },
 };
 
@@ -61,7 +62,10 @@ export function RunStatusBadge({ status }: RunStatusBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.style}`}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        config.style,
+      )}
     >
       <StatusIcon status={status} />
       {t(config.label)}

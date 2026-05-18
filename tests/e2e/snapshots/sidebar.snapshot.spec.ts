@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the sidebar / conversation panel.
@@ -22,9 +23,7 @@ async function dismissConsentModal(page: Page) {
 }
 
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
   // Suppress proxy errors for file API (home page workspace scan)
   await page.route("**/api/file/**", async (route) => {
     await route.fulfill({
@@ -46,10 +45,10 @@ test.describe("Sidebar Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for all three conversation cards to be present
+    // Wait for all five conversation cards to be present
     const conversationPanel = page.getByTestId("conversation-panel");
     await expect(conversationPanel).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(3, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
 
@@ -95,7 +94,7 @@ test.describe("Sidebar Visual Snapshots", () => {
     await expect(page.getByTestId("conversation-panel")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("conversation-card")).toHaveCount(3, {
+    await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
 

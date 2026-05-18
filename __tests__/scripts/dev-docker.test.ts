@@ -1,3 +1,10 @@
+// @vitest-environment node
+// These tests load `scripts/dev-docker.mjs`, which constructs file:// URLs
+// relative to its own location via `new URL("../tools", import.meta.url)`.
+// jsdom's URL constructor ignores file:// base URLs (it falls back to its
+// document base, e.g. http://localhost:3000/), breaking that resolution;
+// the Node environment has the standard WHATWG URL behavior that honors
+// the file:// base.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +14,7 @@ import {
   getDockerHomeTmpfsArgs,
   getDockerUserArgs,
   getHostDockerUserSpec,
+  getProjectsPathDockerArgs,
   isDockerPermissionDenied,
 } from "../../scripts/dev-docker.mjs";
 
@@ -43,12 +51,31 @@ describe("docker host user", () => {
     expect(getDockerUserArgs(null)).toEqual([]);
   });
 
-  it("mounts a writable tmpfs home for the mapped host user", () => {
+  it("mounts a writable, executable tmpfs home for the mapped host user", () => {
+    // `exec` is critical: docker's --tmpfs default is rw,noexec,nosuid,nodev,
+    // which breaks stdio MCP servers that exec binaries cached under ~/.npm
+    // (e.g. `npx -y @modelcontextprotocol/server-github`). We keep `nosuid`
+    // and `nodev` as defense-in-depth -- $HOME has no business hosting
+    // setuid binaries or device nodes -- but the `noexec` default has to go.
     expect(getDockerHomeTmpfsArgs("1000:1000")).toEqual([
       "--tmpfs",
-      "/home/openhands:uid=1000,gid=1000,mode=700",
+      "/home/openhands:exec,nosuid,nodev,uid=1000,gid=1000,mode=700",
     ]);
     expect(getDockerHomeTmpfsArgs(null)).toEqual([]);
+  });
+});
+
+describe("getProjectsPathDockerArgs", () => {
+  it("uses PROJECTS_PATH for the /projects bind mount", () => {
+    expect(
+      getProjectsPathDockerArgs({ PROJECTS_PATH: "/host/projects" }),
+    ).toEqual(["-v", "/host/projects:/projects"]);
+  });
+
+  it("does not read the old PROJECT_PATH name", () => {
+    expect(getProjectsPathDockerArgs({ PROJECT_PATH: "/host/projects" })).toEqual(
+      [],
+    );
   });
 });
 

@@ -1,3 +1,4 @@
+import type { RefObject, MouseEvent } from "react";
 import { useRef, useState, useCallback } from "react";
 import { useAutoResize } from "#/hooks/use-auto-resize";
 import { CHAT_INPUT } from "#/utils/constants";
@@ -10,34 +11,35 @@ import {
  * Hook for managing grip resize functionality
  */
 export const useGripResize = (
-  chatInputRef: React.RefObject<HTMLDivElement | null>,
+  chatInputRef: RefObject<HTMLDivElement | null>,
   messageToSend: IMessageToSend | null,
 ) => {
   const [isGripVisible, setIsGripVisible] = useState(false);
+  const [isGripDragging, setIsGripDragging] = useState(false);
 
   const { setShouldHideSuggestions } = useConversationStore();
 
   const gripRef = useRef<HTMLDivElement | null>(null);
+  /** After a real resize drag, swallow the synthetic click so it doesn't toggle `isGripVisible`. */
+  const suppressNextTopEdgeClickRef = useRef(false);
 
-  // Drag state management callbacks
-  const handleDragStart = useCallback(() => {
-    // Keep grip visible during drag by adding a CSS class
-    if (gripRef.current) {
-      gripRef.current.classList.add("opacity-100");
-      gripRef.current.classList.remove("opacity-0");
-    }
+  const handleGripDragStart = useCallback(() => {
+    setIsGripDragging(true);
   }, []);
 
-  const handleDragEnd = useCallback(() => {
-    // Restore hover-based visibility
-    if (gripRef.current) {
-      gripRef.current.classList.remove("opacity-100");
-      gripRef.current.classList.add("opacity-0");
-    }
+  const handleGripDragEnd = useCallback(() => {
+    setIsGripDragging(false);
+    suppressNextTopEdgeClickRef.current = true;
   }, []);
 
   // Handle click on top edge area to toggle grip visibility
-  const handleTopEdgeClick = useCallback((e: React.MouseEvent) => {
+  const handleTopEdgeClick = useCallback((e: MouseEvent) => {
+    if (suppressNextTopEdgeClickRef.current) {
+      suppressNextTopEdgeClickRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
     setIsGripVisible((prev) => !prev);
   }, []);
@@ -63,8 +65,8 @@ export const useGripResize = (
     minHeight: 20,
     maxHeight: 400,
     onHeightChange: handleHeightChange,
-    onGripDragStart: handleDragStart,
-    onGripDragEnd: handleDragEnd,
+    onGripDragStart: handleGripDragStart,
+    onGripDragEnd: handleGripDragEnd,
     value: messageToSend ?? undefined,
     enableManualResize: true,
   });
@@ -72,6 +74,7 @@ export const useGripResize = (
   return {
     gripRef,
     isGripVisible,
+    isGripDragging,
     handleTopEdgeClick,
     smartResize,
     handleGripMouseDown,

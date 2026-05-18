@@ -13,7 +13,6 @@ import {
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useConfig } from "#/hooks/query/use-config";
-import { useGetTrajectory } from "#/hooks/mutation/use-get-trajectory";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
@@ -21,7 +20,6 @@ import { AgentState } from "#/types/agent-state";
 
 // Module-level mocks
 vi.mock("#/hooks/query/use-config");
-vi.mock("#/hooks/mutation/use-get-trajectory");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: vi.fn(),
@@ -111,11 +109,6 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
 
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { app_mode: "local" },
-    });
-    (useGetTrajectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      mutate: vi.fn(),
-      mutateAsync: vi.fn(),
-      isLoading: false,
     });
     (
       useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>

@@ -22,13 +22,22 @@ describe("mock conversation handlers", () => {
     expect(page.items[0]?.title).toBeTruthy();
   });
 
-  it("returns empty git changes for mock conversations", async () => {
+  it("returns pre-seeded git changes for mock conversations", async () => {
+    // MOCK_GIT_CHANGES is pre-seeded in git-repository-handlers.ts with three
+    // representative entries (UPDATED→M, ADDED→A, DELETED→D) so E2E snapshot
+    // tests can exercise the full diff-viewer UI without per-test manipulation.
     const changes = await AgentServerGitService.getGitChanges(
       "http://localhost:3000/api/conversations/1",
       null,
       "workspace/project",
     );
 
-    expect(changes).toEqual([]);
+    expect(changes).toHaveLength(3);
+    expect(changes.map((c) => c.status)).toEqual(["M", "A", "D"]);
+    expect(changes.map((c) => c.path)).toEqual([
+      "src/components/hello.tsx",
+      "src/utils/new-helper.ts",
+      "src/old-module.py",
+    ]);
   });
 });

@@ -69,7 +69,7 @@ export function CustomServerEditor({
     >
       <div
         data-testid="mcp-custom-editor"
-        className="bg-base-secondary p-6 rounded-xl border border-tertiary w-[680px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
+        className="bg-base-secondary p-6 rounded-xl border border-[var(--oh-border)] w-[680px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
       >
         <h2 className="text-lg font-semibold mb-4">
           {isEditing

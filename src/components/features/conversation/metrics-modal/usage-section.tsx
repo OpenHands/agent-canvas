@@ -22,13 +22,13 @@ export function UsageSection({ usage }: UsageSectionProps) {
       />
 
       <div className="grid grid-cols-2 gap-2 pl-4 text-sm">
-        <span className="text-neutral-400">
+        <span className="text-[var(--oh-muted)]">
           {t(I18nKey.CONVERSATION$CACHE_HIT)}
         </span>
         <span className="text-right">
           {usage.cache_read_tokens.toLocaleString()}
         </span>
-        <span className="text-neutral-400">
+        <span className="text-[var(--oh-muted)]">
           {t(I18nKey.CONVERSATION$CACHE_WRITE)}
         </span>
         <span className="text-right">

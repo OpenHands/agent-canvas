@@ -63,7 +63,7 @@ export const useCreateConversation = () => {
           agentType,
         );
 
-      // OpenHands SaaS pattern: when the start task isn't immediately
+      // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),
       // app_conversation_id is null. We return a `task-{id}` URL so the
       // conversation route's useTaskPolling can drive it to READY and
@@ -91,7 +91,7 @@ export const useCreateConversation = () => {
       queryClient.invalidateQueries({
         queryKey: ["user", "conversations"],
       });
-      // The cloud SaaS path returns a start task (no app_conversation_id
+      // The cloud path returns a start task (no app_conversation_id
       // yet); the sidebar surfaces those via `useStartTasks` which doesn't
       // poll, so invalidate it explicitly so the in-flight task shows up
       // in the conversation list immediately.

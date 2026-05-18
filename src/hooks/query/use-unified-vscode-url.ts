@@ -28,7 +28,7 @@ export const useUnifiedVSCodeUrl = () => {
   const sandboxId = conversation?.sandbox_id ?? null;
   const isCloud = active.backend.kind === "cloud";
 
-  // Cloud mode: read VSCode URL from the SaaS-computed `exposed_urls` on
+  // Cloud mode: read VSCode URL from the cloud-computed `exposed_urls` on
   // the conversation's sandbox. The runtime's `/api/vscode/url` only
   // knows its internal `localhost:8001`, so calling it returned a URL
   // the user's browser couldn't reach.

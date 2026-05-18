@@ -42,7 +42,7 @@ export const useDeleteConversation = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["user", "conversations"] });
-      // Mirror useCreateConversation: cloud SaaS surfaces in-flight
+      // Mirror useCreateConversation: cloud surfaces in-flight
       // conversations via useStartTasks, so invalidate that key too so the
       // panel refreshes regardless of whether the deleted item was a ready
       // conversation or a still-provisioning start task.

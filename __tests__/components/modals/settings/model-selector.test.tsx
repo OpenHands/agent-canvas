@@ -137,9 +137,4 @@ describe("ModelSelector", () => {
     });
   });
 
-  it("should stretch the provider and model selectors across the full row", () => {
-    const { container } = renderWithQuery(<ModelSelector />);
-
-    expect(container.firstChild).toHaveClass("w-full");
-  });
 });

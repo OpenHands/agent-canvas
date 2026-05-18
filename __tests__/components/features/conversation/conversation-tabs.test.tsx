@@ -20,6 +20,7 @@ const REAL_CONVERSATION_ID = "conv-abc123";
 let mockConversationId = TASK_CONVERSATION_ID;
 
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: mockConversationId }),
 }));
 
@@ -310,6 +311,49 @@ describe("ConversationTabs localStorage behavior", () => {
       expect(testIds[0]).toBe("conversation-tab-files");
       // Task list should still be visible, just not first.
       expect(testIds).toContain("conversation-tab-tasklist");
+    });
+
+    it("shows an unpinned tab in the bar while it is selected", () => {
+      mockConversationId = REAL_CONVERSATION_ID;
+      seedConversationState(REAL_CONVERSATION_ID, {
+        selectedTab: "planner",
+        unpinnedTabs: ["planner"],
+      });
+      useConversationStore.setState({
+        selectedTab: "planner",
+        isRightPanelShown: true,
+        hasRightPanelToggled: true,
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.getByTestId("conversation-tab-planner"),
+      ).toBeInTheDocument();
+    });
+
+    it("hides an unpinned tab from the bar once another tab is selected", () => {
+      mockConversationId = REAL_CONVERSATION_ID;
+      seedConversationState(REAL_CONVERSATION_ID, {
+        selectedTab: "files",
+        unpinnedTabs: ["planner"],
+      });
+      useConversationStore.setState({
+        selectedTab: "files",
+        isRightPanelShown: true,
+        hasRightPanelToggled: true,
+      });
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.queryByTestId("conversation-tab-planner"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("conversation-tab-files")).toBeInTheDocument();
     });
 
     it("does not show the build button when the planner tab is inactive", () => {

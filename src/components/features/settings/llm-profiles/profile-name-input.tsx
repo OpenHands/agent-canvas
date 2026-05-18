@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { isProfileNameValid } from "#/utils/derive-profile-name";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
 
 interface ProfileNameInputProps {
   testId?: string;
@@ -66,7 +67,10 @@ export const ProfileNameInput = forwardRef<
       <p
         id={describedById}
         data-testid={ruleTestId}
-        className={`text-xs ${isValid ? "text-gray-400" : "text-red-400"}`}
+        className={cn(
+          "text-xs",
+          isValid ? "text-[var(--oh-muted)]" : "text-red-400",
+        )}
       >
         {t(I18nKey.SETTINGS$PROFILE_NAME_RULE)}
       </p>

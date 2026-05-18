@@ -4,14 +4,6 @@ import { SecretsService } from "#/api/secrets-service";
 import { CustomSecretWithoutValue } from "#/api/secrets-service.types";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 
-export const useGetSecrets = () => {
-  const active = useActiveBackend();
-  return useQuery({
-    queryKey: ["secrets", active.backend.id, active.orgId],
-    queryFn: SecretsService.getSecrets,
-  });
-};
-
 interface UseSearchSecretsOptions {
   nameContains?: string;
   enabled?: boolean;

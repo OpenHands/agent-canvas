@@ -1,7 +1,6 @@
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { useQuery } from "@tanstack/react-query";
 
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 
@@ -62,14 +61,9 @@ export function useWorkspaceFiles() {
       workingDir,
     ],
     queryFn: async () => {
-      const workspace = new RemoteWorkspace(
-        getAgentServerClientOptions({
-          conversationUrl,
-          sessionApiKey,
-        }),
-      );
-
-      const result = await workspace.executeCommand(
+      const result = await AgentServerRuntimeService.executeCommand(
+        conversationUrl,
+        sessionApiKey,
         buildListCommand(),
         workingDir,
         30,

@@ -160,6 +160,28 @@ describe("OpenRepositoryModal", () => {
     expect(screen.getByText("BUTTON$CANCEL")).toBeInTheDocument();
   });
 
+  it("places Cancel before Launch in the footer so the dominant action is the last focusable button", () => {
+    // Arrange: render the modal so both footer buttons are mounted.
+    render(
+      <OpenRepositoryModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onLaunch={mockOnLaunch}
+      />,
+    );
+
+    // Act: locate both footer buttons.
+    const cancel = screen.getByText("BUTTON$CANCEL");
+    const launch = screen.getByText("BUTTON$LAUNCH");
+
+    // Assert: Cancel precedes the dominant Launch action in DOM order.
+    // eslint-disable-next-line no-bitwise
+    expect(
+      cancel.compareDocumentPosition(launch) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("should disable Launch button when no repository or branch is selected", () => {
     render(
       <OpenRepositoryModal
@@ -282,37 +304,6 @@ describe("OpenRepositoryModal", () => {
     // Launch button should be disabled again (branch was reset)
     launchButton = screen.getByText("BUTTON$LAUNCH").closest("button");
     expect(launchButton).toBeDisabled();
-  });
-
-  it("should use small modal width", () => {
-    render(
-      <OpenRepositoryModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onLaunch={mockOnLaunch}
-      />,
-    );
-
-    // ModalBody with width="small" renders w-[384px]
-    const modalBody = screen
-      .getByText("CONVERSATION$OPEN_REPOSITORY")
-      .closest(".bg-base-secondary");
-    expect(modalBody).toHaveClass("w-[384px]");
-  });
-
-  it("should override default gap with !gap-4 for tighter spacing", () => {
-    render(
-      <OpenRepositoryModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onLaunch={mockOnLaunch}
-      />,
-    );
-
-    const modalBody = screen
-      .getByText("CONVERSATION$OPEN_REPOSITORY")
-      .closest(".bg-base-secondary");
-    expect(modalBody).toHaveClass("!gap-4");
   });
 
   describe("provider switching", () => {

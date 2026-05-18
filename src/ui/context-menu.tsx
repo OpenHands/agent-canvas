@@ -8,6 +8,9 @@ const contextMenuVariants = cva("text-white overflow-hidden z-50", {
       default:
         "absolute bg-tertiary rounded-[6px] context-menu-box-shadow py-[6px] px-1",
       naked: "relative",
+      /** In document-body portal; coordinates come from inline `style`. */
+      popover:
+        "relative bg-tertiary rounded-[6px] context-menu-box-shadow py-[6px] px-1",
     },
     size: {
       compact: "py-1 px-1",
@@ -19,6 +22,7 @@ const contextMenuVariants = cva("text-white overflow-hidden z-50", {
     position: {
       top: "bottom-full",
       bottom: "top-full",
+      none: "",
     },
     spacing: {
       default: "mt-2",
@@ -27,6 +31,7 @@ const contextMenuVariants = cva("text-white overflow-hidden z-50", {
     alignment: {
       left: "left-0",
       right: "right-0",
+      none: "",
     },
   },
   compoundVariants: [
@@ -48,6 +53,7 @@ interface ContextMenuProps {
   testId?: string;
   children: React.ReactNode;
   className?: React.HTMLAttributes<HTMLUListElement>["className"];
+  style?: React.CSSProperties;
   theme?: VariantProps<typeof contextMenuVariants>["theme"];
   size?: VariantProps<typeof contextMenuVariants>["size"];
   layout?: VariantProps<typeof contextMenuVariants>["layout"];
@@ -60,6 +66,7 @@ export function ContextMenu({
   testId,
   children,
   className,
+  style,
   ref,
   theme,
   size,
@@ -71,7 +78,9 @@ export function ContextMenu({
   return (
     <ul
       data-testid={testId}
+      data-position={position}
       ref={ref}
+      style={style}
       className={cn(
         contextMenuVariants({
           theme,

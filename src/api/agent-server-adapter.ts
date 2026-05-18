@@ -1,21 +1,17 @@
-import { SkillsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import {
-  getAgentServerWorkingDir,
-  shouldLoadPublicSkills,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
-  GetSkillsResponse,
+  GetHooksResponse,
   PluginSpec,
   AppConversation,
   AppConversationPage,
+  SandboxStatus,
 } from "./conversation-service/agent-server-conversation-service.types";
-import { getAgentServerClientOptions } from "./agent-server-client-options";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 
@@ -25,6 +21,8 @@ export interface DirectConversationInfo {
   created_at: string;
   updated_at: string;
   execution_status?: string | null;
+  /** Cloud-only sandbox lifecycle state. Omitted / null for local agent-server conversations. */
+  sandbox_status?: string | null;
   metrics?: {
     accumulated_cost?: number | null;
     max_budget_per_task?: number | null;
@@ -47,13 +45,165 @@ export interface DirectConversationInfo {
   } | null;
 }
 
-const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
+// Module qualname for the Canvas-UI tool. The agent-server imports this via
+// tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
+// (see scripts/dev-docker.mjs and scripts/dev-safe.mjs).
+const CANVAS_UI_TOOL_NAME = "canvas_ui";
+const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
+
+const DEFAULT_TOOL_NAMES = [
+  "terminal",
+  "file_editor",
+  "task_tracker",
+  CANVAS_UI_TOOL_NAME,
+];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
+const TASK_TOOL_SET_NAME = "task_tool_set";
 const DEFAULT_BUILT_IN_TOOL_NAMES = ["FinishTool", "ThinkTool"];
 const SWITCH_LLM_TOOL_NAME = "SwitchLLMTool";
 
 function browserToolsEnabled() {
   return import.meta.env.VITE_ENABLE_BROWSER_TOOLS !== "false";
+}
+
+/**
+ * Shape of `VITE_RUNTIME_SERVICES_INFO` (set by the dev launchers in
+ * scripts/dev-*.mjs). All URLs are written from the agent's point of view,
+ * not the browser's. The block is rendered into the agent's system prompt
+ * via `AgentContext.system_message_suffix` so the agent knows what's
+ * reachable from inside its sandbox without having to probe.
+ */
+interface RuntimeServicesInfo {
+  mode?: string;
+  agent_host_alias?: string;
+  services?: {
+    agent_server?: { description?: string; url_from_agent?: string };
+    ingress?: { description?: string; url_from_agent?: string };
+    frontend?: {
+      kind?: "vite" | "static";
+      description?: string;
+      url_from_agent?: string;
+    };
+    // `vite` is the legacy key name for the frontend entry, accepted for
+    // one release while older dev-stack launchers may still emit it.
+    vite?: { description?: string; url_from_agent?: string };
+    automation?: {
+      description?: string;
+      url_from_agent?: string;
+      api_prefix?: string;
+      docs_url?: string;
+      openapi_url?: string;
+      auth_env_var?: string;
+    };
+  };
+}
+
+function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
+  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as RuntimeServicesInfo;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    // Malformed JSON: ignore and fall back to no runtime info, rather than
+    // tearing down conversation creation over a misconfigured dev env var.
+    return null;
+  }
+}
+
+/**
+ * Render the runtime services info into a markdown block suitable for
+ * appending to the system prompt via `AgentContext.system_message_suffix`.
+ *
+ * Returns `undefined` when no runtime info is configured, so callers can
+ * safely omit the field on production builds (where the launcher doesn't
+ * set `VITE_RUNTIME_SERVICES_INFO`).
+ */
+export function buildRuntimeServicesSystemSuffix(): string | undefined {
+  const info = parseRuntimeServicesInfo();
+  if (!info?.services) return undefined;
+
+  const lines: string[] = [];
+  lines.push("<RUNTIME_SERVICES>");
+  if (info.mode) {
+    lines.push(
+      `You are running inside an agent-canvas dev stack started in '${info.mode}' mode.`,
+    );
+  } else {
+    lines.push("You are running inside an agent-canvas dev stack.");
+  }
+  lines.push(
+    "The following services are reachable from your sandbox. URLs are written",
+    "from your point of view (i.e., as you should curl/fetch them).",
+    "",
+  );
+
+  const { agent_server, ingress, automation } = info.services;
+  // Accept `frontend` (current key) or `vite` (legacy key) for the
+  // frontend service entry. The legacy fallback can be removed once all
+  // launchers in this repo emit `frontend`.
+  const frontend = info.services.frontend ?? info.services.vite;
+
+  if (agent_server?.url_from_agent) {
+    lines.push(
+      `* Agent Server (you): ${agent_server.url_from_agent}`,
+      `    ${agent_server.description ?? "The agent-server hosting your tool calls."}`,
+    );
+  }
+  if (ingress?.url_from_agent) {
+    lines.push(
+      `* Ingress: ${ingress.url_from_agent}`,
+      `    ${ingress.description ?? "Unified entry point for browser-facing traffic."}`,
+    );
+  }
+  if (frontend?.url_from_agent) {
+    lines.push(
+      `* Frontend: ${frontend.url_from_agent}`,
+      `    ${frontend.description ?? "Frontend dev server."}`,
+    );
+  }
+  if (automation?.url_from_agent) {
+    lines.push(
+      `* Automation backend: ${automation.url_from_agent}`,
+      `    ${automation.description ?? "OpenHands Automations service."}`,
+    );
+    if (automation.docs_url) {
+      lines.push(`    Docs:    ${automation.docs_url}`);
+    }
+    if (automation.openapi_url) {
+      lines.push(`    OpenAPI: ${automation.openapi_url}`);
+    }
+    if (automation.auth_env_var) {
+      lines.push(
+        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+      );
+    }
+  } else {
+    lines.push(
+      "* Automation backend: not running in this dev mode (skip /api/automation calls).",
+    );
+  }
+
+  // Anchor the "don't guess" warning to the actual agent-server URL for
+  // this stack instead of a hardcoded port. The agent-server listens on
+  // different ports across dev modes (18000 in dev:safe, 8000 in
+  // dev:docker, ...), and baking the wrong port into the system prompt
+  // is exactly the kind of confusion this block is meant to prevent.
+  const agentServerUrl = agent_server?.url_from_agent;
+  lines.push(
+    "",
+    "Trust this block over guessing: do not assume any other URLs are running.",
+  );
+  if (agentServerUrl) {
+    lines.push(
+      `In particular, ${agentServerUrl} inside your sandbox is the Agent Server`,
+      "you are running inside of — NOT the automation backend.",
+    );
+  }
+  lines.push("</RUNTIME_SERVICES>");
+
+  return lines.join("\n");
 }
 
 export function toConversationUrl(conversationId: string): string {
@@ -80,6 +230,7 @@ export function toAppConversation(
     selected_repository: metadata?.selected_repository ?? null,
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
+    selected_workspace: metadata?.selected_workspace ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -113,6 +264,7 @@ export function toAppConversation(
     execution_status:
       (info.execution_status as AppConversation["execution_status"]) ??
       ExecutionStatus.IDLE,
+    sandbox_status: (info.sandbox_status as SandboxStatus | null) ?? null,
     conversation_url: toConversationUrl(info.id),
     session_api_key: getEffectiveLocalBackend().apiKey || null,
     sandbox_id: null,
@@ -202,6 +354,14 @@ function getAgentTools() {
     isAgentServerToolAvailable(BROWSER_TOOL_SET_NAME)
   ) {
     tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
+  }
+  // Enables sub-agent delegation. The agent server's tool_router preloads
+  // `task_tool_set` and registers the built-in subagents (code-explorer,
+  // bash-runner, web-researcher, general-purpose), so exposing the tool here
+  // is all the client needs to do. Older servers that don't advertise it in
+  // /api/server_info's `usable_tools` are skipped via the capability probe.
+  if (isAgentServerToolAvailable(TASK_TOOL_SET_NAME)) {
+    tools.push({ name: TASK_TOOL_SET_NAME, params: {} });
   }
   return tools;
 }
@@ -314,12 +474,20 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
 }
 
 function createAgentFromSettings(agentSettings: SettingsRecord) {
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   return {
     kind: "Agent",
     ...agentSettings,
     agent_context: {
-      load_public_skills: shouldLoadPublicSkills(),
+      load_public_skills: true,
       load_user_skills: true,
+      // When the dev launcher provided `VITE_RUNTIME_SERVICES_INFO`, append
+      // a <RUNTIME_SERVICES> block to the system prompt so the agent knows
+      // which services exist in this dev stack (e.g. automation backend
+      // URL, ingress URL) instead of having to probe.
+      ...(runtimeServicesSuffix
+        ? { system_message_suffix: runtimeServicesSuffix }
+        : {}),
     },
   };
 }
@@ -468,9 +636,16 @@ export function buildStartConversationRequest(
     payload.hook_config = conversationSettings.hook_config;
   }
 
-  if (conversationSettings.tool_module_qualnames) {
-    payload.tool_module_qualnames = conversationSettings.tool_module_qualnames;
-  }
+  // Always include the canvas_ui tool module so the agent-server imports it
+  // and registers the tool. User-supplied entries from conversationSettings
+  // take precedence on key conflict (the canvas_ui key is ours and shouldn't
+  // collide in practice).
+  payload.tool_module_qualnames = {
+    [CANVAS_UI_TOOL_NAME]: CANVAS_UI_TOOL_MODULE,
+    ...((conversationSettings.tool_module_qualnames as
+      | Record<string, string>
+      | undefined) ?? {}),
+  };
 
   if (conversationSettings.agent_definitions) {
     payload.agent_definitions = conversationSettings.agent_definitions;
@@ -542,21 +717,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   });
 }
 
-export async function loadSkillsForConversation(
-  conversation: AppConversation | null | undefined,
-): Promise<GetSkillsResponse> {
-  const projectDir =
-    conversation?.workspace?.working_dir ?? getAgentServerWorkingDir();
-
-  const response = await new SkillsClient(
-    getAgentServerClientOptions(),
-  ).getSkills({
-    load_public: shouldLoadPublicSkills(),
-    load_user: true,
-    load_project: true,
-    load_org: false,
-    project_dir: projectDir,
-  });
-
-  return { skills: response.skills ?? [] };
+export function emptyHooksResponse(): GetHooksResponse {
+  return { hooks: [] };
 }

@@ -24,7 +24,7 @@ export const useNewConversationCommand = () => {
       }
 
       // /new reuses the parent conversation's sandbox (matches OpenHands
-      // SaaS behavior); it is NOT a sub-conversation, so parent_conversation_id
+      // cloud behavior); it is NOT a sub-conversation, so parent_conversation_id
       // and agent_type stay undefined.
       const startTask = await AgentServerConversationService.createConversation(
         undefined,
@@ -43,7 +43,7 @@ export const useNewConversationCommand = () => {
         );
       }
 
-      // Cloud SaaS returns a WORKING task (no app_conversation_id yet);
+      // Cloud returns a WORKING task (no app_conversation_id yet);
       // navigate to /conversations/task-{id} so useTaskPolling drives it
       // to READY. Local creates synchronously — app_conversation_id is
       // already set, so we navigate straight to it.

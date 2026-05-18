@@ -3,9 +3,7 @@
  * @param conversationUrl The conversation URL containing host/port (e.g., "http://localhost:3000/api/conversations/123")
  * @returns Base host (e.g., "localhost:3000") or window.location.host as fallback
  */
-export function extractBaseHost(
-  conversationUrl: string | null | undefined,
-): string {
+function extractBaseHost(conversationUrl: string | null | undefined): string {
   if (conversationUrl && !conversationUrl.startsWith("/")) {
     try {
       const url = new URL(conversationUrl);
@@ -36,9 +34,7 @@ export function extractBaseHost(
  * @param conversationUrl The conversation URL (e.g., "http://localhost:3000/runtime/55313/api/conversations/123")
  * @returns Path prefix without trailing slash (e.g., "/runtime/55313") or empty string
  */
-export function extractPathPrefix(
-  conversationUrl: string | null | undefined,
-): string {
+function extractPathPrefix(conversationUrl: string | null | undefined): string {
   if (conversationUrl && !conversationUrl.startsWith("/")) {
     try {
       const url = new URL(conversationUrl);

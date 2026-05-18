@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for UI pages.
@@ -46,10 +47,7 @@ const SETTINGS_WITHOUT_CONSENT = {
  * @param showConsentModal - Whether to show the analytics consent modal
  */
 async function setupMocks(page: Page, showConsentModal = false) {
-  // Pre-set localStorage to skip onboarding
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page, { showConsentModal });
 
   // Mock settings API - consent modal appears when user_consents_to_analytics is null
   const settingsResponse = showConsentModal
@@ -198,6 +196,42 @@ test.describe("UI Visual Snapshots", () => {
     await page.waitForLoadState("networkidle");
 
     await expect(rootLayout).toHaveScreenshot("settings-app-page.png", {
+      maxDiffPixelRatio: 0.01,
+      animations: "disabled",
+    });
+  });
+
+  test("Add backend modal renders correctly", async ({ page }) => {
+    await setupMocks(page, false);
+
+    // Mock the server-info health-check endpoint. Without this, the
+    // periodic health poll may prevent networkidle or cause hangs.
+    await page.route("**/server_info", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ version: "mock" }),
+      });
+    });
+
+    await page.goto("/conversations");
+    await dismissConsentModal(page);
+
+    const homeScreen = page.getByTestId("home-screen");
+    await expect(homeScreen).toBeVisible();
+
+    // The backend selector uses openOnHover, so hovering opens the
+    // dropdown. Clicking the toggle would close it again, so we hover
+    // to open and then click the menu item directly.
+    const backendSelector = page.getByTestId("backend-selector");
+    await expect(backendSelector).toBeVisible({ timeout: 15_000 });
+    await backendSelector.hover();
+    await page.getByTestId("add-backend-menu-item").click();
+
+    const addBackendModal = page.getByTestId("add-backend-modal");
+    await expect(addBackendModal).toBeVisible();
+
+    await expect(addBackendModal).toHaveScreenshot("add-backend-modal.png", {
       maxDiffPixelRatio: 0.01,
       animations: "disabled",
     });

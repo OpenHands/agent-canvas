@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService.deleteConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to the SaaS DELETE app-conversations endpoint", async () => {
+  it("routes through /api/cloud-proxy to the cloud DELETE app-conversations endpoint", async () => {
     vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
 
     await AgentServerConversationService.deleteConversation("conv-abc");

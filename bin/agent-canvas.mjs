@@ -32,14 +32,14 @@ USAGE:
   npx @openhands/agent-canvas [options]
 
 REQUIRED:
-  PROJECT_PATH          Path to your projects directory (mounted into container)
+  PROJECTS_PATH         Path to your projects directory (mounted into container)
 
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:
-  PROJECT_PATH                 Required: path to your projects directory
+  PROJECTS_PATH                Required: path to your projects directory
   OH_SECRET_KEY                Secret key for encrypting settings
   OH_AGENT_SERVER_GIT_REF      Git ref for agent-server Docker image tag
   OH_AGENT_SERVER_LOCAL_PATH   Path to local SDK checkout (for development)
@@ -49,14 +49,14 @@ Note: LLM settings are configured through the web UI settings page,
 not environment variables.
 
 EXAMPLES:
-  # Start full stack (requires PROJECT_PATH)
-  PROJECT_PATH=/path/to/projects npx @openhands/agent-canvas
+  # Start full stack (requires PROJECTS_PATH)
+  PROJECTS_PATH=/path/to/projects npx @openhands/agent-canvas
 
   # Use a specific port
-  PROJECT_PATH=/path/to/projects npx @openhands/agent-canvas --port 3000
+  PROJECTS_PATH=/path/to/projects npx @openhands/agent-canvas --port 3000
 
   # Use local SDK checkout for development
-  PROJECT_PATH=/path/to/projects OH_AGENT_SERVER_LOCAL_PATH=/path/to/sdk npx @openhands/agent-canvas
+  PROJECTS_PATH=/path/to/projects OH_AGENT_SERVER_LOCAL_PATH=/path/to/sdk npx @openhands/agent-canvas
 
 For more options, see: node scripts/dev-docker.mjs --help
 `);
@@ -81,11 +81,8 @@ this is a packaging error. If running from source:
 let main, checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR;
 try {
   ({ main } = await import("../scripts/dev-with-automation.mjs"));
-  ({
-    checkDockerPrereqs,
-    startAgentServerDocker,
-    CONTAINER_WORKSPACES_DIR,
-  } = await import("../scripts/dev-docker.mjs"));
+  ({ checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR } =
+    await import("../scripts/dev-docker.mjs"));
 } catch (err) {
   console.error("Failed to load required scripts. Try reinstalling:");
   console.error("  npm install -g @openhands/agent-canvas@latest");
@@ -100,6 +97,10 @@ main({
   viteWorkingDir: CONTAINER_WORKSPACES_DIR,
   staticMode: true,
   staticDir: BUILD_DIR,
+  // Agent-server runs in a Docker container; host services are reached
+  // via "host.docker.internal" from the agent's POV.
+  agentHostAlias: "host.docker.internal",
+  mode: "agent-canvas",
 }).catch((err) => {
   console.error(`Fatal error: ${err.message}`);
   if (err.stack) {

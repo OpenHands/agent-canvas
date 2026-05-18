@@ -1,4 +1,11 @@
-import { useEffect, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useState,
+} from "react";
+import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
@@ -12,6 +19,7 @@ interface MenuItemProps {
   disabled?: boolean;
   className?: string;
   testId: string;
+  destructive?: boolean;
 }
 
 function MenuItem({
@@ -23,6 +31,7 @@ function MenuItem({
   disabled,
   className,
   testId,
+  destructive,
 }: MenuItemProps) {
   return (
     <button
@@ -41,6 +50,7 @@ function MenuItem({
       )}
       role="menuitem"
       data-testid={testId}
+      data-destructive={destructive ? "true" : undefined}
     >
       {label}
     </button>
@@ -55,6 +65,13 @@ interface ProfileActionsMenuProps {
   isActive: boolean;
   isActivating: boolean;
   onClose: () => void;
+  /**
+   * Element the menu should anchor against. When provided, the menu renders
+   * into a portal at the document body using fixed positioning so it cannot be
+   * clipped by ancestors with `overflow: auto/hidden` (e.g. the settings
+   * `<main>` scroll container).
+   */
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function ProfileActionsMenu({
@@ -65,10 +82,39 @@ export function ProfileActionsMenu({
   isActive,
   isActivating,
   onClose,
+  anchorRef,
 }: ProfileActionsMenuProps) {
   const { t } = useTranslation("openhands");
   const menuRef = useRef<HTMLDivElement>(null);
   const menuItemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const anchorElement = anchorRef?.current ?? null;
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>();
+
+  useLayoutEffect(() => {
+    if (!anchorElement) return undefined;
+
+    const updatePosition = () => {
+      const rect = anchorElement.getBoundingClientRect();
+      if (!rect) return;
+      // 4px gap matches the previous `mt-1` spacing.
+      const gap = 4;
+      setPortalStyle({
+        position: "fixed",
+        zIndex: 9999,
+        top: rect.bottom + gap,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorElement]);
 
   // Focus first item when menu opens
   useEffect(() => {
@@ -124,11 +170,20 @@ export function ProfileActionsMenu({
   );
 
   const setActiveDisabled = isActive || isActivating;
+  const isPortaled = Boolean(anchorElement);
 
-  return (
+  const menu = (
     <div
       ref={menuRef}
-      className="absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-tertiary rounded-md shadow-lg py-1 min-w-[160px]"
+      className={cn(
+        "absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-[var(--oh-border)] rounded-md shadow-lg py-1 w-[160px]",
+        // When portaled the menu is positioned via the wrapper's inline
+        // `style` (fixed coords from the anchor rect), so we must neutralize
+        // the Tailwind absolute positioning that would otherwise pin it to
+        // its now-irrelevant offset parent.
+        isPortaled &&
+          "!static !top-auto !bottom-auto !left-auto !right-auto !mt-0",
+      )}
       role="menu"
       aria-orientation="vertical"
       data-testid="profile-actions-menu"
@@ -166,7 +221,21 @@ export function ProfileActionsMenu({
         menuItemsRef={menuItemsRef}
         className="text-red-400"
         testId="profile-delete"
+        destructive
       />
     </div>
   );
+
+  if (isPortaled) {
+    if (typeof document === "undefined" || !portalStyle) {
+      return null;
+    }
+    return ReactDOM.createPortal(
+      // portal position computed from DOM bounding rect at runtime
+      <div style={portalStyle}>{menu}</div>,
+      document.body,
+    );
+  }
+
+  return menu;
 }

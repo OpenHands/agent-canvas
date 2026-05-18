@@ -60,6 +60,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      {
+        name: "suppress-chrome-devtools-well-known",
+        apply: "serve",
+        configureServer(server) {
+          server.middlewares.use(
+            "/.well-known/appspecific/com.chrome.devtools.json",
+            (_req, res) => {
+              res.statusCode = 204;
+              res.end();
+            },
+          );
+        },
+      },
       !process.env.VITEST && !isLibraryBuild && reactRouter(),
       svgr(),
       tailwindcss(),
@@ -283,6 +296,21 @@ export default defineConfig(({ mode }) => {
           secure: !INSECURE_SKIP_VERIFY,
         },
         "/ready": {
+          target: API_URL,
+          changeOrigin: true,
+          secure: !INSECURE_SKIP_VERIFY,
+        },
+        "/docs": {
+          target: API_URL,
+          changeOrigin: true,
+          secure: !INSECURE_SKIP_VERIFY,
+        },
+        "/redoc": {
+          target: API_URL,
+          changeOrigin: true,
+          secure: !INSECURE_SKIP_VERIFY,
+        },
+        "/openapi.json": {
           target: API_URL,
           changeOrigin: true,
           secure: !INSECURE_SKIP_VERIFY,

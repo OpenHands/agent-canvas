@@ -27,6 +27,12 @@ interface ConversationCardContextMenuProps {
   onDownloadViaVSCode?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   position?: "top" | "bottom";
+  /**
+   * Fixed coordinates for a portaled menu (conversation list overflow
+   * stacking). When set, theme/position switch to non-absolute layout.
+   */
+  floatingStyle?: React.CSSProperties;
+  ignoreOutsideClickRef?: React.RefObject<HTMLElement | null>;
 }
 
 const contextMenuListItemClassName =
@@ -43,10 +49,15 @@ export function ConversationCardContextMenu({
   onDownloadViaVSCode,
   onDownloadConversation,
   position = "bottom",
+  floatingStyle,
+  ignoreOutsideClickRef,
 }: ConversationCardContextMenuProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
-  const ref = useClickOutsideElement<HTMLUListElement>(onClose);
+  const ref = useClickOutsideElement<HTMLUListElement>(
+    onClose,
+    ignoreOutsideClickRef,
+  );
   const stopLabelKey =
     backend.kind === "cloud"
       ? I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME
@@ -71,13 +82,22 @@ export function ConversationCardContextMenu({
     [],
   );
 
+  const isPortaled = floatingStyle != null;
+
   return (
     <ContextMenu
       ref={ref}
       testId="context-menu"
-      position={position}
-      alignment="right"
-      className="mt-0"
+      style={isPortaled ? floatingStyle : undefined}
+      theme={isPortaled ? "popover" : "default"}
+      position={isPortaled ? "none" : position}
+      alignment={isPortaled ? "none" : "right"}
+      spacing={isPortaled ? "none" : "default"}
+      className={
+        isPortaled
+          ? "mt-0 min-w-[200px] w-max max-w-[min(280px,100vw-16px)]"
+          : "z-[200] mt-0"
+      }
     >
       {generateSection(
         [

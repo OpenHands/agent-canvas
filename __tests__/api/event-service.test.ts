@@ -26,7 +26,10 @@ beforeEach(() => {
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
   vi.mocked(callCloudProxy).mockReset();
-  vi.mocked(callCloudProxy).mockResolvedValue({ items: [], next_page_id: null });
+  vi.mocked(callCloudProxy).mockResolvedValue({
+    items: [],
+    next_page_id: null,
+  });
 });
 
 afterEach(() => {
@@ -36,10 +39,7 @@ afterEach(() => {
 });
 
 describe("EventService.searchEvents — cloud branch", () => {
-  it("strips timestamp/sort/page params and clamps limit to <=100", async () => {
-    // Arrange: the caller (e.g. `useLoadOlderEvents`) may pass pagination
-    // filters the OpenHands SaaS App API can't handle without 500-ing.
-    // The cloud branch must mirror the cloud frontend's shape: limit only.
+  it("forwards all pagination params to the cloud proxy and clamps limit to <=100", async () => {
     const options = {
       limit: 500,
       sortOrder: "TIMESTAMP_DESC" as const,
@@ -48,13 +48,78 @@ describe("EventService.searchEvents — cloud branch", () => {
       timestampLt: "2026-05-12T07:20:29.087853",
     };
 
-    // Act
     await EventService.searchEvents("conv-1", null, null, options);
 
-    // Assert: forwarded path contains only limit=100 (caller's 500 clamped).
+    const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+    const url = new URL(`https://x${proxyCall.path}`);
+    expect(url.searchParams.get("limit")).toBe("100");
+    expect(url.searchParams.get("sort_order")).toBe("TIMESTAMP_DESC");
+    expect(url.searchParams.get("page_id")).toBe("p1");
+    expect(url.searchParams.get("timestamp__gte")).toBe(
+      "2026-05-01T00:00:00.000000",
+    );
+    expect(url.searchParams.get("timestamp__lt")).toBe(
+      "2026-05-12T07:20:29.087853",
+    );
+  });
+
+  it("sends only limit when no filter params are provided", async () => {
+    await EventService.searchEvents("conv-1", null, null, { limit: 50 });
+
     const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
     expect(proxyCall.path).toBe(
-      "/api/v1/conversation/conv-1/events/search?limit=100",
+      "/api/v1/conversation/conv-1/events/search?limit=50",
     );
+  });
+
+  it("returns empty page when full-param request fails (graceful degradation)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    vi.mocked(callCloudProxy).mockRejectedValueOnce(
+      new Error("Internal Server Error"),
+    );
+
+    const result = await EventService.searchEvents("conv-1", null, null, {
+      limit: 50,
+      sortOrder: "TIMESTAMP_DESC",
+      timestampLt: "2026-05-12T00:00:00.000000",
+    });
+
+    // Only one call — no retry, just returns empty page to stop pagination.
+    expect(vi.mocked(callCloudProxy)).toHaveBeenCalledTimes(1);
+    expect(result.items).toHaveLength(0);
+    expect(result.next_page_id).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("doesn't support pagination filters"),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("rethrows when a limit-only request (no filter params) fails", async () => {
+    vi.mocked(callCloudProxy).mockRejectedValueOnce(
+      new Error("Network error"),
+    );
+
+    await expect(
+      EventService.searchEvents("conv-1", null, null, { limit: 50 }),
+    ).rejects.toThrow("Network error");
+
+    expect(vi.mocked(callCloudProxy)).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops pagination when server returns fewer items than limit", async () => {
+    vi.mocked(callCloudProxy).mockResolvedValueOnce({
+      items: [{ id: "evt-1" }, { id: "evt-2" }],
+      next_page_id: null,
+    });
+
+    const result = await EventService.searchEvents("conv-1", null, null, {
+      limit: 50,
+      sortOrder: "TIMESTAMP_DESC",
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.next_page_id).toBeNull();
   });
 });

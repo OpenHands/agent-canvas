@@ -18,14 +18,11 @@ vi.mock("#/components/shared/git-provider-icon", () => ({
 }));
 
 // Mock GitExternalLinkIcon
-vi.mock(
-  "#/components/features/chat/git-external-link-icon",
-  () => ({
-    GitExternalLinkIcon: () => (
-      <span data-testid="git-external-link-icon">external</span>
-    ),
-  }),
-);
+vi.mock("#/components/features/chat/git-external-link-icon", () => ({
+  GitExternalLinkIcon: () => (
+    <span data-testid="git-external-link-icon">external</span>
+  ),
+}));
 
 // Mock RepoForkedIcon
 vi.mock("#/icons/repo-forked.svg?react", () => ({
@@ -86,9 +83,7 @@ describe("GitControlBarRepoButton", () => {
         />,
       );
 
-      expect(
-        screen.queryByTestId("repo-forked-icon"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("repo-forked-icon")).not.toBeInTheDocument();
     });
   });
 
@@ -131,9 +126,7 @@ describe("GitControlBarRepoButton", () => {
       expect(
         screen.getByTestId("git-control-bar-connect-repo-icon"),
       ).toBeInTheDocument();
-      expect(
-        screen.queryByTestId("repo-forked-icon"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("repo-forked-icon")).not.toBeInTheDocument();
     });
 
     it("should not show external link icon", () => {
@@ -176,7 +169,6 @@ describe("GitControlBarRepoButton", () => {
 
       const button = screen.getByRole("button");
       expect(button).toBeDisabled();
-      expect(button).toHaveClass("cursor-not-allowed");
     });
 
     it("should be clickable when disabled prop is false", () => {
@@ -190,7 +182,6 @@ describe("GitControlBarRepoButton", () => {
 
       const button = screen.getByRole("button");
       expect(button).not.toBeDisabled();
-      expect(button).toHaveClass("cursor-pointer");
     });
 
     it("should not call onClick when disabled", async () => {

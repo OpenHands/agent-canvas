@@ -45,7 +45,7 @@ function SidebarSection({
   if (entries.length === 0) return null;
   return (
     <div className="px-2 pb-3">
-      <div className="px-2 pb-1 text-[11px] uppercase tracking-wide text-[#A3A3A3] font-semibold">
+      <div className="px-2 pb-1 text-[11px] uppercase tracking-wide text-[var(--oh-muted)] font-semibold">
         {label}
       </div>
       <ul>
@@ -60,8 +60,8 @@ function SidebarSection({
                 className={cn(
                   "flex items-center gap-2 w-full px-2 py-1 rounded text-sm cursor-pointer",
                   isActive
-                    ? "bg-[#3A3D44] text-white"
-                    : "text-[#D6D6D6] hover:bg-[#2F3137]",
+                    ? "bg-tertiary text-white"
+                    : "text-[var(--oh-text-tertiary)] hover:bg-[var(--oh-surface-raised)]",
                 )}
               >
                 <FolderIcon width={14} height={14} className="shrink-0" />
@@ -207,12 +207,12 @@ export function FolderBrowserModal({
       <div
         data-testid="folder-browser-modal"
         className={cn(
-          "flex flex-col bg-[#26282D] border border-[#727987] rounded-xl",
+          "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-xl",
           "w-[720px] max-w-[90vw] h-[480px]",
         )}
       >
         {/* Title bar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#727987]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
           <span className="text-sm font-semibold text-white">
             {t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
           </span>
@@ -223,7 +223,7 @@ export function FolderBrowserModal({
           {/* Sidebar */}
           <aside
             data-testid="folder-browser-sidebar"
-            className="w-[180px] shrink-0 border-r border-[#727987] bg-[#1F2125] py-3 overflow-y-auto"
+            className="w-[180px] shrink-0 border-r border-[var(--oh-border-input)] bg-[var(--oh-surface)] py-3 overflow-y-auto"
           >
             <SidebarSection
               label={t(I18nKey.HOME$FAVORITES)}
@@ -242,19 +242,19 @@ export function FolderBrowserModal({
           {/* Main */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* Nav row */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-[#727987]">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--oh-border-input)]">
               <button
                 type="button"
                 data-testid="folder-browser-up"
                 onClick={() => parent && setCurrentPath(parent)}
                 disabled={!parent}
                 aria-label="Up"
-                className="p-1 rounded hover:bg-[#5C5D62] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="p-1 rounded hover:bg-[var(--oh-interactive-hover)] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft width={16} height={16} />
               </button>
               <span
-                className="text-xs text-[#A3A3A3] truncate"
+                className="text-xs text-[var(--oh-muted)] truncate"
                 data-testid="folder-browser-current-path"
               >
                 {currentPath ?? ""}
@@ -262,7 +262,7 @@ export function FolderBrowserModal({
             </div>
 
             {/* Column headers */}
-            <div className="grid grid-cols-[1fr_120px] px-4 py-1 border-b border-[#727987] text-xs text-[#B7BDC2] font-semibold">
+            <div className="grid grid-cols-[1fr_120px] px-4 py-1 border-b border-[var(--oh-border-input)] text-xs text-[var(--oh-text-secondary)] font-semibold">
               <span>{t(I18nKey.HOME$NAME)}</span>
               <span>{t(I18nKey.HOME$KIND)}</span>
             </div>
@@ -273,7 +273,7 @@ export function FolderBrowserModal({
               data-testid="folder-browser-list"
             >
               {isLoading && (
-                <li className="px-4 py-2 text-sm text-[#B7BDC2]">
+                <li className="px-4 py-2 text-sm text-[var(--oh-text-secondary)]">
                   {t(I18nKey.HOME$LOADING)}
                 </li>
               )}
@@ -287,7 +287,7 @@ export function FolderBrowserModal({
               )}
               {!isLoading && !isError && subdirs.length === 0 && (
                 <li
-                  className="px-4 py-2 text-sm text-[#B7BDC2]"
+                  className="px-4 py-2 text-sm text-[var(--oh-text-secondary)]"
                   data-testid={
                     showHostHomeHint
                       ? "folder-browser-host-home-hint"
@@ -304,14 +304,14 @@ export function FolderBrowserModal({
                   <button
                     type="button"
                     onClick={() => setCurrentPath(entry.path)}
-                    className="grid grid-cols-[1fr_120px] items-center w-full text-left px-4 py-1.5 text-sm text-white hover:bg-[#5C5D62] cursor-pointer"
+                    className="grid grid-cols-[1fr_120px] items-center w-full text-left px-4 py-1.5 text-sm text-white hover:bg-[var(--oh-interactive-hover)] cursor-pointer"
                     data-testid={`folder-browser-entry-${entry.name}`}
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       <FolderIcon width={16} height={16} className="shrink-0" />
                       <span className="truncate">{entry.name}</span>
                     </span>
-                    <span className="text-[#B7BDC2] text-xs">
+                    <span className="text-[var(--oh-text-secondary)] text-xs">
                       {t(I18nKey.HOME$FOLDER)}
                     </span>
                   </button>
@@ -322,7 +322,7 @@ export function FolderBrowserModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#727987]">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--oh-border-input)]">
           <BrandButton
             type="button"
             variant="secondary"

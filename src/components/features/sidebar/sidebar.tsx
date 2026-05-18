@@ -48,6 +48,9 @@ const ManageBackendsModal = React.lazy(() =>
 );
 
 const ICON_SIZE = 18;
+/** ~74% of the stock 46×30 mark; `max-w-none` keeps it from clamping in the icon column. */
+const SIDEBAR_LOGO_WIDTH = 34;
+const SIDEBAR_LOGO_HEIGHT = Math.round((SIDEBAR_LOGO_WIDTH * 30) / 46);
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
@@ -162,25 +165,30 @@ export function Sidebar() {
         }}
         className={cn(
           "bg-base flex flex-col transition-[width,min-width] duration-200",
-          "md:border-r md:border-[#242424]",
+          "md:border-r md:border-[var(--oh-border)]",
           // Mobile: top bar; Desktop: vertical column. Width responds to
           // the collapsed state on md+ screens.
           "h-[54px] md:h-full",
           collapsed
             ? "md:w-[64px] md:min-w-[64px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-2 md:pt-4" : "px-2 py-2 md:px-2 md:pt-4",
+          collapsed ? "md:px-2" : "px-2 pb-2 md:px-2",
           "flex-row md:flex-col",
-          currentPath === "/" && "md:pt-6.5 md:pb-3",
+          currentPath === "/" && "md:pb-3",
         )}
       >
         <div
           className={cn(
-            "flex items-center gap-2 md:py-1 md:pb-3",
+            "flex items-center gap-2 h-10 min-h-10 shrink-0",
+            // Collapsed desktop: stacked logo + chevron needs more than 40px.
+            collapsed && "md:h-auto md:min-h-0 md:py-2",
             // Collapsed: stack the chevron beneath the logo so the 64px rail
             // doesn't need to grow to fit two controls in a row. Expanded:
             // chevron is right-aligned via ml-auto further down.
-            collapsed ? "md:flex-col md:gap-2 md:px-0" : "md:pl-0 md:pr-0",
+            // `pl-2` matches SidebarNavLink horizontal inset; no right padding so
+            // the collapse control can sit flush against the rail edge (outer
+            // sidebar still provides `px-2`).
+            collapsed ? "md:flex-col md:gap-2 md:px-0" : "pl-2 pr-0",
           )}
         >
           {collapsed ? (
@@ -191,7 +199,12 @@ export function Sidebar() {
                   showCollapsedExpandButton && "opacity-0",
                 )}
               >
-                <OpenHandsLogoButton />
+                <OpenHandsLogoButton
+                  logoWidth={SIDEBAR_LOGO_WIDTH}
+                  logoHeight={SIDEBAR_LOGO_HEIGHT}
+                  logoClassName="max-w-none"
+                  className="inline-flex h-10 w-10 items-center justify-center overflow-visible"
+                />
               </div>
               <button
                 type="button"
@@ -201,7 +214,7 @@ export function Sidebar() {
                 onClick={() => setCollapsed(false)}
                 className={cn(
                   "absolute inset-0 hidden md:inline-flex items-center justify-center",
-                  "rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  "rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                   "transition-colors cursor-pointer",
                   showCollapsedExpandButton
                     ? "opacity-100 pointer-events-auto"
@@ -213,7 +226,12 @@ export function Sidebar() {
             </div>
           ) : (
             <>
-              <OpenHandsLogoButton />
+              <OpenHandsLogoButton
+                logoWidth={SIDEBAR_LOGO_WIDTH}
+                logoHeight={SIDEBAR_LOGO_HEIGHT}
+                logoClassName="max-w-none"
+                className="inline-flex w-[18px] shrink-0 items-center justify-center overflow-visible"
+              />
               {/* Desktop-only collapse toggle. Hidden on mobile (the sidebar
                   there is the top bar and doesn't collapse). No tooltip —
                   the chevron direction already conveys what the button does. */}
@@ -225,7 +243,7 @@ export function Sidebar() {
                 onClick={() => setCollapsed(true)}
                 className={cn(
                   "hidden md:inline-flex items-center justify-center shrink-0",
-                  "w-7 h-7 rounded-md text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  "w-7 h-7 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                   "transition-colors cursor-pointer",
                   // Keep the collapse button right-aligned while preserving a
                   // small gutter from the rail edge.
@@ -254,7 +272,7 @@ export function Sidebar() {
           <SidebarNavLink
             to="/conversations"
             end
-            label="New"
+            label="Code"
             testId="sidebar-conversations-link"
             disabled={linkDisabled}
             collapsed={collapsed}
@@ -262,7 +280,7 @@ export function Sidebar() {
           />
           <SidebarNavLink
             to="/skills"
-            label="Extensions"
+            label="Customize"
             testId="sidebar-skills-link"
             disabled={linkDisabled}
             collapsed={collapsed}
@@ -308,7 +326,7 @@ export function Sidebar() {
         <SidebarConversationList />
 
         {collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2">
+          <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2 cursor-pointer">
             <button
               type="button"
               data-testid="collapsed-settings-link"
@@ -317,8 +335,8 @@ export function Sidebar() {
               className={cn(
                 "inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors cursor-pointer",
                 currentPath.startsWith("/settings")
-                  ? "bg-[#1f1f1f99] text-white font-medium"
-                  : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                  ? "bg-tertiary text-white font-medium"
+                  : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
               )}
             >
               <Settings width={16} height={16} />
@@ -345,11 +363,25 @@ export function Sidebar() {
                 data-testid="collapsed-backend-selector-link"
                 aria-label={t(I18nKey.BACKEND$MANAGE)}
                 aria-expanded={collapsedBackendPopoverOpen}
+                // The popover this button anchors mounts a downshift-driven
+                // Dropdown that attaches window-level mousedown/mouseup
+                // listeners; on mouseup with a target outside its own
+                // input/menu/toggle it calls handleBlur and closes the menu.
+                // This button is a sibling of the Dropdown — not one of those
+                // tracked elements — so without stopping propagation, clicking
+                // the tray icon would close the popover the user is still
+                // hovering. preventDefault on mousedown also keeps focus from
+                // shifting off anything currently focused inside the dropdown.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onMouseUp={(event) => event.stopPropagation()}
                 className={cn(
                   "relative inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors",
                   collapsedBackendPopoverOpen
-                    ? "bg-[#1f1f1f99] text-white font-medium"
-                    : "text-[#8C8C8C] hover:text-white hover:bg-[#1f1f1f99]",
+                    ? "bg-tertiary text-white font-medium"
+                    : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
                 )}
               >
                 <BackendStatusDot
@@ -360,7 +392,7 @@ export function Sidebar() {
               </button>
               {collapsedBackendPopoverOpen ? (
                 <div
-                  className="absolute bottom-0 left-full pl-2 z-40 w-[272px]"
+                  className="absolute bottom-[-4px] left-full pl-2 z-40 w-[272px]"
                   // Stop click propagation so dropdown option clicks
                   // (rendered as <li role="option">, which the rail's
                   // collapse handler does not match against `button/a`)
@@ -388,7 +420,7 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[#242424] md:-mx-2 md:px-2">
+          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2">
             <BackendSelector openUpward />
           </div>
         )}

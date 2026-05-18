@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the Secrets Settings page (/settings/secrets).
@@ -23,9 +24,7 @@ async function dismissConsentModal(page: Page) {
 }
 
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
   // Keep conversations sidebar quiet (page.route wins for this cross-origin path
   // only; for same-origin MSW takes precedence and we rely on MSW data).
   await page.route("**/api/conversations/search**", async (route) => {

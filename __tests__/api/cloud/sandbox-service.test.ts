@@ -36,7 +36,7 @@ afterEach(() => {
 describe("batchGetCloudSandboxes", () => {
   it("targets /api/v1/sandboxes with one id query param per sandbox id", async () => {
     // Arrange — multiple ids exercises the URLSearchParams.append path,
-    // which is the SaaS contract for batch-fetching sandboxes (the GUI
+    // which is the cloud contract for batch-fetching sandboxes (the GUI
     // reads sandbox.exposed_urls from the response to find the VSCODE
     // URL instead of asking the runtime for a localhost address).
     const ids = ["sandbox-a", "sandbox-b"];
@@ -45,7 +45,7 @@ describe("batchGetCloudSandboxes", () => {
     await batchGetCloudSandboxes(ids);
 
     // Assert — the cloud-proxy envelope encodes a GET against
-    // /api/v1/sandboxes?id=sandbox-a&id=sandbox-b on the SaaS.
+    // /api/v1/sandboxes?id=sandbox-a&id=sandbox-b on the cloud backend.
     const [, body] = vi.mocked(axios.post).mock.calls[0]!;
     const upstream = body as { method: string; path: string };
     expect(upstream.method).toBe("GET");

@@ -15,6 +15,7 @@ import { getStoredConversationMetadata } from "#/api/conversation-metadata-store
 import { GitControlBar } from "#/components/features/chat/git-control-bar";
 
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "test-conversation-id" }),
 }));
 vi.mock("#/contexts/active-backend-context");

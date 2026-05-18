@@ -4,6 +4,7 @@ import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { SuccessIndicator } from "./success-indicator";
 import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
+import { cn } from "#/utils/utils";
 
 interface GenericEventMessageProps {
   title: React.ReactNode;
@@ -35,15 +36,17 @@ export function GenericEventMessage({
     >
       {showDetails ? (
         <ArrowUp
-          className={`h-4 w-4 inline fill-[#959CB2] ${
-            chevronPosition === "after" ? "ml-2" : "mr-2"
-          }`}
+          className={cn(
+            "h-4 w-4 inline fill-[var(--oh-muted)]",
+            chevronPosition === "after" ? "ml-2" : "mr-2",
+          )}
         />
       ) : (
         <ArrowDown
-          className={`h-4 w-4 inline fill-[#959CB2] ${
-            chevronPosition === "after" ? "ml-2" : "mr-2"
-          }`}
+          className={cn(
+            "h-4 w-4 inline fill-[var(--oh-muted)]",
+            chevronPosition === "after" ? "ml-2" : "mr-2",
+          )}
         />
       )}
     </button>
@@ -51,7 +54,7 @@ export function GenericEventMessage({
 
   return (
     <div className="flex flex-col gap-1.5 my-1 py-1 text-sm w-full">
-      <div className="flex items-center justify-between font-normal text-[#959CB2]">
+      <div className="flex items-center justify-between font-normal text-[var(--oh-muted)]">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}
           {/* Wrap the title in a span so any whitespace inside Trans-rendered

@@ -31,7 +31,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   if (query.isLoading) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]">
+      <div className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]">
         {t(I18nKey.FILES$LOADING_FILES)}
       </div>
     );
@@ -46,7 +46,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     // we have one; fall back to the generic translated string otherwise.
     return (
       <div
-        className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
+        className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
         data-testid="file-content-viewer-error"
       >
         {(query.error as Error | undefined)?.message ??
@@ -73,7 +73,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     }
     return (
       <div
-        className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
+        className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
         data-testid="file-content-viewer-binary-fallback"
       >
         {t(I18nKey.FILES$BINARY_FALLBACK)}
@@ -85,7 +85,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   if (kind === "image") {
     return (
       <div
-        className="flex h-full w-full items-center justify-center bg-[#1F2125] p-4"
+        className="flex h-full w-full items-center justify-center bg-[var(--oh-surface)] p-4"
         data-testid="file-content-viewer-image"
       >
         <img
@@ -120,7 +120,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   if (kind === "binary") {
     return (
       <div
-        className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
+        className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
         data-testid="file-content-viewer-binary-fallback"
       >
         {t(I18nKey.FILES$BINARY_FALLBACK)}
@@ -158,9 +158,9 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     return (
       <div
         data-testid="file-content-viewer-markdown"
-        className="h-full w-full overflow-auto bg-[#25272D] text-white custom-scrollbar-always"
+        className="h-full w-full overflow-auto bg-[var(--oh-surface)] text-white custom-scrollbar-always"
       >
-        <div className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:#3A3D44] [--tw-prose-bullets:#9299AA] [--tw-prose-hr:#3A3D44] [--tw-prose-captions:#9299AA] [--tw-prose-kbd:#fff]">
+        <div className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:var(--oh-border-subtle)] [--tw-prose-bullets:var(--oh-muted)] [--tw-prose-hr:var(--oh-border-subtle)] [--tw-prose-captions:var(--oh-muted)] [--tw-prose-kbd:#fff]">
           <MarkdownRenderer
             content={text ?? ""}
             includeStandard
@@ -191,7 +191,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   // blank.
   return (
     <div
-      className="flex h-full w-full items-center justify-center text-sm text-[#9299AA]"
+      className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
       data-testid="file-content-viewer-binary-fallback"
     >
       {t(I18nKey.FILES$BINARY_FALLBACK)}

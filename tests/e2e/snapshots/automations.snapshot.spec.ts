@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
  * Visual snapshot tests for the Automations pages.
@@ -39,9 +40,7 @@ async function dismissConsentModal(page: Page) {
  * here with INLINE_AUTOMATIONS so all tests have a consistent baseline.
  */
 async function setupMocks(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("openhands-onboarded", "true");
-  });
+  await seedLocalStorage(page);
 
   await page.route("**/api/conversations/search**", async (route) => {
     await route.fulfill({

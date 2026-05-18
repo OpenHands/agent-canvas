@@ -15,7 +15,7 @@ export function SkillTriggers({ triggers }: SkillTriggersProps) {
 
   return (
     <div className="mt-2 mb-3">
-      <Typography.Text className="text-sm font-semibold text-gray-300 mb-2">
+      <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)] mb-2">
         {t(I18nKey.COMMON$TRIGGERS)}
       </Typography.Text>
       <div className="flex flex-wrap gap-1">

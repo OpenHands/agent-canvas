@@ -2,6 +2,7 @@ import React from "react";
 import { Tooltip } from "@heroui/react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
 import { ConversationStatusDot } from "./conversation-status-dot";
@@ -12,12 +13,15 @@ interface CompactConversationRowProps {
   title: string;
   selectedRepository: RepositorySelection | null;
   executionStatus?: ExecutionStatus | null;
+  sandboxStatus?: SandboxStatus | null;
   lastUpdatedAt: string;
   createdAt?: string;
   workspaceWorkingDir?: string | null;
   isActive?: boolean;
   onClose?: () => void;
   showRepositoryMetadata?: boolean;
+  llmModel?: string | null;
+  showLlmProfiles?: boolean;
 }
 
 /**
@@ -30,12 +34,15 @@ export function CompactConversationRow({
   title,
   selectedRepository,
   executionStatus,
+  sandboxStatus,
   lastUpdatedAt,
   createdAt,
   workspaceWorkingDir,
   isActive = false,
   onClose,
   showRepositoryMetadata = true,
+  llmModel = null,
+  showLlmProfiles = false,
 }: CompactConversationRowProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -44,6 +51,7 @@ export function CompactConversationRow({
       <div className="flex items-center gap-2 mb-1">
         <ConversationStatusDot
           executionStatus={executionStatus}
+          sandboxStatus={sandboxStatus}
           showTooltip={false}
         />
         <span className="text-sm font-medium text-white truncate" title={title}>
@@ -57,6 +65,8 @@ export function CompactConversationRow({
         executionStatus={executionStatus}
         workspaceWorkingDir={workspaceWorkingDir}
         showRepositoryMetadata={showRepositoryMetadata}
+        llmModel={llmModel}
+        showLlmModel={showLlmProfiles}
       />
     </div>
   );
@@ -66,7 +76,7 @@ export function CompactConversationRow({
       content={preview}
       placement="right"
       closeDelay={100}
-      className="bg-[#1f2228] text-white border border-[#2a2f38] shadow-xl p-0"
+      className="bg-[var(--oh-surface)] text-white border border-[var(--oh-border-subtle)] shadow-xl p-0"
       disableAnimation={disableAnimation}
     >
       <NavigationLink
@@ -79,12 +89,15 @@ export function CompactConversationRow({
           cn(
             "flex items-center justify-center w-10 h-9 mx-auto rounded-md",
             "transition-colors cursor-pointer",
-            navActive || isActive ? "bg-[#1f1f1f99]" : "hover:bg-[#1f1f1f99]",
+            navActive || isActive
+              ? "bg-tertiary"
+              : "hover:bg-[var(--oh-surface-raised)]",
           )
         }
       >
         <ConversationStatusDot
           executionStatus={executionStatus}
+          sandboxStatus={sandboxStatus}
           showTooltip={false}
         />
       </NavigationLink>

@@ -6,6 +6,27 @@ import {
   NavigationProvider,
   type NavigationContextValue,
 } from "#/context/navigation-context";
+import translations from "#/i18n/translation.json";
+
+// The global `useTranslation` mock in `vitest.setup.ts` returns the key
+// as-is. Override it here so `t(...)` resolves keys via the source-of-truth
+// `translation.json` (English values), letting the test assert real
+// user-facing labels rather than raw keys.
+vi.mock("react-i18next", async () => {
+  const actual = await vi.importActual("react-i18next");
+  return {
+    ...(actual as object),
+    useTranslation: () => ({
+      t: (key: string) => {
+        const entry = (
+          translations as Record<string, Record<string, string>>
+        )[key];
+        return entry?.en ?? key;
+      },
+      i18n: { language: "en", exists: () => false },
+    }),
+  };
+});
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
@@ -44,20 +65,6 @@ vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
 
 vi.mock("#/components/shared/buttons/openhands-logo-button", () => ({
   OpenHandsLogoButton: () => <div data-testid="logo-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/new-project-button", () => ({
-  NewProjectButton: () => <div data-testid="new-project-button" />,
-}));
-
-vi.mock("#/components/shared/buttons/conversation-panel-button", () => ({
-  ConversationPanelButton: () => (
-    <div data-testid="conversation-panel-button" />
-  ),
-}));
-
-vi.mock("#/components/shared/buttons/automations-button", () => ({
-  AutomationsButton: () => <div data-testid="automations-button" />,
 }));
 
 vi.mock("#/components/features/sidebar/user-actions", () => ({
@@ -197,29 +204,6 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it.each([
-    ["/conversations"],
-    ["/automations"],
-    ["/automations/abc-123"],
-    ["/settings"],
-  ])(
-    "keeps the sidebar's default top padding on %s so spacing stays consistent with the conversations page",
-    (currentPath) => {
-      renderSidebar(currentPath);
-
-      const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).toMatch(/(^|\s)md:pt-4(\s|$)/);
-      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
-    },
-  );
-
-  it("renders sidebar nav links with the default text color (text-[#8C8C8C])", () => {
-    renderSidebar("/skills");
-
-    const conversationsLink = screen.getByTestId("sidebar-conversations-link");
-    expect(conversationsLink.className).toMatch(/(^|\s)text-\[#8C8C8C\](\s|$)/);
-  });
-
   it("toggles between expanded and collapsed states and persists the choice", () => {
     const { unmount } = renderSidebar("/conversations");
 
@@ -283,19 +267,6 @@ describe("Sidebar", () => {
 
     fireEvent.click(screen.getByTestId("collapsed-settings-link"));
     expect(navigate).toHaveBeenCalledWith("/settings");
-  });
-
-  it("opts the collapsed Settings button into cursor-pointer so hovering it shows the pointer affordance", () => {
-    // Arrange: render with the sidebar collapsed so the Settings icon is mounted.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
-    renderSidebar("/conversations");
-
-    // Act: locate the Settings button the user hovers.
-    const settingsButton = screen.getByTestId("collapsed-settings-link");
-
-    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
-    // the button must opt back into cursor-pointer for the hover affordance.
-    expect(settingsButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
   });
 
   it("opens the backend popover when hovering the collapsed backend icon", async () => {
@@ -380,6 +351,38 @@ describe("Sidebar", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not bubble mouse events to window when the collapsed backend icon is clicked, so the downshift-driven popover is not torn down mid-hover", () => {
+    // Bug: while the popover was open, left-clicking the tray icon closed
+    // the dropdown menu because downshift attaches its outside-click logic
+    // to window-level mousedown/mouseup. The tray icon is a sibling of the
+    // Dropdown (not one of its tracked elements), so the event reached
+    // downshift and was treated as "outside". The fix stops propagation on
+    // the button so neither event reaches the window listeners that close
+    // the menu.
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    const windowMouseDown = vi.fn();
+    const windowMouseUp = vi.fn();
+    window.addEventListener("mousedown", windowMouseDown);
+    window.addEventListener("mouseup", windowMouseUp);
+
+    try {
+      renderSidebar("/conversations");
+      const trigger = screen.getByTestId("collapsed-backend-selector-link");
+      const wrapper = trigger.parentElement;
+      if (!wrapper) throw new Error("Popover wrapper not found");
+      fireEvent.mouseEnter(wrapper);
+
+      fireEvent.mouseDown(trigger);
+      fireEvent.mouseUp(trigger);
+
+      expect(windowMouseDown).not.toHaveBeenCalled();
+      expect(windowMouseUp).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("mousedown", windowMouseDown);
+      window.removeEventListener("mouseup", windowMouseUp);
+    }
+  });
+
   it("renders icons for every top-level nav item so they remain meaningful in the collapsed rail", () => {
     renderSidebar("/conversations");
 
@@ -391,5 +394,21 @@ describe("Sidebar", () => {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
     }
+  });
+
+  it("renders the renamed top-level nav labels", () => {
+    // Arrange
+    renderSidebar("/conversations");
+
+    // Act + Assert: each top-level nav link surfaces its new user-facing label.
+    expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
+      "Code",
+    );
+    expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
+      "Customize",
+    );
+    expect(screen.getByTestId("sidebar-automations-link")).toHaveTextContent(
+      "Automate",
+    );
   });
 });

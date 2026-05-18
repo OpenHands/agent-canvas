@@ -219,7 +219,7 @@ class SettingsService {
    * Uses in-memory cache for performance.
    */
   static async getSettings(): Promise<Settings> {
-    // Cloud SaaS uses a different settings shape (flat top-level fields
+    // Cloud uses a different settings shape (flat top-level fields
     // including provider_tokens_set, llm_model, etc.). Branch out before
     // touching the local-only cache: cloud responses bypass the local
     // SettingsApiResponse shape and feed straight into syncDerivedSettings

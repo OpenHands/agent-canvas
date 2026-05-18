@@ -70,6 +70,21 @@ const canFitTerminal = (
   return true;
 };
 
+function resolveTerminalForeground(host: HTMLElement): string {
+  const probe = host.ownerDocument.createElement("span");
+  probe.style.color = "var(--oh-surface-foreground)";
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.pointerEvents = "none";
+  host.appendChild(probe);
+  const fromVar = getComputedStyle(probe).color;
+  probe.remove();
+  if (fromVar && fromVar !== "rgba(0, 0, 0, 0)") {
+    return fromVar;
+  }
+  return getComputedStyle(host).color;
+}
+
 // Create a persistent reference that survives component unmounts
 // This ensures terminal history is preserved when navigating away and back
 const persistentLastCommandIndex = { current: 0 };
@@ -82,7 +97,7 @@ export const useTerminal = () => {
   const lastCommandIndex = persistentLastCommandIndex; // Use the persistent reference
   const isDisposed = React.useRef(false);
 
-  const createTerminal = () =>
+  const createTerminal = (host: HTMLDivElement) =>
     new Terminal({
       fontFamily: "Menlo, Monaco, 'Courier New', monospace",
       fontSize: 14,
@@ -90,8 +105,12 @@ export const useTerminal = () => {
       scrollSensitivity: 1,
       fastScrollSensitivity: 5,
       disableStdin: true, // Make terminal read-only
+      // Canvas fillStyle does not resolve CSS variables; use transparency so
+      // the host / panel background shows through (`allowTransparency` required).
+      allowTransparency: true,
       theme: {
-        background: "#25272D",
+        background: "rgba(0, 0, 0, 0)",
+        foreground: resolveTerminalForeground(host),
       },
     });
 
@@ -119,7 +138,12 @@ export const useTerminal = () => {
   // Initialize terminal and handle cleanup
   React.useEffect(() => {
     isDisposed.current = false;
-    terminal.current = createTerminal();
+    const host = ref.current;
+    if (!host) {
+      return undefined;
+    }
+
+    terminal.current = createTerminal(host);
     fitAddon.current = new FitAddon();
 
     if (ref.current) {

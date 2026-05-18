@@ -15,7 +15,7 @@ import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
-import { useConversationId } from "#/hooks/use-conversation-id";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -60,9 +60,15 @@ export function ChatInputActions({
   const unifiedPauseMutation = useUnifiedPauseConversation();
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
-  const { conversationId } = useConversationId();
+  // Optional because the chat input also renders on the home page (no
+  // conversation route yet). Conversation-scoped actions below guard on this.
+  const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
-  const isCloud = useActiveBackend().backend.kind === "cloud";
+  const { backend } = useActiveBackend();
+  const isCloud = backend.kind === "cloud";
+  const llmDestinationLabel = t(
+    isCloud ? I18nKey.SETTINGS$LLM_SETTINGS : I18nKey.SETTINGS$LLM_PROFILES,
+  );
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -104,7 +110,7 @@ export function ChatInputActions({
     shouldShowAgentTools,
     shouldShowHooks,
   } = useConversationNameContextMenu({
-    conversationId,
+    conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
     showOptions: true,
     onContextMenuToggle: setIsOverflowOpen,
@@ -168,11 +174,13 @@ export function ChatInputActions({
   }, [isCloud]);
 
   const handlePauseAgent = () => {
+    if (!conversationId) return;
     // Pause the conversation (agent execution)
     pauseConversationMutation.mutate({ conversationId });
   };
 
   const handleResumeAgentClick = () => {
+    if (!conversationId) return;
     // Resume the conversation (agent execution)
     resumeConversationMutation.mutate({ conversationId });
   };
@@ -446,10 +454,10 @@ export function ChatInputActions({
           >
             <ContextMenu
               testId="overflow-model-submenu"
-              className="overflow-visible min-w-[220px]"
+              className="overflow-visible min-w-[220px] max-w-[320px]"
             >
               <li className="text-sm">
-                <div className="p-2 leading-5 text-white whitespace-nowrap">
+                <div className="p-2 leading-5 text-white break-all">
                   {conversation?.llm_model}
                 </div>
               </li>
@@ -458,7 +466,7 @@ export function ChatInputActions({
                 <NavigationLink
                   to="/settings"
                   onClick={closeOverflowMenus}
-                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[#5C5D62] transition-colors"
+                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
                 >
                   <SettingsGearIcon
                     width={16}
@@ -466,7 +474,7 @@ export function ChatInputActions({
                     className="shrink-0"
                     aria-hidden
                   />
-                  <span>{t(I18nKey.SETTINGS$LLM_SETTINGS)}</span>
+                  <span>{llmDestinationLabel}</span>
                 </NavigationLink>
               </li>
             </ContextMenu>
@@ -507,7 +515,7 @@ export function ChatInputActions({
                 ref={overflowTriggerRef}
                 type="button"
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-full text-[#959CB2] transition-colors",
+                  "flex size-6 items-center justify-center rounded-full text-[var(--oh-muted)] transition-colors",
                   "hover:bg-white/10 hover:text-white cursor-pointer",
                 )}
                 aria-label="More input actions"
@@ -530,6 +538,7 @@ export function ChatInputActions({
                 typeof document !== "undefined" &&
                 overflowPortalStyle &&
                 ReactDOM.createPortal(
+                  // portal position computed from DOM bounding rect at runtime
                   <div style={overflowPortalStyle}>{overflowMenu}</div>,
                   document.body,
                 )}
@@ -541,7 +550,7 @@ export function ChatInputActions({
         ref={rightSectionRef}
         className="ml-auto flex shrink-0 items-center gap-2"
       >
-        {showAgentStatusInline && (
+        {showAgentStatusInline && conversationId && (
           <AgentStatus
             handleStop={handlePauseAgent}
             handleResumeAgent={handleResumeAgentClick}
