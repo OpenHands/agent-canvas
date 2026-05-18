@@ -159,14 +159,9 @@ function OpenHandsApiKeyAuth({
   const [cloudAuthError, setCloudAuthError] = React.useState<string | null>(
     null,
   );
-  const [cloudCredentialPersistenceError, setCloudCredentialPersistenceError] =
-    React.useState<string | null>(null);
   const [deviceFlowLlmApiKeyError, setDeviceFlowLlmApiKeyError] =
     React.useState<string | null>(null);
   const cloudAuthLoadAbortRef = React.useRef<AbortController | null>(null);
-  const cloudCredentialSaveAbortRef = React.useRef<AbortController | null>(
-    null,
-  );
   const llmApiKeyAbortRef = React.useRef<AbortController | null>(null);
   const cloudAuthCallbackAbortRef = React.useRef<AbortController | null>(null);
   const translateRef = React.useRef(t);
@@ -190,7 +185,6 @@ function OpenHandsApiKeyAuth({
         cloudAuthCallbackAbortRef.current = null;
       }
       cloudAuthLoadAbortRef.current?.abort();
-      cloudCredentialSaveAbortRef.current?.abort();
       llmApiKeyAbortRef.current?.abort();
     };
   }, []);
@@ -331,40 +325,13 @@ function OpenHandsApiKeyAuth({
       setCloudAuths((existing) => dedupeCloudAuths([auth, ...existing]));
       setSelectedCloudAuthId(auth.id);
       setDeviceFlowLlmApiKeyError(null);
-      setCloudCredentialPersistenceError(null);
-      cloudCredentialSaveAbortRef.current?.abort();
-      const credentialController = new AbortController();
-      cloudCredentialSaveAbortRef.current = credentialController;
-      void saveCloudBackendCredential(auth, {
-        signal: credentialController.signal,
-      })
-        .then(() => {
-          if (credentialController.signal.aborted) return;
-        })
-        .catch((error) => {
-          if (
-            isAbortError(error) ||
-            credentialController.signal.aborted ||
-            isComponentAborted(callbackSignal)
-          ) {
-            return;
-          }
-          console.warn(
-            `Failed to persist OpenHands Cloud credential for ${auth.id}`,
-            error,
-          );
-          if (isComponentAborted(callbackSignal)) return;
-          setCloudCredentialPersistenceError(
-            translateRef.current(
-              I18nKey.SETTINGS$OPENHANDS_CLOUD_CREDENTIAL_SAVE_FAILED,
-            ),
-          );
-        })
-        .finally(() => {
-          if (cloudCredentialSaveAbortRef.current === credentialController) {
-            cloudCredentialSaveAbortRef.current = null;
-          }
-        });
+      void saveCloudBackendCredential(auth).catch((error) => {
+        if (isAbortError(error) || isComponentAborted(callbackSignal)) return;
+        console.warn(
+          `Failed to persist OpenHands Cloud credential for ${auth.id}`,
+          error,
+        );
+      });
       if (isComponentAborted(callbackSignal)) return;
       void fetchAndApplyLlmApiKey(auth, "device", callbackSignal);
     },
@@ -488,15 +455,6 @@ function OpenHandsApiKeyAuth({
           role="alert"
         >
           {deviceFlowLlmApiKeyError}
-        </p>
-      )}
-      {cloudCredentialPersistenceError && (
-        <p
-          className="text-xs text-red-400"
-          data-testid={`${testId}-cloud-credential-save-error`}
-          role="alert"
-        >
-          {cloudCredentialPersistenceError}
         </p>
       )}
 

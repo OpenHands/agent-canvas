@@ -149,15 +149,6 @@ async function setupMocks({
             : input.url;
         const url = new URL(requestUrl, window.location.href);
 
-        if (url.pathname === "/setup/backends") {
-          return Response.json({
-            backends: storedCloudBackends.map((backend) => ({
-              ...backend,
-              kind: "cloud",
-            })),
-          });
-        }
-
         if (url.pathname.endsWith("/api/cloud-proxy")) {
           const body =
             typeof init?.body === "string" ? JSON.parse(init.body) : {};
@@ -204,21 +195,43 @@ async function setupMocks({
           location: { href: "" },
         }) as Window;
       window.localStorage.setItem("openhands-onboarded", "true");
+      const localBackend = {
+        id: "snapshot-local",
+        name: "Local Agent Server",
+        host: window.location.origin,
+        apiKey: "",
+        kind: "local",
+      };
+      const registeredBackends = [
+        localBackend,
+        ...(storedCloudBackends.length > 0
+          ? storedCloudBackends.map((backend) => ({
+              id: backend.id,
+              name: backend.name,
+              host: backend.host,
+              apiKey: backend.api_key,
+              kind: "cloud",
+            }))
+          : [
+              {
+                id: "snapshot-cloud",
+                name: "OpenHands Cloud",
+                host: "https://app.all-hands.dev",
+                apiKey: "",
+                kind: "cloud",
+              },
+            ]),
+      ];
       window.localStorage.setItem(
         "openhands-backends",
-        JSON.stringify([
-          {
-            id: "snapshot-cloud",
-            name: "OpenHands Cloud",
-            host: "https://app.all-hands.dev",
-            apiKey: "cloud-api-key",
-            kind: "cloud",
-          },
-        ]),
+        JSON.stringify(registeredBackends),
+      );
+      const activeCloudBackend = registeredBackends.find(
+        (backend) => backend.kind === "cloud",
       );
       window.localStorage.setItem(
         "openhands-active-backend",
-        JSON.stringify({ backendId: "snapshot-cloud", orgId: null }),
+        JSON.stringify({ backendId: activeCloudBackend?.id, orgId: null }),
       );
     },
     { storedCloudBackends, cloudProxyMode },
@@ -251,28 +264,6 @@ async function setupMocks({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({}),
-    });
-  });
-
-  await page.route("**/setup/backends", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.fulfill({
-        status: 405,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "Method not allowed" }),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        backends: storedCloudBackends.map((backend) => ({
-          ...backend,
-          kind: "cloud",
-        })),
-      }),
     });
   });
 
@@ -329,12 +320,6 @@ async function navigateToSettings(page: Page) {
   const rootLayout = page.getByTestId("root-layout");
   await expect(rootLayout).toBeVisible({ timeout: 15000 });
   return rootLayout;
-}
-
-async function readCloudProxyPayload(route: Route) {
-  return JSON.parse(route.request().postData() || "{}") as {
-    path?: string;
-  };
 }
 
 test.describe("LLM Settings Auth Section", () => {
@@ -419,21 +404,9 @@ test.describe("LLM Settings Auth Section", () => {
           id: "cloud-prod",
           name: "OpenHands Cloud",
           host: "https://app.all-hands.dev",
-          api_key: "cloud-api-key",
+          api_key: "cloud-error-key",
         },
       ],
-      handleCloudProxy: async (route) => {
-        const payload = await readCloudProxyPayload(route);
-        if (payload.path === "/api/keys/llm/byor") {
-          await route.fulfill({
-            status: 500,
-            contentType: "application/json",
-            body: JSON.stringify({ error: "unavailable" }),
-          });
-          return true;
-        }
-        return false;
-      },
     });
     const rootLayout = await navigateToSettings(page);
 

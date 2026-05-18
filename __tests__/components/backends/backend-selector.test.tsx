@@ -9,7 +9,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
-import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import {
@@ -29,8 +28,6 @@ import {
   getCloudOrganizationMe,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
-import { server } from "#/mocks/node";
-
 vi.mock("#/api/cloud/organization-service.api", () => ({
   getCloudOrganizations: vi.fn(),
   getCloudOrganizationMe: vi.fn(),
@@ -81,14 +78,6 @@ async function openDropdown() {
 }
 
 beforeEach(() => {
-  server.use(
-    http.get("*/setup/backends", () => HttpResponse.json({ backends: [] })),
-    http.post("*/setup/backends", async ({ request }) => {
-      const body = await request.json();
-      return HttpResponse.json({ backend: body });
-    }),
-    http.delete("*/setup/backends", () => HttpResponse.json({ ok: true })),
-  );
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();

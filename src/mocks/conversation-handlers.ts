@@ -30,6 +30,7 @@ type MockConversation = DirectConversationInfo & {
 type CloudProxyEnvelope = {
   method?: string;
   path?: string;
+  headers?: Record<string, string>;
 };
 
 const conversations: MockConversation[] = [
@@ -384,6 +385,18 @@ export const CONVERSATION_HANDLERS = [
 
     if (upstreamUrl.pathname === "/api/v1/settings/conversation-schema") {
       return HttpResponse.json(MOCK_CONVERSATION_SETTINGS_SCHEMA);
+    }
+
+    if (upstreamUrl.pathname === "/api/keys/llm/byor") {
+      const authorization =
+        envelope.headers?.Authorization ?? envelope.headers?.authorization;
+      if (!authorization) {
+        return HttpResponse.json({ error: "missing auth" }, { status: 401 });
+      }
+      if (authorization === "Bearer cloud-error-key") {
+        return HttpResponse.json({ error: "unavailable" }, { status: 500 });
+      }
+      return HttpResponse.json({ key: "mock-openhands-lm-api-key" });
     }
 
     if (upstreamUrl.pathname === "/api/keys/current") {

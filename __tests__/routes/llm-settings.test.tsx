@@ -13,7 +13,10 @@ import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import * as activeBackendContext from "#/contexts/active-backend-context";
 import type { Backend } from "#/api/backend-registry/types";
-import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  __resetActiveStoreForTests,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
 import { DEFAULT_OPENHANDS_CLOUD_HOST } from "#/utils/constants";
 
 afterEach(() => {
@@ -95,18 +98,14 @@ interface StoredCloudBackendFixture {
 function mockStoredCloudBackends(
   credentials: StoredCloudBackendFixture[] = [],
 ) {
-  server.use(
-    http.get("*/setup/backends", () =>
-      HttpResponse.json({
-        backends: credentials.map((credential) => ({
-          id: credential.id,
-          name: credential.name,
-          host: credential.host,
-          kind: "cloud",
-          api_key: credential.cloudApiKey,
-        })),
-      }),
-    ),
+  setRegisteredBackends(
+    credentials.map((credential) => ({
+      id: credential.id,
+      name: credential.name,
+      host: credential.host,
+      kind: "cloud" as const,
+      apiKey: credential.cloudApiKey,
+    })),
   );
 }
 
@@ -248,85 +247,6 @@ describe("LlmSettingsScreen", () => {
     expect(screen.getByTestId("llm-api-key-input")).toHaveValue("lm-api-key");
   });
 
-  it("recovers when loading stored OpenHands Cloud credentials throws", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({
-        llm_model: "openhands/claude-opus-4-5-20251101",
-        llm_api_key_set: false,
-        agent_settings: {
-          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          llm: {
-            model: "openhands/claude-opus-4-5-20251101",
-            api_key: null,
-            base_url: "",
-          },
-        },
-      }),
-    );
-    server.use(
-      http.get("*/setup/backends", () =>
-        HttpResponse.json(
-          { error: "setup server unavailable" },
-          { status: 503 },
-        ),
-      ),
-    );
-
-    renderLlmSettingsScreen();
-
-    await screen.findByTestId("llm-api-key-input-login-button");
-    expect(
-      screen.queryByTestId("llm-api-key-input-cloud-login-detected"),
-    ).not.toBeInTheDocument();
-    expect(
-      await screen.findByTestId("llm-api-key-input-cloud-auth-error"),
-    ).toHaveTextContent("SETTINGS$OPENHANDS_CLOUD_CREDENTIALS_LOAD_FAILED");
-    expect(errorSpy).toHaveBeenCalledWith(
-      "Failed to load OpenHands Cloud credentials",
-      expect.any(Error),
-    );
-  });
-
-  it("shows a loading state while checking reusable OpenHands Cloud logins", async () => {
-    let resolveCredentials: (() => void) | undefined;
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({
-        llm_model: "openhands/claude-opus-4-5-20251101",
-        llm_api_key_set: false,
-        agent_settings: {
-          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          llm: {
-            model: "openhands/claude-opus-4-5-20251101",
-            api_key: null,
-            base_url: "",
-          },
-        },
-      }),
-    );
-    server.use(
-      http.get("*/setup/backends", async () => {
-        await new Promise<void>((resolve) => {
-          resolveCredentials = resolve;
-        });
-        return HttpResponse.json({ backends: [] });
-      }),
-    );
-
-    renderLlmSettingsScreen();
-
-    expect(
-      await screen.findByTestId("llm-api-key-input-cloud-auth-loading"),
-    ).toHaveTextContent("HOME$LOADING");
-
-    resolveCredentials?.();
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("llm-api-key-input-cloud-auth-loading"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
   it("recovers when fetching an OpenHands-provided LM API key throws", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
@@ -420,16 +340,6 @@ describe("LlmSettingsScreen", () => {
       }),
     );
     const proxyRequests = mockCloudProxy({ lmApiKey: "lm-api-key" });
-    const savedCredentials: unknown[] = [];
-    server.use(
-      http.post("*/setup/backends", async ({ request }) => {
-        const body = await request.json();
-        savedCredentials.push(body);
-        return HttpResponse.json({
-          backend: body,
-        });
-      }),
-    );
     vi.spyOn(window, "open").mockReturnValue({
       closed: false,
       close: vi.fn(),
@@ -444,15 +354,9 @@ describe("LlmSettingsScreen", () => {
     );
 
     await waitFor(() => {
-      expect(savedCredentials).toEqual([
-        expect.objectContaining({
-          id: "openhands-cloud",
-          name: "OpenHands Cloud",
-          host: DEFAULT_OPENHANDS_CLOUD_HOST,
-          kind: "cloud",
-          api_key: "cloud-api-key",
-        }),
-      ]);
+      expect(window.localStorage.getItem("openhands-backends")).toContain(
+        "cloud-api-key",
+      );
     });
     expect(proxyRequests).toEqual(
       expect.arrayContaining([
@@ -466,48 +370,6 @@ describe("LlmSettingsScreen", () => {
         }),
       ]),
     );
-    expect(screen.getByTestId("llm-api-key-input")).toHaveValue("lm-api-key");
-  });
-
-  it("shows a persistence warning when device-flow Cloud key saving fails", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({
-        llm_model: "openhands/claude-opus-4-5-20251101",
-        llm_api_key_set: false,
-        agent_settings: {
-          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          llm: {
-            model: "openhands/claude-opus-4-5-20251101",
-            api_key: null,
-            base_url: "",
-          },
-        },
-      }),
-    );
-    mockCloudProxy({ lmApiKey: "lm-api-key" });
-    server.use(
-      http.post("*/setup/backends", () =>
-        HttpResponse.json({ error: "disk full" }, { status: 500 }),
-      ),
-    );
-    vi.spyOn(window, "open").mockReturnValue({
-      closed: false,
-      close: vi.fn(),
-      opener: {},
-      location: { href: "" },
-    } as unknown as Window);
-
-    renderLlmSettingsScreen();
-
-    await userEvent.click(
-      await screen.findByTestId("llm-api-key-input-login-button"),
-    );
-
-    expect(
-      await screen.findByTestId(
-        "llm-api-key-input-cloud-credential-save-error",
-      ),
-    ).toHaveTextContent("SETTINGS$OPENHANDS_CLOUD_CREDENTIAL_SAVE_FAILED");
     expect(screen.getByTestId("llm-api-key-input")).toHaveValue("lm-api-key");
   });
 
