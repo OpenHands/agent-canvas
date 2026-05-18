@@ -579,29 +579,55 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
-        // The automation backend uses this to call the agent-server's REST
-        // API for uploads and bash dispatch (host-side) AND it propagates
-        // the same value into the in-sandbox bash command as the
-        // `AGENT_SERVER_URL` env var that main.py reads to connect back.
+        // The URL the automation backend itself uses to call the
+        // agent-server's REST API (tarball upload + bash dispatch). It runs
+        // on the host in every dev mode (including dev:docker), so the
+        // published agent-server port on `localhost` is always reachable.
         //
-        // In dev:docker that script runs inside the agent-server container,
-        // so the URL has to be reachable from *both* the host and the
-        // container. `host.docker.internal:${agentServerPort}` satisfies
-        // both: from the host it's a loopback alias, and from inside the
-        // container Docker's host-gateway routes back through the published
-        // port. A little wasteful (the in-container script bounces through
-        // the host port-forward) but it's the only single value that works
-        // both ways without changes to the automation backend.
+        // NOTE: we deliberately do *not* use `host.docker.internal` here,
+        // even in dev:docker. That hostname is only seeded into the host's
+        // /etc/hosts on Docker Desktop macOS; on OrbStack / colima / Linux
+        // hosts it doesn't resolve, and the dispatcher's very first
+        // `_upload` call fails with `[Errno 8] nodename nor servname
+        // provided` — dispatch never reaches `_start_bash`, so
+        // `bash_command_id` stays NULL on every run.
+        //
+        // The companion `AUTOMATION_SANDBOX_AGENT_SERVER_URL` below
+        // controls the URL exported into the in-sandbox bash chain, which
+        // does need to be reachable from inside the agent-server container.
         //
         // Priority:
         //   1. AUTOMATION_AGENT_SERVER_URL explicitly set in the user's env
-        //   2. launcher-provided host (dev-docker.mjs sets
-        //      `automationApiHost: "host.docker.internal"`)
-        //   3. `localhost` (correct for dockerless mode where backend and
-        //      agent-server both run on the host)
+        //   2. `localhost:<agentServerPort>` (the published port, works
+        //      from the host in every dev mode)
         AUTOMATION_AGENT_SERVER_URL:
           process.env.AUTOMATION_AGENT_SERVER_URL ||
-          `http://${config.automationApiHost ?? "localhost"}:${config.agentServerPort}`,
+          `http://localhost:${config.agentServerPort}`,
+        // The URL exported into the in-sandbox bash chain as
+        // `AGENT_SERVER_URL` (read by main.py / setup.sh to call back into
+        // the agent-server). Only meaningful when the bash chain runs in a
+        // different network namespace than the host — i.e. dev:docker.
+        // In that mode the bash chain runs inside the agent-server
+        // container, where the agent-server is at 127.0.0.1:8000.
+        //
+        // Requires automation backend support for
+        // AUTOMATION_SANDBOX_AGENT_SERVER_URL (OpenHands/automation#125).
+        // Older backends ignore it and fall back to
+        // AUTOMATION_AGENT_SERVER_URL.
+        //
+        // Priority:
+        //   1. AUTOMATION_SANDBOX_AGENT_SERVER_URL explicitly set in env
+        //   2. launcher-provided value (dev-docker.mjs)
+        //   3. unset — backend falls back to AUTOMATION_AGENT_SERVER_URL,
+        //      which is correct for dockerless modes
+        ...(process.env.AUTOMATION_SANDBOX_AGENT_SERVER_URL ||
+        config.sandboxAgentServerUrl
+          ? {
+              AUTOMATION_SANDBOX_AGENT_SERVER_URL:
+                process.env.AUTOMATION_SANDBOX_AGENT_SERVER_URL ||
+                config.sandboxAgentServerUrl,
+            }
+          : {}),
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         // The automation backend uses this as its publicly-reachable base
@@ -922,6 +948,14 @@ async function main(options = {}) {
     // the host ingress; dockerless mode leaves it undefined and the
     // default `localhost` applies.
     automationApiHost,
+    // Value exported as `AUTOMATION_SANDBOX_AGENT_SERVER_URL` to the
+    // automation backend. This is the URL the in-sandbox bash chain uses
+    // to reach the agent-server from *inside* whatever environment it
+    // runs in. dev-docker sets this to `http://127.0.0.1:8000` (the
+    // agent-server's in-container loopback) so the sandbox doesn't have
+    // to bounce out through the host port-forward. Dockerless modes leave
+    // it undefined and the backend falls back to AUTOMATION_AGENT_SERVER_URL.
+    sandboxAgentServerUrl,
     staticMode: staticModeOverride,
     defaultStaticMode = false,
     buildStaticFrontend,
@@ -968,6 +1002,9 @@ async function main(options = {}) {
   }
   if (automationApiHost) {
     config.automationApiHost = automationApiHost;
+  }
+  if (sandboxAgentServerUrl) {
+    config.sandboxAgentServerUrl = sandboxAgentServerUrl;
   }
   // Stamp the dev-mode label, host alias, and frontend kind on the config
   // so downstream helpers (Vite spawn, static build) can produce a
