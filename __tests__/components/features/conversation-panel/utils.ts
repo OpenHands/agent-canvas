@@ -10,7 +10,7 @@ export const clickOnEditButton = async (
   const ellipsisButton = wrapper.getByTestId("ellipsis-button");
   await user.click(ellipsisButton);
 
-  const menu = wrapper.getByTestId("context-menu");
+  const menu = screen.getByTestId("context-menu");
   const editButton = within(menu).getByTestId("edit-button");
 
   await user.click(editButton);

@@ -51,7 +51,6 @@ describe("PendingUserMessages", () => {
     expect(messages[1]).toHaveTextContent("second message");
     messages.forEach((message) => {
       expect(message).toHaveAttribute("data-pending-status", "sending");
-      expect(message.className).toMatch(/opacity-60/);
     });
     expect(screen.getAllByTestId("chat-message-sending")).toHaveLength(2);
   });

@@ -37,6 +37,8 @@ function overlayStoredRepoSelection(
     selected_branch:
       conversation.selected_branch ?? stored.selected_branch ?? null,
     git_provider: conversation.git_provider ?? stored.git_provider ?? null,
+    selected_workspace:
+      conversation.selected_workspace ?? stored.selected_workspace ?? null,
   };
 }
 
@@ -201,6 +203,25 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
     backend,
     method: "POST",
     path: `/api/v1/sandboxes/${sandboxId}/pause`,
+  });
+}
+
+/**
+ * Resume a paused cloud sandbox. Mirrors OpenHands' `SandboxService.resumeSandbox`
+ * — routes through the bundled agent-server's cloud proxy and hits
+ * `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
+ *
+ * This is the correct endpoint for waking a PAUSED sandbox. It is a
+ * lightweight unpause — NOT the same as creating a new start task via
+ * `POST /api/v1/app-conversations`, which provisions a fresh conversation
+ * and is subject to the 120-second sandbox-start timeout.
+ */
+export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudProxy<unknown>({
+    backend,
+    method: "POST",
+    path: `/api/v1/sandboxes/${sandboxId}/resume`,
   });
 }
 

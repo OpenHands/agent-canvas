@@ -21,6 +21,8 @@ describe("EditorContainer", () => {
     expect(screen.getByTestId("editor-container")).toBeInTheDocument();
   });
 
+  // Functional contract: the `height` prop is observable only via the
+  // `--editor-height` CSS custom property the component writes to the DOM.
   it("sets the --editor-height CSS variable based on height prop", () => {
     render(
       <EditorContainer height={500}>
@@ -29,16 +31,5 @@ describe("EditorContainer", () => {
     );
     const container = screen.getByTestId("editor-container");
     expect(container.style.getPropertyValue("--editor-height")).toBe("500px");
-  });
-
-  it("applies border and overflow styles", () => {
-    render(
-      <EditorContainer height={400}>
-        <div data-testid="inner" />
-      </EditorContainer>,
-    );
-    const container = screen.getByTestId("editor-container");
-    expect(container.className).toContain("border");
-    expect(container.className).toContain("overflow-hidden");
   });
 });

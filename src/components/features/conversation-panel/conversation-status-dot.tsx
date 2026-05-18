@@ -1,9 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 interface ConversationStatusDotProps {
   executionStatus: ExecutionStatus | null | undefined;
+  /**
+   * Cloud-only sandbox lifecycle status. When provided, MISSING and ERROR
+   * override the execution-status visual so the dot reflects the sandbox
+   * state rather than the last agent execution state.
+   */
+  sandboxStatus?: SandboxStatus | null;
   /**
    * Wrap the dot in a tooltip showing the human-readable status label.
    * Disable this when the dot is already nested inside a larger tooltip
@@ -34,7 +41,8 @@ const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   }
 };
 
-const labelKeyFor = (visual: Visual): string => {
+const labelKeyFor = (visual: Visual, isArchived?: boolean): string => {
+  if (isArchived) return "COMMON$ARCHIVED";
   switch (visual) {
     case "check":
       return "COMMON$FINISHED";
@@ -107,12 +115,24 @@ function renderIndicator(visual: Visual) {
 
 export function ConversationStatusDot({
   executionStatus,
+  sandboxStatus,
   showTooltip = true,
 }: ConversationStatusDotProps) {
   const { t } = useTranslation("openhands");
 
-  const visual = visualFor(executionStatus);
-  const label = t(labelKeyFor(visual));
+  // sandbox_status === "MISSING" → show archived (gray) dot
+  // sandbox_status === "ERROR"   → show error (red) dot
+  // Otherwise fall through to the execution-status visual.
+  const isArchived = sandboxStatus === "MISSING";
+  const effectiveVisual: Visual =
+    sandboxStatus === "ERROR"
+      ? "error"
+      : isArchived
+        ? "paused"
+        : visualFor(executionStatus);
+
+  const visual = effectiveVisual;
+  const label = t(labelKeyFor(visual, isArchived));
   const indicator = renderIndicator(visual);
 
   const dot = (

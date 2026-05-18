@@ -1,6 +1,7 @@
 import {
   ConversationClient,
   FileClient,
+  ProfilesClient,
   SettingsClient,
 } from "@openhands/typescript-client/clients";
 import axios from "axios";
@@ -25,6 +26,9 @@ const {
   mockSwitchProfile,
   mockGetSettings,
   mockGetSettingsForConversation,
+  mockGetProfile,
+  mockActivateProfile,
+  mockSdkHttpPost,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -35,6 +39,9 @@ const {
   mockSwitchProfile: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
+  mockGetProfile: vi.fn(),
+  mockActivateProfile: vi.fn(),
+  mockSdkHttpPost: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", async () => {
@@ -49,6 +56,12 @@ vi.mock("@openhands/typescript-client/clients", async () => {
     FileClient: vi.fn(function FileClientMock() {
       return mockFileClient();
     }),
+    ProfilesClient: vi.fn(function ProfilesClientMock() {
+      return {
+        getProfile: mockGetProfile,
+        activateProfile: mockActivateProfile,
+      };
+    }),
     SettingsClient: vi.fn(function SettingsClientMock() {
       return mockSettingsClient();
     }),
@@ -57,6 +70,12 @@ vi.mock("@openhands/typescript-client/clients", async () => {
     }),
   };
 });
+
+vi.mock("@openhands/typescript-client/client/http-client", () => ({
+  HttpClient: vi.fn(function HttpClientMock() {
+    return { post: mockSdkHttpPost };
+  }),
+}));
 
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
@@ -84,8 +103,12 @@ describe("AgentServerConversationService", () => {
     mockHttpGet.mockReset();
     mockHttpPost.mockReset();
     mockHttpDelete.mockReset();
+    mockGetProfile.mockReset();
+    mockActivateProfile.mockReset();
+    mockSdkHttpPost.mockReset();
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
+    vi.mocked(ProfilesClient).mockClear();
     vi.mocked(SettingsClient).mockClear();
 
     mockConversationClient.mockReturnValue({
@@ -369,6 +392,69 @@ describe("AgentServerConversationService", () => {
       );
     });
 
+    it("preserves sandbox_status from batchGetAppConversations response", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-paused",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            sandbox_status: "PAUSED",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-paused",
+        ]);
+
+      expect(conversation?.sandbox_status).toBe("PAUSED");
+    });
+
+    it("preserves sandbox_status from searchConversations response", async () => {
+      const searchSpy = vi.fn().mockResolvedValue({
+        items: [
+          {
+            id: "conv-paused-search",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            sandbox_status: "PAUSED",
+          },
+        ],
+        next_page_id: null,
+      });
+      // Only searchConversations is called by the service method under test,
+      // so we don't need to reproduce the full client mock object.
+      mockConversationClient.mockReturnValue({
+        searchConversations: searchSpy,
+      });
+
+      const result =
+        await AgentServerConversationService.searchConversations(10);
+
+      expect(result.items[0]?.sandbox_status).toBe("PAUSED");
+    });
+
+    it("passes sandbox_status null through when field is absent", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-no-status",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-no-status",
+        ]);
+
+      expect(conversation?.sandbox_status).toBeNull();
+    });
+
     it("sanitizes malformed optional conversation fields", async () => {
       mockHttpGet.mockResolvedValue({
         data: [
@@ -424,20 +510,48 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
     });
 
-    it("switches profiles through the local agent-server client", async () => {
-      mockSwitchProfile.mockResolvedValue(undefined);
+    it("swaps the conversation's LLM via /switch_llm when a conversationId is provided", async () => {
+      const llmConfig = {
+        model: "litellm_proxy/claude-haiku",
+        api_key: "encrypted-key",
+        base_url: "encrypted-url",
+      };
+      mockGetProfile.mockResolvedValue({
+        name: "haiku",
+        config: llmConfig,
+        api_key_set: true,
+      });
+      mockSdkHttpPost.mockResolvedValue({ data: undefined });
 
       await AgentServerConversationService.switchProfile("conv-1", "haiku");
 
-      expect(mockSwitchProfile).toHaveBeenCalledWith("conv-1", "haiku");
-      expect(ConversationClient).toHaveBeenCalledWith({
-        host: "http://localhost:54928",
-        apiKey: "test-api-key",
-        workingDir: "/workspace/project/agent-canvas",
+      expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
+        exposeSecrets: "encrypted",
       });
+      expect(mockSdkHttpPost).toHaveBeenCalledWith(
+        "/api/conversations/conv-1/switch_llm",
+        { llm: llmConfig },
+      );
+      // Per-convo path: global default is left untouched.
+      expect(mockActivateProfile).not.toHaveBeenCalled();
     });
 
-    it("rejects profile switching on cloud backends before creating a client", async () => {
+    it("activates the profile globally when called without a conversationId", async () => {
+      mockActivateProfile.mockResolvedValue({
+        name: "haiku",
+        message: "ok",
+        llm_applied: true,
+      });
+
+      await AgentServerConversationService.switchProfile(null, "haiku");
+
+      expect(mockActivateProfile).toHaveBeenCalledWith("haiku");
+      // Home-page path: don't touch any conversation's LLM.
+      expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSdkHttpPost).not.toHaveBeenCalled();
+    });
+
+    it("rejects profile switching on cloud backends before any network call", async () => {
       const cloudBackend: Backend = {
         id: "prod",
         name: "Production",
@@ -453,7 +567,9 @@ describe("AgentServerConversationService", () => {
       ).rejects.toThrow(
         "LLM profile switching is only supported for local agent-server backends.",
       );
-      expect(mockSwitchProfile).not.toHaveBeenCalled();
+      expect(mockActivateProfile).not.toHaveBeenCalled();
+      expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSdkHttpPost).not.toHaveBeenCalled();
     });
   });
 

@@ -23,6 +23,7 @@ function TaskListTab() {
       {taskList.map((task) => (
         <div
           key={task.id}
+          data-active={task.status === "in_progress" ? "true" : "false"}
           className={cn(
             "px-4 py-2",
             task.status === "in_progress" && "bg-[var(--oh-surface-raised)]",

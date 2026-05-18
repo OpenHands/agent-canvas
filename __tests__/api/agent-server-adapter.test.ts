@@ -7,6 +7,10 @@ import {
   toAppConversation,
   type DirectConversationInfo,
 } from "#/api/agent-server-adapter";
+import {
+  removeStoredConversationMetadata,
+  setStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const {
@@ -425,6 +429,24 @@ describe("toAppConversation", () => {
       title: "My real title",
     });
     expect(result.title).toBe("My real title");
+  });
+
+  it("hydrates selected_workspace from stored metadata so the sidebar can group by it", () => {
+    setStoredConversationMetadata(baseInfo.id, {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      selected_workspace: "/workspace/agent-server-gui",
+    });
+    try {
+      const result = toAppConversation({
+        ...baseInfo,
+        workspace: { working_dir: "/workspace/agent-server-gui/wt-abc" },
+      });
+      expect(result.selected_workspace).toBe("/workspace/agent-server-gui");
+    } finally {
+      removeStoredConversationMetadata(baseInfo.id);
+    }
   });
 });
 

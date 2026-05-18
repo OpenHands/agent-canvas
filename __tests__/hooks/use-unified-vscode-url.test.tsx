@@ -23,6 +23,7 @@ vi.mock("#/contexts/active-backend-context");
 vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/hooks/use-runtime-is-ready");
 vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: "conv-123" }),
 }));
 

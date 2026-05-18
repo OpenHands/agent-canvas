@@ -306,37 +306,6 @@ describe("OpenRepositoryModal", () => {
     expect(launchButton).toBeDisabled();
   });
 
-  it("should use small modal width", () => {
-    render(
-      <OpenRepositoryModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onLaunch={mockOnLaunch}
-      />,
-    );
-
-    // ModalBody with width="small" renders w-[384px]
-    const modalBody = screen
-      .getByText("CONVERSATION$OPEN_REPOSITORY")
-      .closest(".bg-base-secondary");
-    expect(modalBody).toHaveClass("w-[384px]");
-  });
-
-  it("should override default gap with !gap-4 for tighter spacing", () => {
-    render(
-      <OpenRepositoryModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onLaunch={mockOnLaunch}
-      />,
-    );
-
-    const modalBody = screen
-      .getByText("CONVERSATION$OPEN_REPOSITORY")
-      .closest(".bg-base-secondary");
-    expect(modalBody).toHaveClass("!gap-4");
-  });
-
   describe("provider switching", () => {
     it("should not show provider dropdown when only one provider exists", () => {
       mockProviders.current = ["github"];

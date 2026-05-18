@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
+import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { Branch, GitRepository } from "#/types/git";
@@ -84,6 +85,12 @@ export function HomeChatLauncher() {
     });
   };
 
+  // Without this wrapper a `/model NAME` typed here would become the first
+  // user message of the new conversation. The interceptor activates the
+  // profile globally (null conversationId path) so the next conversation
+  // launches with it.
+  const handleSubmitWithModelGuard = useModelInterceptor(null, handleSubmit);
+
   return (
     <div
       data-testid="home-chat-launcher"
@@ -94,7 +101,10 @@ export function HomeChatLauncher() {
       </div>
 
       <div className="w-full">
-        <CustomChatInput onSubmit={handleSubmit} disabled={isCreating} />
+        <CustomChatInput
+          onSubmit={handleSubmitWithModelGuard}
+          disabled={isCreating}
+        />
       </div>
 
       <div className="flex justify-start">

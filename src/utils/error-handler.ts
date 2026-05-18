@@ -1,6 +1,4 @@
 import type { PostHog } from "posthog-js";
-import { handleStatusMessage } from "#/services/actions";
-import { displayErrorToast } from "./custom-toast-handlers";
 
 interface ErrorDetails {
   message: string;
@@ -22,31 +20,5 @@ export function trackError({
   posthog.captureException(error, {
     error_source: source || "unknown",
     ...metadata,
-  });
-}
-
-export function showErrorToast({
-  message,
-  source,
-  metadata = {},
-  posthog,
-}: ErrorDetails) {
-  trackError({ message, source, metadata, posthog });
-  displayErrorToast(message);
-}
-
-export function showChatError({
-  message,
-  source,
-  metadata = {},
-  msgId,
-  posthog,
-}: ErrorDetails) {
-  trackError({ message, source, metadata, posthog });
-  handleStatusMessage({
-    type: "error",
-    message,
-    id: msgId,
-    status_update: true,
   });
 }

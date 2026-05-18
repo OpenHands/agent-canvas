@@ -19,6 +19,7 @@ interface MenuItemProps {
   disabled?: boolean;
   className?: string;
   testId: string;
+  destructive?: boolean;
 }
 
 function MenuItem({
@@ -30,6 +31,7 @@ function MenuItem({
   disabled,
   className,
   testId,
+  destructive,
 }: MenuItemProps) {
   return (
     <button
@@ -48,6 +50,7 @@ function MenuItem({
       )}
       role="menuitem"
       data-testid={testId}
+      data-destructive={destructive ? "true" : undefined}
     >
       {label}
     </button>
@@ -218,6 +221,7 @@ export function ProfileActionsMenu({
         menuItemsRef={menuItemsRef}
         className="text-red-400"
         testId="profile-delete"
+        destructive
       />
     </div>
   );
