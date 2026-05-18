@@ -16,7 +16,10 @@ Agents can run anywhere:
 - ☁️ in our hosted cloud
 - 🏢 or inside your company’s infrastructure
 
-You can work with any agent (e.g. Claude Code, Codex) or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
+The same Agent Canvas frontend can swap between each of these environments, so you can see everything in one place.
+
+OpenHands works with any agent harness (e.g. Claude Code, Codex)
+or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
