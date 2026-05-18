@@ -1,4 +1,4 @@
-import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
+import type { SlashCommandItem } from "#/hooks/chat/use-slash-command";
 
 export const ASSET_FILE_TYPES = [
   ".png",
@@ -41,6 +41,13 @@ export const DOCUMENTATION_URL = {
 export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
 };
+
+export const OPENHANDS_CLOUD_DISPLAY_NAME = "OpenHands Cloud";
+export const DEFAULT_OPENHANDS_CLOUD_HOST = PRODUCT_URL.PRODUCTION;
+export const OPENHANDS_LLM_PROXY_BASE_URLS = [
+  "https://llm-proxy.app.all-hands.dev",
+  "https://llm-proxy.app.all-hands.dev/v1",
+] as const;
 
 export const SETTINGS_FORM = {
   LABEL_CLASSNAME: "text-[11px] font-medium leading-4 tracking-[0.11px]",

@@ -124,10 +124,14 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
   );
   const [showAddForm, setShowAddForm] = React.useState(false);
 
-  const handleConfirmRemoval = () => {
+  const handleConfirmRemoval = async () => {
     if (!pendingRemoval) return;
-    removeBackend(pendingRemoval.id);
-    setPendingRemoval(null);
+    try {
+      await removeBackend(pendingRemoval.id);
+      setPendingRemoval(null);
+    } catch (error) {
+      console.error("Failed to remove backend", error);
+    }
   };
 
   return (

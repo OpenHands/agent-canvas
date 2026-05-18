@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDisplayModel } from "#/utils/normalize-display-model";
+import { OPENHANDS_LLM_PROXY_BASE_URLS } from "#/utils/constants";
 
 const OPENHANDS_VERIFIED = ["claude-opus-4-7", "gpt-5.5"];
-const OPENHANDS_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev/";
+const OPENHANDS_PROXY_BASE_URL = `${OPENHANDS_LLM_PROXY_BASE_URLS[0]}/`;
 
 describe("normalizeDisplayModel", () => {
   it("rewrites litellm_proxy/<m> to openhands/<m> when the base URL is the All-Hands proxy and the model is in the openhands verified list", () => {

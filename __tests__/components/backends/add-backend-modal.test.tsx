@@ -118,6 +118,23 @@ describe("AddBackendModal – two-column layout", () => {
     expect(submit).not.toBeDisabled();
   });
 
+  it("does not infer cloud kind from OpenHands domain substrings", async () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    const submit = screen.getByTestId(
+      "add-backend-submit",
+    ) as HTMLButtonElement;
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("add-backend-name"), "Not Cloud");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://evil.com?ref=all-hands.dev",
+    );
+
+    expect(submit).not.toBeDisabled();
+  });
+
   it("saves the backend and closes WITHOUT switching the active selection", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);

@@ -3,7 +3,7 @@
  *
  * Used for one-click authentication with cloud backends.
  * The flow allows users to authenticate in their browser while the
- * application polls for the resulting API key.
+ * application polls for the resulting OpenHands Cloud API key.
  *
  * All device flow requests are proxied through the local agent-server's
  * cloud-proxy endpoint to avoid CORS issues. Since a local agent-server
@@ -185,7 +185,7 @@ export interface PollOptions {
  * @param host - The cloud backend host URL
  * @param deviceCode - The device code from startDeviceFlow
  * @param options - Polling options including interval, timeout, and abort signal
- * @returns DeviceTokenResponse containing the access_token (API key)
+ * @returns DeviceTokenResponse containing the access_token (OpenHands Cloud API key)
  * @throws DeviceFlowError if polling fails, user denies access, or timeout expires
  */
 export async function pollForToken(

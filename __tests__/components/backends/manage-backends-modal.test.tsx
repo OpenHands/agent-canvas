@@ -47,12 +47,14 @@ function TestSeed({
   onMount,
   children,
 }: {
-  onMount: (ctx: ReturnType<typeof useActiveBackendContext>) => void;
+  onMount: (
+    ctx: ReturnType<typeof useActiveBackendContext>,
+  ) => void | Promise<void>;
   children: React.ReactNode;
 }) {
   const ctx = useActiveBackendContext();
   React.useEffect(() => {
-    onMount(ctx);
+    void onMount(ctx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return children as React.ReactElement;
@@ -122,13 +124,15 @@ describe("ManageBackendsModal", () => {
     let backendId = "";
     renderWithProviders(
       <TestSeed
-        onMount={(ctx) => {
-          backendId = ctx.addBackend({
-            name: "Acme Local",
-            host: "http://localhost:9000",
-            apiKey: "old-key",
-            kind: "local",
-          }).id;
+        onMount={async (ctx) => {
+          backendId = (
+            await ctx.addBackend({
+              name: "Acme Local",
+              host: "http://localhost:9000",
+              apiKey: "old-key",
+              kind: "local",
+            })
+          ).id;
         }}
       >
         <ManageBackendsModal onClose={vi.fn()} />

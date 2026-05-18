@@ -1,4 +1,5 @@
 import React from "react";
+import { KeyRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
@@ -22,6 +23,19 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import { DeviceFlowAuth } from "#/components/features/backends/device-flow-auth";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  getStoredCloudBackendCredentials,
+  getOpenHandsProvidedLlmApiKey,
+  makeDefaultOpenHandsCloudCredential,
+  saveCloudBackendCredential,
+} from "#/api/cloud-backend-credentials-service";
+import {
+  DEFAULT_OPENHANDS_CLOUD_HOST,
+  OPENHANDS_CLOUD_DISPLAY_NAME,
+  OPENHANDS_LLM_PROXY_BASE_URLS,
+} from "#/utils/constants";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -40,14 +54,8 @@ const getSchemaFieldDefaultValue = (
 
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
-  openhands: new Set([
-    "https://llm-proxy.app.all-hands.dev",
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
-  litellm_proxy: new Set([
-    "https://llm-proxy.app.all-hands.dev",
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
+  openhands: new Set<string>(OPENHANDS_LLM_PROXY_BASE_URLS),
+  litellm_proxy: new Set<string>(OPENHANDS_LLM_PROXY_BASE_URLS),
 };
 
 const normalizeBaseUrl = (baseUrl: string) => {
@@ -76,21 +84,405 @@ const isProviderDefaultBaseUrl = (model: string, baseUrl: string) => {
   );
 };
 
-interface OpenHandsApiKeyHelpProps {
-  testId: string;
+interface OpenHandsCloudAuth {
+  id: string;
+  name: string;
+  host: string;
+  cloudApiKey: string;
 }
 
-function OpenHandsApiKeyHelp({ testId }: OpenHandsApiKeyHelpProps) {
+const normalizeAuthHost = (host: string) =>
+  host.trim().replace(/\/+$/, "") || DEFAULT_OPENHANDS_CLOUD_HOST;
+
+function formatCloudAuthLabel(auth: OpenHandsCloudAuth) {
+  return `${auth.name} (${normalizeAuthHost(auth.host)})`;
+}
+
+function dedupeCloudAuths(auths: OpenHandsCloudAuth[]) {
+  const seen = new Set<string>();
+  return auths.filter((auth) => {
+    const apiKey = auth.cloudApiKey.trim();
+    if (!apiKey) return false;
+
+    const key = `${normalizeAuthHost(auth.host)}\n${apiKey}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function findReusableOpenHandsCloudAuths(
+  options: { signal?: AbortSignal } = {},
+): Promise<OpenHandsCloudAuth[]> {
+  return dedupeCloudAuths(await getStoredCloudBackendCredentials(options));
+}
+
+function isAbortError(error: unknown) {
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "ERR_CANCELED")
+  );
+}
+
+interface OpenHandsApiKeyAuthProps {
+  testId: string;
+  onApiKeyObtained: (key: string) => void;
+  isDisabled?: boolean;
+}
+
+/**
+ * Auth section shown when an `openhands/*` model is selected. Provides
+ * three ways to obtain the API key, in order of convenience:
+ *
+ * 1. Fetch an OpenHands-provided LM API key if the user already has a
+ *    Cloud API key available.
+ * 2. "Login with OpenHands" — device flow OAuth to get a Cloud API key,
+ *    then fetch the LM API key from Cloud.
+ * 3. Manual entry — the standard API key input (rendered separately by
+ *    the caller below this component).
+ */
+function OpenHandsApiKeyAuth({
+  testId,
+  onApiKeyObtained,
+  isDisabled,
+}: OpenHandsApiKeyAuthProps) {
   const { t } = useTranslation("openhands");
+  const [cloudAuths, setCloudAuths] = React.useState<OpenHandsCloudAuth[]>([]);
+  const [selectedCloudAuthId, setSelectedCloudAuthId] = React.useState("");
+  const [isLoadingCloudAuths, setIsLoadingCloudAuths] = React.useState(true);
+  const [isFetchingLlmApiKey, setIsFetchingLlmApiKey] = React.useState(false);
+  const [llmApiKeyError, setLlmApiKeyError] = React.useState<string | null>(
+    null,
+  );
+  const [cloudAuthError, setCloudAuthError] = React.useState<string | null>(
+    null,
+  );
+  const [deviceFlowLlmApiKeyError, setDeviceFlowLlmApiKeyError] =
+    React.useState<string | null>(null);
+  const cloudAuthLoadAbortRef = React.useRef<AbortController | null>(null);
+  const llmApiKeyAbortRef = React.useRef<AbortController | null>(null);
+  const cloudAuthCallbackAbortRef = React.useRef<AbortController | null>(null);
+  const translateRef = React.useRef(t);
+  const onApiKeyObtainedRef = React.useRef(onApiKeyObtained);
+
+  React.useEffect(() => {
+    translateRef.current = t;
+  }, [t]);
+
+  React.useEffect(() => {
+    onApiKeyObtainedRef.current = onApiKeyObtained;
+  }, [onApiKeyObtained]);
+
+  React.useEffect(() => {
+    const callbackAbortController = new AbortController();
+    cloudAuthCallbackAbortRef.current = callbackAbortController;
+
+    return () => {
+      callbackAbortController.abort();
+      if (cloudAuthCallbackAbortRef.current === callbackAbortController) {
+        cloudAuthCallbackAbortRef.current = null;
+      }
+      cloudAuthLoadAbortRef.current?.abort();
+      llmApiKeyAbortRef.current?.abort();
+    };
+  }, []);
+
+  const getComponentAbortSignal = React.useCallback(
+    () => cloudAuthCallbackAbortRef.current?.signal ?? null,
+    [],
+  );
+
+  const isComponentAborted = React.useCallback(
+    (signal: AbortSignal | null = getComponentAbortSignal()) =>
+      signal?.aborted ?? false,
+    [getComponentAbortSignal],
+  );
+
+  const loadCloudAuths = React.useCallback(async () => {
+    const componentSignal = cloudAuthCallbackAbortRef.current?.signal;
+    if (!componentSignal || componentSignal.aborted) return;
+    cloudAuthLoadAbortRef.current?.abort();
+    const controller = new AbortController();
+    cloudAuthLoadAbortRef.current = controller;
+    if (isComponentAborted(componentSignal)) return;
+    setIsLoadingCloudAuths(true);
+    setCloudAuthError(null);
+    try {
+      const auths = await findReusableOpenHandsCloudAuths({
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted || isComponentAborted(componentSignal)) {
+        return;
+      }
+      setCloudAuths(auths);
+      setSelectedCloudAuthId(auths.length === 1 ? auths[0].id : "");
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted) return;
+      if (isComponentAborted(componentSignal)) return;
+      console.error("Failed to load OpenHands Cloud credentials", error);
+      setCloudAuths([]);
+      setSelectedCloudAuthId("");
+      setCloudAuthError(
+        translateRef.current(
+          I18nKey.SETTINGS$OPENHANDS_CLOUD_CREDENTIALS_LOAD_FAILED,
+        ),
+      );
+    } finally {
+      if (cloudAuthLoadAbortRef.current === controller) {
+        cloudAuthLoadAbortRef.current = null;
+      }
+      if (!controller.signal.aborted && !componentSignal.aborted) {
+        setIsLoadingCloudAuths(false);
+      }
+    }
+  }, [isComponentAborted]);
+
+  React.useEffect(() => {
+    void loadCloudAuths();
+  }, [loadCloudAuths]);
+
+  const selectedCloudAuth = React.useMemo(
+    () => cloudAuths.find((auth) => auth.id === selectedCloudAuthId) ?? null,
+    [cloudAuths, selectedCloudAuthId],
+  );
+
+  const fetchAndApplyLlmApiKey = React.useCallback(
+    async (
+      auth: OpenHandsCloudAuth,
+      source: "reusable" | "device",
+      componentSignal = getComponentAbortSignal(),
+    ) => {
+      if (isComponentAborted(componentSignal)) return;
+      const setFetchError =
+        source === "device" ? setDeviceFlowLlmApiKeyError : setLlmApiKeyError;
+      llmApiKeyAbortRef.current?.abort();
+      const controller = new AbortController();
+      llmApiKeyAbortRef.current = controller;
+      if (isComponentAborted(componentSignal)) return;
+      setIsFetchingLlmApiKey(true);
+      setLlmApiKeyError(null);
+      setDeviceFlowLlmApiKeyError(null);
+      try {
+        const llmApiKey = await getOpenHandsProvidedLlmApiKey({
+          cloudApiKey: auth.cloudApiKey,
+          host: auth.host,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted || isComponentAborted(componentSignal)) {
+          return;
+        }
+        const normalizedLlmApiKey = llmApiKey?.trim() ?? "";
+
+        if (!normalizedLlmApiKey) {
+          if (isComponentAborted(componentSignal)) return;
+          setFetchError(
+            translateRef.current(
+              I18nKey.SETTINGS$OPENHANDS_LM_API_KEY_FETCH_FAILED,
+            ),
+          );
+          return;
+        }
+
+        if (isComponentAborted(componentSignal)) return;
+        onApiKeyObtainedRef.current(normalizedLlmApiKey);
+      } catch (error) {
+        if (
+          isAbortError(error) ||
+          controller.signal.aborted ||
+          isComponentAborted(componentSignal)
+        ) {
+          return;
+        }
+        console.error(
+          "Failed to fetch OpenHands-provided LM API key from Cloud",
+          error,
+        );
+        if (isComponentAborted(componentSignal)) return;
+        setFetchError(
+          translateRef.current(
+            I18nKey.SETTINGS$OPENHANDS_LM_API_KEY_FETCH_FAILED,
+          ),
+        );
+      } finally {
+        if (
+          !controller.signal.aborted &&
+          !isComponentAborted(componentSignal) &&
+          llmApiKeyAbortRef.current === controller
+        ) {
+          llmApiKeyAbortRef.current = null;
+          setIsFetchingLlmApiKey(false);
+        }
+      }
+    },
+    [getComponentAbortSignal, isComponentAborted],
+  );
+
+  const handleCloudApiKeyObtained = React.useCallback(
+    async (cloudApiKey: string) => {
+      const callbackSignal = getComponentAbortSignal();
+      if (isComponentAborted(callbackSignal)) return;
+
+      const auth = makeDefaultOpenHandsCloudCredential(cloudApiKey);
+      setDeviceFlowLlmApiKeyError(null);
+
+      try {
+        const savedAuth = await saveCloudBackendCredential(auth, {
+          signal: callbackSignal ?? undefined,
+        });
+        if (isComponentAborted(callbackSignal)) return;
+        setCloudAuths((existing) => dedupeCloudAuths([savedAuth, ...existing]));
+        if (isComponentAborted(callbackSignal)) return;
+        setSelectedCloudAuthId(savedAuth.id);
+        if (isComponentAborted(callbackSignal)) return;
+        await fetchAndApplyLlmApiKey(savedAuth, "device", callbackSignal);
+      } catch (error) {
+        if (isAbortError(error) || isComponentAborted(callbackSignal)) return;
+        console.warn(
+          `Failed to persist OpenHands Cloud credential for ${auth.id}`,
+          error,
+        );
+        if (isComponentAborted(callbackSignal)) return;
+        setDeviceFlowLlmApiKeyError(
+          translateRef.current(
+            I18nKey.SETTINGS$OPENHANDS_LM_API_KEY_FETCH_FAILED,
+          ),
+        );
+      }
+    },
+    [fetchAndApplyLlmApiKey, getComponentAbortSignal, isComponentAborted],
+  );
+
+  const handleFetchSelectedLlmApiKey = React.useCallback(() => {
+    if (!selectedCloudAuth) return;
+    void fetchAndApplyLlmApiKey(selectedCloudAuth, "reusable");
+  }, [fetchAndApplyLlmApiKey, selectedCloudAuth]);
+
+  const hasReusableCloudAuth = cloudAuths.length > 0;
+  const requiresCloudAuthSelection = cloudAuths.length > 1;
 
   return (
-    <HelpLink
-      testId={testId}
-      text={t(I18nKey.SETTINGS$OPENHANDS_API_KEY_HELP_TEXT)}
-      linkText={t(I18nKey.SETTINGS$NAV_API_KEYS)}
-      href="https://app.all-hands.dev/settings/api-keys"
-      suffix={` ${t(I18nKey.SETTINGS$OPENHANDS_API_KEY_HELP_SUFFIX)}`}
-    />
+    <div
+      className="flex flex-col gap-3 max-w-[680px]"
+      data-testid={`${testId}-auth`}
+    >
+      {/* Option 1: Use existing OpenHands Cloud auth to fetch an LM API key */}
+      {isLoadingCloudAuths && (
+        <p
+          className="text-xs text-[var(--oh-muted)]"
+          data-testid={`${testId}-cloud-auth-loading`}
+          role="status"
+        >
+          {t(I18nKey.HOME$LOADING)}
+        </p>
+      )}
+
+      {cloudAuthError && (
+        <div className="flex flex-col gap-2" role="alert">
+          <p
+            className="text-xs text-red-400"
+            data-testid={`${testId}-cloud-auth-error`}
+          >
+            {cloudAuthError}
+          </p>
+          <BrandButton
+            type="button"
+            variant="secondary"
+            onClick={() => void loadCloudAuths()}
+            testId={`${testId}-cloud-auth-retry`}
+            isDisabled={isDisabled || isLoadingCloudAuths}
+          >
+            {t(I18nKey.BACKEND$AUTH_RETRY)}
+          </BrandButton>
+        </div>
+      )}
+
+      {hasReusableCloudAuth && (
+        <div
+          className="flex flex-col gap-2"
+          data-testid={`${testId}-cloud-login-detected`}
+        >
+          <p className="text-xs text-[var(--oh-muted)]">
+            {t(I18nKey.SETTINGS$OPENHANDS_CLOUD_LOGIN_DETECTED, {
+              name:
+                cloudAuths.length === 1
+                  ? formatCloudAuthLabel(cloudAuths[0])
+                  : OPENHANDS_CLOUD_DISPLAY_NAME,
+            })}
+          </p>
+          {requiresCloudAuthSelection && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-[var(--oh-muted)]">
+                {t(I18nKey.SETTINGS$OPENHANDS_CLOUD_LOGIN_SELECT_LABEL)}
+              </span>
+              <select
+                aria-label={t(
+                  I18nKey.SETTINGS$OPENHANDS_CLOUD_LOGIN_SELECT_LABEL,
+                )}
+                data-testid={`${testId}-cloud-auth-select`}
+                value={selectedCloudAuthId}
+                onChange={(event) => setSelectedCloudAuthId(event.target.value)}
+                className="h-10 rounded-sm border border-[var(--oh-border-input)] bg-tertiary px-2 text-sm text-white outline-none"
+                disabled={isDisabled || isFetchingLlmApiKey}
+              >
+                <option value="" disabled>
+                  {t(I18nKey.SETTINGS$OPENHANDS_CLOUD_LOGIN_SELECT_PLACEHOLDER)}
+                </option>
+                {cloudAuths.map((auth) => (
+                  <option key={auth.id} value={auth.id}>
+                    {formatCloudAuthLabel(auth)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <BrandButton
+            type="button"
+            variant="secondary"
+            onClick={handleFetchSelectedLlmApiKey}
+            testId={`${testId}-get-openhands-lm-key`}
+            isDisabled={isDisabled || isFetchingLlmApiKey || !selectedCloudAuth}
+            startContent={<KeyRound className="h-4 w-4" aria-hidden />}
+          >
+            {isFetchingLlmApiKey
+              ? t(I18nKey.SETTINGS$FETCHING_OPENHANDS_LM_API_KEY)
+              : t(I18nKey.SETTINGS$GET_OPENHANDS_LM_API_KEY)}
+          </BrandButton>
+          {llmApiKeyError && (
+            <p className="text-xs text-red-400" role="alert">
+              {llmApiKeyError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Option 2: Device flow login */}
+      <DeviceFlowAuth
+        host={DEFAULT_OPENHANDS_CLOUD_HOST}
+        onSuccess={handleCloudApiKeyObtained}
+        testIdRoot={testId}
+        isDisabled={isDisabled}
+      />
+      {deviceFlowLlmApiKeyError && (
+        <p
+          className="text-xs text-red-400"
+          data-testid={`${testId}-device-flow-lm-key-error`}
+          role="alert"
+        >
+          {deviceFlowLlmApiKeyError}
+        </p>
+      )}
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 border-t border-tertiary" />
+        <span className="text-xs text-tertiary-alt">
+          {t(I18nKey.SETTINGS$OR_ENTER_MANUALLY)}
+        </span>
+        <div className="flex-1 border-t border-tertiary" />
+      </div>
+    </div>
   );
 }
 
@@ -155,10 +547,22 @@ export function LlmSettingsScreen({
         typeof values["llm.base_url"] === "string"
           ? values["llm.base_url"]
           : "";
-      const showOpenHandsApiKeyHelp = modelValue.startsWith("openhands/");
+      const isOpenHandsModel = modelValue.startsWith("openhands/");
 
-      const renderApiKeyInput = (testId: string, helpTestId: string) => (
+      const handleApiKeyObtained = (key: string) => {
+        onChange("llm.api_key", key);
+      };
+
+      const renderApiKeySection = (testId: string, helpTestId: string) => (
         <>
+          {isOpenHandsModel ? (
+            <OpenHandsApiKeyAuth
+              testId={testId}
+              onApiKeyObtained={handleApiKeyObtained}
+              isDisabled={isDisabled}
+            />
+          ) : null}
+
           <SettingsInput
             testId={testId}
             label={t(I18nKey.SETTINGS_FORM$API_KEY)}
@@ -179,12 +583,14 @@ export function LlmSettingsScreen({
             }
           />
 
-          <HelpLink
-            testId={helpTestId}
-            text={t(I18nKey.SETTINGS$DONT_KNOW_API_KEY)}
-            linkText={t(I18nKey.SETTINGS$CLICK_FOR_INSTRUCTIONS)}
-            href="https://docs.openhands.dev/usage/local-setup#getting-an-api-key"
-          />
+          {!isOpenHandsModel && (
+            <HelpLink
+              testId={helpTestId}
+              text={t(I18nKey.SETTINGS$DONT_KNOW_API_KEY)}
+              linkText={t(I18nKey.SETTINGS$CLICK_FOR_INSTRUCTIONS)}
+              href="https://docs.openhands.dev/usage/local-setup#getting-an-api-key"
+            />
+          )}
         </>
       );
 
@@ -208,11 +614,7 @@ export function LlmSettingsScreen({
                 isDisabled={isDisabled}
               />
 
-              {showOpenHandsApiKeyHelp ? (
-                <OpenHandsApiKeyHelp testId="openhands-api-key-help" />
-              ) : null}
-
-              {renderApiKeyInput(
+              {renderApiKeySection(
                 "llm-api-key-input",
                 "llm-api-key-help-anchor",
               )}
@@ -233,10 +635,6 @@ export function LlmSettingsScreen({
                 isDisabled={isDisabled}
               />
 
-              {showOpenHandsApiKeyHelp ? (
-                <OpenHandsApiKeyHelp testId="openhands-api-key-help-2" />
-              ) : null}
-
               <SettingsInput
                 testId="base-url-input"
                 label={t(I18nKey.SETTINGS$BASE_URL)}
@@ -248,7 +646,7 @@ export function LlmSettingsScreen({
                 isDisabled={isDisabled}
               />
 
-              {renderApiKeyInput(
+              {renderApiKeySection(
                 "llm-api-key-input",
                 "llm-api-key-help-anchor-advanced",
               )}
