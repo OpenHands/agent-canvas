@@ -144,7 +144,11 @@ describes. Specifically:
   tooltip and aria label are hardcoded to `"rbren's mod"` /
   `"rbren's mod logo"`, replacing the upstream
   `t(I18nKey.BRANDING$OPENHANDS{,_LOGO})` calls; the unused
-  `useTranslation` / `I18nKey` imports are dropped.
+  `useTranslation` / `I18nKey` imports are dropped. The expanded-mode
+  `OpenHandsLogoButton` call in `sidebar-rail-body.tsx` drops the
+  upstream `w-[18px] justify-center` container (which would clip the
+  wordmark by centering the logo+wordmark block on an 18px slot) in
+  favor of natural content sizing from the icon column's left edge.
   Files: `src/components/shared/buttons/openhands-logo-button.tsx`,
   `src/components/features/sidebar/sidebar-rail-body.tsx`
   Introduced: 6d894ef
@@ -327,6 +331,35 @@ is omitted.
     The `enable-subagent-delegation` feature branch the fork had merged
     in (`9ed13b24`) has *not* landed on upstream `main` yet and was
     replayed onto the new base as a normal commit (`093f2ee6`).
+
+- **2026-05-18** — synced upstream `main` at `2505b08f` ("Better default
+  install instructions (#585)").
+  - Sync commit: this commit (see `git log` for hash)
+  - Conflicts: `src/components/features/sidebar/sidebar.tsx`
+  - Notes: Pulled in 28 upstream commits (`56a3d8a4..2505b08f`) via
+    `git rebase --empty=drop upstream/main`. Upstream PR #509 landed the
+    sub-agent delegation feature the fork had been carrying as
+    `093f2ee6` ("feat: enable sub-agent delegation via task_tool_set");
+    the two patches were functionally identical so the fork-local commit
+    was dropped via `git rebase --skip` (cherry-mark didn't catch it
+    because the trees diverged slightly on a blank line). Upstream PR
+    #578 (`f143199a`, "refactor: rename top-level nav labels for clearer
+    copy") performed the same "New" → "Code" and "Extensions" →
+    "Customize" renames the fork had been doing in `3bfd31a4`; the
+    fork-local marker comments on those two lines were dropped during
+    conflict resolution since there is no longer a divergence to mark
+    (upstream now matches). The "Automations" → "Automate" rename
+    remains fork-local and its `rbren's mod:` marker was preserved. The
+    `rbren branch:` → `rbren's mod:` marker sweep commit (`b1844cb5`)
+    re-applied cleanly over the dropped lines for the four remaining
+    sidebar-side markers. Marker count went from 19 → 17 in this sync
+    (two retired). Fork-local layout fix-up landed on top of the rebase:
+    upstream's expanded-sidebar logo container is `w-[18px]
+    justify-center` (designed to symmetrically overflow a lone glyph
+    around the 18px icon column), but the fork's wordmark made that
+    center the *whole* logo+wordmark block on 18px and clip its leading
+    edge off-screen; the expanded-mode `OpenHandsLogoButton` className
+    now drops the width / centering for natural content sizing.
 
 ## Core Principles
 

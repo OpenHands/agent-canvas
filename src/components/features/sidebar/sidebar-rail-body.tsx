@@ -121,11 +121,20 @@ export function SidebarRailBody({
           </div>
         ) : (
           <>
+            {/* rbren's mod: upstream's SIDEBAR_ICON_SLOT_CLASS pins the
+                expanded-mode logo slot to w-[18px] + justify-center so the
+                lone logo glyph overflows symmetrically around the icon
+                column. The fork adds a "rbren's mod" wordmark next to the
+                logo, so a fixed 18px slot centers the whole (logo +
+                wordmark) block and pushes the leading edge off-screen left
+                of the sidebar padding. Drop the explicit width / centering
+                and let the row size to its content from the icon column's
+                left edge. */}
             <OpenHandsLogoButton
               logoWidth={SIDEBAR_LOGO_WIDTH}
               logoHeight={SIDEBAR_LOGO_HEIGHT}
               logoClassName="max-w-none"
-              className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
+              className="inline-flex h-10 shrink-0 items-center overflow-visible"
             />
             {showCollapseToggle ? (
               <button
