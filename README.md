@@ -26,7 +26,7 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ### Direct Install
 
-You can install OpenHands to run agents on any machine: on your laptop, n a dedicated computer like a Mac Mini,
+You can install OpenHands to run agents on any machine: on your laptop, on a dedicated computer like a Mac Mini,
 or on a server in the cloud.
 
 The most powerful way to run OpenHands is on a server in the cloud. This allows your agents to continue running
