@@ -402,6 +402,13 @@ if (isMainModule) {
     extraPrereqs: checkDockerPrereqs,
     startAgentServer: startAgentServerDocker,
     viteWorkingDir: CONTAINER_WORKSPACES_DIR,
+    // The automation backend runs on the host but its dispatched
+    // `mkdir -p ...` commands execute inside the agent-server container.
+    // Force `AUTOMATION_WORKSPACE_BASE` to a path that exists in that
+    // container so runs don't fail trying to create host paths like
+    // /Users/<you>/... inside Linux. Users can still override by setting
+    // AUTOMATION_WORKSPACE_BASE in their environment.
+    automationWorkspaceBase: CONTAINER_WORKSPACES_DIR,
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
     // The agent-server runs inside a Docker container in this mode, so
