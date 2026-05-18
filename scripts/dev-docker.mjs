@@ -402,6 +402,14 @@ if (isMainModule) {
     extraPrereqs: checkDockerPrereqs,
     startAgentServer: startAgentServerDocker,
     viteWorkingDir: CONTAINER_WORKSPACES_DIR,
+    // The automation backend computes per-run work dirs under this path
+    // and ships `mkdir -p` + tarball-extraction commands to the agent-
+    // server's bash API. Use the in-container path (bind-mounted from
+    // the host's ~/.openhands/agent-canvas/workspaces) so the agent-
+    // server can actually create the directory — the host's stateDir
+    // path (e.g. /Users/<user>/... on macOS) doesn't exist inside the
+    // Linux container and would fail with `Permission denied`.
+    automationWorkspaceBase: CONTAINER_WORKSPACES_DIR,
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
     // The agent-server runs inside a Docker container in this mode, so

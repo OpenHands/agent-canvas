@@ -583,7 +583,16 @@ function startAutomationBackend(config) {
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
         AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
-        AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
+        // The automation backend hands this path to the agent-server via
+        // `mkdir -p {work_dir} && tar xzf … && cd … && bash setup.sh && …`
+        // over HTTP, so the path must be valid inside the agent-server's
+        // filesystem. dev-docker.mjs overrides this with the in-container
+        // path because the agent-server runs in a Linux container where
+        // the host's stateDir (e.g. /Users/<user>/… on macOS) doesn't
+        // exist. See main()'s `automationWorkspaceBase` option.
+        AUTOMATION_WORKSPACE_BASE:
+          config.automationWorkspaceBase ??
+          join(config.stateDir, "workspaces"),
         // Local API key for self-hosted auth (no cloud API needed)
         AUTOMATION_LOCAL_API_KEY: config.localApiKey,
         // CORS: allow localhost origins for dev
@@ -871,6 +880,15 @@ async function main(options = {}) {
     // agent-server runs in a container and the host is not "localhost"
     // from its perspective.
     agentHostAlias = "localhost",
+    // Override for AUTOMATION_WORKSPACE_BASE. The automation backend
+    // generates a per-run work dir under this path and sends `mkdir -p`
+    // plus tarball-extraction commands to the agent-server's bash API,
+    // so the path must be valid *inside* the agent-server's filesystem
+    // namespace. dev-docker.mjs overrides this to the in-container path
+    // (~/.openhands/agent-canvas/workspaces, which is bind-mounted from
+    // the host) because the host's stateDir resolves to e.g. /Users/...
+    // on macOS, which doesn't exist inside the Linux container.
+    automationWorkspaceBase,
     // Human-readable label for the dev mode, surfaced in the agent's
     // <RUNTIME_SERVICES> system-prompt block.
     mode = "dev:automation",
@@ -903,6 +921,8 @@ async function main(options = {}) {
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
+  if (automationWorkspaceBase)
+    config.automationWorkspaceBase = automationWorkspaceBase;
   // Stamp the dev-mode label, host alias, and frontend kind on the config
   // so downstream helpers (Vite spawn, static build) can produce a
   // runtime-services info object describing what the agent can reach.
