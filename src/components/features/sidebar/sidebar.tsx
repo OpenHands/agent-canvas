@@ -272,7 +272,7 @@ export function Sidebar() {
           <SidebarNavLink
             to="/conversations"
             end
-            label="New"
+            label="Code"
             testId="sidebar-conversations-link"
             disabled={linkDisabled}
             collapsed={collapsed}
@@ -280,7 +280,7 @@ export function Sidebar() {
           />
           <SidebarNavLink
             to="/skills"
-            label="Extensions"
+            label="Customize"
             testId="sidebar-skills-link"
             disabled={linkDisabled}
             collapsed={collapsed}
