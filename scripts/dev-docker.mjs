@@ -299,7 +299,7 @@ function startAgentServerDocker(config) {
   dockerArgs.push(...getDockerUserArgs(userSpec));
   dockerArgs.push(...getProjectsPathDockerArgs());
   // Read-only mount of the Agent-Canvas tools directory. Coupled with
-  // OH_EXTRA_PYTHON_PATH below so the agent-server can import
+  // PYTHONPATH below so the agent-server can import
   // canvas_ui_tool when the conversation request lists it under
   // tool_module_qualnames.
   dockerArgs.push(
@@ -357,6 +357,7 @@ function startAgentServerDocker(config) {
     // Make the mounted canvas-tools directory importable so the agent-server
     // can resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
+    PYTHONPATH: CONTAINER_CANVAS_TOOLS_DIR,
   };
   for (const [k, v] of Object.entries(containerEnv)) {
     dockerArgs.push("-e", `${k}=${v}`);
