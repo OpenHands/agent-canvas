@@ -17,10 +17,7 @@ const rowBaseClassName = cn(
   "w-full flex gap-3 px-3 rounded",
   "text-start hover:bg-white/10 cursor-pointer text-nowrap",
 );
-const profileRowClassName = cn(
-  rowBaseClassName,
-  "h-auto items-start py-2.5",
-);
+const profileRowClassName = cn(rowBaseClassName, "h-auto items-start py-2.5");
 const linkRowClassName = cn(rowBaseClassName, "h-10 items-center");
 
 interface SwitchProfileContextMenuProps {
