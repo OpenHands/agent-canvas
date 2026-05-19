@@ -79,6 +79,13 @@ RUN chmod +x /opt/agent-canvas/entrypoint.sh
 
 USER openhands
 
+# Persistence volumes:
+#   /home/openhands/.openhands — settings, secrets, conversations, automation DB
+#   /projects                  — user code the agent can read/edit
+# Bind-mount these for data to survive container restarts:
+#   docker run -v ~/.openhands:/home/openhands/.openhands -v ~/projects:/projects ...
+VOLUME ["/home/openhands/.openhands", "/projects"]
+
 # The entrypoint starts all services and the ingress proxy.
 # Port 8000 is the unified entry point.
 EXPOSE 8000
