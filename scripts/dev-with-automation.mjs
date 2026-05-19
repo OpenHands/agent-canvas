@@ -39,7 +39,13 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from "node:fs";
 import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -87,6 +93,22 @@ const DEFAULT_AUTOMATION_API_KEY_PATH = join(
   ".openhands",
   "agent-canvas",
   "automation-api-key.txt",
+);
+// Persisted backend choice so the interactive prompt remembers the user's
+// previous answer across restarts.
+const DEFAULT_BACKEND_CHOICE_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "backend-choice.json",
+);
+// Marker file that indicates security settings have already been seeded
+// at least once. Prevents overwriting user changes on subsequent restarts.
+const DEFAULT_SECURITY_SEEDED_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "security-seeded",
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -139,6 +161,7 @@ function parseArgs() {
     skipBuild: false,
     withDocker: null, // null = prompt (or env), true = yes, false = no
     dockerProjectsPath: null,
+    reconfigure: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -178,6 +201,9 @@ function parseArgs() {
       case "--docker-projects-path":
         config.dockerProjectsPath = args[++i];
         break;
+      case "--reconfigure":
+        config.reconfigure = true;
+        break;
       case "-h":
       case "--help":
         showHelp();
@@ -209,6 +235,8 @@ OPTIONS:
   --with-docker               Also start a Docker backend (sandboxed execution)
   --no-docker                 Skip the Docker backend prompt
   --docker-projects-path <p>  Host directory to mount into the Docker container
+  --reconfigure               Re-prompt for backend choice and re-seed security settings
+                              (clears saved preferences in ~/.openhands/agent-canvas/)
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -929,13 +957,67 @@ function promptLine(question) {
 }
 
 /**
+ * Read the persisted backend choice from disk.
+ * Returns null if nothing is persisted or the file is invalid.
+ */
+function readPersistedBackendChoice() {
+  try {
+    const raw = readFileSync(DEFAULT_BACKEND_CHOICE_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null) return parsed;
+  } catch {
+    // file doesn't exist or is invalid
+  }
+  return null;
+}
+
+/**
+ * Persist the backend choice so the next restart can re-use it.
+ */
+function writePersistedBackendChoice(choice) {
+  try {
+    mkdirSync(dirname(DEFAULT_BACKEND_CHOICE_PATH), { recursive: true });
+    writeFileSync(
+      DEFAULT_BACKEND_CHOICE_PATH,
+      JSON.stringify(choice, null, 2) + "\n",
+    );
+  } catch {
+    // non-fatal: user will just get prompted again next time
+  }
+}
+
+/**
  * Interactively ask the user about backend choices.
+ *
+ * Remembers the previous answer in ~/.openhands/agent-canvas/backend-choice.json
+ * so subsequent restarts re-use the same config without re-prompting.
+ * Pass --reconfigure to force a fresh prompt.
  *
  * Returns:
  *   { local: boolean, docker: { enabled: boolean, projectsPath?: string } }
  */
-async function promptForBackends(env = process.env) {
+async function promptForBackends(env = process.env, { forcePrompt = false } = {}) {
   const isTTY = process.stdin.isTTY;
+
+  // Try to load a previous choice (unless user asked to reconfigure)
+  if (!forcePrompt) {
+    const saved = readPersistedBackendChoice();
+    if (saved) {
+      const dockerLabel = saved.docker?.enabled
+        ? `+ Docker (:${saved.docker.projectsPath ?? "?"})`
+        : "";
+      const localLabel = saved.local !== false ? "Local" : "no local";
+      logService(
+        "config",
+        `Using saved backend choice: ${localLabel} ${dockerLabel} (--reconfigure to change)`,
+        c.dim,
+      );
+      return {
+        local: saved.local !== false,
+        docker: saved.docker ?? { enabled: false },
+      };
+    }
+  }
 
   console.log("");
   console.log(`${c.bold}Backend Configuration${c.reset}`);
@@ -1015,6 +1097,11 @@ async function promptForBackends(env = process.env) {
     }
   }
 
+  const result = { local: startLocal, docker };
+
+  // Persist the choice for next time
+  writePersistedBackendChoice(result);
+
   console.log("");
   if (startLocal || docker.enabled) {
     console.log(
@@ -1023,15 +1110,29 @@ async function promptForBackends(env = process.env) {
     console.log("");
   }
 
-  return { local: startLocal, docker };
+  return result;
 }
 
 /**
  * Seed confirmation_mode and security_analyzer on the local agent-server
  * after it starts, so the default posture for local development is safe.
+ *
+ * Only runs once — a marker file at ~/.openhands/agent-canvas/security-seeded
+ * prevents overwriting user changes on subsequent restarts. Delete the marker
+ * (or pass --reconfigure) to re-seed.
  */
 async function seedSecuritySettings(config, options = {}) {
   const { maxRetries = 5, retryDelayMs = 2000, timeoutMs = 10000 } = options;
+
+  // Skip if we've already seeded once (user may have changed settings since)
+  if (existsSync(DEFAULT_SECURITY_SEEDED_PATH)) {
+    logService(
+      "settings",
+      "Security settings already configured (delete ~/.openhands/agent-canvas/security-seeded to re-seed)",
+      c.dim,
+    );
+    return true;
+  }
 
   logService("settings", "Applying default security settings...", c.dim);
 
@@ -1065,6 +1166,13 @@ async function seedSecuritySettings(config, options = {}) {
           "Confirmation mode enabled (LLM security analyzer)",
           c.green,
         );
+        // Write marker so we don't overwrite user changes on next restart
+        try {
+          mkdirSync(dirname(DEFAULT_SECURITY_SEEDED_PATH), { recursive: true });
+          writeFileSync(DEFAULT_SECURITY_SEEDED_PATH, new Date().toISOString());
+        } catch {
+          // non-fatal
+        }
         return true;
       }
 
@@ -1289,6 +1397,20 @@ async function main(options = {}) {
       !useStaticMode || typeof buildStaticFrontend === "function",
   });
 
+  // ── Handle --reconfigure ────────────────────────────────────────────
+  // Clears persisted backend choice and security-seeded marker so the
+  // user gets a fresh prompt and security defaults are re-applied.
+  if (args.reconfigure) {
+    for (const p of [DEFAULT_BACKEND_CHOICE_PATH, DEFAULT_SECURITY_SEEDED_PATH]) {
+      try {
+        if (existsSync(p)) unlinkSync(p);
+      } catch {
+        // non-fatal
+      }
+    }
+    logService("config", "Cleared saved preferences. Will re-prompt.", c.dim);
+  }
+
   // ── Resolve Docker intent ──────────────────────────────────────────
   // Priority: --with-docker / --no-docker flags → DOCKER_BACKEND env var →
   // interactive prompt (TTY only) → default off.
@@ -1302,7 +1424,9 @@ async function main(options = {}) {
   // Resolve via interactive prompt when not yet decided and not skipped
   let wantLocal = true;
   if (!skipBackendPrompt && wantDocker === null) {
-    const result = await promptForBackends();
+    const result = await promptForBackends(process.env, {
+      forcePrompt: args.reconfigure,
+    });
     wantLocal = result.local;
     wantDocker = result.docker.enabled;
     if (result.docker.enabled) {
