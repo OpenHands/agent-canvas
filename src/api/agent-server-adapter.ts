@@ -59,7 +59,7 @@ export interface DirectConversationInfo {
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
 // tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
-// (see scripts/dev-docker.mjs and scripts/dev-safe.mjs).
+// (see scripts/dev-safe.mjs).
 const CANVAS_UI_TOOL_NAME = "canvas_ui";
 const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
 
@@ -199,9 +199,9 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
 
   // Anchor the "don't guess" warning to the actual agent-server URL for
   // this stack instead of a hardcoded port. The agent-server listens on
-  // different ports across dev modes (18000 in dev:safe, 8000 in
-  // dev:docker, ...), and baking the wrong port into the system prompt
-  // is exactly the kind of confusion this block is meant to prevent.
+  // different ports across dev modes, and baking the wrong port into the
+  // system prompt is exactly the kind of confusion this block is meant to
+  // prevent.
   const agentServerUrl = agent_server?.url_from_agent;
   lines.push(
     "",

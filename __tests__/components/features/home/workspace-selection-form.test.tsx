@@ -107,9 +107,9 @@ describe("WorkspaceSelectionForm", () => {
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
     // `useResolvedWorkspaces` always queries an implicit `/projects` parent
-    // (the dev:docker mount point). Default it to empty so tests that don't
-    // care about it don't hit a real network call. Tests that need specific
-    // behavior can replace this with their own spy.
+    // in dev mode. Default it to empty so tests that don't care about it
+    // don't hit a real network call. Tests that need specific behavior can
+    // replace this with their own spy.
     mockSearchSubdirectories.mockResolvedValue({
       items: [],
       next_page_id: null,
@@ -274,7 +274,7 @@ describe("WorkspaceSelectionForm", () => {
     expect(searchSpy).toHaveBeenCalledWith("/projects");
   });
 
-  it("Add Workspace starts at the docker /projects mount and can save nested folders", async () => {
+  it("Add Workspace starts at the /projects path and can save nested folders", async () => {
     mockGetHome.mockResolvedValue({
       home: "/home/openhands",
       favorites: [{ label: "Downloads", path: "/home/openhands/Downloads" }],

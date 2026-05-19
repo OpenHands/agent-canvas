@@ -38,6 +38,23 @@ vi.mock("#/routes/llm-settings", () => ({
   ),
 }));
 
+vi.mock(
+  "#/components/features/automations/recommended-automations-launcher",
+  () => ({
+    RecommendedAutomationsLauncher: ({
+      onLaunched,
+    }: {
+      onLaunched?: () => void;
+    }) => (
+      <div data-testid="recommended-automations-launcher-stub">
+        <button type="button" onClick={onLaunched}>
+          launch recommended automation
+        </button>
+      </div>
+    ),
+  }),
+);
+
 vi.mock("#/hooks/use-is-creating-conversation", () => ({
   useIsCreatingConversation: () => false,
 }));
@@ -314,5 +331,61 @@ describe("OnboardingModal", () => {
     // the I18nKey itself. The contract under test is that the input
     // is non-empty and matches the resolved default message.
     expect(helloInput.value).toBe("ONBOARDING$HELLO_DEFAULT_MESSAGE");
+  });
+
+  it("shows recommended automations below the Say Hello input", async () => {
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
+    await user.click(screen.getByTestId("onboarding-llm-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
+
+    const helloInput = screen.getByTestId("onboarding-hello-input");
+    const recommendations = screen.getByTestId(
+      "onboarding-recommended-automations",
+    );
+    expect(
+      helloInput.compareDocumentPosition(recommendations) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(recommendations).getByTestId(
+        "recommended-automations-launcher-stub",
+      ),
+    ).toBeInTheDocument();
+
+    expect(recommendations.closest("form")).toBeNull();
+
+    await user.click(
+      within(recommendations).getByRole("button", {
+        name: "launch recommended automation",
+      }),
+    );
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

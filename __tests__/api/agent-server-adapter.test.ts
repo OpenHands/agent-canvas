@@ -592,20 +592,20 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
-        agent_host_alias: "host.docker.internal",
+        mode: "dev:automation",
+        agent_host_alias: "localhost",
         services: {
           agent_server: {
             description: "self",
-            url_from_agent: "http://localhost:8000",
+            url_from_agent: "http://localhost:18000",
           },
           automation: {
             description: "automations",
-            url_from_agent: "http://host.docker.internal:18001",
+            url_from_agent: "http://localhost:18001",
             api_prefix: "/api/automation",
-            docs_url: "http://host.docker.internal:18001/api/automation/docs",
+            docs_url: "http://localhost:18001/api/automation/docs",
             openapi_url:
-              "http://host.docker.internal:18001/api/automation/openapi.json",
+              "http://localhost:18001/api/automation/openapi.json",
             auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
           },
         },
@@ -614,19 +614,19 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     const suffix = buildRuntimeServicesSystemSuffix();
     expect(suffix).toBeDefined();
     expect(suffix).toContain("<RUNTIME_SERVICES>");
-    expect(suffix).toContain("dev:docker");
-    expect(suffix).toContain("http://localhost:8000");
-    expect(suffix).toContain("http://host.docker.internal:18001");
+    expect(suffix).toContain("dev:automation");
+    expect(suffix).toContain("http://localhost:18000");
+    expect(suffix).toContain("http://localhost:18001");
     expect(suffix).toContain(
-      "http://host.docker.internal:18001/api/automation/docs",
+      "http://localhost:18001/api/automation/docs",
     );
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
-    // for this stack, not a hardcoded :8000. We pinned :8000 here but the
-    // assertion specifically anchors on the URL we supplied.
+    // for this stack, not a hardcoded port. The assertion anchors on the URL
+    // we supplied above.
     expect(suffix).toContain(
-      "In particular, http://localhost:8000 inside your sandbox is the Agent Server",
+      "In particular, http://localhost:18000 inside your sandbox is the Agent Server",
     );
   });
 
@@ -656,19 +656,19 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
+        mode: "dev:static",
         services: {
-          agent_server: { url_from_agent: "http://localhost:8000" },
+          agent_server: { url_from_agent: "http://localhost:18000" },
           frontend: {
             kind: "static",
             description: "Static-file server hosting the agent-canvas build.",
-            url_from_agent: "http://host.docker.internal:3001",
+            url_from_agent: "http://localhost:3001",
           },
         },
       }),
     );
     const suffix = buildRuntimeServicesSystemSuffix();
-    expect(suffix).toContain("* Frontend: http://host.docker.internal:3001");
+    expect(suffix).toContain("* Frontend: http://localhost:3001");
     expect(suffix).toContain("Static-file server");
     // Should NOT mislabel a static-build frontend as "Vite frontend".
     expect(suffix).not.toContain("Vite frontend");
@@ -732,11 +732,11 @@ describe("createAgentFromSettings runtime services suffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
+        mode: "dev:automation",
         services: {
-          agent_server: { url_from_agent: "http://localhost:8000" },
+          agent_server: { url_from_agent: "http://localhost:18000" },
           automation: {
-            url_from_agent: "http://host.docker.internal:18001",
+            url_from_agent: "http://localhost:18001",
           },
         },
       }),

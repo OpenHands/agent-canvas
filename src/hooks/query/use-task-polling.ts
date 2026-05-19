@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNavigation } from "#/context/navigation-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import {
+  consumePendingTaskDraft,
+  setConversationState,
+} from "#/utils/conversation-local-storage";
 
 /**
  * Hook that polls V1 conversation start tasks and navigates when ready.
@@ -56,10 +60,17 @@ export const useTaskPolling = () => {
   useEffect(() => {
     const task = taskQuery.data;
     if (task?.status === "READY" && task.app_conversation_id) {
+      const pendingDraft = consumePendingTaskDraft(taskId);
+      if (pendingDraft) {
+        setConversationState(task.app_conversation_id, {
+          draftMessage: pendingDraft,
+        });
+      }
+
       // Replace the URL with the actual conversation ID
       navigate(`/conversations/${task.app_conversation_id}`, { replace: true });
     }
-  }, [taskQuery.data, navigate]);
+  }, [taskQuery.data, navigate, taskId]);
 
   return {
     isTask,

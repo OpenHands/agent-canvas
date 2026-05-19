@@ -561,7 +561,7 @@ describe("buildSafeDevConfig", () => {
     expect(readFileSync(keyPath, "utf8").trim()).toBe(config.sessionApiKey);
   });
 
-  it("reuses the same key across config builds, simulating dev:docker / dev:dangerously-dockerless restarts", () => {
+  it("reuses the same key across config builds, simulating restarts", () => {
     const keyPath = tempKeyPath();
 
     const first = buildSafeDevConfig("/workspace/project/agent-canvas", {
@@ -810,10 +810,10 @@ describe("buildRuntimeServicesInfo", () => {
     });
   });
 
-  it("uses host.docker.internal as the agent host alias in docker mode", () => {
+  it("supports a custom agent host alias for remote setups", () => {
     const info = buildRuntimeServicesInfo({
-      mode: "dev:docker",
-      agentHostAlias: "host.docker.internal",
+      mode: "custom",
+      agentHostAlias: "custom-host",
       agentServerPort: 8000,
       ingressPort: 8000,
       frontendPort: 3001,
@@ -824,19 +824,19 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.agent_server?.url_from_agent).toBe(
       "http://localhost:8000",
     );
-    // Host-side services use the docker alias.
+    // Host-side services use the custom alias.
     expect(info.services.ingress?.url_from_agent).toBe(
-      "http://host.docker.internal:8000",
+      "http://custom-host:8000",
     );
     expect(info.services.frontend?.url_from_agent).toBe(
-      "http://host.docker.internal:3001",
+      "http://custom-host:3001",
     );
     // Static-mode description, not "Vite dev server".
     expect(info.services.frontend?.kind).toBe("static");
     expect(info.services.frontend?.description).toMatch(/Static-file server/i);
     expect(info.services.frontend?.description).not.toMatch(/Vite/i);
     expect(info.services.automation?.url_from_agent).toBe(
-      "http://host.docker.internal:18001",
+      "http://custom-host:18001",
     );
   });
 

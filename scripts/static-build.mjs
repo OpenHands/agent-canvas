@@ -41,7 +41,7 @@ export function buildFrontend(config, args = {}) {
     env: {
       ...process.env,
       // Bake the same default workspace path that the dynamic launcher passes
-      // to Vite. Docker uses an in-container path; dockerless uses host state.
+      // to Vite.
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       // Bake the automation backend API key so the static frontend can talk

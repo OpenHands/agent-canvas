@@ -15,7 +15,7 @@ import { cn } from "#/utils/utils";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
 
-const DOCKER_PROJECTS_PATH = "/projects";
+const PROJECTS_PATH = "/projects";
 
 interface FolderBrowserModalProps {
   isOpen: boolean;
@@ -83,7 +83,7 @@ function getParentPath(path: string): string | null {
   return trimmed.slice(0, idx);
 }
 
-function shouldDefaultToDockerProjects(
+function shouldDefaultToProjectsPath(
   homeData: HomeDirectoryResponse | undefined,
 ): boolean {
   return homeData?.home === "/home/openhands";
@@ -105,9 +105,7 @@ export function FolderBrowserModal({
   useEffect(() => {
     if (isOpen && homeData?.home && currentPath === null) {
       setCurrentPath(
-        shouldDefaultToDockerProjects(homeData)
-          ? DOCKER_PROJECTS_PATH
-          : homeData.home,
+        shouldDefaultToProjectsPath(homeData) ? PROJECTS_PATH : homeData.home,
       );
     }
     if (!isOpen) {
@@ -136,12 +134,12 @@ export function FolderBrowserModal({
       ...(homeData.favorites ?? []),
     ];
     if (
-      shouldDefaultToDockerProjects(homeData) &&
-      !backendFavorites.some((entry) => entry.path === DOCKER_PROJECTS_PATH)
+      shouldDefaultToProjectsPath(homeData) &&
+      !backendFavorites.some((entry) => entry.path === PROJECTS_PATH)
     ) {
       backendFavorites.push({
-        label: DOCKER_PROJECTS_PATH,
-        path: DOCKER_PROJECTS_PATH,
+        label: PROJECTS_PATH,
+        path: PROJECTS_PATH,
       });
     }
 
@@ -155,12 +153,11 @@ export function FolderBrowserModal({
   const subdirs = listing?.items ?? [];
   const parent = currentPath ? getParentPath(currentPath) : null;
 
-  // Signal that we're inside the dev:docker container without the host
+  // Signal that we're inside a container environment without the host
   // home mounted: the agent server reports `/home/openhands` as home and
   // returns no favorites (the only contents are hidden credential dirs).
   // In that case there's nothing useful for the user to browse, so we
-  // surface the OH_MOUNT_HOST_HOME=1 opt-in instead of the generic empty
-  // state when the user navigates back to the container home.
+  // surface a hint instead of the generic empty state.
   const showHostHomeHint =
     homeData?.home === "/home/openhands" &&
     (homeData?.favorites?.length ?? 0) === 0 &&
