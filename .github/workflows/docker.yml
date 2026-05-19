@@ -123,9 +123,10 @@ jobs:
 
           # Branch / PR / tag-based tags
           if [[ "$RELEVANT_REF" == refs/heads/* ]]; then
-            # Sanitize branch name: replace / with - (Docker tags forbid /)
+            # Sanitize branch name for Docker tag safety:
+            # replace any char outside [a-zA-Z0-9._-] with -, strip leading/trailing .-
             BRANCH="${RELEVANT_REF#refs/heads/}"
-            BRANCH="${BRANCH//\//-}"
+            BRANCH=$(echo "$BRANCH" | tr -c 'a-zA-Z0-9._-' '-' | sed 's/^[-.]//; s/[-.]*$//')
             add_tag "$BRANCH"
           fi
 
@@ -136,17 +137,25 @@ jobs:
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
             VERSION="${RELEVANT_REF#refs/tags/v}"
             add_tag "$VERSION"
-            # major.minor
-            MINOR="${VERSION%.*}"
-            if [ "$MINOR" != "$VERSION" ]; then
-              add_tag "$MINOR"
+
+            # Strip pre-release/build metadata for major.minor.patch derivation
+            VERSION_BASE="${VERSION%%-*}"
+            VERSION_BASE="${VERSION_BASE%%+*}"
+
+            # Only create abbreviated + latest tags for stable (non-pre-release) versions
+            if [[ "$VERSION" != *"-"* ]] && [[ "$VERSION" != *"+"* ]]; then
+              # major.minor
+              MINOR="${VERSION_BASE%.*}"
+              if [ "$MINOR" != "$VERSION_BASE" ]; then
+                add_tag "$MINOR"
+              fi
+              # major
+              MAJOR="${VERSION_BASE%%.*}"
+              if [ "$MAJOR" != "$VERSION_BASE" ] && [ "$MAJOR" != "$MINOR" ]; then
+                add_tag "$MAJOR"
+              fi
+              add_tag "latest"
             fi
-            # major
-            MAJOR="${VERSION%%.*}"
-            if [ "$MAJOR" != "$VERSION" ] && [ "$MAJOR" != "$MINOR" ]; then
-              add_tag "$MAJOR"
-            fi
-            add_tag "latest"
           fi
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
@@ -249,6 +258,13 @@ jobs:
       - name: Create and push multi-arch manifests
         id: create_manifests
         run: |
+          # Validate both architectures built successfully
+          if [[ ! -f build-info/amd64.json ]] || [[ ! -f build-info/arm64.json ]]; then
+            echo "::error::Missing architecture builds (need both amd64.json and arm64.json)"
+            echo "Available: $(ls -1 build-info/*.json 2>/dev/null || echo 'none')"
+            exit 1
+          fi
+
           SHORT_SHA=${{ steps.get_sha.outputs.short_sha }}
           AMD64_TAGS_CSV=$(jq -r '.tags' build-info/amd64.json)
           declare -A SEEN_MANIFEST_TAGS=()

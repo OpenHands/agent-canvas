@@ -38,6 +38,10 @@ AUTOMATION_PORT="${AUTOMATION_PORT:-${CONFIG_AUTOMATION_PORT:-18001}}"
 # fails with a 503.
 export OH_SECRET_KEY="${OH_SECRET_KEY:-${CONFIG_SECRET_KEY:-openhands-dev-secret-key-change-in-prod}}"
 
+if [ "$OH_SECRET_KEY" = "openhands-dev-secret-key-change-in-prod" ]; then
+  log "⚠️  WARNING: Using insecure default OH_SECRET_KEY. Set OH_SECRET_KEY env var for production use."
+fi
+
 # Persistence paths — keep settings, conversations, bash history under a
 # single well-known directory that the VOLUME directive exposes.
 OPENHANDS_DIR="${HOME}/.openhands"
@@ -55,6 +59,7 @@ if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
     SESSION_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     mkdir -p "$(dirname "$SESSION_KEY_FILE")"
     printf '%s' "$SESSION_API_KEY" > "$SESSION_KEY_FILE"
+    chmod 600 "$SESSION_KEY_FILE"
     log "Generated session API key (persisted to $SESSION_KEY_FILE)"
   fi
   export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
@@ -111,14 +116,15 @@ if command -v uvicorn >/dev/null 2>&1; then
   uvicorn openhands.automation.app:app \
     --host 0.0.0.0 \
     --port "$AUTOMATION_PORT" &
+  PIDS+=($!)
 elif python -c "import openhands.automation" 2>/dev/null; then
   python -m uvicorn openhands.automation.app:app \
     --host 0.0.0.0 \
     --port "$AUTOMATION_PORT" &
+  PIDS+=($!)
 else
   log "WARNING: Automation server not found, skipping."
 fi
-PIDS+=($!)
 
 # ── 3. Wait for backends to be ready ─────────────────────────────────────────
 wait_for_port() {

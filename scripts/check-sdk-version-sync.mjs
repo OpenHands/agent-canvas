@@ -143,9 +143,19 @@ function sleep(ms) {
 }
 
 // ── Centralized config ──────────────────────────────────────────────────────
-const SHARED_DEFAULTS = JSON.parse(
-  readFileSync(join(projectRoot, "config", "defaults.json"), "utf-8"),
-);
+let SHARED_DEFAULTS;
+try {
+  SHARED_DEFAULTS = JSON.parse(
+    readFileSync(join(projectRoot, "config", "defaults.json"), "utf-8"),
+  );
+  if (!SHARED_DEFAULTS.versions?.agentServer || !SHARED_DEFAULTS.versions?.automationSdk) {
+    throw new Error("missing required fields: versions.agentServer, versions.automationSdk");
+  }
+} catch (err) {
+  console.error(`${colors.red}Failed to load config/defaults.json: ${err.message}${colors.reset}`);
+  console.error("Ensure the file exists and contains valid JSON with required fields.");
+  process.exit(1);
+}
 
 /**
  * Read the default agent-server SDK version from config/defaults.json.
