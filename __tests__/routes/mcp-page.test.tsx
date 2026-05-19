@@ -107,8 +107,42 @@ describe("MCPPage", () => {
       screen.queryByTestId("mcp-marketplace-card-github"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("mcp-marketplace-card-postgres"),
+      screen.queryByTestId("mcp-marketplace-card-gitlab"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps installed legacy servers visible even after their marketplace entries are removed", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              gitlab: {
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-gitlab"],
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    renderPage();
+
+    await screen.findByTestId("mcp-installed-list");
+    expect(screen.getByText("gitlab")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-gitlab"),
+    ).not.toBeInTheDocument();
+
+    const search = screen.getByTestId("mcp-search-input");
+    fireEvent.change(search, { target: { value: "gitlab" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("gitlab")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
   });
 
   it("shows a search-empty state when the query matches nothing", async () => {

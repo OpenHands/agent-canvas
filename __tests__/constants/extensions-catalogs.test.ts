@@ -31,6 +31,16 @@ describe("OpenHands extensions catalogs", () => {
     );
   });
 
+  it("drops deprecated MCP entries that no longer have maintained replacements", () => {
+    const catalogIds = new Set(MCP_CATALOG.map((entry) => entry.id));
+
+    expect(catalogIds.has("gitlab")).toBe(false);
+    expect(catalogIds.has("google-maps")).toBe(false);
+    expect(catalogIds.has("postgres")).toBe(false);
+    expect(catalogIds.has("puppeteer")).toBe(false);
+    expect(catalogIds.has("sqlite")).toBe(false);
+  });
+
   it("loads recommended automations from @openhands/extensions", () => {
     expect(AUTOMATION_CATALOG.length).toBeGreaterThan(0);
 
