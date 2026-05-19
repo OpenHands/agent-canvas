@@ -102,14 +102,7 @@ const DEFAULT_BACKEND_CHOICE_PATH = join(
   "agent-canvas",
   "backend-choice.json",
 );
-// Marker file that indicates security settings have already been seeded
-// at least once. Prevents overwriting user changes on subsequent restarts.
-const DEFAULT_SECURITY_SEEDED_PATH = join(
-  homedir(),
-  ".openhands",
-  "agent-canvas",
-  "security-seeded",
-);
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -235,8 +228,7 @@ OPTIONS:
   --with-docker               Also start a Docker backend (sandboxed execution)
   --no-docker                 Skip the Docker backend prompt
   --docker-projects-path <p>  Host directory to mount into the Docker container
-  --reconfigure               Re-prompt for backend choice and re-apply security defaults
-                              (deletes backend-choice.json and security-seeded marker)
+  --reconfigure               Re-prompt for backend choice (deletes saved backend-choice.json)
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -1121,36 +1113,15 @@ async function promptForBackends(env = process.env, { forcePrompt = false } = {}
 }
 
 /**
- * Seed confirmation_mode and security_analyzer on the local agent-server
- * after it starts, so the default posture for local development is safe.
- *
- * Only runs once — a marker file at ~/.openhands/agent-canvas/security-seeded
- * prevents overwriting user changes on subsequent restarts. Delete the marker
- * (or pass --reconfigure) to re-seed.
+ * Ensure confirmation_mode and security_analyzer are set on the local
+ * agent-server. Reads the current settings first — only writes defaults
+ * when they haven't been configured yet. The agent-server's own state-dir
+ * persistence is the single source of truth.
  */
 async function seedSecuritySettings(config, options = {}) {
   const { maxRetries = 5, retryDelayMs = 2000, timeoutMs = 10000 } = options;
 
-  // Skip if we've already seeded once (user may have changed settings since)
-  if (existsSync(DEFAULT_SECURITY_SEEDED_PATH)) {
-    logService(
-      "settings",
-      "Security settings already configured (delete ~/.openhands/agent-canvas/security-seeded to re-seed)",
-      c.dim,
-    );
-    return true;
-  }
-
-  logService("settings", "Applying default security settings...", c.dim);
-
   const url = `http://localhost:${config.agentServerPort}/api/settings`;
-  const body = JSON.stringify({
-    conversation_settings_diff: {
-      confirmation_mode: true,
-      security_analyzer: "llm",
-    },
-  });
-
   const headers = {
     "Content-Type": "application/json",
     ...(config.sessionApiKey && { "X-Session-API-Key": config.sessionApiKey }),
@@ -1160,50 +1131,63 @@ async function seedSecuritySettings(config, options = {}) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(url, {
-        method: "PATCH",
+      // 1. Read current settings
+      const getResp = await fetch(url, {
         headers,
-        body,
         signal: AbortSignal.timeout(timeoutMs),
       });
 
-      if (response.ok) {
-        logService(
-          "settings",
-          "Confirmation mode enabled (LLM security analyzer)",
-          c.green,
-        );
-        // Write marker so we don't overwrite user changes on next restart
-        try {
-          mkdirSync(dirname(DEFAULT_SECURITY_SEEDED_PATH), { recursive: true });
-          writeFileSync(DEFAULT_SECURITY_SEEDED_PATH, new Date().toISOString());
-        } catch {
-          // non-fatal
+      if (!getResp.ok) {
+        const text = await getResp.text();
+        lastError = `GET ${getResp.status}: ${text}`;
+        if ([400, 401, 403, 404, 422].includes(getResp.status)) {
+          logService("settings", `Warning: could not read settings (${getResp.status})`, c.yellow);
+          return false;
         }
+        if (attempt < maxRetries) { await delay(retryDelayMs); continue; }
+        break;
+      }
+
+      const current = await getResp.json();
+      const conv = current?.conversation_settings ?? {};
+
+      // 2. Only patch what's missing
+      const diff = {};
+      if (conv.confirmation_mode !== true) diff.confirmation_mode = true;
+      if (!conv.security_analyzer) diff.security_analyzer = "llm";
+
+      if (Object.keys(diff).length === 0) {
+        logService("settings", "Security settings already configured", c.dim);
         return true;
       }
 
-      const text = await response.text();
-      lastError = `HTTP ${response.status}: ${text}`;
+      // 3. Apply defaults
+      const patchResp = await fetch(url, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ conversation_settings_diff: diff }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
 
-      // Permanent errors — no point retrying
-      if ([400, 401, 403, 404, 422].includes(response.status)) {
-        logService(
-          "settings",
-          `Warning: could not seed security settings (${response.status})`,
-          c.yellow,
-        );
+      if (patchResp.ok) {
+        const applied = Object.entries(diff)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ");
+        logService("settings", `Applied security defaults: ${applied}`, c.green);
+        return true;
+      }
+
+      const text = await patchResp.text();
+      lastError = `PATCH ${patchResp.status}: ${text}`;
+      if ([400, 401, 403, 404, 422].includes(patchResp.status)) {
+        logService("settings", `Warning: could not apply security settings (${patchResp.status})`, c.yellow);
         return false;
       }
 
-      if (attempt < maxRetries) {
-        await delay(retryDelayMs);
-      }
+      if (attempt < maxRetries) await delay(retryDelayMs);
     } catch (err) {
       lastError = err.message;
-      if (attempt < maxRetries) {
-        await delay(retryDelayMs);
-      }
+      if (attempt < maxRetries) await delay(retryDelayMs);
     }
   }
 
@@ -1406,17 +1390,14 @@ async function main(options = {}) {
   });
 
   // ── Handle --reconfigure ────────────────────────────────────────────
-  // Clears persisted backend choice and security-seeded marker so the
-  // user gets a fresh prompt and security defaults are re-applied.
+  // Clears persisted backend choice so the user gets a fresh prompt.
   if (args.reconfigure) {
-    for (const p of [DEFAULT_BACKEND_CHOICE_PATH, DEFAULT_SECURITY_SEEDED_PATH]) {
-      try {
-        if (existsSync(p)) unlinkSync(p);
-      } catch {
-        // non-fatal
-      }
+    try {
+      if (existsSync(DEFAULT_BACKEND_CHOICE_PATH)) unlinkSync(DEFAULT_BACKEND_CHOICE_PATH);
+    } catch {
+      // non-fatal
     }
-    logService("config", "Cleared saved preferences. Will re-prompt.", c.dim);
+    logService("config", "Cleared saved backend choice. Will re-prompt.", c.dim);
   }
 
   // ── Resolve Docker intent ──────────────────────────────────────────
