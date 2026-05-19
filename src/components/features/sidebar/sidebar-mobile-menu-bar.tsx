@@ -1,16 +1,13 @@
 import { ChevronLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { cn } from "#/utils/utils";
+import {
+  mobileTopBarIconButtonClassName,
+  mobileTopBarIconClassName,
+} from "#/utils/mobile-top-bar-icon-button-classes";
 import { useNavigation } from "#/context/navigation-context";
 import { getMobileTopBarState } from "#/utils/mobile-section-nav";
 import { SidebarMobileMenuToggle } from "./sidebar-mobile-menu-toggle";
-
-const mobileTopBarButtonClassName = cn(
-  "inline-flex h-9 w-9 items-center justify-center rounded-md",
-  "text-[var(--oh-muted)] transition-colors",
-  "hover:bg-[var(--oh-surface-raised)] hover:text-white",
-);
 
 export function SidebarMobileMenuBar() {
   const { t } = useTranslation("openhands");
@@ -29,9 +26,13 @@ export function SidebarMobileMenuBar() {
           data-testid="sidebar-mobile-back-button"
           onClick={() => navigate(topBar.backTo!)}
           aria-label={t(topBar.backLabelKey ?? I18nKey.COMMON$BACK)}
-          className={mobileTopBarButtonClassName}
+          className={mobileTopBarIconButtonClassName}
         >
-          <ChevronLeft width={18} height={18} aria-hidden />
+          <ChevronLeft
+            className={mobileTopBarIconClassName}
+            aria-hidden
+            strokeWidth={2}
+          />
         </button>
       ) : null}
     </header>

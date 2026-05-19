@@ -140,7 +140,7 @@ export default function MainApp() {
               )}
             <div
               id="root-outlet"
-              className="flex-1 relative overflow-auto custom-scrollbar px-[14px] md:px-0"
+              className="relative flex-1 overflow-auto px-0 custom-scrollbar"
             >
               <Outlet />
             </div>

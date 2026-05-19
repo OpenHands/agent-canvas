@@ -3,6 +3,10 @@ import { ChevronLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import {
+  mobileTopBarIconButtonClassName,
+  mobileTopBarIconClassName,
+} from "#/utils/mobile-top-bar-icon-button-classes";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
 import { ConversationNameWithStatus } from "../conversation-name-with-status";
@@ -78,7 +82,7 @@ export function ConversationMain() {
             data-testid="chat-pane-header"
             className={cn(
               "flex h-10 min-h-10 shrink-0 items-center",
-              isSidebarRailHidden && "gap-2 px-2.5",
+              isSidebarRailHidden && "gap-2",
             )}
           >
             {isSidebarRailHidden ? <SidebarMobileMenuToggle /> : null}
@@ -157,26 +161,30 @@ export function ConversationMobilePanelPage({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-base">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--oh-surface)]">
       <div
         data-testid="conversation-mobile-panel-top"
-        className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--oh-border)] px-2.5"
+        className="flex h-10 min-h-10 shrink-0 items-center gap-1.5 border-b border-[var(--oh-border)] pl-2.5"
       >
         <button
           type="button"
           data-testid="conversation-mobile-panel-back"
           onClick={handleBack}
           aria-label={t(I18nKey.COMMON$BACK)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-surface-raised)] hover:text-white"
+          className={mobileTopBarIconButtonClassName}
         >
-          <ChevronLeft width={18} height={18} aria-hidden />
+          <ChevronLeft
+            className={mobileTopBarIconClassName}
+            aria-hidden
+            strokeWidth={2}
+          />
         </button>
-        <div className="min-w-0 flex-1 border-b-0">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center self-stretch">
           <div
             data-testid="tabs-pane-header"
-            className="flex shrink-0 flex-col border-b-0"
+            className="flex h-full min-h-0 w-full min-w-0 flex-col justify-center"
           >
-            <ConversationTabs />
+            <ConversationTabs variant="compact" />
           </div>
         </div>
       </div>

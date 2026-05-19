@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useConversationStore } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { mobileTopBarIconButtonClassName } from "#/utils/mobile-top-bar-icon-button-classes";
 import BlockDrawerLeftIcon from "#/icons/block-drawer-left.svg?react";
 import { ChatActionTooltip } from "../chat/chat-action-tooltip";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
@@ -69,10 +70,7 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
       <button
         type="button"
         onClick={handleToggle}
-        className={cn(
-          "p-1 rounded-md cursor-pointer transition-colors text-[var(--oh-muted)] hover:bg-white/10 hover:text-white",
-          className,
-        )}
+        className={cn(mobileTopBarIconButtonClassName, className)}
         aria-label={tooltipText}
         aria-pressed={ariaPressed}
         data-testid="right-panel-toggle"

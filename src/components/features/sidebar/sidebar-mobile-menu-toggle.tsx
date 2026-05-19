@@ -1,14 +1,11 @@
 import { PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { cn } from "#/utils/utils";
+import {
+  mobileTopBarIconButtonClassName,
+  mobileTopBarIconClassName,
+} from "#/utils/mobile-top-bar-icon-button-classes";
 import { useSidebarMobileNav } from "./sidebar-mobile-nav-context";
-
-const mobileTopBarButtonClassName = cn(
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
-  "text-[var(--oh-muted)] transition-colors",
-  "hover:bg-[var(--oh-surface-raised)] hover:text-white",
-);
 
 export function SidebarMobileMenuToggle() {
   const { t } = useTranslation("openhands");
@@ -23,9 +20,9 @@ export function SidebarMobileMenuToggle() {
       aria-label={
         isOpen ? t(I18nKey.SIDEBAR$CLOSE_MENU) : t(I18nKey.SIDEBAR$OPEN_MENU)
       }
-      className={mobileTopBarButtonClassName}
+      className={mobileTopBarIconButtonClassName}
     >
-      <PanelLeft width={18} height={18} aria-hidden />
+      <PanelLeft className={mobileTopBarIconClassName} aria-hidden />
     </button>
   );
 }
