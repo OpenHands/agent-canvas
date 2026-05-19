@@ -13,45 +13,6 @@ import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
 
-interface AutomationApiResponse extends Omit<Automation, "model"> {
-  model?: string | null;
-  llm_profile?: string | null;
-}
-
-interface AutomationsApiResponse extends Omit<
-  AutomationsResponse,
-  "automations"
-> {
-  automations: AutomationApiResponse[];
-}
-
-function normalizeAutomation(automation: AutomationApiResponse): Automation {
-  const { llm_profile: llmProfile, ...rest } = automation;
-  return {
-    ...rest,
-    model: rest.model ?? llmProfile ?? null,
-  };
-}
-
-function normalizeAutomationsResponse(
-  response: AutomationsApiResponse,
-): AutomationsResponse {
-  return {
-    ...response,
-    automations: response.automations.map(normalizeAutomation),
-  };
-}
-
-function toAutomationApiBody(
-  body: Partial<Automation>,
-): Record<string, unknown> {
-  const { model, ...rest } = body;
-  return {
-    ...rest,
-    ...(model !== undefined ? { llm_profile: model } : {}),
-  };
-}
-
 export interface AutomationHealthResponse {
   status: "ok" | "error";
   message?: string;
@@ -94,19 +55,18 @@ class AutomationService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud") {
-      const response = await callCloudProxy<AutomationsApiResponse>({
+      return callCloudProxy<AutomationsResponse>({
         backend: active,
         method: "GET",
         path: `${AUTOMATION_BASE_PATH}/v1?${buildPaginationQuery(limit, offset)}`,
       });
-      return normalizeAutomationsResponse(response);
     }
 
-    const { data } = await localAutomationAxios.get<AutomationsApiResponse>(
+    const { data } = await localAutomationAxios.get<AutomationsResponse>(
       `${AUTOMATION_BASE_PATH}/v1`,
       { params: { limit, offset } },
     );
-    return normalizeAutomationsResponse(data);
+    return data;
   }
 
   static async getAutomations(
@@ -121,17 +81,15 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      const response = await callCloudProxy<AutomationApiResponse>({
+      return callCloudProxy<Automation>({
         backend: active,
         method: "GET",
         path,
       });
-      return normalizeAutomation(response);
     }
 
-    const { data } =
-      await localAutomationAxios.get<AutomationApiResponse>(path);
-    return normalizeAutomation(data);
+    const { data } = await localAutomationAxios.get<Automation>(path);
+    return data;
   }
 
   static async updateAutomation(
@@ -141,23 +99,17 @@ class AutomationService {
     const active = getActiveBackend().backend;
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
-    const apiBody = toAutomationApiBody(body);
-
     if (active.kind === "cloud") {
-      const response = await callCloudProxy<AutomationApiResponse>({
+      return callCloudProxy<Automation>({
         backend: active,
         method: "PATCH",
         path,
-        body: apiBody,
+        body: body as Record<string, unknown>,
       });
-      return normalizeAutomation(response);
     }
 
-    const { data } = await localAutomationAxios.patch<AutomationApiResponse>(
-      path,
-      apiBody,
-    );
-    return normalizeAutomation(data);
+    const { data } = await localAutomationAxios.patch<Automation>(path, body);
+    return data;
   }
 
   static async deleteAutomation(id: string): Promise<void> {

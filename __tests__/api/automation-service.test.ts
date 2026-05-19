@@ -111,10 +111,8 @@ describe("AutomationService", () => {
 
   describe("listAutomations", () => {
     it("fetches paginated automations list with params object", async () => {
-      const response = {
-        automations: [
-          { ...mockAutomation, model: undefined, llm_profile: "daily-profile" },
-        ],
+      const response: AutomationsResponse = {
+        automations: [mockAutomation],
         total: 1,
       };
       mockGet.mockResolvedValue({ data: response });
@@ -127,7 +125,7 @@ describe("AutomationService", () => {
       expect(mockGet).toHaveBeenCalledWith("/api/automation/v1", {
         params: { limit: 10, offset: 5 },
       });
-      expect(result).toEqual({ automations: [mockAutomation], total: 1 });
+      expect(result).toEqual(response);
     });
 
     it("uses default params when none provided", async () => {
@@ -193,18 +191,16 @@ describe("AutomationService", () => {
       expect(result).toEqual(updated);
     });
 
-    it("sends model as llm_profile to the automation API", async () => {
+    it("sends model profile updates to the automation API", async () => {
       const updated = { ...mockAutomation, model: "careful-profile" };
-      mockPatch.mockResolvedValue({
-        data: { ...updated, model: undefined, llm_profile: "careful-profile" },
-      });
+      mockPatch.mockResolvedValue({ data: updated });
 
       const result = await AutomationService.updateAutomation("1", {
         model: "careful-profile",
       });
 
       expect(mockPatch).toHaveBeenCalledWith("/api/automation/v1/1", {
-        llm_profile: "careful-profile",
+        model: "careful-profile",
       });
       expect(result).toEqual(updated);
     });
