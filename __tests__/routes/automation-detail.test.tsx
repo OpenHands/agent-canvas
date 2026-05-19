@@ -176,7 +176,7 @@ describe("AutomationDetail — backend-change guard", () => {
     expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the model field as the persisted LLM profile name", async () => {
+  it("shows the model field as the persisted model profile name", async () => {
     renderDetail();
 
     expect(await screen.findByText("daily-profile")).toBeInTheDocument();
