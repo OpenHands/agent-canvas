@@ -829,6 +829,34 @@ export function buildStartConversationRequest(
     }
 
     payload.secrets = secrets;
+
+    // ACPAgent bridge: mirror the same secrets onto
+    // ``agent.agent_context.secrets`` so the agent-server's existing
+    // ``ACPAgent._start_acp_server`` env-injection loop picks them up
+    // and writes them into the ACP subprocess environment. Without
+    // this, the OpenHands ``Conversation.update_secrets`` path
+    // populates ``secret_registry`` — which the LLM-driven Agent
+    // reads, but the ACP subprocess never sees, so secrets set in
+    // Settings → Secrets (e.g. ``ANTHROPIC_API_KEY``) silently fail
+    // to reach the ACP CLI.
+    //
+    // Mirrors what OpenHands' app-server does in
+    // ``_build_acp_start_conversation_request``: wraps the conversation
+    // secrets in an ``AgentContext(secrets=secrets)`` before constructing
+    // the ACPAgent. This shim becomes redundant once canvas pins to an
+    // agent-server build that includes software-agent-sdk PR #3299
+    // (which makes ``ACPAgent`` read ``state.secret_registry`` itself);
+    // at that point this block can be deleted with no behaviour change.
+    if (acpMode) {
+      const agentRecord = payload.agent as Record<string, unknown>;
+      const existingContext =
+        (agentRecord.agent_context as Record<string, unknown> | undefined) ??
+        {};
+      agentRecord.agent_context = {
+        ...existingContext,
+        secrets,
+      };
+    }
   }
 
   return payload;

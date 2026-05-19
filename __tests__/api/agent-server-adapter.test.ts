@@ -359,6 +359,78 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
+  it("mirrors conversation secrets onto agent.agent_context.secrets for ACP", () => {
+    // Until canvas pins to an agent-server build that includes
+    // software-agent-sdk PR #3299, the bare ``payload.secrets`` channel
+    // only reaches ``secret_registry`` server-side — ``ACPAgent``'s
+    // spawn-time env loop reads from ``agent_context.secrets``, not
+    // from the registry, so a Settings → Secrets entry like
+    // ``ANTHROPIC_API_KEY`` would silently fail to land in the ACP
+    // CLI's environment. Mirror the same LookupSecret map onto
+    // ``agent.agent_context.secrets`` so the existing SDK loop picks
+    // it up. Mirrors OpenHands' app-server bridging.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+        },
+      },
+      customSecrets: [{ name: "ANTHROPIC_API_KEY" }],
+    }) as {
+      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+      secrets: Record<string, unknown>;
+    };
+
+    // Same LookupSecret object lands in both places — the bare-secrets
+    // channel (for any non-ACP consumer / for SDK #3299 once it lands)
+    // and the agent_context bridge (for current ACPAgent spawns).
+    expect(payload.secrets.ANTHROPIC_API_KEY).toBeDefined();
+    expect(payload.agent.agent_context?.secrets?.ANTHROPIC_API_KEY).toEqual(
+      payload.secrets.ANTHROPIC_API_KEY,
+    );
+  });
+
+  it("does not synthesize agent_context.secrets for ACP when no custom secrets are set", () => {
+    // Empty/absent customSecrets must not introduce an empty
+    // ``agent_context.secrets`` map on the ACPAgent payload — the
+    // bridge only fires when there's something to bridge.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+        },
+      },
+    }) as {
+      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+    };
+
+    expect(payload.agent.agent_context?.secrets).toBeUndefined();
+  });
+
+  it("does not mirror conversation secrets onto agent_context for non-ACP conversations", () => {
+    // The OpenHands ``Agent`` reads secrets from ``secret_registry``
+    // directly (no spawn-env bridging needed), so the LLM-driven path
+    // must not get an extra ``agent_context.secrets`` map — that would
+    // be both redundant and a surprise for any code that inspects
+    // ``agent_context`` for non-secret payload (skills, suffixes, etc.).
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      customSecrets: [{ name: "ANTHROPIC_API_KEY" }],
+    }) as {
+      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+    };
+
+    expect(payload.agent.agent_context?.secrets).toBeUndefined();
+  });
+
   describe("canvas_ui tool injection", () => {
     it("always registers canvas_ui_tool in tool_module_qualnames, even when no user settings supply qualnames", () => {
       const payload = buildStartConversationRequest({
