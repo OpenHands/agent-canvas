@@ -21,7 +21,7 @@ on:
       platforms:
         description: Target platforms (comma-separated)
         type: string
-        default: linux/amd64
+        default: linux/amd64,linux/arm64
 
 # Cancel redundant runs for the same branch/PR.
 concurrency:
@@ -66,6 +66,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || '' }}
+
+      - name: Set up QEMU (for multi-arch builds)
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -127,7 +130,7 @@ jobs:
           push: true
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
-          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
           build-args: |
             AGENT_SERVER_IMAGE=${{ steps.meta.outputs.agent_server_image }}
             AUTOMATION_VERSION=${{ steps.meta.outputs.automation_version }}
