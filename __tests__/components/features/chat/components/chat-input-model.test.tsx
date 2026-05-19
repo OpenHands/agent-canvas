@@ -14,7 +14,6 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-// eslint-disable-next-line import/first
 import { ChatInputModel } from "#/components/features/chat/components/chat-input-model";
 
 describe("ChatInputModel", () => {
@@ -84,6 +83,55 @@ describe("ChatInputModel", () => {
   it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
     useActiveConversationMock.mockReturnValue({ data: undefined });
     useSettingsMock.mockReturnValue({ data: undefined });
+
+    renderWithProviders(<ChatInputModel />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders nothing for ACP conversations and does NOT fall back to settings.llm_model", () => {
+    // The ACP subprocess owns its model (via ``acp_model``); ``llm_model``
+    // is null on the conversation by design. The previous fallback to
+    // ``settings.llm_model`` would have resurrected the user's *default*
+    // OpenHands model on, say, a Claude-Code conversation — visibly
+    // wrong (the link goes to /settings, which is itself disabled for
+    // ACP) and silently lies about what model is actually running.
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
+    });
+    useSettingsMock.mockReturnValue({
+      data: { llm_model: "anthropic/claude-sonnet-4-20250514" },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders nothing on the home page when ACP is the default agent", () => {
+    // Home-screen gating: no active conversation, so the
+    // per-conversation ``agent_kind`` check can't catch this case.
+    // Fall back to ``settings.agent_settings.agent_kind`` — that's
+    // the kind the next-created conversation will inherit. Showing
+    // the LLM picker here would put up a control that becomes a
+    // silent no-op the moment the user sends their first message.
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
+        // settings.llm_model is still set (the user has an OpenHands
+        // default configured), but agent_kind=acp wins.
+        llm_model: "anthropic/claude-sonnet-4-20250514",
+      },
+    });
 
     renderWithProviders(<ChatInputModel />);
 

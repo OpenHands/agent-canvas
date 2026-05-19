@@ -367,7 +367,7 @@ describe("FilesTab", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the browser preview URL as the iframe src for HTML files", async () => {
+  it("uses the workspace fileserver URL as the iframe src for HTML files", async () => {
     useHasAttachedSourceMock.mockReturnValue({
       hasAttachedSource: false,
       isLoading: false,
@@ -376,7 +376,8 @@ describe("FilesTab", () => {
       data: ["index.html"],
       isLoading: false,
     });
-    const staticUrl = "blob:preview-url";
+    const staticUrl =
+      "https://agent.example.com/api/conversations/conv-1/workspace/index.html";
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "index.html",
@@ -393,10 +394,12 @@ describe("FilesTab", () => {
 
     const iframe = await screen.findByTestId("file-content-viewer-iframe");
     expect(iframe).toBeInTheDocument();
-    // The iframe src uses the hook-provided browser preview URL directly;
-    // mutation freshness is handled by the hook's query key, not by mutating
-    // Blob URLs with cache-buster query params.
-    expect(iframe).toHaveAttribute("src", staticUrl);
+    // The iframe src points at the workspace fileserver so relative
+    // asset references (`<link href="style.css">` etc.) resolve to
+    // sibling files. The `?v=<mutation-counter>` suffix is the
+    // cache-buster appended by the viewer so the browser re-fetches
+    // after each agent-side edit.
+    expect(iframe).toHaveAttribute("src", `${staticUrl}?v=0`);
     // The iframe is sandboxed with `allow-same-origin` only: `<script>` /
     // inline event handlers inside the previewed file are inert. We deliberately
     // do NOT add `allow-scripts` — a workspace HTML file's scripts must not run

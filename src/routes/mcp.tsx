@@ -9,6 +9,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
+import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -32,6 +33,17 @@ import {
   InstallServerModal,
   CustomServerEditor,
 } from "#/components/features/mcp-page";
+
+// ACP guard: the ACP sub-agent owns its own MCP server configuration —
+// the SDK explicitly rejects `mcp_config` on ACPAgent init, and
+// `agent-server-adapter` already strips it from start payloads. The
+// Settings → Agent page is where the user configures the ACP server, so
+// bouncing there is consistent with how `/settings` and
+// `/settings/condenser` already behave under ACP.
+//
+// Declared with no parameters (rather than typed as Route.ClientLoaderArgs)
+// so the lib build doesn't pull generated React Router types out of rootDir.
+export const clientLoader = async () => redirectIfAcpActive();
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
