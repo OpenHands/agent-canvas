@@ -21,15 +21,14 @@
 
 ## Runtime Services in Dev Stacks
 
-- When the agent-canvas dev launchers (`npm run dev:safe` / `dev:automation` / `dev:docker` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
+- When the agent-canvas dev launchers (`npm run dev` / `dev:minimal` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
-  - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>` in dockerless modes and `http://host.docker.internal:<port>` in `dev:docker`.
+  - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
 - Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
   - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
   - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
-  - `scripts/dev-docker.mjs` and `bin/agent-canvas.mjs` pass `agentHostAlias: "host.docker.internal"` to `main()` because the agent-server runs in a container in those modes.
   - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
 
 ### `VITE_RUNTIME_SERVICES_INFO` shape
@@ -38,58 +37,57 @@ The env var is a JSON string of:
 
 ```json
 {
-  "mode": "dev:docker",
-  "agent_host_alias": "host.docker.internal",
+  "mode": "dev:automation",
   "services": {
     "agent_server": {
       "description": "The OpenHands Agent Server this agent is running inside. ...",
-      "url_from_agent": "http://localhost:8000"
+      "url_from_agent": "http://localhost:18000"
     },
     "ingress": {
       "description": "Unified entry point. Routes /api/automation/* ...",
-      "url_from_agent": "http://host.docker.internal:8000"
+      "url_from_agent": "http://localhost:8000"
     },
     "frontend": {
       "kind": "vite",
       "description": "Vite dev server hosting the agent-canvas frontend.",
-      "url_from_agent": "http://host.docker.internal:3001"
+      "url_from_agent": "http://localhost:3001"
     },
     "automation": {
       "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
-      "url_from_agent": "http://host.docker.internal:18001",
+      "url_from_agent": "http://localhost:18001",
       "api_prefix": "/api/automation",
-      "docs_url": "http://host.docker.internal:18001/api/automation/docs",
-      "openapi_url": "http://host.docker.internal:18001/api/automation/openapi.json",
+      "docs_url": "http://localhost:18001/api/automation/docs",
+      "openapi_url": "http://localhost:18001/api/automation/openapi.json",
       "auth_env_var": "OPENHANDS_AUTOMATION_API_KEY"
     }
   }
 }
 ```
 
-All keys under `services` are optional and omitted when the corresponding service isn't running. `frontend.kind` is `"vite"` for dev launchers running the Vite dev server and `"static"` for stacks serving a pre-built `build/` directory (`dev:docker`, `dev:dangerously-dockerless`, the published `agent-canvas` binary). `services.vite` is accepted as a legacy alias for `services.frontend` by the renderer.
+All keys under `services` are optional and omitted when the corresponding service isn't running. `frontend.kind` is `"vite"` for dev launchers running the Vite dev server and `"static"` for stacks serving a pre-built `build/` directory (`dev:static`, the published `agent-canvas` binary). `services.vite` is accepted as a legacy alias for `services.frontend` by the renderer.
 
-### Example `<RUNTIME_SERVICES>` block (dev:docker with automation)
+### Example `<RUNTIME_SERVICES>` block (dev with automation)
 
 ```
 <RUNTIME_SERVICES>
-You are running inside an agent-canvas dev stack started in 'dev:docker' mode.
+You are running inside an agent-canvas dev stack started in 'dev:automation' mode.
 The following services are reachable from your sandbox. URLs are written
 from your point of view (i.e., as you should curl/fetch them).
 
-* Agent Server (you): http://localhost:8000
+* Agent Server (you): http://localhost:18000
     The OpenHands Agent Server this agent is running inside. Tool calls (terminal, file_editor, browser, etc.) execute here.
-* Ingress: http://host.docker.internal:8000
+* Ingress: http://localhost:8000
     Unified entry point. Routes /api/automation/* to the automation backend, /api/* and /sockets to the agent-server, and /* to the frontend.
-* Frontend: http://host.docker.internal:3001
-    Static-file server hosting the agent-canvas production build.
-* Automation backend: http://host.docker.internal:18001
+* Frontend: http://localhost:3001
+    Vite dev server hosting the agent-canvas frontend.
+* Automation backend: http://localhost:18001
     OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
-    Docs:    http://host.docker.internal:18001/api/automation/docs
-    OpenAPI: http://host.docker.internal:18001/api/automation/openapi.json
+    Docs:    http://localhost:18001/api/automation/docs
+    OpenAPI: http://localhost:18001/api/automation/openapi.json
     Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
 
 Trust this block over guessing: do not assume any other URLs are running.
-In particular, http://localhost:8000 inside your sandbox is the Agent Server
+In particular, http://localhost:18000 inside your sandbox is the Agent Server
 you are running inside of — NOT the automation backend.
 </RUNTIME_SERVICES>
 ```
@@ -309,7 +307,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 - `BackendSelector`'s cloud-org switch paths should never rethrow from the dropdown `onChange` handler: unexpected non-Axios failures need a generic error toast instead of an unhandled promise rejection, and the malformed `(cloud backend, null org)` self-heal path should fall back to the bundled backend if `/switch` fails.
 - `NewConversationButton` should support keyboard dismissal (`Escape`) for its inline popover, while still keeping the popover open when its modal children (`FolderBrowserModal`, `ManageWorkspacesModal`) are active.
 
-- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install prerequisites, optional `.env`, run `npm run dev:docker` or `npm run dev:dangerously-dockerless`).
+- README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install prerequisites, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
@@ -318,18 +316,13 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
   - Default: released PyPI version `1.22.1` for agent-server SDK libraries
-- `scripts/dev-docker.mjs` runs the agent-server inside a Docker container instead of via `uvx`, and serves a static frontend build by default for stable user/tunnel access. The required host-projects env var is `PROJECTS_PATH` and it is mounted into the container at `/projects`. Use `npm run dev:docker:dynamic` or `node scripts/dev-docker.mjs --dynamic` for the Vite dev server. The default image uses versioned release tags:
-  - `DEFAULT_AGENT_SERVER_TAG` — uses format `{version}-python` (e.g., `1.22.1-python`) for reproducibility. Note: the SDK build script strips the "v" prefix from semver release tags.
-  - Should stay in sync with `DEFAULT_AGENT_SERVER_VERSION` in `dev-safe.mjs` for consistency between Docker and non-Docker dev modes
-  - `OH_AGENT_SERVER_GIT_REF` — override to use a git ref-based tag (e.g., `main` → `main-python`, `abc1234` → `abc1234-python`)
-  - Docker images are published from https://github.com/OpenHands/software-agent-sdk via the Agent Server workflow to `ghcr.io/openhands/agent-server`
-  - The container runs as the host UID/GID when Node exposes `process.getuid()` / `process.getgid()`. In the default isolated-home mode, `/home/openhands` is a writable tmpfs and persistence remains at `/home/openhands/.openhands`, so host-owned bind mounts remain writable without persisting ordinary home cache/config files.
+
 - Security: `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys when needed and persist the defaults so static builds, localStorage, and restarted services stay in sync:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; persisted at `~/.openhands/agent-canvas/session-api-key.txt` unless overridden via env var
   - `AUTOMATION_LOCAL_API_KEY` — 64-character hex for automation backend auth; persisted at `~/.openhands/agent-canvas/automation-api-key.txt` unless overridden
   - `OH_SECRET_KEY` — kept as a static default because it's used for encrypting/decrypting persisted settings values and needs consistency across restarts
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
-- `npm run dev` now runs the Docker full stack with automation and a static frontend by default (via `dev:docker`). `npm run dev:dangerously-dockerless` does the same without Docker through the `dev-static.mjs` launcher. Use `npm run dev:docker:dynamic` or `npm run dev:dangerously-dockerless:dynamic` for Vite/HMR.
+- `npm run dev` runs the full local stack via `uvx` (agent-server + automation backend + Vite dev server + ingress proxy) with no Docker dependency. `npm run dev:static` does the same but serves a production build of the frontend instead of the Vite dev server.
 - `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), frontend server, and ingress proxy. It defaults to Vite when run directly, supports `--static` for an existing build, and supports `--dynamic` so wrappers that default static can opt back into Vite. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)

@@ -325,7 +325,7 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reuses the persisted session API key across calls (parity for dev:docker and dev:dangerously-dockerless restarts)", async () => {
+  it("reuses the persisted session API key across calls (stable across restarts)", async () => {
     const env = envWithIsolatedKeyPath();
     const first = await buildConfig({}, env);
 

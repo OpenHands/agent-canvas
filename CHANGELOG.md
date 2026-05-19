@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial npm package release of `@openhands/agent-canvas`
-- CLI entry point (`npx @openhands/agent-canvas`) to run full stack with Docker
+- CLI entry point (`npx @openhands/agent-canvas`) to run full stack locally
 - Library build mode with component barrel exports
 - Subpath exports for modular imports:
   - `@openhands/agent-canvas/browser`

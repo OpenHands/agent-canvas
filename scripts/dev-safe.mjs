@@ -50,8 +50,7 @@ export function generateRandomApiKey() {
 }
 
 // Where the auto-generated default session API key is persisted so it stays
-// stable across `npm run dev` / `npm run dev:dangerously-dockerless` /
-// `npm run dev:docker` restarts. Keeping the key stable means the value
+// stable across `npm run dev` restarts. Keeping the key stable means the value
 // baked into the frontend (VITE_SESSION_API_KEY) and the persisted
 // backend-registry entry (`openhands-backends` localStorage) stay in sync
 // without users needing to set anything in `.env`.
@@ -631,10 +630,8 @@ export function buildAgentServerEnv(config) {
  * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
  * without having to probe.
  *
- * URLs are written from the *agent's* point of view. In dev-safe /
- * dev-with-automation the agent-server runs on the host, so the host
- * alias is "localhost". In dev-docker the agent-server runs inside a
- * container and reaches host services via "host.docker.internal".
+ * URLs are written from the *agent's* point of view. The agent-server
+ * runs on the host, so the host alias is "localhost".
  *
  * @param {object} options
  * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
