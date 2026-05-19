@@ -5,6 +5,7 @@ import { renderWithProviders } from "test-utils";
 
 const useLlmProfilesMock = vi.fn();
 const useActiveConversationMock = vi.fn();
+const useSettingsMock = vi.fn();
 const useSwitchLlmProfileAndLogMock = vi.fn();
 const useOptionalConversationIdMock = vi.fn();
 
@@ -14,6 +15,10 @@ vi.mock("#/hooks/query/use-llm-profiles", () => ({
 
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => useSettingsMock(),
 }));
 
 vi.mock("#/hooks/mutation/use-switch-llm-profile-and-log", () => ({
@@ -43,6 +48,7 @@ describe("SwitchProfileButton", () => {
     switchAndLog.mockReset();
     useLlmProfilesMock.mockReset();
     useActiveConversationMock.mockReset();
+    useSettingsMock.mockReset();
     useSwitchLlmProfileAndLogMock.mockReset();
     useOptionalConversationIdMock.mockReset();
 
@@ -50,6 +56,7 @@ describe("SwitchProfileButton", () => {
       data: { profiles, active_profile: "haiku" },
     });
     useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({ data: undefined });
     useSwitchLlmProfileAndLogMock.mockReturnValue({
       switchAndLog,
       isPending: false,
@@ -127,6 +134,27 @@ describe("SwitchProfileButton", () => {
         id: "conv-1",
         agent_kind: "acp",
         llm_model: null,
+      },
+    });
+
+    renderWithProviders(<SwitchProfileButton />);
+
+    expect(
+      screen.queryByTestId("switch-profile-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the picker on the home page when ACP is the default agent", () => {
+    // Home-screen gating: there's no active conversation, so the
+    // per-conversation ``agent_kind`` check can't catch this case.
+    // Fall back to ``settings.agent_settings.agent_kind`` — that's the
+    // kind the next-created conversation will inherit, and showing
+    // the LLM picker for it would silently no-op once the user starts
+    // chatting. Mirrors the ACP nav gating elsewhere in the app.
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
       },
     });
 

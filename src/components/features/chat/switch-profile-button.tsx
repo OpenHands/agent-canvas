@@ -5,6 +5,7 @@ import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useSettings } from "#/hooks/query/use-settings";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useModelStore } from "#/stores/model-store";
 import { cn } from "#/utils/utils";
@@ -18,6 +19,7 @@ export function SwitchProfileButton() {
   const { conversationId } = useOptionalConversationId();
   const { data } = useLlmProfiles();
   const { data: conversation } = useActiveConversation();
+  const { data: settings } = useSettings();
   const { switchAndLog, isPending } = useSwitchLlmProfileAndLog();
   // Optimistic value written by recordSwitch on a successful switch — gives
   // instant in-conversation feedback before the conversation refetch lands
@@ -35,7 +37,15 @@ export function SwitchProfileButton() {
   // confusing no-op. Hide the button instead. ``toAppConversation`` also
   // nulls ``llm_model`` on this boundary so any other consumer that reads
   // the model directly sees "no model" rather than a misleading value.
-  const isAcpConversation = conversation?.agent_kind === "acp";
+  //
+  // On the home screen ``conversation`` is undefined; fall back to
+  // ``settings.agent_settings.agent_kind`` so the picker also hides when
+  // ACP is the *default* the next-created conversation would inherit.
+  // Otherwise an ACP user lands on a home page with an LLM-switch
+  // control that contradicts the ACP nav gating everywhere else.
+  const isAcpActive =
+    conversation?.agent_kind === "acp" ||
+    (!conversation && settings?.agent_settings?.agent_kind === "acp");
 
   // Resolution priority for the active profile name:
   //   1. Optimistic (just-clicked) — instant feedback before the refetch.
@@ -52,7 +62,7 @@ export function SwitchProfileButton() {
     conversationModel ??
     null;
 
-  if (profiles.length === 0 || isAcpConversation) {
+  if (profiles.length === 0 || isAcpActive) {
     return null;
   }
 

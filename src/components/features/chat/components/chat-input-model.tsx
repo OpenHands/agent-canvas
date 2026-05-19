@@ -34,8 +34,16 @@ export function ChatInputModel() {
   // here — that would resurrect the user's *default* OpenHands model on a
   // Claude-Code conversation and link to /settings, both of which lie
   // about what model is actually running.
-  const isAcpConversation = conversation?.agent_kind === "acp";
-  const llmModel = isAcpConversation
+  //
+  // On the home screen ``conversation`` is undefined, so we also have to
+  // consult ``settings.agent_settings.agent_kind`` — that's the kind the
+  // next-created conversation will inherit. Without the fallback, ACP
+  // users would still see the LLM-profile control on the home page,
+  // contradicting the ACP nav gating elsewhere.
+  const isAcpActive =
+    conversation?.agent_kind === "acp" ||
+    (!conversation && settings?.agent_settings?.agent_kind === "acp");
+  const llmModel = isAcpActive
     ? null
     : (conversation?.llm_model ?? settings?.llm_model);
   const llmDestinationLabel = t(

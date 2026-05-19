@@ -779,7 +779,16 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent.llm).toBeUndefined();
     expect(payload.agent.condenser).toBeUndefined();
     expect(payload.agent.tools).toBeUndefined();
-    expect(payload.agent.agent_context).toBeUndefined();
+    // ``agent_context`` IS populated on the ACP payload — the SDK marks
+    // ``skills`` / ``system_message_suffix`` / ``load_*_skills`` as
+    // ``acp_compatible: true``, and the ACP CLI's system prompt renders
+    // them via ``ACPAgent._render_suffix``. Without seeding these, an
+    // ACP user would silently lose the skill catalog and the runtime-
+    // services awareness an OpenHands-driven conversation gets.
+    expect(payload.agent.agent_context).toEqual({
+      load_public_skills: true,
+      load_user_skills: true,
+    });
     // Conversation tags carry the ACP provider key for chip rendering.
     // Agent-server validates tag keys against ``^[a-z0-9]+$``, so the
     // snake_case ``acp_server`` form would be rejected — we use the

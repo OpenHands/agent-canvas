@@ -593,27 +593,44 @@ function createAgentFromSettings(
   agentSettings: SettingsRecord,
   options: { acp?: boolean } = {},
 ) {
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
+  // ``load_public_skills``, ``load_user_skills``, and
+  // ``system_message_suffix`` are all marked ``acp_compatible: true`` in
+  // the SDK's AgentContext model — they're rendered into the system
+  // prompt the ACP CLI receives via ``ACPAgent._render_suffix``, so
+  // building the same agent_context here means a Claude-Code / Codex
+  // user gets the same skill catalog and runtime-services awareness an
+  // OpenHands-driven conversation does. Leaving it off (the previous
+  // ACP branch returned ``{kind:"ACPAgent",...agentSettings}`` with no
+  // ``agent_context``) silently dropped both, matching neither the
+  // SDK contract nor OpenHands' own behaviour.
+  //
+  // ``secrets`` is filled in later by the secret bridge in
+  // ``buildStartConversationRequest`` (when ``customSecrets`` is set);
+  // we don't seed it here so non-secret start paths don't end up with
+  // an empty ``secrets: {}`` map.
+  const agentContext: Record<string, unknown> = {
+    load_public_skills: true,
+    load_user_skills: true,
+    // When the dev launcher provided ``VITE_RUNTIME_SERVICES_INFO``,
+    // append a <RUNTIME_SERVICES> block to the system prompt so the
+    // agent knows which services exist in this dev stack (e.g.
+    // automation backend URL, ingress URL) instead of having to probe.
+    ...(runtimeServicesSuffix
+      ? { system_message_suffix: runtimeServicesSuffix }
+      : {}),
+  };
   if (options.acp) {
     return {
       kind: "ACPAgent",
       ...agentSettings,
+      agent_context: agentContext,
     };
   }
-  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   return {
     kind: "Agent",
     ...agentSettings,
-    agent_context: {
-      load_public_skills: true,
-      load_user_skills: true,
-      // When the dev launcher provided `VITE_RUNTIME_SERVICES_INFO`, append
-      // a <RUNTIME_SERVICES> block to the system prompt so the agent knows
-      // which services exist in this dev stack (e.g. automation backend
-      // URL, ingress URL) instead of having to probe.
-      ...(runtimeServicesSuffix
-        ? { system_message_suffix: runtimeServicesSuffix }
-        : {}),
-    },
+    agent_context: agentContext,
   };
 }
 
@@ -848,15 +865,17 @@ export function buildStartConversationRequest(
     // (which makes ``ACPAgent`` read ``state.secret_registry`` itself);
     // at that point this block can be deleted with no behaviour change.
     //
-    // Direct assignment (rather than ``{ ...existingContext, secrets }``)
-    // because ``createAgentFromSettings`` doesn't populate
-    // ``agent_context`` on the ACP branch — there's no existing context
-    // to preserve. The SDK's ACPAgent rejects most ``AgentContext``
-    // fields anyway (only ``secrets`` is ``acp_compatible``), so we
-    // don't want to grow this into a deep-merge of arbitrary keys.
+    // Merge into the existing ``agent_context`` (``createAgentFromSettings``
+    // seeds ``load_public_skills`` / ``load_user_skills`` / optionally a
+    // ``system_message_suffix`` from the dev launcher's runtime-services
+    // info — all marked ``acp_compatible: true`` in the SDK). Overwriting
+    // would drop those.
     if (acpMode) {
       const agentRecord = payload.agent as Record<string, unknown>;
-      agentRecord.agent_context = { secrets };
+      const existingContext =
+        (agentRecord.agent_context as Record<string, unknown> | undefined) ??
+        {};
+      agentRecord.agent_context = { ...existingContext, secrets };
     }
   }
 

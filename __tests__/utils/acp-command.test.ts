@@ -11,8 +11,8 @@ describe("parseCommand", () => {
   it("respects double-quoted segments — the headline regression .split fix", () => {
     // The old `.split(/\s+/)` implementation turned this into
     // ``["bash", "-c", "\"echo", "hello", "world\""]`` and the spawn
-    // would either misbehave or fail in a confusing place. shell-quote
-    // keeps the quoted segment intact.
+    // would either misbehave or fail in a confusing place. The
+    // quote-aware tokenizer keeps the quoted segment intact.
     expect(parseCommand('bash -c "echo hello world"')).toEqual([
       "bash",
       "-c",
@@ -20,7 +20,7 @@ describe("parseCommand", () => {
     ]);
   });
 
-  it("respects single-quoted segments and embedded escapes", () => {
+  it("respects single-quoted segments and embedded whitespace", () => {
     expect(parseCommand("env FOO='bar baz' npx -y my-acp")).toEqual([
       "env",
       "FOO=bar baz",
@@ -30,33 +30,53 @@ describe("parseCommand", () => {
     ]);
   });
 
-  it("drops shell operators a user typed but argv can't represent", () => {
-    // ``shell-quote`` returns non-string entries for redirects / pipes /
-    // env-var refs (``> log.txt`` becomes ``{op: '>'}``); ``parseCommand``
-    // filters those out. The trailing filename is still a bare token
-    // so it survives — the result is an incomplete argv, but a clean
-    // one. The textarea's helper text steers users to wrap shell-y
-    // commands in ``bash -c`` (see the quoted-segment test above) when
-    // they need redirects or pipes.
-    expect(parseCommand("npx my-acp > log.txt")).toEqual([
-      "npx",
-      "my-acp",
-      "log.txt",
+  it("preserves URLs with query strings — the headline shell-quote-glob fix", () => {
+    // Regression guard for the silent-corruption bug:
+    //
+    //   node acp.js --endpoint https://example.com/acp?tenant=abc
+    //
+    // ``shell-quote.parse`` used to read ``?tenant=abc`` as a glob
+    // pattern and drop the entire URL token, so the saved
+    // ``acp_command`` became ``["node", "acp.js", "--endpoint"]``.
+    // The spawn would then fail with a confusing "missing endpoint"
+    // error far from the Settings → Agent page that caused it.
+    //
+    // The custom tokenizer treats ``?`` as a literal — same for
+    // every other shell metacharacter. The URL round-trips intact.
+    expect(
+      parseCommand("node acp.js --endpoint https://example.com/acp?tenant=abc"),
+    ).toEqual([
+      "node",
+      "acp.js",
+      "--endpoint",
+      "https://example.com/acp?tenant=abc",
     ]);
   });
 
-  it.each([
-    // Each operator becomes a ``{op}`` entry from shell-quote that the
-    // string filter drops — only the bare-string tokens survive. We
-    // cover the common operators a user might type ahead of switching
-    // to a ``bash -c`` wrapper.
-    ["pipe", "npx a | tee log", ["npx", "a", "tee", "log"]],
-    ["semicolon", "npx a ; npx b", ["npx", "a", "npx", "b"]],
-    ["and", "npx a && npx b", ["npx", "a", "npx", "b"]],
-    ["or", "npx a || npx b", ["npx", "a", "npx", "b"]],
-    ["append redirect", "npx a >> log", ["npx", "a", "log"]],
-  ])("filters %s operator out of the argv", (_label, input, expected) => {
-    expect(parseCommand(input)).toEqual(expected);
+  it("preserves URLs with multiple query params", () => {
+    // ``&`` is also literal — same reason.
+    expect(parseCommand("curl https://x.com?a=1&b=2")).toEqual([
+      "curl",
+      "https://x.com?a=1&b=2",
+    ]);
+  });
+
+  it("preserves shell metacharacters as literal argv tokens", () => {
+    // Pipes, redirects, semicolons, glob chars, ``$``, backticks,
+    // ``#`` all round-trip as literal characters within the surrounding
+    // token. The agent-server uses ``subprocess.create_subprocess_exec``
+    // (no shell intermediary), so a user typing ``foo | bar`` is
+    // configuring two literal argv entries — not a shell pipeline.
+    // The user's helper text steers them to ``bash -c '…'`` if they
+    // actually want shell features.
+    expect(parseCommand("foo | bar")).toEqual(["foo", "|", "bar"]);
+    expect(parseCommand("foo > log.txt")).toEqual(["foo", ">", "log.txt"]);
+    expect(parseCommand("foo *.txt")).toEqual(["foo", "*.txt"]);
+    expect(parseCommand("foo $X")).toEqual(["foo", "$X"]);
+    expect(parseCommand("foo `bar`")).toEqual(["foo", "`bar`"]);
+    expect(parseCommand("foo # comment")).toEqual(["foo", "#", "comment"]);
+    expect(parseCommand("foo && bar")).toEqual(["foo", "&&", "bar"]);
+    expect(parseCommand("foo; bar")).toEqual(["foo;", "bar"]);
   });
 
   it("treats blank input as an empty argv", () => {
@@ -64,106 +84,61 @@ describe("parseCommand", () => {
     expect(parseCommand("   \t\n   ")).toEqual([]);
   });
 
-  describe("shell-metasyntax handling — actual behaviour", () => {
-    // Important framing: ``parseCommand`` is a textarea-to-argv
-    // *parser*, not a security boundary. The user IS the operator of
-    // canvas — they can type any command they want, and it gets
-    // exec()'d in the agent-server subprocess they themselves
-    // configured. The behaviour we pin here is "what the persisted
-    // ``acp_command`` looks like given a shell-syntax-ish input,"
-    // not "what canvas refuses to let the user do."
-    //
-    // What we DO want to verify (and what ``shell-quote.parse`` +
-    // the string-only filter actually deliver):
-    //
-    //   - shell *operators* that have no argv equivalent (redirects,
-    //     pipes, ``&&``, ``;``, globs, comments) are dropped, so the
-    //     user can't accidentally ship a stray argv token containing
-    //     a ``>`` or a ``*``.
-    //   - text that LOOKS like shell expansion (backticks, ``$VAR``,
-    //     ``$(...)``) survives in some form as literal tokens —
-    //     specifically, we DO NOT expand it at parse time. No env
-    //     value gets read, no subshell runs.
-    //
-    // Each test pins the actual ``shell-quote`` output. Behaviour
-    // changes upstream surface here as failures.
+  it("honors backslash escapes outside quotes", () => {
+    // ``foo\ bar`` is one token containing a literal space — the same
+    // contract POSIX shells provide. Lets the user type paths with
+    // spaces without reaching for quotes.
+    expect(parseCommand("foo\\ bar")).toEqual(["foo bar"]);
+    // An escaped quote becomes a literal quote in the token.
+    expect(parseCommand('foo\\"bar')).toEqual(['foo"bar']);
+  });
 
-    it("does not leak host env values when the user inlines $VAR refs", () => {
-      // ``parseCommand`` doesn't pass an env map to ``shell-quote``, so
-      // ``$ANTHROPIC_API_KEY`` resolves to an empty string instead of
-      // the host process's value. That's the behaviour we want to pin:
-      // a user who pastes a tutorial command containing a $VAR ref
-      // shouldn't end up persisting the agent-server's actual
-      // ``$ANTHROPIC_API_KEY`` value into their saved ``acp_command``.
-      // The empty string is harmless (the Save button gates on
-      // non-empty tokens), and users who actually want env vars in the
-      // subprocess should set ``acp_env`` instead of inlining them.
-      const result = parseCommand("npx $ANTHROPIC_API_KEY");
-      expect(result[0]).toBe("npx");
-      // No literal ``sk-...`` token survived from a hypothetical host
-      // env. Pins the no-leak contract.
-      expect(result.some((t) => /sk-ant-/.test(t))).toBe(false);
-    });
+  it('honors ``\\\\`` and ``\\"`` inside double-quoted segments', () => {
+    expect(parseCommand('bash -c "echo \\"hi\\""')).toEqual([
+      "bash",
+      "-c",
+      'echo "hi"',
+    ]);
+    expect(parseCommand('"foo\\\\bar"')).toEqual(["foo\\bar"]);
+  });
 
-    it("does not run subshells: $(...) becomes inert literal fragments", () => {
-      // ``$(date)`` shell-quotes to ``["$", {op: "("}, "date", {op:
-      // ")"}]``. After the string filter: ``["$", "date"]``. The
-      // forbidden outcome is shell-quote *executing* ``date`` and
-      // injecting today's timestamp; neither happens. ``date`` is
-      // preserved as a literal token but never resolved.
-      expect(parseCommand("echo $(date)")).toEqual(["echo", "$", "date"]);
-    });
+  it("does not env-expand $VAR refs — keeps them as literal", () => {
+    // The forbidden outcome would be the tokenizer reading
+    // ``process.env.ANTHROPIC_API_KEY`` and inlining its value into
+    // the persisted ``acp_command`` — that would leak a host env var
+    // into settings on every save. The tokenizer reads ``$NAME`` as
+    // a literal substring of the token, so the user's typed text
+    // survives verbatim. Users who actually want env vars in the
+    // subprocess should set ``acp_env`` instead of inlining them.
+    const result = parseCommand("npx $ANTHROPIC_API_KEY");
+    expect(result).toEqual(["npx", "$ANTHROPIC_API_KEY"]);
+    // Pin the no-leak contract: no ``sk-…`` token sneaks through
+    // from the host env (which is also unset here, but still).
+    expect(result.some((t) => /sk-ant-/.test(t))).toBe(false);
+  });
 
-    it("does not run subshells: backticks become a single literal token", () => {
-      // ``\`date\``` round-trips as the literal string ``\`date\```.
-      // shell-quote doesn't recognise backtick command-substitution
-      // in parse mode (which is fine for our use — the agent-server's
-      // ``execve`` doesn't interpret backticks either).
-      expect(parseCommand("echo `date`")).toEqual(["echo", "`date`"]);
-    });
+  it("does not run subshells: $(…) and backticks become literal tokens", () => {
+    // The forbidden outcome would be executing ``date`` and inlining
+    // today's timestamp into the persisted command. The tokenizer
+    // never invokes anything; both forms round-trip verbatim.
+    expect(parseCommand("echo $(date)")).toEqual(["echo", "$(date)"]);
+    expect(parseCommand("echo `date`")).toEqual(["echo", "`date`"]);
+  });
 
-    it("drops glob patterns instead of expanding them against the FS", () => {
-      // ``*.txt`` becomes ``{op: "glob", pattern: "*.txt"}`` and
-      // falls out of the argv. The forbidden outcome would be
-      // expanding against the cwd at parse time, which would (a)
-      // leak the filesystem layout into the persisted setting and
-      // (b) produce a different command across machines.
-      const result = parseCommand("rm *.txt");
-      expect(result).toEqual(["rm"]);
-      expect(result.some((t) => t.includes("*"))).toBe(false);
-    });
-
-    it("strips shell comments so trailing text doesn't poison the argv", () => {
-      // A user copy-pasting a shell tutorial line
-      // (``mycmd --flag # explanation``) shouldn't ship the
-      // ``# explanation`` as an extra argv token. ``shell-quote``
-      // represents the trailing ``#`` as ``{comment: "..."}`` and
-      // we drop it with the rest of the non-string entries.
-      expect(parseCommand("mycmd --flag # this is a comment")).toEqual([
-        "mycmd",
-        "--flag",
-      ]);
-    });
-
-    it("survives malformed input without crashing (try/catch guard)", () => {
-      // shell-quote is permissive about most malformed inputs (an
-      // unterminated quote yields an unwrapped token, not a throw),
-      // but the function still wraps in try/catch so a future
-      // upstream change can't crash the Settings → Agent form
-      // mid-render. The Save button gates on a non-empty argv, so
-      // a parse-time anomaly can't silently persist either.
-      expect(parseCommand('bash -c "unterminated')).toEqual([
-        "bash",
-        "-c",
-        "unterminated",
-      ]);
-      // Direct exercise of the catch branch: a synthetic input that
-      // throws is hard to construct against shell-quote's current
-      // behaviour. We pin the documented contract instead by
-      // confirming an empty argv falls out of any input that
-      // produces no usable string tokens.
-      expect(parseCommand("> | && ;")).toEqual([]);
-    });
+  it("survives unterminated quotes without throwing", () => {
+    // EOF closes the open quote; the partially-built token gets
+    // pushed. A throw here would crash the Settings → Agent page
+    // mid-render. The Save button gates on a non-empty argv anyway,
+    // so a recoverable miss can't be silently persisted.
+    expect(parseCommand('bash -c "unterminated')).toEqual([
+      "bash",
+      "-c",
+      "unterminated",
+    ]);
+    expect(parseCommand("foo 'unterminated single")).toEqual([
+      "foo",
+      "unterminated single",
+    ]);
   });
 });
 
@@ -194,6 +169,10 @@ describe("formatCommand", () => {
       ["bash", "-c", "echo hello world"],
       ["env", "FOO=bar baz", "npx", "-y", "my-acp"],
       ["./bin/my-agent", "--flag=value"],
+      // URL with query string — the headline silent-corruption case.
+      ["node", "acp.js", "--endpoint", "https://example.com/acp?tenant=abc"],
+      // URL with multiple params.
+      ["curl", "https://x.com?a=1&b=2"],
       // Empty-string tokens are rare but valid (some CLIs treat an
       // empty positional as "no argument supplied" rather than missing).
       // Without explicit quoting in formatCommand they round-trip back
