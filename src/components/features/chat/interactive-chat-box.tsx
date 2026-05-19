@@ -6,6 +6,7 @@ import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { AgentState } from "#/types/agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { GitControlBar } from "./git-control-bar";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
@@ -37,6 +38,11 @@ export function InteractiveChatBox({
   } = useConversationStore();
   const { curAgentState } = useAgentState();
   const { data: conversation } = useActiveConversation();
+  // URL-based id is available the instant we land on the conversation route;
+  // `conversation?.id` is `undefined` until the first fetch resolves, which
+  // would let an early `/model NAME` (first action) fall through unhandled.
+  const { conversationId: routeConversationId } = useOptionalConversationId();
+  const conversationId = routeConversationId ?? conversation?.id ?? null;
 
   // Poll sub-conversation task to check if it's loading
   const { taskStatus: subConversationTaskStatus } =
@@ -140,24 +146,18 @@ export function InteractiveChatBox({
     }
   };
 
-  const handleAfterModel = useBtwInterceptor(
-    conversation?.id ?? null,
-    (message) => {
-      // When the user opts in via the "upload as file" checkbox, route
-      // the attached images through the normal file-upload path instead
-      // of embedding them in the message sent to the LLM.
-      if (uploadImagesAsFiles) {
-        onSubmit(message, [], [...files, ...images]);
-      } else {
-        onSubmit(message, images, files);
-      }
-      clearAllFiles();
-    },
-  );
-  const handleSubmit = useModelInterceptor(
-    conversation?.id ?? null,
-    handleAfterModel,
-  );
+  const handleAfterModel = useBtwInterceptor(conversationId, (message) => {
+    // When the user opts in via the "upload as file" checkbox, route
+    // the attached images through the normal file-upload path instead
+    // of embedding them in the message sent to the LLM.
+    if (uploadImagesAsFiles) {
+      onSubmit(message, [], [...files, ...images]);
+    } else {
+      onSubmit(message, images, files);
+    }
+    clearAllFiles();
+  });
+  const handleSubmit = useModelInterceptor(conversationId, handleAfterModel);
 
   const handleSuggestionsClick = (suggestion: string) => {
     handleSubmit(suggestion);

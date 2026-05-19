@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   RecommendedAutomationsLauncher,
   buildAutomationPrompt,
@@ -58,6 +59,7 @@ function settingsWithMcpConfig(mcp_config: unknown) {
 describe("recommended automations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({ mcpServers: {} }),
     });
@@ -138,7 +140,7 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  it("launches directly when the required MCP is already installed", () => {
+  it("launches directly with local automation API instructions when the required MCP is already installed", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({
         mcpServers: {
@@ -159,6 +161,15 @@ describe("recommended automations", () => {
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
+
+    const [, options] = mockCreateConversationMutate.mock.calls[0];
+    options.onSuccess({ conversation_id: "conversation-1" });
+
+    const draft = getConversationState("conversation-1").draftMessage;
+    expect(draft).toContain("local");
+    expect(draft).toContain("$OPENHANDS_AUTOMATION_API_KEY");
+    expect(draft).not.toContain("app.all-hands.dev");
+    expect(draft).not.toContain("$OPENHANDS_API_KEY");
   });
 
   it("launches the recommendation after the missing MCP is installed", async () => {
@@ -191,15 +202,16 @@ describe("recommended automations", () => {
 describe("buildAutomationPrompt", () => {
   const basePrompt = "Create an automation that does something useful.";
 
-  it("appends local API instructions for local backends", () => {
+  it("appends local API instructions for local backends without cloud endpoints", () => {
     const result = buildAutomationPrompt(basePrompt, "local");
     expect(result).toContain(basePrompt);
     expect(result).toContain("local");
     expect(result).toContain("<RUNTIME_SERVICES>");
     expect(result).toContain("$OPENHANDS_AUTOMATION_API_KEY");
     expect(result).toContain("/api/automation/v1/preset/prompt");
-    expect(result).toContain("app.all-hands.dev");
-    expect(result).toContain("Do **not**");
+    expect(result).not.toContain("app.all-hands.dev");
+    expect(result).not.toContain("$OPENHANDS_API_KEY");
+    expect(result).toContain("instead of using any remote/cloud automation API");
   });
 
   it("appends cloud API instructions for cloud backends", () => {
