@@ -35,7 +35,7 @@ const MOCK_SUBDIRECTORIES_BY_PATH: Record<
   "/projects/demo-app/web-client": [],
 };
 
-const shouldReturnDockerProjectMock =
+const shouldReturnProjectMock =
   typeof import.meta.env.MODE === "string" && import.meta.env.MODE !== "test";
 
 export const FILE_SERVICE_HANDLERS = [
@@ -54,7 +54,7 @@ export const FILE_SERVICE_HANDLERS = [
   http.get("*/api/file/search_subdirs", async ({ request }) => {
     const url = new URL(request.url);
     const path = url.searchParams.get("path") ?? "";
-    const items = shouldReturnDockerProjectMock
+    const items = shouldReturnProjectMock
       ? (MOCK_SUBDIRECTORIES_BY_PATH[path] ?? [])
       : [];
 
