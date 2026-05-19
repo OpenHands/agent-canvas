@@ -20,7 +20,10 @@ const { mockSwitchAndLog, mockDisplayErrorToast } = vi.hoisted(() => ({
 }));
 
 vi.mock("#/hooks/mutation/use-switch-llm-profile-and-log", () => ({
-  useSwitchLlmProfileAndLog: () => mockSwitchAndLog,
+  useSwitchLlmProfileAndLog: () => ({
+    switchAndLog: mockSwitchAndLog,
+    isPending: false,
+  }),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -161,6 +164,32 @@ describe("useModelInterceptor", () => {
     act(() => result.current("/model haiku"));
 
     expect(onSubmit).toHaveBeenCalledWith("/model haiku");
+    expect(mockSwitchAndLog).not.toHaveBeenCalled();
+  });
+
+  it("activates the named profile globally even when no conversation is set", () => {
+    const onSubmit = vi.fn();
+    const { result } = renderHook(() => useModelInterceptor(null, onSubmit), {
+      wrapper: makeWrapper(),
+    });
+
+    act(() => result.current("/model haiku"));
+
+    // Message is intercepted (never forwarded to the LLM) and the activate
+    // call still fires — the home-page `/model NAME` flow.
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(mockSwitchAndLog).toHaveBeenCalledWith(null, "haiku");
+  });
+
+  it("swallows bare /model on the home page (no conversation to anchor to)", () => {
+    const onSubmit = vi.fn();
+    const { result } = renderHook(() => useModelInterceptor(null, onSubmit), {
+      wrapper: makeWrapper(),
+    });
+
+    act(() => result.current("/model"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
     expect(mockSwitchAndLog).not.toHaveBeenCalled();
   });
 
