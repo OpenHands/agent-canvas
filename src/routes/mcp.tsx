@@ -9,6 +9,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
+import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -55,6 +56,24 @@ function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
     })),
   ];
 }
+
+// ACP guard: the ACP sub-agent owns its own MCP server configuration —
+// the SDK explicitly rejects ``mcp_config`` on ACPAgent init
+// (``acp_agent.py:845``) and ``agent-server-adapter`` already strips
+// it from start payloads. The Settings → Agent page is where the user
+// configures the ACP server, so bouncing there is consistent with how
+// ``/settings`` and ``/settings/condenser`` already behave under ACP.
+//
+// Declared with no parameters (rather than typed as
+// ``Route.ClientLoaderArgs``) so the lib build doesn't pull the
+// generated ``./+types/mcp`` types out of ``rootDir``. The lib's
+// ``tsconfig.lib.json`` reaches this file via the
+// ``components/settings/index.ts`` re-export → ``routes/mcp-settings`` →
+// ``routes/mcp`` chain; importing the React Router-generated type
+// breaks ``rootDir: "src"`` because the types live under
+// ``.react-router/types``. ``index-redirect`` and
+// ``mcp-settings-redirect`` use the same no-args pattern.
+export const clientLoader = async () => redirectIfAcpActive();
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");

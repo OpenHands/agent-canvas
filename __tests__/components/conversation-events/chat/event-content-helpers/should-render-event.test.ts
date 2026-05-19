@@ -54,27 +54,37 @@ describe("shouldRenderEvent - PlanningFileEditorAction", () => {
 });
 
 describe("shouldRenderEvent - ACPToolCallEvent", () => {
-  it("should return false for in_progress events (suppress empty-args flash)", () => {
+  it("hides in_progress events so the card doesn't flash half-formed", () => {
+    // ACP streams multiple events per ``tool_call_id``; the partially-
+    // populated in-flight ones have to stay off-screen, otherwise the
+    // user watches the card update in place mid-stream — visibly noisy.
     const event = makeACPEvent({ status: "in_progress", raw_input: {} });
 
     expect(shouldRenderEvent(event)).toBe(false);
   });
 
-  it("should return true for completed events", () => {
+  it("renders completed events", () => {
     const event = makeACPEvent({ status: "completed" });
 
     expect(shouldRenderEvent(event)).toBe(true);
   });
 
-  it("should return true for failed events", () => {
+  it("renders failed events", () => {
     const event = makeACPEvent({ status: "failed", is_error: true });
 
     expect(shouldRenderEvent(event)).toBe(true);
   });
 
-  it("should return true for null status (backwards compat)", () => {
+  it("hides events with null status — treated as in-flight, not legacy", () => {
+    // ``null`` used to be allowed for backwards compat with old agent-
+    // server builds (before the field was required). Canvas's pinned
+    // agent-server always sets a status, so a ``null`` we see today is
+    // a streaming intermediate the SDK hasn't filled yet. Treating it
+    // as in-flight matches the "wait for terminal" rule and stops the
+    // pre-stream half-rendered card. If we ever need to reach an older
+    // build, the right knob is to bump the pin, not loosen this gate.
     const event = makeACPEvent({ status: null });
 
-    expect(shouldRenderEvent(event)).toBe(true);
+    expect(shouldRenderEvent(event)).toBe(false);
   });
 });
