@@ -3,8 +3,12 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { useConversationStore } from "#/stores/conversation-store";
-import { setConversationState } from "#/utils/conversation-local-storage";
+import {
+  setConversationState,
+  setPendingTaskDraft,
+} from "#/utils/conversation-local-storage";
 import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
@@ -71,6 +75,7 @@ export function RecommendedAutomationsLauncher({
   const { navigate } = useNavigation();
   const { data: settings } = useSettings();
   const createConversation = useCreateConversation();
+  const isCreatingConversation = useIsCreatingConversation();
   const setMessageToSend = useConversationStore(
     (state) => state.setMessageToSend,
   );
@@ -78,6 +83,7 @@ export function RecommendedAutomationsLauncher({
     useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
   const completedInstallRef = useRef(false);
+  const launchInFlightRef = useRef(false);
 
   const installedMcpServers = useMemo(
     () =>
@@ -87,7 +93,14 @@ export function RecommendedAutomationsLauncher({
 
   const launchAutomation = useCallback(
     (automation: RecommendedAutomation) => {
-      if (createConversation.isPending) return;
+      if (
+        launchInFlightRef.current ||
+        createConversation.isPending ||
+        isCreatingConversation
+      ) {
+        return;
+      }
+      launchInFlightRef.current = true;
 
       const prompt = buildAutomationPrompt(
         automation.prompt,
@@ -98,12 +111,22 @@ export function RecommendedAutomationsLauncher({
         {},
         {
           onSuccess: (conversation) => {
-            setConversationState(conversation.conversation_id, {
-              draftMessage: prompt,
-            });
+            if (
+              conversation.conversation_id.startsWith("task-") &&
+              conversation.task_id
+            ) {
+              setPendingTaskDraft(conversation.task_id, prompt);
+            } else {
+              setConversationState(conversation.conversation_id, {
+                draftMessage: prompt,
+              });
+            }
             onLaunched?.();
             navigate?.(`/conversations/${conversation.conversation_id}`);
             window.setTimeout(() => setMessageToSend(prompt), 0);
+          },
+          onError: () => {
+            launchInFlightRef.current = false;
           },
         },
       );
@@ -111,6 +134,7 @@ export function RecommendedAutomationsLauncher({
     [
       activeBackend.backend.kind,
       createConversation,
+      isCreatingConversation,
       navigate,
       onLaunched,
       setMessageToSend,
@@ -126,7 +150,14 @@ export function RecommendedAutomationsLauncher({
   );
 
   const handleSelectAutomation = (automation: RecommendedAutomation) => {
-    if (createConversation.isPending || installQueue.length > 0) return;
+    if (
+      launchInFlightRef.current ||
+      createConversation.isPending ||
+      isCreatingConversation ||
+      installQueue.length > 0
+    ) {
+      return;
+    }
 
     const missingEntries = getMissingEntries(automation);
     if (missingEntries.length === 0) {

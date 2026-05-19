@@ -1,8 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { getConversationState } from "#/utils/conversation-local-storage";
+import {
+  consumePendingTaskDraft,
+  getConversationState,
+} from "#/utils/conversation-local-storage";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import type { Backend } from "#/api/backend-registry/types";
 import {
   RecommendedAutomationsLauncher,
   buildAutomationPrompt,
@@ -36,14 +46,36 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => mockUseSettings(),
 }));
 
-function renderLauncher() {
+const localBackend: Backend = {
+  id: "local-backend",
+  name: "Local",
+  host: "http://localhost:8000",
+  apiKey: "",
+  kind: "local",
+};
+
+const cloudBackend: Backend = {
+  id: "cloud-backend",
+  name: "Cloud",
+  host: "https://app.all-hands.dev",
+  apiKey: "cloud-token",
+  kind: "cloud",
+};
+
+function renderLauncher({ withBackendProvider = false } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
+  const launcher = <RecommendedAutomationsLauncher />;
+
   return render(
     <QueryClientProvider client={queryClient}>
-      <RecommendedAutomationsLauncher />
+      {withBackendProvider ? (
+        <ActiveBackendProvider>{launcher}</ActiveBackendProvider>
+      ) : (
+        launcher
+      )}
     </QueryClientProvider>,
   );
 }
@@ -56,13 +88,33 @@ function settingsWithMcpConfig(mcp_config: unknown) {
   };
 }
 
+function settingsWithGithubMcp() {
+  return settingsWithMcpConfig({
+    mcpServers: {
+      github: {
+        command: "npx",
+        args: ["-y", "@modelcontextprotocol/server-github"],
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github-token" },
+      },
+    },
+  });
+}
+
 describe("recommended automations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    __resetActiveStoreForTests();
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({ mcpServers: {} }),
     });
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    __resetActiveStoreForTests();
   });
 
   it("shows recommended automations in popularity order", () => {
@@ -142,15 +194,7 @@ describe("recommended automations", () => {
 
   it("launches directly with local automation API instructions when the required MCP is already installed", () => {
     mockUseSettings.mockReturnValue({
-      data: settingsWithMcpConfig({
-        mcpServers: {
-          github: {
-            command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-github"],
-            env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github-token" },
-          },
-        },
-      }),
+      data: settingsWithGithubMcp(),
     });
 
     renderLauncher();
@@ -170,6 +214,49 @@ describe("recommended automations", () => {
     expect(draft).toContain("$OPENHANDS_AUTOMATION_API_KEY");
     expect(draft).not.toContain("app.all-hands.dev");
     expect(draft).not.toContain("$OPENHANDS_API_KEY");
+  });
+
+  it("ignores repeated card clicks while a recommendation launch is in flight", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher();
+
+    const card = screen.getByTestId(
+      "recommended-automation-card-github-pr-reviewer",
+    );
+    fireEvent.click(card);
+    fireEvent.click(card);
+
+    expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores cloud start-task drafts until the real conversation is ready", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher({ withBackendProvider: true });
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    const [, options] = mockCreateConversationMutate.mock.calls[0];
+    options.onSuccess({
+      conversation_id: "task-cloud-start-task",
+      task_id: "cloud-start-task",
+    });
+
+    expect(
+      getConversationState("task-cloud-start-task").draftMessage,
+    ).toBeNull();
+    const pendingDraft = consumePendingTaskDraft("cloud-start-task");
+    expect(pendingDraft).toContain("app.all-hands.dev");
+    expect(pendingDraft).toContain("$OPENHANDS_API_KEY");
   });
 
   it("launches the recommendation after the missing MCP is installed", async () => {
@@ -211,7 +298,9 @@ describe("buildAutomationPrompt", () => {
     expect(result).toContain("/api/automation/v1/preset/prompt");
     expect(result).not.toContain("app.all-hands.dev");
     expect(result).not.toContain("$OPENHANDS_API_KEY");
-    expect(result).toContain("instead of using any remote/cloud automation API");
+    expect(result).toContain(
+      "instead of using any remote/cloud automation API",
+    );
   });
 
   it("appends cloud API instructions for cloud backends", () => {

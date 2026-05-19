@@ -339,11 +339,31 @@ describe("OnboardingModal", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
+    );
     await waitFor(() =>
       expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
     await user.click(screen.getByTestId("onboarding-llm-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
 
     const helloInput = screen.getByTestId("onboarding-hello-input");
     const recommendations = screen.getByTestId(
@@ -358,6 +378,8 @@ describe("OnboardingModal", () => {
         "recommended-automations-launcher-stub",
       ),
     ).toBeInTheDocument();
+
+    expect(recommendations.closest("form")).toBeNull();
 
     await user.click(
       within(recommendations).getByRole("button", {
