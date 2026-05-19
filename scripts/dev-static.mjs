@@ -320,7 +320,7 @@ function buildAutomationBackendEnv(config) {
     AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
     AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
     AUTOMATION_LOCAL_API_KEY: config.localApiKey,
-    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:${config.vitePort},http://127.0.0.1:${config.vitePort}`,
     FILE_STORE: "local",
     LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
     OPENHANDS_SUPPRESS_BANNER: "1",
@@ -512,7 +512,7 @@ function printBanner(config) {
     `${c.dim}Frontend served from: ${join(config.canvasPath, "build")}${c.reset}`,
   );
   console.log(
-    `${c.dim}Edit sources, then re-run \`npm run dev:dangerously-dockerless\` to rebuild.${c.reset}`,
+    `${c.dim}Edit TS/TSX, then run \`npm run build\` or restart without \`--skip-build\` so this static stack picks up changes.${c.reset}`,
   );
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");

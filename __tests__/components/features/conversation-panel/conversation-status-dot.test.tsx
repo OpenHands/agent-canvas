@@ -52,4 +52,21 @@ describe("ConversationStatusDot", () => {
       "COMMON$STOPPED",
     );
   });
+
+  it("renders archive icon when sandbox is MISSING (archived)", () => {
+    renderWithProviders(
+      <ConversationStatusDot
+        executionStatus={ExecutionStatus.PAUSED}
+        sandboxStatus="MISSING"
+      />,
+    );
+
+    expect(
+      screen.getByTestId("conversation-status-archived"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("styled-tooltip")).toHaveAttribute(
+      "data-content",
+      "COMMON$ARCHIVED",
+    );
+  });
 });

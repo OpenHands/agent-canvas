@@ -207,15 +207,24 @@ function tryPort(port, host = "127.0.0.1") {
 }
 
 /**
+ * True if nothing is listening on `port` in a way that would block our dev
+ * servers (they use 0.0.0.0 and 127.0.0.1). Checking only one host misses
+ * listeners on the other (e.g. Vite on IPv4 while a probe used the wrong address).
+ */
+async function isPreferredPortFree(port) {
+  return (await tryPort(port, "0.0.0.0")) && (await tryPort(port, "127.0.0.1"));
+}
+
+/**
  * Find multiple free ports at once, each preferring its specified default.
  *
  * Allocates ports sequentially to avoid race conditions between checks.
  *
  * @param {Array<{name: string, preferred: number}>} portConfigs - Port configurations
- * @param {string} host - The host to bind to (default: "127.0.0.1")
+ * @param {string} host - Host passed to OS-assigned fallback binds (default: "0.0.0.0")
  * @returns {Promise<Record<string, number>>} Map of name to actual port
  */
-export async function findFreePorts(portConfigs, host = "127.0.0.1") {
+export async function findFreePorts(portConfigs, host = "0.0.0.0") {
   const result = {};
   const usedPorts = new Set();
 
@@ -223,7 +232,7 @@ export async function findFreePorts(portConfigs, host = "127.0.0.1") {
     // Try preferred if not already taken by a previous allocation
     // Skip if preferred is 0 (means "any port") or already used
     if (preferred > 0 && !usedPorts.has(preferred)) {
-      const available = await tryPort(preferred, host);
+      const available = await isPreferredPortFree(preferred);
       if (available) {
         result[name] = preferred;
         usedPorts.add(preferred);
@@ -598,6 +607,11 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Agent-server uses Path.home() for /api/files/home and desktop helpers.
+    // Docker-based stacks set HOME=/home/openhands; that path cannot be created
+    // on macOS (often errno 45 under /System/Volumes/Data/home). Force the
+    // host home so dockerless / native dev does not inherit a broken HOME.
+    HOME: homedir(),
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,

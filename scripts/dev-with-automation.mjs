@@ -587,7 +587,7 @@ function startAutomationBackend(config) {
         // Local API key for self-hosted auth (no cloud API needed)
         AUTOMATION_LOCAL_API_KEY: config.localApiKey,
         // CORS: allow localhost origins for dev
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:${config.vitePort},http://127.0.0.1:${config.vitePort}`,
         FILE_STORE: "local",
         LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
         OPENHANDS_SUPPRESS_BANNER: "1",
