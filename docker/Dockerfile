@@ -16,11 +16,12 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Build args ────────────────────────────────────────────────────────────────
-# These defaults are fallbacks for local `docker build` without the CI workflow.
-# CI reads the canonical values from config/defaults.json and passes them as
-# --build-arg overrides, so these only matter for convenience builds.
-ARG AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:1.22.1-python
-ARG AUTOMATION_VERSION=1.0.0a3
+# No hardcoded defaults — values are derived from config/defaults.json.
+# CI passes these via --build-arg; for local builds use:
+#   node scripts/docker-build.mjs          (recommended, reads JSON for you)
+#   docker build --build-arg AGENT_SERVER_IMAGE=... --build-arg AUTOMATION_VERSION=... -f docker/Dockerfile .
+ARG AGENT_SERVER_IMAGE
+ARG AUTOMATION_VERSION
 
 # ── Stage 1: Build frontend ──────────────────────────────────────────────────
 FROM node:24-slim AS frontend-build
