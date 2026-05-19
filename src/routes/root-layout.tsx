@@ -5,6 +5,8 @@ import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
+import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
+import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
@@ -100,49 +102,52 @@ export default function MainApp() {
 
   return (
     <ReactRouterNavigationProvider>
-      <div
-        data-testid="root-layout"
-        className="h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden p-0"
-      >
-        <title>{appTitle}</title>
-        <Sidebar />
+      <SidebarMobileNavProvider>
+        <div
+          data-testid="root-layout"
+          className="h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden p-0"
+        >
+          <title>{appTitle}</title>
+          <Sidebar />
 
-        <div className="flex flex-col w-full min-w-0 h-[calc(100%-50px)] md:h-full gap-3">
-          {config.data &&
-            (config.data.maintenance_start_time ||
-              (config.data.faulty_models &&
-                config.data.faulty_models.length > 0) ||
-              config.data.error_message) && (
-              <React.Suspense fallback={null}>
-                <AlertBanner
-                  maintenanceStartTime={config.data.maintenance_start_time}
-                  faultyModels={config.data.faulty_models}
-                  errorMessage={config.data.error_message}
-                  updatedAt={config.data.updated_at}
-                />
-              </React.Suspense>
-            )}
-          <div
-            id="root-outlet"
-            className="flex-1 relative overflow-auto custom-scrollbar"
-          >
-            <Outlet />
+          <div className="flex min-h-0 flex-col w-full min-w-0 h-full gap-3">
+            <SidebarMobileMenuBar />
+            {config.data &&
+              (config.data.maintenance_start_time ||
+                (config.data.faulty_models &&
+                  config.data.faulty_models.length > 0) ||
+                config.data.error_message) && (
+                <React.Suspense fallback={null}>
+                  <AlertBanner
+                    maintenanceStartTime={config.data.maintenance_start_time}
+                    faultyModels={config.data.faulty_models}
+                    errorMessage={config.data.error_message}
+                    updatedAt={config.data.updated_at}
+                  />
+                </React.Suspense>
+              )}
+            <div
+              id="root-outlet"
+              className="flex-1 relative overflow-auto custom-scrollbar"
+            >
+              <Outlet />
+            </div>
           </div>
-        </div>
 
-        {consentFormIsOpen && (
-          <React.Suspense fallback={null}>
-            <AnalyticsConsentFormModal
-              onClose={() => {
-                setConsentFormIsOpen(false);
-              }}
-            />
-          </React.Suspense>
-        )}
-      </div>
-      <React.Suspense fallback={null}>
-        <EnvironmentSwitchOverlay />
-      </React.Suspense>
+          {consentFormIsOpen && (
+            <React.Suspense fallback={null}>
+              <AnalyticsConsentFormModal
+                onClose={() => {
+                  setConsentFormIsOpen(false);
+                }}
+              />
+            </React.Suspense>
+          )}
+        </div>
+        <React.Suspense fallback={null}>
+          <EnvironmentSwitchOverlay />
+        </React.Suspense>
+      </SidebarMobileNavProvider>
     </ReactRouterNavigationProvider>
   );
 }

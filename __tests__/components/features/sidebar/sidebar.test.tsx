@@ -1,7 +1,9 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
+import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
+import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
 import {
   NavigationProvider,
   type NavigationContextValue,
@@ -175,6 +177,18 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
   useSettingsNavItems: () => [],
 }));
 
+function getDesktopSidebar(collapsed?: boolean): HTMLElement {
+  const selector =
+    collapsed === undefined
+      ? "aside[data-collapsed]"
+      : `aside[data-collapsed="${collapsed ? "true" : "false"}"]`;
+  const sidebar = document.querySelector(selector);
+  if (!(sidebar instanceof HTMLElement)) {
+    throw new Error(`Desktop sidebar not found: ${selector}`);
+  }
+  return sidebar;
+}
+
 function renderSidebar(currentPath: string) {
   const navigate = vi.fn();
   const value: NavigationContextValue = {
@@ -187,7 +201,10 @@ function renderSidebar(currentPath: string) {
   const rendered = render(
     <QueryClientProvider client={new QueryClient()}>
       <NavigationProvider value={value}>
-        <Sidebar />
+        <SidebarMobileNavProvider>
+          <Sidebar />
+          <SidebarMobileMenuBar />
+        </SidebarMobileNavProvider>
       </NavigationProvider>
     </QueryClientProvider>,
   );
@@ -204,22 +221,37 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
+  it("opens and closes the mobile navigation drawer from the menu button", () => {
+    renderSidebar("/conversations");
+
+    expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("sidebar-mobile-menu-toggle"));
+    const drawer = screen.getByTestId("sidebar-mobile-drawer");
+    expect(drawer).toBeInTheDocument();
+    expect(
+      within(drawer).getByTestId("sidebar-conversation-list"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(drawer).getByTestId("sidebar-mobile-drawer-close"));
+    expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+  });
+
   it("toggles between expanded and collapsed states and persists the choice", () => {
     const { unmount } = renderSidebar("/conversations");
 
-    const sidebar = screen.getByRole("navigation").parentElement;
-    expect(sidebar?.dataset.collapsed).toBe("false");
+    const sidebar = getDesktopSidebar(false);
+    expect(sidebar.dataset.collapsed).toBe("false");
 
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     fireEvent.click(toggle);
 
-    expect(sidebar?.dataset.collapsed).toBe("true");
+    expect(sidebar.dataset.collapsed).toBe("true");
 
     // The choice survives a remount via localStorage.
     unmount();
     renderSidebar("/conversations");
-    const remountedSidebar = screen.getByRole("navigation").parentElement;
-    expect(remountedSidebar?.dataset.collapsed).toBe("true");
+    expect(getDesktopSidebar(true).dataset.collapsed).toBe("true");
   });
 
   it("expands the sidebar when the toggle is clicked from the collapsed state", () => {
@@ -231,20 +263,15 @@ describe("Sidebar", () => {
     fireEvent.click(screen.getByTestId("sidebar-collapse-toggle"));
 
     // Assert: state flips back to expanded.
-    const sidebar = screen.getByRole("navigation").parentElement;
-    expect(sidebar?.dataset.collapsed).toBe("false");
+    expect(getDesktopSidebar(false).dataset.collapsed).toBe("false");
   });
 
   it("expands the sidebar when collapsed rail empty space is clicked", () => {
     window.localStorage.setItem("openhands-sidebar-collapsed", "true");
     renderSidebar("/conversations");
 
-    const sidebar = screen.getByRole("navigation").parentElement;
-    expect(sidebar?.dataset.collapsed).toBe("true");
-
-    if (!sidebar) {
-      throw new Error("Sidebar root not found");
-    }
+    const sidebar = getDesktopSidebar(true);
+    expect(sidebar.dataset.collapsed).toBe("true");
 
     fireEvent.click(sidebar);
     expect(sidebar.dataset.collapsed).toBe("false");
@@ -288,8 +315,7 @@ describe("Sidebar", () => {
     window.localStorage.setItem("openhands-sidebar-collapsed", "true");
     renderSidebar("/conversations");
 
-    const sidebar = screen.getByRole("navigation").parentElement;
-    if (!sidebar) throw new Error("Sidebar not found");
+    const sidebar = getDesktopSidebar(true);
     expect(sidebar.dataset.collapsed).toBe("true");
 
     const trigger = screen.getByTestId("collapsed-backend-selector-link");

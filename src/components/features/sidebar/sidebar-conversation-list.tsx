@@ -19,7 +19,7 @@ export function SidebarConversationList() {
   }
 
   return (
-    <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Avoid overflow-hidden here: ConversationPanel's header uses `-ml-2` +
           `w-[calc(100%+0.5rem)]` to full-bleed the divider with `md:pr-0` on
           the aside; clipping would inset the border. Scroll stays on the inner
