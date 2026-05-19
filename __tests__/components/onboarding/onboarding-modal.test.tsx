@@ -263,6 +263,8 @@ describe("OnboardingModal", () => {
       ),
     ).toBeInTheDocument();
 
+    expect(recommendations.closest("form")).toBeNull();
+
     await user.click(
       within(recommendations).getByRole("button", {
         name: "launch recommended automation",
