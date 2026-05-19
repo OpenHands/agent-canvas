@@ -30,6 +30,39 @@ function getRequiredEntries(automation: RecommendedAutomation) {
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
+/**
+ * Augment the catalog prompt with explicit API instructions so the agent
+ * calls the correct automation endpoint instead of guessing (e.g. calling
+ * the cloud API when running locally, or vice-versa).
+ */
+export function buildAutomationPrompt(
+  basePrompt: string,
+  backendKind: "local" | "cloud",
+): string {
+  if (backendKind === "cloud") {
+    return [
+      basePrompt,
+      "",
+      "---",
+      "**Which API to use:** Create this automation using the OpenHands Cloud Automations API.",
+      "- Endpoint: `POST https://app.all-hands.dev/api/automation/v1/preset/prompt`",
+      "- Auth: `Authorization: Bearer $OPENHANDS_API_KEY`",
+    ].join("\n");
+  }
+
+  // Local backend — the automation sidecar URL is in <RUNTIME_SERVICES>.
+  return [
+    basePrompt,
+    "",
+    "---",
+    "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
+    "- Use the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
+    "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
+    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
+    "- Do **not** call the OpenHands Cloud API at `app.all-hands.dev` — use only the local automation backend.",
+  ].join("\n");
+}
+
 export function RecommendedAutomationsLauncher({
   query,
   onLaunched,
@@ -56,21 +89,32 @@ export function RecommendedAutomationsLauncher({
     (automation: RecommendedAutomation) => {
       if (createConversation.isPending) return;
 
+      const prompt = buildAutomationPrompt(
+        automation.prompt,
+        activeBackend.backend.kind,
+      );
+
       createConversation.mutate(
         {},
         {
           onSuccess: (conversation) => {
             setConversationState(conversation.conversation_id, {
-              draftMessage: automation.prompt,
+              draftMessage: prompt,
             });
             onLaunched?.();
             navigate?.(`/conversations/${conversation.conversation_id}`);
-            window.setTimeout(() => setMessageToSend(automation.prompt), 0);
+            window.setTimeout(() => setMessageToSend(prompt), 0);
           },
         },
       );
     },
-    [createConversation, navigate, onLaunched, setMessageToSend],
+    [
+      activeBackend.backend.kind,
+      createConversation,
+      navigate,
+      onLaunched,
+      setMessageToSend,
+    ],
   );
 
   const getMissingEntries = useCallback(
