@@ -9,6 +9,14 @@ export interface StyledTooltipProps {
   placement?: TooltipProps["placement"];
   showArrow?: boolean;
   closeDelay?: number;
+  offset?: number;
+}
+
+function getTooltipTriggerChild(children: ReactNode) {
+  if (React.Children.count(children) === 1 && React.isValidElement(children)) {
+    return children;
+  }
+  return <span className="inline-flex">{children}</span>;
 }
 
 export function StyledTooltip({
@@ -18,6 +26,7 @@ export function StyledTooltip({
   placement = "right",
   showArrow = false,
   closeDelay = 100,
+  offset = 7,
 }: StyledTooltipProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -26,11 +35,18 @@ export function StyledTooltip({
       content={content}
       closeDelay={closeDelay}
       placement={placement}
-      className={cn("bg-white text-black", tooltipClassName)}
+      offset={offset}
       showArrow={showArrow}
       disableAnimation={disableAnimation}
+      classNames={{
+        content: cn(
+          "z-[9999] rounded-md px-2 py-1 text-xs font-medium shadow-md",
+          "!bg-white !text-black",
+          tooltipClassName,
+        ),
+      }}
     >
-      <div className="inline-flex">{children}</div>
+      {getTooltipTriggerChild(children)}
     </Tooltip>
   );
 }

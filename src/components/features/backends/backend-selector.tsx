@@ -22,6 +22,7 @@ import {
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
@@ -165,6 +166,13 @@ export function BackendSelector({
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
+  const isRightPanelShown = useConversationStore(
+    (state) => state.isRightPanelShown,
+  );
+  // When the conversation drawer is open it sits beside the sidebar; show the
+  // tooltip above the settings control so it isn't hidden under the drawer.
+  const settingsTooltipPlacement =
+    conversationMatch && isRightPanelShown ? "top" : "left";
 
   const someCloudLoading = Object.values(cloudOrgs).some((c) => c.isLoading);
 
@@ -311,7 +319,11 @@ export function BackendSelector({
           />
         </div>
         {!hideTrigger ? (
-          <StyledTooltip content={settingsLabel} placement="top">
+          <StyledTooltip
+            content={settingsLabel}
+            placement={settingsTooltipPlacement}
+            offset={10}
+          >
             <button
               type="button"
               data-testid="backend-selector-settings-link"
