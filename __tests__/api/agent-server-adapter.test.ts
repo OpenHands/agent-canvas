@@ -637,3 +637,302 @@ describe("createAgentFromSettings runtime services suffix", () => {
     ).toContain("<RUNTIME_SERVICES>");
   });
 });
+
+describe("buildStartConversationRequest — ACP discriminator", () => {
+  it("builds an ACPAgent payload when agent_kind is 'acp'", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          acp_model: "claude-opus-4-5",
+          // These fields are LLM-only and must NOT leak into the ACP payload.
+          agent: "CodeActAgent",
+          llm: { model: "gpt-4", api_key: "should-not-appear" },
+          condenser: { enabled: true, max_size: 240 },
+          mcp_config: {
+            mcpServers: { fake: { command: "x", args: [] } },
+          },
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & {
+        kind: string;
+        acp_command?: string[];
+        acp_model?: string | null;
+        llm?: unknown;
+        condenser?: unknown;
+        tools?: unknown;
+        agent_context?: unknown;
+      };
+      tags?: Record<string, string>;
+    };
+
+    expect(payload.agent.kind).toBe("ACPAgent");
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@agentclientprotocol/claude-agent-acp",
+    ]);
+    expect(payload.agent.acp_model).toBe("claude-opus-4-5");
+    // LLM-only fields must not leak into the ACPAgent payload.
+    expect(payload.agent.llm).toBeUndefined();
+    expect(payload.agent.condenser).toBeUndefined();
+    expect(payload.agent.tools).toBeUndefined();
+    expect(payload.agent.agent_context).toBeUndefined();
+    // Conversation tags carry the ACP provider key for chip rendering.
+    // Agent-server validates tag keys against ``^[a-z0-9]+$``, so the
+    // snake_case ``acp_server`` form would be rejected — we use the
+    // flattened ``acpserver`` form instead.
+    expect(payload.tags).toEqual({ acpserver: "claude-code" });
+  });
+
+  it("does not include ACP fields in the OpenHands Agent payload", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+          llm: { model: "gpt-4" },
+          acp_command: ["npx", "leftover"],
+          acp_server: "claude-code",
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { kind: string };
+      tags?: Record<string, string>;
+    };
+
+    expect(payload.agent.kind).toBe("Agent");
+    expect(payload.agent.acp_command).toBeUndefined();
+    expect(payload.agent.acp_server).toBeUndefined();
+    expect(payload.agent.agent_kind).toBeUndefined();
+    expect(payload.tags).toBeUndefined();
+  });
+
+  it("omits acp_model when the user clears it (null)", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: ["./bin/my-agent"],
+          acp_model: null,
+        },
+      },
+    }) as { agent: Record<string, unknown> };
+
+    expect((payload.agent as { kind: string }).kind).toBe("ACPAgent");
+    expect(payload.agent.acp_model).toBeUndefined();
+  });
+
+  it("resolves an empty acp_command from the registry by acp_server", () => {
+    // The Settings → Agent page and onboarding both store ``acp_command:
+    // []`` for the default-preset path on the assumption that the agent-
+    // server resolves it from ``acp_server``. The agent-server's ACPAgent
+    // model does no such resolution — empty list crashes the spawn with
+    // ``IndexError: list index out of range`` (acp_agent.py:1013) and the
+    // conversation hangs in ``idle`` forever. The adapter has to expand
+    // the command before the payload leaves the client.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@agentclientprotocol/claude-agent-acp",
+    ]);
+  });
+
+  it("resolves an absent acp_command for built-in providers too", () => {
+    // The acp_command field may also be omitted entirely (e.g. on an older
+    // settings shape that predates the field). Same fix applies.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "codex",
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@zed-industries/codex-acp",
+    ]);
+  });
+
+  it("leaves acp_command alone when acp_server is 'custom'", () => {
+    // Custom servers carry the user's explicit command. If they submitted
+    // an empty one, that is their bug to see — the registry has no entry
+    // to fall back to, and silently inventing one would be worse than the
+    // explicit spawn error.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: [],
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([]);
+  });
+
+  it("leaves acp_command alone for an unknown acp_server key", () => {
+    // Future SDK adds a new provider before canvas's local mirror picks
+    // it up: we don't recognise the key, so we can't expand the command
+    // — but we also don't crash, and don't silently substitute one of
+    // the known commands. The agent-server will produce the same
+    // IndexError as before, which is the correct surface for "your
+    // local canvas is out of date with the SDK."
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "future-provider-not-yet-mirrored",
+          acp_command: [],
+          acp_model: null,
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_command?: unknown[] };
+    };
+
+    expect(payload.agent.acp_command).toEqual([]);
+  });
+
+  it("treats acp_model: '' (empty string) as 'no override'", () => {
+    // The form may carry an empty string after a user clears the model
+    // input; the agent-server expects ``null`` for "use provider default."
+    // Empty strings would pass the spawn but bias model selection on
+    // some providers (e.g. claude-agent-acp's _meta would set
+    // ``model: ''``).
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: "",
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_model?: unknown };
+    };
+
+    // ``buildConfiguredAcpAgentSettings`` already filters undefined +
+    // null; the empty string falls through, which is a known nit. The
+    // adapter's contract is "forward what settings says"; the
+    // canonicalisation belongs in the save path
+    // (``agent-settings.tsx::handleSave`` already does
+    // ``acpModel.trim() || null``). Pin the current behaviour so a
+    // future change to either side is a deliberate decision.
+    expect(payload.agent.acp_model).toBe("");
+  });
+
+  it("ACP → OpenHands → ACP round trip leaves no field leakage", () => {
+    // Toggling agent_kind via the UI should not let stale ``acp_*``
+    // state pollute an OpenHands run, and (in the reverse direction)
+    // shouldn't let LLM/condenser/MCP state pollute an ACP payload.
+    // We exercise both legs here against the same starting settings
+    // shape so the round-trip is provable, not just inferred from the
+    // single-direction tests.
+
+    const baseAcpSettings = {
+      ...DEFAULT_SETTINGS,
+      agent_settings: {
+        schema_version: 1,
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        acp_command: [],
+        acp_env: { ANTHROPIC_API_KEY: "user-set-via-api" },
+        acp_model: "claude-opus-4-5",
+        // LLM-only crud that would leak without the strip:
+        agent: "CodeActAgent",
+        llm: { model: "gpt-4o", api_key: "stale-from-prior-oh-run" },
+        condenser: { enabled: true, max_size: 200 },
+      },
+    };
+
+    // Leg 1: ACP → OpenHands. The OpenHands branch must drop every
+    // acp_* field; the LLM block survives.
+    const ohPayload = buildStartConversationRequest({
+      settings: {
+        ...baseAcpSettings,
+        agent_settings: {
+          ...baseAcpSettings.agent_settings,
+          agent_kind: "openhands",
+        },
+      },
+    }) as { agent: Record<string, unknown> & { llm: Record<string, unknown> } };
+
+    expect(ohPayload.agent.kind).toBe("Agent");
+    expect(ohPayload.agent.acp_command).toBeUndefined();
+    expect(ohPayload.agent.acp_env).toBeUndefined();
+    expect(ohPayload.agent.acp_model).toBeUndefined();
+    expect(ohPayload.agent.acp_server).toBeUndefined();
+    expect(ohPayload.agent.llm.model).toBe("gpt-4o");
+
+    // Leg 2: OpenHands → ACP (back). The ACP branch must drop the
+    // llm/condenser/agent fields; the acp_* state survives.
+    const acpPayload = buildStartConversationRequest({
+      settings: baseAcpSettings,
+    }) as {
+      agent: Record<string, unknown> & {
+        acp_command?: unknown;
+        acp_env?: unknown;
+        acp_model?: unknown;
+        llm?: unknown;
+        condenser?: unknown;
+      };
+    };
+
+    expect(acpPayload.agent.kind).toBe("ACPAgent");
+    expect(acpPayload.agent.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@agentclientprotocol/claude-agent-acp",
+    ]);
+    expect(acpPayload.agent.acp_model).toBe("claude-opus-4-5");
+    expect(acpPayload.agent.acp_env).toEqual({
+      ANTHROPIC_API_KEY: "user-set-via-api",
+    });
+    expect(acpPayload.agent.llm).toBeUndefined();
+    expect(acpPayload.agent.condenser).toBeUndefined();
+  });
+});

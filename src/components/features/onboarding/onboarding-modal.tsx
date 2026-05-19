@@ -82,14 +82,39 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
+  // The LLM-setup step (index 2) is OpenHands-specific: ACP agents drive
+  // their own LLM via the subprocess and authenticate through the Secrets
+  // panel, so there's nothing to configure in that form for them. Skip
+  // over it in both directions when the user has picked an ACP agent,
+  // keeping the rest of the flow intact (back from SayHello on the ACP
+  // path returns to ChooseAgent, not to a dead-end LLM page).
+  const skipLlmStep = selectedAgentId !== "openhands";
   const goNext = React.useCallback(
-    () => setCurrentStep((step) => (step >= TOTAL_STEPS - 1 ? step : step + 1)),
-    [],
+    () =>
+      setCurrentStep((step) => {
+        const delta = skipLlmStep && step === 1 ? 2 : 1;
+        return Math.min(step + delta, TOTAL_STEPS - 1);
+      }),
+    [skipLlmStep],
   );
   const goBack = React.useCallback(
-    () => setCurrentStep((step) => (step <= 0 ? 0 : step - 1)),
-    [],
+    () =>
+      setCurrentStep((step) => {
+        const delta = skipLlmStep && step === 3 ? 2 : 1;
+        return Math.max(step - delta, 0);
+      }),
+    [skipLlmStep],
   );
+
+  // The progress bar should show the user's actual visited-step count,
+  // not the underlying index. On the ACP path the LLM-setup slide is
+  // skipped, so:
+  //   * the bar renders 3 segments instead of 4, and
+  //   * the SayHello slide (modal index 3) maps to logical step 2 so
+  //     segment 2 doesn't pop "completed" on a slide the user never saw.
+  const progressTotal = skipLlmStep ? TOTAL_STEPS - 1 : TOTAL_STEPS;
+  const progressStep =
+    skipLlmStep && currentStep > 1 ? currentStep - 1 : currentStep;
 
   return (
     <ModalBackdrop
@@ -108,8 +133,8 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         >
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
             <OnboardingProgressBar
-              currentStep={currentStep}
-              totalSteps={TOTAL_STEPS}
+              currentStep={progressStep}
+              totalSteps={progressTotal}
             />
           </header>
 

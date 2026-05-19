@@ -328,6 +328,12 @@ function startAgentServerDocker(config) {
     const optionalMounts = [
       [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
       [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
+      // Recent Claude Code CLI versions persist auth + workspace state in
+      // ``~/.claude.json`` next to (not inside) the ``~/.claude/`` directory.
+      // Without this single-file mount, an ACPAgent spawned via
+      // ``npx -y @zed-industries/claude-code-acp`` can't see the user's
+      // existing CLI login and prompts for re-auth inside the sandbox.
+      [join(home, ".claude.json"), `${CONTAINER_HOME_DIR}/.claude.json`],
       [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
       [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
     ];
