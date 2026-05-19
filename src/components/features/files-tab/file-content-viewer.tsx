@@ -130,16 +130,17 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   // Text-like content.
   if (mimeType === "text/html" || HTML_LIKE_EXTS.has(getExtension(path))) {
-    // Sandbox the preview iframe. The absence of `allow-scripts` means any
-    // `<script>` (or `onerror=…`, inline event handler, …) inside the
-    // previewed file is inert. This is exactly the safe-preview posture we
-    // want — users can look at their HTML without it executing in the
-    // canvas's context.
+    // Render via `srcDoc` (not a blob: `src`) so inline `<style>`/`<script>`
+    // and absolute-URL assets behave the way they do when the file is opened
+    // directly in a browser. `sandbox="allow-scripts"` lets the page's own
+    // JS run but — crucially — without `allow-same-origin` the iframe gets
+    // an opaque origin, so its scripts cannot touch the canvas's cookies,
+    // storage, or parent DOM.
     return (
       <iframe
         title={path}
-        src={staticUrl}
-        sandbox="allow-same-origin"
+        srcDoc={text ?? ""}
+        sandbox="allow-scripts"
         data-testid="file-content-viewer-iframe"
         className="h-full w-full bg-white"
       />

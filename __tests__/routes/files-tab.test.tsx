@@ -367,7 +367,7 @@ describe("FilesTab", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the browser preview URL as the iframe src for HTML files", async () => {
+  it("renders HTML files via srcDoc with a script-only sandbox", async () => {
     useHasAttachedSourceMock.mockReturnValue({
       hasAttachedSource: false,
       isLoading: false,
@@ -376,13 +376,13 @@ describe("FilesTab", () => {
       data: ["index.html"],
       isLoading: false,
     });
-    const staticUrl = "blob:preview-url";
+    const html = "<!doctype html><body>hi</body>";
     useWorkspaceFileContentMock.mockReturnValue({
       data: {
         path: "index.html",
         kind: "text",
-        text: "<!doctype html><body>hi</body>",
-        staticUrl,
+        text: html,
+        staticUrl: "blob:preview-url",
         mimeType: "text/html",
       },
       isLoading: false,
@@ -393,15 +393,15 @@ describe("FilesTab", () => {
 
     const iframe = await screen.findByTestId("file-content-viewer-iframe");
     expect(iframe).toBeInTheDocument();
-    // The iframe src uses the hook-provided browser preview URL directly;
-    // mutation freshness is handled by the hook's query key, not by mutating
-    // Blob URLs with cache-buster query params.
-    expect(iframe).toHaveAttribute("src", staticUrl);
-    // The iframe is sandboxed with `allow-same-origin` only: `<script>` /
-    // inline event handlers inside the previewed file are inert. We deliberately
-    // do NOT add `allow-scripts` — a workspace HTML file's scripts must not run
-    // in the canvas's context.
-    expect(iframe).toHaveAttribute("sandbox", "allow-same-origin");
+    // We use `srcDoc` rather than the blob: `staticUrl` so inline
+    // <style>/<script> and absolute-URL assets resolve the same way they do
+    // when the file is opened directly in a browser.
+    expect(iframe).toHaveAttribute("srcdoc", html);
+    expect(iframe).not.toHaveAttribute("src");
+    // `allow-scripts` without `allow-same-origin` gives the iframe an opaque
+    // origin: the page's JS runs, but it cannot reach the canvas's cookies,
+    // storage, or parent DOM.
+    expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
   });
 
   it("switches between rich and plain content modes", async () => {
