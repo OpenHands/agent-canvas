@@ -6,7 +6,6 @@ import {
   Plus,
   Server,
   Settings,
-  X,
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
@@ -150,7 +149,7 @@ export function SidebarRailBody({
                   "transition-colors cursor-pointer",
                 )}
               >
-                <X width={18} height={18} />
+                <ChevronLeft width={18} height={18} />
               </button>
             ) : null}
           </>

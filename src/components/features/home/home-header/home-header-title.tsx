@@ -5,8 +5,8 @@ export function HomeHeaderTitle() {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="flex h-[80px] w-full items-center justify-center">
-      <Typography.H1 className="w-full text-center">
+    <div className="flex min-h-[80px] w-full items-center justify-center py-2">
+      <Typography.H1 className="w-full text-center leading-normal">
         {t("HOME$LETS_START_BUILDING")}
       </Typography.H1>
     </div>

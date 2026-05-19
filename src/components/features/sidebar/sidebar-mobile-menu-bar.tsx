@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -27,7 +27,7 @@ export function SidebarMobileMenuBar() {
           "hover:bg-[var(--oh-surface-raised)] hover:text-white",
         )}
       >
-        <ChevronLeft width={18} height={18} aria-hidden />
+        <PanelLeft width={18} height={18} aria-hidden />
       </button>
     </header>
   );
