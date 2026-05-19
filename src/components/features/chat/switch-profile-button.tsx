@@ -28,6 +28,14 @@ export function SwitchProfileButton() {
 
   const profiles = data?.profiles ?? [];
   const conversationModel = conversation?.llm_model ?? null;
+  // ACPAgent conversations route prompts to a CLI subprocess whose model is
+  // controlled by ``acp_model`` (set in Settings → Agent), not by the LLM
+  // profile picker. Surfacing the switcher here would let the user "change
+  // the model" while the running subprocess silently keeps its own — a
+  // confusing no-op. Hide the button instead. ``toAppConversation`` also
+  // nulls ``llm_model`` on this boundary so any other consumer that reads
+  // the model directly sees "no model" rather than a misleading value.
+  const isAcpConversation = conversation?.agent_kind === "acp";
 
   // Resolution priority for the active profile name:
   //   1. Optimistic (just-clicked) — instant feedback before the refetch.
@@ -44,7 +52,7 @@ export function SwitchProfileButton() {
     conversationModel ??
     null;
 
-  if (profiles.length === 0) {
+  if (profiles.length === 0 || isAcpConversation) {
     return null;
   }
 

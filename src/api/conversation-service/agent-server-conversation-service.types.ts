@@ -122,6 +122,15 @@ export interface AppConversation {
   title: string | null;
   trigger: ConversationTrigger | null;
   pr_number: number[];
+  /**
+   * High-level kind of the conversation's agent — ``"openhands"`` for an LLM-
+   * driven Agent, ``"acp"`` for an ACPAgent that delegates to an external
+   * ACP CLI subprocess. Consumers can use this to gate UI affordances that
+   * only make sense for one kind (e.g. the LLM-profile switcher in the chat
+   * header is a no-op for ACP conversations because model selection lives
+   * on the subprocess via ``acp_model``, not on ``llm_model``).
+   */
+  agent_kind?: "openhands" | "acp" | null;
   llm_model: string | null;
   metrics: MetricsSnapshot | null;
   created_at: string;

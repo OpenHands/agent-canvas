@@ -24,11 +24,15 @@ vi.mock("#/hooks/use-conversation-id", () => ({
   useOptionalConversationId: () => useOptionalConversationIdMock(),
 }));
 
-// eslint-disable-next-line import/first
 import { SwitchProfileButton } from "#/components/features/chat/switch-profile-button";
 
 const profiles = [
-  { name: "haiku", model: "anthropic/claude-haiku", base_url: null, api_key_set: true },
+  {
+    name: "haiku",
+    model: "anthropic/claude-haiku",
+    base_url: null,
+    api_key_set: true,
+  },
   { name: "gpt", model: "openai/gpt-4o", base_url: null, api_key_set: true },
 ];
 
@@ -110,5 +114,26 @@ describe("SwitchProfileButton", () => {
     renderWithProviders(<SwitchProfileButton />);
 
     expect(screen.getByTestId("switch-profile-button")).toBeDisabled();
+  });
+
+  it("renders nothing for ACP conversations even when profiles exist", () => {
+    // ACPAgent conversations route prompts to a CLI subprocess whose model is
+    // set via ``acp_model`` in Settings → Agent, not by the LLM-profile
+    // picker. Letting the user "switch the LLM" here would silently no-op
+    // against the running subprocess — confusing UX. The button hides; the
+    // user's path is the ACP model field on the agent settings page.
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        id: "conv-1",
+        agent_kind: "acp",
+        llm_model: null,
+      },
+    });
+
+    renderWithProviders(<SwitchProfileButton />);
+
+    expect(
+      screen.queryByTestId("switch-profile-button"),
+    ).not.toBeInTheDocument();
   });
 });

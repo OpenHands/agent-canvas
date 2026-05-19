@@ -38,6 +38,16 @@ export interface DirectConversationInfo {
     } | null;
   } | null;
   agent?: {
+    /**
+     * Pydantic discriminator from the SDK union. ``"ACPAgent"`` means the
+     * conversation runs an ACP CLI subprocess (model selection lives on
+     * the subprocess via ``acp_model``, not on ``agent.llm``); ``"Agent"``
+     * means the conversation drives an LLM directly through litellm.
+     * Used by ``toAppConversation`` to null out ``llm_model`` for ACP
+     * conversations so the chat UI doesn't expose LLM-switch affordances
+     * that would silently no-op against the running ACP subprocess.
+     */
+    kind?: string | null;
     llm?: {
       model?: string | null;
     } | null;
@@ -227,6 +237,15 @@ export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
   const metadata = getStoredConversationMetadata(info.id);
+  // ACPAgent conversations carry a dummy ``llm`` on the SDK side (the real
+  // model lives on the ACP subprocess via ``acp_model``), so surfacing
+  // ``agent.llm.model`` as the conversation's "active LLM" would lie to
+  // every consumer downstream — most visibly the chat header's
+  // SwitchProfileButton, which would otherwise let the user switch
+  // profiles on a Claude-Code conversation while the running subprocess
+  // keeps its own model. Null at the boundary so no consumer has to
+  // re-derive the rule. Mirrors OpenHands PR #14401.
+  const isAcp = info.agent?.kind === "ACPAgent";
   return {
     id: info.id,
     created_by_user_id: null,
@@ -239,7 +258,10 @@ export function toAppConversation(
       : getDefaultConversationTitle(info.id),
     trigger: null,
     pr_number: [],
-    llm_model: info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model,
+    agent_kind: isAcp ? "acp" : "openhands",
+    llm_model: isAcp
+      ? null
+      : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
     metrics: info.metrics
       ? {
           accumulated_cost: info.metrics.accumulated_cost ?? null,

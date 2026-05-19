@@ -449,6 +449,30 @@ describe("toAppConversation", () => {
       removeStoredConversationMetadata(baseInfo.id);
     }
   });
+
+  it("marks openhands conversations and surfaces the agent.llm.model", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "Agent", llm: { model: "claude-sonnet-4-6" } },
+    });
+    expect(result.agent_kind).toBe("openhands");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("marks ACP conversations and nulls llm_model so the chat UI can't mislead", () => {
+    // The SDK's ACPAgent carries a sentinel ``llm`` (``acp-managed``) for
+    // cost-attribution only; the *real* model lives on the ACP subprocess via
+    // ``acp_model`` and isn't surfaced on ``agent.llm.model``. Surfacing the
+    // sentinel as ``llm_model`` would let SwitchProfileButton render an
+    // affordance to "change the model" on a Claude-Code conversation while
+    // the running subprocess kept its own — a confusing silent no-op.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBeNull();
+  });
 });
 
 describe("buildRuntimeServicesSystemSuffix", () => {
