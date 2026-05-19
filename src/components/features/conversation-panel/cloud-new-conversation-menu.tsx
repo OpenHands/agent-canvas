@@ -275,7 +275,7 @@ export function CloudNewConversationMenu({
             </div>
           )}
 
-          <div className="px-2 py-1">
+          <div className="px-2">
             <div className="relative">
               <SearchIcon
                 width={16}
