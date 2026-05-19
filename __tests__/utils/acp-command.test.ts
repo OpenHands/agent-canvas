@@ -88,23 +88,20 @@ describe("parseCommand", () => {
     // Each test pins the actual ``shell-quote`` output. Behaviour
     // changes upstream surface here as failures.
 
-    it("does not env-expand $VAR at parse time", () => {
-      // The forbidden outcome would be ``shell-quote`` reading
-      // ``process.env.ANTHROPIC_API_KEY`` and inlining its value
-      // into the persisted ``acp_command`` — that would leak a
-      // host env var into settings on every save. Actual behaviour:
-      // the var ref becomes an empty string (when unset) or the
-      // referenced value (when set) IF the parser had env access;
-      // ``shell-quote`` is given no env, so it consistently yields
-      // empty string. Either way, NO literal ``$ANTHROPIC_API_KEY``
-      // is preserved in the argv — which is fine for our use, since
-      // we want users to set ``acp_env`` for env vars rather than
-      // inlining them.
+    it("does not leak host env values when the user inlines $VAR refs", () => {
+      // ``parseCommand`` doesn't pass an env map to ``shell-quote``, so
+      // ``$ANTHROPIC_API_KEY`` resolves to an empty string instead of
+      // the host process's value. That's the behaviour we want to pin:
+      // a user who pastes a tutorial command containing a $VAR ref
+      // shouldn't end up persisting the agent-server's actual
+      // ``$ANTHROPIC_API_KEY`` value into their saved ``acp_command``.
+      // The empty string is harmless (the Save button gates on
+      // non-empty tokens), and users who actually want env vars in the
+      // subprocess should set ``acp_env`` instead of inlining them.
       const result = parseCommand("npx $ANTHROPIC_API_KEY");
       expect(result[0]).toBe("npx");
-      // What we forbid: literal env value showing up here. With no
-      // env supplied to shell-quote, the result is just [""], which
-      // is harmless (Save button gates on non-empty tokens).
+      // No literal ``sk-...`` token survived from a hypothetical host
+      // env. Pins the no-leak contract.
       expect(result.some((t) => /sk-ant-/.test(t))).toBe(false);
     });
 

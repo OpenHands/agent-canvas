@@ -91,13 +91,26 @@ export const ACP_CUSTOM_PRESET_KEY = "custom";
  * sending ``[]``, or adding new ``acp_*`` reset fields) lands in both
  * surfaces atomically.
  *
- * Returns ``null`` for an unknown ACP provider key — the caller can
- * skip the save (the UI shouldn't surface unknown options, but the
- * defensive path keeps a buggy preset list from corrupting settings).
+ * Returns ``null`` for an unknown ACP provider key by default — the
+ * caller can skip the save (the UI shouldn't surface unknown options,
+ * but the defensive path keeps a buggy preset list from corrupting
+ * settings).
+ *
+ * Pass ``allowUnknownServer: true`` to opt into pass-through for keys
+ * that aren't in {@link ACP_PROVIDERS} or ``ACP_CUSTOM_PRESET_KEY``.
+ * The Settings → Agent page uses this when the user opens settings
+ * that already carry an ``acp_server`` value canvas's registry
+ * doesn't know about (e.g. set out-of-band via the API for a provider
+ * we haven't mirrored yet) and saves without changing the command —
+ * otherwise the original key would be silently demoted to ``"custom"``.
  */
 export function buildAcpAgentSettingsDiff(
   providerKey: string,
-  options: { command?: string[]; model?: string | null } = {},
+  options: {
+    command?: string[];
+    model?: string | null;
+    allowUnknownServer?: boolean;
+  } = {},
 ): Record<string, unknown> | null {
   if (providerKey === "openhands") {
     // Switching back to OpenHands. The agent-server's ``Settings.update``
@@ -111,13 +124,16 @@ export function buildAcpAgentSettingsDiff(
   const provider = isCustom
     ? undefined
     : ACP_PROVIDERS.find(({ key }) => key === providerKey);
-  if (!isCustom && !provider) {
+  if (!isCustom && !provider && !options.allowUnknownServer) {
     return null;
   }
 
   // ``acp_args: []`` resets any API-set ``acp_args`` that would
   // otherwise survive and concatenate to ``acp_command`` at spawn time
-  // (the agent-server merges the two before exec).
+  // (the agent-server merges the two before exec). Callers building the
+  // payload from a textarea that already shows the merged command
+  // (Settings → Agent) round-trip correctly — the merged tokens land in
+  // ``acp_command`` here, so no args are lost.
   return {
     agent_kind: "acp",
     acp_server: providerKey,

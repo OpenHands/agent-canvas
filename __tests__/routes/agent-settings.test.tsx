@@ -73,7 +73,9 @@ describe("AgentSettingsScreen", () => {
     const commandInput = (await screen.findByTestId(
       "agent-command-input",
     )) as HTMLTextAreaElement;
-    expect(commandInput.value).toBe("npx -y @agentclientprotocol/claude-agent-acp");
+    expect(commandInput.value).toBe(
+      "npx -y @agentclientprotocol/claude-agent-acp",
+    );
     const modelInput = screen.getByTestId(
       "agent-model-input",
     ) as HTMLInputElement;
@@ -320,5 +322,106 @@ describe("AgentSettingsScreen", () => {
     // ``acp_args: []`` resets the API-set args so they don't double up
     // at spawn time.
     expect(call.agent_settings_diff?.acp_args).toEqual([]);
+  });
+
+  it("preserves an unknown loaded acp_server when the user saves without editing", async () => {
+    // Data-corruption regression: a user with an ``acp_server`` value
+    // canvas's registry doesn't know about (e.g. set via the API for a
+    // future provider that hasn't been mirrored into ``ACP_PROVIDERS``
+    // yet) opens Settings → Agent and clicks Save. Without preservation
+    // the save flow demotes ``acp_server: "amp"`` → ``acp_server:
+    // "custom"`` because ``detectPreset`` returns ``custom`` for any
+    // unknown server. The original key name is silently lost.
+    //
+    // The fix is narrow: when the user hasn't touched the command since
+    // load AND the loaded server is non-empty, non-``"custom"``, and
+    // absent from ``ACP_PROVIDERS``, write the loaded key back verbatim
+    // via the ``allowUnknownServer`` pass-through.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "amp",
+          acp_command: ["npx", "-y", "@some-future/amp-acp"],
+          acp_args: [],
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+    expect(cmd.value).toBe("npx -y @some-future/amp-acp");
+
+    // Touch + revert the textarea to flip isDirty without changing
+    // the persisted command text — matches "user opens settings and
+    // hits Save without intending to change anything."
+    await user.click(cmd);
+    await user.keyboard("{End} ");
+    await user.keyboard("{Backspace}");
+
+    await user.click(screen.getByTestId("agent-save-button"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_server).toBe("amp");
+    expect(call.agent_settings_diff?.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@some-future/amp-acp",
+    ]);
+  });
+
+  it("demotes an unknown loaded acp_server to 'custom' when the user edits the command", async () => {
+    // Counterpart to the preserve test: editing the command is a
+    // material change of configuration, so it's correct to drop the
+    // unknown ``amp`` key and fall back to ``"custom"``. The user is
+    // configuring a new command, not preserving the prior one — so
+    // the preset name follows the command.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "amp",
+          acp_command: ["npx", "-y", "@some-future/amp-acp"],
+          acp_args: [],
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    const cmd = (await screen.findByTestId(
+      "agent-command-input",
+    )) as HTMLTextAreaElement;
+
+    // Actually change the command — append a flag so the textarea
+    // differs from the loaded value.
+    await user.click(cmd);
+    await user.keyboard("{End} --new-flag");
+
+    await user.click(screen.getByTestId("agent-save-button"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_server).toBe("custom");
+    expect(call.agent_settings_diff?.acp_command).toEqual([
+      "npx",
+      "-y",
+      "@some-future/amp-acp",
+      "--new-flag",
+    ]);
   });
 });

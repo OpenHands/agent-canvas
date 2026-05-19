@@ -74,6 +74,15 @@ function AgentSettingsScreen() {
   // in-progress edits.
   const lastInitializedSettingsRef = useRef<unknown>(null);
 
+  // Capture the raw ``acp_server`` and the rendered textarea contents at
+  // load time so handleSave can detect "user opened settings and clicked
+  // Save without touching anything" — that case has to preserve an
+  // otherwise-unknown ``acp_server`` value (e.g. a provider the canvas
+  // registry doesn't carry yet, set out-of-band via the API), instead of
+  // demoting it to ``"custom"`` and silently losing the original key.
+  const loadedAcpServerRef = useRef<string | null>(null);
+  const loadedCommandTextRef = useRef<string>("");
+
   useEffect(() => {
     if (!settings) return;
     if (lastInitializedSettingsRef.current === settings) return;
@@ -96,6 +105,11 @@ function AgentSettingsScreen() {
       // would persist ``acp_command: ["--extra-arg"]`` + flip the
       // preset to ``custom`` — silently losing the registry-default
       // prefix. Expand first, then merge.
+      //
+      // The merge is also what makes ``acp_args: []`` safe on save (see
+      // ``handleSave`` below): any API-set ``acp_args`` lands in the
+      // textarea here, so writing the textarea back as ``acp_command``
+      // round-trips the full command without losing the args.
       const rawAcpServer = settings.agent_settings?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
@@ -109,7 +123,11 @@ function AgentSettingsScreen() {
         ...effectiveBaseCommand,
         ...toStringArray(settings.agent_settings?.acp_args),
       ];
-      setCommandText(tokens.length > 0 ? formatCommand(tokens) : "");
+      const renderedCommandText =
+        tokens.length > 0 ? formatCommand(tokens) : "";
+      setCommandText(renderedCommandText);
+      loadedAcpServerRef.current = acpServer ?? null;
+      loadedCommandTextRef.current = renderedCommandText;
 
       const savedModel = settings.agent_settings?.acp_model;
       setAcpModel(typeof savedModel === "string" ? savedModel : "");
@@ -117,6 +135,8 @@ function AgentSettingsScreen() {
       setAgentType("openhands");
       setCommandText("");
       setAcpModel("");
+      loadedAcpServerRef.current = null;
+      loadedCommandTextRef.current = "";
     }
     setIsDirty(false);
   }, [settings]);
@@ -149,16 +169,35 @@ function AgentSettingsScreen() {
     // ``buildConfiguredAcpAgentSettings``). When a preset has been
     // edited or the user picked Custom, we save the literal tokens.
     // Either way, ``acp_args: []`` is reset so API-set args can't
-    // duplicate at spawn time.
+    // duplicate at spawn time — safe because the load path already
+    // merged any ``acp_args`` into the textarea, so the tokens we save
+    // here include them.
     const useDefault = !!(selectedProvider && isDefaultProviderCommand);
-    const providerKey = isAcp
-      ? selectedProvider && isDefaultProviderCommand
-        ? selectedProvider.key
-        : ACP_CUSTOM_PRESET_KEY
-      : "openhands";
+    // Preserve an unknown loaded ``acp_server`` (e.g. a provider the
+    // canvas registry doesn't carry yet, set out-of-band via the API)
+    // when the user opens settings and saves without touching the
+    // command. Without this branch, ``detectPreset`` would route the
+    // unknown key into ``ACP_CUSTOM_PRESET_KEY`` and the original
+    // server name would be silently demoted on save.
+    const loadedServer = loadedAcpServerRef.current;
+    const commandUnchanged = commandText === loadedCommandTextRef.current;
+    const loadedServerIsUnknown =
+      !!loadedServer &&
+      loadedServer !== ACP_CUSTOM_PRESET_KEY &&
+      !ACP_PROVIDERS.some((p) => p.key === loadedServer);
+    const preserveUnknownServer =
+      isAcp && commandUnchanged && loadedServerIsUnknown;
+    const providerKey = !isAcp
+      ? "openhands"
+      : preserveUnknownServer
+        ? (loadedServer as string)
+        : selectedProvider && isDefaultProviderCommand
+          ? selectedProvider.key
+          : ACP_CUSTOM_PRESET_KEY;
     const agentSettingsDiff = buildAcpAgentSettingsDiff(providerKey, {
       command: useDefault ? [] : commandTokens,
       model: acpModel.trim() || null,
+      allowUnknownServer: preserveUnknownServer,
     });
 
     if (!agentSettingsDiff) {

@@ -847,15 +847,16 @@ export function buildStartConversationRequest(
     // agent-server build that includes software-agent-sdk PR #3299
     // (which makes ``ACPAgent`` read ``state.secret_registry`` itself);
     // at that point this block can be deleted with no behaviour change.
+    //
+    // Direct assignment (rather than ``{ ...existingContext, secrets }``)
+    // because ``createAgentFromSettings`` doesn't populate
+    // ``agent_context`` on the ACP branch — there's no existing context
+    // to preserve. The SDK's ACPAgent rejects most ``AgentContext``
+    // fields anyway (only ``secrets`` is ``acp_compatible``), so we
+    // don't want to grow this into a deep-merge of arbitrary keys.
     if (acpMode) {
       const agentRecord = payload.agent as Record<string, unknown>;
-      const existingContext =
-        (agentRecord.agent_context as Record<string, unknown> | undefined) ??
-        {};
-      agentRecord.agent_context = {
-        ...existingContext,
-        secrets,
-      };
+      agentRecord.agent_context = { secrets };
     }
   }
 
