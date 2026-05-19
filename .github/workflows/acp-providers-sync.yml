@@ -1,0 +1,83 @@
+name: ACP Providers Sync
+
+# Catches drift between this repo's hand-mirrored ACP provider registry
+# (src/constants/acp-providers.ts) and the SDK's source of truth at
+# openhands-sdk/openhands/sdk/settings/acp_providers.py in
+# OpenHands/software-agent-sdk. See agent-canvas#587 for the failure mode
+# this exists to prevent.
+
+on:
+  pull_request:
+    paths:
+      - "src/constants/acp-providers.ts"
+      - "scripts/check-acp-providers-sync.mjs"
+      - ".github/workflows/acp-providers-sync.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/constants/acp-providers.ts"
+      - "scripts/check-acp-providers-sync.mjs"
+      - ".github/workflows/acp-providers-sync.yml"
+
+  # SDK repo can trigger us when it changes acp_providers.py:
+  #   curl -X POST \
+  #     -H "Authorization: token $GITHUB_TOKEN" \
+  #     -H "Accept: application/vnd.github.v3+json" \
+  #     https://api.github.com/repos/OpenHands/agent-canvas/dispatches \
+  #     -d '{"event_type":"acp-providers-check","client_payload":{"sdk_ref":"main"}}'
+  repository_dispatch:
+    types: [acp-providers-check, sdk-release]
+
+  workflow_dispatch:
+    inputs:
+      sdk_ref:
+        description: "Git ref in OpenHands/software-agent-sdk to compare against (default: main)"
+        required: false
+        type: string
+
+  # Daily run catches drift introduced by SDK changes that didn't ping us
+  # (the repository_dispatch path requires the SDK side to opt in). 07:13 UTC
+  # is off the hour to avoid contending with the SDK-version-sync cron.
+  schedule:
+    - cron: "13 7 * * *"
+
+concurrency:
+  group: acp-providers-sync-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-acp-providers:
+    name: Check ACP providers registry consistency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Log trigger info
+        run: |
+          echo "Triggered by: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "Event type: ${{ github.event.action }}"
+            echo "Client payload: ${{ toJson(github.event.client_payload) }}"
+          fi
+          if [ -n "${{ inputs.sdk_ref }}" ]; then
+            echo "SDK ref input: ${{ inputs.sdk_ref }}"
+          fi
+
+      - name: Check ACP providers sync
+        env:
+          # workflow_dispatch input wins; otherwise fall back to the
+          # repository_dispatch payload; otherwise the script defaults to "main".
+          ACP_SDK_REF: ${{ inputs.sdk_ref || github.event.client_payload.sdk_ref || '' }}
+        run: node scripts/check-acp-providers-sync.mjs
