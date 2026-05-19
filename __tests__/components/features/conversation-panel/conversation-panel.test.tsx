@@ -1278,7 +1278,8 @@ describe("ConversationPanel", () => {
 
       const deleteAllRow = screen.getByTestId("delete-all-conversations");
       expect(deleteAllRow.querySelector("svg")).toBeInTheDocument();
-      expect(deleteAllRow).toHaveClass("text-danger");
+      expect(deleteAllRow).toHaveClass("text-[var(--oh-foreground)]");
+      expect(deleteAllRow).not.toHaveClass("text-danger");
     });
 
     it("toggles older conversations visibility via the filter dropdown", async () => {

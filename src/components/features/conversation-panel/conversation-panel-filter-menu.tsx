@@ -82,7 +82,6 @@ function MenuRow({
   onClick,
   testId,
   disabled,
-  danger,
 }: {
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
@@ -90,7 +89,6 @@ function MenuRow({
   onClick: () => void;
   testId?: string;
   disabled?: boolean;
-  danger?: boolean;
 }) {
   // Rows that show a selection checkmark are toggleable preferences, so
   // they get `role="menuitemradio"` when they're part of a selectable
@@ -99,7 +97,6 @@ function MenuRow({
   // (every selectable row in this menu is part of a mutually exclusive
   // group in practice) and fall back to plain `menuitem` otherwise.
   const role = selected === undefined ? "menuitem" : "menuitemradio";
-  const isDanger = Boolean(danger && !disabled);
   return (
     <button
       type="button"
@@ -109,16 +106,12 @@ function MenuRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm",
+        "group flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-[var(--oh-foreground)]",
         "hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-50",
-        isDanger ? "text-danger" : "text-[var(--oh-foreground)]",
       )}
     >
       <Icon
-        className={cn(
-          "h-3.5 w-3.5 shrink-0 transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]",
-          isDanger ? "text-danger" : "text-[var(--oh-muted)]",
-        )}
+        className="h-3.5 w-3.5 shrink-0 text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]"
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -382,7 +375,6 @@ export function ConversationPanelFilterMenu({
             testId="delete-all-conversations"
             icon={Trash2}
             label={capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
-            danger
             disabled={totalConversationsCount === 0}
             onClick={() => {
               if (totalConversationsCount === 0) return;

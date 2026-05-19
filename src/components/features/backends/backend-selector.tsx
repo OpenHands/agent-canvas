@@ -21,6 +21,7 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
@@ -163,6 +164,7 @@ export function BackendSelector({
   const activeValue = makeOptionValue(active.backend.id, active.orgId);
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
+  const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
 
   const someCloudLoading = Object.values(cloudOrgs).some((c) => c.isLoading);
 
@@ -309,20 +311,22 @@ export function BackendSelector({
           />
         </div>
         {!hideTrigger ? (
-          <button
-            type="button"
-            data-testid="backend-selector-settings-link"
-            data-active={isSettingsActive}
-            aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
-            onClick={() => navigate("/settings")}
-            className={
-              isSettingsActive
-                ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
-                : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
-            }
-          >
-            <Settings width={16} height={16} />
-          </button>
+          <StyledTooltip content={settingsLabel} placement="top">
+            <button
+              type="button"
+              data-testid="backend-selector-settings-link"
+              data-active={isSettingsActive}
+              aria-label={settingsLabel}
+              onClick={() => navigate("/settings")}
+              className={
+                isSettingsActive
+                  ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
+                  : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
+              }
+            >
+              <Settings width={16} height={16} />
+            </button>
+          </StyledTooltip>
         ) : null}
       </div>
       {addBackendModalOpen ? (
