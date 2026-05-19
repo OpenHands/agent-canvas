@@ -8,7 +8,7 @@ import { InstallServerModal } from "#/components/features/mcp-page/install-serve
 import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+} from "#/constants/mcp-marketplace";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -66,6 +66,7 @@ describe("InstallServerModal", () => {
     expect(sentMcpConfig.mcp_config.mcpServers).toMatchObject({
       slack: {
         command: "npx",
+        args: ["-y", "@zencoderai/slack-mcp-server"],
         env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
       },
     });
@@ -194,8 +195,7 @@ describe("InstallServerModal", () => {
     // Assert: Cancel precedes the dominant Install action in DOM order.
     // eslint-disable-next-line no-bitwise
     expect(
-      cancel.compareDocumentPosition(submit) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 });

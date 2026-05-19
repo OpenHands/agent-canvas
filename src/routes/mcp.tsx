@@ -23,7 +23,7 @@ import {
 import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+} from "#/constants/mcp-marketplace";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {

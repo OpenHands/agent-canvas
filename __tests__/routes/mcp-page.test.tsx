@@ -136,7 +136,7 @@ describe("MCPPage", () => {
           mcpServers: {
             slack: {
               command: "npx",
-              args: ["-y", "@modelcontextprotocol/server-slack"],
+              args: ["-y", "@zencoderai/slack-mcp-server"],
               env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
             },
           },
@@ -212,7 +212,7 @@ describe("MCPPage", () => {
             mcpServers: {
               slack: {
                 command: "npx",
-                args: ["-y", "@modelcontextprotocol/server-slack"],
+                args: ["-y", "@zencoderai/slack-mcp-server"],
                 env: { SLACK_BOT_TOKEN: "xoxb-old", SLACK_TEAM_ID: "T01" },
               },
             },
