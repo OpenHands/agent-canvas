@@ -67,7 +67,7 @@
     "zustand": "5.0.12"
   },
   "scripts": {
-    "dev": "npm run dev:docker",
+    "dev": "npm run dev:automation",
     "dev:dangerously-dockerless": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:dangerously-dockerless:dynamic": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
     "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
@@ -84,6 +84,7 @@
     "test": "npm run make-i18n && vitest run",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:live": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-live-e2e.mjs",
+    "test:e2e:live:onboarding-dual-backend": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-onboarding-dual-backend-e2e.mjs",
     "test:e2e:snapshots": "playwright test tests/e2e/snapshots --project=chromium --retries=0",
     "test:e2e:snapshots:update": "playwright test tests/e2e/snapshots --project=chromium --update-snapshots",
     "test:coverage": "npm run make-i18n && vitest run --coverage",

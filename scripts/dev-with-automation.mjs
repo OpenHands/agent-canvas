@@ -63,6 +63,10 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import {
+  startSetupServer,
+  DEFAULT_PORT as SETUP_SERVER_PORT,
+} from "./setup-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -284,7 +288,8 @@ async function buildConfig(args, env = process.env) {
 
   // Preferred ports (from env or defaults)
   const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const preferredBackendPort = DEFAULT_BACKEND_PORT;
+  const preferredBackendPort =
+    parseInt(env.OH_CANVAS_SAFE_BACKEND_PORT, 10) || DEFAULT_BACKEND_PORT;
   const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
   const preferredVitePort = 3001;
 
@@ -718,6 +723,8 @@ function startIngress(config) {
       "--port",
       config.ingressPort.toString(),
       "--route",
+      `/setup=http://127.0.0.1:${SETUP_SERVER_PORT}`,
+      "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route",
       `/api=http://localhost:${config.agentServerPort}`,
@@ -1071,6 +1078,23 @@ async function main(options = {}) {
   // 6. Start ingress proxy (routes traffic to all backends)
   startIngress(config);
 
+  // 7. Start setup server (lets the frontend manage Docker lifecycle)
+  try {
+    const setupServer = startSetupServer({
+      port: SETUP_SERVER_PORT,
+      sessionApiKey: config.sessionApiKey,
+    });
+    setupServer.on("error", (err) => {
+      logService("setup", `Failed to start: ${err.message}`, c.red);
+    });
+  } catch (err) {
+    logService(
+      "setup",
+      `Failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      c.red,
+    );
+  }
+
   // Wait for ingress to start
   await delay(1000);
 
@@ -1145,6 +1169,7 @@ export {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
   DEFAULT_AUTOMATION_API_KEY_PATH,
+  SETUP_SERVER_PORT,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

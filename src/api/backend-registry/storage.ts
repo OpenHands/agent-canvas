@@ -17,7 +17,8 @@ function isValidBackend(value: unknown): value is Backend {
     typeof v.name === "string" &&
     typeof v.host === "string" &&
     typeof v.apiKey === "string" &&
-    isValidKind(v.kind)
+    isValidKind(v.kind) &&
+    (v.workingDir === undefined || typeof v.workingDir === "string")
   );
 }
 

@@ -18,6 +18,7 @@ import {
   AUTOMATION_HANDLERS,
   resetAutomationMockData,
 } from "./automation-handlers";
+import { SETUP_HANDLERS, resetSetupMockData } from "./setup-handlers";
 
 export const handlers = [
   ...FILE_SERVICE_HANDLERS,
@@ -30,6 +31,7 @@ export const handlers = [
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
   ...AUTOMATION_HANDLERS,
+  ...SETUP_HANDLERS,
 ];
 
 export {
@@ -37,4 +39,5 @@ export {
   resetTestHandlersMockSettings,
   resetAutomationMockData,
   setMockGitChanges,
+  resetSetupMockData,
 };

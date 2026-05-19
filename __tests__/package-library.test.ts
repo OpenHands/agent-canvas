@@ -49,8 +49,11 @@ describe("package library metadata", () => {
     });
   });
 
-  it("uses static frontend launchers for user-facing dev commands", () => {
-    expect(packageJson.scripts.dev).toBe("npm run dev:docker");
+  it("uses the automation stack for the default dev command", () => {
+    expect(packageJson.scripts.dev).toBe("npm run dev:automation");
+    expect(packageJson.scripts["dev:automation"]).toContain(
+      "scripts/dev-with-automation.mjs",
+    );
     expect(packageJson.scripts["dev:dangerously-dockerless"]).toBe(
       "node --env-file-if-exists=.env scripts/dev-static.mjs",
     );

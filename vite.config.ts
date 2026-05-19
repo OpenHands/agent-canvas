@@ -281,6 +281,10 @@ export default defineConfig(({ mode }) => {
       host: true,
       allowedHosts: true,
       proxy: {
+        "/setup": {
+          target: `http://127.0.0.1:${process.env.SETUP_SERVER_PORT || 18099}`,
+          changeOrigin: true,
+        },
         "/api": {
           target: API_URL,
           changeOrigin: true,
