@@ -53,7 +53,7 @@ const automation: Automation = {
   trigger: { type: "schedule", schedule_human: "Daily" },
   enabled: true,
   repository: "acme/repo",
-  llm_profile: "daily-profile",
+  model: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -176,7 +176,7 @@ describe("AutomationDetail — backend-change guard", () => {
     expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the persisted LLM profile name instead of legacy model fields", async () => {
+  it("shows the model field as the persisted LLM profile name", async () => {
     renderDetail();
 
     expect(await screen.findByText("daily-profile")).toBeInTheDocument();

@@ -63,7 +63,7 @@ export default function AutomationsList() {
         a.name.toLowerCase().includes(q) ||
         (a.prompt ?? "").toLowerCase().includes(q) ||
         a.repository?.toLowerCase().includes(q) ||
-        a.llm_profile?.toLowerCase().includes(q),
+        a.model?.toLowerCase().includes(q),
     );
   }, [data?.automations, searchQuery]);
 

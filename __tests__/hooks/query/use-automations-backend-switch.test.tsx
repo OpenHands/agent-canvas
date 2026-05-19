@@ -54,7 +54,7 @@ const automation: Automation = {
   trigger: { type: "schedule", schedule_human: "Daily" },
   enabled: true,
   repository: "acme/repo",
-  llm_profile: "daily-profile",
+  model: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
