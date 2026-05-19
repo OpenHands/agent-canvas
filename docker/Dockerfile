@@ -77,6 +77,15 @@ COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
 COPY docker/entrypoint.sh /opt/agent-canvas/entrypoint.sh
 RUN chmod +x /opt/agent-canvas/entrypoint.sh
 
+# Pre-create persistence directories with correct ownership so the
+# openhands user can write to them even when Docker creates anonymous
+# volumes (which default to root).
+RUN mkdir -p /home/openhands/.openhands/agent-canvas/conversations \
+             /home/openhands/.openhands/agent-canvas/bash_events \
+             /home/openhands/.openhands/automation \
+             /projects && \
+    chown -R openhands:openhands /home/openhands/.openhands /projects
+
 USER openhands
 
 # Persistence volumes:

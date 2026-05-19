@@ -26,6 +26,19 @@ AUTOMATION_PORT="${AUTOMATION_PORT:-18001}"
 log() { printf '[agent-canvas] %s\n' "$*"; }
 log_error() { printf '[agent-canvas] ERROR: %s\n' "$*" >&2; }
 
+# ── Default env vars (mirrors dev-docker.mjs / dev-safe.mjs) ────────────────
+# OH_SECRET_KEY is required for settings/secrets encryption. Without it the
+# agent-server refuses to return encrypted secrets → conversation creation
+# fails with a 503. The dev launchers always set a static default.
+export OH_SECRET_KEY="${OH_SECRET_KEY:-openhands-dev-secret-key-change-in-prod}"
+
+# Persistence paths — keep settings, conversations, bash history under a
+# single well-known directory that the VOLUME directive exposes.
+OPENHANDS_DIR="${HOME}/.openhands"
+export OH_PERSISTENCE_DIR="${OH_PERSISTENCE_DIR:-${OPENHANDS_DIR}}"
+export OH_CONVERSATIONS_PATH="${OH_CONVERSATIONS_PATH:-${OPENHANDS_DIR}/agent-canvas/conversations}"
+export OH_BASH_EVENTS_DIR="${OH_BASH_EVENTS_DIR:-${OPENHANDS_DIR}/agent-canvas/bash_events}"
+
 # Track child PIDs so we can clean up on exit.
 PIDS=()
 
