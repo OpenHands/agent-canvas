@@ -1,8 +1,15 @@
+import { getAgentServerSessionApiKey } from "../agent-server-config";
 import { makeDefaultLocalBackend } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
+
+/**
+ * Stable id for the Docker backend that the dev launcher auto-registers
+ * when started with `--with-docker` or via the interactive prompt.
+ */
+export const DOCKER_BACKEND_ID = "docker-backend";
 
 function isValidKind(value: unknown): value is BackendKind {
   return value === "local" || value === "cloud";
@@ -61,6 +68,61 @@ export function writeStoredBackends(backends: Backend[]): void {
   }
 }
 
+/**
+ * If VITE_DOCKER_BACKEND_HOST is set (by `dev-with-automation --with-docker`),
+ * construct a Docker backend entry. Returns null when not configured.
+ */
+function getDockerBackendFromEnv(): Backend | null {
+  const host = import.meta.env.VITE_DOCKER_BACKEND_HOST?.trim();
+  if (!host) return null;
+
+  return {
+    id: DOCKER_BACKEND_ID,
+    name: "Docker",
+    host,
+    apiKey: getAgentServerSessionApiKey() ?? "",
+    kind: "local",
+  };
+}
+
+/**
+ * Ensure the Docker backend is present (or removed) in the backends list
+ * based on whether VITE_DOCKER_BACKEND_HOST is currently set. Returns
+ * a new array and a boolean indicating whether it was mutated.
+ */
+function syncDockerBackend(backends: Backend[]): {
+  backends: Backend[];
+  changed: boolean;
+} {
+  const dockerEnv = getDockerBackendFromEnv();
+  const existingIdx = backends.findIndex((b) => b.id === DOCKER_BACKEND_ID);
+
+  if (dockerEnv) {
+    // Docker is configured — ensure the entry exists and is up-to-date.
+    if (existingIdx >= 0) {
+      const existing = backends[existingIdx];
+      if (
+        normalizeHostForComparison(existing.host) ===
+          normalizeHostForComparison(dockerEnv.host) &&
+        existing.apiKey === dockerEnv.apiKey
+      ) {
+        return { backends, changed: false };
+      }
+      const updated = [...backends];
+      updated[existingIdx] = dockerEnv;
+      return { backends: updated, changed: true };
+    }
+    return { backends: [...backends, dockerEnv], changed: true };
+  }
+
+  // Docker is not configured — remove stale entry if present.
+  if (existingIdx >= 0) {
+    const updated = backends.filter((_, i) => i !== existingIdx);
+    return { backends: updated, changed: true };
+  }
+  return { backends, changed: false };
+}
+
 export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
   try {
@@ -72,8 +134,9 @@ export function readStoredBackends(): Backend[] {
     // the box.
     if (raw === null) {
       const seeded = [makeDefaultLocalBackend()];
-      writeStoredBackends(seeded);
-      return seeded;
+      const { backends: withDocker } = syncDockerBackend(seeded);
+      writeStoredBackends(withDocker);
+      return withDocker;
     }
 
     const parsed = JSON.parse(raw);
@@ -88,12 +151,22 @@ export function readStoredBackends(): Backend[] {
     // restarts instead of going stale.
     if (valid.length === 0) {
       const seeded = [makeDefaultLocalBackend()];
-      writeStoredBackends(seeded);
-      return seeded;
+      const { backends: withDocker } = syncDockerBackend(seeded);
+      writeStoredBackends(withDocker);
+      return withDocker;
     }
 
-    const synced = valid.map(syncDefaultLocalBackendAuth);
-    if (synced.some((backend, index) => backend !== valid[index])) {
+    let synced = valid.map(syncDefaultLocalBackendAuth);
+    let changed = synced.some((backend, index) => backend !== valid[index]);
+
+    // Sync Docker backend from VITE_DOCKER_BACKEND_HOST
+    const dockerResult = syncDockerBackend(synced);
+    if (dockerResult.changed) {
+      synced = dockerResult.backends;
+      changed = true;
+    }
+
+    if (changed) {
       writeStoredBackends(synced);
     }
 

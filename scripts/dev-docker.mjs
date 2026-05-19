@@ -449,6 +449,9 @@ if (isMainModule) {
     // "host.docker.internal" rather than "localhost" from the agent's POV.
     agentHostAlias: "host.docker.internal",
     mode: "dev:docker",
+    // dev:docker manages its own Docker container — don't show the
+    // interactive backend prompt that dev-with-automation offers.
+    skipBackendPrompt: true,
   }).catch((err) => {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {

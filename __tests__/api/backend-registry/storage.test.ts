@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVE_BACKEND_STORAGE_KEY,
   BACKENDS_STORAGE_KEY,
+  DOCKER_BACKEND_ID,
   readStoredActiveBackend,
   readStoredBackends,
   writeStoredActiveBackend,
@@ -200,5 +201,63 @@ describe("backend-registry storage", () => {
   it("returns null active selection when storage is malformed", () => {
     window.localStorage.setItem(ACTIVE_BACKEND_STORAGE_KEY, "{broken");
     expect(readStoredActiveBackend()).toBeNull();
+  });
+
+  // ── Docker backend auto-registration ──────────────────────────────
+
+  it("adds Docker backend when VITE_DOCKER_BACKEND_HOST is set on first read", () => {
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "http://127.0.0.1:18002");
+
+    const result = readStoredBackends();
+
+    const docker = result.find((b) => b.id === DOCKER_BACKEND_ID);
+    expect(docker).toBeDefined();
+    expect(docker).toMatchObject({
+      id: DOCKER_BACKEND_ID,
+      name: "Docker",
+      host: "http://127.0.0.1:18002",
+      kind: "local",
+    });
+    // Default local backend should also be present
+    expect(result.find((b) => b.id === "default-local")).toBeDefined();
+  });
+
+  it("updates Docker backend when host changes", () => {
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "http://127.0.0.1:18002");
+    const initial = readStoredBackends();
+    expect(initial.find((b) => b.id === DOCKER_BACKEND_ID)).toMatchObject({
+      host: "http://127.0.0.1:18002",
+    });
+
+    // Change the env var and re-read
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "http://127.0.0.1:19999");
+    const updated = readStoredBackends();
+    expect(updated.find((b) => b.id === DOCKER_BACKEND_ID)).toMatchObject({
+      host: "http://127.0.0.1:19999",
+    });
+  });
+
+  it("removes stale Docker backend when VITE_DOCKER_BACKEND_HOST is unset", () => {
+    // Start with Docker configured
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "http://127.0.0.1:18002");
+    const withDocker = readStoredBackends();
+    expect(withDocker.find((b) => b.id === DOCKER_BACKEND_ID)).toBeDefined();
+
+    // Clear the env var and re-read
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "");
+    const withoutDocker = readStoredBackends();
+    expect(withoutDocker.find((b) => b.id === DOCKER_BACKEND_ID)).toBeUndefined();
+    // Default local should still be there
+    expect(withoutDocker.find((b) => b.id === "default-local")).toBeDefined();
+  });
+
+  it("does not duplicate Docker backend on repeated reads", () => {
+    vi.stubEnv("VITE_DOCKER_BACKEND_HOST", "http://127.0.0.1:18002");
+    readStoredBackends();
+    readStoredBackends();
+    const result = readStoredBackends();
+
+    const dockerEntries = result.filter((b) => b.id === DOCKER_BACKEND_ID);
+    expect(dockerEntries).toHaveLength(1);
   });
 });

@@ -39,10 +39,17 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from "node:fs";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
+import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
 
@@ -77,6 +84,7 @@ const DEFAULT_AUTOMATION_VERSION = "1.0.0a3";
 const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.1";
 const DEFAULT_BACKEND_PORT = 18000;
 const DEFAULT_AUTOMATION_PORT = 18001;
+const DEFAULT_DOCKER_BACKEND_PORT = 18002;
 // Where the auto-generated default automation API key is persisted. Static
 // frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
 // must remain stable across restarts and --skip-build reuse.
@@ -86,6 +94,15 @@ const DEFAULT_AUTOMATION_API_KEY_PATH = join(
   "agent-canvas",
   "automation-api-key.txt",
 );
+// Persisted backend choice so the interactive prompt remembers the user's
+// previous answer across restarts.
+const DEFAULT_BACKEND_CHOICE_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "backend-choice.json",
+);
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -135,6 +152,9 @@ function parseArgs() {
     dynamic: false,
     staticDir: null,
     skipBuild: false,
+    withDocker: null, // null = prompt (or env), true = yes, false = no
+    dockerProjectsPath: null,
+    reconfigure: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -165,6 +185,18 @@ function parseArgs() {
       case "--skip-build":
         config.skipBuild = true;
         break;
+      case "--with-docker":
+        config.withDocker = true;
+        break;
+      case "--no-docker":
+        config.withDocker = false;
+        break;
+      case "--docker-projects-path":
+        config.dockerProjectsPath = args[++i];
+        break;
+      case "--reconfigure":
+        config.reconfigure = true;
+        break;
       case "-h":
       case "--help":
         showHelp();
@@ -193,11 +225,17 @@ OPTIONS:
   --static-dir <dir>          Static build directory (default: build/)
   --skip-build                Reuse build/ when the launcher builds static assets
   --dynamic                   Force Vite dev server when a wrapper defaults static
+  --with-docker               Also start a Docker backend (sandboxed execution)
+  --no-docker                 Skip the Docker backend prompt
+  --docker-projects-path <p>  Host directory to mount into the Docker container
+  --reconfigure               Re-prompt for backend choice (deletes saved backend-choice.json)
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
 ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
+  DOCKER_BACKEND              Set to "1" to enable Docker backend without prompt
+  PROJECTS_PATH               Host directory for Docker container (same as dev:docker)
   OH_AUTOMATION_GIT_REF       Git ref for automation (overrides default version)
   OH_AUTOMATION_VERSION       Specific PyPI version for automation (default: ${DEFAULT_AUTOMATION_VERSION})
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
@@ -287,15 +325,23 @@ async function buildConfig(args, env = process.env) {
   const preferredBackendPort = DEFAULT_BACKEND_PORT;
   const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
   const preferredVitePort = 3001;
+  const preferredDockerBackendPort = DEFAULT_DOCKER_BACKEND_PORT;
 
   // Find available ports, preferring the defaults
   logStep("ports", "Allocating ports...");
-  const ports = await findFreePorts([
+  const portConfigs = [
     { name: "ingress", preferred: preferredIngressPort },
     { name: "backend", preferred: preferredBackendPort },
     { name: "automation", preferred: preferredAutomationPort },
     { name: "vite", preferred: preferredVitePort },
-  ]);
+  ];
+  if (args.withDocker) {
+    portConfigs.push({
+      name: "dockerBackend",
+      preferred: preferredDockerBackendPort,
+    });
+  }
+  const ports = await findFreePorts(portConfigs);
 
   // Log any port changes
   if (ports.ingress !== preferredIngressPort) {
@@ -358,6 +404,9 @@ async function buildConfig(args, env = process.env) {
     autoBackendPort: ports.automation,
     vitePort: ports.vite,
     vscodePort,
+
+    // Docker backend (only allocated when --with-docker)
+    dockerBackendPort: ports.dockerBackend ?? null,
 
     // Paths
     canvasPath: projectRoot,
@@ -768,7 +817,7 @@ export function buildAutomationRuntimeServicesInfo(config) {
   });
 }
 
-function startVite(config) {
+function startVite(config, extraEnv = {}) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
@@ -794,6 +843,8 @@ function startVite(config) {
       ...(config.sessionApiKey && {
         VITE_SESSION_API_KEY: config.sessionApiKey,
       }),
+      // Extra env vars (e.g. VITE_DOCKER_BACKEND_HOST)
+      ...extraEnv,
     },
     color: c.magenta,
   });
@@ -895,6 +946,374 @@ async function seedAutomationSecret(config, options = {}) {
   return false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Docker Backend (optional second agent-server in a container)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function isDockerAvailable() {
+  const result =
+    process.platform === "win32"
+      ? spawnSync("where.exe", ["docker"], { stdio: "pipe" })
+      : spawnSync("sh", ["-c", "command -v docker"], { stdio: "pipe" });
+  if (result.status !== 0) return false;
+
+  const info = spawnSync("docker", ["info"], {
+    stdio: ["ignore", "ignore", "pipe"],
+    timeout: 10_000,
+  });
+  return info.status === 0;
+}
+
+function promptLine(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Read the persisted backend choice from disk.
+ * Returns null if nothing is persisted or the file is invalid.
+ */
+function readPersistedBackendChoice() {
+  try {
+    const raw = readFileSync(DEFAULT_BACKEND_CHOICE_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null) return parsed;
+  } catch {
+    // file doesn't exist or is invalid
+  }
+  return null;
+}
+
+/**
+ * Persist the backend choice so the next restart can re-use it.
+ */
+function writePersistedBackendChoice(choice) {
+  try {
+    mkdirSync(dirname(DEFAULT_BACKEND_CHOICE_PATH), { recursive: true });
+    writeFileSync(
+      DEFAULT_BACKEND_CHOICE_PATH,
+      JSON.stringify(choice, null, 2) + "\n",
+    );
+  } catch {
+    // non-fatal: user will just get prompted again next time
+  }
+}
+
+/**
+ * Interactively ask the user about backend choices.
+ *
+ * Remembers the previous answer in ~/.openhands/agent-canvas/backend-choice.json
+ * so subsequent restarts re-use the same config without re-prompting.
+ * Pass --reconfigure to force a fresh prompt.
+ *
+ * Returns:
+ *   { local: boolean, docker: { enabled: boolean, projectsPath?: string } }
+ */
+async function promptForBackends(env = process.env, { forcePrompt = false } = {}) {
+  const isTTY = process.stdin.isTTY;
+
+  // Try to load a previous choice (unless user asked to reconfigure)
+  if (!forcePrompt) {
+    const saved = readPersistedBackendChoice();
+    if (saved) {
+      const dockerLabel = saved.docker?.enabled
+        ? `+ Docker (:${saved.docker.projectsPath ?? "?"})`
+        : "";
+      const localLabel = saved.local !== false ? "Local" : "no local";
+      logService(
+        "config",
+        `Using saved backend choice: ${localLabel} ${dockerLabel} (--reconfigure to change)`,
+        c.dim,
+      );
+      return {
+        local: saved.local !== false,
+        docker: saved.docker ?? { enabled: false },
+      };
+    }
+  }
+
+  console.log("");
+  console.log(`${c.bold}Backend Configuration${c.reset}`);
+  console.log("");
+  console.log(
+    `  ${c.green}Local backend${c.reset} (default)`,
+  );
+  console.log(
+    `    ${c.green}✓${c.reset} Fast startup, no Docker needed`,
+  );
+  console.log(
+    `    ${c.green}✓${c.reset} Direct filesystem access for quick iteration`,
+  );
+  console.log(
+    `    ${c.red}✗${c.reset} Agent runs with your full host permissions — no sandbox`,
+  );
+  console.log(
+    `    ${c.dim}Safety: confirmation mode is enabled so the agent asks before risky actions.${c.reset}`,
+  );
+  console.log("");
+  console.log(
+    `  ${c.cyan}Docker backend${c.reset} (optional, runs alongside local)`,
+  );
+  console.log(
+    `    ${c.green}✓${c.reset} Sandboxed execution — agent runs in an isolated container`,
+  );
+  console.log(
+    `    ${c.green}✓${c.reset} Closer to production/cloud behavior`,
+  );
+  console.log(
+    `    ${c.red}✗${c.reset} Requires Docker Desktop running`,
+  );
+  console.log(
+    `    ${c.red}✗${c.reset} Slightly slower startup; mounts a host directory for file access`,
+  );
+  console.log("");
+
+  // --- Local backend prompt (default: Yes) ---
+  let startLocal = true;
+  if (isTTY) {
+    const localAnswer = await promptLine(
+      `  Start local agent-server? [Y/n] `,
+    );
+    startLocal = !/^n(o)?$/i.test(localAnswer);
+  }
+
+  // --- Docker backend prompt (default: No) ---
+  let docker = { enabled: false };
+
+  const dockerAvailable = isDockerAvailable();
+  if (!dockerAvailable) {
+    console.log(
+      `  ${c.dim}Docker not detected — skipping Docker backend.${c.reset}`,
+    );
+  } else if (isTTY) {
+    const dockerAnswer = await promptLine(
+      `  Also start a Docker backend? [y/N] `,
+    );
+
+    if (/^y(es)?$/i.test(dockerAnswer)) {
+      // Re-check in case Docker daemon stopped after initial detection
+      if (!isDockerAvailable()) {
+        logError(
+          "Docker is no longer available. Install Docker: https://docs.docker.com/get-docker/",
+        );
+      } else {
+        const defaultPath = env.PROJECTS_PATH || "";
+        const pathPrompt = defaultPath
+          ? `  Projects directory to mount [${defaultPath}]: `
+          : `  Projects directory to mount (absolute path): `;
+        const rawPath = await promptLine(pathPrompt);
+        const projectsPath = rawPath || defaultPath;
+
+        if (!projectsPath) {
+          logError("No projects path provided. Skipping Docker backend.");
+        } else if (!isAbsolute(projectsPath)) {
+          logError(`Path must be absolute: ${projectsPath}. Skipping Docker backend.`);
+        } else if (!existsSync(projectsPath)) {
+          logError(`Path does not exist: ${projectsPath}. Skipping Docker backend.`);
+        } else {
+          docker = { enabled: true, projectsPath };
+        }
+      }
+    }
+  }
+
+  const result = { local: startLocal, docker };
+
+  // Persist the choice for next time
+  writePersistedBackendChoice(result);
+
+  console.log("");
+  if (startLocal || docker.enabled) {
+    console.log(
+      `  ${c.dim}Tip: You can change security settings in Settings → Verification.${c.reset}`,
+    );
+    console.log("");
+  }
+
+  return result;
+}
+
+/**
+ * Ensure confirmation_mode and security_analyzer are set on the local
+ * agent-server. Reads the current settings first — only writes defaults
+ * when they haven't been configured yet. The agent-server's own state-dir
+ * persistence is the single source of truth.
+ */
+async function seedSecuritySettings(config, options = {}) {
+  const { maxRetries = 5, retryDelayMs = 2000, timeoutMs = 10000 } = options;
+
+  const url = `http://localhost:${config.agentServerPort}/api/settings`;
+  const headers = {
+    "Content-Type": "application/json",
+    ...(config.sessionApiKey && { "X-Session-API-Key": config.sessionApiKey }),
+  };
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // 1. Read current settings
+      const getResp = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!getResp.ok) {
+        const text = await getResp.text();
+        lastError = `GET ${getResp.status}: ${text}`;
+        if ([400, 401, 403, 404, 422].includes(getResp.status)) {
+          logService("settings", `Warning: could not read settings (${getResp.status})`, c.yellow);
+          return false;
+        }
+        if (attempt < maxRetries) { await delay(retryDelayMs); continue; }
+        break;
+      }
+
+      const current = await getResp.json();
+      const conv = current?.conversation_settings ?? {};
+
+      // 2. Only patch what's missing
+      const diff = {};
+      if (conv.confirmation_mode !== true) diff.confirmation_mode = true;
+      if (!conv.security_analyzer) diff.security_analyzer = "llm";
+
+      if (Object.keys(diff).length === 0) {
+        logService("settings", "Security settings already configured", c.dim);
+        return true;
+      }
+
+      // 3. Apply defaults
+      const patchResp = await fetch(url, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ conversation_settings_diff: diff }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (patchResp.ok) {
+        const applied = Object.entries(diff)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ");
+        logService("settings", `Applied security defaults: ${applied}`, c.green);
+        return true;
+      }
+
+      const text = await patchResp.text();
+      lastError = `PATCH ${patchResp.status}: ${text}`;
+      if ([400, 401, 403, 404, 422].includes(patchResp.status)) {
+        logService("settings", `Warning: could not apply security settings (${patchResp.status})`, c.yellow);
+        return false;
+      }
+
+      if (attempt < maxRetries) await delay(retryDelayMs);
+    } catch (err) {
+      lastError = err.message;
+      if (attempt < maxRetries) await delay(retryDelayMs);
+    }
+  }
+
+  logService(
+    "settings",
+    `Warning: could not seed security settings after ${maxRetries} attempts: ${lastError}`,
+    c.yellow,
+  );
+  return false;
+}
+
+/**
+ * Start a Docker agent-server on the given port.
+ * Reuses image/mount logic from dev-docker.mjs but runs as a secondary
+ * service rather than the primary agent-server.
+ */
+function startDockerBackend(config) {
+  // Lazy import so the module doesn't hard-require dev-docker.mjs
+  // when Docker is not used.
+  const {
+    resolveAgentServerImage,
+    getHostDockerUserSpec,
+    getDockerUserArgs,
+    getDockerHomeTmpfsArgs,
+    HOST_CANVAS_TOOLS_DIR,
+    CONTAINER_CANVAS_TOOLS_DIR,
+    CONTAINER_HOME_DIR,
+    CONTAINER_OPENHANDS_DIR,
+  } = /** @type {any} */ (config._dockerImports);
+
+  const containerName = "agent-canvas-dev-docker-secondary";
+  const image = resolveAgentServerImage();
+  const port = config.dockerBackendPort;
+  const projectsPath = config.dockerProjectsPath;
+
+  logService(
+    "docker-backend",
+    `Starting on port ${port} (image: ${image})...`,
+    c.blue,
+  );
+
+  // Best-effort cleanup of any leftover container
+  spawnSync("docker", ["rm", "-f", containerName], { stdio: "ignore" });
+  registerShutdownHook(() => {
+    spawnSync("docker", ["rm", "-f", containerName], { stdio: "ignore" });
+  });
+
+  const home = homedir();
+  const userSpec = getHostDockerUserSpec();
+  const dockerArgs = ["run", "--rm", "--name", containerName, "--init"];
+  dockerArgs.push(...getDockerUserArgs(userSpec));
+
+  // Mount projects directory
+  dockerArgs.push("-v", `${projectsPath}:/projects`);
+
+  // Mount canvas tools
+  dockerArgs.push(
+    "-v",
+    `${HOST_CANVAS_TOOLS_DIR}:${CONTAINER_CANVAS_TOOLS_DIR}:ro`,
+  );
+
+  // Isolated home with credential mounts
+  dockerArgs.push(...getDockerHomeTmpfsArgs(userSpec));
+  const optionalMounts = [
+    [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
+    [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
+    [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
+    [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
+  ];
+  for (const [src, dest] of optionalMounts) {
+    if (existsSync(src)) {
+      dockerArgs.push("-v", `${src}:${dest}`);
+    }
+  }
+
+  // Map container port 8000 to the allocated host port
+  dockerArgs.push("-p", `${port}:8000`);
+
+  // Container environment
+  const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
+  const containerEnv = {
+    HOME: CONTAINER_HOME_DIR,
+    OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
+    OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
+    OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,
+    OH_SECRET_KEY: process.env.OH_SECRET_KEY || DEFAULT_SECRET_KEY,
+    OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
+  };
+  for (const [k, v] of Object.entries(containerEnv)) {
+    dockerArgs.push("-e", `${k}=${v}`);
+  }
+
+  dockerArgs.push(image);
+
+  spawnService("docker-backend", "docker", dockerArgs, {
+    color: c.cyan,
+  });
+}
+
 function printBanner(config) {
   console.log("");
   console.log(
@@ -919,6 +1338,13 @@ function printBanner(config) {
       75,
     ) + `${c.green}${c.bold}║${c.reset}`,
   );
+  if (config.dockerBackendPort) {
+    console.log(
+      `${c.green}${c.bold}║${c.reset}  Docker:       ${c.cyan}http://127.0.0.1:${config.dockerBackendPort}${c.reset}`.padEnd(
+        75,
+      ) + `${c.green}${c.bold}║${c.reset}`,
+    );
+  }
   console.log(
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
@@ -968,6 +1394,9 @@ async function main(options = {}) {
     // Human-readable label for the dev mode, surfaced in the agent's
     // <RUNTIME_SERVICES> system-prompt block.
     mode = "dev:automation",
+    // When true, skip the interactive backend prompt (used by dev-docker.mjs
+    // which manages its own Docker container).
+    skipBackendPrompt = false,
   } = options;
 
   const args = parseArgs();
@@ -994,6 +1423,63 @@ async function main(options = {}) {
       !useStaticMode || typeof buildStaticFrontend === "function",
   });
 
+  // ── Handle --reconfigure ────────────────────────────────────────────
+  // Clears persisted backend choice so the user gets a fresh prompt.
+  if (args.reconfigure) {
+    try {
+      if (existsSync(DEFAULT_BACKEND_CHOICE_PATH)) unlinkSync(DEFAULT_BACKEND_CHOICE_PATH);
+    } catch {
+      // non-fatal
+    }
+    logService("config", "Cleared saved backend choice. Will re-prompt.", c.dim);
+  }
+
+  // ── Resolve Docker intent ──────────────────────────────────────────
+  // Priority: --with-docker / --no-docker flags → DOCKER_BACKEND env var →
+  // interactive prompt (TTY only) → default off.
+  let wantDocker = args.withDocker; // null = not decided
+  let dockerProjectsPath = args.dockerProjectsPath ?? process.env.PROJECTS_PATH ?? null;
+
+  if (wantDocker === null && process.env.DOCKER_BACKEND === "1") {
+    wantDocker = true;
+  }
+
+  // Resolve via interactive prompt when not yet decided and not skipped
+  let wantLocal = true;
+  if (!skipBackendPrompt && wantDocker === null) {
+    const result = await promptForBackends(process.env, {
+      forcePrompt: args.reconfigure,
+    });
+    wantLocal = result.local;
+    wantDocker = result.docker.enabled;
+    if (result.docker.enabled) {
+      dockerProjectsPath = result.docker.projectsPath;
+    }
+  }
+
+  // If Docker was requested, validate prerequisites now
+  if (wantDocker) {
+    if (!isDockerAvailable()) {
+      logError("Docker is not available. Skipping Docker backend.");
+      logError("Install Docker: https://docs.docker.com/get-docker/");
+      wantDocker = false;
+    } else if (!dockerProjectsPath) {
+      logError(
+        "No projects path for Docker backend. Set PROJECTS_PATH or use --docker-projects-path.",
+      );
+      wantDocker = false;
+    } else if (!isAbsolute(dockerProjectsPath)) {
+      logError(`Docker projects path must be absolute: ${dockerProjectsPath}`);
+      wantDocker = false;
+    } else if (!existsSync(dockerProjectsPath)) {
+      logError(`Docker projects path does not exist: ${dockerProjectsPath}`);
+      wantDocker = false;
+    }
+  }
+
+  // Stamp Docker decision onto args so buildConfig allocates the port
+  args.withDocker = wantDocker;
+
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
   if (viteWorkingDir) config.viteWorkingDir = viteWorkingDir;
@@ -1012,6 +1498,12 @@ async function main(options = {}) {
   config.mode = mode;
   config.agentHostAlias = agentHostAlias;
   config.frontendKind = useStaticMode ? "static" : "vite";
+
+  // Stash Docker projects path for startDockerBackend()
+  if (wantDocker) {
+    config.dockerProjectsPath = dockerProjectsPath;
+  }
+
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
@@ -1031,38 +1523,46 @@ async function main(options = {}) {
   // Start services phase
   logStep("2/2", "Starting services...");
 
-  // 1. Start agent-server first (other services depend on it)
-  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
-  agentServerStarter(config);
+  // 1. Start local agent-server (unless user opted out)
+  let agentServerReady = false;
+  if (wantLocal) {
+    const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+    agentServerStarter(config);
 
-  // Wait for agent-server to be ready (60s timeout for slow systems)
-  const agentServerReady = await waitForService(
-    "agent-server",
-    `http://localhost:${config.agentServerPort}/server_info`,
-    60000, // 60 second timeout for initial startup
-  );
-
-  // 2. Seed automation API key into agent-server secrets
-  // This makes the key available to agents during conversations
-  // Note: seedAutomationSecret has its own retry logic if server is still warming up
-  if (agentServerReady) {
-    await seedAutomationSecret(config);
-  } else {
-    logService(
-      "secrets",
-      "Skipping secret seeding - agent-server not ready",
-      c.yellow,
+    // Wait for agent-server to be ready (60s timeout for slow systems)
+    agentServerReady = await waitForService(
+      "agent-server",
+      `http://localhost:${config.agentServerPort}/server_info`,
+      60000,
     );
+
+    // 2. Seed secrets and security settings
+    if (agentServerReady) {
+      await seedAutomationSecret(config);
+      await seedSecuritySettings(config);
+    } else {
+      logService(
+        "secrets",
+        "Skipping secret/settings seeding - agent-server not ready",
+        c.yellow,
+      );
+    }
+  } else {
+    logService("agent-server", "Skipped (user opted out)", c.dim);
   }
 
   // 3. Start automation backend
   startAutomationBackend(config);
 
   // 4. Start frontend server (Vite dev server OR static server)
+  const viteEnvExtras = {};
+  if (wantDocker && config.dockerBackendPort) {
+    viteEnvExtras.VITE_DOCKER_BACKEND_HOST = `http://127.0.0.1:${config.dockerBackendPort}`;
+  }
   if (useStaticMode) {
     startStaticFrontend(config, staticDir);
   } else {
-    startVite(config);
+    startVite(config, viteEnvExtras);
   }
 
   // 5. Wait for services to be ready
@@ -1070,6 +1570,35 @@ async function main(options = {}) {
 
   // 6. Start ingress proxy (routes traffic to all backends)
   startIngress(config);
+
+  // 7. Start Docker backend (if requested)
+  if (wantDocker && config.dockerBackendPort) {
+    // Lazy-import dev-docker.mjs exports so we don't require Docker
+    // dependencies when Docker is not used.
+    try {
+      const dockerModule = await import("./dev-docker.mjs");
+      config._dockerImports = dockerModule;
+      startDockerBackend(config);
+
+      // Wait for Docker backend to be ready
+      const dockerReady = await waitForService(
+        "docker-backend",
+        `http://127.0.0.1:${config.dockerBackendPort}/server_info`,
+        90000, // Docker image pull can be slow
+      );
+      if (!dockerReady) {
+        logService(
+          "docker-backend",
+          "Docker backend did not become ready in time",
+          c.yellow,
+        );
+      }
+    } catch (err) {
+      logError(
+        `Failed to start Docker backend: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // Wait for ingress to start
   await delay(1000);
@@ -1145,6 +1674,11 @@ export {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
   DEFAULT_AUTOMATION_API_KEY_PATH,
+  DEFAULT_DOCKER_BACKEND_PORT,
+  isDockerAvailable,
+  promptForBackends,
+  seedSecuritySettings,
+  startDockerBackend,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
