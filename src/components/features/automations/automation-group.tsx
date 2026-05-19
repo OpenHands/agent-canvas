@@ -8,6 +8,7 @@ interface AutomationGroupProps {
   automations: Automation[];
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
 }
 
 export function AutomationGroup({
@@ -16,6 +17,7 @@ export function AutomationGroup({
   automations,
   onToggle,
   onDelete,
+  onEdit,
 }: AutomationGroupProps) {
   if (automations.length === 0) return null;
 
@@ -32,6 +34,7 @@ export function AutomationGroup({
             automation={automation}
             onToggle={onToggle}
             onDelete={onDelete}
+            onEdit={onEdit}
           />
         ))}
       </div>
