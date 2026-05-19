@@ -176,7 +176,10 @@ function AppContent() {
 
   const content = (
     <EventHandler>
-      <div data-testid="app-route" className="flex flex-col h-full">
+      <div
+        data-testid="app-route"
+        className="flex flex-col h-full max-md:-mx-[14px] max-md:w-[calc(100%+28px)]"
+      >
         <ConversationMain />
       </div>
     </EventHandler>

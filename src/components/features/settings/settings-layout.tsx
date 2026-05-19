@@ -26,7 +26,7 @@ export function SettingsLayout({
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="flex h-full flex-col px-[14px] md:px-0 md:pt-8">
+    <div className="flex h-full flex-col md:pt-8">
       <MobileHeader
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMenu={toggleMobileMenu}

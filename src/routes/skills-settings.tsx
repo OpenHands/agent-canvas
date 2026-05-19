@@ -87,7 +87,7 @@ function SkillsSettingsScreen() {
   return (
     <div data-testid="skills-settings-screen" className="flex h-full gap-10">
       <ExtensionsNavigation />
-      <main className="flex min-h-0 min-w-0 h-full flex-1 flex-col overflow-y-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
+      <main className="flex min-h-0 min-w-0 h-full flex-1 flex-col overflow-y-auto custom-scrollbar-always md:pr-[14px] pt-8 pb-12">
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0 space-y-1">
             <h2 className="text-xl font-semibold leading-6 text-foreground">

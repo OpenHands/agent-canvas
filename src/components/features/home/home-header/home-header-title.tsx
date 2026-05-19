@@ -5,8 +5,10 @@ export function HomeHeaderTitle() {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="h-[80px] flex items-center">
-      <Typography.H1>{t("HOME$LETS_START_BUILDING")}</Typography.H1>
+    <div className="flex h-[80px] w-full items-center justify-center">
+      <Typography.H1 className="w-full text-center">
+        {t("HOME$LETS_START_BUILDING")}
+      </Typography.H1>
     </div>
   );
 }

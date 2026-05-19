@@ -8,7 +8,7 @@ function HomeScreen() {
   return (
     <div
       data-testid="home-screen"
-      className="px-0 bg-transparent h-full flex flex-col overflow-y-auto rounded-xl lg:px-[42px] custom-scrollbar-always"
+      className="bg-transparent h-full flex flex-col overflow-y-auto rounded-xl md:px-0 lg:px-[42px] custom-scrollbar-always"
     >
       <div className="flex flex-1 min-h-0 flex-col items-center justify-center">
         <HomeChatLauncher />
