@@ -14,11 +14,14 @@ import { cn } from "#/utils/utils";
 import type { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 
 const rowBaseClassName = cn(
-  "w-full flex gap-3 px-3 rounded",
-  "text-start hover:bg-white/10 cursor-pointer text-nowrap",
+  "w-full flex flex-col gap-0.5 p-2 rounded",
+  "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
 );
-const profileRowClassName = cn(rowBaseClassName, "h-auto items-start py-2.5");
-const linkRowClassName = cn(rowBaseClassName, "h-10 items-center");
+const profileRowClassName = cn(rowBaseClassName, "h-auto");
+const linkRowClassName = cn(
+  "w-full flex items-center gap-2 p-2 rounded",
+  "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
+);
 
 interface SwitchProfileContextMenuProps {
   profiles: ProfileInfo[];
@@ -60,9 +63,9 @@ export function SwitchProfileContextMenu({
       testId="switch-profile-context-menu"
       position="top"
       alignment="left"
-      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto p-1"
+      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto"
     >
-      <div className="px-3 pt-1 pb-0.5">
+      <div className="px-2 pt-1 pb-0.5">
         <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
           {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
         </Typography.Text>
@@ -74,22 +77,37 @@ export function SwitchProfileContextMenu({
             key={profile.name}
             testId={`switch-profile-option-${profile.name}`}
             onClick={(event) => handleSelect(event, profile.name)}
-            className={cn(profileRowClassName, isActive && "bg-[#5C5D62]")}
+            className={cn(
+              profileRowClassName,
+              isActive && "bg-[var(--oh-interactive-hover)]",
+            )}
           >
-            <CircuitIcon width={16} height={16} className="shrink-0" />
             <span
-              className="flex min-w-0 flex-1 flex-col gap-0.5"
+              className="flex items-center gap-2 min-w-0"
               title={profile.model ?? undefined}
             >
-              <span className="text-sm leading-5">{profile.name}</span>
-              {profile.model && (
-                <span className="truncate text-xs leading-4 text-[var(--oh-muted)]">
-                  {profile.model}
-                </span>
+              <CircuitIcon
+                width={16}
+                height={16}
+                className="shrink-0"
+                aria-hidden
+              />
+              <span className="flex-1 truncate text-sm leading-5">
+                {profile.name}
+              </span>
+              {isActive && (
+                <CheckIcon
+                  width={14}
+                  height={14}
+                  className="shrink-0"
+                  aria-hidden
+                />
               )}
             </span>
-            {isActive && (
-              <CheckIcon width={14} height={14} className="shrink-0" />
+            {profile.model && (
+              <span className="block truncate text-xs leading-4 text-[var(--oh-muted)] pl-6">
+                {profile.model}
+              </span>
             )}
           </ContextMenuListItem>
         );
