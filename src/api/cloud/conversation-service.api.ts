@@ -37,6 +37,8 @@ function overlayStoredRepoSelection(
     selected_branch:
       conversation.selected_branch ?? stored.selected_branch ?? null,
     git_provider: conversation.git_provider ?? stored.git_provider ?? null,
+    selected_workspace:
+      conversation.selected_workspace ?? stored.selected_workspace ?? null,
   };
 }
 

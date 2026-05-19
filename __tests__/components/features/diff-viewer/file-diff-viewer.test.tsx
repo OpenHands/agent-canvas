@@ -167,18 +167,30 @@ describe("FileDiffViewer", () => {
     expect(screen.queryByTestId("view-mode-new")).not.toBeInTheDocument();
   });
 
-  it("highlights the active view mode button", async () => {
+  it("reflects the active view mode via aria-pressed on the toggle buttons", async () => {
     const user = userEvent.setup();
     render(<FileDiffViewer path="src/index.ts" type="M" />);
 
     await expand(user);
 
-    expect(screen.getByTestId("view-mode-diff").className).toContain("bg-[var(--oh-interactive-hover)] text-white");
-    expect(screen.getByTestId("view-mode-old").className).not.toContain("bg-[var(--oh-interactive-hover)] text-white");
+    expect(screen.getByTestId("view-mode-diff")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("view-mode-old")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
 
     await user.click(screen.getByTestId("view-mode-old"));
 
-    expect(screen.getByTestId("view-mode-old").className).toContain("bg-[var(--oh-interactive-hover)] text-white");
-    expect(screen.getByTestId("view-mode-diff").className).not.toContain("bg-[var(--oh-interactive-hover)] text-white");
+    expect(screen.getByTestId("view-mode-old")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("view-mode-diff")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

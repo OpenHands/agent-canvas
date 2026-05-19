@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
-import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import {
+  joinWorkspaceUrl,
+  useWorkspaceSession,
+} from "#/hooks/query/use-workspace-session";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 // Magic-number sniff for common binary formats we can render via iframe.
@@ -28,8 +31,12 @@ export interface WorkspaceFileContent {
   /** Decoded text contents — only populated when kind === "text". */
   text: string | null;
   /**
-   * Browser-renderable URL for rich previews and "open in new window".
-   * Usually a local Blob URL derived from `/api/file/download` bytes.
+   * URL pointing at the file on the agent server's static workspace
+   * fileserver (the `/api/conversations/{id}/workspace/...` route minted
+   * by `RemoteWorkspace.startWorkspaceSession`). Suitable to use as an
+   * `<iframe src>` or `<img src>` — the workspace-session cookie
+   * authenticates the browser request, and relative asset references
+   * inside an HTML preview resolve naturally against this URL.
    */
   staticUrl: string;
   /** MIME type guessed from the file extension. */
@@ -101,38 +108,15 @@ function isLikelyBinary(buffer: ArrayBuffer): boolean {
   return false;
 }
 
-function resolveWorkspacePath(
-  workingDir: string,
-  relativePath: string,
-): string {
-  const normalizedWorkingDir = workingDir.replace(/\/+$/, "");
-  const segments: string[] = [];
-
-  for (const segment of relativePath.replace(/^\/+/, "").split("/")) {
-    if (!segment || segment === ".") continue;
-    if (segment === "..") {
-      throw new Error("Workspace file path must stay inside the workspace");
-    }
-    segments.push(segment);
-  }
-
-  if (!normalizedWorkingDir.startsWith("/") || segments.length === 0) {
-    throw new Error("Invalid workspace file path");
-  }
-
-  return `${normalizedWorkingDir}/${segments.join("/")}`;
-}
-
-function makePreviewUrl(buffer: ArrayBuffer, mimeType: string): string {
-  return URL.createObjectURL(new Blob([buffer], { type: mimeType }));
-}
-
 /**
- * Reads a single file out of the active conversation's workspace through the
- * typed file API and classifies it as text/image/pdf/binary so the UI can pick
- * a renderer. We intentionally avoid the cookie-based workspace-session route
- * here: older live agent-server previews may not expose it yet, and credentialed
- * cross-origin requests fail when those backends return wildcard CORS headers.
+ * Reads a single file out of the active conversation's workspace via the
+ * agent server's static workspace fileserver and classifies it as
+ * text/image/pdf/binary so the UI can pick a renderer.
+ *
+ * Image and PDF kinds are rendered directly from `staticUrl` (no fetch
+ * here). Text/binary classification still requires reading the body so
+ * we can run a NUL-byte sniff and decode UTF-8 for the plain/markdown
+ * renderers.
  *
  * Pass a falsy `relativePath` to disable the query (e.g. when no file is
  * selected yet).
@@ -140,56 +124,73 @@ function makePreviewUrl(buffer: ArrayBuffer, mimeType: string): string {
 export function useWorkspaceFileContent(relativePath: string | null) {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const { data: workspaceSession } = useWorkspaceSession();
+  // Bump on every agent-side file mutation so the query refetches the
+  // currently-selected file's body even when the *path* hasn't changed.
+  // The iframe / <img> cache-busting for the rich preview is handled at
+  // the consumer (FileContentViewer / files-tab) by appending the same
+  // counter to the staticUrl, so a single tick refreshes both the
+  // decoded text and the iframe-rendered HTML's sibling assets.
   const workspaceMutationCount = useWorkspaceMutationCounter(
     (state) => state.count,
   );
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
-  const sessionApiKey = conversation?.session_api_key;
-  const workingDir = conversation?.workspace?.working_dir?.trim();
+  const baseUrl = workspaceSession?.baseUrl;
 
   return useQuery<WorkspaceFileContent>({
     queryKey: [
       "workspace-file-content",
       conversationId,
       conversationUrl,
-      sessionApiKey,
-      workingDir,
+      baseUrl,
       relativePath,
       workspaceMutationCount,
     ],
     queryFn: async () => {
       if (!relativePath) throw new Error("No path");
-      if (!workingDir) throw new Error("No workspace directory");
+      if (!baseUrl) throw new Error("No workspace session");
 
+      const staticUrl = joinWorkspaceUrl(baseUrl, relativePath);
       const kind = classifyKind(relativePath);
       const mimeType = guessMimeType(relativePath);
-      const filePath = resolveWorkspacePath(workingDir, relativePath);
-      const buffer = await AgentServerRuntimeService.downloadFile(
-        conversationUrl,
-        sessionApiKey,
-        filePath,
-      );
 
+      // Image / PDF: don't fetch the bytes — the consumer renders them
+      // directly via `staticUrl` in an iframe or <img>. The browser
+      // will attach the `oh_workspace_session_key` cookie minted by
+      // `useWorkspaceSession` so the request authenticates without us
+      // having to set any headers (which a top-level <iframe src> can't
+      // do anyway).
       if (kind !== "text") {
         return {
           path: relativePath,
           kind,
           text: null,
-          staticUrl: makePreviewUrl(buffer, mimeType),
+          staticUrl,
           mimeType,
         };
       }
 
+      // For our own fetch we also rely on the workspace-session cookie
+      // (it travels because we opt in to credentialed requests). This
+      // matches the auth path the iframe / <img> uses, and avoids a CORS
+      // preflight for a custom header.
+      const response = await fetch(staticUrl, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to read ${relativePath}: ${response.status}`);
+      }
+
+      const buffer = await response.arrayBuffer();
       if (isLikelyBinary(buffer)) {
-        const binaryMimeType = "application/octet-stream";
         return {
           path: relativePath,
           kind: "binary",
           text: null,
-          staticUrl: makePreviewUrl(buffer, binaryMimeType),
-          mimeType: binaryMimeType,
+          staticUrl,
+          mimeType: "application/octet-stream",
         };
       }
 
@@ -198,12 +199,11 @@ export function useWorkspaceFileContent(relativePath: string | null) {
         path: relativePath,
         kind: "text",
         text,
-        staticUrl: makePreviewUrl(buffer, mimeType),
+        staticUrl,
         mimeType,
       };
     },
-    enabled:
-      runtimeIsReady && !!conversationId && !!workingDir && !!relativePath,
+    enabled: runtimeIsReady && !!conversationId && !!baseUrl && !!relativePath,
     retry: false,
     staleTime: 1000 * 5,
     gcTime: 1000 * 60,

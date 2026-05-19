@@ -63,6 +63,7 @@ const automationRun: AutomationRun = {
   id: "run-1",
   status: AutomationRunStatus.PENDING,
   conversation_id: null,
+  bash_command_id: null,
   error_detail: null,
   started_at: "2026-01-02T00:00:00Z",
   completed_at: null,

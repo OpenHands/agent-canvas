@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
+
+import { I18nKey } from "#/i18n/declaration";
 
 import AutomationService from "#/api/automation-service/automation-service.api";
 import {
@@ -87,6 +90,7 @@ beforeEach(() => {
     id: "run-1",
     status: AutomationRunStatus.PENDING,
     conversation_id: null,
+    bash_command_id: null,
     error_detail: null,
     started_at: "2026-01-02T00:00:00Z",
     completed_at: null,
@@ -103,6 +107,49 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+});
+
+describe("AutomationDetail — Edit is local-only", () => {
+  it("shows Edit in the kebab menu when the active backend is local", async () => {
+    // Arrange — default beforeEach selects the local backend.
+    const user = userEvent.setup();
+    renderDetail();
+    await waitFor(() => {
+      expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
+    });
+
+    // Act — open the kebab menu.
+    await user.click(screen.getByLabelText("Automation actions"));
+
+    // Assert — Edit entry is present alongside the other actions.
+    expect(
+      screen.getByRole("button", { name: I18nKey.AUTOMATIONS$EDIT }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Edit in the kebab menu when the active backend is cloud", async () => {
+    // Arrange — switch to the cloud backend BEFORE rendering so the
+    // detail page mounts under cloud (the backend-change guard would
+    // otherwise stop the fetch).
+    setActiveSelection({ backendId: cloudBackend.id });
+    const user = userEvent.setup();
+    renderDetail();
+    await waitFor(() => {
+      expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
+    });
+
+    // Act
+    await user.click(screen.getByLabelText("Automation actions"));
+
+    // Assert — Edit must not appear on cloud; Delete still does, proving
+    // we opened the menu and didn't merely fail to render.
+    expect(
+      screen.queryByRole("button", { name: I18nKey.AUTOMATIONS$EDIT }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: I18nKey.AUTOMATIONS$DELETE }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("AutomationDetail — backend-change guard", () => {

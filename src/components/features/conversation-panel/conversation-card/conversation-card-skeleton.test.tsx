@@ -10,7 +10,7 @@ describe("ConversationCardSkeleton", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders compact skeleton without text placeholders", () => {
+  it("renders compact skeleton without full-row placeholder", () => {
     render(<ConversationCardSkeleton compact />);
     expect(
       screen.getByTestId("conversation-card-skeleton-compact"),
@@ -20,17 +20,23 @@ describe("ConversationCardSkeleton", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the same header slots a loaded conversation card shows: status dot, title, and timestamp", () => {
+  it("renders three skeleton rows with stagger wrapper", () => {
     render(<ConversationCardSkeleton />);
 
-    expect(
-      screen.getByTestId("conversation-card-skeleton-status-dot"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("conversation-card-skeleton-title"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("conversation-card-skeleton-timestamp"),
-    ).toBeInTheDocument();
+    const root = screen.getByTestId("conversation-card-skeleton");
+    expect(root).toHaveClass("skeleton-stagger");
+    const bars = root.querySelectorAll(":scope > div");
+    expect(bars.length).toBe(3);
+    bars.forEach((bar) => {
+      expect(bar).toHaveClass("skeleton");
+    });
+  });
+
+  it("renders three compact skeleton bars", () => {
+    render(<ConversationCardSkeleton compact />);
+    const root = screen.getByTestId("conversation-card-skeleton-compact");
+    expect(root).toHaveClass("skeleton-stagger");
+    const bars = root.querySelectorAll(":scope > div");
+    expect(bars.length).toBe(3);
   });
 });

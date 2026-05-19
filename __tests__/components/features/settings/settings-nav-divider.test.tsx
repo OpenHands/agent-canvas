@@ -12,12 +12,14 @@ describe("SettingsNavDivider", () => {
     expect(divider).toBeInTheDocument();
   });
 
+  // Prop-passthrough contract: consumer-supplied className must land on the
+  // element. Visual styling is covered by the Playwright snapshot suite.
   it("should accept custom className", () => {
     // Arrange & Act
-    const { container } = render(<SettingsNavDivider className="my-4" />);
+    const { container } = render(<SettingsNavDivider className="custom-class" />);
 
     // Assert
     const divider = container.firstChild;
-    expect(divider).toHaveClass("my-4");
+    expect(divider).toHaveClass("custom-class");
   });
 });

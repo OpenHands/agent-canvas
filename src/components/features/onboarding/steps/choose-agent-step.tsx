@@ -1,12 +1,27 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { AxiosError } from "axios";
 import { Check } from "lucide-react";
 import OpenHandsLogo from "#/assets/branding/openhands-logo.svg?react";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
+import {
+  ACP_PROVIDERS,
+  buildAcpAgentSettingsDiff,
+} from "#/constants/acp-providers";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
+import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
-export type OnboardingAgentId = "openhands" | "claude-code" | "codex";
+export type OnboardingAgentId =
+  | "openhands"
+  | "claude-code"
+  | "codex"
+  | "gemini-cli";
 
 const CLAUDE_CODE_MARK_PATH =
   "m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z";
@@ -69,28 +84,23 @@ interface AgentOption {
   id: OnboardingAgentId;
   label: string;
   descriptionKey: I18nKey;
-  enabled: boolean;
 }
 
+// Onboarding tile list is *derived* from the ACP registry so adding a
+// new provider (or changing a display name) only needs one edit in
+// ``acp-providers.ts``. The OpenHands tile is the only synthetic
+// entry — it isn't an ACP provider, just the canonical default.
 const AGENT_OPTIONS: AgentOption[] = [
   {
     id: "openhands",
     label: "OpenHands",
     descriptionKey: I18nKey.ONBOARDING$AGENT_OPENHANDS_DESCRIPTION,
-    enabled: true,
   },
-  {
-    id: "claude-code",
-    label: "Claude Code",
-    descriptionKey: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
-    enabled: false,
-  },
-  {
-    id: "codex",
-    label: "Codex",
-    descriptionKey: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
-    enabled: false,
-  },
+  ...ACP_PROVIDERS.map<AgentOption>((provider) => ({
+    id: provider.key as OnboardingAgentId,
+    label: provider.display_name,
+    descriptionKey: provider.description_key,
+  })),
 ];
 
 interface ChooseAgentStepProps {
@@ -105,6 +115,32 @@ export function ChooseAgentStep({
   onNext,
 }: ChooseAgentStepProps) {
   const { t } = useTranslation("openhands");
+  const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
+
+  const handleNext = () => {
+    const diff = buildAcpAgentSettingsDiff(selectedAgentId);
+    if (!diff) {
+      // Unknown id (shouldn't be reachable through the UI). Advance
+      // without writing — better to show the next step than block the
+      // user behind a silent no-op.
+      onNext();
+      return;
+    }
+
+    saveSettings(
+      { agent_settings_diff: diff },
+      {
+        onError: (error) => {
+          const message = retrieveAxiosErrorMessage(error as AxiosError);
+          displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
+        },
+        onSuccess: () => {
+          displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
+          onNext();
+        },
+      },
+    );
+  };
 
   return (
     <div
@@ -127,34 +163,25 @@ export function ChooseAgentStep({
       >
         {AGENT_OPTIONS.map((option) => {
           const isSelected = option.id === selectedAgentId;
-          const muted = !option.enabled;
           return (
             <button
               key={option.id}
               type="button"
               role="radio"
               aria-checked={isSelected}
-              aria-disabled={!option.enabled}
-              disabled={!option.enabled}
               data-testid={`onboarding-agent-option-${option.id}`}
               data-selected={isSelected}
-              onClick={() => option.enabled && onSelect(option.id)}
+              onClick={() => onSelect(option.id)}
               className={cn(
-                "flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors",
-                option.enabled
-                  ? "cursor-pointer"
-                  : "cursor-not-allowed border-white/10 bg-base-secondary",
-                option.enabled &&
-                  isSelected &&
-                  "border-white/45 bg-white/[0.09] shadow-none hover:border-white/45 hover:bg-white/[0.09]",
-                option.enabled &&
-                  !isSelected &&
-                  "border-white/30 bg-white/5 hover:border-white/40 hover:bg-white/[0.08]",
+                "flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors cursor-pointer",
+                isSelected
+                  ? "border-white/45 bg-white/[0.09] shadow-none hover:border-white/45 hover:bg-white/[0.09]"
+                  : "border-white/30 bg-white/5 hover:border-white/40 hover:bg-white/[0.08]",
               )}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <AgentOptionIcon id={option.id} muted={muted} />
+                  <AgentOptionIcon id={option.id} muted={false} />
                   <span className="truncate text-base font-medium text-white">
                     {option.label}
                   </span>
@@ -164,14 +191,7 @@ export function ChooseAgentStep({
                 </span>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                {!option.enabled ? (
-                  <span
-                    data-testid={`onboarding-agent-badge-${option.id}`}
-                    className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs font-medium text-[var(--oh-muted)]"
-                  >
-                    {t(I18nKey.NAV$COMING_SOON)}
-                  </span>
-                ) : isSelected ? (
+                {isSelected ? (
                   <Check
                     width={18}
                     height={18}
@@ -190,9 +210,10 @@ export function ChooseAgentStep({
           testId="onboarding-agent-next"
           type="button"
           variant="primary"
-          onClick={onNext}
+          isDisabled={isSaving}
+          onClick={handleNext}
         >
-          {t(I18nKey.ONBOARDING$NEXT)}
+          {isSaving ? t(I18nKey.SETTINGS$SAVING) : t(I18nKey.ONBOARDING$NEXT)}
         </BrandButton>
       </div>
     </div>

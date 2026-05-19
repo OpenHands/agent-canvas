@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Plus } from "lucide-react";
 
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useNavigation } from "#/context/navigation-context";
@@ -16,15 +15,22 @@ import { GitRepository } from "#/types/git";
 import { Provider } from "#/types/settings";
 import RepoIcon from "#/icons/repo.svg?react";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
+import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
 
-interface CloudNewConversationButtonProps {
-  /**
-   * Render the trigger as a "+" icon-only button (used by the collapsed
-   * sidebar). The popover content is unchanged; only the trigger pill
-   * collapses.
-   */
-  compact?: boolean;
+export type CloudNewConversationMenuTriggerProps = {
+  onClick: () => void;
+  "aria-expanded": boolean;
+  "aria-haspopup": "menu";
+  disabled?: boolean;
+};
+
+export interface CloudNewConversationMenuProps {
+  trigger: (props: CloudNewConversationMenuTriggerProps) => React.ReactNode;
+  className?: string;
+  popoverClassName: string;
+  popoverTestId?: string;
+  useFixedPlacement?: boolean;
 }
 
 interface RepoListItemProps {
@@ -58,17 +64,17 @@ function RepoListItem({
 }
 
 /**
- * Cloud-backend variant of the sidebar "+ New Conversation" trigger.
- *
- * Lists git repositories (filtered by an optional search query) from the
- * active provider. Clicking a row immediately launches a conversation
- * against the repo's default branch (falling back to "main"). No branch
- * picker is exposed — the user can switch branches from inside the
- * conversation once it's running.
+ * Repository search + launch flow for cloud backends.
+ * Shared by the sidebar "+ New conversation" control and the conversation
+ * panel "new thread folder" opener.
  */
-export function CloudNewConversationButton({
-  compact = false,
-}: CloudNewConversationButtonProps = {}) {
+export function CloudNewConversationMenu({
+  trigger,
+  className,
+  popoverClassName,
+  popoverTestId = "new-conversation-popover",
+  useFixedPlacement = false,
+}: CloudNewConversationMenuProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
@@ -77,14 +83,16 @@ export function CloudNewConversationButton({
 
   const [open, setOpen] = React.useState(false);
   const popoverRef = React.useRef<HTMLDivElement>(null);
+  const triggerWrapRef = React.useRef<HTMLSpanElement>(null);
+  const fixedBox = usePopoverFixedPlacement(triggerWrapRef, {
+    open,
+    enabled: useFixedPlacement,
+  });
   const [selectedProvider, setSelectedProvider] =
     React.useState<Provider | null>(lastSelectedProvider ?? null);
   const [query, setQuery] = React.useState("");
   const debouncedQuery = useDebounce(query, 300);
 
-  // Auto-select a provider once `useUserProviders` resolves: prefer the
-  // previously chosen one if it's still connected, otherwise the first
-  // available provider.
   React.useEffect(() => {
     if (providers.length === 0) {
       if (selectedProvider !== null) setSelectedProvider(null);
@@ -170,14 +178,11 @@ export function CloudNewConversationButton({
   };
 
   const itemClass = cn(
-    "flex items-center gap-2 w-full px-2 py-2 text-sm text-white text-left cursor-pointer",
-    "hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal",
-    "disabled:opacity-60 disabled:cursor-not-allowed",
+    "flex w-full cursor-pointer items-center gap-2 rounded px-2 py-2 text-left text-sm text-white",
+    "font-normal transition-colors hover:bg-[var(--oh-interactive-hover)]",
+    "disabled:cursor-not-allowed disabled:opacity-60",
   );
 
-  // When the popover is open and the active provider has very few repos
-  // available, auto-load the next page so users can scroll without
-  // explicitly clicking "Load more".
   React.useEffect(() => {
     if (!open) return;
     if (debouncedQuery) return;
@@ -198,51 +203,46 @@ export function CloudNewConversationButton({
   const showLoadMore =
     !debouncedQuery && hasNextPage && repositories.length > 0;
 
-  const newConversationLabel = t(I18nKey.SIDEBAR$NEW_CONVERSATION);
+  const toggleOpen = React.useCallback(() => {
+    setOpen((o) => !o);
+  }, []);
 
-  const triggerButton = (
-    <button
-      type="button"
-      data-testid="new-conversation-button"
-      onClick={() => setOpen((o) => !o)}
-      aria-expanded={open}
-      aria-label={compact ? newConversationLabel : undefined}
-      className={cn(
-        "flex items-center rounded-md cursor-pointer transition-colors",
-        "text-sm font-medium text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
-        "border border-[var(--oh-border)]",
-        compact
-          ? "justify-center w-10 h-10 p-0 mx-auto"
-          : "gap-1.5 w-full px-3 py-2",
-      )}
-    >
-      <Plus width={16} height={16} className="shrink-0" />
-      {!compact && newConversationLabel}
-    </button>
-  );
+  const showPopover = open && (!useFixedPlacement || fixedBox !== null);
+
+  const fixedStyle: React.CSSProperties | undefined =
+    useFixedPlacement && fixedBox
+      ? {
+          position: "fixed",
+          top: fixedBox.top,
+          left: fixedBox.left,
+          width: fixedBox.width,
+        }
+      : undefined;
 
   return (
     <div
-      className={cn("relative", compact && "flex justify-center")}
+      className={cn(!useFixedPlacement && "relative", className)}
       ref={popoverRef}
     >
-      {compact ? (
-        <StyledTooltip content={newConversationLabel} placement="right">
-          {triggerButton}
-        </StyledTooltip>
-      ) : (
-        triggerButton
-      )}
+      <span ref={triggerWrapRef} className="inline-flex">
+        {trigger({
+          onClick: toggleOpen,
+          "aria-expanded": open,
+          "aria-haspopup": "menu",
+          disabled: isCreating,
+        })}
+      </span>
 
-      {open && (
+      {showPopover && (
         <div
-          data-testid="new-conversation-popover"
+          data-testid={popoverTestId}
           className={cn(
-            "absolute z-30 top-full mt-2 p-1",
-            "bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-lg shadow-xl",
-            "flex flex-col gap-1",
-            compact ? "left-0 w-[260px]" : "left-0 right-0",
+            NEW_CONVERSATION_DROPDOWN_SURFACE,
+            "gap-1",
+            !useFixedPlacement &&
+              cn("absolute top-full mt-0", popoverClassName),
           )}
+          style={fixedStyle}
         >
           {providers.length > 1 && (
             <div
@@ -258,10 +258,10 @@ export function CloudNewConversationButton({
                     data-testid={`cloud-provider-tab-${provider}`}
                     onClick={() => handleProviderChange(provider)}
                     className={cn(
-                      "flex items-center gap-1 px-2 py-1 rounded text-xs",
+                      "flex items-center gap-1 rounded px-2 py-1 text-xs",
                       "border transition-colors",
                       isActive
-                        ? "bg-[var(--oh-interactive-hover)] border-[var(--oh-border-input)] text-white"
+                        ? "border-[var(--oh-border-subtle)] bg-[var(--oh-interactive-hover)] text-white"
                         : "border-transparent text-[var(--oh-text-secondary)] hover:text-white",
                     )}
                   >
@@ -282,11 +282,10 @@ export function CloudNewConversationButton({
               placeholder={t(I18nKey.COMMON$SEARCH_REPOSITORIES)}
               disabled={!selectedProvider}
               className={cn(
-                "w-full px-2 py-1.5 text-sm rounded-md",
-                "bg-[var(--oh-surface)] border border-[var(--oh-border)] text-white",
-                "placeholder:text-[var(--oh-muted)] outline-none",
-                "focus:border-[var(--oh-border-input)]",
-                "disabled:opacity-60 disabled:cursor-not-allowed",
+                "w-full rounded-md border border-[var(--oh-border-subtle)] bg-[var(--oh-surface-raised)] px-2 py-1.5 text-sm text-white",
+                "outline-none placeholder:text-[var(--oh-muted)]",
+                "focus:border-[var(--oh-border-subtle)]",
+                "disabled:cursor-not-allowed disabled:opacity-60",
               )}
             />
           </div>

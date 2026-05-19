@@ -12,17 +12,20 @@ import ClockIcon from "#/icons/clock.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
 import PowerIcon from "#/icons/power.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
+import EditIcon from "#/icons/u-edit.svg?react";
 
 interface AutomationCardProps {
   automation: Automation;
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit?: (id: string) => void;
 }
 
 export function AutomationCard({
   automation,
   onToggle,
   onDelete,
+  onEdit,
 }: AutomationCardProps) {
   const { navigate } = useNavigation();
   const { t } = useTranslation("openhands");
@@ -32,6 +35,15 @@ export function AutomationCard({
     automation.trigger.schedule_human || automation.trigger.type;
 
   const menuItems: KebabMenuItem[] = [
+    ...(onEdit
+      ? [
+          {
+            label: t(I18nKey.AUTOMATIONS$EDIT),
+            icon: <EditIcon className="size-4" />,
+            onClick: () => onEdit(automation.id),
+          },
+        ]
+      : []),
     {
       label: automation.enabled
         ? t(I18nKey.AUTOMATIONS$TURN_OFF)

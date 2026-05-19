@@ -224,6 +224,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
                   key={mode}
                   data-testid={`view-mode-${mode}`}
                   type="button"
+                  aria-pressed={viewMode === mode}
                   onClick={() => setViewMode(mode)}
                   className={cn(
                     "p-1 rounded transition-colors cursor-pointer",

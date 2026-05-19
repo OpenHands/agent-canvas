@@ -202,6 +202,12 @@ export default defineConfig(({ mode }) => {
         "framer-motion",
         "rehype-raw",
         "rehype-sanitize",
+        // ``shell-quote`` is a CJS module used by ``src/utils/acp-command.ts``
+        // for the Settings → Agent textarea. With ``noDiscovery: true`` above,
+        // omitting it from this list means Vite serves the raw CJS file to
+        // the browser and dev crashes with ``ReferenceError: exports is not
+        // defined`` on the first import of agent-settings.tsx.
+        "shell-quote",
         "unist-util-visit",
         "uuid",
         "zustand",

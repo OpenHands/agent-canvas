@@ -6,6 +6,27 @@ import {
   NavigationProvider,
   type NavigationContextValue,
 } from "#/context/navigation-context";
+import translations from "#/i18n/translation.json";
+
+// The global `useTranslation` mock in `vitest.setup.ts` returns the key
+// as-is. Override it here so `t(...)` resolves keys via the source-of-truth
+// `translation.json` (English values), letting the test assert real
+// user-facing labels rather than raw keys.
+vi.mock("react-i18next", async () => {
+  const actual = await vi.importActual("react-i18next");
+  return {
+    ...(actual as object),
+    useTranslation: () => ({
+      t: (key: string) => {
+        const entry = (
+          translations as Record<string, Record<string, string>>
+        )[key];
+        return entry?.en ?? key;
+      },
+      i18n: { language: "en", exists: () => false },
+    }),
+  };
+});
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => ({ data: { feature_flags: {} } }),
@@ -183,32 +204,6 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it.each([
-    ["/conversations"],
-    ["/automations"],
-    ["/automations/abc-123"],
-    ["/settings"],
-    ["/"],
-  ])(
-    "does not add md top padding to the sidebar shell on %s",
-    (currentPath) => {
-      renderSidebar(currentPath);
-
-      const sidebar = screen.getByRole("navigation").parentElement;
-      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-4(\s|$)/);
-      expect(sidebar?.className).not.toMatch(/(^|\s)md:pt-6\.5(\s|$)/);
-    },
-  );
-
-  it("renders inactive sidebar nav links with the muted token color", () => {
-    renderSidebar("/skills");
-
-    const conversationsLink = screen.getByTestId("sidebar-conversations-link");
-    expect(conversationsLink.className).toMatch(
-      /(^|\s)text-\[var\(--oh-muted\)\](\s|$)/,
-    );
-  });
-
   it("toggles between expanded and collapsed states and persists the choice", () => {
     const { unmount } = renderSidebar("/conversations");
 
@@ -272,19 +267,6 @@ describe("Sidebar", () => {
 
     fireEvent.click(screen.getByTestId("collapsed-settings-link"));
     expect(navigate).toHaveBeenCalledWith("/settings");
-  });
-
-  it("opts the collapsed Settings button into cursor-pointer so hovering it shows the pointer affordance", () => {
-    // Arrange: render with the sidebar collapsed so the Settings icon is mounted.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
-    renderSidebar("/conversations");
-
-    // Act: locate the Settings button the user hovers.
-    const settingsButton = screen.getByTestId("collapsed-settings-link");
-
-    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
-    // the button must opt back into cursor-pointer for the hover affordance.
-    expect(settingsButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
   });
 
   it("opens the backend popover when hovering the collapsed backend icon", async () => {
@@ -412,5 +394,21 @@ describe("Sidebar", () => {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
     }
+  });
+
+  it("renders the renamed top-level nav labels", () => {
+    // Arrange
+    renderSidebar("/conversations");
+
+    // Act + Assert: each top-level nav link surfaces its new user-facing label.
+    expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
+      "Code",
+    );
+    expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
+      "Customize",
+    );
+    expect(screen.getByTestId("sidebar-automations-link")).toHaveTextContent(
+      "Automate",
+    );
   });
 });

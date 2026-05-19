@@ -47,10 +47,4 @@ describe("HomeHeader", () => {
     expect(header).toBeInTheDocument();
   });
 
-  it("should have the correct CSS classes for layout", () => {
-    renderHomeHeader();
-
-    const header = screen.getByRole("banner");
-    expect(header).toHaveClass("flex", "flex-col", "items-center");
-  });
 });

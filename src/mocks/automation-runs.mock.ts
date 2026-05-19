@@ -19,6 +19,9 @@ function makeRun(
     id,
     status,
     conversation_id: hasConversation ? `conv-${id}` : null,
+    // Runs that have a conversation also have a bash command; runs that
+    // failed before sandbox creation have neither.
+    bash_command_id: hasConversation ? `cmd-${id}` : null,
     error_detail:
       status === AutomationRunStatus.FAILED
         ? "Process exited with code 1"

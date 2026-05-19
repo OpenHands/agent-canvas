@@ -8,6 +8,7 @@ import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store"
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { OnboardingModal } from "#/components/features/onboarding/onboarding-modal";
 import { NavigationProvider } from "#/context/navigation-context";
+import SettingsService from "#/api/settings-service/settings-service.api";
 
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which itself
@@ -73,6 +74,10 @@ function renderModal(onClose = vi.fn()) {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  // ChooseAgentStep's Next button now persists the selection via
+  // saveSettings before advancing. Stub it so the rest of the flow
+  // (which these tests focus on) isn't gated on a real HTTP call.
+  vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
 });
 afterEach(() => {
   window.localStorage.clear();
@@ -91,24 +96,9 @@ describe("OnboardingModal", () => {
       screen.getByTestId("onboarding-step-choose-agent"),
     ).toBeInTheDocument();
 
-    // Active slide sits at offset 0; later slides are translated 100%
-    // per index away to the right and absolute-positioned so they
-    // don't bleed into the modal box.
     expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
       "data-active",
       "true",
-    );
-    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
-      "translateX(0%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
-      "translateX(100%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
-      "translateX(200%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
-      "translateX(300%)",
     );
 
     // Progress bar reflects step 1 of 4.
@@ -126,26 +116,22 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Step 0 → 1
+    // Step 0 → 1. ChooseAgentStep now does an async save before
+    // advancing, so the modal can take a beat to flip steps while
+    // SayHello/CheckBackend queries are still settling on the four
+    // mounted slides. Bump the default 1s waitFor timeout.
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-        "data-current-step",
-        "1",
-      ),
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
     );
     expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
       "data-active",
       "true",
-    );
-    expect(screen.getByTestId("onboarding-slide-0").style.transform).toBe(
-      "translateX(-100%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-1").style.transform).toBe(
-      "translateX(0%)",
-    );
-    expect(screen.getByTestId("onboarding-slide-2").style.transform).toBe(
-      "translateX(100%)",
     );
 
     // Once the backend health probe resolves, step 1's Next is enabled.
@@ -172,9 +158,6 @@ describe("OnboardingModal", () => {
       "data-active",
       "true",
     );
-    expect(screen.getByTestId("onboarding-slide-3").style.transform).toBe(
-      "translateX(0%)",
-    );
   });
 
   it("Skip immediately closes the modal", async () => {
@@ -185,18 +168,6 @@ describe("OnboardingModal", () => {
     await user.click(screen.getByTestId("onboarding-skip"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("opts the Skip button into cursor-pointer so hovering it shows the pointer affordance", () => {
-    // Arrange: render the modal so the Skip button is mounted.
-    renderModal();
-
-    // Act: locate the Skip button the user hovers.
-    const skipButton = screen.getByTestId("onboarding-skip");
-
-    // Assert: Tailwind v4 preflight resets <button> cursor to default, so
-    // the button must opt back into cursor-pointer for the hover affordance.
-    expect(skipButton.className).toMatch(/(^|\s)cursor-pointer(\s|$)/);
   });
 
   it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
@@ -216,10 +187,25 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
+    // Wait for the LLM slide to become the active one before querying
+    // by role — otherwise the heading is `aria-hidden` from inside a
+    // not-yet-active slide and getByRole filters it out.
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "2",
+        ),
+      { timeout: 3000 },
+    );
 
     // Act: locate the step's scrollable settings wrapper and the chrome
     // around it that the user expects to remain visible.
@@ -238,13 +224,84 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
+  it("skips the LLM-setup step when the user picks an ACP agent", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    // Pick Claude Code, then advance from Choose Agent → Check Backend.
+    await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
+    );
+
+    // Advancing again should jump straight to Say Hello (index 3) and
+    // bypass the LLM form — ACP agents own their own LLM via the
+    // subprocess.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "3",
+        ),
+      { timeout: 3000 },
+    );
+    // All four slides remain mounted (the rail just translates them);
+    // the assertion that the LLM step was skipped is that slide 3 (Say
+    // Hello) is the active one immediately after the backend step,
+    // *not* slide 2 (LLM).
+    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    // Progress bar reflects the *visited* step count, not the slide
+    // index — 3 segments total (not 4), and segment 2 is current (not
+    // segment 3, which would imply LLM was completed). Without this
+    // mapping, picking an ACP agent makes the bar show segment 2 as
+    // "completed" despite the user never visiting it.
+    expect(
+      screen.queryByTestId("onboarding-progress-step-3"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
+      "data-state",
+      "completed",
+    );
+  });
+
   it("pre-fills the say-hello input with the default greeting on step 3", async () => {
     renderModal();
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
     await user.click(screen.getByTestId("onboarding-llm-next"));

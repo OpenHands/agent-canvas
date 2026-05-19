@@ -121,6 +121,36 @@ describe("backend-registry storage", () => {
     });
   });
 
+
+  it("refreshes a stale API key on the default Local backend from env defaults", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: window.location.origin,
+          apiKey: "stale-session-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]")[0],
+    ).toMatchObject({
+      id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+  });
+
   it("does not fill the default Local backend API key after its host is edited", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
