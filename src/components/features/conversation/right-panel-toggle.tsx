@@ -1,9 +1,12 @@
+import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useConversationStore } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import BlockDrawerLeftIcon from "#/icons/block-drawer-left.svg?react";
 import { ChatActionTooltip } from "../chat/chat-action-tooltip";
+import { useBreakpoint } from "#/hooks/use-breakpoint";
+import { useConversationId } from "#/hooks/use-conversation-id";
 
 interface RightPanelToggleProps {
   className?: string;
@@ -19,10 +22,29 @@ interface RightPanelToggleProps {
  */
 export function RightPanelToggle({ className }: RightPanelToggleProps) {
   const { t } = useTranslation("openhands");
-  const { isRightPanelShown, setHasRightPanelToggled, setSelectedTab } =
-    useConversationStore();
+  const isMobile = useBreakpoint();
+  const navigate = useNavigate();
+  const { conversationId } = useConversationId();
+  const {
+    isRightPanelShown,
+    setHasRightPanelToggled,
+    setIsRightPanelShown,
+    setSelectedTab,
+  } = useConversationStore();
 
   const handleToggle = () => {
+    if (isMobile) {
+      if (!conversationId) return;
+      setHasRightPanelToggled(true);
+      setIsRightPanelShown(true);
+      const { selectedTab } = useConversationStore.getState();
+      if (!selectedTab) {
+        setSelectedTab("files");
+      }
+      navigate(`/conversations/${conversationId}/panel`);
+      return;
+    }
+
     const newState = !isRightPanelShown;
     setHasRightPanelToggled(newState);
 
@@ -34,9 +56,13 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
     }
   };
 
-  const tooltipText = isRightPanelShown
-    ? t(I18nKey.COMMON$HIDE_PANEL)
-    : t(I18nKey.COMMON$SHOW_PANEL);
+  const tooltipText = isMobile
+    ? t(I18nKey.COMMON$SHOW_PANEL)
+    : isRightPanelShown
+      ? t(I18nKey.COMMON$HIDE_PANEL)
+      : t(I18nKey.COMMON$SHOW_PANEL);
+
+  const ariaPressed = isMobile ? false : isRightPanelShown;
 
   return (
     <ChatActionTooltip tooltip={tooltipText} ariaLabel={tooltipText}>
@@ -48,7 +74,7 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
           className,
         )}
         aria-label={tooltipText}
-        aria-pressed={isRightPanelShown}
+        aria-pressed={ariaPressed}
         data-testid="right-panel-toggle"
       >
         <BlockDrawerLeftIcon className="w-5 h-5" />

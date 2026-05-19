@@ -1,3 +1,7 @@
+import React from "react";
+import { ChevronLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
@@ -7,10 +11,7 @@ import { ResizeHandle } from "../../../ui/resize-handle";
 import { useResizablePanels } from "#/hooks/use-resizable-panels";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
-
-function getMobileChatPanelClass(isRightPanelShown: boolean) {
-  return isRightPanelShown ? "h-160" : "flex-1";
-}
+import { SidebarMobileMenuToggle } from "#/components/features/sidebar/sidebar-mobile-menu-toggle";
 
 function getDesktopTabPanelClass(isRightPanelShown: boolean) {
   return isRightPanelShown
@@ -57,9 +58,7 @@ export function ConversationMain() {
         <div
           className={cn(
             "flex flex-col bg-base overflow-hidden",
-            isMobile
-              ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out",
+            isMobile ? "flex-1" : "transition-all duration-300 ease-in-out",
           )}
           // panel width computed at runtime by resize hook; transition toggled by drag state
           style={
@@ -73,9 +72,15 @@ export function ConversationMain() {
         >
           <div
             data-testid="chat-pane-header"
-            className="flex items-center h-10 min-h-10 shrink-0"
+            className={cn(
+              "flex h-10 min-h-10 shrink-0 items-center",
+              isMobile && "gap-2 px-2.5",
+            )}
           >
-            <ConversationNameWithStatus />
+            {isMobile ? <SidebarMobileMenuToggle /> : null}
+            <div className={cn(isMobile && "min-w-0 flex-1")}>
+              <ConversationNameWithStatus />
+            </div>
           </div>
           <div className="flex-1 min-h-0 flex flex-col">
             <ChatInterfaceWrapper
@@ -89,51 +94,90 @@ export function ConversationMain() {
           <ResizeHandle onMouseDown={handleMouseDown} isDragging={isDragging} />
         )}
 
-        {/* Tab Content Panel - always mounted, styled as bottom sheet (mobile)
-            or side panel (desktop). Owns the tabs header and extends all the
-            way to the bottom of the viewport (no bottom padding). */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden",
-            isMobile
-              ? cn(
-                  "absolute bottom-4 left-0 right-0 top-160",
-                  isRightPanelShown
-                    ? "h-160 translate-y-0 opacity-100"
-                    : "h-0 translate-y-full opacity-0",
-                )
-              : getDesktopTabPanelClass(isRightPanelShown),
-          )}
-          // panel width computed at runtime by resize hook; transition toggled by drag state
-          style={
-            !isMobile
-              ? {
-                  width: isRightPanelShown ? `${rightWidth}%` : "0%",
-                  transitionProperty: isDragging ? "opacity, transform" : "all",
-                }
-              : undefined
-          }
-        >
+        {/* Right panel: desktop side drawer. Mobile opens Files/Tools via /panel route. */}
+        {!isMobile && (
           <div
             className={cn(
-              isMobile
-                ? "h-full flex flex-col pb-2 md:pb-0 pt-2"
-                : "flex flex-col h-full w-full",
+              "transition-all duration-300 ease-in-out overflow-hidden",
+              getDesktopTabPanelClass(isRightPanelShown),
             )}
+            style={{
+              width: isRightPanelShown ? `${rightWidth}%` : "0%",
+              transitionProperty: isDragging ? "opacity, transform" : "all",
+            }}
           >
-            <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border-l border-[var(--oh-border)] overflow-hidden">
-              <div
-                data-testid="tabs-pane-header"
-                className="flex shrink-0 flex-col border-b border-[var(--oh-border)]"
-              >
-                <ConversationTabs />
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <ConversationTabContent />
+            <div className="flex h-full w-full flex-col">
+              <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border-l border-[var(--oh-border)] overflow-hidden">
+                <div
+                  data-testid="tabs-pane-header"
+                  className="flex shrink-0 flex-col border-b border-[var(--oh-border)]"
+                >
+                  <ConversationTabs />
+                </div>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <ConversationTabContent />
+                </div>
               </div>
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ConversationMobilePanelPage({
+  onNavigateBack,
+}: {
+  onNavigateBack: () => void;
+}) {
+  const { t } = useTranslation("openhands");
+  const { setIsRightPanelShown, setHasRightPanelToggled, setSelectedTab } =
+    useConversationStore();
+
+  React.useLayoutEffect(() => {
+    setIsRightPanelShown(true);
+    setHasRightPanelToggled(true);
+    const st = useConversationStore.getState();
+    if (!st.selectedTab) {
+      setSelectedTab("files");
+    }
+    return () => {
+      setIsRightPanelShown(false);
+      setHasRightPanelToggled(false);
+    };
+  }, [setIsRightPanelShown, setHasRightPanelToggled, setSelectedTab]);
+
+  const handleBack = () => {
+    onNavigateBack();
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-base">
+      <div
+        data-testid="conversation-mobile-panel-top"
+        className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--oh-border)] px-2.5"
+      >
+        <button
+          type="button"
+          data-testid="conversation-mobile-panel-back"
+          onClick={handleBack}
+          aria-label={t(I18nKey.COMMON$BACK)}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-surface-raised)] hover:text-white"
+        >
+          <ChevronLeft width={18} height={18} aria-hidden />
+        </button>
+        <div className="min-w-0 flex-1 border-b-0">
+          <div
+            data-testid="tabs-pane-header"
+            className="flex shrink-0 flex-col border-b-0"
+          >
+            <ConversationTabs />
+          </div>
         </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col bg-[var(--oh-surface)]">
+        <ConversationTabContent />
       </div>
     </div>
   );

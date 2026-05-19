@@ -1,5 +1,10 @@
 import React from "react";
-import { useRouteError, isRouteErrorResponse, Outlet } from "react-router";
+import {
+  useRouteError,
+  isRouteErrorResponse,
+  Outlet,
+  useLocation,
+} from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
@@ -65,6 +70,7 @@ export function ErrorBoundary() {
 }
 
 export default function MainApp() {
+  const location = useLocation();
   const appTitle = useAppTitle();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
@@ -100,6 +106,12 @@ export default function MainApp() {
     );
   }
 
+  // Conversation + full-screen panel routes put the mobile menu control in the
+  // chat / panel header; omit the extra top row so we don't duplicate chrome.
+  const hideMobileSidebarMenuBar = /^\/conversations\/[^/]+/.test(
+    location.pathname,
+  );
+
   return (
     <ReactRouterNavigationProvider>
       <SidebarMobileNavProvider>
@@ -111,7 +123,7 @@ export default function MainApp() {
           <Sidebar />
 
           <div className="flex min-h-0 flex-col w-full min-w-0 h-full gap-3">
-            <SidebarMobileMenuBar />
+            {!hideMobileSidebarMenuBar ? <SidebarMobileMenuBar /> : null}
             {config.data &&
               (config.data.maintenance_start_time ||
                 (config.data.faulty_models &&
