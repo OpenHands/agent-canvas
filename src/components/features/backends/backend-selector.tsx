@@ -22,6 +22,7 @@ import {
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { useSidebarCollapsed } from "#/components/features/sidebar/sidebar-collapse-context";
 import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
@@ -166,13 +167,17 @@ export function BackendSelector({
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
+  const sidebarCollapsed = useSidebarCollapsed();
   const isRightPanelShown = useConversationStore(
     (state) => state.isRightPanelShown,
   );
-  // When the conversation drawer is open it sits beside the sidebar; show the
-  // tooltip above the settings control so it isn't hidden under the drawer.
+  // When the sidebar rail is expanded, `placement="left"` hugs the main
+  // canvas and reads awkwardly; prefer above the control. When the rail is
+  // collapsed, keep left except on active conversation + open right drawer.
   const settingsTooltipPlacement =
-    conversationMatch && isRightPanelShown ? "top" : "left";
+    !sidebarCollapsed || (conversationMatch && isRightPanelShown)
+      ? "top"
+      : "left";
 
   const someCloudLoading = Object.values(cloudOrgs).some((c) => c.isLoading);
 
