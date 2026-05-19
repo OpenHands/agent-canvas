@@ -3,49 +3,22 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  __resetActiveStoreForTests,
-  setActiveSelection,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
-import { callCloudProxy } from "#/api/cloud/proxy";
-import type { Backend } from "#/api/backend-registry/types";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
-const { downloadFileMock, fileClientMock } = vi.hoisted(() => {
-  const downloadFile = vi.fn();
+const useWorkspaceSessionMock = vi.fn();
+vi.mock("#/hooks/query/use-workspace-session", async (importOriginal) => {
+  const real =
+    await importOriginal<
+      typeof import("#/hooks/query/use-workspace-session")
+    >();
   return {
-    downloadFileMock: downloadFile,
-    fileClientMock: vi.fn(function FileClientMock() {
-      return { downloadFile };
-    }),
+    ...real,
+    // Keep the real joinWorkspaceUrl so we assert against URLs assembled
+    // by the hook the same way the production code assembles them.
+    useWorkspaceSession: () => useWorkspaceSessionMock(),
   };
 });
-
-vi.mock("@openhands/typescript-client/clients", () => ({
-  FileClient: fileClientMock,
-}));
-
-vi.mock("#/api/agent-server-client-options", () => ({
-  getAgentServerClientOptions: vi.fn(() => ({
-    host: "https://agent.example.com",
-    apiKey: "session-key",
-    workingDir: "/workspace/project",
-  })),
-}));
-
-vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: vi.fn(),
-}));
-
-const cloudBackend: Backend = {
-  id: "cloud-1",
-  name: "Production",
-  host: "https://app.all-hands.dev",
-  apiKey: "cloud-api-key",
-  kind: "cloud",
-};
 
 const useActiveConversationMock = vi.fn();
 vi.mock("#/hooks/query/use-active-conversation", () => ({
@@ -56,6 +29,8 @@ const useRuntimeIsReadyMock = vi.fn();
 vi.mock("#/hooks/use-runtime-is-ready", () => ({
   useRuntimeIsReady: () => useRuntimeIsReadyMock(),
 }));
+
+const fetchMock = vi.fn();
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -73,18 +48,14 @@ function makeWrapper() {
   return Wrapper;
 }
 
+const BASE_URL =
+  "https://agent.example.com/api/conversations/conv-1/workspace/";
+
 describe("useWorkspaceFileContent", () => {
   beforeEach(() => {
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: vi.fn(() => "blob:preview-url"),
-    });
-    window.localStorage.clear();
-    __resetActiveStoreForTests();
-    useWorkspaceMutationCounter.setState({ count: 0 });
-    fileClientMock.mockClear();
-    downloadFileMock.mockReset();
-    vi.mocked(callCloudProxy).mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    useWorkspaceSessionMock.mockReset();
     useActiveConversationMock.mockReset();
     useRuntimeIsReadyMock.mockReset();
     useRuntimeIsReadyMock.mockReturnValue(true);
@@ -93,20 +64,31 @@ describe("useWorkspaceFileContent", () => {
         id: "conv-1",
         conversation_url: "https://agent.example.com/api/conversations/conv-1",
         session_api_key: "session-key",
-        workspace: { working_dir: "/workspace/project/agent-canvas" },
       },
     });
+    useWorkspaceSessionMock.mockReturnValue({
+      data: { baseUrl: BASE_URL },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    useWorkspaceMutationCounter.setState({ count: 0 });
   });
 
   afterEach(() => {
-    window.localStorage.clear();
-    __resetActiveStoreForTests();
+    vi.unstubAllGlobals();
   });
 
-  it("downloads selected files through the typed file API", async () => {
-    downloadFileMock.mockResolvedValue(
-      new TextEncoder().encode("# Hello").buffer,
-    );
+  function arrayBufferFromString(value: string): ArrayBuffer {
+    return new TextEncoder().encode(value).buffer as ArrayBuffer;
+  }
+
+  it("returns a static URL on the workspace fileserver for text content", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: () => Promise.resolve(arrayBufferFromString("# Hello")),
+    });
 
     const { result } = renderHook(
       () => useWorkspaceFileContent("docs/readme.md"),
@@ -115,21 +97,89 @@ describe("useWorkspaceFileContent", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(downloadFileMock).toHaveBeenCalledWith(
-      "/workspace/project/agent-canvas/docs/readme.md",
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BASE_URL}docs/readme.md`,
+      expect.objectContaining({ credentials: "include" }),
     );
-    expect(result.current.data).toMatchObject({
+    expect(result.current.data).toEqual({
+      path: "docs/readme.md",
       kind: "text",
       text: "# Hello",
-      staticUrl: "blob:preview-url",
+      staticUrl: `${BASE_URL}docs/readme.md`,
       mimeType: "text/markdown",
     });
   });
 
-  it("refetches selected file content after workspace mutations", async () => {
-    downloadFileMock
-      .mockResolvedValueOnce(new TextEncoder().encode("first").buffer)
-      .mockResolvedValueOnce(new TextEncoder().encode("second").buffer);
+  it("does not fetch image bytes — image staticUrl is rendered directly", async () => {
+    const { result } = renderHook(
+      () => useWorkspaceFileContent("assets/logo.png"),
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.data).toEqual({
+      path: "assets/logo.png",
+      kind: "image",
+      text: null,
+      staticUrl: `${BASE_URL}assets/logo.png`,
+      mimeType: "image/png",
+    });
+  });
+
+  it("does not fetch PDF bytes — PDF staticUrl is rendered directly", async () => {
+    const { result } = renderHook(() => useWorkspaceFileContent("report.pdf"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.data).toEqual({
+      path: "report.pdf",
+      kind: "pdf",
+      text: null,
+      staticUrl: `${BASE_URL}report.pdf`,
+      mimeType: "application/pdf",
+    });
+  });
+
+  it("flips text → binary when the fetched bytes contain a NUL", async () => {
+    const binary = new Uint8Array([0x01, 0x00, 0x02]).buffer;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: () => Promise.resolve(binary),
+    });
+
+    const { result } = renderHook(
+      () => useWorkspaceFileContent("data/blob.bin"),
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toMatchObject({
+      kind: "binary",
+      text: null,
+      mimeType: "application/octet-stream",
+      staticUrl: `${BASE_URL}data/blob.bin`,
+    });
+  });
+
+  it("refetches text content after a workspace mutation tick", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(arrayBufferFromString("first")),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(arrayBufferFromString("second")),
+      });
 
     const { result } = renderHook(
       () => useWorkspaceFileContent("docs/readme.md"),
@@ -143,7 +193,7 @@ describe("useWorkspaceFileContent", () => {
     });
 
     await waitFor(() => expect(result.current.data?.text).toBe("second"));
-    expect(downloadFileMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not start a file request before a path is selected", async () => {
@@ -153,67 +203,46 @@ describe("useWorkspaceFileContent", () => {
       setTimeout(resolve, 10);
     });
 
-    expect(fileClientMock).not.toHaveBeenCalled();
-    expect(downloadFileMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects traversal outside the workspace", async () => {
-    const { result } = renderHook(() => useWorkspaceFileContent("../.env"), {
+  it("does not start a file request before the workspace session is minted", async () => {
+    useWorkspaceSessionMock.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isError: false,
+      error: null,
+    });
+
+    renderHook(() => useWorkspaceFileContent("docs/readme.md"), {
       wrapper: makeWrapper(),
     });
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
 
-    expect(downloadFileMock).not.toHaveBeenCalled();
-    expect(result.current.error).toEqual(
-      expect.objectContaining({
-        message: "Workspace file path must stay inside the workspace",
-      }),
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  describe("cloud backend", () => {
-    beforeEach(() => {
-      setRegisteredBackends([cloudBackend]);
-      setActiveSelection({ backendId: cloudBackend.id, orgId: null });
-      useActiveConversationMock.mockReturnValue({
-        data: {
-          id: "conv-cloud",
-          conversation_url:
-            "https://runtime.example.com/api/conversations/conv-cloud",
-          session_api_key: "cloud-session-key",
-          workspace: { working_dir: "/workspace/project" },
-        },
-      });
+  it("surfaces a non-OK response as an error", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
     });
 
-    it("fetches file content through callCloudProxy instead of FileClient", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue(
-        new Blob([new TextEncoder().encode("cloud file content")]),
-      );
+    const { result } = renderHook(
+      () => useWorkspaceFileContent("missing.txt"),
+      { wrapper: makeWrapper() },
+    );
 
-      const { result } = renderHook(
-        () => useWorkspaceFileContent("src/app.ts"),
-        { wrapper: makeWrapper() },
-      );
+    await waitFor(() => expect(result.current.isError).toBe(true));
 
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      // FileClient must never be called directly for cloud conversations.
-      expect(fileClientMock).not.toHaveBeenCalled();
-      expect(downloadFileMock).not.toHaveBeenCalled();
-
-      const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
-      expect(proxyCall.method).toBe("GET");
-      expect(proxyCall.path).toContain("/api/file/download");
-      expect(proxyCall.path).toContain(
-        encodeURIComponent("/workspace/project/src/app.ts"),
-      );
-      expect(proxyCall.authMode).toBe("session-api-key");
-      expect(proxyCall.sessionApiKey).toBe("cloud-session-key");
-      expect(proxyCall.responseType).toBe("blob");
-
-      expect(result.current.data?.text).toBe("cloud file content");
-    });
+    expect(result.current.error).toEqual(
+      expect.objectContaining({
+        message: "Failed to read missing.txt: 404",
+      }),
+    );
   });
 });
