@@ -258,6 +258,20 @@
   scrollbar-color: rgba(208, 217, 250, 0.3) transparent;
 }
 
+/*
+ * Sidebar conversation list: reserve a stable gutter so short lists keep the
+ * same right inset as when a vertical scrollbar is present (aligns with nav).
+ */
+.conversation-panel-list-scroll {
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  .conversation-panel-list-scroll {
+    padding-right: 0.5rem;
+  }
+}
+
 /* Custom styles for contenteditable */
 .chat-input:empty:before {
   content: attr(data-placeholder);

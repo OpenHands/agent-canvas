@@ -8,8 +8,8 @@ import { useSidebarCollapsed } from "./sidebar-collapse-context";
  * In the collapsed sidebar variant the list reduces each row to a status
  * indicator + hover-preview.
  *
- * Stays within the aside's horizontal padding so row hovers (group headers,
- * conversation cards) align with {@link SidebarNavLink} items above.
+ * On desktop the aside uses `pr-0` so this list is full width to the rail;
+ * nav links above keep their own horizontal padding.
  */
 export function SidebarConversationList() {
   const collapsed = useSidebarCollapsed();
@@ -20,9 +20,10 @@ export function SidebarConversationList() {
 
   return (
     <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
-      {/* Avoid overflow-hidden here: ConversationPanel's header uses `-mx-2` to
-          full-bleed the scroll divider to the aside edges; clipping would inset
-          the border. Scrolling stays contained on the panel's inner list. */}
+      {/* Avoid overflow-hidden here: ConversationPanel's header uses `-ml-2` +
+          `w-[calc(100%+0.5rem)]` to full-bleed the divider with `md:pr-0` on
+          the aside; clipping would inset the border. Scroll stays on the inner
+          list. */}
       <div className="flex min-h-0 w-full flex-1 flex-col">
         <ConversationPanel />
       </div>

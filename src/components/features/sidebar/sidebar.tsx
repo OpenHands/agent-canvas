@@ -172,7 +172,11 @@ export function Sidebar() {
           collapsed
             ? "md:w-[64px] md:min-w-[64px]"
             : "md:w-[300px] md:min-w-[300px]",
-          collapsed ? "md:px-2" : "px-2 pb-2 md:px-2",
+          // Expanded: desktop must not use symmetric `px-*` — right padding pushes
+          // the conversation scrollbar left of the rail. Use `max-md:px-2` for the
+          // top bar only; at `md+` use `pl-2` + `pr-0` (nav links keep their own
+          // horizontal padding).
+          collapsed ? "md:px-2" : "pb-2 max-md:px-2 md:pl-2 md:pr-0",
           "flex-row md:flex-col",
           currentPath === "/" && "md:pb-3",
         )}
@@ -185,10 +189,10 @@ export function Sidebar() {
             // Collapsed: stack the chevron beneath the logo so the 64px rail
             // doesn't need to grow to fit two controls in a row. Expanded:
             // chevron is right-aligned via ml-auto further down.
-            // `pl-2` matches SidebarNavLink horizontal inset; no right padding so
-            // the collapse control can sit flush against the rail edge (outer
-            // sidebar still provides `px-2`).
-            collapsed ? "md:flex-col md:gap-2 md:px-0" : "pl-2 pr-0",
+            // `pl-2` matches SidebarNavLink horizontal inset. `pr-2` mirrors the
+            // nav links' horizontal padding so the collapse control isn't flush on
+            // the rail (aside stays `md:pr-0` for the conversation list only).
+            collapsed ? "md:flex-col md:gap-2 md:px-0" : "pl-2 pr-2",
           )}
         >
           {collapsed ? (
@@ -266,7 +270,7 @@ export function Sidebar() {
             "flex flex-row md:flex-col gap-1 md:gap-0.5 w-full md:shrink-0",
             collapsed
               ? "items-center md:items-center"
-              : "items-center md:items-stretch",
+              : "items-center md:items-stretch pr-2",
           )}
         >
           <SidebarNavLink
@@ -420,7 +424,7 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2">
+          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] pr-2">
             <BackendSelector openUpward />
           </div>
         )}

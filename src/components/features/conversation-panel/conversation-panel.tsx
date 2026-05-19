@@ -158,7 +158,9 @@ export function ConversationPanel({
       setCollapsedGroupIds(new Set());
     }
   }, [organizeMode]);
+
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
   const [selectedConversationId, setSelectedConversationId] = React.useState<
     string | null
   >(null);
@@ -484,7 +486,9 @@ export function ConversationPanel({
       {showConversationHeader && (
         <div
           className={cn(
-            "-mx-2 border-b",
+            // Pull flush to the sidebar edges: `-ml-2` matches aside `pl-2`;
+            // width extends by that inset on the right now that aside is `pr-0`.
+            "-ml-2 w-[calc(100%+0.5rem)] max-w-none box-border border-b",
             isListScrolled ? "border-[var(--oh-border)]" : "border-transparent",
           )}
         >
@@ -526,10 +530,14 @@ export function ConversationPanel({
 
       <div
         ref={scrollContainerRef}
+        data-testid="conversation-panel-list-scroll"
         onScroll={(event) => {
           setIsListScrolled(event.currentTarget.scrollTop > 0);
         }}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always",
+          !compact && "conversation-panel-list-scroll",
+        )}
       >
         {showInitialSkeleton && <ConversationCardSkeleton compact={compact} />}
 
