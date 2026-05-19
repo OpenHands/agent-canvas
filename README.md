@@ -30,7 +30,6 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 ## Project ownership and support
 
 - **Current status**: Beta.
-- **Project owner**: erisfully
 - **Support channel**: [#proj-agent-canvas](https://openhands.dev/joinslack).
 - **Support level**: Best effort while the project remains in Beta.
 
