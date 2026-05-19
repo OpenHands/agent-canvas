@@ -27,7 +27,7 @@ describe("mock file handlers", () => {
     };
 
     expect(response.status).toBe(200);
-    // In test mode shouldReturnDockerProjectMock is false, so items is empty
+    // In test mode shouldReturnProjectMock is false, so items is empty
     expect(body.items).toEqual([]);
     expect(body.subdirs).toEqual([]);
     expect(body.next_page_id).toBeNull();

@@ -1,8 +1,9 @@
 import { Puzzle, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
-import { MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
+import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
 import { findCatalogEntryForServer } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 
@@ -64,17 +65,7 @@ export function InstalledServerCard({
         "border border-[var(--oh-border)] bg-base-secondary p-4",
       )}
     >
-      <span
-        aria-hidden="true"
-        className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
-        // data-driven icon colors from catalog entry
-        style={{
-          backgroundColor: catalog?.iconBg ?? "var(--oh-color-tertiary)",
-          color: catalog?.iconColor ?? "#FFFFFF",
-        }}
-      >
-        {catalog?.logo ?? <Puzzle className="h-5 w-5" strokeWidth={2.25} />}
-      </span>
+      <McpLogoBadge entry={catalog} fallback={<Puzzle strokeWidth={2.25} />} />
 
       <div className="flex flex-col min-w-0 flex-1 gap-0.5">
         <div className="flex items-center gap-2">
