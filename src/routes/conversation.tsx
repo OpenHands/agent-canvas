@@ -29,6 +29,11 @@ import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
 import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 
+// Survives route unmount so remounting the same conversation does not clear
+// the event store after child providers re-seed history (child effects run
+// before parent effects on mount).
+let lastResetConversationRouteKey: string | null = null;
+
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
@@ -66,7 +71,15 @@ function AppContent() {
     (state) => state.removeErrorMessage,
   );
 
-  React.useEffect(() => {
+  // useLayoutEffect so a real conversation switch clears before child
+  // providers seed REST history (child useEffects run after layout effects).
+  React.useLayoutEffect(() => {
+    const routeKey = `${active.backend.id}:${active.orgId ?? ""}:${conversationId}`;
+    if (lastResetConversationRouteKey === routeKey) {
+      return;
+    }
+    lastResetConversationRouteKey = routeKey;
+
     clearTerminal();
     resetConversationState();
     resetConversationRuntimeState();
@@ -75,6 +88,8 @@ function AppContent() {
     clearEvents();
   }, [
     conversationId,
+    active.backend.id,
+    active.orgId,
     clearTerminal,
     resetConversationState,
     resetConversationRuntimeState,
