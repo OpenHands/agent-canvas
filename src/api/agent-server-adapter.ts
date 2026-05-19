@@ -339,8 +339,11 @@ const AGENT_SETTINGS_METADATA_KEYS = new Set(["schema_version", "agent"]);
  * (``acp_args``, ``acp_env``, ``acp_session_mode``, ``acp_prompt_timeout``):
  * trimming it to UI-visible fields would solve role (1) at the cost of
  * silently leaking those API-set fields when the user toggles back to
- * an OpenHands agent. Keep them in sync with ``ACP_SETTINGS_KEYS`` in
- * the Python SDK's ``openhands.sdk.settings.ACPAgentSettings``.
+ * an OpenHands agent. Keep aligned with the ``acp_*`` fields on
+ * ``ACPAgentSettings`` in
+ * ``openhands-sdk/openhands/sdk/settings/model.py`` — there is no
+ * matching constant on the Python side, so this is hand-maintained
+ * (drift tracked in agent-canvas#587 alongside ``ACP_PROVIDERS``).
  */
 const ACP_SETTINGS_KEYS = [
   "acp_command",
@@ -604,6 +607,17 @@ function createAgentFromSettings(
   // ACP branch returned ``{kind:"ACPAgent",...agentSettings}`` with no
   // ``agent_context``) silently dropped both, matching neither the
   // SDK contract nor OpenHands' own behaviour.
+  //
+  // The ``acp_compatible`` markers live on the SDK fields themselves
+  // in ``openhands-sdk/openhands/sdk/context/agent_context.py``:
+  //   - ``system_message_suffix``  (Field, json_schema_extra at L66)
+  //   - ``load_user_skills``       (Field, json_schema_extra at L80)
+  //   - ``load_public_skills``     (Field, json_schema_extra at L89)
+  // ``AgentContext.validate_acp_compatibility`` rejects any field not
+  // tagged that way at ``ACPAgent`` init time. If a future SDK bump
+  // demotes one of these (drops the marker), the ACP conversation start
+  // will 422 here — at which point the right move is to drop the
+  // demoted field from this dict, not to wrap a workaround.
   //
   // ``secrets`` is filled in later by the secret bridge in
   // ``buildStartConversationRequest`` (when ``customSecrets`` is set);
