@@ -235,8 +235,8 @@ OPTIONS:
   --with-docker               Also start a Docker backend (sandboxed execution)
   --no-docker                 Skip the Docker backend prompt
   --docker-projects-path <p>  Host directory to mount into the Docker container
-  --reconfigure               Re-prompt for backend choice and re-seed security settings
-                              (clears saved preferences in ~/.openhands/agent-canvas/)
+  --reconfigure               Re-prompt for backend choice and re-apply security defaults
+                              (deletes backend-choice.json and security-seeded marker)
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -1078,21 +1078,28 @@ async function promptForBackends(env = process.env, { forcePrompt = false } = {}
     );
 
     if (/^y(es)?$/i.test(dockerAnswer)) {
-      const defaultPath = env.PROJECTS_PATH || "";
-      const pathPrompt = defaultPath
-        ? `  Projects directory to mount [${defaultPath}]: `
-        : `  Projects directory to mount (absolute path): `;
-      const rawPath = await promptLine(pathPrompt);
-      const projectsPath = rawPath || defaultPath;
-
-      if (!projectsPath) {
-        logError("No projects path provided. Skipping Docker backend.");
-      } else if (!isAbsolute(projectsPath)) {
-        logError(`Path must be absolute: ${projectsPath}. Skipping Docker backend.`);
-      } else if (!existsSync(projectsPath)) {
-        logError(`Path does not exist: ${projectsPath}. Skipping Docker backend.`);
+      // Re-check in case Docker daemon stopped after initial detection
+      if (!isDockerAvailable()) {
+        logError(
+          "Docker is no longer available. Install Docker: https://docs.docker.com/get-docker/",
+        );
       } else {
-        docker = { enabled: true, projectsPath };
+        const defaultPath = env.PROJECTS_PATH || "";
+        const pathPrompt = defaultPath
+          ? `  Projects directory to mount [${defaultPath}]: `
+          : `  Projects directory to mount (absolute path): `;
+        const rawPath = await promptLine(pathPrompt);
+        const projectsPath = rawPath || defaultPath;
+
+        if (!projectsPath) {
+          logError("No projects path provided. Skipping Docker backend.");
+        } else if (!isAbsolute(projectsPath)) {
+          logError(`Path must be absolute: ${projectsPath}. Skipping Docker backend.`);
+        } else if (!existsSync(projectsPath)) {
+          logError(`Path does not exist: ${projectsPath}. Skipping Docker backend.`);
+        } else {
+          docker = { enabled: true, projectsPath };
+        }
       }
     }
   }
