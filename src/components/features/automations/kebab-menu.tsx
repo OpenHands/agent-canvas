@@ -56,7 +56,7 @@ export function KebabMenu({ items }: KebabMenuProps) {
                 setOpen(false);
               }}
               className={cn(
-                "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-sm hover:bg-surface-raised",
+                "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--oh-interactive-hover)]",
                 item.variant === "danger" ? "text-danger" : "text-white",
               )}
             >
