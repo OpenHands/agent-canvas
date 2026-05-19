@@ -1,26 +1,81 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { useDeviceFlow } from "../../src/hooks/use-device-flow";
-import * as deviceFlowClient from "../../src/api/device-flow-client";
+import { server } from "../../src/mocks/node";
 
-vi.mock("../../src/api/device-flow-client", () => ({
-  startDeviceFlow: vi.fn(),
-  pollForToken: vi.fn(),
-  DeviceFlowError: class DeviceFlowError extends Error {
-    code?: string;
-    constructor(message: string, code?: string) {
-      super(message);
-      this.name = "DeviceFlowError";
-      this.code = code;
-    }
-  },
-}));
+interface CloudProxyRequest {
+  path?: string;
+}
+
+interface DeviceAuthorizationResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+  expires_in: number;
+  interval: number;
+}
+
+interface DeviceTokenResponse {
+  access_token: string;
+  token_type: string;
+}
+
+function makeAuthorizationResponse(): DeviceAuthorizationResponse {
+  return {
+    device_code: "device123",
+    user_code: "USER-1234",
+    verification_uri: "https://app.all-hands.dev/device",
+    verification_uri_complete:
+      "https://app.all-hands.dev/device?user_code=USER-1234",
+    expires_in: 600,
+    interval: 5,
+  };
+}
+
+function makeTokenResponse(): DeviceTokenResponse {
+  return {
+    access_token: "api-key-123",
+    token_type: "Bearer",
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function mockDeviceFlowProxy({
+  authorize = async () => HttpResponse.json(makeAuthorizationResponse()),
+  token = async () => HttpResponse.json(makeTokenResponse()),
+}: {
+  authorize?: () => Promise<Response> | Response;
+  token?: () => Promise<Response> | Response;
+} = {}) {
+  server.use(
+    http.post("*/api/cloud-proxy", async ({ request }) => {
+      const body = (await request.json()) as CloudProxyRequest;
+
+      if (body.path === "/oauth/device/authorize") {
+        return authorize();
+      }
+
+      if (body.path === "/oauth/device/token") {
+        return token();
+      }
+
+      return HttpResponse.json({ error: "unexpected path" }, { status: 500 });
+    }),
+  );
+}
 
 describe("useDeviceFlow", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -36,73 +91,45 @@ describe("useDeviceFlow", () => {
   });
 
   it("transitions through states on successful auth", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete:
-        "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    const mockTokenResponse = {
-      access_token: "api-key-123",
-      token_type: "Bearer",
-    };
-
-    // Make startDeviceFlow resolve after a tick to allow observing states
-    let resolveStart: (value: typeof mockAuthResponse) => void;
-    const startPromise = new Promise<typeof mockAuthResponse>((resolve) => {
-      resolveStart = resolve;
+    const authResponse = makeAuthorizationResponse();
+    const tokenResponse = makeTokenResponse();
+    const tokenGate = deferred<Response>();
+    mockDeviceFlowProxy({
+      authorize: () => HttpResponse.json(authResponse),
+      token: () => tokenGate.promise,
     });
-
-    let resolvePoll: (value: typeof mockTokenResponse) => void;
-    const pollPromise = new Promise<typeof mockTokenResponse>((resolve) => {
-      resolvePoll = resolve;
-    });
-
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockReturnValue(startPromise);
-    vi.mocked(deviceFlowClient.pollForToken).mockReturnValue(pollPromise);
 
     const { result } = renderHook(() => useDeviceFlow());
 
-    // Start the flow
     act(() => {
       result.current.start("https://app.all-hands.dev");
     });
 
-    // Should be starting
     expect(result.current.status).toBe("starting");
 
-    // Resolve startDeviceFlow
-    await act(async () => {
-      resolveStart!(mockAuthResponse);
-      await Promise.resolve(); // flush microtasks
+    await waitFor(() => {
+      expect(result.current.status).toBe("awaiting_authorization");
     });
-
-    // Now should be awaiting_authorization
-    expect(result.current.status).toBe("awaiting_authorization");
     expect(result.current.verificationUrl).toBe(
       "https://app.all-hands.dev/device?user_code=USER-1234",
     );
     expect(result.current.userCode).toBe("USER-1234");
 
-    // Resolve pollForToken
     await act(async () => {
-      resolvePoll!(mockTokenResponse);
-      await Promise.resolve(); // flush microtasks
+      tokenGate.resolve(HttpResponse.json(tokenResponse));
+      await tokenGate.promise;
     });
 
-    // Now should be success
-    expect(result.current.status).toBe("success");
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
     expect(result.current.apiKey).toBe("api-key-123");
   });
 
   it("handles startDeviceFlow error", async () => {
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockRejectedValue(
-      new deviceFlowClient.DeviceFlowError("Failed to start"),
-    );
+    mockDeviceFlowProxy({
+      authorize: () => HttpResponse.json({ error: "denied" }, { status: 403 }),
+    });
 
     const { result } = renderHook(() => useDeviceFlow());
 
@@ -114,26 +141,16 @@ describe("useDeviceFlow", () => {
       expect(result.current.status).toBe("error");
     });
 
-    expect(result.current.error).toBe("Failed to start");
+    expect(result.current.error).toBe(
+      "Failed to start device flow: Server returned 403",
+    );
   });
 
   it("handles pollForToken error", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete:
-        "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
-      mockAuthResponse,
-    );
-    vi.mocked(deviceFlowClient.pollForToken).mockRejectedValue(
-      new deviceFlowClient.DeviceFlowError("Access denied", "access_denied"),
-    );
+    mockDeviceFlowProxy({
+      token: () =>
+        HttpResponse.json({ error: "access_denied" }, { status: 400 }),
+    });
 
     const { result } = renderHook(() => useDeviceFlow());
 
@@ -145,28 +162,14 @@ describe("useDeviceFlow", () => {
       expect(result.current.status).toBe("error");
     });
 
-    expect(result.current.error).toBe("Access denied");
+    expect(result.current.error).toBe("Authorization request was denied.");
     expect(result.current.errorCode).toBe("access_denied");
   });
 
   it("cancels flow and resets to idle", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete:
-        "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    // Make pollForToken hang indefinitely
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
-      mockAuthResponse,
-    );
-    vi.mocked(deviceFlowClient.pollForToken).mockImplementation(
-      () => new Promise(() => {}),
-    );
+    mockDeviceFlowProxy({
+      token: () => new Promise<Response>(() => {}),
+    });
 
     const { result } = renderHook(() => useDeviceFlow());
 
@@ -187,27 +190,7 @@ describe("useDeviceFlow", () => {
   });
 
   it("resets to idle state", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete:
-        "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    const mockTokenResponse = {
-      access_token: "api-key-123",
-      token_type: "Bearer",
-    };
-
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
-      mockAuthResponse,
-    );
-    vi.mocked(deviceFlowClient.pollForToken).mockResolvedValue(
-      mockTokenResponse,
-    );
+    mockDeviceFlowProxy();
 
     const { result } = renderHook(() => useDeviceFlow());
 
@@ -228,26 +211,12 @@ describe("useDeviceFlow", () => {
   });
 
   it("cancels previous flow when starting a new one", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete:
-        "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
-      mockAuthResponse,
-    );
-    vi.mocked(deviceFlowClient.pollForToken).mockImplementation(
-      () => new Promise(() => {}),
-    );
+    mockDeviceFlowProxy({
+      token: () => new Promise<Response>(() => {}),
+    });
 
     const { result } = renderHook(() => useDeviceFlow());
 
-    // Start first flow
     act(() => {
       result.current.start("https://app.all-hands.dev");
     });
@@ -256,32 +225,17 @@ describe("useDeviceFlow", () => {
       expect(result.current.status).toBe("awaiting_authorization");
     });
 
-    // Start second flow (should cancel first)
     act(() => {
       result.current.start("https://staging.all-hands.dev");
     });
 
-    // Should be starting again (first flow cancelled)
     expect(result.current.status).toBe("starting");
   });
 
   it("cleans up on unmount without state update warnings", async () => {
-    const mockAuthResponse = {
-      device_code: "device123",
-      user_code: "USER-1234",
-      verification_uri: "https://app.all-hands.dev/device",
-      verification_uri_complete: "https://app.all-hands.dev/device?user_code=USER-1234",
-      expires_in: 600,
-      interval: 5,
-    };
-
-    vi.mocked(deviceFlowClient.startDeviceFlow).mockResolvedValue(
-      mockAuthResponse,
-    );
-    // Make pollForToken hang forever to simulate in-progress flow
-    vi.mocked(deviceFlowClient.pollForToken).mockImplementation(
-      () => new Promise(() => {}),
-    );
+    mockDeviceFlowProxy({
+      token: () => new Promise<Response>(() => {}),
+    });
 
     const { result, unmount } = renderHook(() => useDeviceFlow());
 
@@ -293,10 +247,6 @@ describe("useDeviceFlow", () => {
       expect(result.current.status).toBe("awaiting_authorization");
     });
 
-    // Unmount should abort without errors or state update warnings
     unmount();
-
-    // If cleanup didn't work, React would warn about state updates on unmounted component
-    // No assertion needed - the test passes if unmount completes without warnings
   });
 });

@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
 import { fileURLToPath } from "node:url";
+import { handleSetupServerRequest } from "./scripts/setup_server/handle-setup-server-request.mjs";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
@@ -60,6 +61,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      {
+        name: "agent-canvas-setup-server",
+        apply: "serve",
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            if (await handleSetupServerRequest(req, res)) return;
+            next();
+          });
+        },
+      },
       {
         name: "suppress-chrome-devtools-well-known",
         apply: "serve",

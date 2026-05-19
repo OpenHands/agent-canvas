@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import {
+  DEFAULT_LOCAL_BACKEND_ID,
+  DEFAULT_LOCAL_BACKEND_NAME,
+} from "#/api/backend-registry/default-backend";
 import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage";
 import {
   __resetHealthStoreForTests,
@@ -36,6 +39,7 @@ afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
+  vi.restoreAllMocks();
 });
 
 describe("ActiveBackendProvider", () => {
@@ -52,31 +56,63 @@ describe("ActiveBackendProvider", () => {
     });
   });
 
-  it("addBackend persists and exposes the new backend alongside the seeded default", () => {
+  it("addBackend exposes new local backends alongside the seeded default", async () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
 
-    act(() => {
-      result.current.addBackend({
-        name: "Production",
-        host: "https://app.all-hands.dev",
-        apiKey: "bearer-1",
-        kind: "cloud",
+    await act(async () => {
+      await result.current.addBackend({
+        name: "Local A",
+        host: "http://localhost:9000",
+        apiKey: "key-a",
+        kind: "local",
+      });
+      await result.current.addBackend({
+        name: "Local B",
+        host: "http://localhost:9001",
+        apiKey: "key-b",
+        kind: "local",
       });
     });
 
-    // Seed entry plus the new one.
-    expect(result.current.backends).toHaveLength(2);
-    expect(
-      result.current.backends.find((b) => b.name === "Production"),
-    ).toMatchObject({
-      name: "Production",
-      kind: "cloud",
-    });
+    expect(result.current.backends.map((backend) => backend.name)).toEqual([
+      DEFAULT_LOCAL_BACKEND_NAME,
+      "Local A",
+      "Local B",
+    ]);
   });
 
-  it("setActive switches the active backend without touching unrelated React Query cache entries", () => {
+  it("serializes concurrent backend additions", async () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await Promise.all([
+        result.current.addBackend({
+          name: "Local A",
+          host: "http://localhost:9000",
+          apiKey: "key-a",
+          kind: "local",
+        }),
+        result.current.addBackend({
+          name: "Local B",
+          host: "http://localhost:9001",
+          apiKey: "key-b",
+          kind: "local",
+        }),
+      ]);
+    });
+
+    expect(result.current.backends.map((backend) => backend.name)).toEqual([
+      DEFAULT_LOCAL_BACKEND_NAME,
+      "Local A",
+      "Local B",
+    ]);
+  });
+
+  it("setActive switches the active backend without touching unrelated React Query cache entries", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(["dummy"], { value: 1 });
 
@@ -85,8 +121,8 @@ describe("ActiveBackendProvider", () => {
     });
 
     let added: { id: string } | null = null;
-    act(() => {
-      added = result.current.addBackend({
+    await act(async () => {
+      added = await result.current.addBackend({
         name: "Local 1",
         host: "http://localhost:9000",
         apiKey: "key-1",
@@ -99,27 +135,26 @@ describe("ActiveBackendProvider", () => {
     });
 
     expect(result.current.active.backend.id).toBe(added!.id);
-    // No blanket cache mutation: long-lived hooks include the active
-    // backend identity in their query keys, so refetches happen via
-    // key change rather than via an explicit invalidate from setActive.
     const dummyState = queryClient.getQueryState(["dummy"]);
     expect(dummyState?.isInvalidated).toBe(false);
     expect(queryClient.getQueryData(["dummy"])).toEqual({ value: 1 });
   });
 
-  it("removeBackend falls back to the seeded default when the active backend is removed", () => {
+  it("removeBackend falls back to the seeded default when the active backend is removed", async () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
 
     let id = "";
-    act(() => {
-      id = result.current.addBackend({
-        name: "Local 1",
-        host: "http://localhost:9000",
-        apiKey: "k",
-        kind: "local",
-      }).id;
+    await act(async () => {
+      id = (
+        await result.current.addBackend({
+          name: "Local 1",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        })
+      ).id;
     });
 
     act(() => {
@@ -127,29 +162,26 @@ describe("ActiveBackendProvider", () => {
     });
     expect(result.current.active.backend.id).toBe(id);
 
-    act(() => {
-      result.current.removeBackend(id);
+    await act(async () => {
+      await result.current.removeBackend(id);
     });
     expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
     expect(result.current.backends).toHaveLength(1);
     expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
   });
 
-  it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", () => {
+  it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", async () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
 
     expect(result.current.backends).toHaveLength(1);
 
-    act(() => {
-      result.current.removeBackend(DEFAULT_LOCAL_BACKEND_ID);
+    await act(async () => {
+      await result.current.removeBackend(DEFAULT_LOCAL_BACKEND_ID);
     });
 
     expect(result.current.backends).toEqual([]);
-    // No registered backend remains, so the active store synthesizes
-    // an env-derived local backend (with the well-known default id) so
-    // synchronous call sites never have to handle a null backend.
     expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
     expect(result.current.active.backend.kind).toBe("local");
   });
@@ -164,66 +196,91 @@ describe("ActiveBackendProvider", () => {
     errorSpy.mockRestore();
   });
 
-  it("updateBackend re-arms health polling when host or apiKey changes but leaves cosmetic edits alone", () => {
-    // Arrange — register a backend that has hit the failure cap.
+  it("updateBackend applies multiple same-tick local updates without losing fields", async () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
 
     let id = "";
-    act(() => {
-      id = result.current.addBackend({
-        name: "Stale",
-        host: "http://localhost:9000",
+    await act(async () => {
+      id = (
+        await result.current.addBackend({
+          name: "Local",
+          host: "http://localhost:9000",
+          apiKey: "old-key",
+          kind: "local",
+        })
+      ).id;
+      await result.current.updateBackend(id, { name: "Renamed" });
+      await result.current.updateBackend(id, { host: "http://localhost:9001" });
+    });
+
+    expect(
+      result.current.backends.find((backend) => backend.id === id),
+    ).toEqual(
+      expect.objectContaining({
+        name: "Renamed",
+        host: "http://localhost:9001",
         apiKey: "old-key",
-        kind: "local",
-      }).id;
+      }),
+    );
+  });
+
+  it("updateBackend re-arms health polling when host or apiKey changes but leaves cosmetic edits alone", async () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    let id = "";
+    await act(async () => {
+      id = (
+        await result.current.addBackend({
+          name: "Stale",
+          host: "http://localhost:9000",
+          apiKey: "old-key",
+          kind: "local",
+        })
+      ).id;
     });
     for (let i = 0; i < MAX_CONSECUTIVE_FAILURES; i += 1) {
       recordBackendFailure(id, new Error("timeout"));
     }
     expect(getBackendHealthEntry(id)?.disabled).toBe(true);
 
-    // Act — renaming is cosmetic; it must NOT silently re-enable
-    // polling against an unreachable backend.
-    act(() => {
-      result.current.updateBackend(id, { name: "Renamed" });
+    await act(async () => {
+      await result.current.updateBackend(id, { name: "Renamed" });
     });
     expect(getBackendHealthEntry(id)?.disabled).toBe(true);
 
-    // Act — changing host is the explicit "fix the config" signal and
-    // must clear the entry so polling resumes.
-    act(() => {
-      result.current.updateBackend(id, { host: "http://localhost:9001" });
+    await act(async () => {
+      await result.current.updateBackend(id, { host: "http://localhost:9001" });
     });
 
-    // Assert
     expect(getBackendHealthEntry(id)).toBeNull();
   });
 
-  it("removeBackend drops the backend's persisted health entry", () => {
-    // Arrange
+  it("removeBackend drops the backend's persisted health entry", async () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
     });
     let id = "";
-    act(() => {
-      id = result.current.addBackend({
-        name: "Doomed",
-        host: "http://localhost:9000",
-        apiKey: "k",
-        kind: "local",
-      }).id;
+    await act(async () => {
+      id = (
+        await result.current.addBackend({
+          name: "Doomed",
+          host: "http://localhost:9000",
+          apiKey: "k",
+          kind: "local",
+        })
+      ).id;
     });
     recordBackendFailure(id, new Error("boom"));
     expect(getBackendHealthEntry(id)).not.toBeNull();
 
-    // Act
-    act(() => {
-      result.current.removeBackend(id);
+    await act(async () => {
+      await result.current.removeBackend(id);
     });
 
-    // Assert
     expect(getBackendHealthEntry(id)).toBeNull();
   });
 });

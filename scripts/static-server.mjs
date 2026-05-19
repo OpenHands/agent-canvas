@@ -33,6 +33,7 @@ import { stat } from "node:fs/promises";
 import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { handleSetupServerRequest } from "./setup_server/handle-setup-server-request.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MIME types
@@ -370,18 +371,31 @@ export function startStaticServer(config) {
   const dirAbs = resolve(config.dir);
 
   const server = createServer((req, res) => {
-    const backend = route(req.url);
-    if (backend) {
-      proxyRequest(req, res, backend);
-      return;
-    }
-    handleStatic(req, res, dirAbs).catch((err) => {
-      console.error(`Static handler error for ${req.url}:`, err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end("Internal Server Error");
-      }
-    });
+    handleSetupServerRequest(req, res)
+      .then((handled) => {
+        if (handled) return;
+
+        const backend = route(req.url);
+        if (backend) {
+          proxyRequest(req, res, backend);
+          return;
+        }
+
+        handleStatic(req, res, dirAbs).catch((err) => {
+          console.error(`Static handler error for ${req.url}:`, err);
+          if (!res.headersSent) {
+            res.writeHead(500);
+            res.end("Internal Server Error");
+          }
+        });
+      })
+      .catch((err) => {
+        console.error(`Setup handler error for ${req.url}:`, err);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end("Internal Server Error");
+        }
+      });
   });
 
   server.on("upgrade", (req, socket, head) => {

@@ -11,6 +11,11 @@ import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import {
+  DEFAULT_OPENHANDS_CLOUD_HOST,
+  OPENHANDS_CLOUD_DISPLAY_NAME,
+} from "#/utils/constants";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -24,11 +29,7 @@ interface BackendFormModalProps {
 }
 
 function inferKindFromHost(host: string): BackendKind {
-  const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
-  }
-  return "local";
+  return isOpenHandsCloudHost(normalizeHost(host)) ? "cloud" : "local";
 }
 
 /**
@@ -103,8 +104,6 @@ function isValidHostUrl(host: string): boolean {
     return false;
   }
 }
-
-const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 /**
  * Live status row for the edit form: shows a connection dot, a
@@ -251,6 +250,14 @@ export function BackendForm({
 }: BackendFormProps) {
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
+  const isMountedRef = React.useRef(true);
+
+  React.useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
 
   const [name, setName] = React.useState(backend?.name ?? "");
   const [host, setHost] = React.useState(backend?.host ?? "");
@@ -282,7 +289,7 @@ export function BackendForm({
         : undefined
     : undefined;
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
@@ -299,13 +306,18 @@ export function BackendForm({
       kind,
     };
 
-    if (mode === "edit" && backend) {
-      updateBackend(backend.id, payload);
-    } else {
-      addBackend(payload);
+    try {
+      if (mode === "edit" && backend) {
+        await updateBackend(backend.id, payload);
+      } else {
+        await addBackend(payload);
+      }
+      if (isMountedRef.current) onSubmitted();
+    } catch (error) {
+      if (isMountedRef.current) {
+        console.error("Failed to save backend", error);
+      }
     }
-
-    onSubmitted();
   };
 
   return (
@@ -404,16 +416,20 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
     isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!canSubmit) return;
-    addBackend({
-      name: name.trim(),
-      host: normalizeHost(host),
-      apiKey: apiKey.trim(),
-      kind,
-    });
-    onClose();
+    try {
+      await addBackend({
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind,
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to save backend", error);
+    }
   };
 
   return (
@@ -495,14 +511,18 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
 
   const effectiveHost = customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST;
 
-  const handleLoginSuccess = (apiKey: string) => {
-    addBackend({
-      name: "OpenHands Cloud",
-      host: normalizeHost(effectiveHost),
-      apiKey,
-      kind: "cloud",
-    });
-    onClose();
+  const handleLoginSuccess = async (apiKey: string) => {
+    try {
+      await addBackend({
+        name: OPENHANDS_CLOUD_DISPLAY_NAME,
+        host: normalizeHost(effectiveHost),
+        apiKey,
+        kind: "cloud",
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to save backend", error);
+    }
   };
 
   return (

@@ -3,11 +3,17 @@ import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useDeviceFlow } from "#/hooks/use-device-flow";
 import { I18nKey } from "#/i18n/declaration";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 
 interface DeviceFlowAuthProps {
   /** The host URL for the cloud backend */
   host: string;
-  /** Callback when authentication succeeds with the API key */
+  /**
+   * Callback when authentication succeeds with the OpenHands Cloud API key.
+   * This component stores the latest callback in a ref and only invokes it
+   * while mounted; callers doing additional async work should keep their own
+   * mount/abort guard before setting parent state.
+   */
   onSuccess: (apiKey: string) => void;
   /** Test ID prefix for the component */
   testIdRoot: string;
@@ -20,7 +26,8 @@ interface DeviceFlowAuthProps {
  *
  * Shows a "Login with OpenHands Cloud" button that initiates OAuth 2.0 Device Flow
  * authentication. Displays status during the auth process and auto-opens
- * the browser for user authorization.
+ * the browser for user authorization. The returned key authenticates
+ * OpenHands Cloud; callers that need an LM API key must exchange it with Cloud.
  */
 /**
  * Validate that a URL is safe to open in a popup.
@@ -29,10 +36,23 @@ interface DeviceFlowAuthProps {
 function isValidVerificationUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:";
+    return parsed.protocol === "https:" && isOpenHandsCloudHost(parsed.origin);
   } catch {
     return false;
   }
+}
+
+function detachPopupOpener(popup: Window | null): Window | null {
+  if (!popup) return null;
+  const openedPopup = popup;
+
+  try {
+    openedPopup.opener = null;
+  } catch {
+    // Some browsers restrict opener mutation; fallback links still use noopener.
+  }
+
+  return openedPopup;
 }
 
 export function DeviceFlowAuth({
@@ -44,52 +64,99 @@ export function DeviceFlowAuth({
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
   const popupRef = React.useRef<Window | null>(null);
+  const mountedRef = React.useRef(false);
+  const processedApiKeyRef = React.useRef<string | null>(null);
+  const onSuccessRef = React.useRef(onSuccess);
+  const [isPopupBlocked, setIsPopupBlocked] = React.useState(false);
+  const [hostValidationError, setHostValidationError] = React.useState<
+    string | null
+  >(null);
+
+  const closeAuthPopup = React.useCallback(() => {
+    popupRef.current?.close();
+    popupRef.current = null;
+  }, []);
+
+  React.useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  }, [onSuccess]);
 
   // Close popup on unmount or when auth completes/errors
   React.useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      popupRef.current?.close();
+      mountedRef.current = false;
+      closeAuthPopup();
     };
-  }, []);
+  }, [closeAuthPopup]);
 
-  // Update popup URL when verification URL becomes available
+  // Navigate the popup once the device flow returns the verification URL.
   React.useEffect(() => {
+    const popup = popupRef.current;
     if (
-      deviceFlow.status === "awaiting_authorization" &&
-      deviceFlow.verificationUrl &&
-      popupRef.current &&
-      !popupRef.current.closed
+      deviceFlow.status !== "awaiting_authorization" ||
+      !deviceFlow.verificationUrl ||
+      !popup ||
+      popup.closed
     ) {
-      // Validate URL before assigning to prevent XSS
-      if (!isValidVerificationUrl(deviceFlow.verificationUrl)) {
-        console.error("Invalid verification URL protocol");
-        return;
-      }
-      try {
-        popupRef.current.location.href = deviceFlow.verificationUrl;
-      } catch {
-        // Cross-origin error - popup was navigated away
-        // Open a new one as fallback
-        popupRef.current = window.open(
+      return;
+    }
+
+    // Validate URL before assigning to prevent XSS
+    if (!isValidVerificationUrl(deviceFlow.verificationUrl)) {
+      console.error("Invalid verification URL");
+      closeAuthPopup();
+      return;
+    }
+
+    try {
+      popup.location.href = deviceFlow.verificationUrl;
+    } catch {
+      // Cross-origin error - popup was navigated away
+      // Open a new one as fallback
+      closeAuthPopup();
+      if (!mountedRef.current) return;
+      popupRef.current = detachPopupOpener(
+        window.open(
           deviceFlow.verificationUrl,
           "_blank",
           "noopener,noreferrer",
-        );
+        ),
+      );
+      if (!popupRef.current) {
+        setIsPopupBlocked(true);
       }
     }
-  }, [deviceFlow.status, deviceFlow.verificationUrl]);
+  }, [closeAuthPopup, deviceFlow.status, deviceFlow.verificationUrl]);
 
-  // Call onSuccess when authentication completes
+  // Apply successful auth results independently from popup navigation.
   React.useEffect(() => {
-    if (deviceFlow.status === "success" && deviceFlow.apiKey) {
-      try {
-        onSuccess(deviceFlow.apiKey);
-      } finally {
+    if (deviceFlow.status !== "success" || !deviceFlow.apiKey) return;
+    if (
+      !mountedRef.current ||
+      processedApiKeyRef.current === deviceFlow.apiKey
+    ) {
+      return;
+    }
+
+    try {
+      if (!mountedRef.current) return;
+      processedApiKeyRef.current = deviceFlow.apiKey;
+      onSuccessRef.current(deviceFlow.apiKey);
+    } finally {
+      if (mountedRef.current) {
         deviceFlow.reset();
-        popupRef.current?.close();
+        closeAuthPopup();
       }
     }
-  }, [deviceFlow.status, deviceFlow.apiKey, deviceFlow.reset, onSuccess]);
+  }, [closeAuthPopup, deviceFlow.apiKey, deviceFlow.reset, deviceFlow.status]);
+
+  // Close stale auth popups on errors.
+  React.useEffect(() => {
+    if (deviceFlow.status === "error") {
+      closeAuthPopup();
+    }
+  }, [closeAuthPopup, deviceFlow.status]);
 
   const handleStartAuth = () => {
     // Normalize and validate the host URL
@@ -106,22 +173,39 @@ export function DeviceFlowAuth({
         throw new Error("Invalid URL format");
       }
     } catch {
+      setHostValidationError(t(I18nKey.BACKEND$HOST_INVALID));
+      return; // Invalid URL, don't proceed
+    }
+
+    if (!isOpenHandsCloudHost(fullHost)) {
+      setHostValidationError(t(I18nKey.BACKEND$HOST_INVALID));
       return; // Invalid URL, don't proceed
     }
 
     // Open popup immediately on user click to avoid popup blocker
     // Start with about:blank and update URL once we have verification URL
-    // Note: We intentionally don't use "noopener" here because we need to
-    // maintain a reference to update the popup's location when the
-    // verification URL becomes available
-    popupRef.current = window.open("about:blank", "_blank");
+    closeAuthPopup();
+    processedApiKeyRef.current = null;
+    setHostValidationError(null);
+    setIsPopupBlocked(false);
+    popupRef.current = detachPopupOpener(
+      window.open("about:blank", "_blank", "noopener,noreferrer"),
+    );
 
     if (!popupRef.current) {
       // Popup was blocked - flow will still work, user can click manual link
       console.warn("Popup blocked - user will need to use manual link");
+      setIsPopupBlocked(true);
     }
 
     deviceFlow.start(fullHost);
+  };
+
+  const handleCancelAuth = () => {
+    processedApiKeyRef.current = null;
+    deviceFlow.cancel();
+    closeAuthPopup();
+    setIsPopupBlocked(false);
   };
 
   return (
@@ -140,6 +224,15 @@ export function DeviceFlowAuth({
         >
           🔑 {t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
         </BrandButton>
+      )}
+      {hostValidationError && (
+        <p
+          className="text-xs text-red-400"
+          data-testid={`${testIdRoot}-host-error`}
+          role="alert"
+        >
+          {hostValidationError}
+        </p>
       )}
 
       {deviceFlow.status === "starting" && (
@@ -169,13 +262,20 @@ export function DeviceFlowAuth({
               {t(I18nKey.BACKEND$AUTH_AWAITING)}
             </span>
           </div>
-          <p className="text-sm text-[var(--oh-text-tertiary)]">
-            {t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
+          <p
+            className="text-sm text-[var(--oh-text-tertiary)]"
+            role={isPopupBlocked ? "alert" : undefined}
+          >
+            {isPopupBlocked
+              ? t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)
+              : t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
           </p>
           {deviceFlow.verificationUrl &&
             isValidVerificationUrl(deviceFlow.verificationUrl) && (
               <div className="text-xs text-[var(--oh-muted)]">
-                <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
+                {!isPopupBlocked && (
+                  <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
+                )}
                 <a
                   href={deviceFlow.verificationUrl}
                   target="_blank"
@@ -189,7 +289,7 @@ export function DeviceFlowAuth({
           <BrandButton
             type="button"
             variant="secondary"
-            onClick={deviceFlow.cancel}
+            onClick={handleCancelAuth}
             testId={`${testIdRoot}-auth-cancel`}
             className="w-full mt-2"
           >
