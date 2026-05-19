@@ -17,7 +17,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   return OSS_NAV_ITEMS.filter(
     (item) => !isSettingsPageHidden(item.to, featureFlags),
   ).map((item) => {
-    if (item.to !== "/settings") {
+    if (item.to !== "/settings/llm") {
       return { type: "item", item };
     }
 

@@ -35,6 +35,8 @@ const ManageBackendsModal = React.lazy(() =>
   })),
 );
 
+const MOBILE_DRAWER_TRANSITION_MS = 250;
+
 export function Sidebar() {
   const { t } = useTranslation("openhands");
   const { currentPath, navigate } = useNavigation();
@@ -64,6 +66,8 @@ export function Sidebar() {
   const [collapsedRailHovered, setCollapsedRailHovered] = React.useState(false);
   const { isOpen: isMobileNavOpen, close: closeMobileNav } =
     useSidebarMobileNav();
+  const [mobileDrawerMounted, setMobileDrawerMounted] = React.useState(false);
+  const [mobileDrawerVisible, setMobileDrawerVisible] = React.useState(false);
   const collapsedBackendPopoverRef = useClickOutsideElement<HTMLDivElement>(
     () => setCollapsedBackendPopoverOpen(false),
   );
@@ -72,6 +76,22 @@ export function Sidebar() {
   React.useEffect(() => {
     closeMobileNav();
   }, [currentPath, closeMobileNav]);
+
+  React.useEffect(() => {
+    if (isMobileNavOpen) {
+      setMobileDrawerMounted(true);
+      const frame = requestAnimationFrame(() => {
+        setMobileDrawerVisible(true);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+
+    setMobileDrawerVisible(false);
+    const timer = window.setTimeout(() => {
+      setMobileDrawerMounted(false);
+    }, MOBILE_DRAWER_TRANSITION_MS);
+    return () => window.clearTimeout(timer);
+  }, [isMobileNavOpen]);
 
   React.useEffect(() => {
     if (!isMobileNavOpen) {
@@ -148,6 +168,7 @@ export function Sidebar() {
   const showCollapsedExpandButton = collapsed && collapsedRailHovered;
 
   const isExtensionsActive =
+    currentPath === "/customize" ||
     currentPath.startsWith("/skills") ||
     currentPath === "/plugins" ||
     currentPath === "/mcp";
@@ -201,21 +222,31 @@ export function Sidebar() {
         />
       </aside>
 
-      {isMobileNavOpen ? (
+      {mobileDrawerMounted ? (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            className={cn(
+              "fixed inset-0 z-40 bg-black/50 md:hidden",
+              "transition-opacity ease-in-out motion-reduce:transition-none",
+              mobileDrawerVisible
+                ? "opacity-100"
+                : "pointer-events-none opacity-0",
+            )}
+            style={{ transitionDuration: `${MOBILE_DRAWER_TRANSITION_MS}ms` }}
             onClick={closeMobileNav}
-            aria-hidden
+            aria-hidden={!mobileDrawerVisible}
           />
           <aside
             aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
             data-testid="sidebar-mobile-drawer"
+            aria-hidden={!mobileDrawerVisible}
             className={cn(
               "fixed inset-y-0 left-0 z-50 flex min-h-0 w-[min(300px,85vw)] flex-col bg-base",
-              "border-r border-[var(--oh-border)] pb-2 pl-2 pr-0",
-              "transition-transform duration-200 ease-in-out translate-x-0 md:hidden",
+              "border-r border-[var(--oh-border)] pb-2 pl-2 pr-0 md:hidden",
+              "transition-transform ease-in-out motion-reduce:transition-none",
+              mobileDrawerVisible ? "translate-x-0" : "-translate-x-full",
             )}
+            style={{ transitionDuration: `${MOBILE_DRAWER_TRANSITION_MS}ms` }}
           >
             <SidebarCollapseContext.Provider value={false}>
               <SidebarRailBody

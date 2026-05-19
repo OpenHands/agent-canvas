@@ -53,7 +53,7 @@ export function isSettingsPageHidden(
   path: string,
   featureFlags: WebClientFeatureFlags | undefined,
 ): boolean {
-  if (featureFlags?.hide_llm_settings && path === "/settings") return true;
+  if (featureFlags?.hide_llm_settings && path === "/settings/llm") return true;
   return false;
 }
 
@@ -61,7 +61,7 @@ export function getFirstAvailablePath(
   featureFlags: WebClientFeatureFlags | undefined,
 ): string | null {
   const fallbackOrder = [
-    { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
+    { path: "/settings/llm", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/app", hidden: false },
     { path: "/settings/secrets", hidden: false },
   ];

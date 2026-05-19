@@ -51,7 +51,7 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
     const llmItem = result.current.find(
-      (item) => item.type === "item" && item.item.to === "/settings",
+      (item) => item.type === "item" && item.item.to === "/settings/llm",
     );
 
     expect(llmItem).toEqual({
@@ -88,7 +88,7 @@ describe("useSettingsNavItems", () => {
       .filter((item) => item.type === "item")
       .map((item) => (item.type === "item" ? item.item.to : null));
 
-    expect(paths).not.toContain("/settings");
+    expect(paths).not.toContain("/settings/llm");
     expect(paths).toContain("/settings/app");
     expect(paths).toContain("/settings/secrets");
   });

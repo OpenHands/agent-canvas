@@ -172,7 +172,7 @@ export function SidebarRailBody({
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
         />
         <SidebarNavLink
-          to="/skills"
+          to="/customize"
           label="Customize"
           testId="sidebar-skills-link"
           disabled={linkDisabled}

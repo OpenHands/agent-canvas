@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
@@ -221,7 +221,7 @@ describe("Sidebar", () => {
     window.localStorage.clear();
   });
 
-  it("opens and closes the mobile navigation drawer from the menu button", () => {
+  it("opens and closes the mobile navigation drawer from the menu button", async () => {
     renderSidebar("/conversations");
 
     expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
@@ -234,7 +234,9 @@ describe("Sidebar", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(within(drawer).getByTestId("sidebar-mobile-drawer-close"));
-    expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+    });
   });
 
   it("toggles between expanded and collapsed states and persists the choice", () => {
