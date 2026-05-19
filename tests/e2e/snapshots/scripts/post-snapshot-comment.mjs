@@ -475,7 +475,20 @@ async function main() {
   }
 
   const body = buildComment(changed, newSnapshots, unchanged, commitSha);
-  await postFreshComment(body);
+  // Commenting requires `pull-requests: write`. GitHub silently downgrades
+  // that to `read` for `pull_request` runs triggered from a fork, so the
+  // POST below 403s on cross-repo PRs. Treat the failure the same way
+  // publishImages already treats its push failure: log it and keep going
+  // so the workflow can still write `has_changes` and let the
+  // "Fail if differences" step do its job.
+  try {
+    await postFreshComment(body);
+  } catch (err) {
+    console.error(
+      "Warning: failed to post PR comment (expected on fork PRs):",
+      err.message,
+    );
+  }
 
   // Tell the workflow whether there are actual pixel-diff failures so the
   // "Fail if differences" step can distinguish changed snapshots (should

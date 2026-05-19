@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getACPToolCallContent,
   getACPToolCallTitleKey,
+  stripRedundantTitlePrefix,
 } from "#/components/conversation-events/chat/event-content-helpers/get-acp-tool-call-content";
 import { getACPToolCallResult } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
@@ -114,6 +115,82 @@ describe("getACPToolCallContent", () => {
 
     expect(content).toContain('"status": 200');
     expect(content).toContain('"body": "ok"');
+  });
+});
+
+describe("stripRedundantTitlePrefix", () => {
+  // The i18n templates already wrap the title in a verb ("Reading
+  // <cmd>…</cmd>"); ACP servers like Claude Code emit titles that also
+  // carry a verb ("Read /Users/foo/bar"). Without the strip, the user
+  // sees "Reading Read /Users/foo/bar".
+
+  it("strips a leading 'Read' from read-tool titles (the headline regression)", () => {
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({
+          tool_kind: "read",
+          title: "Read /Users/foo/bar/file.py",
+        }),
+      ),
+    ).toBe("/Users/foo/bar/file.py");
+  });
+
+  it("strips 'Edit' and 'Write' from edit-tool titles", () => {
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: "edit", title: "Edit /workspace/foo.py" }),
+      ),
+    ).toBe("/workspace/foo.py");
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: "edit", title: "Write /workspace/foo.py" }),
+      ),
+    ).toBe("/workspace/foo.py");
+  });
+
+  it("strips 'Bash' and 'Run' from execute-tool titles", () => {
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: "execute", title: "Bash ls -la" }),
+      ),
+    ).toBe("ls -la");
+  });
+
+  it("leaves a title without the redundant prefix untouched", () => {
+    // The OpenHands ACP wrapper, for example, may already emit just the
+    // command. The strip should be a no-op in that case.
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: "execute", title: "gh pr view 416" }),
+      ),
+    ).toBe("gh pr view 416");
+  });
+
+  it("does not strip when the prefix is part of a longer word", () => {
+    // ``"Reads"`` isn't the verb we want to strip — it's a different
+    // token. Boundary-check via whitespace after the prefix prevents
+    // the strip from over-reaching.
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: "read", title: "Reads-from /foo" }),
+      ),
+    ).toBe("Reads-from /foo");
+  });
+
+  it("does not strip when tool_kind is null (unknown shape)", () => {
+    // Without a kind we can't know which prefixes are redundant; leave
+    // the title verbatim.
+    expect(
+      stripRedundantTitlePrefix(
+        makeEvent({ tool_kind: null, title: "Read /foo" }),
+      ),
+    ).toBe("Read /foo");
+  });
+
+  it("handles an empty title", () => {
+    expect(
+      stripRedundantTitlePrefix(makeEvent({ tool_kind: "read", title: "" })),
+    ).toBe("");
   });
 });
 

@@ -328,6 +328,12 @@ function startAgentServerDocker(config) {
     const optionalMounts = [
       [join(home, ".openhands"), CONTAINER_OPENHANDS_DIR],
       [join(home, ".claude"), `${CONTAINER_HOME_DIR}/.claude`],
+      // Recent Claude Code CLI versions persist auth + workspace state in
+      // ``~/.claude.json`` next to (not inside) the ``~/.claude/`` directory.
+      // Without this single-file mount, an ACPAgent spawned via
+      // ``npx -y @zed-industries/claude-code-acp`` can't see the user's
+      // existing CLI login and prompts for re-auth inside the sandbox.
+      [join(home, ".claude.json"), `${CONTAINER_HOME_DIR}/.claude.json`],
       [join(home, ".codex"), `${CONTAINER_HOME_DIR}/.codex`],
       [join(home, ".ssh"), `${CONTAINER_HOME_DIR}/.ssh`],
     ];
@@ -354,6 +360,21 @@ function startAgentServerDocker(config) {
     // Required so the secret-seeding PUT /api/settings/secrets call from
     // the host can authenticate against the agent-server in the container.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Alias for the agent-server's own URL. The agent-server itself sets
+    // OH_INTERNAL_SERVER_URL=http://127.0.0.1:8000 at startup (host
+    // 0.0.0.0 is rewritten to loopback) and the value is inherited by
+    // every bash subprocess it spawns — including the automation run's
+    // main.py / setup.sh. Those scripts read AGENT_SERVER_URL (the
+    // canonical SDK name) instead of the OH_-prefixed variant, so we
+    // mirror it here. 127.0.0.1:8000 is the agent-server's own URL from
+    // *inside* its container (it always listens on port 8000 in
+    // dev:docker).
+    //
+    // We deliberately do NOT set a SESSION_API_KEY alias: the SDK's
+    // sanitized_env() would strip it from bash subprocesses anyway, and
+    // a follow-up change to the automation preset reads
+    // OH_SESSION_API_KEYS_0 directly (which is already in env).
+    AGENT_SERVER_URL: "http://127.0.0.1:8000",
     // Make the mounted canvas-tools directory importable so the agent-server
     // can resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: CONTAINER_CANVAS_TOOLS_DIR,
@@ -402,6 +423,31 @@ if (isMainModule) {
     extraPrereqs: checkDockerPrereqs,
     startAgentServer: startAgentServerDocker,
     viteWorkingDir: CONTAINER_WORKSPACES_DIR,
+    // The automation backend runs on the host but its dispatched
+    // `mkdir -p ...` commands execute inside the agent-server container.
+    // Force `AUTOMATION_WORKSPACE_BASE` to a path that exists in that
+    // container so runs don't fail trying to create host paths like
+    // /Users/<you>/... inside Linux. Users can still override by setting
+    // AUTOMATION_WORKSPACE_BASE in their environment.
+    automationWorkspaceBase: CONTAINER_WORKSPACES_DIR,
+    // The automation backend tells each automation sandbox where to
+    // reach it back via `AUTOMATION_API_URL` (used by setup.sh to fetch
+    // /sdk-version and by the SDK to POST run completion). The sandbox
+    // is a separate Docker container, so `localhost` inside it is the
+    // sandbox itself — it cannot resolve `http://localhost:<ingress>`
+    // to the host ingress. Use the cross-container hostname instead.
+    // Users can still override by setting AUTOMATION_BASE_URL.
+    automationApiHost: "host.docker.internal",
+    // URL the in-sandbox bash chain uses to reach the agent-server from
+    // *inside* the agent-server container itself (where automation runs
+    // execute in local mode). The agent-server always listens on 8000
+    // inside the container (see `dockerArgs.push("-p", "<host>:8000")`
+    // above), so 127.0.0.1:8000 is the most direct route and avoids
+    // bouncing through the host port-forward (which would require
+    // host.docker.internal to resolve on the host — it doesn't on
+    // OrbStack/colima/Linux). Users can still override by setting
+    // AUTOMATION_SANDBOX_AGENT_SERVER_URL.
+    sandboxAgentServerUrl: "http://127.0.0.1:8000",
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
     // The agent-server runs inside a Docker container in this mode, so

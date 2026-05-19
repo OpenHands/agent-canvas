@@ -21,6 +21,51 @@ export const getACPToolCallTitleKey = (event: ACPToolCallEvent): string => {
   }
 };
 
+// English verb prefixes ACP servers sometimes inline into the title.
+// Claude Code emits ``"Read /Users/foo/bar"`` for a read tool — combined
+// with the i18n template ``"Reading <cmd>{{title}}</cmd>"`` that lands as
+// ``"Reading Read /Users/foo/bar"``. The redundant leading verb is the
+// part we strip; the template's own verb (which is i18n'd) stays.
+//
+// Keyed by ``tool_kind`` so the strip is scoped to where double-verbing
+// actually shows up. The english-only check is intentional — ACP servers
+// are anglophone tools and emit english titles regardless of the user's
+// canvas locale; matching translated verbs would mean every locale's
+// strip list goes stale the moment a new server is added.
+const REDUNDANT_TITLE_PREFIXES: Partial<Record<string, readonly string[]>> = {
+  read: ["Read"],
+  edit: ["Edit", "Write"],
+  execute: ["Bash", "Run"],
+  fetch: ["Fetch", "WebFetch"],
+};
+
+/**
+ * Strip a leading verb from ``event.title`` that would duplicate the
+ * verb baked into the i18n template (see ``REDUNDANT_TITLE_PREFIXES``).
+ *
+ * The match is anchored, case-sensitive, and requires the prefix to be
+ * followed by whitespace so a token like ``"Reads"`` (an actual verb
+ * elsewhere in the title) is left alone. If no prefix matches, the title
+ * is returned verbatim.
+ */
+export const stripRedundantTitlePrefix = (event: ACPToolCallEvent): string => {
+  const title = event.title;
+  const tool_kind = event.tool_kind;
+  if (!title || !tool_kind) return title;
+  const prefixes = REDUNDANT_TITLE_PREFIXES[tool_kind];
+  if (!prefixes) return title;
+  for (const prefix of prefixes) {
+    if (
+      title.length > prefix.length &&
+      title.startsWith(prefix) &&
+      /\s/.test(title.charAt(prefix.length))
+    ) {
+      return title.slice(prefix.length).trimStart();
+    }
+  }
+  return title;
+};
+
 /**
  * Stringify an arbitrary raw_input / raw_output payload for markdown
  * rendering. Strings pass through; objects are pretty-printed JSON.
