@@ -10,7 +10,9 @@ export interface Automation {
   trigger: AutomationTrigger;
   enabled: boolean;
   repository?: string;
+  /** Deprecated legacy display field. */
   model?: string;
+  /** Source-of-truth LLM profile name used for automation runs. */
   llm_profile?: string | null;
 
   created_at: string;

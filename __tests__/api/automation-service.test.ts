@@ -76,7 +76,7 @@ const mockAutomation: Automation = {
   trigger: { type: "schedule", schedule_human: "Daily at 09:00" },
   enabled: true,
   repository: "acme/repo",
-  model: "Claude Opus",
+  llm_profile: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-02T00:00:00Z",
 };
