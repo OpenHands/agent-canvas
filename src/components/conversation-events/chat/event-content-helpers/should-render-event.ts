@@ -57,10 +57,20 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
     return true;
   }
 
-  // Render ACP sub-agent tool call events — suppress in_progress (empty args)
-  // so the card only appears once fully populated.
+  // Render ACP sub-agent tool call events only once they've reached a
+  // terminal status. ACP servers stream multiple events per
+  // ``tool_call_id`` as the call progresses (status flips
+  // ``in_progress`` → ``completed`` / ``failed``); during streaming the
+  // event's ``raw_input`` / ``raw_output`` / ``title`` may still be
+  // partially populated, so rendering an in-flight event flashes a
+  // half-formed card that then updates in place — visibly noisy.
+  // ``null`` (older agent-server builds, before the field was required)
+  // is also treated as in-flight: better to wait for the terminal event
+  // than to render a card with no status. ``handleEventForUI`` already
+  // replaces in place by ``tool_call_id``, so the terminal event lands
+  // at the original position once it arrives.
   if (isACPToolCallEvent(event)) {
-    return event.status !== "in_progress";
+    return event.status === "completed" || event.status === "failed";
   }
 
   // Don't render any other event types (system events, etc.)
