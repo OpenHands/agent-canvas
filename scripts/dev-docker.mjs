@@ -438,6 +438,16 @@ if (isMainModule) {
     // to the host ingress. Use the cross-container hostname instead.
     // Users can still override by setting AUTOMATION_BASE_URL.
     automationApiHost: "host.docker.internal",
+    // URL the in-sandbox bash chain uses to reach the agent-server from
+    // *inside* the agent-server container itself (where automation runs
+    // execute in local mode). The agent-server always listens on 8000
+    // inside the container (see `dockerArgs.push("-p", "<host>:8000")`
+    // above), so 127.0.0.1:8000 is the most direct route and avoids
+    // bouncing through the host port-forward (which would require
+    // host.docker.internal to resolve on the host — it doesn't on
+    // OrbStack/colima/Linux). Users can still override by setting
+    // AUTOMATION_SANDBOX_AGENT_SERVER_URL.
+    sandboxAgentServerUrl: "http://127.0.0.1:8000",
     defaultStaticMode: true,
     buildStaticFrontend: buildFrontend,
     // The agent-server runs inside a Docker container in this mode, so
