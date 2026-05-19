@@ -19,6 +19,7 @@ import { cn } from "#/utils/utils";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
 import { SidebarConversationList } from "./sidebar-conversation-list";
+import { JoinSlackLink } from "./join-slack-link";
 import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -341,6 +342,7 @@ export function Sidebar() {
             >
               <Settings width={16} height={16} />
             </button>
+            <JoinSlackLink collapsed />
             <div
               className="relative"
               ref={collapsedBackendPopoverRef}
@@ -421,6 +423,7 @@ export function Sidebar() {
             control needs full-width space. */}
         {!collapsed && (
           <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2">
+            <JoinSlackLink />
             <BackendSelector openUpward />
           </div>
         )}
