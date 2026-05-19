@@ -1,5 +1,6 @@
 import React from "react";
 import { AxiosError } from "axios";
+import { Route } from "./+types/mcp";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
@@ -9,6 +10,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
+import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -55,6 +57,18 @@ function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
     })),
   ];
 }
+
+// ACP guard: the ACP sub-agent owns its own MCP server configuration —
+// the SDK explicitly rejects ``mcp_config`` on ACPAgent init
+// (``acp_agent.py:845``) and ``agent-server-adapter`` already strips
+// it from start payloads. The Settings → Agent page is where the user
+// configures the ACP server, so bouncing there is consistent with how
+// ``/settings`` and ``/settings/condenser`` already behave under ACP.
+// Wrapped (instead of an alias export) so the parameter shape matches
+// React Router's ``ClientLoaderArgs`` and we don't drag the framework
+// type into the standalone helper.
+export const clientLoader = async (_args: Route.ClientLoaderArgs) =>
+  redirectIfAcpActive();
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");

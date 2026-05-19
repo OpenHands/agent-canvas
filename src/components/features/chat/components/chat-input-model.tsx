@@ -28,7 +28,16 @@ export function ChatInputModel() {
   // Home page has no active conversation; fall back to the user's default
   // model so the switcher renders consistently across both surfaces.
   const { data: settings } = useSettings();
-  const llmModel = conversation?.llm_model ?? settings?.llm_model;
+  // ACPAgent conversations have no OpenHands LLM (the model lives on the
+  // ACP subprocess via ``acp_model``), so ``toAppConversation`` writes a
+  // null ``llm_model`` for them. Don't fall back to ``settings.llm_model``
+  // here — that would resurrect the user's *default* OpenHands model on a
+  // Claude-Code conversation and link to /settings, both of which lie
+  // about what model is actually running.
+  const isAcpConversation = conversation?.agent_kind === "acp";
+  const llmModel = isAcpConversation
+    ? null
+    : (conversation?.llm_model ?? settings?.llm_model);
   const llmDestinationLabel = t(
     backend.kind === "cloud"
       ? I18nKey.SETTINGS$LLM_SETTINGS

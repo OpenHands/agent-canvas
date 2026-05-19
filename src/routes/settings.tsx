@@ -6,20 +6,15 @@ import OptionService from "#/api/option-service/option-service.api";
 import { queryClient } from "#/query-client-config";
 import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
-import {
-  QUERY_KEYS,
-  CONFIG_CACHE_OPTIONS,
-  SETTINGS_QUERY_KEYS,
-} from "#/hooks/query/query-keys";
-import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
-import { getSettingsQueryFn } from "#/hooks/query/use-settings";
 import {
   getFirstAvailablePath,
   isSettingsPageHidden,
 } from "#/utils/settings-utils";
+import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
@@ -40,51 +35,17 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
     }
   }
 
-  // ACP guard: the LLM / Condenser pages have no useful content while an
-  // external ACP subprocess is driving conversations. Bounce them to
-  // ``/settings/agent``. Driven by the same ``disabledByAcp`` flag the nav
-  // hook uses for greying out, so the list of redirected paths and the
-  // greyed-out paths can never drift apart.
-  //
-  // Doing the redirect in the loader (instead of a per-route ``useEffect``)
-  // prevents the one-frame flash of LLM content before the guard fires.
-  // Fall through silently on settings-fetch errors (unauthed, network,
-  // local agent-server not running) — better to render the page than
-  // redirect-loop on a missing payload.
+  // ACP guard: the pages flagged ``disabledByAcp`` (LLM, Condenser, …)
+  // have no useful content while an external ACP subprocess drives
+  // conversations. Bounce them to ``/settings/agent``. Driven by the
+  // same ``disabledByAcp`` flag the nav hook uses for greying out, so
+  // the list of redirected paths and the greyed-out paths can never
+  // drift apart. See {@link redirectIfAcpActive} for why the redirect
+  // lives in the loader rather than a per-route ``useEffect``.
   const currentNavItem = OSS_NAV_ITEMS.find((item) => item.to === pathname);
   if (currentNavItem?.disabledByAcp) {
-    try {
-      // Build the same query key ``useSettings`` uses (scope + backend +
-      // org), so the loader's fetchQuery and the in-render hook share a
-      // cache entry rather than thrashing the same data through two
-      // different keys. Drift between these keys would mean the redirect
-      // decision runs against one snapshot of the personal settings
-      // while the page renders with another — visible as the nav
-      // briefly showing the disabled state while the page lets the user
-      // click through, or vice versa.
-      const active = getActiveBackend();
-      // ``staleTime: 0`` here is intentional: this read drives the
-      // redirect, and a 5-minute stale tolerance turns a cross-tab
-      // agent-kind flip into "navigate to /settings/condenser, get a
-      // stale 'OpenHands' answer, render the page, watch the nav grey
-      // out a moment later." Settings PATCHes invalidate the cache, so
-      // a forced refetch only happens when something might actually
-      // have changed.
-      const personalSettings = await queryClient.fetchQuery({
-        queryKey: [
-          ...SETTINGS_QUERY_KEYS.byScope("personal"),
-          active.backend.id,
-          active.orgId,
-        ],
-        queryFn: () => getSettingsQueryFn("personal"),
-        staleTime: 0,
-      });
-      if (personalSettings?.agent_settings?.agent_kind === "acp") {
-        return redirect("/settings/agent");
-      }
-    } catch {
-      // Settings unfetchable — let the page render.
-    }
+    const acpRedirect = await redirectIfAcpActive();
+    if (acpRedirect) return acpRedirect;
   }
 
   return null;

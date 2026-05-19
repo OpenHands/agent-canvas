@@ -14,7 +14,6 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-// eslint-disable-next-line import/first
 import { ChatInputModel } from "#/components/features/chat/components/chat-input-model";
 
 describe("ChatInputModel", () => {
@@ -84,6 +83,31 @@ describe("ChatInputModel", () => {
   it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
     useActiveConversationMock.mockReturnValue({ data: undefined });
     useSettingsMock.mockReturnValue({ data: undefined });
+
+    renderWithProviders(<ChatInputModel />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders nothing for ACP conversations and does NOT fall back to settings.llm_model", () => {
+    // The ACP subprocess owns its model (via ``acp_model``); ``llm_model``
+    // is null on the conversation by design. The previous fallback to
+    // ``settings.llm_model`` would have resurrected the user's *default*
+    // OpenHands model on, say, a Claude-Code conversation — visibly
+    // wrong (the link goes to /settings, which is itself disabled for
+    // ACP) and silently lies about what model is actually running.
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
+    });
+    useSettingsMock.mockReturnValue({
+      data: { llm_model: "anthropic/claude-sonnet-4-20250514" },
+    });
 
     renderWithProviders(<ChatInputModel />);
 
