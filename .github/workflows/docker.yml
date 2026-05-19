@@ -1,0 +1,243 @@
+---
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      agent_server_image:
+        description: Agent Server base image (ghcr.io/openhands/agent-server:TAG)
+        type: string
+        default: ""
+      automation_version:
+        description: Automation server version (pip)
+        type: string
+        default: ""
+      platforms:
+        description: Target platforms (comma-separated)
+        type: string
+        default: linux/amd64
+
+# Cancel redundant runs for the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.head_ref && github.ref) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/openhands/agent-canvas
+  # Default versions — keep in sync with scripts/dev-docker.mjs & dev-with-automation.mjs
+  DEFAULT_AGENT_SERVER_IMAGE: ghcr.io/openhands/agent-server:1.22.1-python
+  DEFAULT_AUTOMATION_VERSION: "1.0.0a3"
+  # Use the PR head SHA for PR events so tags point at the actual code.
+  RELEVANT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  RELEVANT_REF: ${{ github.head_ref != '' && format('refs/heads/{0}', github.head_ref) || github.ref }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Build & Push
+  # ═══════════════════════════════════════════════════════════════════════════
+  build-and-push:
+    name: Build & Push
+    # Skip fork PRs — they cannot authenticate to GHCR.
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       !github.event.pull_request.head.repo.fork)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      tags: ${{ steps.docker-meta.outputs.tags }}
+      version: ${{ steps.docker-meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || '' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+          # Resolve agent-server base image
+          if [ -n "${{ inputs.agent_server_image }}" ]; then
+            echo "agent_server_image=${{ inputs.agent_server_image }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Resolve automation version
+          if [ -n "${{ inputs.automation_version }}" ]; then
+            echo "automation_version=${{ inputs.automation_version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract Docker metadata (tags, labels)
+        id: docker-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            # SHA tags (always)
+            type=sha,format=short
+            type=sha,format=long
+            # Branch name (push to branch)
+            type=ref,event=branch
+            # PR number (pull_request)
+            type=ref,event=pr
+            # Semver from release tag (v1.2.3 → 1.2.3, 1.2, 1)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          flavor: |
+            latest=auto
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: true
+
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.docker-meta.outputs.tags }}
+          labels: ${{ steps.docker-meta.outputs.labels }}
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          build-args: |
+            AGENT_SERVER_IMAGE=${{ steps.meta.outputs.agent_server_image }}
+            AUTOMATION_VERSION=${{ steps.meta.outputs.automation_version }}
+            OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
+            OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:buildcache,mode=max', env.IMAGE_NAME) || '' }}
+          provenance: true
+          sbom: true
+
+      - name: Save build info artifact
+        env:
+          ALL_TAGS: ${{ steps.docker-meta.outputs.tags }}
+        run: |
+          mkdir -p build-info
+          jq -n \
+            --arg image "${{ env.IMAGE_NAME }}" \
+            --arg short_sha "${{ steps.meta.outputs.short_sha }}" \
+            --arg tags "$ALL_TAGS" \
+            --arg agent_server_image "${{ steps.meta.outputs.agent_server_image }}" \
+            --arg automation_version "${{ steps.meta.outputs.automation_version }}" \
+            --arg git_sha "${{ env.RELEVANT_SHA }}" \
+            --arg git_ref "${{ env.RELEVANT_REF }}" \
+            '{image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, git_sha: $git_sha, git_ref: $git_ref}' \
+            > build-info/build.json
+          cat build-info/build.json
+
+      - name: Upload build info
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-build-info
+          path: build-info/build.json
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Update PR description with image info (PRs only)
+  # ═══════════════════════════════════════════════════════════════════════════
+  update-pr-description:
+    name: Update PR with Docker image
+    needs: build-and-push
+    if: github.event_name == 'pull_request' && needs.build-and-push.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Download build info
+        uses: actions/download-artifact@v8
+        with:
+          name: docker-build-info
+          path: build-info
+
+      - name: Generate PR description
+        id: generate
+        run: |
+          BUILD_INFO="build-info/build.json"
+
+          IMAGE=$(jq -r '.image' "$BUILD_INFO")
+          SHORT_SHA=$(jq -r '.short_sha' "$BUILD_INFO")
+          GIT_SHA=$(jq -r '.git_sha' "$BUILD_INFO")
+          AGENT_SERVER_IMAGE=$(jq -r '.agent_server_image' "$BUILD_INFO")
+          AUTOMATION_VERSION=$(jq -r '.automation_version' "$BUILD_INFO")
+          ALL_TAGS=$(jq -r '.tags' "$BUILD_INFO")
+
+          GHCR_URL="https://github.com/OpenHands/agent-canvas/pkgs/container/agent-canvas"
+
+          cat > /tmp/pr-content.md << CONTENT_EOF
+          <!-- AGENT_CANVAS_DOCKER_START -->
+          ---
+          **🐳 Docker image for this PR**
+
+          • **GHCR package:** ${GHCR_URL}
+
+          | Component | Value |
+          |---|---|
+          | **Image** | \`${IMAGE}\` |
+          | **Agent Server** | \`${AGENT_SERVER_IMAGE}\` |
+          | **Automation** | \`openhands-automation==${AUTOMATION_VERSION}\` |
+          | **Commit** | \`${GIT_SHA}\` |
+
+          **Pull**
+          \`\`\`bash
+          docker pull ${IMAGE}:sha-${SHORT_SHA}
+          \`\`\`
+
+          **Run**
+          \`\`\`bash
+          docker run -it --rm \\
+            -p 8000:8000 \\
+            ${IMAGE}:sha-${SHORT_SHA}
+          \`\`\`
+
+          **All tags pushed**
+          \`\`\`
+          ${ALL_TAGS}
+          \`\`\`
+          <!-- AGENT_CANVAS_DOCKER_END -->
+          CONTENT_EOF
+
+          {
+            echo 'pr_content<<EOF'
+            cat /tmp/pr-content.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update PR description
+        uses: nefrob/pr-description@v1.2.0
+        with:
+          content: ${{ steps.generate.outputs.pr_content }}
+          regex: "<!-- AGENT_CANVAS_DOCKER_START -->.*?<!-- AGENT_CANVAS_DOCKER_END -->"
+          regexFlags: s
+          token: ${{ secrets.GITHUB_TOKEN }}
