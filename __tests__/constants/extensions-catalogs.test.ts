@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
 import { MCP_LOGO_IDS, MCP_LOGOS } from "@openhands/extensions/mcps/logos";
-import { MCP_CATALOG } from "#/constants/mcp-marketplace";
+import { MCP_CATALOG } from "@openhands/extensions/mcps";
 
 describe("OpenHands extensions catalogs", () => {
-  it("hydrates the MCP marketplace from the local wrapper", () => {
+  it("hydrates the MCP marketplace from @openhands/extensions", () => {
     expect(MCP_CATALOG.length).toBeGreaterThan(0);
 
     const github = MCP_CATALOG.find((entry) => entry.id === "github");

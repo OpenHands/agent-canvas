@@ -8,7 +8,7 @@ import { InstallServerModal } from "#/components/features/mcp-page/install-serve
 import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
-} from "#/constants/mcp-marketplace";
+} from "@openhands/extensions/mcps";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {

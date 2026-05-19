@@ -157,6 +157,7 @@ you are running inside of — NOT the automation backend.
 
 - `@openhands/typescript-client` is currently pinned to commit `ef62e82fc3dfb03991a1c8025429caf354427263` because the package metadata needed by this PR has not been published as a consistent npm/tagged release yet. That commit ships the needed typed clients plus subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
 - The `@openhands/typescript-client` git dep must be expressed as a `git+https://github.com/...` URL in both `package.json` and the top-level dep entry of `package-lock.json`; the `github:OpenHands/...` shorthand normalizes to `git+ssh://` inside the lockfile, and Vercel's build environment has no GitHub SSH key, so an ssh-pinned lockfile makes Vercel fall back to a stale cached tarball and the bundler then fails with `[MISSING_EXPORT] ConversationClient/FileClient/SharedClient is not exported by .../dist/clients.js`. `scripts/vercel-install.sh` (wired up via `vercel.json`'s `installCommand`) defensively rewrites any leftover `git+ssh://git@github.com/` resolved URLs to `git+https://github.com/` and adds matching `git config --global url..insteadOf` aliases before invoking `npm ci`, so a future regression that re-introduces an ssh-pinned lockfile entry still builds on Vercel. See GitHub issue #384 for the original failure and PR #382 for the prior single-shot lockfile fix that this generalizes.
+
 ## API Access Rules
 
 Two strict conventions govern every REST call in the frontend. Violations break CI
@@ -169,6 +170,7 @@ All calls that target the local agent-server (`/api/*`, `/server_info`, `/socket
 raw `axios`, `fetch`, or the legacy shared `openHands` axios instance.
 
 Available clients and their subpath imports:
+
 - `ConversationClient` -- `@openhands/typescript-client/clients`
 - `FileClient` -- `@openhands/typescript-client/clients`
 - `VSCodeClient` -- `@openhands/typescript-client/clients`
@@ -178,6 +180,7 @@ Available clients and their subpath imports:
 - `RemoteEventsList` -- `@openhands/typescript-client/events/remote-events-list`
 
 Client options are always assembled via helpers in `src/api/agent-server-client-options.ts`:
+
 - `getAgentServerClientOptions(overrides?)` -- for SDK client constructors
 - `getAgentServerHttpClientOptions(overrides?)` -- for `HttpClient`-based callers
 
@@ -186,8 +189,12 @@ registry and env config, so callers never hardcode URLs or auth tokens.
 
 ```ts
 // CORRECT
-const data = await new ConversationClient(getAgentServerClientOptions()).getConversation(id);
-const file = await new FileClient(getAgentServerClientOptions()).downloadTextFile(path);
+const data = await new ConversationClient(
+  getAgentServerClientOptions(),
+).getConversation(id);
+const file = await new FileClient(
+  getAgentServerClientOptions(),
+).downloadTextFile(path);
 
 // WRONG -- raw axios/fetch calls fail the no-direct-agent-server-calls.test.ts guard
 const data = await axios.get(`${host}/api/conversations/${id}`);
@@ -195,6 +202,7 @@ const data = await fetch(`/api/conversations/${id}`);
 ```
 
 **Allowed exceptions** (files that may use axios directly for infrastructure reasons):
+
 - `src/api/automation-service/automation-service.api.ts`
 - `src/api/cloud/proxy.ts` -- the proxy envelope POST itself
 
@@ -231,6 +239,7 @@ const result = await axios.get(`${backend.host}/api/v1/app-conversations`);
 ```
 
 `callCloudProxy` key options:
+
 - `backend` -- the cloud `Backend` object (provides host and bearer token)
 - `hostOverride` -- override for runtime-sandbox calls; replaces `backend.host`
 - `authMode` -- `"bearer"` (default, cloud) | `"session-api-key"` (runtime sandbox) | `"none"`
@@ -391,7 +400,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
-- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data still originates in `@openhands/extensions/mcps`, but app code should import `#/constants/mcp-marketplace`, which locally patches the Slack entry until upstream catches up: docs now point at `https://github.com/zencoderai/slack-mcp-server` and the stdio install command uses `@zencoderai/slack-mcp-server` instead of the deprecated `@modelcontextprotocol/server-slack`. `src/utils/mcp-marketplace-utils.ts` matches installed servers back to catalog entries. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
+- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data and MCP logo mappings live in `@openhands/extensions/mcps`; the Slack catalog entry there should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server` (not the deprecated `@modelcontextprotocol/server-slack`). `src/utils/mcp-marketplace-utils.ts` matches installed servers back to catalog entries. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

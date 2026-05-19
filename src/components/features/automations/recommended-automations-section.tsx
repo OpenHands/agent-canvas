@@ -7,7 +7,7 @@ import {
 import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
-} from "#/constants/mcp-marketplace";
+} from "@openhands/extensions/mcps";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
