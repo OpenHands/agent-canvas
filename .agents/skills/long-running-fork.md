@@ -361,6 +361,24 @@ is omitted.
     edge off-screen; the expanded-mode `OpenHandsLogoButton` className
     now drops the width / centering for natural content sizing.
 
+- **2026-05-19** — synced upstream `main` at `4f891ca5` ("fix(files-tab):
+  restore static fileserver for rich file preview (#632)").
+  - Sync commit: this commit (see `git log` for hash)
+  - Conflicts: None
+  - Notes: Pulled in 15 upstream commits (`cf1a8835..4f891ca5`) via
+    `git rebase --empty=drop upstream/main`. No conflicts on any of
+    the 19 fork-local commits: upstream's churn this cycle was
+    concentrated in surfaces the fork doesn't override (automations
+    UI, ACP onboarding / Settings → Agent route family, dev-docker
+    scripts, files-tab preview hook), so none of the rebased patches
+    overlapped with the divergence territory recorded in the MODLOG
+    (`README.md`, `src/hooks/use-app-title.ts`, `src/index.css`,
+    `src/themes/color-themes.ts`,
+    `src/components/shared/buttons/openhands-logo-button.tsx`,
+    `src/components/features/sidebar/sidebar.tsx`, and the two
+    fork-only `rbren-*-picker.tsx` widgets). No MODLOG entries were
+    retired in this sync. Marker count unchanged at 18.
+
 ## Core Principles
 
 1. **Additive, not invasive.** Prefer adding *new* files, *new* entries, or *new*
