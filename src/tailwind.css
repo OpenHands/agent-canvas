@@ -154,6 +154,13 @@
   --field-shadow: var(--oh-field-shadow);
 }
 
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 .button-base {
   @apply bg-tertiary border border-[var(--oh-border)] rounded-xs;
 }
