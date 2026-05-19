@@ -255,10 +255,21 @@ describe("Sidebar", () => {
     renderSidebar("/conversations");
 
     expect(screen.getByTestId("collapsed-settings-link")).toBeInTheDocument();
+    expect(screen.getByTestId("join-slack-link")).toBeInTheDocument();
     expect(
       screen.getByTestId("collapsed-backend-selector-link"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("backend-status-dot")).toBeInTheDocument();
+  });
+
+  it("renders Join Slack in the expanded sidebar footer", () => {
+    renderSidebar("/conversations");
+
+    const link = screen.getByTestId("join-slack-link");
+    expect(link).toHaveTextContent("Join Slack");
+    expect(link).toHaveAttribute("href", "https://openhands.dev/joinslack");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("navigates to settings when collapsed settings icon is clicked", () => {

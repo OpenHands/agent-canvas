@@ -42,6 +42,9 @@ export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
 };
 
+/** OpenHands community Slack workspace invite (see README). */
+export const OPENHANDS_SLACK_INVITE_URL = "https://openhands.dev/joinslack";
+
 export const SETTINGS_FORM = {
   LABEL_CLASSNAME: "text-[11px] font-medium leading-4 tracking-[0.11px]",
 };
