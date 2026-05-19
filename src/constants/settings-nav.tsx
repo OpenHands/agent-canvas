@@ -22,7 +22,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
     icon: <RobotIcon width={16} height={16} />,
     to: "/settings/agent",
-    text: "SETTINGS$AGENT",
+    text: "SETTINGS$NAV_AGENT",
     subtitle: "SETTINGS$PAGE_AGENT_SUBLINE",
   },
   {

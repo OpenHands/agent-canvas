@@ -62,8 +62,6 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
 > = {
   model_name: "AgentSettings",
   sections: [
-    // Mirrors the SDK schema; the OpenHands UI displays this field on its
-    // dedicated Agent settings page by key.
     {
       key: "general",
       label: "General",

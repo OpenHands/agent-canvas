@@ -1818,7 +1818,7 @@
     "uk": "Базовий URL",
     "ca": "URL base"
   },
-  "SETTINGS$AGENT": {
+  "SETTINGS$NAV_AGENT": {
     "en": "Agent",
     "ja": "エージェント",
     "zh-CN": "代理",
