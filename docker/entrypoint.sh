@@ -26,7 +26,7 @@ AUTOMATION_PORT="${AUTOMATION_PORT:-18001}"
 log() { printf '[agent-canvas] %s\n' "$*"; }
 log_error() { printf '[agent-canvas] ERROR: %s\n' "$*" >&2; }
 
-# ── Default env vars (mirrors dev-docker.mjs / dev-safe.mjs) ────────────────
+# ── Default env vars (mirrors dev-safe.mjs / dev-with-automation.mjs) ────────
 # OH_SECRET_KEY is required for settings/secrets encryption. Without it the
 # agent-server refuses to return encrypted secrets → conversation creation
 # fails with a 503. The dev launchers always set a static default.

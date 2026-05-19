@@ -34,7 +34,7 @@ permissions:
 
 env:
   IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/openhands/agent-canvas' }}
-  # Default versions — keep in sync with scripts/dev-docker.mjs & dev-with-automation.mjs
+  # Default versions — keep in sync with scripts/dev-with-automation.mjs
   DEFAULT_AGENT_SERVER_IMAGE: ghcr.io/openhands/agent-server:1.22.1-python
   DEFAULT_AUTOMATION_VERSION: "1.0.0a3"
   # Use the PR head SHA for PR events so tags point at the actual code.
