@@ -5,7 +5,8 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
-import { MarketplaceEntry } from "#/constants/mcp-marketplace";
+import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
+import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
@@ -14,6 +15,7 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
   onClose: () => void;
+  onSuccess?: (entry: MarketplaceEntry) => void;
 }
 
 interface FieldState {
@@ -45,6 +47,7 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
 export function InstallServerModal({
   entry,
   onClose,
+  onSuccess,
 }: InstallServerModalProps) {
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
@@ -68,6 +71,7 @@ export function InstallServerModal({
     addMcpServer(payload, {
       onSuccess: () => {
         displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+        onSuccess?.(entry);
         onClose();
       },
       onError: (err: unknown) => {
@@ -267,17 +271,7 @@ export function InstallServerModal({
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
       >
         <div className="flex items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg"
-            // data-driven icon colors from marketplace entry
-            style={{
-              backgroundColor: entry.iconBg,
-              color: entry.iconColor ?? "#FFFFFF",
-            }}
-          >
-            {entry.logo}
-          </span>
+          <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
             <h2 className="text-lg font-semibold">{entry.name}</h2>
             <p className="text-xs text-tertiary-alt">{entry.description}</p>

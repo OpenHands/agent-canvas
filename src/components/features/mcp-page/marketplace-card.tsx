@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import { MarketplaceEntry } from "#/constants/mcp-marketplace";
+import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
+import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { cn } from "#/utils/utils";
 
 interface MarketplaceCardProps {
@@ -35,28 +36,20 @@ export function MarketplaceCard({
       onClick={onClick}
       data-testid={`mcp-marketplace-card-${entry.id}`}
       className={cn(
-        "group flex flex-col text-left",
+        "group relative flex min-h-[132px] flex-col overflow-hidden text-left",
         "rounded-xl border border-[var(--oh-border)] bg-base-secondary",
         "p-4 gap-3 cursor-pointer",
-        "hover:border-[var(--cool-grey-500)] hover:bg-base-tertiary/30 transition-colors",
-        "focus:outline-none focus:ring-2 focus:ring-[var(--oh-border)]",
+        "transition-all duration-200 hover:-translate-y-0.5",
+        "hover:border-primary/35 hover:bg-base-tertiary/30",
+        "focus:outline-none focus:ring-2 focus:ring-primary/50",
       )}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+      />
       <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={cn(
-            "shrink-0 inline-flex items-center justify-center",
-            "h-10 w-10 rounded-lg",
-          )}
-          // data-driven icon colors from marketplace entry
-          style={{
-            backgroundColor: entry.iconBg,
-            color: entry.iconColor ?? "#FFFFFF",
-          }}
-        >
-          {entry.logo}
-        </span>
+        <McpLogoBadge entry={entry} />
         <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold truncate">{entry.name}</h3>
