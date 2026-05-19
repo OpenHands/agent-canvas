@@ -115,7 +115,9 @@ jobs:
 
           # Branch / PR / tag-based tags
           if [[ "$RELEVANT_REF" == refs/heads/* ]]; then
+            # Sanitize branch name: replace / with - (Docker tags forbid /)
             BRANCH="${RELEVANT_REF#refs/heads/}"
+            BRANCH="${BRANCH//\//-}"
             add_tag "$BRANCH"
           fi
 
