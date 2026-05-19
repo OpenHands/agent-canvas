@@ -424,7 +424,14 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] pr-2">
+          <div
+            className={cn(
+              "hidden md:flex md:flex-col md:items-stretch max-w-none box-border",
+              // Full-bleed divider to the sidebar rail: pull past aside `pl-2`
+              // (match conversation-panel header pattern).
+              "-ml-2 w-[calc(100%+0.5rem)] border-t border-[var(--oh-border)] pt-2 px-2",
+            )}
+          >
             <BackendSelector openUpward />
           </div>
         )}
