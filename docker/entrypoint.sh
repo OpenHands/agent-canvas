@@ -59,6 +59,16 @@ log "Starting automation server on port $AUTOMATION_PORT..."
 # Disable the automation's own frontend — agent-canvas provides the UI.
 export AUTOMATION_FRONTEND_DIR=""
 
+# Default to SQLite so the automation server works out of the box without
+# an external PostgreSQL instance. Users can override AUTOMATION_DB_URL to
+# point at a real Postgres for production deployments.
+if [ -z "${AUTOMATION_DB_URL:-}" ]; then
+  AUTOMATION_DB_DIR="${HOME}/.openhands/automation"
+  mkdir -p "$AUTOMATION_DB_DIR"
+  export AUTOMATION_DB_URL="sqlite+aiosqlite:///${AUTOMATION_DB_DIR}/automations.db"
+  log "Using SQLite database: $AUTOMATION_DB_URL"
+fi
+
 # The automation server uses uvicorn. Set AUTOMATION_PORT via its CLI.
 if command -v uvicorn >/dev/null 2>&1; then
   uvicorn openhands.automation.app:app \
@@ -89,8 +99,10 @@ wait_for_port() {
 }
 
 wait_for_port "$AGENT_SERVER_PORT" "Agent Server" 60 &
+WAIT_PID1=$!
 wait_for_port "$AUTOMATION_PORT" "Automation Server" 60 &
-wait
+WAIT_PID2=$!
+wait "$WAIT_PID1" "$WAIT_PID2"
 
 # ── 4. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
