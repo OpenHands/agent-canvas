@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
       enabled: true,
       max_size: 240,
     },
+    enable_sub_agents: false,
     mcp_config: {
       sse_servers: [],
       stdio_servers: [],

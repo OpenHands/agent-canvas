@@ -62,6 +62,29 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
 > = {
   model_name: "AgentSettings",
   sections: [
+    // Mirrors the SDK schema; the OpenHands UI displays this field on its
+    // dedicated Agent settings page by key.
+    {
+      key: "general",
+      label: "General",
+      fields: [
+        {
+          key: "enable_sub_agents",
+          label: "Enable sub-agents",
+          description:
+            "Allow the agent to delegate work to specialized built-in sub-agents.",
+          section: "general",
+          section_label: "General",
+          value_type: "boolean",
+          default: false,
+          choices: [],
+          depends_on: [],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
+      ],
+    },
     {
       key: "llm",
       label: "LLM",
@@ -297,6 +320,7 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
       enable_default_condenser: true,
       condenser_max_size: null,
     },
+    enable_sub_agents: false,
   },
   conversation_settings_schema: MOCK_CONVERSATION_SETTINGS_SCHEMA,
   conversation_settings: {

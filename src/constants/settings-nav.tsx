@@ -1,6 +1,7 @@
 import { AppWindow, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
+import RobotIcon from "#/icons/u-robot.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 
 export interface SettingsNavItem {
@@ -17,6 +18,12 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings",
     text: "SETTINGS$NAV_LLM",
     subtitle: "SETTINGS$PAGE_LLM_SUBLINE",
+  },
+  {
+    icon: <RobotIcon width={16} height={16} />,
+    to: "/settings/agent",
+    text: "SETTINGS$AGENT",
+    subtitle: "SETTINGS$PAGE_AGENT_SUBLINE",
   },
   {
     icon: <MemoryIcon width={16} height={16} />,
