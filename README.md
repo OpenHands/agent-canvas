@@ -1,9 +1,9 @@
 # agent-canvas
 
 > [!WARNING]
-> This project is in the **Alpha** phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+> This project is in the **Beta** phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
 
-[![Project Status: Alpha](https://img.shields.io/badge/status-alpha-yellow)](https://github.com/OpenHands/incubator-program)
+[![Project Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/OpenHands/incubator-program)
 
 OpenHands is a platform for orchestrating coding agents across different environments. You can:
 
@@ -29,10 +29,10 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ## Project ownership and support
 
-- **Current status**: Alpha; preparing an Beta status-change request.
+- **Current status**: Beta.
 - **Project owner**: erisfully
 - **Support channel**: [#proj-agent-canvas](https://openhands.dev/joinslack).
-- **Support level**: Best effort while the project remains pre-Beta.
+- **Support level**: Best effort while the project remains in Beta.
 
 ## Quickstart
 
