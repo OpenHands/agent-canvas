@@ -82,7 +82,7 @@ export function ConversationMain() {
             data-testid="chat-pane-header"
             className={cn(
               "flex h-10 min-h-10 shrink-0 items-center",
-              isSidebarRailHidden && "gap-2",
+              isSidebarRailHidden && "gap-2 pl-2.5",
             )}
           >
             {isSidebarRailHidden ? <SidebarMobileMenuToggle /> : null}
@@ -174,6 +174,7 @@ export function ConversationMobilePanelPage({
           className={mobileTopBarIconButtonClassName}
         >
           <ChevronLeft
+            size={20}
             className={mobileTopBarIconClassName}
             aria-hidden
             strokeWidth={2}

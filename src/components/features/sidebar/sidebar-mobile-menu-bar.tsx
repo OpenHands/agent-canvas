@@ -29,6 +29,7 @@ export function SidebarMobileMenuBar() {
           className={mobileTopBarIconButtonClassName}
         >
           <ChevronLeft
+            size={20}
             className={mobileTopBarIconClassName}
             aria-hidden
             strokeWidth={2}

@@ -22,7 +22,12 @@ export function SidebarMobileMenuToggle() {
       }
       className={mobileTopBarIconButtonClassName}
     >
-      <PanelLeft className={mobileTopBarIconClassName} aria-hidden />
+      <PanelLeft
+        size={20}
+        className={mobileTopBarIconClassName}
+        aria-hidden
+        strokeWidth={2}
+      />
     </button>
   );
 }
