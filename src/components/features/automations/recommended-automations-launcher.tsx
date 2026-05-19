@@ -39,17 +39,26 @@ function getRequiredEntries(automation: RecommendedAutomation) {
  * calls the correct automation endpoint instead of guessing (e.g. calling
  * the cloud API when running locally, or vice-versa).
  */
+function trimTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
 export function buildAutomationPrompt(
   basePrompt: string,
   backendKind: "local" | "cloud",
+  backendHost?: string,
 ): string {
   if (backendKind === "cloud") {
+    const endpoint = backendHost
+      ? `POST ${trimTrailingSlashes(backendHost)}/api/automation/v1/preset/prompt`
+      : "POST /api/automation/v1/preset/prompt on the active OpenHands Cloud backend";
+
     return [
       basePrompt,
       "",
       "---",
-      "**Which API to use:** Create this automation using the OpenHands Cloud Automations API.",
-      "- Endpoint: `POST https://app.all-hands.dev/api/automation/v1/preset/prompt`",
+      "**Which API to use:** Create this automation using the active OpenHands Cloud Automations API.",
+      `- Endpoint: \`${endpoint}\``,
       "- Auth: `Authorization: Bearer $OPENHANDS_API_KEY`",
     ].join("\n");
   }
@@ -105,6 +114,7 @@ export function RecommendedAutomationsLauncher({
       const prompt = buildAutomationPrompt(
         automation.prompt,
         activeBackend.backend.kind,
+        activeBackend.backend.host,
       );
 
       createConversation.mutate(

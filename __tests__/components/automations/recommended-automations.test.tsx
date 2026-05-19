@@ -17,8 +17,14 @@ import {
   RecommendedAutomationsLauncher,
   buildAutomationPrompt,
 } from "#/components/features/automations/recommended-automations-launcher";
-import { RecommendedAutomationsSection } from "#/components/features/automations/recommended-automations-section";
-import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
+import {
+  RecommendedAutomationsSection,
+  getAutomationsByPopularity,
+} from "#/components/features/automations/recommended-automations-section";
+import {
+  AUTOMATION_CATALOG,
+  type RecommendedAutomation,
+} from "@openhands/extensions/automations";
 
 const { mockCreateConversationMutate, mockUseSettings } = vi.hoisted(() => ({
   mockCreateConversationMutate: vi.fn(),
@@ -57,7 +63,7 @@ const localBackend: Backend = {
 const cloudBackend: Backend = {
   id: "cloud-backend",
   name: "Cloud",
-  host: "https://app.all-hands.dev",
+  host: "https://staging.all-hands.dev/",
   apiKey: "cloud-token",
   kind: "cloud",
 };
@@ -137,6 +143,28 @@ describe("recommended automations", () => {
       "data-testid",
       "recommended-automation-card-slack-standup-digest",
     );
+  });
+
+  it("sorts recommendation popularity deterministically when ranks are missing or tied", () => {
+    const makeAutomation = (
+      id: string,
+      popularityRank?: number,
+    ): RecommendedAutomation =>
+      ({
+        ...AUTOMATION_CATALOG[0],
+        id,
+        popularityRank,
+      }) as RecommendedAutomation;
+
+    expect(
+      getAutomationsByPopularity([
+        makeAutomation("missing-first"),
+        makeAutomation("tie-a", 10),
+        makeAutomation("top", 20),
+        makeAutomation("tie-b", 10),
+        makeAutomation("missing-second"),
+      ]).map((automation) => automation.id),
+    ).toEqual(["top", "tie-a", "tie-b", "missing-first", "missing-second"]);
   });
 
   it("filters recommendations by required MCP keywords", () => {
@@ -255,7 +283,10 @@ describe("recommended automations", () => {
       getConversationState("task-cloud-start-task").draftMessage,
     ).toBeNull();
     const pendingDraft = consumePendingTaskDraft("cloud-start-task");
-    expect(pendingDraft).toContain("app.all-hands.dev");
+    expect(pendingDraft).toContain(
+      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
+    );
+    expect(pendingDraft).not.toContain("https://staging.all-hands.dev//api");
     expect(pendingDraft).toContain("$OPENHANDS_API_KEY");
   });
 
@@ -303,10 +334,18 @@ describe("buildAutomationPrompt", () => {
     );
   });
 
-  it("appends cloud API instructions for cloud backends", () => {
-    const result = buildAutomationPrompt(basePrompt, "cloud");
+  it("appends cloud API instructions for the active cloud backend", () => {
+    const result = buildAutomationPrompt(
+      basePrompt,
+      "cloud",
+      "https://staging.all-hands.dev/",
+    );
     expect(result).toContain(basePrompt);
-    expect(result).toContain("app.all-hands.dev");
+    expect(result).toContain(
+      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
+    );
+    expect(result).not.toContain("https://staging.all-hands.dev//api");
+    expect(result).not.toContain("app.all-hands.dev");
     expect(result).toContain("$OPENHANDS_API_KEY");
     expect(result).toContain("/api/automation/v1/preset/prompt");
     expect(result).not.toContain("<RUNTIME_SERVICES>");
@@ -315,7 +354,11 @@ describe("buildAutomationPrompt", () => {
 
   it("keeps the original prompt text verbatim at the start", () => {
     const localResult = buildAutomationPrompt(basePrompt, "local");
-    const cloudResult = buildAutomationPrompt(basePrompt, "cloud");
+    const cloudResult = buildAutomationPrompt(
+      basePrompt,
+      "cloud",
+      "https://staging.all-hands.dev",
+    );
     expect(localResult.startsWith(basePrompt)).toBe(true);
     expect(cloudResult.startsWith(basePrompt)).toBe(true);
   });

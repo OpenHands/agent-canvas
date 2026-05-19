@@ -25,9 +25,20 @@ interface RecommendedAutomationsSectionProps {
   onSelect: (automation: RecommendedAutomation) => void;
 }
 
-const RECOMMENDED_AUTOMATIONS = [...AUTOMATION_CATALOG].sort(
-  (a, b) => b.popularityRank - a.popularityRank,
-);
+export function getAutomationsByPopularity(
+  catalog: RecommendedAutomation[],
+): RecommendedAutomation[] {
+  return catalog
+    .map((automation, index) => ({ automation, index }))
+    .sort((a, b) => {
+      const byPopularity =
+        (b.automation.popularityRank ?? 0) - (a.automation.popularityRank ?? 0);
+      return byPopularity || a.index - b.index;
+    })
+    .map(({ automation }) => automation);
+}
+
+const RECOMMENDED_AUTOMATIONS = getAutomationsByPopularity(AUTOMATION_CATALOG);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
   return automation.requiredMcpIds
