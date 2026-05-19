@@ -518,6 +518,17 @@ async function waitForService(name, url, timeoutMs = 30000) {
 // Service Starters
 // ═══════════════════════════════════════════════════════════════════════════
 
+function buildAgentServerAutomationEnv(config) {
+  return {
+    // Make the local automation backend key available to terminal commands
+    // spawned by the agent-server. The launcher also seeds this into Settings
+    // > Secrets, but agents commonly create automations with a curl command
+    // that references `$OPENHANDS_AUTOMATION_API_KEY`; exposing it here keeps
+    // that path working even before/without secret-registry env expansion.
+    OPENHANDS_AUTOMATION_API_KEY: config.localApiKey,
+  };
+}
+
 function startAgentServer(config) {
   logService(
     "agent-server",
@@ -536,7 +547,10 @@ function startAgentServer(config) {
     OH_CANVAS_SAFE_VSCODE_PORT: config.vscodePort.toString(),
   });
 
-  const agentServerEnv = buildAgentServerEnv(safeConfig);
+  const agentServerEnv = {
+    ...buildAgentServerEnv(safeConfig),
+    ...buildAgentServerAutomationEnv(config),
+  };
 
   spawnService(
     "agent-server",
@@ -1082,6 +1096,7 @@ function startStaticFrontend(config, staticDir) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export {
+  buildAgentServerAutomationEnv,
   buildAutomationCommand,
   buildConfig,
   main,
