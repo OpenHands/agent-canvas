@@ -56,6 +56,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
 import {
+  buildAgentServerAutomationEnv,
   c,
   commandExists,
   logError,
@@ -353,6 +354,7 @@ function startAgentServerDocker(config) {
   // that exist inside the container (under the mounted ~/.openhands).
   const containerEnv = {
     HOME: CONTAINER_HOME_DIR,
+    ...buildAgentServerAutomationEnv(config),
     OH_CONVERSATIONS_PATH: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/conversations`,
     OH_PERSISTENCE_DIR: CONTAINER_OPENHANDS_DIR,
     OH_BASH_EVENTS_DIR: `${CONTAINER_OPENHANDS_DIR}/agent-canvas/bash_events`,

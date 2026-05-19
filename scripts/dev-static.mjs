@@ -56,7 +56,11 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
-import { buildAutomationCommand, buildConfig } from "./dev-with-automation.mjs";
+import {
+  buildAgentServerAutomationEnv,
+  buildAutomationCommand,
+  buildConfig,
+} from "./dev-with-automation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -292,7 +296,10 @@ function startAgentServer(config) {
     OH_CANVAS_SAFE_VSCODE_PORT: config.vscodePort.toString(),
   });
 
-  const agentServerEnv = buildAgentServerEnv(safeConfig);
+  const agentServerEnv = {
+    ...buildAgentServerEnv(safeConfig),
+    ...buildAgentServerAutomationEnv(config),
+  };
 
   spawnService(
     "agent-server",
