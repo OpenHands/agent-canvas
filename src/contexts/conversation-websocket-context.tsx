@@ -159,10 +159,6 @@ export function ConversationWebSocketProvider({
   const isPlanFilePath = (path: string | null): boolean =>
     path?.toUpperCase().endsWith("PLAN.MD") ?? false;
 
-  const handleNonErrorEvent = useCallback(() => {
-    removeErrorMessage();
-  }, [removeErrorMessage]);
-
   // Helper function to update metrics from stats event
   const updateMetricsFromStats = useCallback(
     (event: ConversationStateUpdateEventStats) => {
@@ -406,8 +402,6 @@ export function ConversationWebSocketProvider({
               posthog,
             });
             setErrorMessage(errorEvent.detail);
-          } else {
-            handleNonErrorEvent();
           }
 
           // Track credit limit reached if AgentErrorEvent has budget-related error
@@ -519,7 +513,6 @@ export function ConversationWebSocketProvider({
       appendInput,
       appendOutput,
       updateMetricsFromStats,
-      handleNonErrorEvent,
       posthog,
     ],
   );
@@ -567,8 +560,6 @@ export function ConversationWebSocketProvider({
               posthog,
             });
             setErrorMessage(errorEvent.detail);
-          } else {
-            handleNonErrorEvent();
           }
 
           // Handle AgentErrorEvent specifically
@@ -696,7 +687,6 @@ export function ConversationWebSocketProvider({
       readConversationFile,
       setPlanContent,
       updateMetricsFromStats,
-      handleNonErrorEvent,
       posthog,
     ],
   );
