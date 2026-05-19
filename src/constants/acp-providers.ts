@@ -43,22 +43,37 @@ export interface ACPProviderConfig {
   description_key: I18nKey;
 }
 
+// Each entry's ``default_command`` is the published-package npx
+// invocation that speaks the ACP JSON-RPC protocol on stdio. Verified
+// against the upstream npm registry on the date noted below — if a
+// package is renamed/unpublished, the agent-server spawn fails fast
+// with ``ENOENT`` and the user can switch to the "Custom" preset.
 export const ACP_PROVIDERS: ACPProviderConfig[] = [
   {
     key: "claude-code",
     display_name: "Claude Code",
+    // https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp
+    // Verified 2026-05-19. Official Anthropic-maintained ACP wrapper
+    // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
   },
   {
     key: "codex",
     display_name: "Codex",
+    // https://www.npmjs.com/package/@zed-industries/codex-acp
+    // Verified 2026-05-19. Zed-maintained ACP wrapper around the
+    // OpenAI Codex CLI — NOT ``@openai/codex acp`` (no ``acp``
+    // subcommand on that package).
     default_command: ["npx", "-y", "@zed-industries/codex-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
   },
   {
     key: "gemini-cli",
     display_name: "Gemini CLI",
+    // https://www.npmjs.com/package/@google/gemini-cli
+    // Verified 2026-05-19. Official Google CLI; ``--acp`` switches it
+    // into ACP server mode on stdio.
     default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
     description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
   },

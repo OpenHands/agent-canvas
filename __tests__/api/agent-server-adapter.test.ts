@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ACP_SERVER_TAG_KEY,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
   getDefaultConversationTitle,
@@ -686,8 +687,10 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     // Conversation tags carry the ACP provider key for chip rendering.
     // Agent-server validates tag keys against ``^[a-z0-9]+$``, so the
     // snake_case ``acp_server`` form would be rejected — we use the
-    // flattened ``acpserver`` form instead.
-    expect(payload.tags).toEqual({ acpserver: "claude-code" });
+    // flattened ``acpserver`` form instead. Asserted via the exported
+    // constant so a rename surfaces here as a compile error rather
+    // than a silent schema-mismatch at runtime.
+    expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
   });
 
   it("does not include ACP fields in the OpenHands Agent payload", () => {

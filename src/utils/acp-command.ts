@@ -37,9 +37,20 @@ const { parse, quote } = shellQuote;
  * trying to inline ``$ANTHROPIC_API_KEY`` into the command.
  */
 export function parseCommand(value: string): string[] {
-  return parse(value).filter(
-    (entry): entry is string => typeof entry === "string",
-  );
+  // ``shell-quote.parse`` throws on a small set of pathological inputs
+  // (e.g. an unterminated quote sequence in some versions). The
+  // textarea is a free-text user input; a throw here would crash the
+  // entire Settings → Agent page mid-render. Fall back to an empty
+  // argv so the form stays usable — the Save button is already gated
+  // on ``commandTokens.length > 0`` so an empty result keeps the user
+  // from saving a malformed command into ``acp_command`` either way.
+  try {
+    return parse(value).filter(
+      (entry): entry is string => typeof entry === "string",
+    );
+  } catch {
+    return [];
+  }
 }
 
 // Tokens that need shell-quoting when rendering back to a string —

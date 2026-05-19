@@ -40,6 +40,14 @@ function detectPreset(
   commandText: string,
   providers: ACPProviderConfig[],
 ): string {
+  // The preset dropdown silently follows the textarea: editing the
+  // command into something that exactly matches another preset's
+  // ``default_command`` re-selects that preset (and editing it away
+  // from every preset flips to "Custom"). This is intentional — the
+  // textarea is the source of truth; the dropdown is a read-out of
+  // "which preset, if any, does this command match." A user pasting a
+  // built-in command they had stashed elsewhere shouldn't have to
+  // also click the matching preset.
   const normalized = parseCommand(commandText).join(" ");
   for (const provider of providers) {
     if (normalized === provider.default_command.join(" ")) {
