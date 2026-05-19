@@ -24,10 +24,13 @@
  * Usage:
  *   node scripts/dev-with-automation.mjs
  *   node scripts/dev-with-automation.mjs --automation-ref feat/my-branch
+ *   node scripts/dev-with-automation.mjs --automation-local-path /abs/path/to/automation
  *   node scripts/dev-with-automation.mjs --port 12000
  *
  * Environment variables:
  *   - PORT: Ingress port (default: 8000)
+ *   - OH_AUTOMATION_LOCAL_PATH: Absolute path to a local automation checkout
+ *     (takes precedence over OH_AUTOMATION_GIT_REF / OH_AUTOMATION_VERSION)
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
@@ -40,7 +43,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
@@ -130,6 +133,7 @@ function parseArgs() {
     port: null,
     automationGitRef: null,
     automationRepo: null,
+    automationLocalPath: null,
     verbose: false,
     static: false,
     dynamic: false,
@@ -148,6 +152,9 @@ function parseArgs() {
         break;
       case "--automation-repo":
         config.automationRepo = args[++i];
+        break;
+      case "--automation-local-path":
+        config.automationLocalPath = args[++i];
         break;
       case "-v":
       case "--verbose":
@@ -186,18 +193,24 @@ USAGE:
   node scripts/dev-with-automation.mjs [options]
 
 OPTIONS:
-  -p, --port <port>           Ingress port (default: 8000)
-  --automation-ref <ref>      Git ref for automation (branch/tag/SHA)
-  --automation-repo <url>     Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
-  --static                    Serve an existing production build instead of Vite
-  --static-dir <dir>          Static build directory (default: build/)
-  --skip-build                Reuse build/ when the launcher builds static assets
-  --dynamic                   Force Vite dev server when a wrapper defaults static
-  -v, --verbose               Show detailed output
-  -h, --help                  Show this help
+  -p, --port <port>            Ingress port (default: 8000)
+  --automation-ref <ref>       Git ref for automation (branch/tag/SHA)
+  --automation-repo <url>      Git repo URL (default: ${DEFAULT_AUTOMATION_REPO})
+  --automation-local-path <p>  Absolute path to a local automation checkout
+                               (highest precedence; useful for testing local
+                               branches without pushing first)
+  --static                     Serve an existing production build instead of Vite
+  --static-dir <dir>           Static build directory (default: build/)
+  --skip-build                 Reuse build/ when the launcher builds static assets
+  --dynamic                    Force Vite dev server when a wrapper defaults static
+  -v, --verbose                Show detailed output
+  -h, --help                   Show this help
 
 ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
+  OH_AUTOMATION_LOCAL_PATH    Absolute path to a local automation checkout
+                              (takes precedence over OH_AUTOMATION_GIT_REF /
+                              OH_AUTOMATION_VERSION)
   OH_AUTOMATION_GIT_REF       Git ref for automation (overrides default version)
   OH_AUTOMATION_VERSION       Specific PyPI version for automation (default: ${DEFAULT_AUTOMATION_VERSION})
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
@@ -217,9 +230,52 @@ ACCESS POINTS:
 }
 
 /**
+ * Validate that `localPath` looks like an openhands-automation checkout.
+ *
+ * Mirrors `validateLocalAgentServerPath` in `dev-safe.mjs` so we fail fast
+ * with a clear error before invoking `uvx`, rather than producing an
+ * opaque build failure inside the install step.
+ *
+ * The automation repo is laid out as a single Python package (not a uv
+ * workspace), so we just check for the project marker files we know
+ * have to exist: `pyproject.toml` at the root and the `openhands/automation`
+ * package source directory.
+ */
+export function validateLocalAutomationPath(localPath) {
+  if (!localPath || typeof localPath !== "string") {
+    throw new Error("OH_AUTOMATION_LOCAL_PATH must be a non-empty string path");
+  }
+  if (!isAbsolute(localPath)) {
+    throw new Error(
+      `OH_AUTOMATION_LOCAL_PATH must be an absolute path, got: ${localPath}`,
+    );
+  }
+  if (!existsSync(localPath)) {
+    throw new Error(`OH_AUTOMATION_LOCAL_PATH does not exist: ${localPath}`);
+  }
+  const pyproject = join(localPath, "pyproject.toml");
+  if (!existsSync(pyproject)) {
+    throw new Error(
+      `OH_AUTOMATION_LOCAL_PATH is missing pyproject.toml: ${pyproject}`,
+    );
+  }
+  const pkgDir = join(localPath, "openhands", "automation");
+  if (!existsSync(pkgDir)) {
+    throw new Error(
+      `OH_AUTOMATION_LOCAL_PATH does not look like an openhands-automation checkout: missing ${pkgDir}`,
+    );
+  }
+}
+
+/**
  * Build the uvx command for running automation backend.
  *
  * Environment variables (highest precedence first):
+ * - OH_AUTOMATION_LOCAL_PATH: Absolute path to a local automation checkout.
+ *   Runs the local source via `uvx --reinstall --from <path>` so each
+ *   restart rebuilds from the working tree -- matches the agent-server
+ *   local-path flow in dev-safe.mjs. Source edits are picked up on the
+ *   next restart of dev:docker / dev:dangerously-dockerless:dynamic.
  * - OH_AUTOMATION_GIT_REF: Git commit SHA or branch name
  * - OH_AUTOMATION_VERSION: Specific PyPI version (e.g., "1.0.0a1")
  *
@@ -228,6 +284,7 @@ ACCESS POINTS:
  * git branch or commit instead.
  */
 function buildAutomationCommand(env = process.env) {
+  const localPath = env.OH_AUTOMATION_LOCAL_PATH;
   const gitRef = env.OH_AUTOMATION_GIT_REF;
   const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
@@ -235,7 +292,20 @@ function buildAutomationCommand(env = process.env) {
   const uvxArgs = [];
   let source = "";
 
-  if (gitRef) {
+  if (localPath) {
+    // Local checkout: rebuild from source on every invocation so the
+    // running server reflects the latest commit/working-tree state.
+    // `--reinstall` is the same flag dev-safe.mjs uses for the
+    // agent-server local-path flow.
+    uvxArgs.push(
+      "--reinstall",
+      "--from",
+      localPath,
+      "uvicorn",
+      "openhands.automation.app:app",
+    );
+    source = `local (${localPath})`;
+  } else if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
     const gitUrl = `git+${repoUrl}@${gitRef}`;
     uvxArgs.push(
@@ -280,6 +350,14 @@ async function buildConfig(args, env = process.env) {
   }
   if (args.automationRepo) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
+  }
+  if (args.automationLocalPath) {
+    env.OH_AUTOMATION_LOCAL_PATH = args.automationLocalPath;
+  }
+  // Fail fast on a bad local-path before allocating ports / spinning up
+  // anything else, mirroring how dev-safe.mjs treats OH_AGENT_SERVER_LOCAL_PATH.
+  if (env.OH_AUTOMATION_LOCAL_PATH) {
+    validateLocalAutomationPath(env.OH_AUTOMATION_LOCAL_PATH);
   }
 
   // Preferred ports (from env or defaults)
@@ -1146,6 +1224,8 @@ export {
   DEFAULT_AUTOMATION_PORT,
   DEFAULT_AUTOMATION_API_KEY_PATH,
 };
+// validateLocalAutomationPath is already exported via its `export function`
+// declaration above; listing it here would be a duplicate export.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Main entry point (only when run directly, not when imported)

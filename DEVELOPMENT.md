@@ -34,7 +34,9 @@ cloud-backed OpenHands sessions.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Ingress port | `8000` |
+| `OH_AUTOMATION_LOCAL_PATH` | Absolute path to a local automation checkout (highest precedence; overrides git ref / version) | _unset_ |
 | `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
+| `OH_AGENT_SERVER_LOCAL_PATH` | Absolute path to a local `software-agent-sdk` checkout | _unset_ |
 | `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
 
 ### Alternative: Minimal Mode (without Automation)
@@ -65,6 +67,39 @@ OH_AGENT_SERVER_VERSION=1.18.0 npm run dev:dangerously-dockerless
 ```
 
 `OH_AGENT_SERVER_LOCAL_PATH` must be an absolute path to a `software-agent-sdk` checkout containing the `openhands-agent-server`, `openhands-sdk`, `openhands-tools`, and `openhands-workspace` workspace packages. In docker mode it is bind-mounted into the container and installed editable before the server starts. In dockerless mode the agent-server itself is rebuilt from local source on each start (`uvx --reinstall`); the other workspace packages are installed editable, so their source changes take effect without a rebuild.
+
+### Automation backend version selection
+
+By default, the released `openhands-automation` PyPI version pinned by
+`DEFAULT_AUTOMATION_VERSION` in `scripts/dev-with-automation.mjs` is used. You
+can override this (highest precedence first):
+
+```sh
+# Run against a local automation checkout — useful for testing a local branch
+# (e.g. a bugfix) before pushing it / opening a PR.
+OH_AUTOMATION_LOCAL_PATH=/abs/path/to/automation npm run dev:docker
+# Or as a CLI flag:
+npm run dev:docker -- --automation-local-path /abs/path/to/automation
+
+# Use a git branch or commit (takes precedence over version)
+OH_AUTOMATION_GIT_REF=fix/my-bug npm run dev:docker
+npm run dev:docker -- --automation-ref fix/my-bug
+
+# Use a fork
+OH_AUTOMATION_REPO=https://github.com/me/automation \
+OH_AUTOMATION_GIT_REF=fix/my-bug \
+npm run dev:docker
+
+# Use a specific PyPI version
+OH_AUTOMATION_VERSION=1.0.0a2 npm run dev:docker
+```
+
+`OH_AUTOMATION_LOCAL_PATH` must be an absolute path to an `openhands-automation`
+checkout (containing `pyproject.toml` and the `openhands/automation` package
+directory). The automation backend runs on the host via `uvx` even in `dev:docker`
+mode, so no bind mount is involved — the local path is read directly. Each
+restart of the dev stack rebuilds the automation package from source
+(`uvx --reinstall`), so source edits take effect on the next restart.
 
 ### Other useful overrides
 
