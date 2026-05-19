@@ -22,10 +22,16 @@ import {
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 
-const DEFAULT_BACKEND_PORT = 18000;
+// ── Centralized config (single source of truth for versions, ports, etc.) ───
+const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
+const SHARED_DEFAULTS = JSON.parse(
+  readFileSync(path.join(__dev_safe_dirname, "..", "config", "defaults.json"), "utf-8"),
+);
+
+const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
-const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
+const DEFAULT_AGENT_SERVER_PACKAGE = SHARED_DEFAULTS.packages.agentServer;
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
 const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-agent-server",
@@ -33,12 +39,8 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-// Default secret key for local development (DO NOT use in production)
-// This is kept static because it's used for encrypting/decrypting persisted settings
-const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
-// Default agent-server version (released PyPI version)
-// Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.22.1";
+const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
+const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**

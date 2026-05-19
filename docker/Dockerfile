@@ -16,6 +16,9 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Build args ────────────────────────────────────────────────────────────────
+# These defaults are fallbacks for local `docker build` without the CI workflow.
+# CI reads the canonical values from config/defaults.json and passes them as
+# --build-arg overrides, so these only matter for convenience builds.
 ARG AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:1.22.1-python
 ARG AUTOMATION_VERSION=1.0.0a3
 
@@ -33,6 +36,25 @@ COPY . .
 
 # Build the static frontend
 RUN npm run build
+
+# ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
+# This avoids needing jq/python at container runtime to parse the JSON.
+FROM node:24-slim AS config-gen
+COPY config/defaults.json /tmp/defaults.json
+RUN node -e " \
+  const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
+  const lines = [ \
+    'CONFIG_SECRET_KEY=' + c.defaults.secretKey, \
+    'CONFIG_AGENT_SERVER_PORT=' + c.ports.agentServer, \
+    'CONFIG_AUTOMATION_PORT=' + c.ports.automation, \
+    'CONFIG_PROXY_PORT=' + c.ports.proxy, \
+    'CONFIG_STATE_SUBDIR=' + c.paths.stateSubdir, \
+    'CONFIG_CONVERSATIONS=' + c.paths.conversations, \
+    'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
+    'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
+  ]; \
+  require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
+"
 
 # ── Stage 2: Combined image ──────────────────────────────────────────────────
 FROM ${AGENT_SERVER_IMAGE} AS final
@@ -72,6 +94,9 @@ COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+
+# Copy generated defaults.env (from config/defaults.json via config-gen stage)
+COPY --from=config-gen /tmp/defaults.env /opt/agent-canvas/defaults.env
 
 # Copy the entrypoint
 COPY docker/entrypoint.sh /opt/agent-canvas/entrypoint.sh

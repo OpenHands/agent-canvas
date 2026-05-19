@@ -39,7 +39,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -67,16 +67,19 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
+// ── Centralized config (single source of truth for versions, ports, etc.) ───
+const SHARED_DEFAULTS = JSON.parse(
+  readFileSync(join(projectRoot, "config", "defaults.json"), "utf-8"),
+);
+
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
-const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
-// Default automation version (released PyPI version)
-// Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AUTOMATION_VERSION = "1.0.0a3";
+const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
+const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
-// DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
-const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.1";
-const DEFAULT_BACKEND_PORT = 18000;
-const DEFAULT_AUTOMATION_PORT = 18001;
+// the agent-server version while automation releases catch up.
+const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
+const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
+const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
 // Where the auto-generated default automation API key is persisted. Static
 // frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
 // must remain stable across restarts and --skip-build reuse.

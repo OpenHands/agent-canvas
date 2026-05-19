@@ -34,9 +34,6 @@ permissions:
 
 env:
   IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/openhands/agent-canvas' }}
-  # Default versions — keep in sync with scripts/dev-with-automation.mjs
-  DEFAULT_AGENT_SERVER_IMAGE: ghcr.io/openhands/agent-server:1.22.1-python
-  DEFAULT_AUTOMATION_VERSION: "1.0.0a3"
   # Use the PR head SHA for PR events so tags point at the actual code.
   RELEVANT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   RELEVANT_REF: ${{ github.head_ref != '' && format('refs/heads/{0}', github.head_ref) || github.ref }}
@@ -86,24 +83,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read defaults from config/defaults.json
+        id: config
+        run: |
+          # Single source of truth for version pins — no hardcoded values in this workflow.
+          AGENT_SERVER_VERSION=$(node -p "require('./config/defaults.json').versions.agentServer")
+          AGENT_SERVER_IMAGE_BASE=$(node -p "require('./config/defaults.json').images.agentServer")
+          AUTOMATION_VERSION=$(node -p "require('./config/defaults.json').versions.automation")
+          echo "agent_server_version=$AGENT_SERVER_VERSION" >> "$GITHUB_OUTPUT"
+          echo "default_agent_server_image=${AGENT_SERVER_IMAGE_BASE}:${AGENT_SERVER_VERSION}-python" >> "$GITHUB_OUTPUT"
+          echo "default_automation_version=$AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Compute metadata and tags
         id: prep
         run: |
           SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
 
-          # Resolve agent-server base image
+          # Resolve agent-server base image (input override > config/defaults.json)
           if [ -n "${{ inputs.agent_server_image }}" ]; then
             echo "agent_server_image=${{ inputs.agent_server_image }}" >> "$GITHUB_OUTPUT"
           else
-            echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "agent_server_image=${{ steps.config.outputs.default_agent_server_image }}" >> "$GITHUB_OUTPUT"
           fi
 
-          # Resolve automation version
+          # Resolve automation version (input override > config/defaults.json)
           if [ -n "${{ inputs.automation_version }}" ]; then
             echo "automation_version=${{ inputs.automation_version }}" >> "$GITHUB_OUTPUT"
           else
-            echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
+            echo "automation_version=${{ steps.config.outputs.default_automation_version }}" >> "$GITHUB_OUTPUT"
           fi
 
           # Build arch-suffixed tags (e.g., sha-abc1234-amd64)

@@ -19,25 +19,49 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
-PORT="${PORT:-8000}"
-AGENT_SERVER_PORT="${AGENT_SERVER_PORT:-18000}"
-AUTOMATION_PORT="${AUTOMATION_PORT:-18001}"
-
 log() { printf '[agent-canvas] %s\n' "$*"; }
 log_error() { printf '[agent-canvas] ERROR: %s\n' "$*" >&2; }
 
-# ── Default env vars (mirrors dev-safe.mjs / dev-with-automation.mjs) ────────
+# ── Load centralized defaults (generated from config/defaults.json at build) ─
+# shellcheck source=/dev/null
+if [ -f /opt/agent-canvas/defaults.env ]; then
+  # shellcheck disable=SC1091
+  . /opt/agent-canvas/defaults.env
+fi
+
+PORT="${PORT:-${CONFIG_PROXY_PORT:-8000}}"
+AGENT_SERVER_PORT="${AGENT_SERVER_PORT:-${CONFIG_AGENT_SERVER_PORT:-18000}}"
+AUTOMATION_PORT="${AUTOMATION_PORT:-${CONFIG_AUTOMATION_PORT:-18001}}"
+
 # OH_SECRET_KEY is required for settings/secrets encryption. Without it the
 # agent-server refuses to return encrypted secrets → conversation creation
-# fails with a 503. The dev launchers always set a static default.
-export OH_SECRET_KEY="${OH_SECRET_KEY:-openhands-dev-secret-key-change-in-prod}"
+# fails with a 503.
+export OH_SECRET_KEY="${OH_SECRET_KEY:-${CONFIG_SECRET_KEY:-openhands-dev-secret-key-change-in-prod}}"
 
 # Persistence paths — keep settings, conversations, bash history under a
 # single well-known directory that the VOLUME directive exposes.
 OPENHANDS_DIR="${HOME}/.openhands"
 export OH_PERSISTENCE_DIR="${OH_PERSISTENCE_DIR:-${OPENHANDS_DIR}}"
-export OH_CONVERSATIONS_PATH="${OH_CONVERSATIONS_PATH:-${OPENHANDS_DIR}/agent-canvas/conversations}"
-export OH_BASH_EVENTS_DIR="${OH_BASH_EVENTS_DIR:-${OPENHANDS_DIR}/agent-canvas/bash_events}"
+export OH_CONVERSATIONS_PATH="${OH_CONVERSATIONS_PATH:-${OPENHANDS_DIR}/${CONFIG_CONVERSATIONS:-agent-canvas/conversations}}"
+export OH_BASH_EVENTS_DIR="${OH_BASH_EVENTS_DIR:-${OPENHANDS_DIR}/${CONFIG_BASH_EVENTS:-agent-canvas/bash_events}}"
+
+# Session API key — generate one if not provided so the image doesn't run
+# wide-open by default. Persisted so restarts reuse the same key.
+SESSION_KEY_FILE="${OPENHANDS_DIR}/${CONFIG_STATE_SUBDIR:-agent-canvas}/session-api-key.txt"
+if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
+  if [ -f "$SESSION_KEY_FILE" ]; then
+    SESSION_API_KEY="$(cat "$SESSION_KEY_FILE")"
+  else
+    SESSION_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    mkdir -p "$(dirname "$SESSION_KEY_FILE")"
+    printf '%s' "$SESSION_API_KEY" > "$SESSION_KEY_FILE"
+    log "Generated session API key (persisted to $SESSION_KEY_FILE)"
+  fi
+  export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
+fi
+
+# AGENT_SERVER_URL — needed by automation sandbox callbacks.
+export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
 # Track child PIDs so we can clean up on exit.
 PIDS=()
@@ -76,9 +100,9 @@ export AUTOMATION_FRONTEND_DIR=""
 # an external PostgreSQL instance. Users can override AUTOMATION_DB_URL to
 # point at a real Postgres for production deployments.
 if [ -z "${AUTOMATION_DB_URL:-}" ]; then
-  AUTOMATION_DB_DIR="${HOME}/.openhands/automation"
-  mkdir -p "$AUTOMATION_DB_DIR"
-  export AUTOMATION_DB_URL="sqlite+aiosqlite:///${AUTOMATION_DB_DIR}/automations.db"
+  AUTOMATION_DB_FILE="${OPENHANDS_DIR}/${CONFIG_AUTOMATION_DB:-automation/automations.db}"
+  mkdir -p "$(dirname "$AUTOMATION_DB_FILE")"
+  export AUTOMATION_DB_URL="sqlite+aiosqlite:///${AUTOMATION_DB_FILE}"
   log "Using SQLite database: $AUTOMATION_DB_URL"
 fi
 
