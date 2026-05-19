@@ -1,6 +1,5 @@
 import React from "react";
 import { AxiosError } from "axios";
-import { Route } from "./+types/mcp";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
@@ -64,11 +63,17 @@ function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
 // it from start payloads. The Settings → Agent page is where the user
 // configures the ACP server, so bouncing there is consistent with how
 // ``/settings`` and ``/settings/condenser`` already behave under ACP.
-// Wrapped (instead of an alias export) so the parameter shape matches
-// React Router's ``ClientLoaderArgs`` and we don't drag the framework
-// type into the standalone helper.
-export const clientLoader = async (_args: Route.ClientLoaderArgs) =>
-  redirectIfAcpActive();
+//
+// Declared with no parameters (rather than typed as
+// ``Route.ClientLoaderArgs``) so the lib build doesn't pull the
+// generated ``./+types/mcp`` types out of ``rootDir``. The lib's
+// ``tsconfig.lib.json`` reaches this file via the
+// ``components/settings/index.ts`` re-export → ``routes/mcp-settings`` →
+// ``routes/mcp`` chain; importing the React Router-generated type
+// breaks ``rootDir: "src"`` because the types live under
+// ``.react-router/types``. ``index-redirect`` and
+// ``mcp-settings-redirect`` use the same no-args pattern.
+export const clientLoader = async () => redirectIfAcpActive();
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");

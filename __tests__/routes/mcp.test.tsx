@@ -33,11 +33,7 @@ describe("mcp route", () => {
       },
     });
 
-    const response = (await clientLoader({
-      request: new Request("http://localhost/mcp"),
-      params: {},
-      context: {},
-    } as never)) as Response;
+    const response = (await clientLoader()) as Response;
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/settings/agent");
@@ -52,11 +48,7 @@ describe("mcp route", () => {
       },
     });
 
-    const result = await clientLoader({
-      request: new Request("http://localhost/mcp"),
-      params: {},
-      context: {},
-    } as never);
+    const result = await clientLoader();
 
     expect(result).toBeNull();
   });
@@ -69,11 +61,7 @@ describe("mcp route", () => {
       new Error("network down"),
     );
 
-    const result = await clientLoader({
-      request: new Request("http://localhost/mcp"),
-      params: {},
-      context: {},
-    } as never);
+    const result = await clientLoader();
 
     expect(result).toBeNull();
   });
