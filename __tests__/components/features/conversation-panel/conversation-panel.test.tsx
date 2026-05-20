@@ -33,29 +33,37 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
 
 // Helper to create complete AppConversation mock data
 // Default timestamps use "now" so conversations are considered recent and
-// rendered eagerly by the panel.
+// rendered eagerly by the panel.  Each call produces a timestamp 1 s older
+// than the previous one so that the sort-by-updated_at order matches the
+// array insertion order (first created → newest → cards[0]).
+let _mockConversationCounter = 0;
 const createMockConversation = (
   overrides: Partial<AppConversation> = {},
-): AppConversation => ({
-  id: "test-id",
-  title: "Test Conversation",
-  selected_repository: null,
-  git_provider: null,
-  selected_branch: null,
-  updated_at: new Date().toISOString(),
-  created_at: new Date().toISOString(),
-  execution_status: ExecutionStatus.FINISHED,
-  conversation_url: null,
-  created_by_user_id: "user1",
-  metrics: null,
-  llm_model: null,
-  trigger: null,
-  pr_number: [],
-  session_api_key: null,
-  sandbox_id: null,
-  sub_conversation_ids: [],
-  ...overrides,
-});
+): AppConversation => {
+  const ts = new Date(
+    Date.now() - _mockConversationCounter++ * 1000,
+  ).toISOString();
+  return {
+    id: "test-id",
+    title: "Test Conversation",
+    selected_repository: null,
+    git_provider: null,
+    selected_branch: null,
+    updated_at: ts,
+    created_at: ts,
+    execution_status: ExecutionStatus.FINISHED,
+    conversation_url: null,
+    created_by_user_id: "user1",
+    metrics: null,
+    llm_model: null,
+    trigger: null,
+    pr_number: [],
+    session_api_key: null,
+    sandbox_id: null,
+    sub_conversation_ids: [],
+    ...overrides,
+  };
+};
 
 // Mock toast handlers to prevent unhandled rejection errors
 vi.mock("#/utils/custom-toast-handlers", () => ({
