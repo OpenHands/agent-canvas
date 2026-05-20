@@ -153,39 +153,7 @@ export const useLocalGitInfo = () => {
           cwd,
           timeout,
         );
-      const orderedCandidates = [
-        attachedWorkspace,
-        workingDir,
-        "/workspace/project",
-        "workspace/project",
-      ]
-        .map((dir) => dir?.trim())
-        .filter((dir): dir is string => !!dir);
-      const candidateDirs = [...new Set(orderedCandidates)];
 
-      const probeableDirs: string[] = [];
-      for (const dir of candidateDirs) {
-        if (
-          await directoryIsListableOnAgentServer(
-            conversationUrl,
-            sessionApiKey,
-            dir,
-          )
-        ) {
-          probeableDirs.push(dir);
-        }
-      }
-      if (probeableDirs.length === 0) return EMPTY_LOCAL_GIT_INFO;
-
-      for (const candidateDir of probeableDirs) {
-        const directInfo = await probeGitInfoAtDir(run, candidateDir);
-        if (directInfo.repository || directInfo.branch) return directInfo;
-
-        // Common local flow: user starts in a non-git parent workspace and
-        // clones a single repository into a child directory.
-        const nestedInfo = await probeNestedRepoInDir(run, candidateDir);
-        if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
-      }
 
       return EMPTY_LOCAL_GIT_INFO;
     },

@@ -38,6 +38,7 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$AGO: "ago",
           CONVERSATION$UPDATED: "Updated",
           COMMON$NO_REPOSITORY: "No repository",
+          CONVERSATION$ACP_AGENT_GENERIC: "ACP",
         };
         return translations[key] || key;
       },
@@ -593,6 +594,83 @@ describe("ConversationCard", () => {
       expect(screen.getByTestId("stop-button")).toHaveTextContent(
         "COMMON$CLOSE_CONVERSATION_STOP_RUNTIME",
       );
+    });
+  });
+
+  describe("ACP agent badge", () => {
+    it("renders the resolved display name for a known ACP server", () => {
+      // ``claude-code`` resolves through the ACP_PROVIDERS registry to the
+      // human display name "Claude Code". The badge always renders for
+      // ACP conversations — it's identity info, not gated by the LLM-
+      // profile preference.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="acp"
+          acpServer="claude-code"
+        />,
+      );
+
+      const badge = screen.getByTestId("conversation-card-acp-badge");
+      expect(badge).toHaveTextContent("Claude Code");
+    });
+
+    it("falls back to the generic 'ACP' label when the server key is unknown", () => {
+      // The Custom-command preset uses ``acp_server: "custom"`` (and
+      // future ACP servers Canvas's registry doesn't know about look the
+      // same here) — the resolver returns null and the chip shows the
+      // generic ``CONVERSATION$ACP_AGENT_GENERIC`` translation.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="acp"
+          acpServer="custom"
+        />,
+      );
+
+      const badge = screen.getByTestId("conversation-card-acp-badge");
+      expect(badge).toHaveTextContent("ACP");
+    });
+
+    it("falls back to the generic 'ACP' label when the server key is null", () => {
+      // ACP conversations missing the ``acpserver`` tag (older clients,
+      // raw API writes) still get a chip — the goal is "this is an ACP
+      // conversation" first, exact provider second.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="acp"
+          acpServer={null}
+        />,
+      );
+
+      const badge = screen.getByTestId("conversation-card-acp-badge");
+      expect(badge).toHaveTextContent("ACP");
+    });
+
+    it("does not render the badge for OpenHands conversations", () => {
+      // The OpenHands rendering path must be untouched — even if a stray
+      // ``acp_server`` value somehow reaches the prop, the chip stays
+      // hidden because ``agentKind !== "acp"``.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="openhands"
+          acpServer="claude-code"
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-acp-badge"),
+      ).not.toBeInTheDocument();
     });
   });
 });

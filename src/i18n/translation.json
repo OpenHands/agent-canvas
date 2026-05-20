@@ -9723,6 +9723,23 @@
     "uk": "тому",
     "ca": "fa"
   },
+  "CONVERSATION$ACP_AGENT_GENERIC": {
+    "en": "ACP",
+    "ja": "ACP",
+    "zh-CN": "ACP",
+    "zh-TW": "ACP",
+    "ko-KR": "ACP",
+    "de": "ACP",
+    "no": "ACP",
+    "it": "ACP",
+    "pt": "ACP",
+    "es": "ACP",
+    "ar": "ACP",
+    "fr": "ACP",
+    "tr": "ACP",
+    "uk": "ACP",
+    "ca": "ACP"
+  },
   "GITHUB$VSCODE_LINK_DESCRIPTION": {
     "en": "and use the VS Code link to upload and download your code",
     "ja": "そしてVS Codeリンクを使用してコードをアップロードおよびダウンロードします",

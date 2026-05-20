@@ -179,9 +179,8 @@ export default function MCPPage() {
           />
         )}
 
-        {/* Custom (or non-marketplace) server editor — falls back to the
-            legacy MCPServerForm for full control. The empty-id sentinel
-            (`{ id: "", type: "sse" }`) means "add new". */}
+        {/* Custom (or non-marketplace) server editor. The empty-id
+            sentinel (`{ id: "", type: "sse" }`) means "add new". */}
         {editingServer && (
           <CustomServerEditor
             server={editingServer}
