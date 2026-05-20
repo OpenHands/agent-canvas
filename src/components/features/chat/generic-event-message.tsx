@@ -15,6 +15,8 @@ interface GenericEventMessageProps {
   chevronPosition?: "before" | "after";
   /** Extra content rendered at the end of the title row (right side). */
   titleTrailing?: React.ReactNode;
+  /** Optional icon rendered before the title text. */
+  titleIcon?: React.ReactNode;
 }
 
 export function GenericEventMessage({
@@ -24,6 +26,7 @@ export function GenericEventMessage({
   initiallyExpanded = false,
   chevronPosition = "after",
   titleTrailing,
+  titleIcon,
 }: GenericEventMessageProps) {
   const [showDetails, setShowDetails] = React.useState(initiallyExpanded);
 
@@ -57,6 +60,7 @@ export function GenericEventMessage({
       <div className="flex items-center justify-between font-normal text-[var(--oh-muted)]">
         <div className="flex items-center">
           {chevronPosition === "before" && chevron}
+          {titleIcon}
           {/* Wrap the title in a span so any whitespace inside Trans-rendered
               fragments (e.g. "Editing <path>...</path>") is preserved by
               normal inline flow instead of being collapsed between

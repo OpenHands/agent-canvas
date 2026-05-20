@@ -2,51 +2,54 @@ import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/utils";
 
-const contextMenuVariants = cva("text-white overflow-hidden z-50", {
-  variants: {
-    theme: {
-      default:
-        "absolute bg-tertiary rounded-[6px] context-menu-box-shadow py-[6px] px-1",
-      naked: "relative",
-      /** In document-body portal; coordinates come from inline `style`. */
-      popover:
-        "relative bg-tertiary rounded-[6px] context-menu-box-shadow py-[6px] px-1",
+const contextMenuVariants = cva(
+  "z-50 overflow-hidden text-[var(--oh-foreground)]",
+  {
+    variants: {
+      theme: {
+        default:
+          "absolute rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 shadow-lg",
+        naked: "relative",
+        /** In document-body portal; coordinates come from inline `style`. */
+        popover:
+          "relative rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 shadow-lg",
+      },
+      size: {
+        compact: "py-1 px-1",
+        default: "",
+      },
+      layout: {
+        vertical: "flex flex-col gap-0",
+      },
+      position: {
+        top: "bottom-full",
+        bottom: "top-full",
+        none: "",
+      },
+      spacing: {
+        default: "mt-2",
+        none: "",
+      },
+      alignment: {
+        left: "left-0",
+        right: "right-0",
+        none: "",
+      },
     },
-    size: {
-      compact: "py-1 px-1",
-      default: "",
-    },
-    layout: {
-      vertical: "flex flex-col gap-2",
-    },
-    position: {
-      top: "bottom-full",
-      bottom: "top-full",
-      none: "",
-    },
-    spacing: {
-      default: "mt-2",
-      none: "",
-    },
-    alignment: {
-      left: "left-0",
-      right: "right-0",
-      none: "",
+    compoundVariants: [
+      {
+        theme: "naked",
+        className: "shadow-none",
+      },
+    ],
+    defaultVariants: {
+      theme: "default",
+      size: "default",
+      layout: "vertical",
+      spacing: "default",
     },
   },
-  compoundVariants: [
-    {
-      theme: "naked",
-      className: "shadow-none",
-    },
-  ],
-  defaultVariants: {
-    theme: "default",
-    size: "default",
-    layout: "vertical",
-    spacing: "default",
-  },
-});
+);
 
 interface ContextMenuProps {
   ref?: React.RefObject<HTMLUListElement | null>;

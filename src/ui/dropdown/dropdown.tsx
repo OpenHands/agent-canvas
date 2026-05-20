@@ -39,6 +39,8 @@ interface DropdownProps {
   defaultOpen?: boolean;
   /** Open the dropdown menu on hover instead of requiring a click. */
   openOnHover?: boolean;
+  /** When false, the combobox placeholder uses normal (non-italic) type. */
+  italicPlaceholder?: boolean;
 }
 
 export function Dropdown({
@@ -57,6 +59,7 @@ export function Dropdown({
   hideTrigger = false,
   defaultOpen = false,
   openOnHover = false,
+  italicPlaceholder = true,
 }: DropdownProps) {
   const closeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -179,6 +182,7 @@ export function Dropdown({
             placeholder={placeholder}
             isDisabled={isDisabled}
             getInputProps={getInputPropsWithCursorFix}
+            italicPlaceholder={italicPlaceholder}
           />
           {loading && <LoadingSpinner />}
           {clearable && selectedItem && (

@@ -124,19 +124,13 @@ export const useLocalGitInfo = () => {
           cwd,
           timeout,
         );
-      const candidateDirs = Array.from(
-        new Set([workingDir, "/workspace/project", "workspace/project"]),
-      );
+      const directInfo = await probeGitInfoAtDir(run, workingDir);
+      if (directInfo.repository || directInfo.branch) return directInfo;
 
-      for (const candidateDir of candidateDirs) {
-        const directInfo = await probeGitInfoAtDir(run, candidateDir);
-        if (directInfo.repository || directInfo.branch) return directInfo;
-
-        // Common local flow: user starts in a non-git parent workspace and
-        // clones a single repository into a child directory.
-        const nestedInfo = await probeNestedRepoInDir(run, candidateDir);
-        if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
-      }
+      // Common local flow: user starts in a non-git parent workspace and
+      // clones a single repository into a child directory.
+      const nestedInfo = await probeNestedRepoInDir(run, workingDir);
+      if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
 
       return EMPTY_LOCAL_GIT_INFO;
     },

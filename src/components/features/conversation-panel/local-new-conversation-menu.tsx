@@ -13,6 +13,7 @@ import RepoIcon from "#/icons/repo.svg?react";
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
 import { ManageWorkspacesModal } from "#/components/features/home/workspace-dropdown/manage-workspaces-modal";
 
+import { Divider } from "#/ui/divider";
 import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
 import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
 
@@ -199,7 +200,14 @@ export function LocalNewConversationMenu({
             ))}
           </ul>
 
-          <div className="mt-1 flex flex-col pt-1">
+          <div
+            className="flex flex-col"
+            data-testid="new-conversation-menu-footer"
+          >
+            <Divider
+              inset="menu"
+              testId="new-conversation-menu-footer-divider"
+            />
             <button
               type="button"
               data-testid="add-workspaces-button"
