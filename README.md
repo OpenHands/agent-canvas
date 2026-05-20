@@ -20,6 +20,8 @@ You can work with any agent (e.g. Claude Code, Codex) or connect directly to an 
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack)
 
+_Test PR for re-review workflow validation._
+
 <img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
 
 ## Quickstart
