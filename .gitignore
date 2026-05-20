@@ -8,6 +8,7 @@ build/
 logs/
 /.tmp/live-e2e-state/
 dist/
+__pycache__
 
 
 /test-results/
