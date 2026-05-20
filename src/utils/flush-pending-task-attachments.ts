@@ -1,4 +1,4 @@
-import i18n from "i18next";
+import i18n, { OPENHANDS_I18N_NAMESPACE, waitForI18n } from "#/i18n";
 import { consumePendingTaskAttachments } from "#/stores/pending-task-attachments-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -18,13 +18,14 @@ export async function flushPendingTaskAttachments(
   }
 
   try {
+    await waitForI18n();
     const sent = await sendMessageWithAttachments({
       conversationId,
       content: pending.content,
       images: pending.images,
       files: pending.files,
       imagesMarkedUploadAsFile: pending.imagesMarkedUploadAsFile,
-      t: i18n.getFixedT(null, "openhands"),
+      t: i18n.getFixedT(null, OPENHANDS_I18N_NAMESPACE),
     });
 
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({

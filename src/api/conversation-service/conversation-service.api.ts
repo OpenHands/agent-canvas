@@ -3,6 +3,11 @@ import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import {
+  buildWorkspaceUploadPath,
+  getSafeUploadFileName,
+  resolveConversationUploadWorkingDir,
+} from "#/api/workspace-upload-path";
+import {
   GetVSCodeUrlResponse,
   GetTrajectoryResponse,
   FileUploadSuccessResponse,
@@ -15,17 +20,6 @@ import {
 import { AppConversation } from "./agent-server-conversation-service.types";
 
 const FILE_UPLOAD_CONCURRENCY = 5;
-
-function getSafeUploadFileName(fileName: string): string {
-  const parts = fileName.split(/[\\/]+/).filter(Boolean);
-  const safeName = parts[parts.length - 1];
-
-  if (!safeName || safeName === "." || safeName === "..") {
-    throw new Error("Invalid file name");
-  }
-
-  return safeName;
-}
 
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
@@ -75,16 +69,24 @@ class ConversationService {
   }
 
   static async uploadFiles(
-    _conversationId: string,
+    conversationId: string,
     files: File[],
   ): Promise<FileUploadSuccessResponse> {
+    const workingDir = await resolveConversationUploadWorkingDir(
+      conversationId,
+      this.currentConversation,
+    );
     const workspace = new RemoteWorkspace(
-      getAgentServerClientOptions(this.getClientOverrides()),
+      getAgentServerClientOptions({
+        ...this.getClientOverrides(),
+        workingDir,
+      }),
     );
     const uploadFile = async (file: File) => {
       try {
         const safeName = getSafeUploadFileName(file.name);
-        await workspace.fileUpload(file, `/workspace/${safeName}`);
+        const uploadPath = buildWorkspaceUploadPath(file.name, workingDir);
+        await workspace.fileUpload(file, uploadPath);
         return { uploadedFile: safeName, skippedFile: null };
       } catch (error) {
         return {

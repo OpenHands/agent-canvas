@@ -1,4 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
+import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import { resolveConversationUploadWorkingDir } from "#/api/workspace-upload-path";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useConversationUploadFiles } from "./use-conversation-upload-files";
 import { FileUploadSuccessResponse } from "#/api/open-hands.types";
@@ -21,12 +23,19 @@ export const useUnifiedUploadFiles = () => {
     mutationFn: async (
       variables: UnifiedUploadFilesVariables,
     ): Promise<FileUploadSuccessResponse> => {
-      const { files } = variables;
+      const { conversationId, files } = variables;
 
-      // Use conversation URL and session API key
+      const workingDir = conversation?.workspace?.working_dir?.trim()
+        ? conversation.workspace.working_dir.trim()
+        : await resolveConversationUploadWorkingDir(
+            conversationId,
+            conversation,
+          );
+
       return conversationUpload.mutateAsync({
         conversationUrl: conversation?.conversation_url,
         sessionApiKey: conversation?.session_api_key,
+        workingDir: workingDir || getAgentServerWorkingDir(),
         files,
       });
     },

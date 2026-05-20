@@ -13,6 +13,12 @@ vi.mock("#/utils/send-message-with-attachments", () => ({
     sendMessageWithAttachments(...args),
 }));
 
+vi.mock("#/i18n", () => ({
+  default: { getFixedT: () => (key: string) => key },
+  OPENHANDS_I18N_NAMESPACE: "openhands",
+  waitForI18n: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe("flushPendingTaskAttachments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
