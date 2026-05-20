@@ -82,6 +82,30 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
 export const ACP_CUSTOM_PRESET_KEY = "custom";
 
 /**
+ * Resolve an ACP provider registry key (the value stored under
+ * ``tags.acpserver`` on a conversation) to a human display name for the
+ * sidebar chip.
+ *
+ * Returns ``null`` for an empty / null key and for keys not in
+ * {@link ACP_PROVIDERS} — most notably ``"custom"`` (the user-supplied
+ * command preset has no canonical brand name) and any forward-compatible
+ * value Canvas's registry doesn't know about yet. Callers should fall
+ * back to a generic ``"ACP"`` label in that case so the chip still
+ * communicates "this is an ACP conversation".
+ *
+ * Kept separate from {@link buildAcpAgentSettingsDiff}'s lookup so the
+ * conversation-card render path can resolve display names without
+ * importing the settings-payload builder.
+ */
+export function getAcpProviderDisplayName(
+  key: string | null | undefined,
+): string | null {
+  if (!key) return null;
+  const found = ACP_PROVIDERS.find((p) => p.key === key);
+  return found ? found.display_name : null;
+}
+
+/**
  * Build the ``agent_settings_diff`` payload PATCH /api/settings expects
  * for the agent-kind/provider choice the user just made.
  *
