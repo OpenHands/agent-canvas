@@ -214,12 +214,16 @@ const processes = new Map();
 let shuttingDown = false;
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, getProcessTreeSpawnOptions({
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, ...options.env },
-    cwd: options.cwd,
-    shell: process.platform === "win32",
-  }));
+  const proc = spawn(
+    command,
+    args,
+    getProcessTreeSpawnOptions({
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...options.env },
+      cwd: options.cwd,
+      shell: process.platform === "win32",
+    }),
+  );
 
   const color = options.color || c.reset;
 
@@ -327,7 +331,7 @@ function buildAutomationBackendEnv(config) {
     AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
     AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
     AUTOMATION_LOCAL_API_KEY: config.localApiKey,
-    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:${config.vitePort},http://127.0.0.1:${config.vitePort}`,
+    AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
     FILE_STORE: "local",
     LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
     OPENHANDS_SUPPRESS_BANNER: "1",

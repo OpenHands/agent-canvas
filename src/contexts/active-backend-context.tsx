@@ -1,5 +1,4 @@
 import React from "react";
-import { saveAgentServerConfig } from "#/api/agent-server-config";
 import {
   getActiveSelection,
   getRegisteredBackends,
@@ -8,10 +7,7 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import {
-  DEFAULT_LOCAL_BACKEND_ID,
-  makeDefaultLocalBackend,
-} from "#/api/backend-registry/default-backend";
+import { makeDefaultLocalBackend } from "#/api/backend-registry/default-backend";
 import {
   dropBackendHealth,
   resetBackendHealth,
@@ -94,17 +90,6 @@ export function ActiveBackendProvider({
         b.id === id ? { ...b, ...patch } : b,
       );
       setRegisteredBackends(list);
-
-      const updated = list.find((b) => b.id === id);
-      if (id === DEFAULT_LOCAL_BACKEND_ID && updated?.kind === "local") {
-        // `getAgentServerClientOptions` prefers `openhands-agent-server-config`
-        // over the registry for this id; keep both in sync when the user edits
-        // via Manage Backends instead of Settings → Agent Server.
-        saveAgentServerConfig({
-          baseUrl: updated.host,
-          sessionApiKey: updated.apiKey ?? "",
-        });
-      }
 
       // Re-arm health polling when the user edits the fields that
       // actually drive the probe. Cosmetic edits (name) shouldn't
