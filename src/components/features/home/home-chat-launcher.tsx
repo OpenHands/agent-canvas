@@ -5,6 +5,7 @@ import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { HOME_PROMPT_DRAFT_KEY } from "#/hooks/chat/use-draft-persistence";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { Branch, GitRepository } from "#/types/git";
@@ -76,6 +77,11 @@ export function HomeChatLauncher() {
     createConversation(variables, {
       onSuccess: (data) => {
         toast.dismiss(toastId);
+        try {
+          sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+        } catch {
+          // sessionStorage not available
+        }
         navigate(`/conversations/${data.conversation_id}`);
       },
       onError: (error) => {

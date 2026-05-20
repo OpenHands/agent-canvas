@@ -15,12 +15,19 @@ const isTaskId = (id: string): boolean => id.startsWith("task-");
 const DRAFT_SAVE_DEBOUNCE_MS = 500;
 
 /**
- * Hook for persisting draft messages to localStorage.
+ * sessionStorage key used to persist the home-page prompt draft.
+ * Cleared on successful conversation creation; survives navigation within the session.
+ */
+export const HOME_PROMPT_DRAFT_KEY = "oh:home-prompt-draft";
+
+/**
+ * Hook for persisting draft messages.
  * Handles debounced saving on input, restoration on mount, and clearing on confirmed delivery.
  *
- * `conversationId` may be undefined when the chat input renders on the home
- * page (no conversation exists yet). In that case the hook short-circuits:
- * no localStorage reads/writes happen and the returned callbacks are no-ops.
+ * When `conversationId` is defined, the draft is persisted to localStorage
+ * under the conversation's key. When `conversationId` is undefined (home page),
+ * the draft is persisted to sessionStorage under `HOME_PROMPT_DRAFT_KEY` so it
+ * survives navigation within the session but is discarded on tab close.
  */
 export const useDraftPersistence = (
   conversationId: string | null | undefined,
@@ -104,17 +111,36 @@ export const useDraftPersistence = (
     setIsRestored(false);
   }, [conversationId, chatInputRef]);
 
-  // Restore draft from localStorage - reads directly to avoid state sync timing issues
+  // Restore draft on mount - uses sessionStorage for the home page (no conversationId)
+  // and localStorage for active conversations.
   useEffect(() => {
-    if (!conversationId) {
-      return;
-    }
     if (hasRestoredRef.current) {
       return;
     }
 
     const element = chatInputRef.current;
     if (!element) {
+      return;
+    }
+
+    if (!conversationId) {
+      // Home page: restore from sessionStorage
+      try {
+        const draft = sessionStorage.getItem(HOME_PROMPT_DRAFT_KEY);
+        if (draft && getTextContent(element).trim() === "") {
+          element.textContent = draft;
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          range.collapse(false);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      } catch {
+        // sessionStorage not available
+      }
+      hasRestoredRef.current = true;
+      setIsRestored(true);
       return;
     }
 
@@ -140,12 +166,28 @@ export const useDraftPersistence = (
 
   // Debounced save function - called from onInput handler
   const saveDraft = useCallback(() => {
-    if (!conversationId) {
-      return;
-    }
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
+    }
+
+    if (!conversationId) {
+      // Home page: save to sessionStorage
+      saveTimeoutRef.current = setTimeout(() => {
+        const element = chatInputRef.current;
+        if (!element) return;
+        const text = getTextContent(element).trim();
+        try {
+          if (text) {
+            sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+          } else {
+            sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+          }
+        } catch {
+          // sessionStorage not available
+        }
+      }, DRAFT_SAVE_DEBOUNCE_MS);
+      return;
     }
 
     // Capture the conversationId at the time of input
@@ -173,13 +215,19 @@ export const useDraftPersistence = (
 
   // Clear draft - called after message delivery is confirmed
   const clearDraft = useCallback(() => {
-    if (!conversationId) {
-      return;
-    }
     // Cancel any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
+    }
+    if (!conversationId) {
+      // Home page: clear sessionStorage
+      try {
+        sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+      } catch {
+        // sessionStorage not available
+      }
+      return;
     }
     setDraftMessage(null);
   }, [conversationId, setDraftMessage]);
