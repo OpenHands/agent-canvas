@@ -232,11 +232,29 @@ export const useDraftPersistence = (
     setDraftMessage(null);
   }, [conversationId, setDraftMessage]);
 
-  // Cleanup timeout on unmount
+  // Cleanup on unmount: cancel any pending debounce timer and, for the home
+  // page (no conversationId), flush the current input text to sessionStorage
+  // immediately so text typed within the debounce window isn't lost on
+  // navigation.
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+      }
+      if (!currentConversationIdRef.current) {
+        const element = chatInputRef.current;
+        if (element) {
+          const text = getTextContent(element).trim();
+          try {
+            if (text) {
+              sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+            } else {
+              sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+            }
+          } catch {
+            // sessionStorage not available
+          }
+        }
       }
     },
     [],
