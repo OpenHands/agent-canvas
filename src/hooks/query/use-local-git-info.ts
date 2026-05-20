@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { FileClient } from "@openhands/typescript-client/clients";
 
 import AgentServerRuntimeService, {
   CommandResult,
 } from "#/api/runtime-service/agent-server-runtime-service";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -29,6 +31,22 @@ type RunCommand = (
   cwd: string,
   timeout: number,
 ) => Promise<CommandResult>;
+
+
+async function directoryIsListableOnAgentServer(
+  conversationUrl: string | null | undefined,
+  sessionApiKey: string | null | undefined,
+  directory: string,
+): Promise<boolean> {
+  try {
+    await new FileClient(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).searchSubdirectories(directory);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function probeGitInfoAtDir(
   run: RunCommand,
@@ -92,8 +110,9 @@ async function probeNestedRepoInDir(
  * `selected_branch`) so the control bar can recover from partial metadata
  * hydration after connect/clone flows.
  *
- * Returns `null` fields when the working dir is not a git checkout — callers
- * should treat that the same as "no repo detected".
+ * Before running git commands we verify each candidate directory exists on
+ * the agent server (`search_subdirs`); missing defaults (e.g. `workspace/project`)
+ * therefore do not trigger bash execution or server-side cwd errors.
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
@@ -111,12 +130,6 @@ export const useLocalGitInfo = () => {
   const hasConversationRepo = !!conversation?.selected_repository;
   const hasConversationProvider = !!conversation?.git_provider;
   const hasConversationBranch = !!conversation?.selected_branch;
-  const hasAttachedSource =
-    hasConversationRepo || !!attachedWorkspace;
-  const hasAnyRepoMetadata =
-    hasConversationRepo || hasConversationProvider || hasConversationBranch;
-  const needsLocalProbe =
-    hasAttachedSource || hasAnyRepoMetadata;
   const hasIncompleteRepoMetadata =
     !hasConversationRepo ||
     !hasConversationProvider ||
@@ -140,15 +153,31 @@ export const useLocalGitInfo = () => {
           cwd,
           timeout,
         );
-      const candidateDirs = Array.from(
-        new Set(
-          [attachedWorkspace, workingDir].filter(
-            (dir): dir is string => !!dir,
-          ),
-        ),
-      );
+      const orderedCandidates = [
+        attachedWorkspace,
+        workingDir,
+        "/workspace/project",
+        "workspace/project",
+      ]
+        .map((dir) => dir?.trim())
+        .filter((dir): dir is string => !!dir);
+      const candidateDirs = [...new Set(orderedCandidates)];
 
-      for (const candidateDir of candidateDirs) {
+      const probeableDirs: string[] = [];
+      for (const dir of candidateDirs) {
+        if (
+          await directoryIsListableOnAgentServer(
+            conversationUrl,
+            sessionApiKey,
+            dir,
+          )
+        ) {
+          probeableDirs.push(dir);
+        }
+      }
+      if (probeableDirs.length === 0) return EMPTY_LOCAL_GIT_INFO;
+
+      for (const candidateDir of probeableDirs) {
         const directInfo = await probeGitInfoAtDir(run, candidateDir);
         if (directInfo.repository || directInfo.branch) return directInfo;
 
@@ -163,7 +192,6 @@ export const useLocalGitInfo = () => {
     enabled:
       runtimeIsReady &&
       !!conversationId &&
-      needsLocalProbe &&
       hasIncompleteRepoMetadata,
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
