@@ -103,6 +103,18 @@ describe("getMarketplaceEntryInstallTarget", () => {
       "https://mcp.linear.app/sse",
     );
   });
+
+  it("defensively tolerates malformed runtime catalog data", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const malformedEntry: any = {
+      id: "broken",
+      name: "Broken",
+      description: "Broken",
+      iconBg: "#000000",
+      template: { kind: "shttp", url: undefined },
+    };
+    expect(getMarketplaceEntryInstallTarget(malformedEntry)).toBe("");
+  });
 });
 
 describe("marketplaceEntryMatchesQuery", () => {

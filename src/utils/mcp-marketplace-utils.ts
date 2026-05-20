@@ -91,9 +91,11 @@ export function getMarketplaceEntryInstallTarget(
   entry: MarketplaceEntry,
 ): string {
   if (entry.template.kind === "stdio") {
-    return [entry.template.command, ...entry.template.args].join(" ").trim();
+    return [entry.template.command, ...(entry.template.args ?? [])]
+      .join(" ")
+      .trim();
   }
-  return entry.template.url;
+  return entry.template.url ?? "";
 }
 
 function getMarketplaceEntrySearchHaystack(entry: MarketplaceEntry): string {
