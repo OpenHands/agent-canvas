@@ -23,11 +23,13 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#7b33f64ffccf95f7ccd2ec640aeae84ab1cc2c75",
     "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v0.6.0",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tailwindcss/vite": "4.2.4",
     "@tanstack/react-query": "5.100.9",
+    "@types/shell-quote": "^1.7.5",
     "@uidotdev/usehooks": "2.4.1",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
@@ -55,6 +57,7 @@
     "rehype-sanitize": "6.0.0",
     "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
+    "shell-quote": "^1.8.3",
     "sirv-cli": "3.0.1",
     "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
@@ -65,14 +68,9 @@
     "zustand": "5.0.12"
   },
   "scripts": {
-    "dev": "npm run dev:docker",
-    "dev:dangerously-dockerless": "node --env-file-if-exists=.env scripts/dev-static.mjs",
-    "dev:dangerously-dockerless:dynamic": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
-    "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
+    "dev": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
+    "dev:static": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:extra-backend": "node --env-file-if-exists=.env scripts/dev-extra-backend.mjs",
-    "dev:automation": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
-    "dev:docker": "node --env-file-if-exists=.env scripts/dev-docker.mjs",
-    "dev:docker:dynamic": "node --env-file-if-exists=.env scripts/dev-docker.mjs --dynamic",
     "dev:minimal": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:frontend": "npm run make-i18n && cross-env VITE_MOCK_API=false react-router dev",
     "dev:mock": "npm run make-i18n && cross-env VITE_MOCK_API=true react-router dev",
@@ -96,7 +94,8 @@
     "typecheck:staged": "react-router typegen && npx tsc --noEmit --skipLibCheck",
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
-    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json"
+    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
+    "build:docker": "node scripts/docker-build.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 describe("agent-canvas CLI", () => {
-  it("shows PROJECTS_PATH in --help output", async () => {
+  it("shows usage info in --help output", async () => {
     const child = spawn(process.execPath, ["bin/agent-canvas.mjs", "--help"], {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],
@@ -29,7 +29,8 @@ describe("agent-canvas CLI", () => {
 
     expect(code).toBe(0);
     expect(stderr).toBe("");
-    expect(stdout).toContain("PROJECTS_PATH");
-    expect(stdout).not.toContain("PROJECT_PATH=/path/to/projects");
+    expect(stdout).toContain("@openhands/agent-canvas");
+    expect(stdout).toContain("USAGE:");
+    expect(stdout).toContain("--help");
   });
 });

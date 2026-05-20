@@ -23,6 +23,15 @@ interface SidebarNavLinkProps {
    */
   hoverContent?: React.ReactNode;
   /**
+   * Pre-formatted human-readable reason for the disabled state, shown
+   * as a hover tooltip. The component is i18n-agnostic — the caller
+   * formats the string (typically via ``t(SETTINGS$AGENT_DISABLED_TOOLTIP,
+   * { agentName })``) and passes it in. Only rendered when ``disabled``
+   * is also true. Mirrors the mobile ``SettingsNavLink`` tooltip so the
+   * disabled-state UX is consistent across surfaces.
+   */
+  disabledReason?: string;
+  /**
    * When true, forces the active style regardless of the current path.
    * Useful for links that should appear active for multiple related routes
    * (e.g. the Extensions link being active on /mcp and /plugins too).
@@ -46,6 +55,7 @@ export function SidebarNavLink({
   icon,
   collapsed = false,
   hoverContent,
+  disabledReason,
   forceActive = false,
 }: SidebarNavLinkProps) {
   const link = (
@@ -55,6 +65,11 @@ export function SidebarNavLink({
       data-testid={testId}
       tabIndex={disabled ? -1 : 0}
       aria-label={collapsed ? label : undefined}
+      // Announce the disabled state to assistive tech. The visual disable
+      // (opacity + pointer-events) plus tabIndex=-1 + preventDefault gives
+      // sighted/keyboard users the right behaviour already; this closes
+      // the screen-reader gap so the link doesn't sound "actionable."
+      aria-disabled={disabled || undefined}
       onClick={(e) => {
         if (disabled) {
           e.preventDefault();
@@ -80,6 +95,20 @@ export function SidebarNavLink({
       {!collapsed && <span className="truncate">{label}</span>}
     </NavigationLink>
   );
+
+  // Disabled-with-reason: wrap with a tooltip explaining *why* (e.g.
+  // "Disabled while Claude Code is active"). Mirrors the mobile
+  // ``SettingsNavLink`` UX so users get the same explanation on both
+  // surfaces. We use ``StyledTooltip`` regardless of the collapsed
+  // state — without it, desktop users see a greyed-out link with no
+  // hint about why their click didn't work.
+  if (disabled && disabledReason) {
+    return (
+      <StyledTooltip content={disabledReason} placement="right">
+        {link}
+      </StyledTooltip>
+    );
+  }
 
   if (!collapsed) return link;
 

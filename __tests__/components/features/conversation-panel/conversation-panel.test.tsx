@@ -759,44 +759,59 @@ describe("ConversationPanel", () => {
     const cards = await screen.findAllByTestId("conversation-card");
     expect(cards).toHaveLength(3);
 
+    const getCardByTitle = async (title: string) => {
+      const currentCards = await screen.findAllByTestId("conversation-card");
+      const card = currentCards.find((candidate) =>
+        within(candidate).queryByText(title),
+      );
+      expect(card).toBeDefined();
+      return card as HTMLElement;
+    };
+
     // Test RUNNING conversation - should show stop button
-    const runningEllipsisButton = within(cards[0]).getByTestId(
+    const runningCard = await getCardByTitle("Running Conversation");
+    const runningEllipsisButton = within(runningCard).getByTestId(
       "ellipsis-button",
     );
     await user.click(runningEllipsisButton);
 
-    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    expect(await screen.findByTestId("stop-button")).toBeInTheDocument();
 
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close.
+    // Wait for context menu to close before opening the next one.
     await waitFor(() => {
-      expect(cards[0]).toHaveAttribute("data-context-menu-open", "false");
+      expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
     });
 
-    // Test STARTING conversation - should show stop button
-    const startingEllipsisButton = within(cards[1]).getByTestId(
+    // Test STARTING/RUNNING conversation - should show stop button
+    const startingCard = await getCardByTitle("Starting Conversation");
+    const startingEllipsisButton = within(startingCard).getByTestId(
       "ellipsis-button",
     );
     await user.click(startingEllipsisButton);
 
-    expect(screen.getByTestId("stop-button")).toBeInTheDocument();
+    expect(await screen.findByTestId("stop-button")).toBeInTheDocument();
 
     // Click outside to close the menu
     await user.click(document.body);
 
-    // Wait for context menu to close.
+    // Wait for context menu to close before opening the next one.
     await waitFor(() => {
-      expect(cards[1]).toHaveAttribute("data-context-menu-open", "false");
+      expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
     });
 
     // Test STOPPED conversation - should NOT show stop button
-    const stoppedEllipsisButton = within(cards[2]).getByTestId(
+    const stoppedCard = await getCardByTitle("Stopped Conversation");
+    const stoppedEllipsisButton = within(stoppedCard).getByTestId(
       "ellipsis-button",
     );
     await user.click(stoppedEllipsisButton);
 
+    await waitFor(() => {
+      expect(stoppedCard).toHaveAttribute("data-context-menu-open", "true");
+    });
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
   });
 

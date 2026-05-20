@@ -15,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  buildAgentServerAutomationEnv,
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
@@ -112,6 +113,16 @@ describe("buildAutomationCommand", () => {
     expect(cmd.args).toContain(`git+${DEFAULT_AUTOMATION_REPO}@main`);
     expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
     expect(cmd.source).toBe("git (main)");
+  });
+});
+
+describe("buildAgentServerAutomationEnv", () => {
+  it("exposes the local automation API key under the name agents use in curl commands", () => {
+    expect(
+      buildAgentServerAutomationEnv({ localApiKey: "automation-local-key" }),
+    ).toEqual({
+      OPENHANDS_AUTOMATION_API_KEY: "automation-local-key",
+    });
   });
 });
 
@@ -314,7 +325,7 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reuses the persisted session API key across calls (parity for dev:docker and dev:dangerously-dockerless restarts)", async () => {
+  it("reuses the persisted session API key across calls (stable across restarts)", async () => {
     const env = envWithIsolatedKeyPath();
     const first = await buildConfig({}, env);
 

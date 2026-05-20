@@ -5,7 +5,7 @@ import process from "node:process";
  *
  * Do not use ChildProcess#killed for cleanup decisions. In Node, `killed`
  * only means a signal was sent successfully; it does not mean the process has
- * exited. That distinction matters for dev launchers because uvx/npm/docker
+ * exited. That distinction matters for dev launchers because uvx/npm
  * wrappers can receive SIGTERM while their long-running child process keeps
  * serving on the original port.
  */
@@ -22,7 +22,6 @@ export function isProcessRunning(proc) {
  *
  *   launcher -> uvx -> python agent-server
  *   launcher -> npm -> sh -> Vite
- *   launcher -> docker run -> container shim
  *
  * Windows does not support POSIX process groups, so callers fall back to
  * signaling the direct child process there.

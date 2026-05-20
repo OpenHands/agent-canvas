@@ -21,11 +21,13 @@ import { NotFoundState } from "#/components/features/automations/detail/not-foun
 import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
+import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 
 export default function AutomationDetail() {
   const { automationId } = useParams();
   const { navigate } = useNavigation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const {
     data: healthData,
@@ -129,6 +131,10 @@ export default function AutomationDetail() {
     });
   };
 
+  // Edit is a local-backend-only feature in MVP — cloud automations
+  // are managed elsewhere and we don't yet surface them here.
+  const canEdit = active.backend.kind === "local";
+
   return (
     <div className="min-h-full">
       <div className="p-6 max-w-4xl mx-auto">
@@ -137,6 +143,7 @@ export default function AutomationDetail() {
           <DetailHeader
             automation={automation}
             onToggle={handleToggle}
+            onEdit={canEdit ? () => setShowEditModal(true) : undefined}
             onDelete={() => setShowDeleteModal(true)}
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
@@ -155,6 +162,13 @@ export default function AutomationDetail() {
             onConfirm={handleDelete}
             onCancel={() => setShowDeleteModal(false)}
           />
+          {canEdit && (
+            <EditAutomationModal
+              automation={automation}
+              isOpen={showEditModal}
+              onClose={() => setShowEditModal(false)}
+            />
+          )}
         </div>
       </div>
     </div>

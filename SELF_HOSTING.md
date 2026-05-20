@@ -14,7 +14,7 @@ This guide walks through running Agent Canvas on a virtual machine (VM) so you
 ## Quickstart
 1. **Provision a machine**: this could be a VM on AWS or DigitalOcean, or hardware like a dedicated Mac Mini
 2. **Secure the machine**: make sure it's not exposed to the public internet
-3. **Run the server**: clone this repo and run `npm run dev:dangerously-dockerless`
+3. **Run the server**: clone this repo and run `npm run dev`
 4. **Get a domain**: (Optional) point a domain at your machine and set up nginx+letsencrypt
 5. **Connect locally**: (Optional) point your local Agent Canvas to the VM by adding a backend
 
@@ -40,7 +40,7 @@ flowchart LR
     user -- "HTTPS / 443" --> nginx
 ```
 
-`npm run dev:dangerously-dockerless` spins up the Vite dev server, the agent
+`npm run dev` spins up the Vite dev server, the agent
 server, and the automation backend, and fronts them with an ingress proxy on
 `127.0.0.1:8000` that routes by path. nginx only needs to know about that
 single ingress port — it doesn't talk to the three upstreams directly.
@@ -130,11 +130,11 @@ Clone this repo, install dependencies, and start the server:
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-npm run dev:dangerously-dockerless
+npm run dev
 ```
 
 > [!WARNING]
-> `dev:dangerously-dockerless` runs the agent server **directly on the host**.
+> `npm run dev` runs the agent server **directly on the host**.
 > The agent has full access to the machine's filesystem, environment, and
 > network. That is exactly why the firewall (step 2) and the
 > `SESSION_API_KEY` below are non-negotiable: they are what stop a stranger

@@ -7,6 +7,7 @@ import {
   useDeleteAutomation,
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { SearchInput } from "#/components/features/automations/search-input";
 import { AutomationGroup } from "#/components/features/automations/automation-group";
 import { AutomationCardSkeleton } from "#/components/features/automations/automation-card-skeleton";
@@ -14,7 +15,10 @@ import { EmptyState } from "#/components/features/automations/empty-state";
 import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
+import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 import { CreateInstructions } from "#/components/features/automations/create-instructions";
+import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
+import type { Automation } from "#/types/automation";
 
 const PAGE_SIZE = 50;
 
@@ -26,6 +30,12 @@ export default function AutomationsList() {
     id: string;
     name: string;
   } | null>(null);
+  const [editTarget, setEditTarget] = useState<Automation | null>(null);
+
+  const active = useActiveBackend();
+  // Edit is a local-backend-only feature in MVP — cloud automations
+  // are managed elsewhere and we don't yet surface them here.
+  const canEdit = active.backend.kind === "local";
 
   const {
     data: healthData,
@@ -57,7 +67,10 @@ export default function AutomationsList() {
     );
   }, [data?.automations, searchQuery]);
 
-  const active = useMemo(() => filtered.filter((a) => a.enabled), [filtered]);
+  const activeAutomations = useMemo(
+    () => filtered.filter((a) => a.enabled),
+    [filtered],
+  );
   const inactive = useMemo(
     () => filtered.filter((a) => !a.enabled),
     [filtered],
@@ -71,6 +84,13 @@ export default function AutomationsList() {
     const automation = data?.automations.find((a) => a.id === id);
     if (automation) {
       setDeleteTarget({ id, name: automation.name });
+    }
+  };
+
+  const handleEditRequest = (id: string) => {
+    const automation = data?.automations.find((a) => a.id === id);
+    if (automation) {
+      setEditTarget(automation);
     }
   };
 
@@ -160,10 +180,11 @@ export default function AutomationsList() {
 
               <AutomationGroup
                 title={t(I18nKey.AUTOMATIONS$ACTIVE)}
-                count={active.length}
-                automations={active}
+                count={activeAutomations.length}
+                automations={activeAutomations}
                 onToggle={handleToggle}
                 onDelete={handleDeleteRequest}
+                onEdit={canEdit ? handleEditRequest : undefined}
               />
               <AutomationGroup
                 title={t(I18nKey.AUTOMATIONS$INACTIVE)}
@@ -171,6 +192,7 @@ export default function AutomationsList() {
                 automations={inactive}
                 onToggle={handleToggle}
                 onDelete={handleDeleteRequest}
+                onEdit={canEdit ? handleEditRequest : undefined}
               />
 
               {hasMore && (
@@ -186,6 +208,10 @@ export default function AutomationsList() {
           )}
         </div>
 
+        <div className="mt-6">
+          <RecommendedAutomationsLauncher query={searchQuery} />
+        </div>
+
         {/* Delete confirmation modal */}
         <DeleteConfirmationModal
           automationName={deleteTarget?.name ?? ""}
@@ -193,6 +219,15 @@ export default function AutomationsList() {
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
         />
+
+        {/* Edit modal — local backends only */}
+        {editTarget && (
+          <EditAutomationModal
+            automation={editTarget}
+            isOpen={editTarget !== null}
+            onClose={() => setEditTarget(null)}
+          />
+        )}
       </div>
     </div>
   );

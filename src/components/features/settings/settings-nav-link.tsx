@@ -8,11 +8,45 @@ import { SettingsNavItem } from "#/constants/settings-nav";
 interface SettingsNavLinkProps {
   item: SettingsNavItem;
   onClick: () => void;
+  /** If true, render the item as a non-clickable, greyed-out span. */
+  disabled?: boolean;
+  /** When disabled, used to render the tooltip — e.g. "Disabled while Claude Code is active". */
+  disabledAgentName?: string;
 }
 
-export function SettingsNavLink({ item, onClick }: SettingsNavLinkProps) {
+export function SettingsNavLink({
+  item,
+  onClick,
+  disabled,
+  disabledAgentName,
+}: SettingsNavLinkProps) {
   const { t } = useTranslation("openhands");
   const { to, icon, text } = item;
+
+  if (disabled) {
+    const tooltip = disabledAgentName
+      ? t(I18nKey.SETTINGS$AGENT_DISABLED_TOOLTIP, {
+          agentName: disabledAgentName,
+        })
+      : undefined;
+    return (
+      <span
+        data-testid={`settings-nav-link-disabled-${to}`}
+        title={tooltip}
+        aria-disabled="true"
+        className="group flex items-center gap-3 p-1 sm:px-3.5 sm:py-2 rounded opacity-40 cursor-not-allowed"
+      >
+        <Typography.Text className="flex h-5 w-5 shrink-0 items-center justify-center text-[#8C8C8C]">
+          {icon}
+        </Typography.Text>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Typography.Text className="block truncate whitespace-nowrap text-[#8C8C8C]">
+            {t(text as I18nKey)}
+          </Typography.Text>
+        </div>
+      </span>
+    );
+  }
 
   return (
     <NavigationLink

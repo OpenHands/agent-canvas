@@ -8,6 +8,7 @@ import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store"
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { OnboardingModal } from "#/components/features/onboarding/onboarding-modal";
 import { NavigationProvider } from "#/context/navigation-context";
+import SettingsService from "#/api/settings-service/settings-service.api";
 
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which itself
@@ -36,6 +37,23 @@ vi.mock("#/routes/llm-settings", () => ({
     <div data-testid="llm-settings-screen-stub">llm settings</div>
   ),
 }));
+
+vi.mock(
+  "#/components/features/automations/recommended-automations-launcher",
+  () => ({
+    RecommendedAutomationsLauncher: ({
+      onLaunched,
+    }: {
+      onLaunched?: () => void;
+    }) => (
+      <div data-testid="recommended-automations-launcher-stub">
+        <button type="button" onClick={onLaunched}>
+          launch recommended automation
+        </button>
+      </div>
+    ),
+  }),
+);
 
 vi.mock("#/hooks/use-is-creating-conversation", () => ({
   useIsCreatingConversation: () => false,
@@ -73,6 +91,10 @@ function renderModal(onClose = vi.fn()) {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  // ChooseAgentStep's Next button now persists the selection via
+  // saveSettings before advancing. Stub it so the rest of the flow
+  // (which these tests focus on) isn't gated on a real HTTP call.
+  vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
 });
 afterEach(() => {
   window.localStorage.clear();
@@ -111,13 +133,18 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Step 0 → 1
+    // Step 0 → 1. ChooseAgentStep now does an async save before
+    // advancing, so the modal can take a beat to flip steps while
+    // SayHello/CheckBackend queries are still settling on the four
+    // mounted slides. Bump the default 1s waitFor timeout.
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-        "data-current-step",
-        "1",
-      ),
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
     );
     expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
       "data-active",
@@ -177,10 +204,25 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
+    // Wait for the LLM slide to become the active one before querying
+    // by role — otherwise the heading is `aria-hidden` from inside a
+    // not-yet-active slide and getByRole filters it out.
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "2",
+        ),
+      { timeout: 3000 },
+    );
 
     // Act: locate the step's scrollable settings wrapper and the chrome
     // around it that the user expects to remain visible.
@@ -199,13 +241,84 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
+  it("skips the LLM-setup step when the user picks an ACP agent", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    // Pick Claude Code, then advance from Choose Agent → Check Backend.
+    await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
+    );
+
+    // Advancing again should jump straight to Say Hello (index 3) and
+    // bypass the LLM form — ACP agents own their own LLM via the
+    // subprocess.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "3",
+        ),
+      { timeout: 3000 },
+    );
+    // All four slides remain mounted (the rail just translates them);
+    // the assertion that the LLM step was skipped is that slide 3 (Say
+    // Hello) is the active one immediately after the backend step,
+    // *not* slide 2 (LLM).
+    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    // Progress bar reflects the *visited* step count, not the slide
+    // index — 3 segments total (not 4), and segment 2 is current (not
+    // segment 3, which would imply LLM was completed). Without this
+    // mapping, picking an ACP agent makes the bar show segment 2 as
+    // "completed" despite the user never visiting it.
+    expect(
+      screen.queryByTestId("onboarding-progress-step-3"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
+      "data-state",
+      "completed",
+    );
+  });
+
   it("pre-fills the say-hello input with the default greeting on step 3", async () => {
     renderModal();
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
     await user.click(screen.getByTestId("onboarding-llm-next"));
@@ -218,5 +331,61 @@ describe("OnboardingModal", () => {
     // the I18nKey itself. The contract under test is that the input
     // is non-empty and matches the resolved default message.
     expect(helloInput.value).toBe("ONBOARDING$HELLO_DEFAULT_MESSAGE");
+  });
+
+  it("shows recommended automations below the Say Hello input", async () => {
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "1",
+        ),
+      { timeout: 3000 },
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
+    await user.click(screen.getByTestId("onboarding-llm-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
+        "data-active",
+        "true",
+      ),
+    );
+
+    const helloInput = screen.getByTestId("onboarding-hello-input");
+    const recommendations = screen.getByTestId(
+      "onboarding-recommended-automations",
+    );
+    expect(
+      helloInput.compareDocumentPosition(recommendations) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(recommendations).getByTestId(
+        "recommended-automations-launcher-stub",
+      ),
+    ).toBeInTheDocument();
+
+    expect(recommendations.closest("form")).toBeNull();
+
+    await user.click(
+      within(recommendations).getByRole("button", {
+        name: "launch recommended automation",
+      }),
+    );
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

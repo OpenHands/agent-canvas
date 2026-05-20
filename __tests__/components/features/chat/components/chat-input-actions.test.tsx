@@ -28,6 +28,10 @@ vi.mock("#/components/features/chat/change-agent-button", () => ({
   ChangeAgentButton: () => <div data-testid="change-agent-button-stub" />,
 }));
 
+vi.mock("#/components/features/chat/switch-profile-button", () => ({
+  SwitchProfileButton: () => <div data-testid="switch-profile-button-stub" />,
+}));
+
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
 }));
@@ -59,24 +63,54 @@ describe("ChatInputActions", () => {
     useActiveConversationMock.mockReturnValue({ data: undefined });
   });
 
-  it("renders the active conversation model when one is available", () => {
+  it("renders the SwitchProfileButton on a local backend", () => {
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
     });
 
     renderWithProviders(<ChatInputActions disabled={false} />);
 
+    expect(
+      screen.getByTestId("switch-profile-button-stub"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the active conversation model on a cloud backend", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+    );
+
     expect(screen.getByTestId("chat-input-llm-model")).toHaveTextContent(
       "gpt-4o",
     );
+    expect(
+      screen.queryByTestId("switch-profile-button-stub"),
+    ).not.toBeInTheDocument();
   });
 
-  it("omits the model label when the active conversation has no llm_model", () => {
+  it("omits the model label on cloud when the active conversation has no llm_model", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: null },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />);
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+    );
 
     expect(
       screen.queryByTestId("chat-input-llm-model"),

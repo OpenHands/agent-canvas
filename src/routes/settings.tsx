@@ -9,10 +9,12 @@ import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
+import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import {
   getFirstAvailablePath,
   isSettingsPageHidden,
 } from "#/utils/settings-utils";
+import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
@@ -31,6 +33,19 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
     if (fallbackPath && fallbackPath !== pathname) {
       return redirect(fallbackPath);
     }
+  }
+
+  // ACP guard: the pages flagged ``disabledByAcp`` (LLM, Condenser, …)
+  // have no useful content while an external ACP subprocess drives
+  // conversations. Bounce them to ``/settings/agent``. Driven by the
+  // same ``disabledByAcp`` flag the nav hook uses for greying out, so
+  // the list of redirected paths and the greyed-out paths can never
+  // drift apart. See {@link redirectIfAcpActive} for why the redirect
+  // lives in the loader rather than a per-route ``useEffect``.
+  const currentNavItem = OSS_NAV_ITEMS.find((item) => item.to === pathname);
+  if (currentNavItem?.disabledByAcp) {
+    const acpRedirect = await redirectIfAcpActive();
+    if (acpRedirect) return acpRedirect;
   }
 
   return null;

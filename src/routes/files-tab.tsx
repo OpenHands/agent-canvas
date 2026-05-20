@@ -12,6 +12,10 @@ import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edi
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
+import {
+  useWorkspaceMutationCounter,
+  withWorkspaceCacheBuster,
+} from "#/stores/use-workspace-mutation-counter";
 import { sortFilesByPriority } from "#/utils/file-priority";
 import { FileQuickRow } from "#/components/features/files-tab/file-quick-row";
 import { FileTreeView } from "#/components/features/files-tab/file-tree-view";
@@ -73,7 +77,11 @@ function FilesTab() {
   // dedupes against `FileContentViewer`'s identical call, so this costs
   // nothing extra.
   const selectedFileContent = useWorkspaceFileContent(selectedPath);
-  const selectedFileStaticUrl = selectedFileContent.data?.staticUrl ?? null;
+  const mutationCounter = useWorkspaceMutationCounter((state) => state.count);
+  const selectedFileStaticUrl = withWorkspaceCacheBuster(
+    selectedFileContent.data?.staticUrl ?? null,
+    mutationCounter,
+  );
 
   // Auto-select the highest-priority file the first time we load the list,
   // so users see something useful immediately.
@@ -131,7 +139,7 @@ function FilesTab() {
         <div className="ml-auto flex items-center gap-1">
           {/* Open the currently-selected file in a new browser tab. Only
               meaningful while we're showing a file (not the diff view) and
-              we've resolved its browser-renderable preview URL. */}
+              we've resolved its staticUrl from the workspace fileserver. */}
           {!diffViewEnabled && selectedFileStaticUrl && (
             <a
               href={selectedFileStaticUrl}

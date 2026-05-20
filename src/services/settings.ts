@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   agent_settings_schema: null,
   agent_settings: {
     schema_version: 1,
+    agent_kind: "openhands",
     agent: "CodeActAgent",
     llm: {
       model: "openhands/claude-opus-4-5-20251101",
@@ -45,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
       enabled: true,
       max_size: 240,
     },
+    enable_sub_agents: false,
     mcp_config: {
       sse_servers: [],
       stdio_servers: [],
