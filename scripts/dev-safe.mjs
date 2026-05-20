@@ -5,10 +5,12 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -852,6 +854,21 @@ async function main() {
     mkdirSync(dir, { recursive: true });
   }
 
+  const { removedWorkspaces, removedBashEvents } = cleanupStaleArtifacts(
+    config.conversationsPath,
+    config.workspacesPath,
+    config.bashEventsDir,
+  );
+  if (removedWorkspaces > 0 || removedBashEvents > 0) {
+    console.log(
+      `- cleanup: removed ${removedWorkspaces} orphaned workspace(s), ` +
+        `${removedBashEvents} expired bash event(s)`,
+    );
+  }
+
+  const { port: webhookPort, server: webhookServer } =
+    await startConversationWebhookReceiver(config.workspacesPath);
+
   const agentServerCmd = buildAgentServerCommand();
 
   const secretKeySource = process.env.OH_SECRET_KEY
@@ -890,6 +907,7 @@ async function main() {
       env: {
         ...process.env,
         ...buildAgentServerEnv(config),
+        OH_WEBHOOKS_0_BASE_URL: `http://127.0.0.1:${webhookPort}`,
       },
     },
   );
@@ -903,6 +921,7 @@ async function main() {
     }
 
     shuttingDown = true;
+    webhookServer.close();
     if (frontend) {
       signalProcessTree(frontend, signal);
     }
@@ -1055,6 +1074,124 @@ export function releaseStaleConversationLeases(conversationsDir) {
     }
   }
   return removed;
+}
+
+/** Bash events older than this are deleted at startup. */
+const BASH_EVENTS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Remove stale workspace directories and old bash events at server startup.
+ *
+ * Workspaces: removes any {workspacesDir}/{id} directory where the
+ * corresponding {conversationsDir}/{id} no longer exists. Only considers
+ * 32-character hex-named entries (conversation IDs), leaving unrelated
+ * directories such as automation-runs untouched.
+ *
+ * Bash events: removes individual files in {bashEventsDir} whose mtime
+ * is older than BASH_EVENTS_MAX_AGE_MS (24 hours).
+ *
+ * Must be called before starting the agent-server.
+ *
+ * @param {string} conversationsDir
+ * @param {string} workspacesDir
+ * @param {string} bashEventsDir
+ * @returns {{ removedWorkspaces: number, removedBashEvents: number }}
+ */
+export function cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir) {
+  const CONV_ID_RE = /^[0-9a-f]{32}$/i;
+
+  let removedWorkspaces = 0;
+  if (existsSync(workspacesDir)) {
+    for (const name of readdirSync(workspacesDir)) {
+      if (!CONV_ID_RE.test(name)) continue;
+      if (!existsSync(path.join(conversationsDir, name))) {
+        try {
+          rmSync(path.join(workspacesDir, name), { recursive: true, force: true });
+          removedWorkspaces++;
+        } catch {
+          // best effort — leave it for the next startup
+        }
+      }
+    }
+  }
+
+  let removedBashEvents = 0;
+  const cutoffMs = Date.now() - BASH_EVENTS_MAX_AGE_MS;
+  if (existsSync(bashEventsDir)) {
+    for (const name of readdirSync(bashEventsDir)) {
+      const filePath = path.join(bashEventsDir, name);
+      try {
+        if (statSync(filePath).mtimeMs < cutoffMs) {
+          unlinkSync(filePath);
+          removedBashEvents++;
+        }
+      } catch {
+        // best effort
+      }
+    }
+  }
+
+  return { removedWorkspaces, removedBashEvents };
+}
+
+/**
+ * Start a lightweight HTTP server that receives conversation lifecycle webhooks
+ * from the agent-server.
+ *
+ * When the agent-server posts execution_status "deleting" for a conversation,
+ * the corresponding workspace directory is removed immediately.
+ *
+ * The server binds to 127.0.0.1 on an OS-assigned ephemeral port. The caller
+ * is responsible for closing the returned server on process exit.
+ *
+ * @param {string} workspacesDir  Path to the workspaces root directory.
+ * @returns {Promise<{ port: number, server: import("node:http").Server }>}
+ */
+export async function startConversationWebhookReceiver(workspacesDir) {
+  const CONV_ID_RE = /^[0-9a-f]{32}$/i;
+
+  const server = http.createServer((req, res) => {
+    if (req.method !== "POST" || !req.url?.startsWith("/conversations")) {
+      res.writeHead(404).end();
+      return;
+    }
+
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      try {
+        const info = JSON.parse(body);
+        if (info.execution_status === "deleting" && info.id) {
+          // Conversation IDs arrive as UUID strings (with dashes); workspace
+          // directories use the 32-char hex form (no dashes).
+          const hex = String(info.id).replace(/-/g, "");
+          if (CONV_ID_RE.test(hex)) {
+            const workspaceDir = path.join(workspacesDir, hex);
+            if (existsSync(workspaceDir)) {
+              try {
+                rmSync(workspaceDir, { recursive: true, force: true });
+              } catch {
+                // best effort
+              }
+            }
+          }
+        }
+      } catch {
+        // malformed JSON — ignore
+      }
+      res.writeHead(200).end();
+    });
+  });
+
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const addr = /** @type {import("node:net").AddressInfo} */ (server.address());
+      resolve({ port: addr.port, server });
+    });
+  });
 }
 
 if (

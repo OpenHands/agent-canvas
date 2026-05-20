@@ -20,9 +20,11 @@ import {
   buildNpmScriptCommand,
   buildAgentServerCommand,
   buildRuntimeServicesInfo,
+  cleanupStaleArtifacts,
   formatMissingUvxGuidance,
   formatMissingFrontendDependenciesGuidance,
   getMissingFrontendDependencyBins,
+  startConversationWebhookReceiver,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
   findFreePort,
@@ -31,10 +33,12 @@ import {
   resetPersistedSessionApiKeyCache,
 } from "../../scripts/dev-safe.mjs";
 import {
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -897,5 +901,240 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.frontend?.url_from_agent).toBe(
       "http://localhost:3001",
     );
+  });
+});
+
+// ── cleanupStaleArtifacts ────────────────────────────────────────────────────
+
+describe("cleanupStaleArtifacts", () => {
+  let tmpDir: string;
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function setup() {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "cleanup-test-"));
+    const conversationsDir = path.join(tmpDir, "conversations");
+    const workspacesDir = path.join(tmpDir, "workspaces");
+    const bashEventsDir = path.join(tmpDir, "bash_events");
+    mkdirSync(conversationsDir, { recursive: true });
+    mkdirSync(workspacesDir, { recursive: true });
+    mkdirSync(bashEventsDir, { recursive: true });
+    return { conversationsDir, workspacesDir, bashEventsDir };
+  }
+
+  it("removes workspace dir whose conversation no longer exists", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+    const orphanId = "a".repeat(32);
+    mkdirSync(path.join(workspacesDir, orphanId));
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(existsSync(path.join(workspacesDir, orphanId))).toBe(false);
+    expect(result.removedWorkspaces).toBe(1);
+  });
+
+  it("preserves workspace dir when conversation dir still exists", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+    const convId = "b".repeat(32);
+    mkdirSync(path.join(conversationsDir, convId));
+    mkdirSync(path.join(workspacesDir, convId));
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(existsSync(path.join(workspacesDir, convId))).toBe(true);
+    expect(result.removedWorkspaces).toBe(0);
+  });
+
+  it("skips non-hex-named workspace dirs like automation-runs", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+    mkdirSync(path.join(workspacesDir, "automation-runs"));
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(existsSync(path.join(workspacesDir, "automation-runs"))).toBe(true);
+    expect(result.removedWorkspaces).toBe(0);
+  });
+
+  it("removes bash event files older than 24 hours", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+    const oldFile = path.join(bashEventsDir, "old_event");
+    writeFileSync(oldFile, "{}");
+    const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    utimesSync(oldFile, yesterday, yesterday);
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(existsSync(oldFile)).toBe(false);
+    expect(result.removedBashEvents).toBe(1);
+  });
+
+  it("preserves bash event files newer than 24 hours", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+    const recentFile = path.join(bashEventsDir, "recent_event");
+    writeFileSync(recentFile, "{}");
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(existsSync(recentFile)).toBe(true);
+    expect(result.removedBashEvents).toBe(0);
+  });
+
+  it("returns combined counts across all categories", () => {
+    const { conversationsDir, workspacesDir, bashEventsDir } = setup();
+
+    // Two orphaned workspaces
+    mkdirSync(path.join(workspacesDir, "c".repeat(32)));
+    mkdirSync(path.join(workspacesDir, "d".repeat(32)));
+
+    // Two old bash events
+    for (const name of ["evt1", "evt2"]) {
+      const f = path.join(bashEventsDir, name);
+      writeFileSync(f, "{}");
+      const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      utimesSync(f, old, old);
+    }
+
+    const result = cleanupStaleArtifacts(conversationsDir, workspacesDir, bashEventsDir);
+
+    expect(result.removedWorkspaces).toBe(2);
+    expect(result.removedBashEvents).toBe(2);
+  });
+
+  it("handles non-existent directories without throwing", () => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "cleanup-test-"));
+    expect(() =>
+      cleanupStaleArtifacts(
+        path.join(tmpDir, "conversations"),
+        path.join(tmpDir, "workspaces"),
+        path.join(tmpDir, "bash_events"),
+      ),
+    ).not.toThrow();
+  });
+});
+
+// ── startConversationWebhookReceiver ─────────────────────────────────────────
+
+describe("startConversationWebhookReceiver", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let server: any;
+  let tmpDir: string;
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server?.close(resolve));
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function setup() {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "webhook-test-"));
+    const workspacesDir = path.join(tmpDir, "workspaces");
+    mkdirSync(workspacesDir, { recursive: true });
+    return workspacesDir;
+  }
+
+  it("starts and returns a positive port number", async () => {
+    const workspacesDir = setup();
+    const result = await startConversationWebhookReceiver(workspacesDir);
+    server = result.server;
+    expect(result.port).toBeGreaterThan(0);
+  });
+
+  it("removes the workspace when execution_status is 'deleting'", async () => {
+    const workspacesDir = setup();
+    const convId = "e".repeat(32);
+    mkdirSync(path.join(workspacesDir, convId));
+
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    const res = await fetch(`http://127.0.0.1:${port}/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: convId, execution_status: "deleting" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(existsSync(path.join(workspacesDir, convId))).toBe(false);
+  });
+
+  it("accepts UUID-with-dashes format and maps to hex workspace name", async () => {
+    const workspacesDir = setup();
+    const hexId = "f".repeat(32);
+    // UUID-with-dashes equivalent: ffffffff-ffff-ffff-ffff-ffffffffffff
+    const uuidId = `${"f".repeat(8)}-${"f".repeat(4)}-${"f".repeat(4)}-${"f".repeat(4)}-${"f".repeat(12)}`;
+    mkdirSync(path.join(workspacesDir, hexId));
+
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    await fetch(`http://127.0.0.1:${port}/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: uuidId, execution_status: "deleting" }),
+    });
+
+    expect(existsSync(path.join(workspacesDir, hexId))).toBe(false);
+  });
+
+  it("ignores non-deleting execution statuses", async () => {
+    const workspacesDir = setup();
+    const convId = "a1b2c3d4e5f6".repeat(2) + "a1b2c3d4";
+    mkdirSync(path.join(workspacesDir, convId));
+
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    await fetch(`http://127.0.0.1:${port}/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: convId, execution_status: "running" }),
+    });
+
+    expect(existsSync(path.join(workspacesDir, convId))).toBe(true);
+  });
+
+  it("rejects non-hex conversation IDs to prevent path traversal", async () => {
+    const workspacesDir = setup();
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    // A path traversal attempt must not remove anything outside workspacesDir
+    const res = await fetch(`http://127.0.0.1:${port}/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: "../../../etc", execution_status: "deleting" }),
+    });
+
+    expect(res.status).toBe(200);
+    // workspacesDir itself must still exist
+    expect(existsSync(workspacesDir)).toBe(true);
+  });
+
+  it("returns 200 and does not throw on malformed JSON", async () => {
+    const workspacesDir = setup();
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    const res = await fetch(`http://127.0.0.1:${port}/conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "not-json{{{",
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 404 for unrecognised paths", async () => {
+    const workspacesDir = setup();
+    const { port, server: srv } = await startConversationWebhookReceiver(workspacesDir);
+    server = srv;
+
+    const res = await fetch(`http://127.0.0.1:${port}/events`, {
+      method: "POST",
+      body: "{}",
+    });
+
+    expect(res.status).toBe(404);
   });
 });

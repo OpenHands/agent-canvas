@@ -57,9 +57,11 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
+  cleanupStaleArtifacts,
   formatMissingUvxGuidance,
   findFreePorts,
   getOrCreatePersistedApiKey,
+  startConversationWebhookReceiver,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
@@ -560,6 +562,9 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    ...(config.webhookReceiverPort != null
+      ? { OH_WEBHOOKS_0_BASE_URL: `http://127.0.0.1:${config.webhookReceiverPort}` }
+      : {}),
   };
 
   spawnService(
@@ -1008,6 +1013,28 @@ async function main(options = {}) {
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
   }
+
+  // Cleanup stale artifacts from previous sessions
+  const { removedWorkspaces, removedBashEvents } = cleanupStaleArtifacts(
+    join(config.stateDir, "conversations"),
+    join(config.stateDir, "workspaces"),
+    join(config.stateDir, "bash_events"),
+  );
+  if (removedWorkspaces > 0 || removedBashEvents > 0) {
+    logService(
+      "cleanup",
+      `Removed ${removedWorkspaces} orphaned workspace(s), ${removedBashEvents} expired bash event(s)`,
+      c.dim,
+    );
+  }
+
+  // Start webhook receiver for real-time workspace cleanup on conversation deletion
+  const { port: webhookReceiverPort, server: webhookServer } =
+    await startConversationWebhookReceiver(join(config.stateDir, "workspaces"));
+  config.webhookReceiverPort = webhookReceiverPort;
+  registerShutdownHook(
+    () => new Promise((resolve) => webhookServer.close(resolve)),
+  );
 
   if (useStaticMode && typeof buildStaticFrontend === "function") {
     buildStaticFrontend(config, args);

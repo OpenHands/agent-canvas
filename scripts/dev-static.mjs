@@ -47,9 +47,11 @@ import {
   buildAgentServerCommand,
   buildSafeDevConfig,
   buildAgentServerEnv,
+  cleanupStaleArtifacts,
   formatMissingUvxGuidance,
   isPortBusy,
   releaseStaleConversationLeases,
+  startConversationWebhookReceiver,
 } from "./dev-safe.mjs";
 import {
   getProcessTreeSpawnOptions,
@@ -212,6 +214,8 @@ function checkPrerequisites() {
 
 const processes = new Map();
 let shuttingDown = false;
+/** @type {import("node:http").Server | null} */
+let activeWebhookServer = null;
 
 function spawnService(name, command, args, options = {}) {
   const proc = spawn(command, args, getProcessTreeSpawnOptions({
@@ -299,6 +303,9 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    ...(config.webhookReceiverPort != null
+      ? { OH_WEBHOOKS_0_BASE_URL: `http://127.0.0.1:${config.webhookReceiverPort}` }
+      : {}),
   };
 
   spawnService(
@@ -464,6 +471,8 @@ function shutdown() {
   console.log("");
   console.log(`${c.yellow}Shutting down...${c.reset}`);
 
+  activeWebhookServer?.close();
+
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
     signalProcessTree(proc, "SIGTERM");
@@ -587,6 +596,24 @@ async function main() {
       c.dim,
     );
   }
+
+  const { removedWorkspaces, removedBashEvents } = cleanupStaleArtifacts(
+    conversationsPath,
+    join(config.stateDir, "workspaces"),
+    join(config.stateDir, "bash_events"),
+  );
+  if (removedWorkspaces > 0 || removedBashEvents > 0) {
+    logService(
+      "cleanup",
+      `Removed ${removedWorkspaces} orphaned workspace(s), ${removedBashEvents} expired bash event(s)`,
+      c.dim,
+    );
+  }
+
+  const { port: webhookReceiverPort, server: webhookServer } =
+    await startConversationWebhookReceiver(join(config.stateDir, "workspaces"));
+  config.webhookReceiverPort = webhookReceiverPort;
+  activeWebhookServer = webhookServer;
 
   startAgentServer(config);
   await waitForService(
