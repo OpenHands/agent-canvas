@@ -40,6 +40,8 @@ export function CustomChatInput({
     clearAllFiles,
     setShouldHideSuggestions,
     setSubmittedMessage,
+    images,
+    files,
   } = useConversationStore();
 
   // Note: we intentionally do NOT disable the input when the conversation is
@@ -81,8 +83,9 @@ export function CustomChatInput({
 
   const syncCanSubmit = React.useCallback(() => {
     const text = chatInputRef.current?.innerText ?? "";
-    setCanSubmit(text.trim().length > 0);
-  }, [chatInputRef]);
+    const hasAttachments = images.length > 0 || files.length > 0;
+    setCanSubmit(text.trim().length > 0 || hasAttachments);
+  }, [chatInputRef, images, files]);
 
   const {
     fileInputRef,
@@ -153,7 +156,7 @@ export function CustomChatInput({
   );
   useEffect(() => {
     syncCanSubmit();
-  }, [syncCanSubmit]);
+  }, [syncCanSubmit, images.length, files.length]);
   return (
     <div className={cn("w-full", className)}>
       {/* Hidden file input */}

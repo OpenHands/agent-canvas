@@ -5,6 +5,10 @@ import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
+import { useConversationStore } from "#/stores/conversation-store";
+import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { Branch, GitRepository } from "#/types/git";
@@ -38,6 +42,12 @@ export function HomeChatLauncher() {
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isCreating = isPending || isCreatingElsewhere;
+  const { images, files, uploadImagesAsFiles, clearAllFiles } =
+    useConversationStore();
+  const enqueuePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.enqueuePendingMessage,
+  );
+  const { handleUpload } = useChatAttachmentUpload();
 
   const hasSelection = isLocal
     ? !!pendingWorkspace
@@ -45,13 +55,19 @@ export function HomeChatLauncher() {
 
   const handleSubmit = (message: string) => {
     const trimmed = message.trim();
-    if (!trimmed || isCreating) return;
+    const hasAttachments = images.length > 0 || files.length > 0;
+    if ((!trimmed && !hasAttachments) || isCreating) return;
+
+    const attachmentSnapshot = {
+      images: [...images],
+      files: [...files],
+    };
 
     // Workspace/repo are optional — match the "Start from scratch" flow which
     // creates a conversation with no working dir and no repo. Build the
     // payload from whatever is selected.
     let variables: Parameters<typeof createConversation>[0] = {
-      query: trimmed,
+      query: hasAttachments ? undefined : trimmed,
     };
     if (isLocal && pendingWorkspace) {
       variables = { ...variables, workingDir: pendingWorkspace.path };
@@ -74,8 +90,34 @@ export function HomeChatLauncher() {
     );
 
     createConversation(variables, {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         toast.dismiss(toastId);
+
+        if (hasAttachments) {
+          try {
+            const sent = await sendMessageWithAttachments({
+              conversationId: data.conversation_id,
+              content: trimmed,
+              images: attachmentSnapshot.images,
+              files: attachmentSnapshot.files,
+              uploadImagesAsFiles,
+              t,
+            });
+            enqueuePendingMessage({
+              conversationId: data.conversation_id,
+              text: sent.text,
+              content: sent.content,
+              imageUrls: sent.imageUrls,
+              fileUrls: sent.fileUrls,
+              timestamp: sent.timestamp,
+            });
+            clearAllFiles();
+          } catch (error) {
+            displayErrorToast(error instanceof Error ? error.message : null);
+            return;
+          }
+        }
+
         navigate(`/conversations/${data.conversation_id}`);
       },
       onError: (error) => {
@@ -103,6 +145,7 @@ export function HomeChatLauncher() {
       <div className="w-full">
         <CustomChatInput
           onSubmit={handleSubmitWithModelGuard}
+          onFilesPaste={handleUpload}
           disabled={isCreating}
         />
       </div>
