@@ -93,7 +93,7 @@ describe("backend-registry storage", () => {
   });
 
   it("fills a missing API key on the default Local backend from env defaults", () => {
-    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([
@@ -123,7 +123,7 @@ describe("backend-registry storage", () => {
 
 
   it("refreshes a stale API key on the default Local backend from env defaults", () => {
-    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([
@@ -152,7 +152,7 @@ describe("backend-registry storage", () => {
   });
 
   it("does not fill the default Local backend API key after its host is edited", () => {
-    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([

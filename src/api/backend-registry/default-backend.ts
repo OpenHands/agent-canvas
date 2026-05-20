@@ -20,7 +20,7 @@ export const DEFAULT_LOCAL_BACKEND_NAME = "Local";
 
 /**
  * Construct the default local backend from environment / agent-server
- * config (`VITE_BACKEND_BASE_URL`, `VITE_SESSION_API_KEY`, plus the
+ * config (`VITE_BACKEND_BASE_URL`, `VITE_LOCAL_BACKEND_API_KEY`, plus the
  * `openhands-agent-server-config` localStorage overrides).
  *
  * Used in two places:

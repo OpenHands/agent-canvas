@@ -52,7 +52,7 @@ describe("agent server config", () => {
 
   it("prefills the settings form from environment defaults when local settings are empty", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "https://env-agent.example.com/");
-    vi.stubEnv("VITE_SESSION_API_KEY", "env-session-key");
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "env-session-key");
 
     expect(getAgentServerFormDefaults()).toEqual({
       baseUrl: "https://env-agent.example.com",
@@ -75,7 +75,7 @@ describe("agent server config", () => {
 
   it("lets saved interface settings override environment defaults", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "https://env-agent.example.com");
-    vi.stubEnv("VITE_SESSION_API_KEY", "env-session-key");
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "env-session-key");
 
     saveAgentServerConfig({
       baseUrl: "https://saved-agent.example.com/",

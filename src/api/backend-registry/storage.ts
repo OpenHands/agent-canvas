@@ -82,10 +82,11 @@ export function readStoredBackends(): Backend[] {
 
     // If the stored array is empty (or everything in it failed validation),
     // re-seed with the default Local backend so the user always has a
-    // working entry pointing at VITE_SESSION_API_KEY. With the dev scripts
-    // persisting that key to ~/.openhands/agent-canvas/session-api-key.txt,
-    // re-seeding is safe — the seeded entry will keep working across
-    // restarts instead of going stale.
+    // working entry pointing at VITE_LOCAL_BACKEND_API_KEY. With the dev
+    // scripts persisting that key to
+    // ~/.openhands/agent-canvas/local-backend-api-key.txt, re-seeding is
+    // safe — the seeded entry will keep working across restarts instead of
+    // going stale.
     if (valid.length === 0) {
       const seeded = [makeDefaultLocalBackend()];
       writeStoredBackends(seeded);

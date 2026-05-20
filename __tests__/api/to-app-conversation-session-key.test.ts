@@ -20,8 +20,8 @@ afterEach(() => {
 });
 
 describe("toAppConversation session_api_key hydration", () => {
-  it("prefers the configured VITE_SESSION_API_KEY over a stale stored default-local apiKey", () => {
-    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+  it("prefers the configured VITE_LOCAL_BACKEND_API_KEY over a stale stored default-local apiKey", () => {
+    vi.stubEnv("VITE_LOCAL_BACKEND_API_KEY", "fresh-session-key");
 
     setRegisteredBackends([
       {

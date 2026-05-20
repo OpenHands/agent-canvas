@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildExtraBackendConfig } from "../../scripts/dev-extra-backend.mjs";
 import {
   buildSafeDevConfig,
-  resetPersistedSessionApiKeyCache,
+  resetPersistedApiKeyCache,
 } from "../../scripts/dev-safe.mjs";
 
 const repoRoot = path.resolve(
@@ -29,17 +29,17 @@ describe("buildExtraBackendConfig", () => {
       const dir = keyDirs.pop();
       if (dir) rmSync(dir, { recursive: true, force: true });
     }
-    resetPersistedSessionApiKeyCache();
+    resetPersistedApiKeyCache();
   });
 
   function isolatedKeyPath(): string {
     const dir = mkdtempSync(path.join(tmpdir(), "extra-backend-key-"));
     keyDirs.push(dir);
-    return path.join(dir, "session-api-key.txt");
+    return path.join(dir, "local-backend-api-key.txt");
   }
 
   it("defaults to ports 18002/18003 distinct from the bundled instance", () => {
-    const env = { OH_SESSION_API_KEY_PATH: isolatedKeyPath() };
+    const env = { OH_LOCAL_BACKEND_API_KEY_PATH: isolatedKeyPath() };
     const bundled = buildSafeDevConfig(repoRoot, env);
     const extra = buildExtraBackendConfig(repoRoot, env);
 
@@ -55,7 +55,7 @@ describe("buildExtraBackendConfig", () => {
     const config = buildExtraBackendConfig(repoRoot, {
       OH_CANVAS_EXTRA_BACKEND_PORT: "29000",
       OH_CANVAS_EXTRA_VSCODE_PORT: "29001",
-      OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
+      OH_LOCAL_BACKEND_API_KEY_PATH: isolatedKeyPath(),
     });
 
     expect(config.backendPort).toBe(29000);
@@ -66,7 +66,7 @@ describe("buildExtraBackendConfig", () => {
   it("shares state dir, conversations, bash events, and secret key with the bundled config", () => {
     const env = {
       OH_CANVAS_SAFE_STATE_DIR: "/tmp/canvas-state",
-      OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
+      OH_LOCAL_BACKEND_API_KEY_PATH: isolatedKeyPath(),
     };
     const bundled = buildSafeDevConfig(repoRoot, env);
     const extra = buildExtraBackendConfig(repoRoot, env);
@@ -82,7 +82,7 @@ describe("buildExtraBackendConfig", () => {
     expect(() =>
       buildExtraBackendConfig(repoRoot, {
         OH_CANVAS_EXTRA_BACKEND_PORT: "not-a-port",
-        OH_SESSION_API_KEY_PATH: isolatedKeyPath(),
+        OH_LOCAL_BACKEND_API_KEY_PATH: isolatedKeyPath(),
       }),
     ).toThrow(/Invalid port/);
   });

@@ -24,7 +24,7 @@ import {
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
 } from "../../scripts/dev-with-automation.mjs";
-import { resetPersistedSessionApiKeyCache } from "../../scripts/dev-safe.mjs";
+import { resetPersistedApiKeyCache } from "../../scripts/dev-safe.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -117,11 +117,13 @@ describe("buildAutomationCommand", () => {
 });
 
 describe("buildAgentServerAutomationEnv", () => {
-  it("exposes the local automation API key under the name agents use in curl commands", () => {
+  it("exposes the local-backend API key under the name agents use in curl commands", () => {
     expect(
-      buildAgentServerAutomationEnv({ localApiKey: "automation-local-key" }),
+      buildAgentServerAutomationEnv({
+        localBackendApiKey: "local-backend-key",
+      }),
     ).toEqual({
-      OPENHANDS_AUTOMATION_API_KEY: "automation-local-key",
+      OPENHANDS_AUTOMATION_API_KEY: "local-backend-key",
     });
   });
 });
@@ -139,12 +141,13 @@ describe("buildConfig", () => {
       const dir = keyDirs.pop();
       if (dir) rmSync(dir, { recursive: true, force: true });
     }
-    resetPersistedSessionApiKeyCache();
+    resetPersistedApiKeyCache();
   });
 
   /**
-   * Build an env that points persisted dev API key files at a fresh temp dir,
-   * so tests don't write to the user's real ~/.openhands/agent-canvas files.
+   * Build an env that points the persisted local-backend API key file at a
+   * fresh temp dir, so tests don't write to the user's real
+   * ~/.openhands/agent-canvas files.
    */
   function envWithIsolatedKeyPath(
     extra: Record<string, string> = {},
@@ -152,8 +155,10 @@ describe("buildConfig", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "buildconfig-key-"));
     keyDirs.push(dir);
     return {
-      OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
-      OH_AUTOMATION_API_KEY_PATH: path.join(dir, "automation-api-key.txt"),
+      OH_LOCAL_BACKEND_API_KEY_PATH: path.join(
+        dir,
+        "local-backend-api-key.txt",
+      ),
       ...extra,
     };
   }
@@ -288,115 +293,33 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("uses a persisted generated local automation API key by default", async () => {
+  it("generates and persists a default local-backend API key", async () => {
     const config = await buildConfig({}, envWithIsolatedKeyPath());
 
     // Default is a 64-char hex string (256-bit random key)
-    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(config.localBackendApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reuses the persisted local automation API key across restarts", async () => {
+  it("reuses the persisted local-backend API key across restarts", async () => {
     const env = envWithIsolatedKeyPath();
     const first = await buildConfig({}, env);
 
     // Simulate a fresh process invocation (the file on disk should be
     // what makes the key stable).
-    resetPersistedSessionApiKeyCache();
+    resetPersistedApiKeyCache();
 
     const second = await buildConfig({}, env);
 
-    expect(second.localApiKey).toBe(first.localApiKey);
+    expect(second.localBackendApiKey).toBe(first.localBackendApiKey);
   });
 
-  it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
+  it("respects custom LOCAL_BACKEND_API_KEY from env", async () => {
     const config = await buildConfig(
       {},
-      envWithIsolatedKeyPath({ AUTOMATION_LOCAL_API_KEY: "my-custom-key" }),
+      envWithIsolatedKeyPath({ LOCAL_BACKEND_API_KEY: "my-custom-key" }),
     );
 
-    expect(config.localApiKey).toBe("my-custom-key");
-  });
-
-  it("falls back to a freshly persisted session API key by default", async () => {
-    const config = await buildConfig({}, envWithIsolatedKeyPath());
-
-    // Default is a 64-char hex string (256-bit random key) read from /
-    // written to OH_SESSION_API_KEY_PATH.
-    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it("reuses the persisted session API key across calls (stable across restarts)", async () => {
-    const env = envWithIsolatedKeyPath();
-    const first = await buildConfig({}, env);
-
-    // Simulate a fresh process invocation (the file on disk should be
-    // what makes the key stable).
-    resetPersistedSessionApiKeyCache();
-
-    const second = await buildConfig({}, env);
-
-    expect(second.sessionApiKey).toBe(first.sessionApiKey);
-  });
-
-  it("reads sessionApiKey from SESSION_API_KEY", async () => {
-    const config = await buildConfig({}, { SESSION_API_KEY: "my-session-key" });
-
-    expect(config.sessionApiKey).toBe("my-session-key");
-  });
-
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
-    const config = await buildConfig(
-      {},
-      { VITE_SESSION_API_KEY: "vite-session-key" },
-    );
-
-    expect(config.sessionApiKey).toBe("vite-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "session-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("session-key");
-  });
-
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
-    const config = await buildConfig(
-      {},
-      { OH_SESSION_API_KEYS_0: "v1-session-key" },
-    );
-
-    expect(config.sessionApiKey).toBe("v1-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
+    expect(config.localBackendApiKey).toBe("my-custom-key");
   });
 });
 
@@ -451,7 +374,7 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
-    expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
+    expect(output).toContain("LOCAL_BACKEND_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
     expect(output).toContain("SECRETS:");
   });

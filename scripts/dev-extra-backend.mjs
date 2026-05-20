@@ -148,7 +148,7 @@ async function main() {
   console.log(
     "Connect via the GUI: open Add Backend, enter " +
       `${config.backendBaseUrl} as the host. Leave the API key blank ` +
-      "unless this server is started with OH_SESSION_API_KEYS_0 set.",
+      "unless this server is started with LOCAL_BACKEND_API_KEY set.",
   );
   console.log("");
 

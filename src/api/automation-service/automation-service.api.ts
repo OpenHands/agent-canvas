@@ -18,21 +18,28 @@ export interface AutomationHealthResponse {
 }
 
 // Local automation calls go to the automation sidecar that
-// `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
-// That sidecar authenticates via its own `VITE_AUTOMATION_API_KEY` Bearer
-// token — NOT the agent-server's `X-Session-API-Key` — so we cannot reuse
-// the default local agent-server client for these calls.
+// `scripts/dev-with-automation.mjs` (and the Docker entrypoint) mount
+// behind the local agent-server. The sidecar accepts the same secret the
+// agent-server accepts, just in a Bearer header instead of the
+// `X-Session-API-Key` header — so we authenticate using the active
+// backend's stored apiKey (the same value `getAgentServerHttpClientOptions`
+// uses for the agent-server). We fall back to `VITE_LOCAL_BACKEND_API_KEY`
+// only so the `npm run dev` flow can bootstrap before any user-edited
+// backend record exists.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
+  const backend = getEffectiveLocalBackend();
   // Resolve the local backend host on every call so it tracks the
   // currently-active local backend (and any host edits made via the
   // manage-backends UI), rather than freezing whatever value the
   // agent-server-config produced at module load time.
   // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+  if (!config.baseURL) config.baseURL = backend.host;
 
-  const apiKey = import.meta.env.VITE_AUTOMATION_API_KEY?.trim();
+  const apiKey =
+    backend.apiKey?.trim() ||
+    import.meta.env.VITE_LOCAL_BACKEND_API_KEY?.trim();
   if (apiKey) {
     config.headers.set("Authorization", `Bearer ${apiKey}`);
   }

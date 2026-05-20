@@ -82,7 +82,7 @@ function getConfiguredSessionApiKey(): string | null {
   const storedKey = trimToNull(readStoredConfig().sessionApiKey);
   if (storedKey) return storedKey;
 
-  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  return trimToNull(import.meta.env.VITE_LOCAL_BACKEND_API_KEY);
 }
 
 function shouldUseProxyOrigin(baseUrl: string): boolean {

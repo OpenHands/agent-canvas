@@ -15,7 +15,9 @@
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
 #                          and persisted if not provided)
-#   OPENHANDS_AUTOMATION_API_KEY – API key for automation backend auth
+#   OPENHANDS_AUTOMATION_API_KEY – Override automation backend auth key
+#                          (defaults to the session API key so a single
+#                          credential secures both backends)
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
@@ -75,6 +77,18 @@ if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
   fi
   export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
 fi
+
+# Both backends in the image share the same API key value: the agent-server
+# accepts it via `X-Session-API-Key` and the automation sidecar accepts it
+# via `Authorization: Bearer …`. Default the automation env vars to the
+# session key so a single credential authenticates the whole stack — the
+# frontend's only stored secret is the user-entered "session API key", and
+# automation calls would 401 against the sidecar otherwise. Explicit values
+# are still honored.
+EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
+export OPENHANDS_AUTOMATION_API_KEY="${OPENHANDS_AUTOMATION_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
+export AUTOMATION_LOCAL_API_KEY="${AUTOMATION_LOCAL_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
+export AUTOMATION_AGENT_SERVER_API_KEY="${AUTOMATION_AGENT_SERVER_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 
 # AGENT_SERVER_URL — needed by automation sandbox callbacks.
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"

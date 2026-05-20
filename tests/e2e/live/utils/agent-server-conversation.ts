@@ -43,9 +43,8 @@ const llmModel =
       : "anthropic/claude-haiku-4-5-20251001");
 export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
-  process.env.SESSION_API_KEY,
-  process.env.OH_SESSION_API_KEYS_0,
-  process.env.VITE_SESSION_API_KEY,
+  process.env.LOCAL_BACKEND_API_KEY,
+  process.env.VITE_LOCAL_BACKEND_API_KEY,
 );
 
 if (!sessionApiKey) {

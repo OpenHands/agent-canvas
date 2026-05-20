@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -51,20 +52,19 @@ export function generateRandomApiKey() {
   return randomBytes(32).toString("hex");
 }
 
-// Where the auto-generated default session API key is persisted so it stays
-// stable across `npm run dev` restarts. Keeping the key stable means the value
-// baked into the frontend (VITE_SESSION_API_KEY) and the persisted
-// backend-registry entry (`openhands-backends` localStorage) stay in sync
-// without users needing to set anything in `.env`.
+// Where the auto-generated default local-backend API key is persisted so it
+// stays stable across `npm run dev` restarts. Keeping the key stable means
+// the value baked into the frontend (VITE_LOCAL_BACKEND_API_KEY) and the
+// persisted backend-registry entry (`openhands-backends` localStorage) stay
+// in sync without users needing to set anything in `.env`.
 //
 // To rotate the key, delete this file. To pin a key explicitly, export
-// SESSION_API_KEY (or OH_SESSION_API_KEYS_0 / VITE_SESSION_API_KEY) -- those
-// take precedence over the persisted file.
-export const DEFAULT_SESSION_API_KEY_PATH = path.join(
+// LOCAL_BACKEND_API_KEY -- it takes precedence over the persisted file.
+export const DEFAULT_LOCAL_BACKEND_API_KEY_PATH = path.join(
   homedir(),
   ".openhands",
   "agent-canvas",
-  "session-api-key.txt",
+  "local-backend-api-key.txt",
 );
 
 // Cache so repeated lookups within a single process return the same key,
@@ -72,20 +72,42 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
 const persistedApiKeyCache = new Map();
 
 /**
- * Load the persisted default session API key, generating + persisting one if
- * the file doesn't exist yet.
+ * Load the persisted default local-backend API key, generating + persisting
+ * one if the file doesn't exist yet.
  *
  * Best-effort: if the file can't be written (e.g. read-only home dir), we
  * fall back to an in-memory key for this process so dev still works -- the
  * key just won't survive a restart.
  *
  * @param {string} filePath - Where to read/write the key.
- * @returns {string} The (hex) session API key.
+ * @returns {string} The (hex) API key.
  */
-export function getOrCreatePersistedSessionApiKey(
-  filePath = DEFAULT_SESSION_API_KEY_PATH,
+export function getOrCreatePersistedLocalBackendApiKey(
+  filePath = DEFAULT_LOCAL_BACKEND_API_KEY_PATH,
 ) {
-  return getOrCreatePersistedApiKey(filePath, "session");
+  // One-shot migration: earlier versions persisted the agent-server's
+  // session key to a sibling `session-api-key.txt` (and a separate
+  // automation key to `automation-api-key.txt`). When our target file
+  // doesn't exist yet but the legacy session file does, rename it in so
+  // existing users don't get a fresh key on first run after the upgrade.
+  // The separate automation key file is intentionally not migrated -- it
+  // was never the right value to use for both backends.
+  const legacyPath = path.join(path.dirname(filePath), "session-api-key.txt");
+  if (
+    legacyPath !== filePath &&
+    !existsSync(filePath) &&
+    existsSync(legacyPath)
+  ) {
+    try {
+      renameSync(legacyPath, filePath);
+      console.log(`Migrated persisted API key: ${legacyPath} -> ${filePath}`);
+    } catch (error) {
+      console.warn(
+        `Could not migrate legacy API key file ${legacyPath} -> ${filePath}: ${error.message}. A new key will be generated.`,
+      );
+    }
+  }
+  return getOrCreatePersistedApiKey(filePath, "local-backend");
 }
 
 /**
@@ -135,10 +157,11 @@ export function getOrCreatePersistedApiKey(filePath, label = "API") {
 }
 
 /**
- * Clear the in-memory cache used by {@link getOrCreatePersistedSessionApiKey}.
- * Intended for tests that swap the persisted file path between cases.
+ * Clear the in-memory cache used by {@link getOrCreatePersistedApiKey}
+ * (and {@link getOrCreatePersistedLocalBackendApiKey}). Intended for tests
+ * that swap the persisted file path between cases.
  */
-export function resetPersistedSessionApiKeyCache() {
+export function resetPersistedApiKeyCache() {
   persistedApiKeyCache.clear();
 }
 
@@ -523,7 +546,7 @@ export async function buildSafeDevConfigAsync(
  * @property {string} backendHost
  * @property {string} workingDir
  * @property {string} secretKey
- * @property {string} sessionApiKey
+ * @property {string} localBackendApiKey
  * @property {string} canvasToolsDir
  */
 
@@ -545,24 +568,20 @@ function buildConfigFromPorts(ports, cwd, env) {
   const workspacesPath = path.join(stateDir, "workspaces");
   // Use provided secret key or default for local development
   const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
-  // Use provided session API key or fall back to a key persisted to
-  // ~/.openhands/agent-canvas/session-api-key.txt. Persisting on disk keeps
-  // the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
-  // `openhands-backends` localStorage entries the frontend has cached all
-  // pointing at the same value across dev restarts.
+  // Use the user-provided LOCAL_BACKEND_API_KEY, or fall back to a key
+  // persisted to ~/.openhands/agent-canvas/local-backend-api-key.txt.
+  // Persisting on disk keeps the agent-server, the automation backend,
+  // the Vite-baked VITE_LOCAL_BACKEND_API_KEY, and any `openhands-backends`
+  // localStorage entries the frontend has cached all pointing at the same
+  // value across dev restarts.
   //
-  // Check multiple env vars that may be used:
-  // - SESSION_API_KEY: Common name
-  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
-  // - VITE_SESSION_API_KEY: Used by frontend config
-  // OH_SESSION_API_KEY_PATH overrides the persisted file path (used by tests).
+  // OH_LOCAL_BACKEND_API_KEY_PATH overrides the persisted file path (used
+  // by tests).
   const persistedKeyPath =
-    env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH;
-  const sessionApiKey =
-    env.SESSION_API_KEY ||
-    env.OH_SESSION_API_KEYS_0 ||
-    env.VITE_SESSION_API_KEY ||
-    getOrCreatePersistedSessionApiKey(persistedKeyPath);
+    env.OH_LOCAL_BACKEND_API_KEY_PATH || DEFAULT_LOCAL_BACKEND_API_KEY_PATH;
+  const localBackendApiKey =
+    env.LOCAL_BACKEND_API_KEY ||
+    getOrCreatePersistedLocalBackendApiKey(persistedKeyPath);
 
   // Host directory containing Agent-Canvas-specific Python tools (e.g. the
   // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
@@ -583,7 +602,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendHost: `127.0.0.1:${backendPort}`,
     workingDir: env.VITE_WORKING_DIR || workspacesPath,
     secretKey,
-    sessionApiKey,
+    localBackendApiKey,
     canvasToolsDir,
   };
 }
@@ -604,19 +623,15 @@ export function buildAgentServerEnv(config) {
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),
     OH_SECRET_KEY: config.secretKey,
-    // Use OH_SESSION_API_KEYS_0 for agent-server V1 config format
-    OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // The agent-server reads its accepted API keys from OH_SESSION_API_KEYS_*.
+    // Feed it the unified local-backend key.
+    OH_SESSION_API_KEYS_0: config.localBackendApiKey,
     // Alias for the agent-server's own URL. The agent-server itself sets
     // OH_INTERNAL_SERVER_URL at startup, but downstream consumers (the
     // OpenHands SDK boilerplate emitted by automation prompt/plugin
     // presets) read AGENT_SERVER_URL — the canonical SDK name. Mirror it
     // here so automation runs work without each tarball having to know
     // about the OH_-prefixed variant.
-    //
-    // We deliberately do NOT set a SESSION_API_KEY alias: the SDK's
-    // sanitized_env() would strip it from bash subprocesses anyway, and
-    // a follow-up change to the automation preset reads
-    // OH_SESSION_API_KEYS_0 directly (which is already in env).
     AGENT_SERVER_URL: config.backendBaseUrl,
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
@@ -858,14 +873,12 @@ async function main() {
     ? "custom (from OH_SECRET_KEY)"
     : "default (for local development)";
 
-  const sessionKeySource =
-    process.env.SESSION_API_KEY ||
-    process.env.OH_SESSION_API_KEYS_0 ||
-    process.env.VITE_SESSION_API_KEY
-      ? "custom (from env)"
-      : `persisted (${
-          process.env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH
-        })`;
+  const localBackendKeySource = process.env.LOCAL_BACKEND_API_KEY
+    ? "custom (from LOCAL_BACKEND_API_KEY)"
+    : `persisted (${
+        process.env.OH_LOCAL_BACKEND_API_KEY_PATH ||
+        DEFAULT_LOCAL_BACKEND_API_KEY_PATH
+      })`;
 
   console.log(`- agent-server: ${agentServerCmd.source}`);
   console.log(`- backend: ${config.backendBaseUrl}`);
@@ -873,7 +886,7 @@ async function main() {
   console.log(`- working dir: ${config.workingDir}`);
   console.log(`- isolated state dir: ${config.stateDir}`);
   console.log(`- secret key: ${secretKeySource}`);
-  console.log(`- session API key: ${sessionKeySource}`);
+  console.log(`- local backend API key: ${localBackendKeySource}`);
   console.log("");
 
   const backend = spawnProcess(
@@ -960,8 +973,9 @@ async function main() {
       VITE_BACKEND_HOST: config.backendHost,
       VITE_BACKEND_BASE_URL: config.backendBaseUrl,
       VITE_WORKING_DIR: config.workingDir,
-      // Pass session API key so frontend can authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
+      // Pass the local-backend API key so the frontend can authenticate
+      // with both the agent-server and the automation backend.
+      VITE_LOCAL_BACKEND_API_KEY: config.localBackendApiKey,
       // Inform the frontend (and downstream, the agent's system prompt) about
       // which services are available in this dev stack.
       VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
