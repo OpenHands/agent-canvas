@@ -415,7 +415,7 @@ function getConversationSecurityAnalyzer(conversationSettings: SettingsRecord) {
   }
 }
 
-function getAgentTools() {
+function getAgentTools(agentSettings: SettingsRecord) {
   const tools = DEFAULT_TOOL_NAMES.map((name) => ({ name, params: {} }));
   if (
     browserToolsEnabled() &&
@@ -423,12 +423,16 @@ function getAgentTools() {
   ) {
     tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
   }
-  // Enables sub-agent delegation. The agent server's tool_router preloads
-  // `task_tool_set` and registers the built-in subagents (code-explorer,
-  // bash-runner, web-researcher, general-purpose), so exposing the tool here
-  // is all the client needs to do. Older servers that don't advertise it in
-  // /api/server_info's `usable_tools` are skipped via the capability probe.
-  if (isAgentServerToolAvailable(TASK_TOOL_SET_NAME)) {
+  // Sub-agent delegation: only expose `task_tool_set` when the user has
+  // opted in via Settings > Agent. The agent server's tool_router preloads
+  // the tool and registers the built-in subagents (code-explorer,
+  // bash-runner, web-researcher, general-purpose) when it's requested.
+  // Older servers that don't advertise the tool in /api/server_info's
+  // `usable_tools` are skipped via the capability probe.
+  if (
+    agentSettings.enable_sub_agents === true &&
+    isAgentServerToolAvailable(TASK_TOOL_SET_NAME)
+  ) {
     tools.push({ name: TASK_TOOL_SET_NAME, params: {} });
   }
   return tools;
@@ -543,7 +547,7 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   return {
     ...agentSettings,
     llm,
-    tools: getAgentTools(),
+    tools: getAgentTools(agentSettings),
     include_default_tools: includeDefaultTools,
   };
 }

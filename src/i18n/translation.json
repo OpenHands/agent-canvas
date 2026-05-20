@@ -1818,7 +1818,7 @@
     "uk": "Базовий URL",
     "ca": "URL base"
   },
-  "SETTINGS$AGENT": {
+  "SETTINGS$NAV_AGENT": {
     "en": "Agent",
     "ja": "エージェント",
     "zh-CN": "代理",
@@ -2140,6 +2140,40 @@
     "de": "Agent",
     "uk": "Агент",
     "ca": "Agent"
+  },
+  "SCHEMA$ENABLE_SUB_AGENTS$DESCRIPTION": {
+    "en": "Enable sub-agent delegation via TaskToolSet.",
+    "ja": "TaskToolSet を介したサブエージェントへの委任を有効にします。",
+    "zh-CN": "通过 TaskToolSet 启用子智能体委派。",
+    "zh-TW": "透過 TaskToolSet 啟用子智能體委派。",
+    "ko-KR": "TaskToolSet을 통한 하위 에이전트 위임을 활성화합니다.",
+    "no": "Aktiver delegering til underagenter via TaskToolSet.",
+    "it": "Abilita la delega ai sottoagenti tramite TaskToolSet.",
+    "pt": "Ative a delegação para subagentes via TaskToolSet.",
+    "es": "Habilita la delegación a subagentes mediante TaskToolSet.",
+    "ar": "مكّن تفويض المهام إلى الوكلاء الفرعيين عبر TaskToolSet.",
+    "fr": "Activez la délégation aux sous-agents via TaskToolSet.",
+    "tr": "TaskToolSet aracılığıyla alt ajanlara yetki devrini etkinleştirin.",
+    "de": "Aktivieren Sie die Delegierung an Sub-Agenten über TaskToolSet.",
+    "uk": "Увімкніть делегування субагентам через TaskToolSet.",
+    "ca": "Activa la delegació a subagents mitjançant TaskToolSet."
+  },
+  "SCHEMA$ENABLE_SUB_AGENTS$LABEL": {
+    "en": "Enable sub-agents",
+    "ja": "サブエージェントを有効にする",
+    "zh-CN": "启用子智能体",
+    "zh-TW": "啟用子智能體",
+    "ko-KR": "하위 에이전트 활성화",
+    "no": "Aktiver underagenter",
+    "it": "Abilita sottoagenti",
+    "pt": "Ativar subagentes",
+    "es": "Habilitar subagentes",
+    "ar": "تمكين الوكلاء الفرعيين",
+    "fr": "Activer les sous-agents",
+    "tr": "Alt ajanları etkinleştir",
+    "de": "Sub-Agenten aktivieren",
+    "uk": "Увімкнути субагентів",
+    "ca": "Activa subagents"
   },
   "SCHEMA$CONDENSER$ENABLED$DESCRIPTION": {
     "en": "Enable the LLM summarizing condenser.",
@@ -4962,23 +4996,6 @@
     "de": "LLM",
     "uk": "LLM",
     "ca": "LLM"
-  },
-  "SETTINGS$NAV_AGENT": {
-    "en": "Agent",
-    "ja": "Agent",
-    "zh-CN": "Agent",
-    "zh-TW": "Agent",
-    "ko-KR": "Agent",
-    "no": "Agent",
-    "it": "Agent",
-    "pt": "Agent",
-    "es": "Agent",
-    "ar": "Agent",
-    "fr": "Agent",
-    "tr": "Agent",
-    "de": "Agent",
-    "uk": "Agent",
-    "ca": "Agent"
   },
   "SETTINGS$AGENT_PAGE_DESCRIPTION": {
     "en": "Choose between the built-in OpenHands agent and an external ACP (Agent Client Protocol) subprocess such as Claude Code, Codex, or Gemini CLI.",

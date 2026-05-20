@@ -66,6 +66,7 @@ describe("buildStartConversationRequest", () => {
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
           agent: "CodeActAgent",
+          enable_sub_agents: true,
           llm: {
             model: "nested-model",
             api_key: "  nested-key  ",
@@ -182,7 +183,7 @@ describe("buildStartConversationRequest", () => {
     ]);
   });
 
-  it("includes task_tool_set when the server advertises it but not browser tools", () => {
+  it("includes task_tool_set when sub-agents are enabled and the server advertises it but not browser tools", () => {
     mockIsAgentServerToolAvailable.mockImplementation(
       (toolName: string) => toolName === "task_tool_set",
     );
@@ -192,6 +193,7 @@ describe("buildStartConversationRequest", () => {
         ...DEFAULT_SETTINGS,
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: true,
           llm: { model: "nested-model" },
         },
       },
@@ -208,6 +210,26 @@ describe("buildStartConversationRequest", () => {
       { name: "canvas_ui", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
+  });
+
+  it("omits task_tool_set when sub-agents are disabled even if the server advertises it", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: false,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        tools: Array<{ name: string; params: Record<string, unknown> }>;
+      };
+    };
+
+    const toolNames = payload.agent.tools.map((t) => t.name);
+    expect(toolNames).not.toContain("task_tool_set");
   });
 
   it("derives confirmation and security settings the same way as OpenHands", () => {
