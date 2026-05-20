@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
+import { getMarketplaceEntryInstallTarget } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 
 interface MarketplaceCardProps {
@@ -16,6 +17,7 @@ export function MarketplaceCard({
   onClick,
 }: MarketplaceCardProps) {
   const { t } = useTranslation("openhands");
+  const installTarget = getMarketplaceEntryInstallTarget(entry);
 
   const transportLabel = (() => {
     switch (entry.template.kind) {
@@ -63,6 +65,13 @@ export function MarketplaceCard({
             )}
           </div>
           <p className="text-xs text-tertiary-alt mt-0.5">{transportLabel}</p>
+          <p
+            data-testid={`mcp-marketplace-target-${entry.id}`}
+            title={installTarget}
+            className="mt-1 truncate font-mono text-[11px] text-content-2"
+          >
+            {installTarget}
+          </p>
         </div>
       </div>
       <p className="text-xs text-content-2 leading-relaxed line-clamp-3">

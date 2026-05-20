@@ -87,10 +87,33 @@ function normalize(query: string): string {
   return query.trim().toLowerCase();
 }
 
+export function getMarketplaceEntryInstallTarget(
+  entry: MarketplaceEntry,
+): string {
+  if (entry.template.kind === "stdio") {
+    return [entry.template.command, ...entry.template.args].join(" ").trim();
+  }
+  return entry.template.url;
+}
+
+function getMarketplaceEntrySearchHaystack(entry: MarketplaceEntry): string {
+  return [
+    entry.name,
+    entry.description,
+    entry.id,
+    entry.docsUrl,
+    getMarketplaceEntryInstallTarget(entry),
+    ...(entry.keywords ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 /**
  * Case-insensitive substring match against the catalog entry's
- * user-visible identity (name, description, id, keywords). Empty
- * queries always match.
+ * user-visible identity plus install metadata (docs URLs, package
+ * names, docker images, remote endpoints). Empty queries always match.
  */
 export function getMarketplaceEntriesByPopularity(
   catalog: MarketplaceEntry[],
@@ -118,23 +141,15 @@ export function marketplaceEntryMatchesQuery(
 ): boolean {
   const q = normalize(rawQuery);
   if (!q) return true;
-  const haystack = [
-    entry.name,
-    entry.description,
-    entry.id,
-    ...(entry.keywords ?? []),
-  ]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(q);
+  return getMarketplaceEntrySearchHaystack(entry).includes(q);
 }
 
 /**
  * Search match for an installed (already-configured) server. We
  * search the server's own identifying fields and — if it's a catalog
- * entry — its catalog name/keywords too, so typing "Slack" matches
- * the installed Slack tile even though the persisted server is just
- * `{ type: "stdio", name: "slack", ... }`.
+ * entry — its catalog name plus install metadata, so queries like
+ * "Slack", "@zencoderai/slack-mcp-server", or "mcp.linear.app"
+ * still find the installed card.
  */
 export function installedServerMatchesQuery(
   server: MCPServerConfig,
@@ -152,6 +167,8 @@ export function installedServerMatchesQuery(
     catalogEntry?.name,
     catalogEntry?.description,
     catalogEntry?.id,
+    catalogEntry?.docsUrl,
+    catalogEntry ? getMarketplaceEntryInstallTarget(catalogEntry) : undefined,
     ...(catalogEntry?.keywords ?? []),
   ]
     .filter(Boolean)

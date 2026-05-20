@@ -111,6 +111,56 @@ describe("MCPPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows install target previews for package and URL verification", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    await screen.findByTestId("mcp-marketplace-grid");
+    expect(screen.getByTestId("mcp-marketplace-target-github")).toHaveTextContent(
+      "ghcr.io/github/github-mcp-server",
+    );
+    expect(screen.getByTestId("mcp-marketplace-target-slack")).toHaveTextContent(
+      "@zencoderai/slack-mcp-server",
+    );
+    expect(screen.getByTestId("mcp-marketplace-target-linear")).toHaveTextContent(
+      "https://mcp.linear.app/sse",
+    );
+  });
+
+  it("filters marketplace tiles by package or endpoint metadata", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    const search = await screen.findByTestId("mcp-search-input");
+    fireEvent.change(search, {
+      target: { value: "github-mcp-server" },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-marketplace-card-github"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-slack"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(search, {
+      target: { value: "mcp.linear.app" },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("mcp-marketplace-card-linear"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-github"),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps installed legacy servers visible even after their marketplace entries are removed", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({

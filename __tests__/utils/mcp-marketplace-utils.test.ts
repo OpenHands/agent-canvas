@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
+  getMarketplaceEntryInstallTarget,
   installedServerMatchesQuery,
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
@@ -90,6 +91,20 @@ describe("isMarketplaceEntryAvailable", () => {
   });
 });
 
+describe("getMarketplaceEntryInstallTarget", () => {
+  it("formats stdio entries as command lines", () => {
+    expect(getMarketplaceEntryInstallTarget(slackEntry)).toBe(
+      "npx -y @zencoderai/slack-mcp-server",
+    );
+  });
+
+  it("formats remote entries as urls", () => {
+    expect(getMarketplaceEntryInstallTarget(linearEntry)).toBe(
+      "https://mcp.linear.app/sse",
+    );
+  });
+});
+
 describe("marketplaceEntryMatchesQuery", () => {
   it("matches by name (case-insensitive)", () => {
     expect(marketplaceEntryMatchesQuery(slackEntry, "slack")).toBe(true);
@@ -102,6 +117,15 @@ describe("marketplaceEntryMatchesQuery", () => {
 
   it("matches by substring of description", () => {
     expect(marketplaceEntryMatchesQuery(tavilyEntry, "web search")).toBe(true);
+  });
+
+  it("matches by install package and endpoint metadata", () => {
+    expect(
+      marketplaceEntryMatchesQuery(slackEntry, "@zencoderai/slack-mcp-server"),
+    ).toBe(true);
+    expect(marketplaceEntryMatchesQuery(linearEntry, "mcp.linear.app")).toBe(
+      true,
+    );
   });
 
   it("returns true for empty/whitespace queries", () => {
