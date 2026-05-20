@@ -148,6 +148,20 @@ describe("ConversationPanel", () => {
     expect(emptyState).toBeInTheDocument();
   });
 
+  it("does not show load more when the visible list is empty even if another page exists", async () => {
+    vi.spyOn(AgentServerConversationService, "searchConversations").mockResolvedValue({
+      items: [],
+      next_page_id: "page-2",
+    });
+
+    renderConversationPanel();
+
+    await screen.findByText("CONVERSATION$NO_CONVERSATIONS");
+    expect(
+      screen.queryByTestId("load-more-conversations"),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not flash the loading skeleton during a background refetch when the list is empty", async () => {
     // Arrange: first call (initial load) resolves with an empty list.
     // Second call (the background refetch) is kept in-flight so we can
@@ -1287,6 +1301,22 @@ describe("ConversationPanel", () => {
       expect(
         within(summary).getByTestId("older-conversations-filter-toggle"),
       ).toBeInTheDocument();
+    });
+
+    it("shows icons on hide and delete-all filter menu actions", async () => {
+      const user = userEvent.setup();
+      renderConversationPanel();
+
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+
+      const hideRow = await screen.findByTestId("toggle-older-conversations");
+      expect(hideRow.querySelector("svg")).toBeInTheDocument();
+      expect(hideRow).toHaveClass("group");
+
+      const deleteAllRow = screen.getByTestId("delete-all-conversations");
+      expect(deleteAllRow.querySelector("svg")).toBeInTheDocument();
+      expect(deleteAllRow).toHaveClass("text-[var(--oh-foreground)]");
+      expect(deleteAllRow).not.toHaveClass("text-danger");
     });
 
     it("toggles older conversations visibility via the filter dropdown", async () => {

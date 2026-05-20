@@ -6,6 +6,23 @@ import { useConversationStore } from "#/stores/conversation-store";
 
 const CONVERSATION_ID = "conv-abc123";
 
+const { mockNavigate, breakpointIsMobile } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  breakpointIsMobile: { value: false },
+}));
+
+vi.mock("react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router")>();
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+vi.mock("#/hooks/use-breakpoint", () => ({
+  useBreakpoint: () => breakpointIsMobile.value,
+}));
+
 vi.mock("#/hooks/use-conversation-id", () => ({
   useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
   useConversationId: () => ({ conversationId: CONVERSATION_ID }),
@@ -14,6 +31,8 @@ vi.mock("#/hooks/use-conversation-id", () => ({
 describe("RightPanelToggle", () => {
   beforeEach(() => {
     localStorage.clear();
+    mockNavigate.mockClear();
+    breakpointIsMobile.value = false;
     useConversationStore.setState({
       selectedTab: "files",
       isRightPanelShown: true,
@@ -37,8 +56,6 @@ describe("RightPanelToggle", () => {
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(false);
 
-    // The drawer's open/closed state is session-only — the toggle must
-    // not write a `rightPanelShown` field into the persisted blob.
     const raw = localStorage.getItem(`conversation-state-${CONVERSATION_ID}`);
     if (raw !== null) {
       expect(JSON.parse(raw)).not.toHaveProperty("rightPanelShown");
@@ -67,7 +84,7 @@ describe("RightPanelToggle", () => {
     }
   });
 
-  it("should have aria-pressed attribute reflecting panel state", () => {
+  it("should have aria-pressed attribute reflecting panel state on desktop", () => {
     const { unmount } = render(<RightPanelToggle />);
     expect(screen.getByTestId("right-panel-toggle")).toHaveAttribute(
       "aria-pressed",
@@ -82,5 +99,26 @@ describe("RightPanelToggle", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("navigates to the full-screen panel route on mobile", async () => {
+    breakpointIsMobile.value = true;
+    const user = userEvent.setup();
+
+    useConversationStore.setState({
+      isRightPanelShown: false,
+      hasRightPanelToggled: false,
+    });
+
+    render(<RightPanelToggle />);
+
+    await user.click(screen.getByTestId("right-panel-toggle"));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      `/conversations/${CONVERSATION_ID}/panel`,
+    );
+    const storeState = useConversationStore.getState();
+    expect(storeState.hasRightPanelToggled).toBe(true);
+    expect(storeState.isRightPanelShown).toBe(true);
   });
 });

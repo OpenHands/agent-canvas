@@ -1,4 +1,12 @@
+import React from "react";
+import { ChevronLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import {
+  mobileTopBarIconButtonClassName,
+  mobileTopBarIconClassName,
+} from "#/utils/mobile-top-bar-icon-button-classes";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
 import { ConversationNameWithStatus } from "../conversation-name-with-status";
@@ -6,11 +14,11 @@ import { ConversationTabs } from "../conversation-tabs/conversation-tabs";
 import { ResizeHandle } from "../../../ui/resize-handle";
 import { useResizablePanels } from "#/hooks/use-resizable-panels";
 import { useConversationStore } from "#/stores/conversation-store";
-import { useBreakpoint } from "#/hooks/use-breakpoint";
-
-function getMobileChatPanelClass(isRightPanelShown: boolean) {
-  return isRightPanelShown ? "h-160" : "flex-1";
-}
+import {
+  useBreakpoint,
+  SIDEBAR_RAIL_COLLAPSE_MAX_WIDTH,
+} from "#/hooks/use-breakpoint";
+import { SidebarMobileMenuToggle } from "#/components/features/sidebar/sidebar-mobile-menu-toggle";
 
 function getDesktopTabPanelClass(isRightPanelShown: boolean) {
   return isRightPanelShown
@@ -20,6 +28,7 @@ function getDesktopTabPanelClass(isRightPanelShown: boolean) {
 
 export function ConversationMain() {
   const isMobile = useBreakpoint();
+  const isSidebarRailHidden = useBreakpoint(SIDEBAR_RAIL_COLLAPSE_MAX_WIDTH);
   const { isRightPanelShown } = useConversationStore();
 
   const { leftWidth, rightWidth, isDragging, containerRef, handleMouseDown } =
@@ -57,9 +66,7 @@ export function ConversationMain() {
         <div
           className={cn(
             "flex flex-col bg-base overflow-hidden",
-            isMobile
-              ? getMobileChatPanelClass(isRightPanelShown)
-              : "transition-all duration-300 ease-in-out",
+            isMobile ? "flex-1" : "transition-all duration-300 ease-in-out",
           )}
           // panel width computed at runtime by resize hook; transition toggled by drag state
           style={
@@ -73,9 +80,15 @@ export function ConversationMain() {
         >
           <div
             data-testid="chat-pane-header"
-            className="flex items-center h-10 min-h-10 shrink-0"
+            className={cn(
+              "flex h-10 min-h-10 shrink-0 items-center",
+              isSidebarRailHidden && "gap-2 pl-2.5",
+            )}
           >
-            <ConversationNameWithStatus />
+            {isSidebarRailHidden ? <SidebarMobileMenuToggle /> : null}
+            <div className="min-w-0 flex-1">
+              <ConversationNameWithStatus />
+            </div>
           </div>
           <div className="flex-1 min-h-0 flex flex-col">
             <ChatInterfaceWrapper
@@ -89,51 +102,95 @@ export function ConversationMain() {
           <ResizeHandle onMouseDown={handleMouseDown} isDragging={isDragging} />
         )}
 
-        {/* Tab Content Panel - always mounted, styled as bottom sheet (mobile)
-            or side panel (desktop). Owns the tabs header and extends all the
-            way to the bottom of the viewport (no bottom padding). */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden",
-            isMobile
-              ? cn(
-                  "absolute bottom-4 left-0 right-0 top-160",
-                  isRightPanelShown
-                    ? "h-160 translate-y-0 opacity-100"
-                    : "h-0 translate-y-full opacity-0",
-                )
-              : getDesktopTabPanelClass(isRightPanelShown),
-          )}
-          // panel width computed at runtime by resize hook; transition toggled by drag state
-          style={
-            !isMobile
-              ? {
-                  width: isRightPanelShown ? `${rightWidth}%` : "0%",
-                  transitionProperty: isDragging ? "opacity, transform" : "all",
-                }
-              : undefined
-          }
-        >
+        {/* Right panel: desktop side drawer. Mobile opens Files/Tools via /panel route. */}
+        {!isMobile && (
           <div
             className={cn(
-              isMobile
-                ? "h-full flex flex-col pb-2 md:pb-0 pt-2"
-                : "flex flex-col h-full w-full",
+              "transition-all duration-300 ease-in-out overflow-hidden",
+              getDesktopTabPanelClass(isRightPanelShown),
             )}
+            style={{
+              width: isRightPanelShown ? `${rightWidth}%` : "0%",
+              transitionProperty: isDragging ? "opacity, transform" : "all",
+            }}
           >
-            <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border-l border-[var(--oh-border)] overflow-hidden">
-              <div
-                data-testid="tabs-pane-header"
-                className="flex shrink-0 flex-col border-b border-[var(--oh-border)]"
-              >
-                <ConversationTabs />
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <ConversationTabContent />
+            <div className="flex h-full w-full flex-col">
+              <div className="flex flex-col flex-1 min-h-0 bg-[var(--oh-surface)] border-l border-[var(--oh-border)] overflow-hidden">
+                <div
+                  data-testid="tabs-pane-header"
+                  className="flex shrink-0 flex-col border-b border-[var(--oh-border)]"
+                >
+                  <ConversationTabs />
+                </div>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <ConversationTabContent />
+                </div>
               </div>
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ConversationMobilePanelPage({
+  onNavigateBack,
+}: {
+  onNavigateBack: () => void;
+}) {
+  const { t } = useTranslation("openhands");
+  const { setIsRightPanelShown, setHasRightPanelToggled, setSelectedTab } =
+    useConversationStore();
+
+  React.useLayoutEffect(() => {
+    setIsRightPanelShown(true);
+    setHasRightPanelToggled(true);
+    const st = useConversationStore.getState();
+    if (!st.selectedTab) {
+      setSelectedTab("files");
+    }
+    return () => {
+      setIsRightPanelShown(false);
+      setHasRightPanelToggled(false);
+    };
+  }, [setIsRightPanelShown, setHasRightPanelToggled, setSelectedTab]);
+
+  const handleBack = () => {
+    onNavigateBack();
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-[var(--oh-surface)]">
+      <div
+        data-testid="conversation-mobile-panel-top"
+        className="flex h-10 min-h-10 shrink-0 items-center gap-1.5 border-b border-[var(--oh-border)] pl-2.5"
+      >
+        <button
+          type="button"
+          data-testid="conversation-mobile-panel-back"
+          onClick={handleBack}
+          aria-label={t(I18nKey.COMMON$BACK)}
+          className={mobileTopBarIconButtonClassName}
+        >
+          <ChevronLeft
+            size={20}
+            className={mobileTopBarIconClassName}
+            aria-hidden
+            strokeWidth={2}
+          />
+        </button>
+        <div className="flex min-h-0 min-w-0 flex-1 items-center self-stretch">
+          <div
+            data-testid="tabs-pane-header"
+            className="flex h-full min-h-0 w-full min-w-0 flex-col justify-center"
+          >
+            <ConversationTabs variant="compact" />
+          </div>
         </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col bg-[var(--oh-surface)]">
+        <ConversationTabContent />
       </div>
     </div>
   );

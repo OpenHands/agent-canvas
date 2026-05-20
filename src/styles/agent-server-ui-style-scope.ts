@@ -33,7 +33,9 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
   "--oh-interactive-hover-low": "var(--cool-grey-900)",
   "--oh-interactive-active": "var(--cool-grey-800)",
   "--oh-interactive-selected": "var(--cool-grey-600)",
-  "--oh-scrollbar": "rgba(208, 217, 250, 0.3)",
+  "--oh-scrollbar": "color-mix(in srgb, var(--cool-grey-400) 30%, transparent)",
+  "--oh-scrollbar-hover":
+    "color-mix(in srgb, var(--cool-grey-400) 50%, transparent)",
   "--oh-default": "var(--cool-grey-800)",
   "--oh-default-foreground": "var(--cool-grey-100)",
   "--oh-accent": "#c9b974",
