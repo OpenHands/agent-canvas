@@ -46,9 +46,12 @@ export const pauseConversation = async (conversationId: string) => {
     return { success: true };
   }
 
+  // In local mode, use /interrupt instead of /pause so in-flight LLM
+  // requests are cancelled immediately rather than waiting for the
+  // current call to finish.
   return new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-  ).pauseConversation(conversationId);
+  ).interruptConversation(conversationId);
 };
 
 /**
