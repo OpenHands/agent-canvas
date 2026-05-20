@@ -160,6 +160,13 @@ jobs:
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
+          # Use production PostHog key only for tagged releases
+          if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
+            echo "vite_app_env=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "vite_app_env=" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "=== Build outputs ==="
           echo "Short SHA: $SHORT_SHA"
           echo "Tags: $TAGS"
@@ -179,6 +186,7 @@ jobs:
             AUTOMATION_VERSION=${{ steps.prep.outputs.automation_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
+            VITE_APP_ENV=${{ steps.prep.outputs.vite_app_env }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
