@@ -379,6 +379,30 @@ is omitted.
     fork-only `rbren-*-picker.tsx` widgets). No MODLOG entries were
     retired in this sync. Marker count unchanged at 18.
 
+- **2026-05-20** — synced upstream `main` at `4f14ce10` ("fix: remove
+  hardcoded /workspace/project fallbacks from useLocalGitInfo (#671)").
+  - Sync commit: this commit (see `git log` for hash)
+  - Conflicts: None
+  - Notes: Pulled in 15 upstream commits (`4f891ca5..4f14ce10`) via
+    `git rebase --empty=drop upstream/main`. Only one of the incoming
+    commits — `39974205` ("Remove Docker dependency from dev workflow
+    (#635)") — touched a fork-local file (`README.md`), and even that
+    one applied cleanly: upstream's README delta (swap
+    `npm run dev:dangerously-dockerless` → `npm run dev`, drop the
+    Docker-sandbox / Kubernetes-pod sections) landed inside the fork's
+    `## Upstream README` mirror section via 3-way merge without
+    touching the fork's header. None of the other 14 commits overlapped
+    with MODLOG territory (`src/hooks/use-app-title.ts`,
+    `src/index.css`, `src/themes/color-themes.ts`,
+    `src/components/shared/buttons/openhands-logo-button.tsx`,
+    `src/components/features/sidebar/sidebar.tsx`, or the two fork-only
+    `rbren-*-picker.tsx` widgets) — upstream's churn this cycle was
+    concentrated in agent-delegation settings (#483), the recommended-
+    automations + MCP-marketplace setup flow (#504), Docker CI / dev-
+    docker tooling (#634/#635/#666), ACP onboarding (#643), and assorted
+    test fixes. No MODLOG entries were retired in this sync. Marker
+    count unchanged at 18.
+
 ## Core Principles
 
 1. **Additive, not invasive.** Prefer adding *new* files, *new* entries, or *new*
