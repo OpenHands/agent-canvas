@@ -17,7 +17,7 @@ interface CustomServerEditorProps {
 }
 
 /**
- * Modal wrapper around `MCPServerForm` so power users can hand-author
+ * Modal wrapper around `MCPServerForm` so users can hand-author
  * arbitrary stdio / SSE / SHTTP entries without reaching for raw JSON.
  * An empty `server.id` means "Add new".
  */
