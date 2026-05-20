@@ -14,10 +14,9 @@ interface UseResolvedWorkspacesResult {
 
 /**
  * Implicit workspace parents that are always considered when resolving
- * workspaces. The `dev:docker` script mounts the host's PROJECTS_PATH at
- * `/projects` inside the agent-server container, so this directory is
- * effectively the user's projects root in the dockerized dev stack. We
- * surface its immediate subdirectories as workspaces automatically.
+ * workspaces. `/projects` is a well-known directory that some agent-server
+ * setups use as the projects root. We surface its immediate subdirectories
+ * as workspaces automatically in dev mode.
  *
  * This is a development convenience only. Production previews may point at
  * arbitrary remote agent servers that do not expose the file-browser endpoint;
@@ -36,7 +35,7 @@ const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
  *   - the immediate subdirectories of every saved "workspace parent",
  *     fetched dynamically, and
  *   - the immediate subdirectories of any implicit, built-in parents
- *     (currently just `/projects`, the dockerized dev mount point).
+ *     (currently just `/projects`).
  *
  * Static workspaces always take precedence over a dynamic child with the
  * same path so that user-selected names/ids are preserved.

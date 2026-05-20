@@ -55,11 +55,20 @@ export interface DirectConversationInfo {
   workspace?: {
     working_dir?: string | null;
   } | null;
+  /**
+   * Arbitrary string-keyed conversation tags surfaced by the agent-server
+   * (see ``ConversationInfo.tags``). Canvas only consumes one key today —
+   * ``ACP_SERVER_TAG_KEY`` ("acpserver") — but the field is typed as a
+   * generic record so future readers don't need another wire-shape change.
+   * Keys are constrained to ``^[a-z0-9]+$`` by the agent-server validator;
+   * values are opaque strings.
+   */
+  tags?: Record<string, string> | null;
 }
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
 // tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
-// (see scripts/dev-docker.mjs and scripts/dev-safe.mjs).
+// (see scripts/dev-safe.mjs).
 const CANVAS_UI_TOOL_NAME = "canvas_ui";
 const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
 
@@ -199,9 +208,9 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
 
   // Anchor the "don't guess" warning to the actual agent-server URL for
   // this stack instead of a hardcoded port. The agent-server listens on
-  // different ports across dev modes (18000 in dev:safe, 8000 in
-  // dev:docker, ...), and baking the wrong port into the system prompt
-  // is exactly the kind of confusion this block is meant to prevent.
+  // different ports across dev modes, and baking the wrong port into the
+  // system prompt is exactly the kind of confusion this block is meant to
+  // prevent.
   const agentServerUrl = agent_server?.url_from_agent;
   lines.push(
     "",
@@ -246,6 +255,11 @@ export function toAppConversation(
   // keeps its own model. Null at the boundary so no consumer has to
   // re-derive the rule. Mirrors OpenHands PR #14401.
   const isAcp = info.agent?.kind === "ACPAgent";
+  // Only surface ``acp_server`` for ACP conversations even if the wire
+  // payload accidentally carries an ``acpserver`` tag on an OpenHands
+  // conversation — the chip is identity info for the ACP CLI subprocess,
+  // and showing it on a non-ACP conversation would be a lie.
+  const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
   return {
     id: info.id,
     created_by_user_id: null,
@@ -259,6 +273,7 @@ export function toAppConversation(
     trigger: null,
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
+    acp_server: acpServer,
     llm_model: isAcp
       ? null
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
@@ -415,7 +430,7 @@ function getConversationSecurityAnalyzer(conversationSettings: SettingsRecord) {
   }
 }
 
-function getAgentTools() {
+function getAgentTools(agentSettings: SettingsRecord) {
   const tools = DEFAULT_TOOL_NAMES.map((name) => ({ name, params: {} }));
   if (
     browserToolsEnabled() &&
@@ -423,12 +438,16 @@ function getAgentTools() {
   ) {
     tools.push({ name: BROWSER_TOOL_SET_NAME, params: {} });
   }
-  // Enables sub-agent delegation. The agent server's tool_router preloads
-  // `task_tool_set` and registers the built-in subagents (code-explorer,
-  // bash-runner, web-researcher, general-purpose), so exposing the tool here
-  // is all the client needs to do. Older servers that don't advertise it in
-  // /api/server_info's `usable_tools` are skipped via the capability probe.
-  if (isAgentServerToolAvailable(TASK_TOOL_SET_NAME)) {
+  // Sub-agent delegation: only expose `task_tool_set` when the user has
+  // opted in via Settings > Agent. The agent server's tool_router preloads
+  // the tool and registers the built-in subagents (code-explorer,
+  // bash-runner, web-researcher, general-purpose) when it's requested.
+  // Older servers that don't advertise the tool in /api/server_info's
+  // `usable_tools` are skipped via the capability probe.
+  if (
+    agentSettings.enable_sub_agents === true &&
+    isAgentServerToolAvailable(TASK_TOOL_SET_NAME)
+  ) {
     tools.push({ name: TASK_TOOL_SET_NAME, params: {} });
   }
   return tools;
@@ -543,7 +562,7 @@ function buildConfiguredAgentSettings(settings: Settings): SettingsRecord {
   return {
     ...agentSettings,
     llm,
-    tools: getAgentTools(),
+    tools: getAgentTools(agentSettings),
     include_default_tools: includeDefaultTools,
   };
 }

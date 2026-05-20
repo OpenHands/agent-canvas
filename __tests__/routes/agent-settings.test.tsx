@@ -39,7 +39,7 @@ describe("AgentSettingsScreen", () => {
     vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
   });
 
-  it("renders the agent type selector defaulting to OpenHands", async () => {
+  it("renders the agent type selector defaulting to OpenHands with sub-agents toggle", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -52,8 +52,103 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("agent-settings-screen");
     expect(screen.getByTestId("agent-type-selector")).toBeInTheDocument();
+    // Sub-agents toggle visible on the OpenHands branch.
+    expect(
+      screen.getByTestId("agent-settings-enable-sub-agents"),
+    ).toBeInTheDocument();
     // ACP-only fields stay hidden on the OpenHands branch.
     expect(screen.queryByTestId("agent-command-input")).not.toBeInTheDocument();
+  });
+
+  it("labels the save button 'Save Changes' for consistency with other settings pages", async () => {
+    // Arrange — render with any valid settings; the label is independent
+    // of the form's state.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+        },
+      }),
+    );
+
+    // Act
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    // Assert — t() is stubbed to return the key, so the rendered text is
+    // the translation key. SETTINGS$SAVE_CHANGES = "Save Changes" in
+    // public/locales/en/openhands.json; BUTTON$SAVE = "Save" (the bug).
+    expect(screen.getByTestId("agent-save-button")).toHaveTextContent(
+      "SETTINGS$SAVE_CHANGES",
+    );
+  });
+
+  it("saves enable_sub_agents when toggling on the OpenHands path", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+          enable_sub_agents: false,
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    // Toggle sub-agents on via the enclosing label
+    const toggle = screen.getByTestId("agent-settings-enable-sub-agents");
+    const label = toggle.closest("label")!;
+    await user.click(label);
+
+    await user.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff).toEqual({
+      agent_kind: "openhands",
+      enable_sub_agents: true,
+    });
+  });
+
+  it("hides sub-agents toggle when ACP is selected", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+        },
+      }),
+    );
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    // Sub-agents toggle should be visible initially
+    expect(
+      screen.getByTestId("agent-settings-enable-sub-agents"),
+    ).toBeInTheDocument();
+
+    // Switch to ACP
+    await user.click(screen.getByTestId("agent-type-selector"));
+    await user.click(
+      await screen.findByRole("option", { name: "SETTINGS$AGENT_TYPE_ACP" }),
+    );
+
+    // Sub-agents toggle should be hidden, ACP fields should appear
+    expect(
+      screen.queryByTestId("agent-settings-enable-sub-agents"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-command-input")).toBeInTheDocument();
   });
 
   it("shows the ACP form when the active agent_kind is acp", async () => {
@@ -165,7 +260,10 @@ describe("AgentSettingsScreen", () => {
     const call = save.mock.calls[0]?.[0] as {
       agent_settings_diff?: Record<string, unknown>;
     };
-    expect(call.agent_settings_diff).toEqual({ agent_kind: "openhands" });
+    expect(call.agent_settings_diff).toEqual({
+      agent_kind: "openhands",
+      enable_sub_agents: false,
+    });
   });
 
   it("disables Save when the user has cleared the command on the ACP path", async () => {

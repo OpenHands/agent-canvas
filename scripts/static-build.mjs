@@ -24,6 +24,11 @@ export function buildFrontend(config, args = {}) {
     }
     logStep("build", "Skipping frontend build (--skip-build)");
     logService("build", `Reusing existing build/ at ${buildDir}`, c.dim);
+    logService(
+      "build",
+      "Source edits will NOT appear until you run without --skip-build (or `npm run build`).",
+      c.yellow,
+    );
     return;
   }
 
@@ -41,7 +46,7 @@ export function buildFrontend(config, args = {}) {
     env: {
       ...process.env,
       // Bake the same default workspace path that the dynamic launcher passes
-      // to Vite. Docker uses an in-container path; dockerless uses host state.
+      // to Vite.
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       // Bake the automation backend API key so the static frontend can talk

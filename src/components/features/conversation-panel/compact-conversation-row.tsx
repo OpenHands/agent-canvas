@@ -22,6 +22,8 @@ interface CompactConversationRowProps {
   showRepositoryMetadata?: boolean;
   llmModel?: string | null;
   showLlmProfiles?: boolean;
+  agentKind?: "openhands" | "acp" | null;
+  acpServer?: string | null;
 }
 
 /**
@@ -43,6 +45,8 @@ export function CompactConversationRow({
   showRepositoryMetadata = true,
   llmModel = null,
   showLlmProfiles = false,
+  agentKind = null,
+  acpServer = null,
 }: CompactConversationRowProps) {
   const disableAnimation = import.meta.env.MODE === "test";
 
@@ -67,6 +71,8 @@ export function CompactConversationRow({
         showRepositoryMetadata={showRepositoryMetadata}
         llmModel={llmModel}
         showLlmModel={showLlmProfiles}
+        agentKind={agentKind}
+        acpServer={acpServer}
       />
     </div>
   );

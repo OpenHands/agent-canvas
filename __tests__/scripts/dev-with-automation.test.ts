@@ -8,13 +8,14 @@
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  buildAgentServerAutomationEnv,
   buildAutomationCommand,
   buildConfig,
   DEFAULT_AUTOMATION_REPO,
@@ -112,6 +113,16 @@ describe("buildAutomationCommand", () => {
     expect(cmd.args).toContain(`git+${DEFAULT_AUTOMATION_REPO}@main`);
     expect(cmd.args).not.toContain(`${DEFAULT_AUTOMATION_PACKAGE}==1.0.0`);
     expect(cmd.source).toBe("git (main)");
+  });
+});
+
+describe("buildAgentServerAutomationEnv", () => {
+  it("exposes the local automation API key under the name agents use in curl commands", () => {
+    expect(
+      buildAgentServerAutomationEnv({ localApiKey: "automation-local-key" }),
+    ).toEqual({
+      OPENHANDS_AUTOMATION_API_KEY: "automation-local-key",
+    });
   });
 });
 
@@ -314,7 +325,7 @@ describe("buildConfig", () => {
     expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("reuses the persisted session API key across calls (parity for dev:docker and dev:dangerously-dockerless restarts)", async () => {
+  it("reuses the persisted session API key across calls (stable across restarts)", async () => {
     const env = envWithIsolatedKeyPath();
     const first = await buildConfig({}, env);
 
@@ -439,9 +450,88 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--static");
     expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
+    expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
     expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
     expect(output).toContain("SECRETS:");
+  });
+
+  it("fails fast with a clear error when OH_AGENT_SERVER_LOCAL_PATH is invalid", async () => {
+    // Arrange: an absolute but empty directory — `validateLocalAgentServerPath`
+    // requires the four workspace subdirs (openhands-agent-server, openhands-sdk,
+    // openhands-tools, openhands-workspace) and must reject this.
+    const emptyDir = mkdtempSync(path.join(tmpdir(), "bad-sdk-"));
+
+    // Stub a no-op `uvx` on PATH so `checkPrerequisites` passes even on CI
+    // runners that don't have uv installed. The prerequisite check must
+    // succeed so the LOCAL_PATH validation guard (the actual subject of this
+    // test, which runs immediately after) is exercised.
+    const isWindows = process.platform === "win32";
+    const stubBinDir = mkdtempSync(path.join(tmpdir(), "stub-bin-"));
+    if (isWindows) {
+      writeFileSync(path.join(stubBinDir, "uvx.cmd"), "@exit /b 0\r\n");
+    } else {
+      writeFileSync(path.join(stubBinDir, "uvx"), "#!/bin/sh\nexit 0\n", {
+        mode: 0o755,
+      });
+    }
+
+    // Act: spawn `dev-with-automation.mjs` with that path set. Stubbed `uvx`
+    // is prepended to PATH so the prerequisite check passes; the validation
+    // guard must trip *after* those checks but *before* port allocation, so
+    // we can assert on both the error message and the absence of side effects.
+    const child = spawn(process.execPath, ["scripts/dev-with-automation.mjs"], {
+      cwd: repoRoot,
+      env: {
+        PATH: `${stubBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        HOME: process.env.HOME ?? "",
+        OH_AGENT_SERVER_LOCAL_PATH: emptyDir,
+        // Windows needs these for `where.exe` to resolve the stub and npm
+        ...(isWindows
+          ? {
+              PATHEXT: process.env.PATHEXT ?? ".CMD;.EXE;.BAT;.COM",
+              SystemRoot: process.env.SystemRoot ?? "",
+              USERPROFILE: process.env.USERPROFILE ?? "",
+            }
+          : {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+
+    const exitResult = await Promise.race([
+      once(child, "exit").then(([code, signal]) => ({
+        code,
+        signal,
+        timedOut: false,
+      })),
+      delay(10_000).then(() => ({ code: null, signal: null, timedOut: true })),
+    ]);
+
+    if (exitResult.timedOut) {
+      child.kill("SIGKILL");
+    }
+
+    try {
+      // Assert: process exits non-zero, surfaces the validator's error, and
+      // never reaches `buildConfig` (no `[ports] Allocating ports...` log).
+      expect(exitResult.timedOut).toBe(false);
+      expect(exitResult.code).toBe(1);
+      expect(output).toContain(
+        "OH_AGENT_SERVER_LOCAL_PATH is missing expected workspace package",
+      );
+      expect(output).not.toContain("Allocating ports");
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+      rmSync(stubBinDir, { recursive: true, force: true });
+    }
   });
 
   it("exits promptly when uvx is missing", async () => {

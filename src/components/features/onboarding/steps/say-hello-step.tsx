@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Send } from "lucide-react";
+import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useNavigation } from "#/context/navigation-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
@@ -32,12 +33,14 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
   } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isLaunching = isPending || isSuccess || isCreatingElsewhere;
+  const launchInFlightRef = React.useRef(false);
 
-  const canSubmit = message.trim().length > 0 && !isLaunching;
+  const canSubmit =
+    message.trim().length > 0 && !isLaunching && !launchInFlightRef.current;
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSubmit) return;
+  const launchConversation = () => {
+    if (!canSubmit || launchInFlightRef.current) return;
+    launchInFlightRef.current = true;
 
     // Explicitly omit `repository` and `workingDir` so the
     // conversation starts with no workspace, per the spec.
@@ -48,14 +51,21 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
           onLaunched();
           navigate(`/conversations/${data.conversation_id}`);
         },
+        onError: () => {
+          launchInFlightRef.current = false;
+        },
       },
     );
   };
 
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    launchConversation();
+  };
+
   return (
-    <form
+    <div
       data-testid="onboarding-step-say-hello"
-      onSubmit={handleSubmit}
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
@@ -67,18 +77,24 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         </p>
       </header>
 
-      <input
-        data-testid="onboarding-hello-input"
-        aria-label={t(I18nKey.ONBOARDING$HELLO_TITLE)}
-        type="text"
-        value={message}
-        onChange={(event) => setMessage(event.target.value)}
-        placeholder={defaultMessage}
-        disabled={isLaunching}
-        className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
-      />
+      <form onSubmit={handleSubmit} className="contents">
+        <input
+          data-testid="onboarding-hello-input"
+          aria-label={t(I18nKey.ONBOARDING$HELLO_TITLE)}
+          type="text"
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          placeholder={defaultMessage}
+          disabled={isLaunching}
+          className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
+        />
+      </form>
 
-      <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
+      <div data-testid="onboarding-recommended-automations">
+        <RecommendedAutomationsLauncher onLaunched={onLaunched} />
+      </div>
+
+      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-hello-back"
           type="button"
@@ -90,9 +106,10 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         </BrandButton>
         <BrandButton
           testId="onboarding-hello-launch"
-          type="submit"
+          type="button"
           variant="primary"
           isDisabled={!canSubmit}
+          onClick={launchConversation}
           startContent={<Send className="size-4" aria-hidden />}
         >
           {isLaunching
@@ -100,6 +117,6 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
             : t(I18nKey.ONBOARDING$HELLO_LAUNCH)}
         </BrandButton>
       </div>
-    </form>
+    </div>
   );
 }

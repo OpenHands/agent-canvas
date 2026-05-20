@@ -66,6 +66,7 @@ describe("buildStartConversationRequest", () => {
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
           agent: "CodeActAgent",
+          enable_sub_agents: true,
           llm: {
             model: "nested-model",
             api_key: "  nested-key  ",
@@ -182,7 +183,7 @@ describe("buildStartConversationRequest", () => {
     ]);
   });
 
-  it("includes task_tool_set when the server advertises it but not browser tools", () => {
+  it("includes task_tool_set when sub-agents are enabled and the server advertises it but not browser tools", () => {
     mockIsAgentServerToolAvailable.mockImplementation(
       (toolName: string) => toolName === "task_tool_set",
     );
@@ -192,6 +193,7 @@ describe("buildStartConversationRequest", () => {
         ...DEFAULT_SETTINGS,
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: true,
           llm: { model: "nested-model" },
         },
       },
@@ -208,6 +210,26 @@ describe("buildStartConversationRequest", () => {
       { name: "canvas_ui", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
+  });
+
+  it("omits task_tool_set when sub-agents are disabled even if the server advertises it", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: false,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        tools: Array<{ name: string; params: Record<string, unknown> }>;
+      };
+    };
+
+    const toolNames = payload.agent.tools.map((t) => t.name);
+    expect(toolNames).not.toContain("task_tool_set");
   });
 
   it("derives confirmation and security settings the same way as OpenHands", () => {
@@ -545,6 +567,48 @@ describe("toAppConversation", () => {
     expect(result.agent_kind).toBe("acp");
     expect(result.llm_model).toBeNull();
   });
+
+  it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
+    // The ``acpserver`` conversation tag is stamped at create time
+    // (``buildStartConversationRequest``) but never previously plumbed
+    // through on read — the sidebar chip in agent-canvas#405 needs this
+    // value to resolve the human display name ("Claude Code" / "Codex" /
+    // "Gemini CLI").
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.acp_server).toBe("claude-code");
+  });
+
+  it("leaves acp_server null when an ACP conversation has no tag stamped", () => {
+    // Older conversations created before the tag was added, or ACP
+    // conversations created via the raw API, won't have the tag. The
+    // sidebar should still render a chip ("ACP") — but the resolver gets
+    // null here and the UI fallback handles the generic label.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.acp_server).toBeNull();
+  });
+
+  it("ignores tags.acpserver on OpenHands conversations to prevent stray-tag bleed", () => {
+    // The agent-server's pydantic model doesn't enforce that ``acpserver``
+    // is only stamped on ACP conversations. Defensively gating on
+    // ``agent.kind === "ACPAgent"`` keeps a misconfigured tag from
+    // turning the sidebar of an OpenHands conversation into "Claude
+    // Code". Pairs with the ``llm_model`` null-out for ACP.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "Agent", llm: { model: "claude-sonnet-4-6" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.agent_kind).toBe("openhands");
+    expect(result.acp_server).toBeNull();
+  });
 });
 
 describe("buildRuntimeServicesSystemSuffix", () => {
@@ -570,20 +634,20 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
-        agent_host_alias: "host.docker.internal",
+        mode: "dev:automation",
+        agent_host_alias: "localhost",
         services: {
           agent_server: {
             description: "self",
-            url_from_agent: "http://localhost:8000",
+            url_from_agent: "http://localhost:18000",
           },
           automation: {
             description: "automations",
-            url_from_agent: "http://host.docker.internal:18001",
+            url_from_agent: "http://localhost:18001",
             api_prefix: "/api/automation",
-            docs_url: "http://host.docker.internal:18001/api/automation/docs",
+            docs_url: "http://localhost:18001/api/automation/docs",
             openapi_url:
-              "http://host.docker.internal:18001/api/automation/openapi.json",
+              "http://localhost:18001/api/automation/openapi.json",
             auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
           },
         },
@@ -592,19 +656,19 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     const suffix = buildRuntimeServicesSystemSuffix();
     expect(suffix).toBeDefined();
     expect(suffix).toContain("<RUNTIME_SERVICES>");
-    expect(suffix).toContain("dev:docker");
-    expect(suffix).toContain("http://localhost:8000");
-    expect(suffix).toContain("http://host.docker.internal:18001");
+    expect(suffix).toContain("dev:automation");
+    expect(suffix).toContain("http://localhost:18000");
+    expect(suffix).toContain("http://localhost:18001");
     expect(suffix).toContain(
-      "http://host.docker.internal:18001/api/automation/docs",
+      "http://localhost:18001/api/automation/docs",
     );
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
-    // for this stack, not a hardcoded :8000. We pinned :8000 here but the
-    // assertion specifically anchors on the URL we supplied.
+    // for this stack, not a hardcoded port. The assertion anchors on the URL
+    // we supplied above.
     expect(suffix).toContain(
-      "In particular, http://localhost:8000 inside your sandbox is the Agent Server",
+      "In particular, http://localhost:18000 inside your sandbox is the Agent Server",
     );
   });
 
@@ -634,19 +698,19 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
+        mode: "dev:static",
         services: {
-          agent_server: { url_from_agent: "http://localhost:8000" },
+          agent_server: { url_from_agent: "http://localhost:18000" },
           frontend: {
             kind: "static",
             description: "Static-file server hosting the agent-canvas build.",
-            url_from_agent: "http://host.docker.internal:3001",
+            url_from_agent: "http://localhost:3001",
           },
         },
       }),
     );
     const suffix = buildRuntimeServicesSystemSuffix();
-    expect(suffix).toContain("* Frontend: http://host.docker.internal:3001");
+    expect(suffix).toContain("* Frontend: http://localhost:3001");
     expect(suffix).toContain("Static-file server");
     // Should NOT mislabel a static-build frontend as "Vite frontend".
     expect(suffix).not.toContain("Vite frontend");
@@ -710,11 +774,11 @@ describe("createAgentFromSettings runtime services suffix", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",
       JSON.stringify({
-        mode: "dev:docker",
+        mode: "dev:automation",
         services: {
-          agent_server: { url_from_agent: "http://localhost:8000" },
+          agent_server: { url_from_agent: "http://localhost:18000" },
           automation: {
-            url_from_agent: "http://host.docker.internal:18001",
+            url_from_agent: "http://localhost:18001",
           },
         },
       }),

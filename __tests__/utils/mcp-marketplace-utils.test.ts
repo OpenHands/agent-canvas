@@ -6,7 +6,7 @@ import {
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import { MCP_MARKETPLACE } from "#/constants/mcp-marketplace";
+import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
 
 const slackEntry = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
 const tavilyEntry = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
@@ -21,7 +21,7 @@ describe("findInstalledMatch", () => {
         type: "stdio",
         name: "slack",
         command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-slack"],
+        args: ["-y", "@zencoderai/slack-mcp-server"],
       },
     ]);
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
@@ -122,7 +122,7 @@ describe("installedServerMatchesQuery", () => {
     type: "stdio" as const,
     name: "slack",
     command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-slack"],
+    args: ["-y", "@zencoderai/slack-mcp-server"],
   };
 
   it("matches by stdio server name", () => {

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { seedLocalStorage } from "./support/seed-local-storage";
 
-test("captures Docker /projects workspace browser state", async ({ page }) => {
+test("captures /projects workspace browser state", async ({ page }) => {
   test.setTimeout(60_000);
 
   await seedLocalStorage(page, {
@@ -45,7 +45,7 @@ test("captures Docker /projects workspace browser state", async ({ page }) => {
   await expect(page.getByTestId("folder-browser-entry-demo-app")).toBeVisible();
 
   await page.mouse.move(5, 5);
-  await expect(modal).toHaveScreenshot("docker-projects-workspace-browser.png");
+  await expect(modal).toHaveScreenshot("projects-workspace-browser.png");
 
   await page.getByTestId("folder-browser-entry-demo-app").click();
   await expect(page.getByTestId("folder-browser-current-path")).toHaveText(

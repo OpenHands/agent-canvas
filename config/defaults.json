@@ -1,0 +1,38 @@
+{
+  "_comment": "Single source of truth for version pins, ports, paths, and defaults shared across the npm and Docker install paths. Read by scripts/dev-safe.mjs, scripts/dev-with-automation.mjs, docker/entrypoint.sh (via generated defaults.env), and .github/workflows/docker.yml.",
+
+  "versions": {
+    "agentServer": "1.22.1",
+    "automation": "1.0.0a3",
+    "automationSdk": "1.22.1"
+  },
+
+  "images": {
+    "agentServer": "ghcr.io/openhands/agent-server",
+    "agentCanvas": "ghcr.io/openhands/agent-canvas"
+  },
+
+  "ports": {
+    "agentServer": 18000,
+    "automation": 18001,
+    "proxy": 8000
+  },
+
+  "paths": {
+    "stateSubdir": "agent-canvas",
+    "conversations": "agent-canvas/conversations",
+    "bashEvents": "agent-canvas/bash_events",
+    "automationDb": "automation/automations.db"
+  },
+
+  "packages": {
+    "agentServer": "openhands-agent-server",
+    "automation": "openhands-automation",
+    "tools": "openhands-tools",
+    "workspace": "openhands-workspace"
+  },
+
+  "defaults": {
+    "secretKey": "openhands-dev-secret-key-change-in-prod"
+  }
+}
