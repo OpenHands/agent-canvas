@@ -45,8 +45,8 @@
     "lucide-react": "1.14.0",
     "monaco-editor": "0.55.1",
     "posthog-js": "1.372.6",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "react-hot-toast": "2.6.0",
     "react-i18next": "17.0.6",
     "react-icons": "5.6.0",
@@ -218,8 +218,8 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "react-router": "7.14.2"
   }
 }
