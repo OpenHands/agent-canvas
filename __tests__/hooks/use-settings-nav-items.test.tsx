@@ -60,7 +60,7 @@ describe("useSettingsNavItems", () => {
     });
   });
 
-  it("renames the LLM settings item to LLM profiles on local backends", () => {
+  it("returns the LLM settings item unchanged on local backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
     const { result } = renderHook(() => useSettingsNavItems());
@@ -68,16 +68,12 @@ describe("useSettingsNavItems", () => {
       (item) => item.type === "item" && item.item.to === "/settings/llm",
     );
 
-    // ``OSS_NAV_ITEMS[0]`` is the Agent settings entry now; look up the
-    // LLM entry by path rather than index.
-    const baseLlm = OSS_NAV_ITEMS.find((item) => item.to === "/settings")!;
+    const baseLlm = OSS_NAV_ITEMS.find(
+      (item) => item.to === "/settings/llm",
+    )!;
     expect(llmItem).toEqual({
       type: "item",
-      item: {
-        ...baseLlm,
-        text: "SETTINGS$LLM_PROFILES",
-        subtitle: "SETTINGS$PAGE_LLM_PROFILES_SUBLINE",
-      },
+      item: baseLlm,
     });
   });
 
@@ -138,7 +134,7 @@ describe("useSettingsNavItems", () => {
         ),
     );
 
-    const llm = byPath.get("/settings");
+    const llm = byPath.get("/settings/llm");
     expect(llm?.type).toBe("item");
     if (llm?.type === "item") {
       expect(llm.disabled).toBe(true);
@@ -172,7 +168,7 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
     const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings",
+      (r) => r.type === "item" && r.item.to === "/settings/llm",
     );
     if (llm?.type === "item") {
       expect(llm.disabledAgentName).toBe("ACP Agent");
