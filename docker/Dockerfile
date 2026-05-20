@@ -35,7 +35,8 @@ RUN npm ci
 # Copy everything needed for the build
 COPY . .
 
-# Build the static frontend
+# Build the static frontend (production telemetry keys, matching build:lib)
+ENV VITE_APP_ENV=production
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
