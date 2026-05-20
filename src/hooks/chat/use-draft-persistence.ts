@@ -47,6 +47,11 @@ export const useDraftPersistence = (
   const currentConversationIdRef = useRef(conversationId);
   // Track if this is the first mount to handle initial cleanup
   const isFirstMountRef = useRef(true);
+  // Tracks the latest home-page text so the unmount flush can use it safely.
+  // chatInputRef.current is null by the time async useEffect cleanup runs in
+  // React 18 (refs are cleared during the synchronous commit phase, before
+  // passive effects fire), so we can't read from the DOM there.
+  const lastHomeTextRef = useRef<string>("");
 
   // IMPORTANT: This effect must run FIRST when conversation changes.
   // It handles three concerns:
@@ -135,6 +140,9 @@ export const useDraftPersistence = (
           range.collapse(false);
           selection?.removeAllRanges();
           selection?.addRange(range);
+          // Seed lastHomeTextRef so an unmount flush without any typing still
+          // preserves the restored text rather than clearing sessionStorage.
+          lastHomeTextRef.current = draft;
         }
       } catch {
         // sessionStorage not available
@@ -172,11 +180,12 @@ export const useDraftPersistence = (
     }
 
     if (!conversationId) {
-      // Home page: save to sessionStorage
-      saveTimeoutRef.current = setTimeout(() => {
-        const element = chatInputRef.current;
-        if (!element) return;
+      // Home page: write to sessionStorage synchronously so there is no
+      // debounce window in which navigation can discard the latest text.
+      const element = chatInputRef.current;
+      if (element) {
         const text = getTextContent(element).trim();
+        lastHomeTextRef.current = text;
         try {
           if (text) {
             sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
@@ -186,7 +195,7 @@ export const useDraftPersistence = (
         } catch {
           // sessionStorage not available
         }
-      }, DRAFT_SAVE_DEBOUNCE_MS);
+      }
       return;
     }
 
@@ -233,27 +242,25 @@ export const useDraftPersistence = (
   }, [conversationId, setDraftMessage]);
 
   // Cleanup on unmount: cancel any pending debounce timer and, for the home
-  // page (no conversationId), flush the current input text to sessionStorage
-  // immediately so text typed within the debounce window isn't lost on
-  // navigation.
+  // page, flush the last-tracked text to sessionStorage. We read from
+  // lastHomeTextRef rather than chatInputRef because React clears ref.current
+  // during the synchronous commit phase — before async useEffect cleanups run
+  // — so the DOM ref is null by the time this function executes.
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
       if (!currentConversationIdRef.current) {
-        const element = chatInputRef.current;
-        if (element) {
-          const text = getTextContent(element).trim();
-          try {
-            if (text) {
-              sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
-            } else {
-              sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
-            }
-          } catch {
-            // sessionStorage not available
+        const text = lastHomeTextRef.current;
+        try {
+          if (text) {
+            sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+          } else {
+            sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
           }
+        } catch {
+          // sessionStorage not available
         }
       }
     },
