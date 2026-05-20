@@ -8,6 +8,7 @@ import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { setPendingTaskAttachments } from "#/stores/pending-task-attachments-store";
 import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
@@ -67,7 +68,7 @@ export function HomeChatLauncher() {
     // creates a conversation with no working dir and no repo. Build the
     // payload from whatever is selected.
     let variables: Parameters<typeof createConversation>[0] = {
-      query: hasAttachments ? undefined : trimmed,
+      query: trimmed || undefined,
     };
     if (isLocal && pendingWorkspace) {
       variables = { ...variables, workingDir: pendingWorkspace.path };
@@ -94,27 +95,44 @@ export function HomeChatLauncher() {
         toast.dismiss(toastId);
 
         if (hasAttachments) {
-          try {
-            const sent = await sendMessageWithAttachments({
-              conversationId: data.conversation_id,
+          const isProvisioningTask = data.conversation_id.startsWith("task-");
+
+          if (isProvisioningTask) {
+            if (!data.task_id) {
+              displayErrorToast(null);
+              return;
+            }
+
+            setPendingTaskAttachments(data.task_id, {
               content: trimmed,
               images: attachmentSnapshot.images,
               files: attachmentSnapshot.files,
-              imagesMarkedUploadAsFile,
-              t,
-            });
-            enqueuePendingMessage({
-              conversationId: data.conversation_id,
-              text: sent.text,
-              content: sent.content,
-              imageUrls: sent.imageUrls,
-              fileUrls: sent.fileUrls,
-              timestamp: sent.timestamp,
+              imagesMarkedUploadAsFile: [...imagesMarkedUploadAsFile],
             });
             clearAllFiles();
-          } catch (error) {
-            displayErrorToast(error instanceof Error ? error.message : null);
-            return;
+          } else {
+            try {
+              const sent = await sendMessageWithAttachments({
+                conversationId: data.conversation_id,
+                content: trimmed,
+                images: attachmentSnapshot.images,
+                files: attachmentSnapshot.files,
+                imagesMarkedUploadAsFile,
+                t,
+              });
+              enqueuePendingMessage({
+                conversationId: data.conversation_id,
+                text: sent.text,
+                content: sent.content,
+                imageUrls: sent.imageUrls,
+                fileUrls: sent.fileUrls,
+                timestamp: sent.timestamp,
+              });
+              clearAllFiles();
+            } catch (error) {
+              displayErrorToast(error instanceof Error ? error.message : null);
+              return;
+            }
           }
         }
 
