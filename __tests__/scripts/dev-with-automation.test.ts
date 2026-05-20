@@ -8,7 +8,7 @@
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -462,14 +462,23 @@ describe("dev-with-automation CLI", () => {
     // openhands-tools, openhands-workspace) and must reject this.
     const emptyDir = mkdtempSync(path.join(tmpdir(), "bad-sdk-"));
 
-    // Act: spawn `dev-with-automation.mjs` with that path set. Inherit PATH so
-    // `uvx`/`npm` prerequisite checks pass — the validation guard must trip
-    // *after* those checks but *before* port allocation, so we can assert on
-    // both the error message and the absence of side effects.
+    // Stub a no-op `uvx` on PATH so `checkPrerequisites` passes even on CI
+    // runners that don't have uv installed. The prerequisite check must
+    // succeed so the LOCAL_PATH validation guard (the actual subject of this
+    // test, which runs immediately after) is exercised.
+    const stubBinDir = mkdtempSync(path.join(tmpdir(), "stub-bin-"));
+    writeFileSync(path.join(stubBinDir, "uvx"), "#!/bin/sh\nexit 0\n", {
+      mode: 0o755,
+    });
+
+    // Act: spawn `dev-with-automation.mjs` with that path set. Stubbed `uvx`
+    // is prepended to PATH so the prerequisite check passes; the validation
+    // guard must trip *after* those checks but *before* port allocation, so
+    // we can assert on both the error message and the absence of side effects.
     const child = spawn(process.execPath, ["scripts/dev-with-automation.mjs"], {
       cwd: repoRoot,
       env: {
-        PATH: process.env.PATH ?? "",
+        PATH: `${stubBinDir}:${process.env.PATH ?? ""}`,
         HOME: process.env.HOME ?? "",
         OH_AGENT_SERVER_LOCAL_PATH: emptyDir,
       },
@@ -508,6 +517,7 @@ describe("dev-with-automation CLI", () => {
       expect(output).not.toContain("Allocating ports");
     } finally {
       rmSync(emptyDir, { recursive: true, force: true });
+      rmSync(stubBinDir, { recursive: true, force: true });
     }
   });
 
