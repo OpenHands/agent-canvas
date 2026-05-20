@@ -13,7 +13,8 @@
 #   PORT                 – Unified entry point port (default: 8000)
 #   AGENT_SERVER_PORT    – Internal agent-server port (default: 18000)
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
-#   OH_SECRET_KEY        – Secret key for settings encryption
+#   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
+#                          and persisted if not provided)
 #   OPENHANDS_AUTOMATION_API_KEY – API key for automation backend auth
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -33,25 +34,35 @@ PORT="${PORT:-${CONFIG_PROXY_PORT:-8000}}"
 AGENT_SERVER_PORT="${AGENT_SERVER_PORT:-${CONFIG_AGENT_SERVER_PORT:-18000}}"
 AUTOMATION_PORT="${AUTOMATION_PORT:-${CONFIG_AUTOMATION_PORT:-18001}}"
 
-# OH_SECRET_KEY is required for settings/secrets encryption. Without it the
-# agent-server refuses to return encrypted secrets → conversation creation
-# fails with a 503.
-export OH_SECRET_KEY="${OH_SECRET_KEY:-${CONFIG_SECRET_KEY:-openhands-dev-secret-key-change-in-prod}}"
-
-if [ "$OH_SECRET_KEY" = "openhands-dev-secret-key-change-in-prod" ]; then
-  log "⚠️  WARNING: Using insecure default OH_SECRET_KEY. Set OH_SECRET_KEY env var for production use."
-fi
-
 # Persistence paths — keep settings, conversations, bash history under a
 # single well-known directory that the VOLUME directive exposes.
 OPENHANDS_DIR="${HOME}/.openhands"
+STATE_DIR="${OPENHANDS_DIR}/${CONFIG_STATE_SUBDIR:-agent-canvas}"
 export OH_PERSISTENCE_DIR="${OH_PERSISTENCE_DIR:-${OPENHANDS_DIR}}"
 export OH_CONVERSATIONS_PATH="${OH_CONVERSATIONS_PATH:-${OPENHANDS_DIR}/${CONFIG_CONVERSATIONS:-agent-canvas/conversations}}"
 export OH_BASH_EVENTS_DIR="${OH_BASH_EVENTS_DIR:-${OPENHANDS_DIR}/${CONFIG_BASH_EVENTS:-agent-canvas/bash_events}}"
 
+# OH_SECRET_KEY is required for settings/secrets encryption. Without it the
+# agent-server refuses to return encrypted secrets → conversation creation
+# fails with a 503.  Auto-generate and persist (just like the session API key)
+# so the image never runs with a known default.
+SECRET_KEY_FILE="${STATE_DIR}/secret-key.txt"
+if [ -z "${OH_SECRET_KEY:-}" ]; then
+  if [ -f "$SECRET_KEY_FILE" ]; then
+    OH_SECRET_KEY="$(cat "$SECRET_KEY_FILE")"
+  else
+    OH_SECRET_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    mkdir -p "$(dirname "$SECRET_KEY_FILE")"
+    printf '%s' "$OH_SECRET_KEY" > "$SECRET_KEY_FILE"
+    chmod 600 "$SECRET_KEY_FILE"
+    log "Generated OH_SECRET_KEY (persisted to $SECRET_KEY_FILE)"
+  fi
+fi
+export OH_SECRET_KEY
+
 # Session API key — generate one if not provided so the image doesn't run
 # wide-open by default. Persisted so restarts reuse the same key.
-SESSION_KEY_FILE="${OPENHANDS_DIR}/${CONFIG_STATE_SUBDIR:-agent-canvas}/session-api-key.txt"
+SESSION_KEY_FILE="${STATE_DIR}/session-api-key.txt"
 if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
   if [ -f "$SESSION_KEY_FILE" ]; then
     SESSION_API_KEY="$(cat "$SESSION_KEY_FILE")"

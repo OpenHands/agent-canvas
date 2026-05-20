@@ -78,10 +78,8 @@ const conversations: MockConversation[] = [
   {
     id: PAGINATION_LOCAL_CONVERSATION_ID,
     title: "Local pagination fixture",
-    created_at: new Date(PAGINATION_BASE_TIME).toISOString(),
-    updated_at: new Date(
-      PAGINATION_BASE_TIME + PAGINATION_EVENT_COUNT * 60_000,
-    ).toISOString(),
+    created_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
     execution_status: "idle",
     workspace: { working_dir: "/workspace/project" },
   },
@@ -160,10 +158,8 @@ async function maybeReturnPaginationEvents(
 }
 
 function createCloudPaginationConversation(): AppConversation {
-  const createdAt = new Date(PAGINATION_BASE_TIME).toISOString();
-  const updatedAt = new Date(
-    PAGINATION_BASE_TIME + PAGINATION_EVENT_COUNT * 60_000,
-  ).toISOString();
+  const createdAt = new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString();
+  const updatedAt = createdAt;
 
   return {
     id: PAGINATION_CLOUD_CONVERSATION_ID,
