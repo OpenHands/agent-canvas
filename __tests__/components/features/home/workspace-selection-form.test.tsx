@@ -106,10 +106,9 @@ describe("WorkspaceSelectionForm", () => {
     mockUseIsCreatingConversation.mockReturnValue(false);
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
     useWorkspacesStore.setState({ workspaces: [], workspaceParents: [] });
-    // `useResolvedWorkspaces` always queries an implicit `/projects` parent
-    // in dev mode. Default it to empty so tests that don't care about it
-    // don't hit a real network call. Tests that need specific behavior can
-    // replace this with their own spy.
+    // `useResolvedWorkspaces` only queries implicit `/projects` in dev mode
+    // after the user has saved at least one workspace parent. Default empty
+    // so most tests do not hit the network.
     mockSearchSubdirectories.mockResolvedValue({
       items: [],
       next_page_id: null,
@@ -263,7 +262,7 @@ describe("WorkspaceSelectionForm", () => {
       return { items: [], next_page_id: null };
     });
 
-    renderForm();
+    renderForm([], [{ id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" }]);
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("workspace-dropdown"));
@@ -472,7 +471,7 @@ describe("WorkspaceSelectionForm", () => {
 
   it("Removing a workspace parent stops listing its children", async () => {
     // Scope the mock to the user-added parent so the implicit `/projects`
-    // parent (always queried by `useResolvedWorkspaces`) doesn't also get
+    // parent (queried once a workspace parent exists) doesn't also get
     // these entries.
     const searchSpy = mockSearchSubdirectories;
 

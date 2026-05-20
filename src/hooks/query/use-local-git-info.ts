@@ -4,6 +4,7 @@ import AgentServerRuntimeService, {
   CommandResult,
 } from "#/api/runtime-service/agent-server-runtime-service";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { Provider } from "#/types/settings";
@@ -103,9 +104,23 @@ export const useLocalGitInfo = () => {
   const sessionApiKey = conversation?.session_api_key;
   const workingDir =
     conversation?.workspace?.working_dir?.trim() || getAgentServerWorkingDir();
+  const attachedWorkspace =
+    conversationId != null
+      ? getStoredConversationMetadata(conversationId)?.selected_workspace?.trim()
+      : null;
   const hasConversationRepo = !!conversation?.selected_repository;
   const hasConversationProvider = !!conversation?.git_provider;
   const hasConversationBranch = !!conversation?.selected_branch;
+  const hasAttachedSource =
+    hasConversationRepo || !!attachedWorkspace;
+  const hasAnyRepoMetadata =
+    hasConversationRepo || hasConversationProvider || hasConversationBranch;
+  const needsLocalProbe =
+    hasAttachedSource || hasAnyRepoMetadata;
+  const hasIncompleteRepoMetadata =
+    !hasConversationRepo ||
+    !hasConversationProvider ||
+    !hasConversationBranch;
 
   return useQuery<LocalGitInfo>({
     queryKey: [
@@ -114,6 +129,7 @@ export const useLocalGitInfo = () => {
       conversationUrl,
       sessionApiKey,
       workingDir,
+      attachedWorkspace,
     ],
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
@@ -125,7 +141,11 @@ export const useLocalGitInfo = () => {
           timeout,
         );
       const candidateDirs = Array.from(
-        new Set([workingDir, "/workspace/project", "workspace/project"]),
+        new Set(
+          [attachedWorkspace, workingDir].filter(
+            (dir): dir is string => !!dir,
+          ),
+        ),
       );
 
       for (const candidateDir of candidateDirs) {
@@ -143,9 +163,8 @@ export const useLocalGitInfo = () => {
     enabled:
       runtimeIsReady &&
       !!conversationId &&
-      (!hasConversationRepo ||
-        !hasConversationProvider ||
-        !hasConversationBranch),
+      needsLocalProbe &&
+      hasIncompleteRepoMetadata,
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
     // changes (e.g. `git checkout`, adding a remote) without requiring a
