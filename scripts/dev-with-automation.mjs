@@ -29,6 +29,11 @@
  * Environment variables:
  *   - PORT: Ingress port (default: 8000)
  *   - OH_AUTOMATION_GIT_REF: Git ref for automation (default: main)
+ *   - OH_AGENT_SERVER_LOCAL_PATH: Absolute path to a local software-agent-sdk
+ *     checkout. Highest precedence for agent-server source selection: rebuilds
+ *     the agent-server from local source and installs openhands-sdk,
+ *     openhands-tools and openhands-workspace as editable so source edits are
+ *     picked up without manual reinstall.
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
  *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
  *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
@@ -39,7 +44,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -56,6 +61,7 @@ import {
   findFreePorts,
   getOrCreatePersistedApiKey,
   validateFrontendDependencies,
+  validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
 import {
   createShutdownHookRegistry,
@@ -67,16 +73,19 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
+// ── Centralized config (single source of truth for versions, ports, etc.) ───
+const SHARED_DEFAULTS = JSON.parse(
+  readFileSync(join(projectRoot, "config", "defaults.json"), "utf-8"),
+);
+
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
-const DEFAULT_AUTOMATION_PACKAGE = "openhands-automation";
-// Default automation version (released PyPI version)
-// Set OH_AUTOMATION_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AUTOMATION_VERSION = "1.0.0a3";
+const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
+const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
-// DEFAULT_AGENT_SERVER_VERSION while automation releases catch up.
-const DEFAULT_AUTOMATION_SDK_VERSION = "1.22.1";
-const DEFAULT_BACKEND_PORT = 18000;
-const DEFAULT_AUTOMATION_PORT = 18001;
+// the agent-server version while automation releases catch up.
+const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
+const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
+const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
 // Where the auto-generated default automation API key is persisted. Static
 // frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
 // must remain stable across restarts and --skip-build reuse.
@@ -200,6 +209,7 @@ ENVIRONMENT VARIABLES:
   PORT                        Alternative to --port
   OH_AUTOMATION_GIT_REF       Git ref for automation (overrides default version)
   OH_AUTOMATION_VERSION       Specific PyPI version for automation (default: ${DEFAULT_AUTOMATION_VERSION})
+  OH_AGENT_SERVER_LOCAL_PATH  Absolute path to a local software-agent-sdk checkout (highest precedence)
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
@@ -962,6 +972,19 @@ async function main(options = {}) {
     checkFrontendDependencies:
       !useStaticMode || typeof buildStaticFrontend === "function",
   });
+
+  // Fail fast on an obviously bad OH_AGENT_SERVER_LOCAL_PATH so we don't waste
+  // time allocating ports / generating keys / launching uvx with a path that
+  // would only produce a cryptic build error. Mirrors dev-safe.mjs and
+  // dev-extra-backend.mjs.
+  if (process.env.OH_AGENT_SERVER_LOCAL_PATH) {
+    try {
+      validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
+    } catch (error) {
+      logError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
 
   // Build config with dynamic port allocation
   const config = await buildConfig(args);
