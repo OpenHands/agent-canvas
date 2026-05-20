@@ -79,6 +79,11 @@ fi
 # AGENT_SERVER_URL — needed by automation sandbox callbacks.
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
+# Make custom tools (e.g. canvas_ui_tool.py) importable by the agent-server
+# via tool_module_qualnames. Matches what scripts/dev-safe.mjs does with
+# OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
+export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
+
 # Track child PIDs so we can clean up on exit.
 PIDS=()
 

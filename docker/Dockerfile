@@ -95,6 +95,10 @@ COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
 
+# Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
+# them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.
+COPY tools/ /opt/agent-canvas/tools/
+
 # Copy generated defaults.env (from config/defaults.json via config-gen stage)
 COPY --from=config-gen /tmp/defaults.env /opt/agent-canvas/defaults.env
 
