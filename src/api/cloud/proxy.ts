@@ -51,7 +51,12 @@ function buildUpstreamAuthHeaders(
   const mode = req.authMode ?? "bearer";
   if (mode === "bearer") return buildAuthHeaders(req.backend);
   if (mode === "session-api-key") {
-    return req.sessionApiKey ? { "X-Session-API-Key": req.sessionApiKey } : {};
+    if (!req.sessionApiKey) {
+      throw new Error(
+        "callCloudProxy: sessionApiKey is required when authMode is 'session-api-key'",
+      );
+    }
+    return { "X-Session-API-Key": req.sessionApiKey };
   }
   return {};
 }
@@ -89,7 +94,7 @@ export async function callCloudProxy<TResponse = unknown>(
   const response = await axios.request<TResponse>({
     method: req.method as Method,
     url,
-    data: req.body ?? null,
+    data: req.body,
     headers: upstreamHeaders,
     timeout: timeoutMs,
     ...(req.responseType ? { responseType: req.responseType } : {}),

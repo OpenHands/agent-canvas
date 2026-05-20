@@ -94,6 +94,65 @@ describe("callCloudProxy", () => {
     ).not.toHaveProperty("X-Org-Id");
   });
 
+  it("throws fast when authMode is 'session-api-key' but sessionApiKey is missing", async () => {
+    // Arrange — guard against silently sending an unauthenticated request
+    // that would 401 upstream.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({ backendId: cloudPersonal.id });
+
+    // Act + Assert
+    await expect(
+      callCloudProxy({
+        backend: cloudPersonal,
+        method: "GET",
+        path: "/api/conversations/c1",
+        authMode: "session-api-key",
+        sessionApiKey: null,
+      }),
+    ).rejects.toThrow(/sessionApiKey is required/);
+    expect(axios.request).not.toHaveBeenCalled();
+  });
+
+  it("omits the Authorization header when authMode is 'none'", async () => {
+    // Arrange — used for public endpoints that must not carry the
+    // backend's bearer token.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({ backendId: cloudPersonal.id });
+
+    // Act
+    await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      path: "/api/public/whoami",
+      authMode: "none",
+    });
+
+    // Assert
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const headers = (config as { headers: Record<string, string> }).headers;
+    expect(headers).not.toHaveProperty("Authorization");
+    expect(headers).not.toHaveProperty("X-Session-API-Key");
+  });
+
+  it("passes responseType: 'blob' through to axios for binary downloads", async () => {
+    // Arrange — ZIP / file downloads need the blob responseType so axios
+    // doesn't try to JSON-parse the payload.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({ backendId: cloudPersonal.id });
+
+    // Act
+    await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      path: "/api/v1/conversation/c1/files/download",
+      responseType: "blob",
+    });
+
+    // Assert
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({ responseType: "blob" });
+  });
+
   it("targets hostOverride with X-Session-API-Key for runtime-sandbox calls", async () => {
     // Arrange — cloud sandbox endpoints live at the conversation's
     // runtime URL and authenticate via X-Session-API-Key, not bearer.

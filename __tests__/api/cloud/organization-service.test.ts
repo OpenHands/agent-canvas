@@ -1,6 +1,7 @@
 import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getCloudOrganizationMe,
   getCloudOrganizations,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
@@ -83,6 +84,27 @@ describe("cloud organization-service direct calls", () => {
     const result = await getCurrentCloudApiKey(cloudBackend);
 
     expect(result).toEqual({ orgId: null, isLegacyKey: true });
+  });
+
+  it("getCloudOrganizationMe hits /api/organizations/{orgId}/me directly and returns the user id", async () => {
+    // Arrange — the GUI calls /me to learn whether orgId is the user's
+    // personal workspace (cloud contract: personal-workspace org id ===
+    // user id).
+    const orgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
+    vi.mocked(axios.request).mockResolvedValue({
+      data: { org_id: orgId, user_id: orgId, email: "u@example.com" },
+    });
+
+    // Act
+    const result = await getCloudOrganizationMe(orgId, cloudBackend);
+
+    // Assert — direct GET, encoded org id in the path.
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      method: "GET",
+      url: `${cloudBackend.host}/api/organizations/${orgId}/me`,
+    });
+    expect(result).toEqual({ orgId, userId: orgId });
   });
 
   it("getCurrentCloudApiKey rethrows non-400 upstream errors (e.g. revoked key)", async () => {
