@@ -7,6 +7,7 @@ import {
   Server,
   Settings,
 } from "lucide-react";
+import { SiSlack } from "react-icons/si";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
 import { SidebarNavLink } from "./sidebar-nav-link";
 import { getErrorStatus, useSettings } from "#/hooks/query/use-settings";
@@ -23,6 +24,7 @@ import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { OPENHANDS_SLACK_INVITE_URL } from "#/utils/constants";
 import AutomationsIcon from "#/icons/automations.svg?react";
 
 // The LLM settings modal is only mounted when the settings query 404s and
@@ -147,6 +149,7 @@ export function Sidebar() {
     currentPath.startsWith("/skills") ||
     currentPath === "/plugins" ||
     currentPath === "/mcp";
+  const joinSlackLabel = t(I18nKey.SIDEBAR$JOIN_SLACK);
 
   return (
     <SidebarCollapseContext.Provider value={collapsed}>
@@ -327,6 +330,16 @@ export function Sidebar() {
 
         {collapsed && (
           <div className="hidden md:flex md:flex-col md:items-center mt-auto gap-2 pb-2 cursor-pointer">
+            <a
+              href={OPENHANDS_SLACK_INVITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="collapsed-join-slack-link"
+              aria-label={joinSlackLabel}
+              className="inline-flex items-center justify-center w-10 h-10 p-0 mx-auto rounded-md transition-colors text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]"
+            >
+              <SiSlack width={16} height={16} aria-hidden />
+            </a>
             <button
               type="button"
               data-testid="collapsed-settings-link"
@@ -420,7 +433,23 @@ export function Sidebar() {
             visual separator above it. Hidden in collapsed mode because the
             control needs full-width space. */}
         {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2">
+          <div className="hidden md:flex md:flex-col md:items-stretch pt-2 border-t border-[var(--oh-border)] md:-mx-2 md:px-2 gap-1">
+            <a
+              href={OPENHANDS_SLACK_INVITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="sidebar-join-slack-link"
+              className={cn(
+                "flex items-center gap-2 rounded-md transition-colors",
+                "text-sm leading-5 truncate px-2 py-2 w-full",
+                "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+              )}
+            >
+              <span className="shrink-0 flex items-center justify-center">
+                <SiSlack width={ICON_SIZE} height={ICON_SIZE} aria-hidden />
+              </span>
+              <span className="truncate">{joinSlackLabel}</span>
+            </a>
             <BackendSelector openUpward />
           </div>
         )}

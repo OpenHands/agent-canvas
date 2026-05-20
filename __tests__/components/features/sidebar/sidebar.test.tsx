@@ -7,6 +7,7 @@ import {
   type NavigationContextValue,
 } from "#/context/navigation-context";
 import translations from "#/i18n/translation.json";
+import { OPENHANDS_SLACK_INVITE_URL } from "#/utils/constants";
 
 // The global `useTranslation` mock in `vitest.setup.ts` returns the key
 // as-is. Override it here so `t(...)` resolves keys via the source-of-truth
@@ -394,6 +395,26 @@ describe("Sidebar", () => {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
     }
+  });
+
+  it("renders a Join Slack link in the expanded sidebar footer", () => {
+    renderSidebar("/conversations");
+
+    const link = screen.getByTestId("sidebar-join-slack-link");
+    expect(link).toHaveAttribute("href", OPENHANDS_SLACK_INVITE_URL);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveTextContent("Join Slack");
+  });
+
+  it("renders a Join Slack icon link when the sidebar is collapsed", () => {
+    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    renderSidebar("/conversations");
+
+    const link = screen.getByTestId("collapsed-join-slack-link");
+    expect(link).toHaveAttribute("href", OPENHANDS_SLACK_INVITE_URL);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("aria-label", "Join Slack");
   });
 
   it("renders the renamed top-level nav labels", () => {
