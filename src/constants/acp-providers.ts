@@ -1,5 +1,14 @@
 import { I18nKey } from "#/i18n/declaration";
 
+export type ACPProviderIcon =
+  | "openhands"
+  | "claude-code"
+  | "codex"
+  | "gemini"
+  | "cli-generic";
+
+export const ACP_PROVIDER_FALLBACK_ICON: ACPProviderIcon = "cli-generic";
+
 /**
  * Built-in ACP (Agent Client Protocol) provider registry.
  *
@@ -41,6 +50,12 @@ export interface ACPProviderConfig {
    * list separately).
    */
   description_key: I18nKey;
+  /**
+   * Serializable icon key used by UI surfaces that render provider
+   * choices. Kept as a string so the SDK mirror check can continue to
+   * parse this registry without importing React components.
+   */
+  icon?: ACPProviderIcon;
 }
 
 // Each entry's ``default_command`` is the published-package npx
@@ -57,6 +72,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
+    icon: "claude-code",
   },
   {
     key: "codex",
@@ -67,6 +83,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // subcommand on that package).
     default_command: ["npx", "-y", "@zed-industries/codex-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
+    icon: "codex",
   },
   {
     key: "gemini-cli",
@@ -76,6 +93,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // into ACP server mode on stdio.
     default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
     description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
+    icon: "gemini",
   },
 ];
 

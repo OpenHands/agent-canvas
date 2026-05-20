@@ -1,13 +1,16 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AgentOptionIcon,
   ChooseAgentStep,
   type OnboardingAgentId,
 } from "#/components/features/onboarding/steps/choose-agent-step";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { ACP_PROVIDERS } from "#/constants/acp-providers";
+import { I18nKey } from "#/i18n/declaration";
 
 function renderStep(initial: OnboardingAgentId = "openhands") {
   const onSelect = vi.fn();
@@ -60,6 +63,51 @@ describe("ChooseAgentStep", () => {
     expect(
       screen.queryByTestId("onboarding-agent-badge-codex"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the registry-selected Gemini icon on the Gemini CLI tile", () => {
+    renderStep();
+
+    const gemini = screen.getByTestId("onboarding-agent-option-gemini-cli");
+
+    expect(
+      within(gemini).getByTestId("onboarding-agent-icon-gemini"),
+    ).toBeInTheDocument();
+    expect(
+      within(gemini).queryByTestId("onboarding-agent-icon-codex"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic CLI icon for a registry provider without an icon", () => {
+    ACP_PROVIDERS.push({
+      key: "future-cli",
+      display_name: "Future CLI",
+      default_command: ["future-cli", "--acp"],
+      description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
+    });
+
+    try {
+      renderStep();
+
+      const future = screen.getByTestId("onboarding-agent-option-future-cli");
+
+      expect(
+        within(future).getByTestId("onboarding-agent-icon-cli-generic"),
+      ).toBeInTheDocument();
+      expect(
+        within(future).queryByTestId("onboarding-agent-icon-codex"),
+      ).not.toBeInTheDocument();
+    } finally {
+      ACP_PROVIDERS.pop();
+    }
+  });
+
+  it("falls back to the generic CLI icon for an unknown provider key", () => {
+    render(<AgentOptionIcon id="unknown-cli" muted={false} />);
+
+    expect(
+      screen.getByTestId("onboarding-agent-icon-cli-generic"),
+    ).toBeInTheDocument();
   });
 
   it("propagates click selections through onSelect for every option", async () => {
