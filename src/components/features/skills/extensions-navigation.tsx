@@ -4,6 +4,7 @@ import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { useSettings } from "#/hooks/query/use-settings";
 import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import { cn } from "#/utils/utils";
+import SkillsIcon from "#/icons/skills.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 import { I18nKey } from "#/i18n/declaration";
@@ -28,26 +29,7 @@ const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
   {
     to: "/skills",
     label: "Skills",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 19.13 24.62"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        width={16}
-        height={16}
-        aria-hidden="true"
-      >
-        <path d="M.86,7.26l5.74,3.3,11.68-6.6" />
-        <path d="M6.6,17.15v-6.6" />
-        <path d="M1.32,14.34l4.62,2.64c.41.24.91.24,1.32,0l10.56-5.94" />
-        <path d="M.66,20c0,.47.25.91.66,1.14l4.62,2.64c.41.24.91.24,1.32,0l10.56-5.94c.41-.24.66-.67.66-1.14V4.62c0-.47-.25-.91-.66-1.14L13.2.84c-.41-.24-.91-.24-1.32,0L1.32,6.78c-.41.24-.66.67-.66,1.14v12.08Z" />
-        <path d="M.86,14.06l5.74,3.3,11.68-6.6" />
-        <path d="M6.6,23.96v-6.6" />
-      </svg>
-    ),
+    icon: <SkillsIcon width={16} height={16} aria-hidden="true" />,
     end: true,
   },
   {

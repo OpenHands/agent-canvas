@@ -16,6 +16,7 @@ import {
 } from "../event-content-helpers/create-skill-ready-event";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
 import { SkillReadyContentList } from "./skill-ready-content-list";
+import SkillsIcon from "#/icons/skills.svg?react";
 
 interface GenericEventMessageWrapperProps {
   event: OpenHandsEvent | SkillReadyEvent;
@@ -50,8 +51,9 @@ export function GenericEventMessageWrapper({
   }
 
   // For Skill Ready events with items, render expandable skill list
+  const isSkillReady = isSkillReadyEvent(event);
   const skillReadyDetails =
-    isSkillReadyEvent(event) && event._skillReadyItems.length > 0 ? (
+    isSkillReady && event._skillReadyItems.length > 0 ? (
       <SkillReadyContentList items={event._skillReadyItems} />
     ) : (
       details
@@ -64,6 +66,11 @@ export function GenericEventMessageWrapper({
         details={skillReadyDetails}
         success={success}
         initiallyExpanded={false}
+        titleIcon={
+          isSkillReady ? (
+            <SkillsIcon className="h-4 w-4 stroke-[var(--oh-muted)] flex-shrink-0 mr-2" />
+          ) : undefined
+        }
       />
       {isLastMessage && <ConversationConfirmationButtons />}
     </div>
