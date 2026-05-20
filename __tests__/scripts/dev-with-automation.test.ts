@@ -450,9 +450,65 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--static");
     expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
+    expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
     expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
     expect(output).toContain("SECRETS:");
+  });
+
+  it("fails fast with a clear error when OH_AGENT_SERVER_LOCAL_PATH is invalid", async () => {
+    // Arrange: an absolute but empty directory — `validateLocalAgentServerPath`
+    // requires the four workspace subdirs (openhands-agent-server, openhands-sdk,
+    // openhands-tools, openhands-workspace) and must reject this.
+    const emptyDir = mkdtempSync(path.join(tmpdir(), "bad-sdk-"));
+
+    // Act: spawn `dev-with-automation.mjs` with that path set. Inherit PATH so
+    // `uvx`/`npm` prerequisite checks pass — the validation guard must trip
+    // *after* those checks but *before* port allocation, so we can assert on
+    // both the error message and the absence of side effects.
+    const child = spawn(process.execPath, ["scripts/dev-with-automation.mjs"], {
+      cwd: repoRoot,
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        OH_AGENT_SERVER_LOCAL_PATH: emptyDir,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+
+    const exitResult = await Promise.race([
+      once(child, "exit").then(([code, signal]) => ({
+        code,
+        signal,
+        timedOut: false,
+      })),
+      delay(10_000).then(() => ({ code: null, signal: null, timedOut: true })),
+    ]);
+
+    if (exitResult.timedOut) {
+      child.kill("SIGKILL");
+    }
+
+    try {
+      // Assert: process exits non-zero, surfaces the validator's error, and
+      // never reaches `buildConfig` (no `[ports] Allocating ports...` log).
+      expect(exitResult.timedOut).toBe(false);
+      expect(exitResult.code).toBe(1);
+      expect(output).toContain(
+        "OH_AGENT_SERVER_LOCAL_PATH is missing expected workspace package",
+      );
+      expect(output).not.toContain("Allocating ports");
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
   });
 
   it("exits promptly when uvx is missing", async () => {
