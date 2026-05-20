@@ -128,7 +128,12 @@ function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
   const llm = isRecord(value.llm)
     ? { model: stringOrNull(value.llm.model) }
     : null;
-  return { llm };
+  // ``kind`` is the SDK's pydantic discriminator (``"Agent"`` vs ``"ACPAgent"``);
+  // ``toAppConversation`` reads it to derive ``agent_kind`` and to gate the
+  // ACP-server chip + ``llm_model`` null-out. Preserving it here makes the
+  // wire path agree with the unit-test path that builds ``DirectConversationInfo``
+  // directly (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
+  return { kind: stringOrNull(value.kind), llm };
 }
 
 function normalizeWorkspace(
@@ -136,6 +141,27 @@ function normalizeWorkspace(
 ): DirectConversationInfo["workspace"] {
   if (!isRecord(value)) return null;
   return { working_dir: stringOrNull(value.working_dir) };
+}
+
+/**
+ * Accept the agent-server's ``tags: Record[str, str]`` payload defensively:
+ * the wire shape is guaranteed by the server-side validator (keys
+ * ``^[a-z0-9]+$``, string values), but a non-conforming response (older
+ * server, raw API write, future schema drift) must never crash the parser
+ * — Canvas only consumes ``acpserver`` and falls back to a generic chip
+ * for anything it doesn't recognize. Drop entries whose value isn't a
+ * plain string; return ``null`` when the wire field is absent or not an
+ * object so consumers can use ``info.tags?.[KEY] ?? null`` uniformly.
+ */
+function normalizeTags(value: unknown): Record<string, string> | null {
+  if (!isRecord(value)) return null;
+  const tags: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string") {
+      tags[key] = entry;
+    }
+  }
+  return tags;
 }
 
 function normalizeAbsolutePath(path: string): string | null {
@@ -187,6 +213,7 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     metrics: normalizeMetrics(item.metrics),
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
+    tags: normalizeTags(item.tags),
   };
 }
 
