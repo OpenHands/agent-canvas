@@ -8,6 +8,7 @@ import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
+import { useBreakpoint } from "#/hooks/use-breakpoint";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import {
@@ -56,6 +57,7 @@ function SettingsScreen() {
   const location = useLocation();
   const matches = useMatches();
   const navItems = useSettingsNavItems();
+  const isMobile = useBreakpoint(768);
 
   const { currentSectionTitle, currentSectionSubtitle } = useMemo(() => {
     const currentRenderedItem = navItems.find(
@@ -82,7 +84,8 @@ function SettingsScreen() {
 
   const routeHandle = matches.find((m) => m.pathname === location.pathname)
     ?.handle as { hideTitle?: boolean } | undefined;
-  const shouldHideTitle = routeHandle?.hideTitle === true;
+  const isMobileHub = isMobile && location.pathname === "/settings";
+  const shouldHideTitle = routeHandle?.hideTitle === true || isMobileHub;
 
   return (
     <main data-testid="settings-screen" className="min-h-0">

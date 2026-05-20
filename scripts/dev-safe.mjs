@@ -27,7 +27,10 @@ import {
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_DEFAULTS = JSON.parse(
-  readFileSync(path.join(__dev_safe_dirname, "..", "config", "defaults.json"), "utf-8"),
+  readFileSync(
+    path.join(__dev_safe_dirname, "..", "config", "defaults.json"),
+    "utf-8",
+  ),
 );
 
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;

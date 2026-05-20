@@ -21,6 +21,9 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { useSidebarCollapsed } from "#/components/features/sidebar/sidebar-collapse-context";
+import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
@@ -163,6 +166,18 @@ export function BackendSelector({
   const activeValue = makeOptionValue(active.backend.id, active.orgId);
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
+  const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
+  const sidebarCollapsed = useSidebarCollapsed();
+  const isRightPanelShown = useConversationStore(
+    (state) => state.isRightPanelShown,
+  );
+  // When the sidebar rail is expanded, `placement="left"` hugs the main
+  // canvas and reads awkwardly; prefer above the control. When the rail is
+  // collapsed, keep left except on active conversation + open right drawer.
+  const settingsTooltipPlacement =
+    !sidebarCollapsed || (conversationMatch && isRightPanelShown)
+      ? "top"
+      : "left";
 
   const someCloudLoading = Object.values(cloudOrgs).some((c) => c.isLoading);
 
@@ -220,7 +235,7 @@ export function BackendSelector({
   );
 
   const addBackendFooter = (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col">
       <button
         type="button"
         data-testid="add-backend-menu-item"
@@ -304,24 +319,31 @@ export function BackendSelector({
             placeholder={active.backend.name}
             loading={someCloudLoading}
             options={options}
-            className="bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
+            italicPlaceholder={false}
+            className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
           />
         </div>
         {!hideTrigger ? (
-          <button
-            type="button"
-            data-testid="backend-selector-settings-link"
-            data-active={isSettingsActive}
-            aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
-            onClick={() => navigate("/settings")}
-            className={
-              isSettingsActive
-                ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
-                : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
-            }
+          <StyledTooltip
+            content={settingsLabel}
+            placement={settingsTooltipPlacement}
+            offset={10}
           >
-            <Settings width={16} height={16} />
-          </button>
+            <button
+              type="button"
+              data-testid="backend-selector-settings-link"
+              data-active={isSettingsActive}
+              aria-label={settingsLabel}
+              onClick={() => navigate("/settings")}
+              className={
+                isSettingsActive
+                  ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
+                  : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
+              }
+            >
+              <Settings width={16} height={16} />
+            </button>
+          </StyledTooltip>
         ) : null}
       </div>
       {addBackendModalOpen ? (

@@ -218,12 +218,16 @@ let shuttingDown = false;
 let activeWebhookServer = null;
 
 function spawnService(name, command, args, options = {}) {
-  const proc = spawn(command, args, getProcessTreeSpawnOptions({
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, ...options.env },
-    cwd: options.cwd,
-    shell: process.platform === "win32",
-  }));
+  const proc = spawn(
+    command,
+    args,
+    getProcessTreeSpawnOptions({
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...options.env },
+      cwd: options.cwd,
+      shell: process.platform === "win32",
+    }),
+  );
 
   const color = options.color || c.reset;
 

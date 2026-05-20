@@ -66,6 +66,17 @@ describe("NewConversationButton", () => {
     useWorkspacesStore.getState().clearAll();
   });
 
+  it("shows a divider above the workspace footer actions", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NewConversationButton />);
+
+    await user.click(screen.getByTestId("new-conversation-button"));
+
+    expect(
+      screen.getByTestId("new-conversation-menu-footer-divider"),
+    ).toBeInTheDocument();
+  });
+
   it("toggles the popover and dismisses it on outside click", async () => {
     const user = userEvent.setup();
     renderWithProviders(<NewConversationButton />);

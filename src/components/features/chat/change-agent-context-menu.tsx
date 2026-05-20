@@ -7,11 +7,6 @@ import { ContextMenu } from "#/ui/context-menu";
 import { ContextMenuListItem } from "../context-menu/context-menu-list-item";
 import { ContextMenuIconTextWithDescription } from "../context-menu/context-menu-icon-text-with-description";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
-import { cn } from "#/utils/utils";
-
-const contextMenuListItemClassName = cn(
-  "cursor-pointer p-0 h-auto hover:bg-transparent",
-);
 
 interface ChangeAgentContextMenuProps {
   onClose: () => void;
@@ -49,22 +44,14 @@ export function ChangeAgentContextMenu({
       alignment="left"
       className="min-h-fit mb-2 min-w-[195px] max-w-[195px] gap-0"
     >
-      <ContextMenuListItem
-        testId="code-option"
-        onClick={handleCodeClick}
-        className={contextMenuListItemClassName}
-      >
+      <ContextMenuListItem testId="code-option" onClick={handleCodeClick}>
         <ContextMenuIconTextWithDescription
           icon={CodeTagIcon}
           title={t(I18nKey.COMMON$CODE)}
           description={t(I18nKey.COMMON$CODE_AGENT_DESCRIPTION)}
         />
       </ContextMenuListItem>
-      <ContextMenuListItem
-        testId="plan-option"
-        onClick={handlePlanClick}
-        className={contextMenuListItemClassName}
-      >
+      <ContextMenuListItem testId="plan-option" onClick={handlePlanClick}>
         <ContextMenuIconTextWithDescription
           icon={LessonPlanIcon}
           title={t(I18nKey.COMMON$PLAN)}

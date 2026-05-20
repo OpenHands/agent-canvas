@@ -10,7 +10,7 @@ import { stubWebSocket } from "./support/stub-websocket";
  *   5. "Errored Project"   — sandbox_status: "ERROR"
  *
  * Snapshots:
- *   1. conversation-panel-with-archived-badges — sidebar badges for MISSING/ERROR
+ *   1. conversation-panel-with-archived-badges — archive icon + ERROR pill for MISSING/ERROR
  *   2. conversation-view-archived — chat interface for conv 4 with the
  *      read-only "Sandbox no longer available" banner (no chat input)
  *   3. conversation-view-sandbox-error — same for conv 5, "Sandbox error" variant
@@ -46,7 +46,7 @@ test.describe("Archived Conversation Visual Snapshots", () => {
 
   // ── 1. Sidebar panel ───────────────────────────────────────────────────
 
-  test("conversation panel shows archived and error badges for MISSING/ERROR sandboxes", async ({
+  test("conversation panel shows archive icon and error badge for MISSING/ERROR sandboxes", async ({
     page,
   }) => {
     await seedLocalStorage(page);
@@ -60,7 +60,7 @@ test.describe("Archived Conversation Visual Snapshots", () => {
     await expect(page.getByTestId("conversation-card")).toHaveCount(6, {
       timeout: 10_000,
     });
-    await expect(page.getByTestId("archived-badge")).toBeVisible({
+    await expect(page.getByTestId("conversation-status-archived")).toBeVisible({
       timeout: 5_000,
     });
     await expect(page.getByTestId("error-badge")).toBeVisible({
