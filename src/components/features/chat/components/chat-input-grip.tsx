@@ -20,11 +20,11 @@ export function ChatInputGrip({
 }: ChatInputGripProps) {
   return (
     <div
-      className="absolute top-0 left-0 w-full h-6 lg:h-3 z-20 group"
+      className="absolute top-0 left-0 w-full h-3 z-20 group"
       id="resize-grip"
       onClick={handleTopEdgeClick}
     >
-      {/* Tall hit target; 1px line is drawn at top-0 (flush with chat input box) */}
+      {/* Resize hit target; 1px line is drawn at top-0 (flush with chat input box) */}
       <div
         className="absolute inset-0 z-[1] cursor-ns-resize select-none"
         onMouseDown={handleGripMouseDown}

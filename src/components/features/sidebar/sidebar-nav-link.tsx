@@ -1,7 +1,27 @@
 import React from "react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
+import { SidebarCollapsedIconSlot } from "./sidebar-collapsed-icon-slot";
+import {
+  SIDEBAR_ICON_SLOT_CLASS,
+  SIDEBAR_ROW_INTERACTIVE_CLASS,
+  sidebarNavLabelClassName,
+  sidebarNavRowClassName,
+} from "./sidebar-layout";
+
+function isPathActive(currentPath: string, to: string, end: boolean) {
+  if (to === "/") {
+    return currentPath === to;
+  }
+
+  if (end) {
+    return currentPath === to;
+  }
+
+  return currentPath === to || currentPath.startsWith(`${to}/`);
+}
 
 interface SidebarNavLinkProps {
   to: string;
@@ -11,16 +31,7 @@ interface SidebarNavLinkProps {
   testId?: string;
   disabled?: boolean;
   icon?: React.ReactElement;
-  /**
-   * When true, render only the icon (label is shown via a hover tooltip
-   * floating to the side). Used by the collapsed sidebar.
-   */
   collapsed?: boolean;
-  /**
-   * Optional rich-content node shown in the hover tooltip instead of the
-   * plain label. Useful for rendering an "expanded version" of the item
-   * while the sidebar is collapsed.
-   */
   hoverContent?: React.ReactNode;
   /**
    * Pre-formatted human-readable reason for the disabled state, shown
@@ -39,12 +50,6 @@ interface SidebarNavLinkProps {
   forceActive?: boolean;
 }
 
-function getLayoutClasses(collapsed: boolean, indent: boolean): string {
-  if (collapsed) return "justify-center w-10 h-10 p-0 mx-auto";
-  if (indent) return "pl-7 pr-2 py-1.5 w-full";
-  return "px-2 py-2 w-full";
-}
-
 export function SidebarNavLink({
   to,
   label,
@@ -58,6 +63,9 @@ export function SidebarNavLink({
   disabledReason,
   forceActive = false,
 }: SidebarNavLinkProps) {
+  const { currentPath } = useNavigation();
+  const active = forceActive || isPathActive(currentPath, to, end);
+
   const link = (
     <NavigationLink
       to={to}
@@ -75,24 +83,25 @@ export function SidebarNavLink({
           e.preventDefault();
         }
       }}
-      className={({ isActive }) =>
-        cn(
-          "flex items-center gap-2 rounded-md transition-colors",
-          "text-sm leading-5 truncate",
-          getLayoutClasses(collapsed, indent),
-          isActive || forceActive
-            ? "bg-tertiary text-white font-medium"
-            : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-          disabled && "pointer-events-none opacity-50",
-        )
-      }
+      className={cn(
+        sidebarNavRowClassName({ indent, collapsed }),
+        !collapsed &&
+          (active
+            ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
+            : SIDEBAR_ROW_INTERACTIVE_CLASS.idle),
+        disabled && "pointer-events-none opacity-50",
+      )}
     >
       {icon ? (
-        <span className="shrink-0 flex items-center justify-center">
-          {icon}
-        </span>
+        collapsed ? (
+          <SidebarCollapsedIconSlot active={active}>
+            {icon}
+          </SidebarCollapsedIconSlot>
+        ) : (
+          <span className={SIDEBAR_ICON_SLOT_CLASS}>{icon}</span>
+        )
       ) : null}
-      {!collapsed && <span className="truncate">{label}</span>}
+      <span className={sidebarNavLabelClassName(collapsed)}>{label}</span>
     </NavigationLink>
   );
 

@@ -55,6 +55,15 @@ export interface DirectConversationInfo {
   workspace?: {
     working_dir?: string | null;
   } | null;
+  /**
+   * Arbitrary string-keyed conversation tags surfaced by the agent-server
+   * (see ``ConversationInfo.tags``). Canvas only consumes one key today —
+   * ``ACP_SERVER_TAG_KEY`` ("acpserver") — but the field is typed as a
+   * generic record so future readers don't need another wire-shape change.
+   * Keys are constrained to ``^[a-z0-9]+$`` by the agent-server validator;
+   * values are opaque strings.
+   */
+  tags?: Record<string, string> | null;
 }
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
@@ -246,6 +255,11 @@ export function toAppConversation(
   // keeps its own model. Null at the boundary so no consumer has to
   // re-derive the rule. Mirrors OpenHands PR #14401.
   const isAcp = info.agent?.kind === "ACPAgent";
+  // Only surface ``acp_server`` for ACP conversations even if the wire
+  // payload accidentally carries an ``acpserver`` tag on an OpenHands
+  // conversation — the chip is identity info for the ACP CLI subprocess,
+  // and showing it on a non-ACP conversation would be a lie.
+  const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
   return {
     id: info.id,
     created_by_user_id: null,
@@ -259,6 +273,7 @@ export function toAppConversation(
     trigger: null,
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
+    acp_server: acpServer,
     llm_model: isAcp
       ? null
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
