@@ -249,6 +249,32 @@ describe("ChatInterface - Chat Suggestions", () => {
 
     expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
   });
+
+  test("should hide chat suggestions on a task route even when the task is READY", () => {
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: true,
+      taskId: "abc",
+      conversationId: null,
+      task: undefined,
+      taskStatus: "READY",
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
+      },
+    });
+
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
+
+    expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
+  });
 });
 
 describe("ChatInterface - Empty state", () => {

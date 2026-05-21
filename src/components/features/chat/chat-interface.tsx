@@ -33,6 +33,7 @@ import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
+import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
 import { getStatusColor, getStatusText } from "#/utils/utils";
@@ -56,8 +57,9 @@ export function ChatInterface() {
   const { errorMessage, removeErrorMessage, setErrorMessage } =
     useErrorMessageStore();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
-  const isProvisioningTask =
-    isTask && taskStatus !== "READY" && taskStatus !== "ERROR";
+  // Hide empty-state chrome for the entire `/conversations/task-{uuid}` route,
+  // including the brief READY window before redirect completes.
+  const isProvisioningTask = isTask;
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
   const {
@@ -212,8 +214,11 @@ export function ChatInterface() {
   const hasPendingUserMessages = React.useMemo(
     () =>
       conversationId
-        ? pendingMessages.some(
-            (message) => message.conversationId === conversationId,
+        ? pendingMessages.some((message) =>
+            matchesPendingConversationId(
+              conversationId,
+              message.conversationId,
+            ),
           )
         : false,
     [pendingMessages, conversationId],
@@ -439,6 +444,7 @@ export function ChatInterface() {
           !hasModelEntries &&
           !isChatLoading &&
           !isProvisioningTask &&
+          totalEvents === 0 &&
           !isArchivedConversation && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}

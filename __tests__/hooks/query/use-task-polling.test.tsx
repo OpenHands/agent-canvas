@@ -12,6 +12,7 @@ import {
   getConversationState,
   setPendingTaskDraft,
 } from "#/utils/conversation-local-storage";
+import { resetPendingTaskMessageLinkState } from "#/utils/pending-task-message-link";
 
 vi.mock(
   "#/api/conversation-service/agent-server-conversation-service.api",
@@ -64,6 +65,7 @@ describe("useTaskPolling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    resetPendingTaskMessageLinkState();
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
   });
 
@@ -98,7 +100,7 @@ describe("useTaskPolling", () => {
     );
   });
 
-  it("reassigns optimistic pending messages before redirecting to the real conversation", async () => {
+  it("reassigns optimistic pending messages on the real conversation route", async () => {
     vi.mocked(AgentServerConversationService.getStartTask).mockResolvedValue(
       readyTask,
     );
@@ -107,8 +109,31 @@ describe("useTaskPolling", () => {
       text: "hello from home",
     });
 
+    const createWrapperForConversation = (conversationId: string) => {
+      queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+
+      return function Wrapper({ children }: { children: React.ReactNode }) {
+        return (
+          <QueryClientProvider client={queryClient}>
+            <NavigationProvider
+              value={{
+                currentPath: `/conversations/${conversationId}`,
+                conversationId,
+                isNavigating: false,
+                navigate,
+              }}
+            >
+              {children}
+            </NavigationProvider>
+          </QueryClientProvider>
+        );
+      };
+    };
+
     renderHook(() => useTaskPolling(), {
-      wrapper: createWrapper(),
+      wrapper: createWrapperForConversation("task-123"),
     });
 
     await waitFor(() => {
@@ -117,9 +142,15 @@ describe("useTaskPolling", () => {
       });
     });
 
-    const pending = useOptimisticUserMessageStore.getState().pendingMessages;
-    expect(pending).toHaveLength(1);
-    expect(pending[0].conversationId).toBe("conversation-1");
-    expect(pending[0].text).toBe("hello from home");
+    renderHook(() => useTaskPolling(), {
+      wrapper: createWrapperForConversation("conversation-1"),
+    });
+
+    await waitFor(() => {
+      const pending = useOptimisticUserMessageStore.getState().pendingMessages;
+      expect(pending).toHaveLength(1);
+      expect(pending[0].conversationId).toBe("conversation-1");
+      expect(pending[0].text).toBe("hello from home");
+    });
   });
 });

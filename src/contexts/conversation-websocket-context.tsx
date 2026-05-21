@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
@@ -207,7 +208,7 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
