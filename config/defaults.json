@@ -7,8 +7,8 @@
     "automationSdk": "1.22.1"
   },
 
-  "_agentServerGitRefComment": "Set to pin the dev agent-server to a specific software-agent-sdk commit/branch. Takes precedence over versions.agentServer when present. Use this to track an unreleased SDK PR; clear it (or remove the key) once that PR is merged + released. Current pin: software-agent-sdk PR #3347 (commit 235fed007c3c49841d34a92fb4b16d8877d6d82e) — surfaces ConversationInfo.current_model_name + .current_model_id, which this UI now renders in the conversation chip.",
-  "agentServerGitRef": "235fed007c3c49841d34a92fb4b16d8877d6d82e",
+  "_agentServerGitRefComment": "Set to pin the dev agent-server to a specific software-agent-sdk commit/branch. Takes precedence over versions.agentServer when present. Use this to track an unreleased SDK PR; clear it (or remove the key) once that PR is merged + released. Current pin: software-agent-sdk PR #3347 (commit e6e97713818dadd4d2f0ac0e327067240a7d2280) — surfaces ConversationInfo.current_model_name + .current_model_id (persisted in agent_state so cold sidebar reads also carry the values), which this UI now renders in the conversation chip.",
+  "agentServerGitRef": "e6e97713818dadd4d2f0ac0e327067240a7d2280",
 
   "images": {
     "agentServer": "ghcr.io/openhands/agent-server",
