@@ -4,7 +4,13 @@ import { useTranslation } from "react-i18next";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
-import { useWorkspacesStore } from "#/stores/workspaces-store";
+import {
+  useAddWorkspaces,
+  useAddWorkspaceParents,
+  useRemoveWorkspace,
+  useRemoveWorkspaceParent,
+} from "#/hooks/mutation/use-local-workspaces-mutations";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -62,13 +68,12 @@ export function LocalNewConversationMenu({
     enabled: useFixedPlacement,
   });
 
-  const {
-    workspaceParents,
-    addWorkspaces,
-    removeWorkspace,
-    addWorkspaceParents,
-    removeWorkspaceParent,
-  } = useWorkspacesStore();
+  const { data: workspacesData } = useLocalWorkspaces();
+  const workspaceParents = workspacesData?.workspaceParents ?? [];
+  const { mutate: addWorkspaces } = useAddWorkspaces();
+  const { mutate: removeWorkspace } = useRemoveWorkspace();
+  const { mutate: addWorkspaceParents } = useAddWorkspaceParents();
+  const { mutate: removeWorkspaceParent } = useRemoveWorkspaceParent();
   const { workspaces } = useResolvedWorkspaces();
   const [browserOpen, setBrowserOpen] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
