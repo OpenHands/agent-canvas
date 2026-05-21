@@ -56,6 +56,12 @@ npm install
 npm run dev
 ```
 
+> **Windows:** `npm run dev` may show a Bad Gateway error if Vite exits with a `C:\Program` path error. Run the dev stack directly instead:
+> ```powershell
+> $env:PYTHONUTF8 = "1"
+> node --env-file-if-exists=.env .\scripts\dev-with-automation.mjs
+> ```
+
 Access the UI at [http://localhost:8000](http://localhost:8000). You can add additional backends directly from the UI.
 
 # Architecture
