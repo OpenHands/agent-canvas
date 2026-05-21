@@ -165,6 +165,33 @@ class AutomationService {
     return AutomationService.updateAutomation(id, { enabled });
   }
 
+  static async downloadTarball(id: string, name: string): Promise<void> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/tarball`;
+
+    let blob: Blob;
+    if (active.kind === "cloud") {
+      blob = await callCloudProxy<Blob>({
+        backend: active,
+        method: "GET",
+        path,
+        responseType: "blob",
+      });
+    } else {
+      const { data } = await localAutomationAxios.get<Blob>(path, {
+        responseType: "blob",
+      });
+      blob = data;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.tar`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   static async checkHealth(): Promise<AutomationHealthResponse> {
     const active = getActiveBackend().backend;
     const path = `${AUTOMATION_BASE_PATH}/health`;

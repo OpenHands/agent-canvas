@@ -11678,6 +11678,23 @@
     "uk": "Вимкнути",
     "ca": "Desactiva"
   },
+  "AUTOMATIONS$DOWNLOAD_TARBALL": {
+    "en": "Tarball",
+    "ja": "Tarball",
+    "zh-CN": "Tarball",
+    "zh-TW": "Tarball",
+    "ko-KR": "Tarball",
+    "no": "Tarball",
+    "it": "Tarball",
+    "pt": "Tarball",
+    "es": "Tarball",
+    "ar": "Tarball",
+    "fr": "Tarball",
+    "tr": "Tarball",
+    "de": "Tarball",
+    "uk": "Tarball",
+    "ca": "Tarball"
+  },
   "AUTOMATIONS$DELETE": {
     "en": "Delete",
     "ja": "削除",
