@@ -244,7 +244,7 @@ export function EditAutomationModal({
                 setForm((f) => ({ ...f, prompt: e.target.value }))
               }
               rows={4}
-              className="bg-tertiary border border-[var(--oh-border-input)] w-full min-w-0 rounded-sm p-2 text-sm placeholder:italic placeholder:text-tertiary-alt"
+              className="bg-tertiary border border-[var(--oh-border-input)] w-full min-w-0 rounded-sm p-2 text-sm placeholder:text-tertiary-alt"
             />
             <span className="text-xs text-muted">
               {t(I18nKey.AUTOMATIONS$EDIT_PROMPT_HINT)}

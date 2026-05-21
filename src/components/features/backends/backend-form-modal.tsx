@@ -21,8 +21,6 @@ import { DeviceFlowAuth } from "./device-flow-auth";
 const ICON_BUTTON_CLASS =
   "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
-const ADD_BACKEND_INPUT_CLASS = "placeholder:not-italic";
-
 export type BackendFormMode = "add" | "edit";
 
 interface BackendFormModalProps {
@@ -441,7 +439,6 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           onChange={setName}
           placeholder="e.g. My Server"
           className="w-full"
-          inputClassName={ADD_BACKEND_INPUT_CLASS}
         />
         <p className="text-xs text-[var(--oh-muted)]">
           {t(I18nKey.BACKEND$NAME_HELPER)}
@@ -458,7 +455,6 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           onChange={setHost}
           placeholder="http://localhost:8000"
           className="w-full"
-          inputClassName={ADD_BACKEND_INPUT_CLASS}
         />
         <p
           className="text-xs text-[var(--oh-muted)]"
@@ -477,7 +473,6 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         onChange={setApiKey}
         placeholder="sk-••••••••••"
         className="w-full"
-        inputClassName={ADD_BACKEND_INPUT_CLASS}
       />
 
       <BrandButton
@@ -573,7 +568,6 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
             onChange={setCustomHost}
             placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
             className="w-full"
-            inputClassName={ADD_BACKEND_INPUT_CLASS}
           />
           <p className="mt-1 text-xs text-[var(--oh-muted)]">
             {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}

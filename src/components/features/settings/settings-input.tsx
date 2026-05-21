@@ -106,7 +106,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
           aria-describedby={errorId ?? ariaDescribedBy}
           aria-invalid={!!error || ariaInvalid}
           className={cn(
-            "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+            "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:text-tertiary-alt",
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
             error && "border-red-500",
             inputClassName,
