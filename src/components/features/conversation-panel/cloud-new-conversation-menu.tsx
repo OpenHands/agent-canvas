@@ -14,7 +14,9 @@ import { cn } from "#/utils/utils";
 import { GitRepository } from "#/types/git";
 import { Provider } from "#/types/settings";
 import RepoIcon from "#/icons/repo.svg?react";
+import SearchIcon from "#/icons/search.svg?react";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
+import { Divider } from "#/ui/divider";
 import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
 import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
 
@@ -238,7 +240,6 @@ export function CloudNewConversationMenu({
           data-testid={popoverTestId}
           className={cn(
             NEW_CONVERSATION_DROPDOWN_SURFACE,
-            "gap-1",
             !useFixedPlacement &&
               cn("absolute top-full mt-0", popoverClassName),
           )}
@@ -246,7 +247,7 @@ export function CloudNewConversationMenu({
         >
           {providers.length > 1 && (
             <div
-              className="flex items-center gap-1 px-1 pt-1"
+              className="flex items-center gap-1 px-1 py-1"
               data-testid="cloud-provider-tabs"
             >
               {providers.map((provider) => {
@@ -273,24 +274,34 @@ export function CloudNewConversationMenu({
             </div>
           )}
 
-          <div className="px-1">
-            <input
-              type="text"
-              data-testid="cloud-repo-search-input"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t(I18nKey.COMMON$SEARCH_REPOSITORIES)}
-              disabled={!selectedProvider}
-              className={cn(
-                "w-full rounded-md border border-[var(--oh-border-subtle)] bg-[var(--oh-surface-raised)] px-2 py-1.5 text-sm text-white",
-                "outline-none placeholder:text-[var(--oh-muted)]",
-                "focus:border-[var(--oh-border-subtle)]",
-                "disabled:cursor-not-allowed disabled:opacity-60",
-              )}
-            />
+          <div className="px-2">
+            <div className="relative">
+              <SearchIcon
+                width={16}
+                height={16}
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-[var(--oh-muted)]"
+              />
+              <input
+                type="text"
+                data-testid="cloud-repo-search-input"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t(I18nKey.COMMON$SEARCH_REPOSITORIES)}
+                disabled={!selectedProvider}
+                className={cn(
+                  "w-full border-0 bg-transparent py-1.5 pl-6 pr-0 text-sm text-white",
+                  "outline-none placeholder:text-[var(--oh-muted)]",
+                  "focus:outline-none focus:ring-0",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              />
+            </div>
           </div>
 
-          <ul className="flex flex-col max-h-[40vh] sm:max-h-[280px] overflow-y-auto">
+          <Divider inset="menu" />
+
+          <ul className="flex max-h-[40vh] flex-col overflow-y-auto custom-scrollbar-always sm:max-h-[280px]">
             {isListLoading && repositories.length === 0 && (
               <li
                 className="px-2 py-2 text-sm text-[var(--oh-muted)] italic"

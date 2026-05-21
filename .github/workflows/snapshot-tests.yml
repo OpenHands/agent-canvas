@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload baseline snapshots artifact
         if: github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: snapshot-baselines
           path: tests/e2e/__snapshots__/
@@ -152,7 +152,7 @@ jobs:
 
       - name: Download main-branch baselines
         if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: download-baselines
         with:
@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload test results artifact
         if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: snapshot-test-results
           path: |

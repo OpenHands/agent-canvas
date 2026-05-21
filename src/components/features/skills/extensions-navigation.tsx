@@ -25,7 +25,7 @@ interface ExtensionNavItem {
   disabledByAcp?: boolean;
 }
 
-const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
+export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
   {
     to: "/skills",
     label: "Skills",

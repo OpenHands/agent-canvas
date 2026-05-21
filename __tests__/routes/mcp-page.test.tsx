@@ -111,16 +111,16 @@ describe("MCPPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps installed legacy servers visible even after their marketplace entries are removed", async () => {
+  it("keeps installed custom servers visible and searchable even when they are not in the marketplace catalog", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
             mcpServers: {
-              gitlab: {
+              acme_internal: {
                 command: "npx",
-                args: ["-y", "@modelcontextprotocol/server-gitlab"],
+                args: ["-y", "@acme/internal-mcp-server"],
               },
             },
           },
@@ -131,16 +131,16 @@ describe("MCPPage", () => {
     renderPage();
 
     await screen.findByTestId("mcp-installed-list");
-    expect(screen.getByText("gitlab")).toBeInTheDocument();
+    expect(screen.getByText("acme_internal")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("mcp-marketplace-card-gitlab"),
+      screen.queryByTestId("mcp-marketplace-card-acme_internal"),
     ).not.toBeInTheDocument();
 
     const search = screen.getByTestId("mcp-search-input");
-    fireEvent.change(search, { target: { value: "gitlab" } });
+    fireEvent.change(search, { target: { value: "internal-mcp-server" } });
 
     await waitFor(() => {
-      expect(screen.getByText("gitlab")).toBeInTheDocument();
+      expect(screen.getByText("acme_internal")).toBeInTheDocument();
     });
     expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
   });

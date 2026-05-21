@@ -17,7 +17,7 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
   // navigates to via `/settings/app`).
   useSettingsNavItems: () =>
     OSS_NAV_ITEMS.filter((item) =>
-      ["/settings", "/settings/app"].includes(item.to),
+      ["/settings/llm", "/settings/app"].includes(item.to),
     ).map((item) => ({ type: "item", item })),
 }));
 
@@ -48,15 +48,15 @@ describe("settings route", () => {
     ).toBe("/settings/agent");
   });
 
-  it("still prefers /settings/agent even when LLM settings are visible", () => {
-    // The Agent page is the single place to switch kinds, so it wins
-    // the fallback unconditionally.
+  it("prefers /settings/llm when LLM settings are visible", () => {
+    // ``/settings/llm`` is the first non-hidden entry in the fallback
+    // order when ``hide_llm_settings`` is off.
     expect(
       getFirstAvailablePath({
         hide_llm_settings: false,
         hide_users_page: true,
       }),
-    ).toBe("/settings/agent");
+    ).toBe("/settings/llm");
   });
 
   it("redirects hidden OSS settings pages to the first available route", async () => {
@@ -75,7 +75,7 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
-      request: new Request("http://localhost/settings"),
+      request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
     } as never)) as Response;
@@ -160,7 +160,7 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
-      request: new Request("http://localhost/settings"),
+      request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
     } as never)) as Response;
