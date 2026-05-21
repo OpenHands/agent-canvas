@@ -15,10 +15,14 @@ vi.mock("react-i18next", async () => {
     ...actual,
     useTranslation: () => ({
       t: (key: string, params?: Record<string, unknown>) => {
+        if (key === "HOOKS_MODAL$HOOK_COUNT") {
+          const count = Number(params?.count ?? 0);
+          return count === 1 ? `${count} hook` : `${count} hooks`;
+        }
+
         const translations: Record<string, string> = {
           HOOKS_MODAL$TITLE: "Available Hooks",
           HOOKS_MODAL$WARNING: "Hooks warning text",
-          HOOKS_MODAL$HOOK_COUNT: `${params?.count ?? 0} hooks`,
           HOOKS_MODAL$EVENT_PRE_TOOL_USE: "Pre Tool Use",
           HOOKS_MODAL$EVENT_POST_TOOL_USE: "Post Tool Use",
           HOOKS_MODAL$EVENT_USER_PROMPT_SUBMIT: "User Prompt Submit",
@@ -159,7 +163,7 @@ describe("HookEventItem", () => {
 
   it("should render hook count", () => {
     render(<HookEventItem {...defaultProps} />);
-    expect(screen.getByText("1 hooks")).toBeInTheDocument();
+    expect(screen.getByText("1 hook")).toBeInTheDocument();
   });
 
   it("should call onToggle when clicked", async () => {
@@ -294,6 +298,6 @@ describe("HookEventItem", () => {
       ),
     ).not.toThrow();
 
-    expect(screen.getByText("1 hooks")).toBeInTheDocument();
+    expect(screen.getByText("1 hook")).toBeInTheDocument();
   });
 });

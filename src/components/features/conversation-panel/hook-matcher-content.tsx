@@ -15,7 +15,7 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="mb-4 rounded-md border border-[var(--oh-border)] bg-base p-3">
+    <div className="py-3">
       <div className="mb-2">
         <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)]">
           {t(I18nKey.HOOKS_MODAL$MATCHER)}
@@ -23,7 +23,7 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
         <span className={`ml-2 ${HOOK_PILL_CLASS}`}>{matcher.matcher}</span>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)] mb-2">
           {t(I18nKey.HOOKS_MODAL$COMMANDS)}
         </Typography.Text>
@@ -37,7 +37,7 @@ export function HookMatcherContent({ matcher }: HookMatcherContentProps) {
               borderRadius="medium"
               maxHeight="small"
               overflow="auto"
-              className="mt-2 border border-[var(--oh-border)] bg-base text-[var(--oh-text-tertiary)]"
+              className="border border-[var(--oh-border)] bg-base text-[var(--oh-text-tertiary)]"
             >
               {hook.command}
             </Pre>

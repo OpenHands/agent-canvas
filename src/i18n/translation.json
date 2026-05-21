@@ -24037,8 +24037,8 @@
     "uk": "Команди",
     "ca": "Comandes"
   },
-  "HOOKS_MODAL$HOOK_COUNT": {
-    "en": "{{count}} hook(s)",
+  "HOOKS_MODAL$HOOK_COUNT_one": {
+    "en": "{{count}} hook",
     "ja": "{{count}}個のフック",
     "zh-CN": "{{count}}个钩子",
     "zh-TW": "{{count}}個鉤子",
@@ -24052,7 +24052,24 @@
     "es": "{{count}} hook",
     "tr": "{{count}} kanca",
     "uk": "{{count}} хук",
-    "ca": "{{count}} hook(s)"
+    "ca": "{{count}} hook"
+  },
+  "HOOKS_MODAL$HOOK_COUNT_other": {
+    "en": "{{count}} hooks",
+    "ja": "{{count}}個のフック",
+    "zh-CN": "{{count}}个钩子",
+    "zh-TW": "{{count}}個鉤子",
+    "ko-KR": "{{count}}개 훅",
+    "no": "{{count}} kroker",
+    "ar": "{{count}} خطاف",
+    "de": "{{count}} Hooks",
+    "fr": "{{count}} hooks",
+    "it": "{{count}} hook",
+    "pt": "{{count}} hooks",
+    "es": "{{count}} hooks",
+    "tr": "{{count}} kanca",
+    "uk": "{{count}} хуків",
+    "ca": "{{count}} hooks"
   },
   "HOOKS_MODAL$TYPE": {
     "en": "Type: {{type}}",
