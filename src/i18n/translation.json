@@ -11678,6 +11678,23 @@
     "uk": "Вимкнути",
     "ca": "Desactiva"
   },
+  "AUTOMATIONS$DOWNLOAD_TARBALL": {
+    "en": "Download tarball",
+    "ja": "tarball をダウンロード",
+    "zh-CN": "下载 tarball",
+    "zh-TW": "下載 tarball",
+    "ko-KR": "tarball 다운로드",
+    "no": "Last ned tarball",
+    "it": "Scarica tarball",
+    "pt": "Baixar tarball",
+    "es": "Descargar tarball",
+    "ar": "تنزيل tarball",
+    "fr": "Télécharger le tarball",
+    "tr": "Tarball indir",
+    "de": "Tarball herunterladen",
+    "uk": "Завантажити tarball",
+    "ca": "Descarrega tarball"
+  },
   "AUTOMATIONS$DELETE": {
     "en": "Delete",
     "ja": "削除",

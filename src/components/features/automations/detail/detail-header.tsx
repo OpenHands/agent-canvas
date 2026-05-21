@@ -4,6 +4,7 @@ import type { Automation } from "#/types/automation";
 import { ToggleSwitch } from "#/components/features/automations/toggle-switch";
 import { KebabMenu } from "#/components/features/automations/kebab-menu";
 import PowerIcon from "#/icons/power.svg?react";
+import DownloadIcon from "#/icons/download.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
 import { useHasPermission } from "#/hooks/use-has-permission";
@@ -45,6 +46,15 @@ export function DetailHeader({
         : t(I18nKey.AUTOMATIONS$TURN_ON),
       icon: <PowerIcon className="size-4" />,
       onClick: onToggle,
+    },
+    {
+      label: t(I18nKey.AUTOMATIONS$DOWNLOAD_TARBALL),
+      icon: <DownloadIcon className="size-4" />,
+      onClick: () => {
+        const link = document.createElement("a");
+        link.href = `/api/automation/v1/${automation.id}/tarball`;
+        link.click();
+      },
     },
     {
       label: t(I18nKey.AUTOMATIONS$DELETE),
