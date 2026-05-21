@@ -118,7 +118,8 @@ describe("AddBackendModal – two-column layout", () => {
     expect(submit).not.toBeDisabled();
   });
 
-  it("saves the backend and closes WITHOUT switching the active selection", async () => {
+  // @spec BM-001 — Adding a backend shall automatically switch the active selection to it.
+  it("saves the backend, switches to it, and closes", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
 
@@ -146,8 +147,11 @@ describe("AddBackendModal – two-column layout", () => {
       kind: "local",
     });
 
-    // Adding a backend must NOT change the active selection.
-    expect(window.localStorage.getItem("openhands-active-backend")).toBeNull();
+    // @spec BM-001 — active selection must point at the newly added backend.
+    const active = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(active).toEqual({ backendId: added.id, orgId: null });
   });
 
   it("shows the close button", () => {

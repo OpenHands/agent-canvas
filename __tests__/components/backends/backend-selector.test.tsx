@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   ActiveBackendProvider,
   useActiveBackendContext,
@@ -187,6 +188,9 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           }).id;
+          // @spec BM-001 — addBackend auto-switches; reset to default so
+          // the dropdown starts on the local backend for this test.
+          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
         <BackendSelector />
@@ -245,6 +249,8 @@ describe("BackendSelector", () => {
             apiKey: "key-acme",
             kind: "cloud",
           });
+          // @spec BM-001
+          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
         <BackendSelector />
@@ -295,6 +301,8 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           });
+          // @spec BM-001
+          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
         <BackendSelector />
@@ -395,6 +403,8 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
+            // @spec BM-001 — reset so we can click "Local 1" to trigger a switch
+            ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
           <BackendSelector />
@@ -488,6 +498,8 @@ describe("BackendSelector", () => {
             apiKey: "k",
             kind: "local",
           });
+          // @spec BM-001 — reset so we can click "Acme Local" to trigger a switch
+          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
         <BackendSelector />
@@ -667,6 +679,8 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
+            // @spec BM-001 — reset so we can click "Local 1" to trigger a switch
+            ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
           <BackendSelector />
