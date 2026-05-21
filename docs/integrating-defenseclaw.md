@@ -8,37 +8,30 @@
 
 ## How the Two Systems Fit Together
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  Agent Canvas (browser)                                              │
-│    ← React frontend, connects to one or more Agent Servers           │
-└──────────────────────────────┬───────────────────────────────────────┘
-                               │ HTTP
-┌──────────────────────────────▼───────────────────────────────────────┐
-│  OpenHands Agent Server  (localhost:18000 / your host)               │
-│    ← REST API, conversations, skills, hooks, workspace               │
-│    ← loads skills from ~/.agents/skills, .agents/skills/, org repo   │
-│    ← LLM base_url configurable per conversation                      │
-└──────────────────┬───────────────────────────────────────────────────┘
-                   │ LLM API calls (routed through proxy)
-┌──────────────────▼───────────────────────────────────────────────────┐
-│  DefenseClaw Guardrail Proxy  (localhost:4000)                       │
-│    ← OpenAI-compatible reverse proxy                                 │
-│    ← pre-call prompt scan  |  post-call response scan                │
-│    ← observe mode (log only) or action mode (block on policy)        │
-└──────────────────┬───────────────────────────────────────────────────┘
-                   │ forwarded request (with original auth headers)
-         ┌─────────▼─────────┐
-         │  LLM Provider     │
-         │  (Anthropic,      │
-         │   OpenAI, etc.)   │
-         └───────────────────┘
+```mermaid
+flowchart TD
+    UI["**Agent Canvas** (browser)\nReact frontend\nconnects to one or more Agent Servers"]
 
-DefenseClaw components running alongside:
-  ┌────────────────────────────────┐
-  │  Gateway sidecar (port 18970)  │  ← policy engine, audit store, scan API
-  │  Python CLI (defenseclaw)      │  ← skill/MCP/code scanning, TUI
-  └────────────────────────────────┘
+    AS["**OpenHands Agent Server** (localhost:18000)\nREST API · conversations · skills · hooks · workspace\nloads skills from ~/.agents/skills, .agents/skills/, org repo\nLLM base_url configurable per conversation"]
+
+    GP["**DefenseClaw Guardrail Proxy** (localhost:4000)\nOpenAI-compatible reverse proxy\npre-call prompt scan · post-call response scan\nobserve mode (log only) or action mode (block on policy)"]
+
+    LLM["**LLM Provider**\nAnthropic · OpenAI · Azure · Gemini · Ollama · Bedrock"]
+
+    GW["**DefenseClaw Gateway Sidecar** (port 18970)\npolicy engine · audit store · scan API"]
+
+    CLI["**DefenseClaw Python CLI**\nskill/MCP/code scanning · TUI"]
+
+    UI -->|HTTP| AS
+    AS -->|"LLM API calls\n(routed through proxy)"| GP
+    GP -->|"forwarded request\n(original auth headers)"| LLM
+
+    GW <-->|"REST API"| AS
+    CLI <-->|"REST API"| GW
+
+    style GW fill:#fff3cd,stroke:#856404
+    style CLI fill:#fff3cd,stroke:#856404
+    style GP fill:#f8d7da,stroke:#842029
 ```
 
 **Shared concepts:**
