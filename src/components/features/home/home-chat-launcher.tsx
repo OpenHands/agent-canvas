@@ -7,7 +7,6 @@ import { useCreateConversation } from "#/hooks/mutation/use-create-conversation"
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { setPendingTaskAttachments } from "#/stores/pending-task-attachments-store";
 import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
 import { useNavigation } from "#/context/navigation-context";
@@ -45,9 +44,6 @@ export function HomeChatLauncher() {
   const isCreating = isPending || isCreatingElsewhere;
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
-  const enqueuePendingMessage = useOptimisticUserMessageStore(
-    (state) => state.enqueuePendingMessage,
-  );
   const { handleUpload } = useChatAttachmentUpload();
 
   const hasSelection = isLocal
@@ -67,8 +63,11 @@ export function HomeChatLauncher() {
     // Workspace/repo are optional — match the "Start from scratch" flow which
     // creates a conversation with no working dir and no repo. Build the
     // payload from whatever is selected.
+    // When attachments are present the first user message is sent afterward
+    // via sendMessageWithAttachments / flushPendingTaskAttachments. Passing
+    // query here would create a duplicate text-only initial_message.
     let variables: Parameters<typeof createConversation>[0] = {
-      query: trimmed || undefined,
+      query: hasAttachments ? undefined : trimmed || undefined,
     };
     if (isLocal && pendingWorkspace) {
       variables = { ...variables, workingDir: pendingWorkspace.path };
@@ -123,21 +122,13 @@ export function HomeChatLauncher() {
             return;
           } else {
             try {
-              const sent = await sendMessageWithAttachments({
+              await sendMessageWithAttachments({
                 conversationId: data.conversation_id,
                 content: trimmed,
                 images: attachmentSnapshot.images,
                 files: attachmentSnapshot.files,
                 imagesMarkedUploadAsFile,
                 t,
-              });
-              enqueuePendingMessage({
-                conversationId: data.conversation_id,
-                text: sent.text,
-                content: sent.content,
-                imageUrls: sent.imageUrls,
-                fileUrls: sent.fileUrls,
-                timestamp: sent.timestamp,
               });
               clearAllFiles();
             } catch (error) {

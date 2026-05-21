@@ -9,6 +9,25 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
+const sendMessageWithAttachments = vi.fn();
+const mockClearAllFiles = vi.fn();
+
+let mockImages: File[] = [];
+let mockFiles: File[] = [];
+
+vi.mock("#/utils/send-message-with-attachments", () => ({
+  sendMessageWithAttachments: (...args: unknown[]) =>
+    sendMessageWithAttachments(...args),
+}));
+
+vi.mock("#/stores/conversation-store", () => ({
+  useConversationStore: () => ({
+    images: mockImages,
+    files: mockFiles,
+    imagesMarkedUploadAsFile: [],
+    clearAllFiles: mockClearAllFiles,
+  }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -198,7 +217,16 @@ const cloudBackend = {
 describe("HomeChatLauncher", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockImages = [];
+    mockFiles = [];
     mockUseActiveBackend.mockReturnValue(localBackend);
+    sendMessageWithAttachments.mockResolvedValue({
+      text: "hello world",
+      content: "hello world",
+      imageUrls: ["data:image/png;base64,abc"],
+      fileUrls: [],
+      timestamp: "2020-01-01T00:00:00.000Z",
+    });
   });
 
   afterEach(() => {
@@ -290,6 +318,35 @@ describe("HomeChatLauncher", () => {
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-repo"),
+    );
+  });
+
+  it("does not pass query to createConversation when attachments are present", async () => {
+    mockImages = [new File(["x"], "shot.png", { type: "image/png" })];
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      undefined,
+      undefined,
+    );
+    await waitFor(() =>
+      expect(sendMessageWithAttachments).toHaveBeenCalledTimes(1),
+    );
+    expect(mockClearAllFiles).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
     );
   });
 

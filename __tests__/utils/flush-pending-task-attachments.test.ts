@@ -3,7 +3,6 @@ import {
   setPendingTaskAttachments,
   usePendingTaskAttachmentsStore,
 } from "#/stores/pending-task-attachments-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { flushPendingTaskAttachments } from "#/utils/flush-pending-task-attachments";
 
 const sendMessageWithAttachments = vi.fn();
@@ -22,7 +21,6 @@ vi.mock("#/i18n", () => ({
 describe("flushPendingTaskAttachments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useOptimisticUserMessageStore.getState().clearPendingMessages();
     usePendingTaskAttachmentsStore.setState({ byTaskId: {} });
 
     sendMessageWithAttachments.mockResolvedValue({
@@ -54,8 +52,5 @@ describe("flushPendingTaskAttachments", () => {
         content: "hello",
       }),
     );
-    expect(
-      useOptimisticUserMessageStore.getState().pendingMessages,
-    ).toHaveLength(1);
   });
 });

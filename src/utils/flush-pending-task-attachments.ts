@@ -1,6 +1,5 @@
 import i18n, { OPENHANDS_I18N_NAMESPACE, waitForI18n } from "#/i18n";
 import { consumePendingTaskAttachments } from "#/stores/pending-task-attachments-store";
-import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
 
@@ -19,22 +18,13 @@ export async function flushPendingTaskAttachments(
 
   try {
     await waitForI18n();
-    const sent = await sendMessageWithAttachments({
+    await sendMessageWithAttachments({
       conversationId,
       content: pending.content,
       images: pending.images,
       files: pending.files,
       imagesMarkedUploadAsFile: pending.imagesMarkedUploadAsFile,
       t: i18n.getFixedT(null, OPENHANDS_I18N_NAMESPACE),
-    });
-
-    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
-      conversationId,
-      text: sent.text,
-      content: sent.content,
-      imageUrls: sent.imageUrls,
-      fileUrls: sent.fileUrls,
-      timestamp: sent.timestamp,
     });
   } catch (error) {
     displayErrorToast(error instanceof Error ? error.message : null);
