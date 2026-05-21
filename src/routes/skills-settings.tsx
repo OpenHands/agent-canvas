@@ -87,7 +87,10 @@ function SkillsSettingsScreen() {
   }, [skills, typeFilter, searchQuery]);
 
   return (
-    <div data-testid="skills-settings-screen" className="flex h-full gap-10">
+    <div
+      data-testid="skills-settings-screen"
+      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+    >
       <ExtensionsNavigation />
       <main className={cn(settingsLikeMainScrollClassName, "h-full")}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
@@ -139,7 +142,7 @@ function SkillsSettingsScreen() {
                 </p>
               ) : (
                 <section className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     {filteredSkills.map((skill) => (
                       <SkillCard
                         key={skill.name}

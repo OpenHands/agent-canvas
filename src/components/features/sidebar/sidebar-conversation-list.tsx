@@ -1,5 +1,14 @@
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
-import { useSidebarCollapsed } from "./sidebar-collapse-context";
+
+interface SidebarConversationListProps {
+  /**
+   * Whether the surrounding sidebar rail is rendering in its collapsed icon-
+   * only variant. Passed from `SidebarRailBody` so the mobile drawer (which
+   * renders an expanded rail regardless of the persisted desktop state) can
+   * force this list back on.
+   */
+  collapsed: boolean;
+}
 
 /**
  * Conversation list section rendered inside the sidebar nav. The list itself
@@ -11,9 +20,9 @@ import { useSidebarCollapsed } from "./sidebar-collapse-context";
  * On desktop the aside uses `pr-0` so this list is full width to the rail;
  * nav links above keep their own horizontal padding.
  */
-export function SidebarConversationList() {
-  const collapsed = useSidebarCollapsed();
-
+export function SidebarConversationList({
+  collapsed,
+}: SidebarConversationListProps) {
   if (collapsed) {
     return null;
   }
