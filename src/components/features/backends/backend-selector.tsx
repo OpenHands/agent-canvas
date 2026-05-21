@@ -279,6 +279,7 @@ export function BackendSelector({
         setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
       });
 
+      // @spec BM-002 — Switching backends keeps the user on the same page
       if (conversationMatch) navigate("/conversations");
       else if (automationDetailMatch) navigate("/automations");
 

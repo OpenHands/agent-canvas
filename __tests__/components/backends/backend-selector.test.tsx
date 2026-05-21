@@ -385,6 +385,7 @@ describe("BackendSelector", () => {
     expect(input.value).toBe("Local");
   });
 
+  // @spec BM-002 — Switching backends keeps the user on the same page
   it("redirects to home when switching backends from a conversation route", async () => {
     function ConversationRoute() {
       return (
@@ -422,6 +423,7 @@ describe("BackendSelector", () => {
     expect(await screen.findByTestId("home")).toBeInTheDocument();
   });
 
+  // @spec BM-002 — Switching backends keeps the user on the same page
   it("stays on the current page when switching backends from a non-conversation route", async () => {
     function SettingsRoute() {
       return (
@@ -587,6 +589,7 @@ describe("BackendSelector", () => {
     expect(remaining.map((b: { name: string }) => b.name)).toEqual(["Local"]);
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
     // Pre-seed the registry and active selection in localStorage so the
     // initial render already reflects `Local 1` as active. Seeding via
@@ -644,6 +647,7 @@ describe("BackendSelector", () => {
     expect(input.value).toBe("Local");
   });
 
+  // @spec BM-002 — Switching backends keeps the user on the same page
   it("redirects to the automations list when switching backends from an automation detail route", async () => {
     function AutomationDetailRoute() {
       return (
@@ -681,6 +685,7 @@ describe("BackendSelector", () => {
     expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
 
+  // @spec BM-002 — Switching backends keeps the user on the same page
   it("does not redirect when switching backends from a non-conversation route", async () => {
     function SettingsRoute() {
       return (

@@ -131,6 +131,7 @@ describe("ActiveBackendProvider", () => {
     expect(queryClient.getQueryData(["dummy"])).toEqual({ value: 1 });
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("removeBackend falls back to the seeded default when the active backend is removed", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
@@ -159,6 +160,7 @@ describe("ActiveBackendProvider", () => {
     expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
