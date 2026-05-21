@@ -188,7 +188,7 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           }).id;
-          // @spec BM-001 — addBackend auto-switches; reset to default so
+          // addBackend auto-switches (BM-001); reset to default so
           // the dropdown starts on the local backend for this test.
           ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
@@ -249,7 +249,6 @@ describe("BackendSelector", () => {
             apiKey: "key-acme",
             kind: "cloud",
           });
-          // @spec BM-001
           ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
@@ -301,7 +300,6 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           });
-          // @spec BM-001
           ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
@@ -403,7 +401,7 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
-            // @spec BM-001 — reset so we can click "Local 1" to trigger a switch
+            // addBackend auto-switches; reset so we can click "Local 1" to trigger a switch
             ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
@@ -498,7 +496,7 @@ describe("BackendSelector", () => {
             apiKey: "k",
             kind: "local",
           });
-          // @spec BM-001 — reset so we can click "Acme Local" to trigger a switch
+          // addBackend auto-switches; reset so we can click "Acme Local" to trigger a switch
           ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
@@ -679,7 +677,7 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
-            // @spec BM-001 — reset so we can click "Local 1" to trigger a switch
+            // addBackend auto-switches; reset so we can click "Local 1" to trigger a switch
             ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
