@@ -386,24 +386,47 @@ describe("BackendSelector", () => {
   });
 
   // @spec BM-002 — Switching backends keeps the user on the same page
-  it("redirects to home when switching backends from a conversation route", async () => {
-    function ConversationRoute() {
+  it.each([
+    {
+      name: "conversation detail → conversations list",
+      startPath: "/conversations/abc",
+      startRoute: "/conversations/:conversationId",
+      landingRoute: "/conversations",
+      expectRedirect: true,
+    },
+    {
+      name: "automation detail → automations list",
+      startPath: "/automations/abc-123",
+      startRoute: "/automations/:automationId",
+      landingRoute: "/automations",
+      expectRedirect: true,
+    },
+    {
+      name: "settings → stays on settings",
+      startPath: "/settings",
+      startRoute: "/settings",
+      landingRoute: "/conversations",
+      expectRedirect: false,
+    },
+  ])("$name", async ({ startPath, startRoute, landingRoute, expectRedirect }) => {
+    function StartRoute() {
       return (
         <TestSeed
           onMount={(ctx) => {
             ctx.addBackend(SEED_LOCAL_1);
           }}
         >
+          <div data-testid="start-route" />
           <BackendSelector />
         </TestSeed>
       );
     }
-    function HomeRoute() {
-      return <div data-testid="home" />;
+    function LandingRoute() {
+      return <div data-testid="landing-route" />;
     }
     const RouterStub = createRoutesStub([
-      { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/conversations", Component: HomeRoute },
+      { path: startRoute, Component: StartRoute },
+      { path: landingRoute, Component: LandingRoute },
     ]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -411,60 +434,22 @@ describe("BackendSelector", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ActiveBackendProvider>
-          <RouterStub initialEntries={["/conversations/abc"]} />
+          <RouterStub initialEntries={[startPath]} />
         </ActiveBackendProvider>
       </QueryClientProvider>,
     );
 
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
     await user.click(screen.getByText("Local"));
 
-    expect(await screen.findByTestId("home")).toBeInTheDocument();
-  });
-
-  // @spec BM-002 — Switching backends keeps the user on the same page
-  it("stays on the current page when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <div data-testid="settings-route" />
-          <BackendSelector />
-        </TestSeed>
-      );
+    if (expectRedirect) {
+      expect(await screen.findByTestId("landing-route")).toBeInTheDocument();
+    } else {
+      await waitFor(() => {
+        expect(screen.getByTestId("start-route")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("landing-route")).not.toBeInTheDocument();
     }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/conversations", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    // The settings route is still in the DOM after the switch — no
-    // redirect to /conversations or anywhere else.
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-route")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 
   it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {
@@ -645,44 +630,6 @@ describe("BackendSelector", () => {
     wrapper = screen.getByTestId("backend-selector");
     input = wrapper.querySelector("input") as HTMLInputElement;
     expect(input.value).toBe("Local");
-  });
-
-  // @spec BM-002 — Switching backends keeps the user on the same page
-  it("redirects to the automations list when switching backends from an automation detail route", async () => {
-    function AutomationDetailRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function AutomationsListRoute() {
-      return <div data-testid="automations-list" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/automations/:automationId", Component: AutomationDetailRoute },
-      { path: "/automations", Component: AutomationsListRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/automations/abc-123"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
 
   describe("connection indicator", () => {
