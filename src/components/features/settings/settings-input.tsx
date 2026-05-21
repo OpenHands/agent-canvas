@@ -36,6 +36,8 @@ interface SettingsInputProps {
   /** Renders a red asterisk next to the label to mark the field as required. */
   showRequiredTag?: boolean;
   onBlur?: () => void;
+  /** Extra classes merged onto the `<input>` element. */
+  inputClassName?: string;
 }
 
 export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
@@ -66,6 +68,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
       error,
       showRequiredTag,
       onBlur,
+      inputClassName,
     },
     ref,
   ) {
@@ -106,6 +109,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
             "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
             error && "border-red-500",
+            inputClassName,
           )}
         />
         {error && (

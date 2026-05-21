@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import CloseIcon from "#/icons/close.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
 import { cn } from "#/utils/utils";
@@ -57,7 +58,7 @@ export function SkillsModalHeader({
           aria-label={t(I18nKey.BUTTON$CLOSE)}
           data-testid="close-skills-modal"
         >
-          <X size={20} aria-hidden />
+          <CloseIcon width={20} height={20} aria-hidden />
         </button>
       </div>
     </div>

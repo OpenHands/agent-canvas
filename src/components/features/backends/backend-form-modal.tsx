@@ -1,18 +1,27 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { ServerClient } from "@openhands/typescript-client/clients";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
+
+const ICON_BUTTON_CLASS =
+  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
+
+const ADD_BACKEND_INPUT_CLASS = "placeholder:not-italic";
 
 export type BackendFormMode = "add" | "edit";
 
@@ -432,8 +441,9 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           onChange={setName}
           placeholder="e.g. My Server"
           className="w-full"
+          inputClassName={ADD_BACKEND_INPUT_CLASS}
         />
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-[var(--oh-muted)]">
           {t(I18nKey.BACKEND$NAME_HELPER)}
         </p>
       </div>
@@ -448,9 +458,10 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           onChange={setHost}
           placeholder="http://localhost:8000"
           className="w-full"
+          inputClassName={ADD_BACKEND_INPUT_CLASS}
         />
         <p
-          className="text-xs text-gray-500"
+          className="text-xs text-[var(--oh-muted)]"
           data-testid="add-backend-host-helper"
         >
           {t(I18nKey.BACKEND$HOST_HELPER)}
@@ -466,6 +477,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         onChange={setApiKey}
         placeholder="sk-••••••••••"
         className="w-full"
+        inputClassName={ADD_BACKEND_INPUT_CLASS}
       />
 
       <BrandButton
@@ -506,17 +518,19 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 flex-1 min-w-0 px-4">
-      <OpenHandsLogoWhite width={56} height={56} aria-hidden />
+    <div className="flex flex-1 min-w-0 flex-col items-center px-4 gap-3">
+      <div className="flex flex-col items-center gap-1">
+        <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
-      <h4
-        className="text-lg font-bold text-white"
-        data-testid="add-backend-cloud-title"
-      >
-        {t(I18nKey.BACKEND$CLOUD_TITLE)}
-      </h4>
+        <h4
+          className="text-lg font-bold text-content-2"
+          data-testid="add-backend-cloud-title"
+        >
+          {t(I18nKey.BACKEND$CLOUD_TITLE)}
+        </h4>
+      </div>
 
-      <p className="text-sm text-gray-400 text-center leading-relaxed">
+      <p className="text-center text-sm leading-relaxed text-[var(--oh-muted)]">
         {t(I18nKey.BACKEND$CLOUD_DESCRIPTION)}
       </p>
 
@@ -526,18 +540,30 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
         testIdRoot="add-backend"
       />
 
-      <details
-        className="w-full"
-        open={advancedOpen}
-        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary
-          className="text-xs text-gray-400 cursor-pointer select-none text-center hover:text-gray-300"
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((open) => !open)}
+          aria-expanded={advancedOpen}
           data-testid="add-backend-advanced-toggle"
+          className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
         >
-          {t(I18nKey.BACKEND$ADVANCED)}
-        </summary>
-        <div className="mt-3">
+          <span>{t(I18nKey.BACKEND$ADVANCED)}</span>
+          <ChevronDownSmallIcon
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted transition-transform",
+              advancedOpen && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </button>
+        <div
+          className={cn(
+            "pt-2",
+            !advancedOpen && "pointer-events-none invisible",
+          )}
+          aria-hidden={!advancedOpen}
+        >
           <SettingsInput
             testId="add-backend-cloud-host"
             name="add-backend-cloud-host"
@@ -547,12 +573,13 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
             onChange={setCustomHost}
             placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
             className="w-full"
+            inputClassName={ADD_BACKEND_INPUT_CLASS}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="mt-1 text-xs text-[var(--oh-muted)]">
             {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}
           </p>
         </div>
-      </details>
+      </div>
     </div>
   );
 }
@@ -580,21 +607,19 @@ export function BackendFormModal({
       >
         <div
           data-testid="add-backend-modal"
-          className="bg-base-secondary rounded-xl border border-tertiary w-[720px]"
+          className="w-[720px] rounded-xl border border-[var(--oh-border)] bg-base-secondary"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-2">
-            <h3 className="text-xl font-bold">
-              {t(I18nKey.BACKEND$ADD_TITLE)}
-            </h3>
+          <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-2">
+            <BaseModalTitle title={t(I18nKey.BACKEND$ADD_TITLE)} />
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-xl leading-none cursor-pointer"
+              className={cn(ICON_BUTTON_CLASS, "shrink-0")}
               data-testid="add-backend-close"
-              aria-label="Close"
+              aria-label={t(I18nKey.BUTTON$CLOSE)}
             >
-              {"✕"}
+              <X size={20} aria-hidden />
             </button>
           </div>
 
@@ -606,12 +631,12 @@ export function BackendFormModal({
             </div>
 
             {/* Vertical OR divider */}
-            <div className="flex flex-col items-center mx-2 shrink-0">
-              <div className="flex-1 w-px bg-gray-600" />
-              <span className="text-xs text-gray-500 uppercase py-3">
+            <div className="mx-2 flex shrink-0 flex-col items-center">
+              <div className="flex-1 w-px bg-[var(--oh-border)]" />
+              <span className="py-3 text-xs uppercase text-[var(--oh-muted)]">
                 {t(I18nKey.BACKEND$LOGIN_OR)}
               </span>
-              <div className="flex-1 w-px bg-gray-600" />
+              <div className="flex-1 w-px bg-[var(--oh-border)]" />
             </div>
 
             {/* Right: cloud login */}
@@ -636,7 +661,7 @@ export function BackendFormModal({
         data-testid={`${testIdRoot}-modal`}
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[480px]"
       >
-        <h3 className="text-xl font-bold">{t(I18nKey.BACKEND$EDIT_TITLE)}</h3>
+        <BaseModalTitle title={t(I18nKey.BACKEND$EDIT_TITLE)} />
         <BackendForm
           mode="edit"
           backend={backend}

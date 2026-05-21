@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
@@ -210,9 +211,10 @@ export function FolderBrowserModal({
       >
         {/* Title bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
-          <span className="text-sm font-semibold text-white">
-            {t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
-          </span>
+          <BaseModalTitle
+            className="text-base"
+            title={t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
+          />
         </div>
 
         {/* Body: sidebar + main */}

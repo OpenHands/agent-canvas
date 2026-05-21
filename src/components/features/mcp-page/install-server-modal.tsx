@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
+import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
@@ -11,6 +12,9 @@ import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+
+const ICON_BUTTON_CLASS =
+  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -270,12 +274,26 @@ export function InstallServerModal({
         onSubmit={handleSubmit}
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
       >
-        <div className="flex items-start gap-3">
-          <McpLogoBadge entry={entry} />
-          <div className="flex flex-col flex-1">
-            <h2 className="text-lg font-semibold">{entry.name}</h2>
-            <p className="text-xs text-tertiary-alt">{entry.description}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <McpLogoBadge entry={entry} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <h2 className="text-lg font-semibold text-content-2">
+                {entry.name}
+              </h2>
+              <p className="text-xs text-tertiary-alt">{entry.description}</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className={ICON_BUTTON_CLASS}
+            aria-label={t(I18nKey.BUTTON$CLOSE)}
+            data-testid="close-mcp-install-modal"
+          >
+            <X size={20} aria-hidden />
+          </button>
         </div>
 
         {entry.installHint && (

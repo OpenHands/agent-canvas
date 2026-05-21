@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -75,9 +76,10 @@ export function ManageWorkspacesModal({
           )}
         >
           <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
-            <span className="text-sm font-semibold text-white">
-              {t(I18nKey.HOME$MANAGE_WORKSPACES)}
-            </span>
+            <BaseModalTitle
+              className="text-base"
+              title={t(I18nKey.HOME$MANAGE_WORKSPACES)}
+            />
           </div>
 
           <div

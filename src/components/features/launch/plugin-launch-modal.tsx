@@ -129,7 +129,7 @@ export function PluginLaunchModal({
         className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[500px] max-w-[90vw] max-h-[80vh]"
       >
         <div className="flex w-full items-center justify-between">
-          <Typography.H2>
+          <Typography.H2 className="text-content-2">
             {t(I18nKey.LAUNCH$MODAL_TITLE)} {modalTitle}
           </Typography.H2>
           <button

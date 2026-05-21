@@ -49,7 +49,7 @@ function BackendVersion({ backend }: { backend: Backend }) {
 
   return (
     <span
-      className="text-xs text-[var(--oh-text-dim)] truncate"
+      className="inline-flex shrink-0 items-center rounded-full border border-[var(--oh-border)] bg-[var(--oh-surface)] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[var(--oh-text-dim)]"
       data-testid={`manage-backends-version-${backend.name}`}
     >
       {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
@@ -82,12 +82,14 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
       data-testid={`manage-backends-row-${backend.name}`}
     >
       <BackendStatusDot isConnected={health?.isConnected ?? null} />
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-sm text-white truncate">{backend.name}</span>
-        <span className="text-xs text-[var(--oh-muted)] truncate">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm text-white">{backend.name}</span>
+          <BackendVersion backend={backend} />
+        </div>
+        <span className="truncate text-xs text-[var(--oh-muted)]">
           {backend.host}
         </span>
-        <BackendVersion backend={backend} />
       </div>
       <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
         {backend.kind === "cloud"
@@ -150,7 +152,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             "w-[640px] max-w-[90vw] max-h-[70vh]",
           )}
         >
-          <div className="flex items-start justify-between gap-4 border-b border-[var(--oh-border)] px-5 py-4">
+          <div className="flex items-start justify-between gap-4 p-5">
             <BaseModalTitle title={t(I18nKey.BACKEND$MANAGE_TITLE)} />
             <button
               type="button"
@@ -163,7 +165,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+          <div className="flex min-h-0 flex-1 flex-col px-5">
             <div
               className="flex-1 overflow-auto rounded-md border border-[var(--oh-border)] bg-surface-raised custom-scrollbar-always"
               data-testid="manage-backends-list"
@@ -193,7 +195,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--oh-border)]">
+          <div className="flex justify-end gap-2 p-5">
             <BrandButton
               type="button"
               variant="secondary"

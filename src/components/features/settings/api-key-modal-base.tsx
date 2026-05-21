@@ -1,4 +1,5 @@
 import React, { ReactNode, useEffect, useRef } from "react";
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 
 interface ApiKeyModalBaseProps {
@@ -83,9 +84,7 @@ export function ApiKeyModalBase({
         // runtime prop-driven width; cannot move to className
         style={{ width }}
       >
-        <h3 id="modal-title" className="text-xl font-bold">
-          {title}
-        </h3>
+        <BaseModalTitle id="modal-title" title={title} />
         {children}
         <div className="w-full flex justify-end gap-2 mt-2">{footer}</div>
       </div>

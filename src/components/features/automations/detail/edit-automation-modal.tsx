@@ -214,7 +214,7 @@ export function EditAutomationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-semibold text-white">
+        <h2 className="text-lg font-semibold text-content-2">
           {t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         </h2>
 

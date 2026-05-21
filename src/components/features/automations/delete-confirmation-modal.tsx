@@ -39,7 +39,7 @@ export function DeleteConfirmationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-semibold text-white">
+        <h2 className="text-lg font-semibold text-content-2">
           {t(I18nKey.AUTOMATIONS$DELETE_CONFIRM_TITLE)}
         </h2>
         <p className="mt-2 text-sm text-muted">
