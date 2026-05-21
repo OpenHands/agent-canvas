@@ -161,6 +161,7 @@ export function ConversationTabs({
   const tabsRowInnerRef = useRef<HTMLDivElement>(null);
   const measureRowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [inlineTabCount, setInlineTabCount] = useState(visibleTabs.length);
 
   useLayoutEffect(() => {
@@ -317,6 +318,7 @@ export function ConversationTabs({
             </div>
             <div ref={menuRef} className="relative shrink-0">
               <EllipsisButton
+                ref={anchorRef}
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
                 iconClassName={
@@ -326,6 +328,7 @@ export function ConversationTabs({
               <ConversationTabsContextMenu
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
+                ignoreOutsideClickRef={anchorRef}
               />
             </div>
           </div>
