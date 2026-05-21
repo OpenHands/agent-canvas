@@ -10,24 +10,18 @@
 
 ```mermaid
 flowchart TD
-    UI["**Agent Canvas** (browser)\nReact frontend\nconnects to one or more Agent Servers"]
-
-    AS["**OpenHands Agent Server** (localhost:18000)\nREST API · conversations · skills · hooks · workspace\nloads skills from ~/.agents/skills, .agents/skills/, org repo\nLLM base_url configurable per conversation"]
-
-    GP["**DefenseClaw Guardrail Proxy** (localhost:4000)\nOpenAI-compatible reverse proxy\npre-call prompt scan · post-call response scan\nobserve mode (log only) or action mode (block on policy)"]
-
-    LLM["**LLM Provider**\nAnthropic · OpenAI · Azure · Gemini · Ollama · Bedrock"]
-
-    GW["**DefenseClaw Gateway Sidecar** (port 18970)\npolicy engine · audit store · scan API"]
-
-    CLI["**DefenseClaw Python CLI**\nskill/MCP/code scanning · TUI"]
+    UI["Agent Canvas (browser)"]
+    AS["OpenHands Agent Server\nlocalhost:18000"]
+    GP["DefenseClaw Guardrail Proxy\nlocalhost:4000"]
+    LLM["LLM Provider"]
+    GW["DefenseClaw Gateway Sidecar\nlocalhost:18970"]
+    CLI["DefenseClaw CLI / TUI"]
 
     UI -->|HTTP| AS
-    AS -->|"LLM API calls\n(routed through proxy)"| GP
-    GP -->|"forwarded request\n(original auth headers)"| LLM
-
-    GW <-->|"REST API"| AS
-    CLI <-->|"REST API"| GW
+    AS -->|LLM API calls| GP
+    GP -->|forwarded request| LLM
+    GW <-->|REST API| AS
+    CLI <-->|REST API| GW
 
     style GW fill:#fff3cd,stroke:#856404
     style CLI fill:#fff3cd,stroke:#856404
