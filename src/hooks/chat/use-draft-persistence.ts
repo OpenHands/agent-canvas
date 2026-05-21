@@ -5,6 +5,7 @@ import {
   setConversationState,
 } from "#/utils/conversation-local-storage";
 import { getTextContent } from "#/components/features/chat/utils/chat-input.utils";
+import { useConversationStore } from "#/stores/conversation-store";
 
 /**
  * Check if a conversation ID is a temporary task ID.
@@ -41,6 +42,27 @@ export const useDraftPersistence = (
   // Track if this is the first mount to handle initial cleanup
   const isFirstMountRef = useRef(true);
 
+  useEffect(() => {
+    if (conversationId) {
+      return;
+    }
+
+    useConversationStore.getState().setMessageToSend("");
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    const element = chatInputRef.current;
+    if (element) {
+      element.textContent = "";
+    }
+
+    hasRestoredRef.current = false;
+    setIsRestored(false);
+  }, [conversationId, chatInputRef]);
+
   // IMPORTANT: This effect must run FIRST when conversation changes.
   // It handles three concerns:
   // 1. Cleanup: Cancel pending saves from previous conversation
@@ -61,6 +83,8 @@ export const useDraftPersistence = (
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
+
+     useConversationStore.getState().setMessageToSend("");
 
     const element = chatInputRef.current;
 

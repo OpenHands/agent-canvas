@@ -31,6 +31,8 @@ export const useChatInputLogic = () => {
     chatInputRef,
   );
 
+  const messageToSendForResize = conversationId ? messageToSend : null;
+
   // Save current input value when drawer state changes
   useEffect(() => {
     if (chatInputRef.current) {
@@ -59,7 +61,7 @@ export const useChatInputLogic = () => {
 
   return {
     chatInputRef,
-    messageToSend,
+    messageToSend: messageToSendForResize,
     checkIsContentEmpty,
     clearEmptyContentHandler,
     getCurrentMessage,

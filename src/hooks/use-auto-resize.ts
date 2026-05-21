@@ -325,11 +325,9 @@ export const useAutoResize = (
       manualHeightRef.current = finalHeight;
     }
   };
-
-  // Update content and resize when value prop changes
-  useEffect(() => {
+useEffect(() => {
     const element = elementRef.current;
-    if (element && value !== undefined) {
+    if (element && value !== undefined && value.text.length > 0) {
       element.textContent = value.text;
       smartResize();
     }
