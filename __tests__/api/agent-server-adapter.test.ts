@@ -337,6 +337,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message).toEqual({
       role: "user",
       content: [{ type: "text", text: "Follow the repo conventions." }],
+      run: true,
     });
   });
 
