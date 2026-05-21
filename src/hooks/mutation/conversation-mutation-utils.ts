@@ -32,6 +32,11 @@ const fetchConversationData = async (
   };
 };
 
+/**
+ * Stop a running conversation.
+ * - Cloud mode: Pauses the sandbox (waits for current LLM call to finish).
+ * - Local mode: Interrupts immediately (cancels in-flight requests).
+ */
 export const pauseConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey, sandboxId } =
     await fetchConversationData(conversationId);
