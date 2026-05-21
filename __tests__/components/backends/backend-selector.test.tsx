@@ -11,7 +11,6 @@ import userEvent from "@testing-library/user-event";
 import { createRoutesStub, MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   ActiveBackendProvider,
   useActiveBackendContext,
@@ -188,9 +187,15 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           }).id;
-          // addBackend auto-switches (BM-001); reset to default so
-          // the dropdown starts on the local backend for this test.
-          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
+          // Add a second backend so auto-switch lands here, leaving the
+          // cloud backend unselected (the dropdown only expands org rows
+          // for non-active cloud backends).
+          ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
         }}
       >
         <BackendSelector />
@@ -249,7 +254,14 @@ describe("BackendSelector", () => {
             apiKey: "key-acme",
             kind: "cloud",
           });
-          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
+          // Land on a local backend so both cloud backends are unselected
+          // and their org rows render in the dropdown.
+          ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
         }}
       >
         <BackendSelector />
@@ -300,7 +312,14 @@ describe("BackendSelector", () => {
             apiKey: "bearer-key",
             kind: "cloud",
           });
-          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
+          // Land on a local backend so the cloud backend is unselected
+          // and its org rows render in the dropdown.
+          ctx.addBackend({
+            name: "Local 1",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
         }}
       >
         <BackendSelector />
@@ -382,12 +401,13 @@ describe("BackendSelector", () => {
       </TestSeed>,
     );
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     const wrapper = screen.getByTestId("backend-selector");
     const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local 1");
+    expect(input.value).toBe("Local");
   });
 
   it("redirects to home when switching backends from a conversation route", async () => {
@@ -401,8 +421,6 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
-            // addBackend auto-switches; reset so we can click "Local 1" to trigger a switch
-            ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
           <BackendSelector />
@@ -427,8 +445,9 @@ describe("BackendSelector", () => {
       </QueryClientProvider>,
     );
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     expect(await screen.findByTestId("home")).toBeInTheDocument();
   });
@@ -469,8 +488,9 @@ describe("BackendSelector", () => {
       </QueryClientProvider>,
     );
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     // The settings route is still in the DOM after the switch — no
     // redirect to /conversations or anywhere else.
@@ -496,8 +516,6 @@ describe("BackendSelector", () => {
             apiKey: "k",
             kind: "local",
           });
-          // addBackend auto-switches; reset so we can click "Acme Local" to trigger a switch
-          ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
         }}
       >
         <BackendSelector />
@@ -505,17 +523,17 @@ describe("BackendSelector", () => {
     );
     render(<EnvironmentSwitchOverlay />);
 
-    // Act — select a different backend, then immediately unmount the
-    // selector (the click itself would do this in production via the
-    // outside-click handler).
+    // Act — auto-switch lands on "Acme Local"; click the seeded default
+    // to trigger a switch, then immediately unmount the selector (the
+    // click itself would do this in production via the outside-click handler).
     const user = await openDropdown();
-    await user.click(screen.getByText("Acme Local"));
+    await user.click(screen.getByText("Local"));
     selectorRender.unmount();
 
     // Assert — the overlay is still in the DOM with the chosen target
     expect(screen.getByTestId("environment-switch-overlay")).toHaveAttribute(
       "data-target",
-      "Acme Local",
+      "Local",
     );
   });
 
@@ -677,8 +695,6 @@ describe("BackendSelector", () => {
               apiKey: "k",
               kind: "local",
             });
-            // addBackend auto-switches; reset so we can click "Local 1" to trigger a switch
-            ctx.setActive(DEFAULT_LOCAL_BACKEND_ID);
           }}
         >
           <BackendSelector />
@@ -703,8 +719,9 @@ describe("BackendSelector", () => {
       </QueryClientProvider>,
     );
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
@@ -747,12 +764,13 @@ describe("BackendSelector", () => {
     const settingsButton = screen.getByTestId("backend-selector-settings-link");
     expect(settingsButton).toHaveAttribute("data-active", "true");
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     const wrapper = screen.getByTestId("backend-selector");
     const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local 1");
+    expect(input.value).toBe("Local");
     expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 
