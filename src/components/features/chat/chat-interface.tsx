@@ -56,6 +56,8 @@ export function ChatInterface() {
   const { errorMessage, removeErrorMessage, setErrorMessage } =
     useErrorMessageStore();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
+  const isProvisioningTask =
+    isTask && taskStatus !== "READY" && taskStatus !== "ERROR";
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
   const {
@@ -164,7 +166,9 @@ export function ChatInterface() {
   } | null>(null);
   const maybeLoadOlder = React.useCallback(
     (target: HTMLElement) => {
-      if (isLoadingOlderEvents || !hasMoreOlderEvents) return;
+      if (isProvisioningTask || isLoadingOlderEvents || !hasMoreOlderEvents) {
+        return;
+      }
 
       const atTop = target.scrollTop <= SCROLL_TOP_THRESHOLD_PX;
       const noOverflow =
@@ -184,7 +188,14 @@ export function ChatInterface() {
         setErrorMessage(message);
       });
     },
-    [hasMoreOlderEvents, isLoadingOlderEvents, loadOlder, setErrorMessage, t],
+    [
+      hasMoreOlderEvents,
+      isLoadingOlderEvents,
+      isProvisioningTask,
+      loadOlder,
+      setErrorMessage,
+      t,
+    ],
   );
 
   const handleWheelForPagination = React.useCallback(
@@ -207,9 +218,6 @@ export function ChatInterface() {
         : false,
     [pendingMessages, conversationId],
   );
-
-  const isProvisioningTask =
-    isTask && taskStatus !== "READY" && taskStatus !== "ERROR";
 
   // Show V1 messages immediately if events exist in store (e.g., remount),
   // or once loading completes. This replaces the old transition-observation
