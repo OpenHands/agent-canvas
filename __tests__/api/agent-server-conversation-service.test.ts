@@ -71,11 +71,15 @@ vi.mock("@openhands/typescript-client/clients", async () => {
   };
 });
 
-vi.mock("@openhands/typescript-client/client/http-client", () => ({
-  HttpClient: vi.fn(function HttpClientMock() {
-    return { post: mockSdkHttpPost };
-  }),
-}));
+vi.mock("@openhands/typescript-client/client/http-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@openhands/typescript-client/client/http-client")>();
+  return {
+    ...actual,
+    HttpClient: vi.fn(function HttpClientMock() {
+      return { post: mockSdkHttpPost };
+    }),
+  };
+});
 
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",

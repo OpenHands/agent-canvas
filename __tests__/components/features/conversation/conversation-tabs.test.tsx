@@ -477,6 +477,30 @@ describe("ConversationTabs localStorage behavior", () => {
     });
   });
 
+  describe("ellipsis context menu", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("opens the context menu when the ellipsis button is clicked", async () => {
+      const user = userEvent.setup();
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.queryByTestId("conversation-tabs-menu-open-files"),
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId("ellipsis-button"));
+
+      expect(
+        screen.getByTestId("conversation-tabs-menu-open-files"),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("tasklist tab", () => {
     beforeEach(() => {
       mockConversationId = REAL_CONVERSATION_ID;

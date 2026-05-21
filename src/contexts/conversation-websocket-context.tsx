@@ -863,8 +863,9 @@ export function ConversationWebSocketProvider({
       }
 
       try {
-        // Send message through WebSocket as JSON
-        currentSocket.send(JSON.stringify(message));
+        // Send message through WebSocket as JSON with run: true so the
+        // agent loop starts automatically in async mode.
+        currentSocket.send(JSON.stringify({ ...message, run: true }));
         return { queued: false };
       } catch (error) {
         const errorMessage =
