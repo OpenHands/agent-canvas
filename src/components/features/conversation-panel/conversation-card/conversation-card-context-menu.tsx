@@ -35,9 +35,6 @@ interface ConversationCardContextMenuProps {
   ignoreOutsideClickRef?: React.RefObject<HTMLElement | null>;
 }
 
-const contextMenuListItemClassName =
-  "cursor-pointer p-0 h-auto hover:bg-transparent";
-
 export function ConversationCardContextMenu({
   onClose,
   onDelete,
@@ -71,7 +68,7 @@ export function ConversationCardContextMenu({
         return !isLast ? (
           <React.Fragment key={sectionKey}>
             {filteredItems}
-            <Divider />
+            <Divider inset="menu" />
           </React.Fragment>
         ) : (
           <React.Fragment key={sectionKey}>{filteredItems}</React.Fragment>
@@ -106,7 +103,6 @@ export function ConversationCardContextMenu({
               key="edit-button"
               testId="edit-button"
               onClick={onEdit}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<EditIcon width={16} height={16} />}
@@ -124,7 +120,6 @@ export function ConversationCardContextMenu({
               key="show-agent-tools-button"
               testId="show-agent-tools-button"
               onClick={onShowAgentTools}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<ToolsIcon width={16} height={16} />}
@@ -137,7 +132,6 @@ export function ConversationCardContextMenu({
               key="show-skills-button"
               testId="show-skills-button"
               onClick={onShowSkills}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<RobotIcon width={16} height={16} />}
@@ -155,7 +149,6 @@ export function ConversationCardContextMenu({
               key="stop-button"
               testId="stop-button"
               onClick={onStop}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<CloseIcon width={16} height={16} />}
@@ -168,7 +161,6 @@ export function ConversationCardContextMenu({
               key="download-vscode-button"
               testId="download-vscode-button"
               onClick={onDownloadViaVSCode}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<DownloadIcon width={16} height={16} />}
@@ -181,7 +173,6 @@ export function ConversationCardContextMenu({
               key="download-trajectory-button"
               testId="download-trajectory-button"
               onClick={onDownloadConversation}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<DownloadIcon width={16} height={16} />}
@@ -199,7 +190,6 @@ export function ConversationCardContextMenu({
               key="display-cost-button"
               testId="display-cost-button"
               onClick={onDisplayCost}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<CreditCardIcon width={16} height={16} />}
@@ -212,7 +202,6 @@ export function ConversationCardContextMenu({
               key="delete-button"
               testId="delete-button"
               onClick={onDelete}
-              className={contextMenuListItemClassName}
             >
               <ConversationNameContextMenuIconText
                 icon={<DeleteIcon width={16} height={16} />}

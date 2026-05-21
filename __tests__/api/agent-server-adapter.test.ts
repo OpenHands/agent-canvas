@@ -337,6 +337,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message).toEqual({
       role: "user",
       content: [{ type: "text", text: "Follow the repo conventions." }],
+      run: true,
     });
   });
 
@@ -566,6 +567,48 @@ describe("toAppConversation", () => {
     });
     expect(result.agent_kind).toBe("acp");
     expect(result.llm_model).toBeNull();
+  });
+
+  it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
+    // The ``acpserver`` conversation tag is stamped at create time
+    // (``buildStartConversationRequest``) but never previously plumbed
+    // through on read — the sidebar chip in agent-canvas#405 needs this
+    // value to resolve the human display name ("Claude Code" / "Codex" /
+    // "Gemini CLI").
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.acp_server).toBe("claude-code");
+  });
+
+  it("leaves acp_server null when an ACP conversation has no tag stamped", () => {
+    // Older conversations created before the tag was added, or ACP
+    // conversations created via the raw API, won't have the tag. The
+    // sidebar should still render a chip ("ACP") — but the resolver gets
+    // null here and the UI fallback handles the generic label.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.acp_server).toBeNull();
+  });
+
+  it("ignores tags.acpserver on OpenHands conversations to prevent stray-tag bleed", () => {
+    // The agent-server's pydantic model doesn't enforce that ``acpserver``
+    // is only stamped on ACP conversations. Defensively gating on
+    // ``agent.kind === "ACPAgent"`` keeps a misconfigured tag from
+    // turning the sidebar of an OpenHands conversation into "Claude
+    // Code". Pairs with the ``llm_model`` null-out for ACP.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "Agent", llm: { model: "claude-sonnet-4-6" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.agent_kind).toBe("openhands");
+    expect(result.acp_server).toBeNull();
   });
 });
 

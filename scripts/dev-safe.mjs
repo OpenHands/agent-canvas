@@ -25,7 +25,10 @@ import {
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHARED_DEFAULTS = JSON.parse(
-  readFileSync(path.join(__dev_safe_dirname, "..", "config", "defaults.json"), "utf-8"),
+  readFileSync(
+    path.join(__dev_safe_dirname, "..", "config", "defaults.json"),
+    "utf-8",
+  ),
 );
 
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
@@ -334,7 +337,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.23.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a

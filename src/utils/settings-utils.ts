@@ -53,7 +53,7 @@ export function isSettingsPageHidden(
   path: string,
   featureFlags: WebClientFeatureFlags | undefined,
 ): boolean {
-  if (featureFlags?.hide_llm_settings && path === "/settings") return true;
+  if (featureFlags?.hide_llm_settings && path === "/settings/llm") return true;
   return false;
 }
 
@@ -67,6 +67,7 @@ export function getFirstAvailablePath(
   // fallback). For OpenHands-agent users this is also a sensible landing
   // — the Agent page is the single place to switch kinds.
   const fallbackOrder = [
+    { path: "/settings/llm", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/agent", hidden: false },
     { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/app", hidden: false },

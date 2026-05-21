@@ -466,10 +466,15 @@ describe("dev-with-automation CLI", () => {
     // runners that don't have uv installed. The prerequisite check must
     // succeed so the LOCAL_PATH validation guard (the actual subject of this
     // test, which runs immediately after) is exercised.
+    const isWindows = process.platform === "win32";
     const stubBinDir = mkdtempSync(path.join(tmpdir(), "stub-bin-"));
-    writeFileSync(path.join(stubBinDir, "uvx"), "#!/bin/sh\nexit 0\n", {
-      mode: 0o755,
-    });
+    if (isWindows) {
+      writeFileSync(path.join(stubBinDir, "uvx.cmd"), "@exit /b 0\r\n");
+    } else {
+      writeFileSync(path.join(stubBinDir, "uvx"), "#!/bin/sh\nexit 0\n", {
+        mode: 0o755,
+      });
+    }
 
     // Act: spawn `dev-with-automation.mjs` with that path set. Stubbed `uvx`
     // is prepended to PATH so the prerequisite check passes; the validation
@@ -478,9 +483,17 @@ describe("dev-with-automation CLI", () => {
     const child = spawn(process.execPath, ["scripts/dev-with-automation.mjs"], {
       cwd: repoRoot,
       env: {
-        PATH: `${stubBinDir}:${process.env.PATH ?? ""}`,
+        PATH: `${stubBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
         HOME: process.env.HOME ?? "",
         OH_AGENT_SERVER_LOCAL_PATH: emptyDir,
+        // Windows needs these for `where.exe` to resolve the stub and npm
+        ...(isWindows
+          ? {
+              PATHEXT: process.env.PATHEXT ?? ".CMD;.EXE;.BAT;.COM",
+              SystemRoot: process.env.SystemRoot ?? "",
+              USERPROFILE: process.env.USERPROFILE ?? "",
+            }
+          : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

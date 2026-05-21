@@ -340,6 +340,11 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: ["vitest.setup.ts"],
       exclude: [...configDefaults.exclude, "tests"],
+      server: {
+        deps: {
+          inline: ["@openhands/typescript-client"],
+        },
+      },
       coverage: {
         reporter: ["text", "json", "html", "lcov", "text-summary"],
         reportsDirectory: "coverage",
