@@ -105,7 +105,7 @@ export function ChatInputModel() {
           <Divider />
           <li className="text-sm">
             <NavigationLink
-              to="/settings"
+              to="/settings/llm"
               onClick={() => setIsPopoverOpen(false)}
               className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
             >

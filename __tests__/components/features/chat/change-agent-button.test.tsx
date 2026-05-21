@@ -5,9 +5,10 @@ import { ChangeAgentButton } from "#/components/features/chat/change-agent-butto
 import { renderWithProviders } from "../../../../test-utils";
 import { useConversationStore } from "#/stores/conversation-store";
 
-// Mock WebSocket status
+const mockWebSocketStatus = vi.hoisted(() => vi.fn(() => "OPEN"));
+
 vi.mock("#/hooks/use-unified-websocket-status", () => ({
-  useUnifiedWebSocketStatus: () => "CONNECTED",
+  useUnifiedWebSocketStatus: () => mockWebSocketStatus(),
 }));
 
 // Mock agent state
@@ -68,6 +69,7 @@ vi.mock("#/hooks/use-handle-plan-click", () => ({
 describe("ChangeAgentButton - Cache Invalidation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWebSocketStatus.mockReturnValue("OPEN");
     // Reset store state
     useConversationStore.setState({
       conversationMode: "code",
@@ -150,5 +152,13 @@ describe("ChangeAgentButton - Cache Invalidation", () => {
     // Assert
     const button = screen.getByRole("button");
     expect(button).toBeInTheDocument();
+  });
+
+  it("enables mode switch on pre-conversation surfaces without a websocket", () => {
+    mockWebSocketStatus.mockReturnValue("CLOSED");
+    renderWithProviders(<ChangeAgentButton />, {
+      navigation: { conversationId: null },
+    });
+    expect(screen.getByRole("button")).not.toBeDisabled();
   });
 });

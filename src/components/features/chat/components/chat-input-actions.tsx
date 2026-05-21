@@ -260,7 +260,7 @@ export function ChatInputActions({
   const isAgentSwitcherDisabled =
     curAgentState === AgentState.RUNNING ||
     isCreatingConversation ||
-    webSocketStatus !== "OPEN";
+    (conversationId != null && webSocketStatus !== "OPEN");
 
   const closeOverflowMenus = () => {
     setActiveSubmenu(null);
@@ -449,7 +449,7 @@ export function ChatInputActions({
               <Divider inset="menu" />
               <li className="text-sm">
                 <NavigationLink
-                  to="/settings"
+                  to="/settings/llm"
                   onClick={closeOverflowMenus}
                   className="group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)] transition-colors"
                 >

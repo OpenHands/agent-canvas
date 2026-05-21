@@ -15,12 +15,16 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 
 export function ChangeAgentButton() {
   const [contextMenuOpen, setContextMenuOpen] = useState<boolean>(false);
 
   const { conversationMode, setConversationMode, subConversationTaskId } =
     useConversationStore();
+
+  const { conversationId } = useOptionalConversationId();
+  const isPreConversation = conversationId == null;
 
   const webSocketStatus = useUnifiedWebSocketStatus();
 
@@ -74,13 +78,21 @@ export function ChangeAgentButton() {
 
   // Close context menu when agent starts running
   useEffect(() => {
-    if ((isAgentRunning || !isWebSocketConnected) && contextMenuOpen) {
+    const blockedBySocket = !isPreConversation && !isWebSocketConnected;
+    if ((isAgentRunning || blockedBySocket) && contextMenuOpen) {
       setContextMenuOpen(false);
     }
-  }, [isAgentRunning, contextMenuOpen, isWebSocketConnected]);
+  }, [
+    isAgentRunning,
+    contextMenuOpen,
+    isWebSocketConnected,
+    isPreConversation,
+  ]);
 
   const isButtonDisabled =
-    isAgentRunning || isCreatingConversation || !isWebSocketConnected;
+    isCreatingConversation ||
+    isAgentRunning ||
+    (!isPreConversation && !isWebSocketConnected);
 
   // Handle Shift + Tab keyboard shortcut to cycle through modes
   useEffect(() => {

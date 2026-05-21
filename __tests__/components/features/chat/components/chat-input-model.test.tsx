@@ -47,7 +47,7 @@ describe("ChatInputModel", () => {
     const llmSettingsLink = screen.getByRole("link", {
       name: /LLM Profiles|SETTINGS\$LLM_PROFILES|LLM Settings|SETTINGS\$LLM_SETTINGS/,
     });
-    expect(llmSettingsLink).toHaveAttribute("href", "/settings");
+    expect(llmSettingsLink).toHaveAttribute("href", "/settings/llm");
   });
 
   it("renders nothing when llm_model is missing", () => {
