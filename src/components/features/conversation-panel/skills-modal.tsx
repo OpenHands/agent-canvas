@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
-import { useSkills } from "#/hooks/query/use-skills";
+import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { AgentState } from "#/types/agent-state";
 import { Typography } from "#/ui/typography";
 import { SkillsModalHeader } from "./skills-modal-header";
@@ -22,13 +22,15 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
   const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>(
     {},
   );
+  // Scope the catalog to this conversation's attached workspace so the listed
+  // skills match the project skills actually loaded into the conversation.
   const {
     data: skills,
     isLoading,
     isError,
     refetch,
     isRefetching,
-  } = useSkills();
+  } = useConversationSkills();
 
   const toggleAgent = (agentName: string) => {
     setExpandedAgents((prev) => ({

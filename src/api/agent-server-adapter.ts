@@ -614,7 +614,7 @@ function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
 
 function createAgentFromSettings(
   agentSettings: SettingsRecord,
-  options: { acp?: boolean } = {},
+  options: { acp?: boolean; projectSkills?: Record<string, unknown>[] } = {},
 ) {
   const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   // ``load_public_skills``, ``load_user_skills``, and
@@ -646,6 +646,15 @@ function createAgentFromSettings(
   const agentContext: Record<string, unknown> = {
     load_public_skills: true,
     load_user_skills: true,
+    // Project skills (``.agents/skills/`` in the workspace) are not
+    // auto-loaded by the AgentContext (it only auto-loads user/public
+    // skills, and agent-server 1.23.0 has no wire field to request project
+    // skills for a conversation). They are pre-loaded by the caller and
+    // injected here as explicit ``skills`` so repo skills reach the agent.
+    // ``skills`` is marked ``acp_compatible: true`` in the SDK, so this is
+    // valid on both the Agent and ACPAgent paths. ``_load_auto_skills``
+    // dedupes auto-loaded user/public skills against these by name.
+    ...(options.projectSkills?.length ? { skills: options.projectSkills } : {}),
     // When the dev launcher provided ``VITE_RUNTIME_SERVICES_INFO``,
     // append a <RUNTIME_SERVICES> block to the system prompt so the
     // agent knows which services exist in this dev stack (e.g.
@@ -754,6 +763,13 @@ export interface StartConversationOptions {
    * The actual values are fetched at runtime via LookupSecret.
    */
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * Project skills (from ``.agents/skills/`` in the workspace) to seed the
+   * agent context with, as SDK ``Skill`` wire objects. Pre-loaded by the
+   * caller because the fetch is async and this builder is synchronous; see
+   * ``buildStartConversationRequestWithEncryptedSettings``.
+   */
+  projectSkills?: Record<string, unknown>[];
 }
 
 export function buildStartConversationRequest(
@@ -768,7 +784,10 @@ export function buildStartConversationRequest(
   const agentSettings = acpMode
     ? buildConfiguredAcpAgentSettings(sourceAgentSettings)
     : buildConfiguredAgentSettings(sourceAgentSettings);
-  const agent = createAgentFromSettings(agentSettings, { acp: acpMode });
+  const agent = createAgentFromSettings(agentSettings, {
+    acp: acpMode,
+    projectSkills: options.projectSkills,
+  });
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
     : undefined;
@@ -931,14 +950,26 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  /**
+   * Workspace root to load project skills (`.agents/skills/`) from. This is
+   * the workspace root, NOT `workingDir` — the latter is the per-conversation
+   * worktree subdir (`<workspace>/<conversationId>`), which has no
+   * `.agents/skills/` and may not exist yet at request-build time. Defaults to
+   * the configured workspace dir inside `getProjectSkills`.
+   */
+  skillsProjectDir?: string;
 }): Promise<Record<string, unknown>> {
-  // Import SecretsService dynamically to avoid circular dependencies
+  // Import services dynamically to avoid circular dependencies
   const { SecretsService } = await import("./secrets-service");
+  const { default: SkillsService } = await import("./skills-service");
 
-  // Fetch settings with encrypted secrets and custom secrets list in parallel
-  const [settingsResult, customSecrets] = await Promise.all([
+  // Fetch settings, custom secrets, and project skills in parallel.
+  // Project skills are loaded here (an async call) so the synchronous
+  // buildStartConversationRequest can inject them into the agent context.
+  const [settingsResult, customSecrets, projectSkills] = await Promise.all([
     SettingsService.getSettingsForConversation(),
     SecretsService.getSecrets(),
+    SkillsService.getProjectSkills(options.skillsProjectDir),
   ]);
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
@@ -950,6 +981,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
+    projectSkills,
   });
 }
 

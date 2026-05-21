@@ -71,15 +71,21 @@ vi.mock("@openhands/typescript-client/clients", async () => {
   };
 });
 
-vi.mock("@openhands/typescript-client/client/http-client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@openhands/typescript-client/client/http-client")>();
-  return {
-    ...actual,
-    HttpClient: vi.fn(function HttpClientMock() {
-      return { post: mockSdkHttpPost };
-    }),
-  };
-});
+vi.mock(
+  "@openhands/typescript-client/client/http-client",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@openhands/typescript-client/client/http-client")
+      >();
+    return {
+      ...actual,
+      HttpClient: vi.fn(function HttpClientMock() {
+        return { post: mockSdkHttpPost };
+      }),
+    };
+  },
+);
 
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
@@ -100,6 +106,14 @@ vi.mock("#/api/settings-service/settings-service.api", () => ({
     getSettingsForConversation: mockGetSettingsForConversation,
   },
 }));
+
+const localBackend: Backend = {
+  id: "local",
+  name: "Local",
+  host: "http://localhost:54928",
+  apiKey: "test-api-key",
+  kind: "local",
+};
 
 describe("AgentServerConversationService", () => {
   beforeEach(() => {
@@ -290,6 +304,75 @@ describe("AgentServerConversationService", () => {
       expect(secondPayload.workspace.working_dir).toBe(
         `/state/workspaces/${secondHex}`,
       );
+    });
+
+    it("loads project skills from the workspace root, not the per-conversation working_dir", async () => {
+      // Regression guard: project skills (.agents/skills/) live at the
+      // workspace root. The conversation's working_dir is a per-conversation
+      // worktree subdir (/state/workspaces/<hex>) that has no .agents/skills/,
+      // so the /api/skills request must use getAgentServerWorkingDir(), not it.
+      setRegisteredBackends([localBackend]);
+      setActiveSelection({ backendId: localBackend.id });
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: { id: "x", created_at: "2024-01-01", updated_at: "2024-01-01" },
+      });
+      mockSdkHttpPost.mockResolvedValue({ data: { skills: [] } });
+
+      await AgentServerConversationService.createConversation();
+
+      const skillsCall = mockSdkHttpPost.mock.calls.find(
+        ([url]) => url === "/api/skills",
+      );
+      expect(skillsCall?.[1]).toMatchObject({
+        load_project: true,
+        load_public: false,
+        load_user: false,
+        project_dir: "/workspace/project/agent-canvas",
+      });
+    });
+
+    it("loads project skills from an explicitly attached workspace override", async () => {
+      // When the user attaches a workspace, its path is the project root —
+      // skills must come from there, not the default workspace dir.
+      setRegisteredBackends([localBackend]);
+      setActiveSelection({ backendId: localBackend.id });
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: { id: "x", created_at: "2024-01-01", updated_at: "2024-01-01" },
+      });
+      mockSdkHttpPost.mockResolvedValue({ data: { skills: [] } });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        null,
+        "/home/user/my-repo",
+      );
+
+      const skillsCall = mockSdkHttpPost.mock.calls.find(
+        ([url]) => url === "/api/skills",
+      );
+      expect(skillsCall?.[1]).toMatchObject({
+        project_dir: "/home/user/my-repo",
+      });
     });
   });
 

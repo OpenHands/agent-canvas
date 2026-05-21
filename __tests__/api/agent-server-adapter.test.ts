@@ -454,6 +454,65 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent.agent_context?.secrets).toBeUndefined();
   });
 
+  describe("project skills injection", () => {
+    const projectSkills = [
+      {
+        name: "custom-codereview-guide",
+        content: "review carefully",
+        source: "/workspace/project/agent-canvas/.agents/skills/x.md",
+        description: "repo guide",
+        is_agentskills_format: false,
+        disable_model_invocation: false,
+      },
+    ];
+
+    it("injects pre-loaded project skills into agent_context.skills for the OpenHands agent", () => {
+      // Project skills (.agents/skills/) are not auto-loaded by the
+      // AgentContext, so they must be threaded in as explicit skills.
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        projectSkills,
+      }) as { agent: { agent_context?: Record<string, unknown> } };
+
+      expect(payload.agent.agent_context).toEqual({
+        load_public_skills: true,
+        load_user_skills: true,
+        skills: projectSkills,
+      });
+    });
+
+    it("injects project skills into agent_context.skills for ACP agents too", () => {
+      // ``skills`` is acp_compatible in the SDK, so the ACP path gets the
+      // same repo skills as the OpenHands path.
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          agent_settings: {
+            ...DEFAULT_SETTINGS.agent_settings,
+            agent_kind: "acp",
+            acp_server: "claude-code",
+            acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          },
+        },
+        projectSkills,
+      }) as { agent: { agent_context?: { skills?: unknown } } };
+
+      expect(payload.agent.agent_context?.skills).toEqual(projectSkills);
+    });
+
+    it("omits the skills key when there are no project skills", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        projectSkills: [],
+      }) as { agent: { agent_context?: Record<string, unknown> } };
+
+      expect(payload.agent.agent_context).toEqual({
+        load_public_skills: true,
+        load_user_skills: true,
+      });
+    });
+  });
+
   describe("canvas_ui tool injection", () => {
     it("always registers canvas_ui_tool in tool_module_qualnames, even when no user settings supply qualnames", () => {
       const payload = buildStartConversationRequest({
@@ -647,8 +706,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
             url_from_agent: "http://localhost:18001",
             api_prefix: "/api/automation",
             docs_url: "http://localhost:18001/api/automation/docs",
-            openapi_url:
-              "http://localhost:18001/api/automation/openapi.json",
+            openapi_url: "http://localhost:18001/api/automation/openapi.json",
             auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
           },
         },
@@ -660,9 +718,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("dev:automation");
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
-    expect(suffix).toContain(
-      "http://localhost:18001/api/automation/docs",
-    );
+    expect(suffix).toContain("http://localhost:18001/api/automation/docs");
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
