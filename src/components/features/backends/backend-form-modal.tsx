@@ -517,7 +517,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col items-center px-4 gap-3">
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3">
       <div className="flex flex-col items-center gap-1">
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
@@ -626,14 +626,14 @@ export function BackendFormModal({
           </div>
 
           {/* Two-column body */}
-          <div className="flex px-6 pb-6 pt-2">
+          <div className="flex gap-6 px-6 pb-6 pt-2">
             {/* Left: manual connection */}
-            <div className="flex-1 min-w-0 pr-6">
+            <div className="flex-1 min-w-0">
               <ManualConnectionColumn onClose={onClose} />
             </div>
 
             {/* Vertical OR divider */}
-            <div className="mx-2 flex shrink-0 flex-col items-center">
+            <div className="flex shrink-0 flex-col items-center">
               <div className="flex-1 w-px bg-[var(--oh-border)]" />
               <span className="py-3 text-xs uppercase text-[var(--oh-muted)]">
                 {t(I18nKey.BACKEND$LOGIN_OR)}
@@ -642,7 +642,7 @@ export function BackendFormModal({
             </div>
 
             {/* Right: cloud login */}
-            <div className="flex-1 min-w-0 pl-6">
+            <div className="flex-1 min-w-0">
               <CloudLoginColumn onClose={onClose} />
             </div>
           </div>
@@ -666,7 +666,18 @@ export function BackendFormModal({
           modalWidthClassName("md"),
         )}
       >
-        <BaseModalTitle title={t(I18nKey.BACKEND$EDIT_TITLE)} />
+        <div className="flex items-start justify-between gap-4">
+          <BaseModalTitle title={t(I18nKey.BACKEND$EDIT_TITLE)} />
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+            data-testid={`${testIdRoot}-close`}
+            aria-label={t(I18nKey.BUTTON$CLOSE)}
+          >
+            <X size={20} aria-hidden />
+          </button>
+        </div>
         <BackendForm
           mode="edit"
           backend={backend}

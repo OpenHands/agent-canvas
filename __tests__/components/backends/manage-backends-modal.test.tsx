@@ -177,4 +177,37 @@ describe("ManageBackendsModal", () => {
     expect(row.textContent).toContain("http://localhost:9999");
     expect(backendId).not.toBe("");
   });
+
+  it("closes the edit form when the header close button is clicked", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "old-key",
+            kind: "local",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId("manage-backends-edit-Acme Local"),
+    );
+    await screen.findByTestId("edit-backend-modal");
+
+    await user.click(screen.getByTestId("edit-backend-close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+  });
 });

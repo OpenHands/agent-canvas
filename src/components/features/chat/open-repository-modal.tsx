@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -11,7 +12,10 @@ import { GitRepoDropdown } from "#/components/features/home/git-repo-dropdown/gi
 import { GitBranchDropdown } from "#/components/features/home/git-branch-dropdown/git-branch-dropdown";
 import { GitProviderDropdown } from "#/components/features/home/git-provider-dropdown/git-provider-dropdown";
 import { useUserProviders } from "#/hooks/use-user-providers";
-import RepoForkedIcon from "#/icons/repo-forked.svg?react";
+import { cn } from "#/utils/utils";
+
+const ICON_BUTTON_CLASS =
+  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface OpenRepositoryModalProps {
   isOpen: boolean;
@@ -99,12 +103,20 @@ export function OpenRepositoryModal({
         width="sm"
         className="items-start border border-[var(--oh-border)] !gap-4"
       >
-        <div className="flex flex-col gap-4 w-full">
-          <div className="flex items-center gap-[10px]">
-            <RepoForkedIcon width={24} height={24} />
-            <BaseModalTitle title={t(I18nKey.CONVERSATION$OPEN_REPOSITORY)} />
-          </div>
+        <div className="flex w-full items-start justify-between gap-4">
+          <BaseModalTitle title={t(I18nKey.CONVERSATION$OPEN_REPOSITORY)} />
+          <button
+            type="button"
+            onClick={handleClose}
+            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+            data-testid="close-open-repository-modal"
+            aria-label={t(I18nKey.BUTTON$CLOSE)}
+          >
+            <X size={20} aria-hidden />
+          </button>
+        </div>
 
+        <div className="flex flex-col gap-4 w-full">
           <div className="flex items-center justify-between">
             <span className="text-sm text-white font-normal leading-[22px]">
               {t(I18nKey.CONVERSATION$SELECT_OR_INSERT_LINK)}
@@ -118,28 +130,28 @@ export function OpenRepositoryModal({
               />
             )}
           </div>
-        </div>
 
-        <div className="flex flex-col gap-[10px] w-full">
-          <GitRepoDropdown
-            provider={activeProvider}
-            value={selectedRepository?.id || null}
-            repositoryName={selectedRepository?.full_name || null}
-            onChange={handleRepositoryChange}
-            placeholder="Search repositories..."
-            className="w-full"
-          />
+          <div className="flex flex-col gap-[10px] w-full">
+            <GitRepoDropdown
+              provider={activeProvider}
+              value={selectedRepository?.id || null}
+              repositoryName={selectedRepository?.full_name || null}
+              onChange={handleRepositoryChange}
+              placeholder="Search repositories..."
+              className="w-full"
+            />
 
-          <GitBranchDropdown
-            repository={selectedRepository?.full_name || null}
-            provider={activeProvider}
-            selectedBranch={selectedBranch}
-            onBranchSelect={handleBranchSelect}
-            defaultBranch={selectedRepository?.main_branch || null}
-            placeholder="Select branch..."
-            disabled={!selectedRepository}
-            className="w-full"
-          />
+            <GitBranchDropdown
+              repository={selectedRepository?.full_name || null}
+              provider={activeProvider}
+              selectedBranch={selectedBranch}
+              onBranchSelect={handleBranchSelect}
+              defaultBranch={selectedRepository?.main_branch || null}
+              placeholder="Select branch..."
+              disabled={!selectedRepository}
+              className="w-full"
+            />
+          </div>
         </div>
 
         <div
