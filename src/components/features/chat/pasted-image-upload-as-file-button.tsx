@@ -1,4 +1,4 @@
-import { Check, Upload } from "lucide-react";
+import { Check, FilePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { I18nKey } from "#/i18n/declaration";
@@ -42,7 +42,7 @@ export function PastedImageUploadAsFileButton({
           {active ? (
             <Check width={10} height={10} strokeWidth={2.5} aria-hidden />
           ) : (
-            <Upload width={10} height={10} strokeWidth={2.5} aria-hidden />
+            <FilePlus width={10} height={10} strokeWidth={2.5} aria-hidden />
           )}
         </button>
       </StyledTooltip>
