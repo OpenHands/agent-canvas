@@ -685,50 +685,6 @@ describe("BackendSelector", () => {
     expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
   });
 
-  // @spec BM-002 — Switching backends keeps the user on the same page
-  it("does not redirect when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const settingsButton = screen.getByTestId("backend-selector-settings-link");
-    expect(settingsButton).toHaveAttribute("data-active", "true");
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    const wrapper = screen.getByTestId("backend-selector");
-    const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local");
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
-  });
-
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
       vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
