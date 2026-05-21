@@ -28,7 +28,7 @@
  *
  * Usage:
  *   node scripts/check-acp-providers-sync.mjs
- *   node scripts/check-acp-providers-sync.mjs --sdk-ref v1.22.1
+ *   node scripts/check-acp-providers-sync.mjs --sdk-ref v1.23.0
  *   node scripts/check-acp-providers-sync.mjs --sdk-file /path/to/acp_providers.py
  *
  * Options:

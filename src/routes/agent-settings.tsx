@@ -377,7 +377,9 @@ function AgentSettingsScreen() {
           isDisabled={isSaving || !effectiveIsDirty || isAcpInvalid}
           onClick={handleSave}
         >
-          {isSaving ? t(I18nKey.SETTINGS$SAVING) : t(I18nKey.BUTTON$SAVE)}
+          {isSaving
+            ? t(I18nKey.SETTINGS$SAVING)
+            : t(I18nKey.SETTINGS$SAVE_CHANGES)}
         </BrandButton>
       </div>
     </div>

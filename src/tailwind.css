@@ -91,7 +91,8 @@
   --oh-interactive-hover-low: var(--cool-grey-900);  /* hover on dark base (950 bg) */
   --oh-interactive-active: var(--cool-grey-800);     /* selected/active on dark base */
   --oh-interactive-selected: var(--cool-grey-600);   /* selected within a panel (on 800/925 bg) */
-  --oh-scrollbar: rgba(208, 217, 250, 0.3);
+  --oh-scrollbar: color-mix(in srgb, var(--cool-grey-400) 30%, transparent);
+  --oh-scrollbar-hover: color-mix(in srgb, var(--cool-grey-400) 50%, transparent);
   --oh-default: var(--cool-grey-800);
   --oh-default-foreground: var(--cool-grey-100);
   --oh-accent: #c9b974;
@@ -166,11 +167,13 @@
 }
 
 .skeleton {
-  @apply bg-neutral-700 rounded-md animate-pulse motion-reduce:animate-none;
+  @apply rounded-md animate-pulse motion-reduce:animate-none;
+  background-color: var(--oh-interactive-active);
 }
 
 .skeleton-round {
-  @apply bg-neutral-700 rounded-full animate-pulse motion-reduce:animate-none;
+  @apply rounded-full animate-pulse motion-reduce:animate-none;
+  background-color: var(--oh-interactive-active);
 }
 
 /**
@@ -220,12 +223,12 @@
 
 /* Show scrollbar on hover */
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(208, 217, 250, 0.3);
+  background: var(--oh-scrollbar);
   opacity: 1;
 }
 
 .custom-scrollbar:hover::-webkit-scrollbar-thumb:hover {
-  background: rgba(208, 217, 250, 0.5);
+  background: var(--oh-scrollbar-hover);
 }
 
 /* Firefox scrollbar styling */
@@ -236,7 +239,7 @@
 }
 
 .custom-scrollbar:hover {
-  scrollbar-color: rgba(208, 217, 250, 0.3) transparent;
+  scrollbar-color: var(--oh-scrollbar) transparent;
 }
 
 /* Always visible scrollbar for chat interface */
@@ -250,19 +253,33 @@
 }
 
 .custom-scrollbar-always::-webkit-scrollbar-thumb {
-  background: rgba(208, 217, 250, 0.3);
+  background: var(--oh-scrollbar);
   border-radius: 3px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .custom-scrollbar-always::-webkit-scrollbar-thumb:hover {
-  background: rgba(208, 217, 250, 0.5);
+  background: var(--oh-scrollbar-hover);
 }
 
 /* Firefox scrollbar styling for always visible */
 .custom-scrollbar-always {
   scrollbar-width: thin;
-  scrollbar-color: rgba(208, 217, 250, 0.3) transparent;
+  scrollbar-color: var(--oh-scrollbar) transparent;
+}
+
+/*
+ * Sidebar conversation list: reserve a stable gutter so short lists keep the
+ * same right inset as when a vertical scrollbar is present (aligns with nav).
+ */
+.conversation-panel-list-scroll {
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  .conversation-panel-list-scroll {
+    padding-right: 0.5rem;
+  }
 }
 
 /* Custom styles for contenteditable */
@@ -415,30 +432,30 @@
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(71, 74, 84, 0.5);
+  background: var(--oh-scrollbar);
   border-radius: 4px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 1;
 }
 
 .xterm-viewport:hover::-webkit-scrollbar-thumb {
-  background: rgba(71, 74, 84, 0.7);
+  background: var(--oh-scrollbar-hover);
   opacity: 1;
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(90, 93, 103, 0.7);
+  background: var(--oh-scrollbar-hover);
 }
 
 /* Firefox scrollbar styling for xterm */
 .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: rgba(71, 74, 84, 0.5) transparent;
+  scrollbar-color: var(--oh-scrollbar) transparent;
   transition: scrollbar-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .xterm-viewport:hover {
-  scrollbar-color: rgba(71, 74, 84, 0.7) transparent;
+  scrollbar-color: var(--oh-scrollbar-hover) transparent;
 }
 
 /* Force text wrapping and proper overflow handling for xterm */

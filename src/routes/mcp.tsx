@@ -15,6 +15,7 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
@@ -115,7 +116,7 @@ export default function MCPPage() {
     return (
       <div data-testid="mcp-page" className="flex h-full gap-10">
         <ExtensionsNavigation />
-        <div className="flex h-full flex-1 items-center justify-center">
+        <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
           <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
         </div>
       </div>
@@ -125,7 +126,7 @@ export default function MCPPage() {
   return (
     <div data-testid="mcp-page" className="flex h-full gap-10">
       <ExtensionsNavigation />
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
+      <main className={settingsLikeMainScrollClassName}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
