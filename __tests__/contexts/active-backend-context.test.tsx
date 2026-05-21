@@ -76,6 +76,58 @@ describe("ActiveBackendProvider", () => {
     });
   });
 
+  // @spec BM-001 — Auto-switch to newly connected backend
+  it("addBackend automatically switches the active backend to the newly added one", () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    // Starts on the seeded default local backend.
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+
+    let added: { id: string } | null = null;
+    act(() => {
+      added = result.current.addBackend({
+        name: "OpenHands Cloud",
+        host: "https://app.all-hands.dev",
+        apiKey: "bearer-token",
+        kind: "cloud",
+      });
+    });
+
+    // Active backend should now be the cloud backend we just added.
+    expect(result.current.active.backend.id).toBe(added!.id);
+    expect(result.current.active.backend.name).toBe("OpenHands Cloud");
+    expect(result.current.active.backend.kind).toBe("cloud");
+
+    // The seeded default should still be in the registry.
+    expect(result.current.backends).toHaveLength(2);
+    expect(result.current.backends.find((b) => b.id === DEFAULT_LOCAL_BACKEND_ID)).toBeDefined();
+  });
+
+  // @spec BM-001 — Auto-switch applies to local backends too
+  it("addBackend automatically switches to a newly added local backend", () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+
+    let added: { id: string } | null = null;
+    act(() => {
+      added = result.current.addBackend({
+        name: "My Server",
+        host: "http://localhost:9000",
+        apiKey: "key-1",
+        kind: "local",
+      });
+    });
+
+    // Active should now be the new local backend, not the seeded default.
+    expect(result.current.active.backend.id).toBe(added!.id);
+    expect(result.current.active.backend.name).toBe("My Server");
+  });
+
   it("setActive switches the active backend without touching unrelated React Query cache entries", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(["dummy"], { value: 1 });
