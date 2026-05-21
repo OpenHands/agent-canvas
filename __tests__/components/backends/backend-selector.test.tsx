@@ -39,6 +39,21 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(),
 }));
 
+// Shared seed configs reused across tests.
+const SEED_LOCAL_1 = {
+  name: "Local 1",
+  host: "http://localhost:9000",
+  apiKey: "k",
+  kind: "local" as const,
+};
+
+const SEED_CLOUD_PRODUCTION = {
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-key",
+  kind: "cloud" as const,
+};
+
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -141,12 +156,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
           ctx.addBackend({
             name: "Production",
             host: "https://app.all-hands.dev",
@@ -181,21 +191,11 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          cloudId = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          }).id;
+          cloudId = ctx.addBackend(SEED_CLOUD_PRODUCTION).id;
           // Add a second backend so auto-switch lands here, leaving the
           // cloud backend unselected (the dropdown only expands org rows
           // for non-active cloud backends).
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -256,12 +256,7 @@ describe("BackendSelector", () => {
           });
           // Land on a local backend so both cloud backends are unselected
           // and their org rows render in the dropdown.
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -306,20 +301,10 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
+          ctx.addBackend(SEED_CLOUD_PRODUCTION);
           // Land on a local backend so the cloud backend is unselected
           // and its org rows render in the dropdown.
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -358,12 +343,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          cloudId = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          }).id;
+          cloudId = ctx.addBackend(SEED_CLOUD_PRODUCTION).id;
           // Simulate the post-refresh malformed state: active backend is
           // the cloud one but no orgId is set yet.
           ctx.setActive(cloudId, null);
@@ -389,12 +369,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -415,12 +390,7 @@ describe("BackendSelector", () => {
       return (
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <BackendSelector />
@@ -457,12 +427,7 @@ describe("BackendSelector", () => {
       return (
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <div data-testid="settings-route" />
@@ -588,12 +553,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -689,12 +649,7 @@ describe("BackendSelector", () => {
       return (
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <BackendSelector />
@@ -731,12 +686,7 @@ describe("BackendSelector", () => {
       return (
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <BackendSelector />
@@ -785,12 +735,7 @@ describe("BackendSelector", () => {
       renderWithProviders(
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <BackendSelector />
