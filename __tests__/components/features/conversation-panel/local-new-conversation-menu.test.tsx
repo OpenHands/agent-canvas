@@ -109,7 +109,7 @@ describe("LocalNewConversationMenu", () => {
 
   it("shows a divider above the workspace footer actions", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<NewConversationButton />);
+    renderMenu();
 
     await user.click(screen.getByTestId("new-conversation-button"));
 
