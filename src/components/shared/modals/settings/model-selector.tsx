@@ -132,7 +132,6 @@ export function ModelSelector({
           name="llm-provider-input"
           isDisabled={isDisabled}
           aria-label={t(I18nKey.LLM$PROVIDER)}
-          placeholder={t(I18nKey.LLM$SELECT_PROVIDER_PLACEHOLDER)}
           isClearable={false}
           onSelectionChange={(e) => {
             if (e?.toString()) handleChangeProvider(e.toString());
@@ -150,7 +149,7 @@ export function ModelSelector({
           inputProps={{
             classNames: {
               inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2 placeholder:italic",
+                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
             },
           }}
         >
@@ -204,7 +203,6 @@ export function ModelSelector({
           isLoading={isLoadingModels}
           name="llm-model-input"
           aria-label={t(I18nKey.LLM$MODEL)}
-          placeholder={t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
           isClearable={false}
           onSelectionChange={(e) => {
             if (e?.toString()) handleChangeModel(e.toString());
@@ -222,7 +220,7 @@ export function ModelSelector({
           inputProps={{
             classNames: {
               inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2 placeholder:italic",
+                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
             },
           }}
         >
