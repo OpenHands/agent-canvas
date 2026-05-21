@@ -214,6 +214,7 @@ test.describe("Skills Page Visual Snapshots", () => {
       timeout: 5_000,
     });
 
+    await page.getByTestId("skills-type-filter-toggle").click();
     await page.getByTestId("skills-type-filter-agentskills").click();
     await page.waitForTimeout(300);
 

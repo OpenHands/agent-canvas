@@ -143,6 +143,7 @@ describe("SkillsSettingsScreen", () => {
     renderSkillsSettingsScreen();
     await screen.findByTestId("skill-card-deno");
 
+    await user.click(screen.getByTestId("skills-type-filter-toggle"));
     await user.click(screen.getByTestId("skills-type-filter-repo"));
 
     expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
