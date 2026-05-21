@@ -145,6 +145,40 @@ describe("MCPPage", () => {
     expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
   });
 
+  it("hides the library section when the section filter is Installed", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    await screen.findByTestId("mcp-marketplace-section");
+
+    fireEvent.click(screen.getByTestId("mcp-section-filter-toggle"));
+    fireEvent.click(screen.getByTestId("mcp-section-filter-installed"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("mcp-marketplace-section"),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("mcp-installed-empty")).toBeInTheDocument();
+  });
+
+  it("hides the installed section when the section filter is Library", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    await screen.findByTestId("mcp-installed-empty");
+
+    fireEvent.click(screen.getByTestId("mcp-section-filter-toggle"));
+    fireEvent.click(screen.getByTestId("mcp-section-filter-library"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("mcp-installed-empty")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("mcp-marketplace-section")).toBeInTheDocument();
+  });
+
   it("shows a search-empty state when the query matches nothing", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 

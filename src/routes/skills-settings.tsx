@@ -127,8 +127,6 @@ function SkillsSettingsScreen() {
                 onSearchChange={setSearchQuery}
                 typeFilter={typeFilter}
                 onTypeFilterChange={setTypeFilter}
-                shown={filteredSkills.length}
-                total={skills.length}
               />
               {filteredSkills.length === 0 ? (
                 <p

@@ -29,10 +29,11 @@ import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
   InstalledServersSection,
-  MarketplaceSearch,
+  McpToolbar,
   MarketplaceSection,
   InstallServerModal,
   CustomServerEditor,
+  type McpSectionFilter,
 } from "#/components/features/mcp-page";
 
 // ACP guard: the ACP sub-agent owns its own MCP server configuration —
@@ -61,6 +62,8 @@ export default function MCPPage() {
   const [serverToDelete, setServerToDelete] =
     React.useState<MCPServerConfig | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [sectionFilter, setSectionFilter] =
+    React.useState<McpSectionFilter>("all");
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
@@ -150,27 +153,36 @@ export default function MCPPage() {
             </div>
           </div>
 
-          <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-foreground">
-              {t(I18nKey.MCP$INSTALLED_TITLE)}
-            </h2>
-            <InstalledServersSection
-              servers={filteredInstalledServers}
-              hasAnyInstalled={allServers.length > 0}
-              query={searchQuery}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-            />
-          </section>
-
-          <MarketplaceSection
-            isInstalled={isInstalled}
-            backendKind={backendKind}
-            onSelect={handleMarketplaceClick}
-            query={searchQuery}
+          <McpToolbar
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            sectionFilter={sectionFilter}
+            onSectionFilterChange={setSectionFilter}
           />
+
+          {sectionFilter !== "library" ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold text-foreground">
+                {t(I18nKey.MCP$INSTALLED_TITLE)}
+              </h2>
+              <InstalledServersSection
+                servers={filteredInstalledServers}
+                hasAnyInstalled={allServers.length > 0}
+                query={searchQuery}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+              />
+            </section>
+          ) : null}
+
+          {sectionFilter !== "installed" ? (
+            <MarketplaceSection
+              isInstalled={isInstalled}
+              backendKind={backendKind}
+              onSelect={handleMarketplaceClick}
+              query={searchQuery}
+            />
+          ) : null}
         </div>
 
         {installEntry && (
