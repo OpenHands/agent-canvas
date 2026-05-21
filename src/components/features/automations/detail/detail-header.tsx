@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
+import AutomationService from "#/api/automation-service/automation-service.api";
 import { ToggleSwitch } from "#/components/features/automations/toggle-switch";
 import { KebabMenu } from "#/components/features/automations/kebab-menu";
 import PowerIcon from "#/icons/power.svg?react";
@@ -51,9 +52,7 @@ export function DetailHeader({
       label: t(I18nKey.AUTOMATIONS$DOWNLOAD_TARBALL),
       icon: <DownloadIcon className="size-4" />,
       onClick: () => {
-        const link = document.createElement("a");
-        link.href = `/api/automation/v1/${automation.id}/tarball`;
-        link.click();
+        AutomationService.downloadTarball(automation.id, automation.name);
       },
     },
     {
