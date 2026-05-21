@@ -484,6 +484,7 @@ function buildInitialMessage(
   return {
     role: "user",
     content: [{ type: "text", text: parts.join("\n\n") }],
+    run: true,
   };
 }
 

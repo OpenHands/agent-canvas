@@ -157,13 +157,7 @@ export function ConversationCard({
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
           />
-          {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
-            <ConversationStatusBadges
-              conversationStatus={
-                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
-              }
-            />
-          )}
+          {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 
         <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">

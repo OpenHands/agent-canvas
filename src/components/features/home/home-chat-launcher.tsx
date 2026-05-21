@@ -94,9 +94,9 @@ export function HomeChatLauncher() {
   return (
     <div
       data-testid="home-chat-launcher"
-      className="w-full max-w-[800px] flex flex-col gap-4 pl-0 md:pl-4 pr-0 md:pr-4"
+      className="flex w-full max-w-[800px] flex-col gap-4 md:px-4"
     >
-      <div className="flex justify-center">
+      <div className="flex w-full justify-center">
         <HomeHeaderTitle />
       </div>
 

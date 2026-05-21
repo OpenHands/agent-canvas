@@ -65,7 +65,7 @@ export function SettingsDropdownInput({
         aria-label={typeof label === "string" ? label : name}
         data-testid={testId}
         name={name}
-        items={items}
+        defaultItems={items}
         defaultSelectedKey={defaultSelectedKey}
         selectedKey={selectedKey}
         onSelectionChange={onSelectionChange}
