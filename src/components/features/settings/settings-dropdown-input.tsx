@@ -1,29 +1,8 @@
 import { Autocomplete, AutocompleteItem } from "@heroui/react";
-import React, { ReactNode, useMemo, useState } from "react";
+import React, { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { OptionalTag } from "./optional-tag";
 import { cn } from "#/utils/utils";
-
-function itemMatchesQuery(
-  item: { key: React.Key; label: string },
-  query: string,
-  customFilter?: (textValue: string, inputValue: string) => boolean,
-): boolean {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    return true;
-  }
-  if (customFilter) {
-    return (
-      customFilter(String(item.label), trimmed) ||
-      customFilter(String(item.key), trimmed)
-    );
-  }
-  const needle = trimmed.toLocaleLowerCase();
-  const haystackLabel = String(item.label).toLocaleLowerCase();
-  const haystackKey = String(item.key).toLocaleLowerCase();
-  return haystackLabel.includes(needle) || haystackKey.includes(needle);
-}
 
 interface SettingsDropdownInputProps {
   testId: string;
@@ -72,24 +51,6 @@ export function SettingsDropdownInput({
 }: SettingsDropdownInputProps) {
   const { t } = useTranslation("openhands");
 
-  const [filterQuery, setFilterQuery] = useState("");
-
-  const filteredItems = useMemo(
-    () =>
-      items.filter((item) => itemMatchesQuery(item, filterQuery, defaultFilter)),
-    [items, filterQuery, defaultFilter],
-  );
-
-  const handleInputChange = (value: string) => {
-    setFilterQuery(value);
-    onInputChange?.(value);
-  };
-
-  const handleSelectionChange = (key: React.Key | null) => {
-    setFilterQuery("");
-    onSelectionChange?.(key);
-  };
-
   return (
     <label
       className={cn("flex flex-col gap-2.5 w-full min-w-0", wrapperClassName)}
@@ -104,11 +65,11 @@ export function SettingsDropdownInput({
         aria-label={typeof label === "string" ? label : name}
         data-testid={testId}
         name={name}
-        items={filteredItems}
+        defaultItems={items}
         defaultSelectedKey={defaultSelectedKey}
         selectedKey={selectedKey}
-        onSelectionChange={handleSelectionChange}
-        onInputChange={handleInputChange}
+        onSelectionChange={onSelectionChange}
+        onInputChange={onInputChange}
         isClearable={isClearable}
         isDisabled={isDisabled || isLoading}
         isLoading={isLoading}
@@ -131,12 +92,11 @@ export function SettingsDropdownInput({
             input: inputClassName,
           },
         }}
+        defaultFilter={defaultFilter}
         startContent={startContent || null}
       >
         {(item) => (
-          <AutocompleteItem key={item.key} textValue={String(item.label)}>
-            {item.label}
-          </AutocompleteItem>
+          <AutocompleteItem key={item.key}>{item.label}</AutocompleteItem>
         )}
       </Autocomplete>
     </label>
