@@ -93,61 +93,61 @@ export function SkillDetailModal({
         <ModalCloseButton onClose={onClose} testId="skill-detail-modal-close" />
         <div className="flex items-start gap-3 pr-6">
           <SkillIconBadge skillName={skill.name} />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h2
-                  data-testid={`skill-modal-name-${skill.name}`}
-                  className="text-lg font-semibold"
+          <div className="min-w-0 flex-1">
+            <h2
+              data-testid={`skill-modal-name-${skill.name}`}
+              className="text-lg font-semibold"
+            >
+              {skill.name}
+            </h2>
+            {skill.source ? (
+              <div className="mt-0.5 flex min-w-0 items-center gap-1">
+                <p
+                  data-testid={`skill-modal-source-${skill.name}`}
+                  className="min-w-0 flex-1 truncate text-xs text-tertiary-alt"
+                  title={skill.source}
                 >
-                  {skill.name}
-                </h2>
-                {skill.source ? (
-                  <div className="mt-0.5 flex min-w-0 items-center gap-1">
-                    <p
-                      data-testid={`skill-modal-source-${skill.name}`}
-                      className="min-w-0 flex-1 truncate text-xs text-tertiary-alt"
-                      title={skill.source}
-                    >
-                      {skill.source}
-                    </p>
-                    <button
-                      type="button"
-                      data-testid={`skill-modal-copy-source-${skill.name}`}
-                      aria-label={t(
-                        sourceCopied
-                          ? I18nKey.BUTTON$COPIED
-                          : I18nKey.SETTINGS$SKILLS_COPY_PATH,
-                      )}
-                      disabled={sourceCopied}
-                      onClick={handleCopySource}
-                      className="shrink-0 cursor-pointer border-0 bg-transparent p-0.5 text-tertiary-alt hover:text-white disabled:cursor-default [&_path]:fill-current"
-                    >
-                      {sourceCopied ? (
-                        <CheckmarkIcon width={12} height={12} />
-                      ) : (
-                        <CopyIcon width={12} height={12} />
-                      )}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div className="shrink-0">
-                <SettingsSwitch
-                  testId={`skill-modal-toggle-${skill.name}`}
-                  isToggled={enabled}
-                  onToggle={onToggle}
-                  togglePosition="right"
-                >
-                  {t(
-                    enabled
-                      ? I18nKey.SETTINGS$SKILLS_ENABLED
-                      : I18nKey.SETTINGS$SKILLS_DISABLED,
+                  {skill.source}
+                </p>
+                <button
+                  type="button"
+                  data-testid={`skill-modal-copy-source-${skill.name}`}
+                  aria-label={t(
+                    sourceCopied
+                      ? I18nKey.BUTTON$COPIED
+                      : I18nKey.SETTINGS$SKILLS_COPY_PATH,
                   )}
-                </SettingsSwitch>
+                  disabled={sourceCopied}
+                  onClick={handleCopySource}
+                  className="shrink-0 cursor-pointer border-0 bg-transparent p-0.5 text-tertiary-alt hover:text-white disabled:cursor-default [&_path]:fill-current"
+                >
+                  {sourceCopied ? (
+                    <CheckmarkIcon width={12} height={12} />
+                  ) : (
+                    <CopyIcon width={12} height={12} />
+                  )}
+                </button>
               </div>
-            </div>
+            ) : null}
           </div>
+        </div>
+
+        <div
+          data-testid={`skill-modal-enable-row-${skill.name}`}
+          className="flex w-full items-center rounded-lg border border-[var(--oh-border)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5"
+        >
+          <SettingsSwitch
+            testId={`skill-modal-toggle-${skill.name}`}
+            isToggled={enabled}
+            onToggle={onToggle}
+            togglePosition="right"
+          >
+            {t(
+              enabled
+                ? I18nKey.SETTINGS$SKILLS_ENABLED
+                : I18nKey.SETTINGS$SKILLS_DISABLED,
+            )}
+          </SettingsSwitch>
         </div>
 
         {description ? (
