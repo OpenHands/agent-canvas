@@ -179,8 +179,11 @@ Full skill body.`,
     renderSkillsSettingsScreen();
     await screen.findByTestId("skill-card-deno");
 
-    await user.click(screen.getByTestId("skills-type-filter-toggle"));
-    await user.click(screen.getByTestId("skills-type-filter-repo"));
+    const filter = screen.getByTestId("skills-type-filter");
+    await user.click(within(filter).getByTestId("dropdown-trigger"));
+    await user.click(
+      screen.getByRole("option", { name: "SETTINGS$SKILLS_TYPE_REPO" }),
+    );
 
     expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
     expect(screen.getByTestId("skill-card-global-rules")).toBeInTheDocument();

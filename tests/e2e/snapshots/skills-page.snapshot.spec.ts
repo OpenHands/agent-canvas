@@ -214,8 +214,9 @@ test.describe("Skills Page Visual Snapshots", () => {
       timeout: 5_000,
     });
 
-    await page.getByTestId("skills-type-filter-toggle").click();
-    await page.getByTestId("skills-type-filter-agentskills").click();
+    const filter = page.getByTestId("skills-type-filter");
+    await filter.getByTestId("dropdown-trigger").click();
+    await page.getByRole("option", { name: "Auto-discovery" }).click();
     await page.waitForTimeout(300);
 
     await expect(page.getByTestId("skill-card-code-review")).toBeVisible();
