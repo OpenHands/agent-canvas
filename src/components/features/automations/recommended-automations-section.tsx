@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { I18nKey } from "#/i18n/declaration";
 import {
   AUTOMATION_CATALOG,
@@ -8,20 +9,26 @@ import {
   MCP_CATALOG as MCP_MARKETPLACE,
   type McpCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/mcps";
+import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
+import {
+  SkillCardPillRow,
+  type SkillCardPill,
+} from "#/components/features/skills/skill-card-pill-row";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   findInstalledMatch,
   getMarketplaceEntryById,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
-import ClockIcon from "#/icons/clock.svg?react";
-import { StatusBadge } from "./status-badge";
 import { cn } from "#/utils/utils";
 import {
   extensionModuleCardInteractiveClassName,
+  extensionModuleCardPillClassName,
   extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
+import ClockIcon from "#/icons/clock.svg?react";
+import { StatusBadge } from "./status-badge";
 
 interface RecommendedAutomationsSectionProps {
   backendKind: "local" | "cloud";
@@ -80,6 +87,60 @@ function isAutomationAvailable(
   );
 }
 
+function buildRecommendedAutomationPills(
+  automation: RecommendedAutomation,
+  requiredEntries: MarketplaceEntry[],
+  installedServers: MCPServerConfig[],
+  missingCount: number,
+  translate: TFunction,
+): SkillCardPill[] {
+  const pills: SkillCardPill[] = requiredEntries.map((entry) => {
+    const installed = !!findInstalledMatch(entry.template, installedServers);
+
+    return {
+      id: `mcp-${entry.id}`,
+      node: (
+        <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+          <McpLogoBadge entry={entry} size="xs" />
+          {entry.name}
+          {installed ? (
+            <span className="text-white">
+              {translate(I18nKey.RECOMMENDED_AUTOMATIONS$CONNECTED)}
+            </span>
+          ) : null}
+        </span>
+      ),
+    };
+  });
+
+  pills.push({
+    id: "setup-minutes",
+    node: (
+      <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+        <ClockIcon className="size-3 shrink-0" />
+        {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
+          count: automation.estimatedSetupMinutes,
+        })}
+      </span>
+    ),
+  });
+
+  if (missingCount > 0) {
+    pills.push({
+      id: "missing-connect",
+      node: (
+        <span className={extensionModuleCardPillClassName}>
+          {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MISSING_CONNECT, {
+            count: missingCount,
+          })}
+        </span>
+      ),
+    });
+  }
+
+  return pills;
+}
+
 export function RecommendedAutomationsSection({
   backendKind,
   installedServers,
@@ -101,7 +162,7 @@ export function RecommendedAutomationsSection({
   return (
     <section data-testid="recommended-automations-section">
       <div className="flex items-center">
-        <h2 className="text-sm font-semibold text-white">
+        <h2 className="text-base font-semibold text-foreground">
           {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
         </h2>
         <StatusBadge count={visibleAutomations.length} />
@@ -124,71 +185,41 @@ export function RecommendedAutomationsSection({
               data-testid={`recommended-automation-card-${automation.id}`}
               onClick={() => onSelect(automation)}
               className={cn(
-                "p-5 text-left",
+                "flex min-w-0 overflow-hidden p-4 text-left",
                 extensionModuleCardSurfaceClassName,
                 extensionModuleCardInteractiveClassName,
               )}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-muted">
-                    {automation.category}
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <McpLogoStackBadge
+                  entries={requiredEntries}
+                  testId={`recommended-automation-icon-${automation.id}`}
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-white">
+                      {automation.name}
+                    </h3>
+                    <p className="mt-0.5 truncate text-xs text-tertiary-alt">
+                      {automation.category}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-tertiary-light">
+                      {automation.description}
+                    </p>
                   </div>
-                  <h3 className="mt-1 truncate text-base font-semibold text-white">
-                    {automation.name}
-                  </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted">
-                    {automation.description}
-                  </p>
-                </div>
-                <div className="flex shrink-0 -space-x-1" aria-hidden="true">
-                  {requiredEntries.map((entry) => (
-                    <McpLogoBadge
-                      key={entry.id}
-                      entry={entry}
-                      size="sm"
-                      className="ring-2 ring-base-secondary"
-                    />
-                  ))}
+
+                  <SkillCardPillRow
+                    pills={buildRecommendedAutomationPills(
+                      automation,
+                      requiredEntries,
+                      installedServers,
+                      missingCount,
+                      t,
+                    )}
+                    testId={`recommended-automation-pills-${automation.id}`}
+                  />
                 </div>
               </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {requiredEntries.map((entry) => {
-                  const installed = !!findInstalledMatch(
-                    entry.template,
-                    installedServers,
-                  );
-                  return (
-                    <span
-                      key={entry.id}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--oh-border)] px-3 py-1 text-xs text-muted"
-                    >
-                      <McpLogoBadge entry={entry} size="sm" />
-                      {entry.name}
-                      {installed && (
-                        <span className="text-primary">
-                          {t(I18nKey.RECOMMENDED_AUTOMATIONS$CONNECTED)}
-                        </span>
-                      )}
-                    </span>
-                  );
-                })}
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--oh-border)] px-3 py-1 text-xs text-muted">
-                  <ClockIcon className="size-3.5" />
-                  {t(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
-                    count: automation.estimatedSetupMinutes,
-                  })}
-                </span>
-              </div>
-
-              {missingCount > 0 && (
-                <p className="mt-3 text-xs text-muted">
-                  {t(I18nKey.RECOMMENDED_AUTOMATIONS$MISSING_CONNECT, {
-                    count: missingCount,
-                  })}
-                </p>
-              )}
             </button>
           );
         })}
