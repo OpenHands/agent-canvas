@@ -107,6 +107,15 @@ export function InstalledServerCard({
             />
           </header>
 
+          {catalog?.description ? (
+            <p
+              data-testid={`mcp-server-description-${server.id}`}
+              className="line-clamp-3 text-xs leading-relaxed text-content-2"
+            >
+              {catalog.description}
+            </p>
+          ) : null}
+
           {detailLine ? (
             <p
               data-testid={`mcp-server-detail-${server.id}`}

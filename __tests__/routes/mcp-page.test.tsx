@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MCPPage from "#/routes/mcp";
 import SettingsService from "#/api/settings-service/settings-service.api";
@@ -257,6 +257,46 @@ describe("MCPPage", () => {
     // Server gets pulled out of mcp_config entirely (parseMcpConfig
     // emits `null` once the last entry is removed).
     expect(sent.mcp_config).toBeNull();
+  });
+
+  it("shows the catalog description and command line on installed server cards", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              github: {
+                command: "docker",
+                args: [
+                  "run",
+                  "-i",
+                  "--rm",
+                  "-e",
+                  "GITHUB_PERSONAL_ACCESS_TOKEN",
+                  "ghcr.io/github/github-mcp-server",
+                ],
+                env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github_pat_test" },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    renderPage();
+
+    const card = await screen.findByTestId("mcp-server-item");
+    expect(
+      within(card).getByTestId("mcp-server-description-stdio-0"),
+    ).toHaveTextContent(
+      "Search code, manage issues and pull requests, and inspect repos via the GitHub API.",
+    );
+    expect(
+      within(card).getByTestId("mcp-server-detail-stdio-0"),
+    ).toHaveTextContent(
+      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
+    );
   });
 
   it("shows Tavily as selected in the marketplace toggle when installed", async () => {
