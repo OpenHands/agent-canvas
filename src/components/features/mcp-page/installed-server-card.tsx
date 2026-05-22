@@ -110,7 +110,7 @@ export function InstalledServerCard({
           {catalog?.description ? (
             <p
               data-testid={`mcp-server-description-${server.id}`}
-              className="line-clamp-3 text-xs leading-relaxed text-content-2"
+              className="line-clamp-2 break-words text-xs leading-relaxed text-content-2"
             >
               {catalog.description}
             </p>
@@ -119,7 +119,7 @@ export function InstalledServerCard({
           {detailLine ? (
             <p
               data-testid={`mcp-server-detail-${server.id}`}
-              className="truncate text-xs text-content-2"
+              className="truncate text-xs text-tertiary-alt"
               title={detailLine}
             >
               {detailLine}
