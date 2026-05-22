@@ -169,7 +169,7 @@ export function Dropdown({
         <div
           className={cn(
             formControlShellClassName,
-            "w-full gap-2 px-3",
+            "group w-full gap-2 px-3 text-[var(--oh-muted)] hover:text-white",
             isDisabled && "cursor-not-allowed opacity-60",
             className,
           )}

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsView } from "#/utils/sdk-settings-schema";
 import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 interface ViewToggleProps {
   view: SettingsView;
@@ -13,7 +14,8 @@ interface ViewToggleProps {
 
 const tabButtonClass = (isActive: boolean, isDisabled: boolean) =>
   cn(
-    "w-fit px-2 py-2 text-sm cursor-pointer rounded-none bg-transparent transition-[color,border-color]",
+    "w-fit px-2 py-2 text-sm cursor-pointer rounded-none bg-transparent",
+    formControlTransitionClassName,
     "border-b-2 pb-2",
     isActive
       ? "text-white border-white"

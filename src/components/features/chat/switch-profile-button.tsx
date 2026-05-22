@@ -88,7 +88,7 @@ export function SwitchProfileButton() {
         aria-haspopup="menu"
         aria-expanded={contextMenuOpen}
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,color] max-w-[200px]",
+          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none max-w-[200px]",
           "hover:text-white hover:bg-white/10 cursor-pointer",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}

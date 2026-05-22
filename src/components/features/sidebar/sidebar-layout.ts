@@ -1,5 +1,9 @@
 import { cn } from "#/utils/utils";
 
+/** Nav rows and side nav links — hover color/background snap instantly (no fade). */
+export const navInteractiveTransitionClassName =
+  "transition-none motion-reduce:transition-none";
+
 /** Expanded sidebar icon column beside labels (matches 36px nav rows). */
 export const SIDEBAR_ICON_SLOT_CLASS =
   "flex h-9 w-[18px] shrink-0 items-center justify-center";
@@ -35,7 +39,8 @@ export function sidebarNavRowClassName(options?: {
 }): string {
   const { indent = false, collapsed = false } = options ?? {};
   return cn(
-    "flex h-9 min-h-9 min-w-0 items-center rounded-md transition-colors",
+    "flex h-9 min-h-9 min-w-0 items-center rounded-md",
+    navInteractiveTransitionClassName,
     "text-sm leading-5 w-full",
     collapsed
       ? "group gap-0 px-0 overflow-visible bg-transparent hover:bg-transparent"
@@ -46,7 +51,8 @@ export function sidebarNavRowClassName(options?: {
 
 export function sidebarCollapsedIconBgClassName(active: boolean): string {
   return cn(
-    "pointer-events-none absolute inset-0 z-0 rounded-md transition-colors",
+    "pointer-events-none absolute inset-0 z-0 rounded-md",
+    navInteractiveTransitionClassName,
     active
       ? "bg-tertiary"
       : "bg-transparent group-hover:bg-[var(--oh-surface-raised)]",
@@ -74,7 +80,8 @@ export function sidebarNavLabelClassName(collapsed: boolean): string {
 
 export const SIDEBAR_ICON_BUTTON_CLASS = cn(
   "inline-flex size-8 shrink-0 items-center justify-center rounded-md",
-  "transition-colors cursor-pointer",
+  navInteractiveTransitionClassName,
+  "cursor-pointer",
 );
 
 /** Logo + expand overlay when the desktop rail is collapsed. */
@@ -85,6 +92,8 @@ export const SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS = cn(
 
 export const SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS = cn(
   "absolute left-1/2 top-1/2 hidden size-8 -translate-x-1/2 -translate-y-1/2 md:inline-flex",
-  "items-center justify-center rounded-md transition-[opacity,colors] cursor-pointer",
+  "items-center justify-center rounded-md",
+  navInteractiveTransitionClassName,
+  "cursor-pointer",
   "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
 );

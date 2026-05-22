@@ -9,7 +9,13 @@ export const formControlBorderClassName = "border border-[var(--oh-border)]";
 
 export const formControlSurfaceClassName = "bg-base-secondary";
 
-export const formControlTransitionClassName = "transition-colors";
+/** Animate shell chrome on hover/focus; foreground color snaps instantly. */
+export const formControlTransitionClassName =
+  "transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none";
+
+/** HeroUI input wrappers ship `transition-colors`; override so caret/text hover is instant. */
+export const formControlHeroUiWrapperTransitionClassName =
+  "!transition-[background-color,border-color,box-shadow,opacity] !duration-150 motion-reduce:transition-none";
 
 export const formControlFocusClassName =
   "focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none";
@@ -36,6 +42,7 @@ export const formControlFieldClassName = cn(
 export const formControlSettingsFieldClassName = cn(
   formControlFieldClassName,
   "placeholder:italic",
+  formControlHeroUiWrapperTransitionClassName,
 );
 
 /** Multiline fields share border/radius/focus styling without a fixed height. */

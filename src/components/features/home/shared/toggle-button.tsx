@@ -25,7 +25,7 @@ export function ToggleButton({
         disabled,
         className: cn(
           comboboxCaretButtonClassName,
-          "text-[#fff]",
+          "text-current",
           isOpen && "rotate-180",
           disabled && "cursor-not-allowed opacity-60",
         ),

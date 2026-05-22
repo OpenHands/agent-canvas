@@ -169,7 +169,7 @@ export function WorkspaceDropdown({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
+      <div className="group relative text-[var(--oh-muted)] hover:text-white">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           <RepoIcon width={16} height={16} />
         </div>
@@ -179,8 +179,8 @@ export function WorkspaceDropdown({
             placeholder: placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER),
             className: cn(
               formControlFieldClassName,
-              "shadow-none pl-7 pr-16 text-sm font-normal leading-5",
-              "text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
+              "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",
+              "placeholder:text-[var(--oh-muted)]",
               "disabled:cursor-not-allowed disabled:opacity-60",
             ),
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => {

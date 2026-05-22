@@ -22,7 +22,7 @@ export function DropdownInput({
         disabled: isDisabled,
         className: cn(
           formControlInlineInputClassName,
-          "px-0 not-italic",
+          "px-0 not-italic text-inherit",
           italicPlaceholder && "placeholder:italic",
         ),
       })}
