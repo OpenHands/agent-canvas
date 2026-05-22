@@ -280,12 +280,12 @@ export function InstallServerModal({
           <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
             <h2 className="text-lg font-semibold">{entry.name}</h2>
-            <p className="text-xs text-tertiary-alt">{entry.description}</p>
+            <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
         </div>
 
         {entry.installHint && (
-          <p className="text-xs text-tertiary-alt">{entry.installHint}</p>
+          <p className="text-xs text-tertiary-light">{entry.installHint}</p>
         )}
 
         {entry.docsUrl && (

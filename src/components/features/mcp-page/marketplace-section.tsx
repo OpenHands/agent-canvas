@@ -49,7 +49,7 @@ export function MarketplaceSection({
           data-testid="mcp-marketplace-empty"
           className="rounded-xl border border-dashed border-[var(--oh-border)] p-6 text-center"
         >
-          <p className="text-xs text-tertiary-alt">
+          <p className="text-xs text-tertiary-light">
             {t(I18nKey.MCP$SEARCH_EMPTY)}
           </p>
         </div>

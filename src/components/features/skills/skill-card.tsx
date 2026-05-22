@@ -127,7 +127,7 @@ export function SkillCard({
               data-testid={`skill-description-${skill.name}`}
               className="min-w-0"
             >
-              <p className="line-clamp-2 break-words text-xs leading-relaxed text-tertiary-alt">
+              <p className="line-clamp-2 break-words text-xs leading-relaxed text-tertiary-light">
                 {description}
               </p>
             </div>
