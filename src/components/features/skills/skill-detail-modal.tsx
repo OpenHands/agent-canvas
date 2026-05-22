@@ -39,7 +39,7 @@ function ReadonlyTextArea({
         rows={Math.min(12, Math.max(4, value.split("\n").length))}
         className={cn(
           "bg-[var(--oh-surface-raised)] border border-[var(--oh-border-subtle)] w-full min-w-0 rounded-sm p-2 text-sm",
-          "cursor-not-allowed resize-y custom-scrollbar",
+          "cursor-not-allowed resize-none custom-scrollbar",
         )}
       />
     </label>
