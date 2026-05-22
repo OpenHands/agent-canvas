@@ -1,33 +1,24 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { SkillType } from "#/types/settings";
-import { cn } from "#/utils/utils";
 
 interface SkillTypeBadgeProps {
   type: SkillType;
 }
 
-const SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME =
-  "bg-[rgba(195,205,220,0.12)] text-tertiary-light border border-[rgba(195,205,220,0.35)]";
+/** Theme-aware pill chrome for skill type badges only (not shared metadata pills). */
+const SKILL_TYPE_BADGE_CLASS_NAME =
+  "inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-text-secondary/35 bg-text-secondary/12 px-2 py-0.5 text-[11px] font-medium leading-4 text-tertiary-light";
 
-const TYPE_CONFIG: Record<
-  SkillType,
-  {
-    labelKey: I18nKey;
-    className: string;
-  }
-> = {
+const TYPE_CONFIG: Record<SkillType, { labelKey: I18nKey }> = {
   agentskills: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_AGENTSKILLS,
-    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
   knowledge: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_KNOWLEDGE,
-    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
   repo: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_REPO,
-    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
 };
 
@@ -41,10 +32,7 @@ export function SkillTypeBadge({ type }: SkillTypeBadgeProps) {
   return (
     <span
       data-testid={`skill-type-badge-${type}`}
-      className={cn(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
-        config.className,
-      )}
+      className={SKILL_TYPE_BADGE_CLASS_NAME}
     >
       {t(config.labelKey)}
     </span>
