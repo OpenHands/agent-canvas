@@ -186,7 +186,7 @@ export function RecommendedAutomationsSection({
               data-testid={`recommended-automation-card-${automation.id}`}
               onClick={() => onSelect(automation)}
               className={cn(
-                "group/card flex min-w-0 overflow-hidden p-4 text-left",
+                "flex min-w-0 overflow-hidden p-4 text-left",
                 extensionModuleCardSurfaceClassName,
                 extensionModuleCardInteractiveClassName,
               )}

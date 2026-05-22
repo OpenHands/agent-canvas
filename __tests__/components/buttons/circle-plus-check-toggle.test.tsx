@@ -16,9 +16,7 @@ describe("CirclePlusBadge", () => {
     expect(plusBadge.tagName).toBe("SPAN");
     expect(plusBadge).toHaveAttribute("aria-hidden", "true");
     expect(plusBadge.className).toContain("hover:bg-[var(--oh-interactive-hover)]");
-    expect(plusBadge.className).toContain(
-      "group-hover/card:bg-[var(--oh-interactive-hover)]",
-    );
+    expect(plusBadge.className).not.toContain("group-hover/card");
   });
 });
 

@@ -36,7 +36,7 @@ export function CirclePlusBadge({
         aria-hidden="true"
         data-testid={testId}
         className={cn(
-          "inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-raised text-white transition-colors hover:bg-[var(--oh-interactive-hover)] group-hover/card:bg-[var(--oh-interactive-hover)]",
+          "inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-raised text-white transition-colors hover:bg-[var(--oh-interactive-hover)]",
           className,
         )}
       >
