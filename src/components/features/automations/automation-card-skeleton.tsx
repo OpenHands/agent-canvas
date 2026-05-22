@@ -1,8 +1,10 @@
+import { extensionModuleCardSurfaceClassName } from "#/utils/extension-module-card-classes";
+
 export function AutomationCardSkeleton() {
   return (
     <div
       data-testid="automation-card-skeleton"
-      className="rounded-xl border border-[var(--oh-border)] bg-base-secondary p-4"
+      className={`${extensionModuleCardSurfaceClassName} border border-transparent p-4`}
     >
       <div className="flex items-start justify-between">
         <div className="h-5 w-40 animate-pulse rounded bg-surface-raised" />

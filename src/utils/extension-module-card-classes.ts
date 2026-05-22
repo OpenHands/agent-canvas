@@ -1,9 +1,13 @@
-/** Shared interactive card chrome for Skills / MCP library tiles. */
+/** Shared card chrome for Skills / MCP / Automations tiles (border on hover only). */
 export const extensionModuleCardSurfaceClassName =
-  "rounded-xl border border-[var(--oh-border)] bg-base-secondary";
+  "rounded-xl bg-base-secondary";
+
+/** See `.extension-module-card-interactive` in `src/tailwind.css`. */
+export const EXTENSION_MODULE_CARD_INTERACTIVE_CLASS =
+  "extension-module-card-interactive";
 
 export const extensionModuleCardInteractiveClassName =
-  "cursor-pointer transition-[border-color] hover:border-white/40 focus-visible:outline-none focus-visible:border-white/40";
+  EXTENSION_MODULE_CARD_INTERACTIVE_CLASS;
 
 /** Shared pill chrome for Skills, automation cards, and related modals. */
 export const extensionModuleCardPillClassName =

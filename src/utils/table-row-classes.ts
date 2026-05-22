@@ -12,7 +12,7 @@ export const tableRowClassName = [
 
 /** Subtle row highlight on base-secondary tables. */
 export const tableRowHoverClassName =
-  "hover:bg-interactive-hover-low focus-visible:outline-none focus-visible:bg-interactive-hover-low";
+  "hover:bg-interactive-hover-low outline-none focus:outline-none focus-visible:outline-none focus-visible:bg-interactive-hover-low";
 
 export const tableCellClassName = "px-3 align-middle";
 

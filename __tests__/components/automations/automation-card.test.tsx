@@ -27,7 +27,7 @@ const automation: Automation = {
 };
 
 describe("AutomationCard", () => {
-  it("uses the shared extension module hover outline classes", () => {
+  it("uses the shared extension module interactive class without a resting border", () => {
     render(
       <AutomationCard
         automation={automation}
@@ -38,7 +38,8 @@ describe("AutomationCard", () => {
     );
 
     const card = screen.getByTestId("automation-card-automation-1");
-    expect(card.className).toContain("hover:border-white/40");
+    expect(card.className).toContain("extension-module-card-interactive");
+    expect(card.className).not.toContain("border-[var(--oh-border)]");
     expect(card.className).not.toContain("hover:bg-surface-raised");
     expect(card.className).not.toContain("hover:ring");
   });

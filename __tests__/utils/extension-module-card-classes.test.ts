@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
   EXTENSION_MODULE_CARD_GRID_SINGLE_COLUMN_MAX_PX,
+  EXTENSION_MODULE_CARD_INTERACTIVE_CLASS,
   extensionModuleCardGridClassName,
   extensionModuleCardGridContainerClassName,
+  extensionModuleCardInteractiveClassName,
+  extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
+
+describe("extensionModuleCardInteractive class", () => {
+  it("uses a dedicated CSS class for focus styling", () => {
+    expect(EXTENSION_MODULE_CARD_INTERACTIVE_CLASS).toBe(
+      "extension-module-card-interactive",
+    );
+    expect(extensionModuleCardInteractiveClassName).toBe(
+      EXTENSION_MODULE_CARD_INTERACTIVE_CLASS,
+    );
+  });
+});
+
+describe("extensionModuleCardSurface class", () => {
+  it("omits a resting border so tiles stay flush until hover", () => {
+    expect(extensionModuleCardSurfaceClassName).not.toContain("border");
+  });
+});
 
 describe("extensionModuleCardGrid classes", () => {
   it("uses a container query breakpoint at 600px column width", () => {
