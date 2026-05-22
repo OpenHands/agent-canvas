@@ -2,6 +2,10 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { IoClose } from "react-icons/io5";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -126,10 +130,14 @@ export function PluginLaunchModal({
     <ModalBackdrop onClose={onClose}>
       <div
         data-testid="plugin-launch-modal"
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[500px] max-w-[90vw] max-h-[80vh]"
+        className={cn(
+          "bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] max-h-[80vh]",
+          modalWidthClassName("md"),
+          MODAL_MAX_WIDTH_VIEWPORT,
+        )}
       >
         <div className="flex w-full items-center justify-between">
-          <Typography.H2>
+          <Typography.H2 className="text-content-2">
             {t(I18nKey.LAUNCH$MODAL_TITLE)} {modalTitle}
           </Typography.H2>
           <button
