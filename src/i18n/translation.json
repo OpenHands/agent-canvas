@@ -11389,6 +11389,23 @@
     "uk": "Переглядайте активні та неактивні автоматизації, шукайте за метаданими та переглядайте деталі лише для читання.",
     "ca": "Visualitzeu les automatitzacions actives i inactives, cerqueu per metadades i inspeccioneu els detalls de només lectura."
   },
+  "AUTOMATIONS$ADD_AUTOMATION": {
+    "en": "Add Automation",
+    "ja": "オートメーションを追加",
+    "zh-CN": "添加自动化",
+    "zh-TW": "新增自動化",
+    "ko-KR": "자동화 추가",
+    "no": "Legg til automatisering",
+    "it": "Aggiungi automazione",
+    "pt": "Adicionar automação",
+    "es": "Agregar automatización",
+    "ar": "إضافة أتمتة",
+    "fr": "Ajouter une automatisation",
+    "tr": "Otomasyon ekle",
+    "de": "Automatisierung hinzufügen",
+    "uk": "Додати автоматизацію",
+    "ca": "Afegeix automatització"
+  },
   "AUTOMATIONS$EMPTY": {
     "en": "No automations configured",
     "ja": "オートメーションが設定されていません",

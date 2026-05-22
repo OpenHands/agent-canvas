@@ -16,8 +16,9 @@ import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
-import { CreateInstructions } from "#/components/features/automations/create-instructions";
+import { AddAutomationModal } from "#/components/features/automations/add-automation-modal";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
+import { BrandButton } from "#/components/features/settings/brand-button";
 import type { Automation } from "#/types/automation";
 
 const PAGE_SIZE = 50;
@@ -31,6 +32,7 @@ export default function AutomationsList() {
     name: string;
   } | null>(null);
   const [editTarget, setEditTarget] = useState<Automation | null>(null);
+  const [isAddAutomationOpen, setIsAddAutomationOpen] = useState(false);
 
   const active = useActiveBackend();
   // Edit is a local-backend-only feature in MVP — cloud automations
@@ -145,12 +147,25 @@ export default function AutomationsList() {
     <div className="min-h-full">
       <div className="p-6 max-w-4xl mx-auto">
         {/* Header */}
-        <h1 className="text-xl font-semibold text-content">
-          {t(I18nKey.AUTOMATIONS$TITLE)}
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {t(I18nKey.AUTOMATIONS$SUBTITLE)}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-content">
+              {t(I18nKey.AUTOMATIONS$TITLE)}
+            </h1>
+            <p className="mt-1 text-sm text-muted">
+              {t(I18nKey.AUTOMATIONS$SUBTITLE)}
+            </p>
+          </div>
+          <BrandButton
+            type="button"
+            variant="secondary"
+            testId="automations-add-automation"
+            className="shrink-0 whitespace-nowrap"
+            onClick={() => setIsAddAutomationOpen(true)}
+          >
+            {t(I18nKey.AUTOMATIONS$ADD_AUTOMATION)}
+          </BrandButton>
+        </div>
 
         {/* Search */}
         <div className="mt-6">
@@ -175,9 +190,6 @@ export default function AutomationsList() {
 
           {!isLoading && !isError && data && data.automations.length > 0 && (
             <>
-              {/* Collapsible creation instructions at the top */}
-              <CreateInstructions collapsible />
-
               <AutomationGroup
                 title={t(I18nKey.AUTOMATIONS$ACTIVE)}
                 count={activeAutomations.length}
@@ -228,6 +240,11 @@ export default function AutomationsList() {
             onClose={() => setEditTarget(null)}
           />
         )}
+
+        <AddAutomationModal
+          isOpen={isAddAutomationOpen}
+          onClose={() => setIsAddAutomationOpen(false)}
+        />
       </div>
     </div>
   );

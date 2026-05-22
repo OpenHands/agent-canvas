@@ -19,13 +19,10 @@ interface CreateInstructionsProps {
   collapsible?: boolean;
 }
 
-export function CreateInstructions({
-  collapsible = false,
-}: CreateInstructionsProps) {
+export function CreateInstructionsContent() {
   const { t } = useTranslation("openhands");
-  const [isExpanded, setIsExpanded] = useState(!collapsible);
 
-  const content = (
+  return (
     <>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {/* Option 1: Claude Code / Codex */}
@@ -86,6 +83,13 @@ export function CreateInstructions({
       </p>
     </>
   );
+}
+
+export function CreateInstructions({
+  collapsible = false,
+}: CreateInstructionsProps) {
+  const { t } = useTranslation("openhands");
+  const [isExpanded, setIsExpanded] = useState(!collapsible);
 
   if (collapsible) {
     return (
@@ -106,7 +110,11 @@ export function CreateInstructions({
             )}
           />
         </button>
-        {isExpanded && <div className="px-4 pb-4">{content}</div>}
+        {isExpanded ? (
+          <div className="px-4 pb-4">
+            <CreateInstructionsContent />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -116,7 +124,7 @@ export function CreateInstructions({
       <h3 className="text-center text-sm font-medium text-content">
         {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
       </h3>
-      {content}
+      <CreateInstructionsContent />
     </div>
   );
 }
