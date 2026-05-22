@@ -25,6 +25,7 @@ import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
@@ -491,6 +492,11 @@ export function ChatInterface() {
             <ErrorMessageBanner
               message={errorMessage}
               onDismiss={removeErrorMessage}
+              onRetry={
+                errorMessage === SERVER_CONNECTION_ERROR_MESSAGE
+                  ? () => conversationWebSocket?.reconnect()
+                  : undefined
+              }
             />
           )}
 
