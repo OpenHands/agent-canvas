@@ -7,6 +7,9 @@ interface SkillTypeBadgeProps {
   type: SkillType;
 }
 
+const SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME =
+  "bg-[rgba(195,205,220,0.12)] text-tertiary-light border border-[rgba(195,205,220,0.35)]";
+
 const TYPE_CONFIG: Record<
   SkillType,
   {
@@ -16,18 +19,15 @@ const TYPE_CONFIG: Record<
 > = {
   agentskills: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_AGENTSKILLS,
-    className:
-      "bg-[rgba(195,205,220,0.12)] text-tertiary-light border border-[rgba(195,205,220,0.35)]",
+    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
   knowledge: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_KNOWLEDGE,
-    className:
-      "bg-[rgba(96,165,250,0.12)] text-[#93c5fd] border border-[rgba(96,165,250,0.35)]",
+    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
   repo: {
     labelKey: I18nKey.SETTINGS$SKILLS_TYPE_REPO,
-    className:
-      "bg-[rgba(52,211,153,0.12)] text-[#6ee7b7] border border-[rgba(52,211,153,0.35)]",
+    className: SKILL_TYPE_BADGE_MONOCHROME_CLASS_NAME,
   },
 };
 
