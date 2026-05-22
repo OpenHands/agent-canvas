@@ -1,8 +1,8 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
 import { ToggleSwitch } from "./toggle-switch";
-import { MetadataChip } from "./metadata-chip";
 import { KebabMenu } from "./kebab-menu";
 import type { KebabMenuItem } from "./kebab-menu";
 import { useHasPermission } from "#/hooks/use-has-permission";
@@ -13,10 +13,15 @@ import SparkleIcon from "#/icons/sparkle.svg?react";
 import PowerIcon from "#/icons/power.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
+import {
+  SkillCardPillRow,
+  type SkillCardPill,
+} from "#/components/features/skills/skill-card-pill-row";
 import { cn } from "#/utils/utils";
 import {
-  automationCardSurfaceClassName,
   extensionModuleCardInteractiveClassName,
+  extensionModuleCardPillClassName,
+  extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
 
 interface AutomationCardProps {
@@ -24,6 +29,49 @@ interface AutomationCardProps {
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
   onEdit?: (id: string) => void;
+}
+
+function buildAutomationMetadataPills(
+  automation: Automation,
+  scheduleLabel: string,
+): SkillCardPill[] {
+  const pills: SkillCardPill[] = [];
+
+  if (automation.repository) {
+    pills.push({
+      id: "repository",
+      node: (
+        <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+          <FolderIcon className="size-3 shrink-0" />
+          {automation.repository}
+        </span>
+      ),
+    });
+  }
+
+  pills.push({
+    id: "schedule",
+    node: (
+      <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+        <ClockIcon className="size-3 shrink-0" />
+        {scheduleLabel}
+      </span>
+    ),
+  });
+
+  if (automation.model) {
+    pills.push({
+      id: "model",
+      node: (
+        <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+          <SparkleIcon className="size-3 shrink-0" />
+          {automation.model}
+        </span>
+      ),
+    });
+  }
+
+  return pills;
 }
 
 export function AutomationCard({
@@ -38,6 +86,10 @@ export function AutomationCard({
 
   const scheduleLabel =
     automation.trigger.schedule_human || automation.trigger.type;
+  const pills = useMemo(
+    () => buildAutomationMetadataPills(automation, scheduleLabel),
+    [automation, scheduleLabel],
+  );
 
   const menuItems: KebabMenuItem[] = [
     ...(onEdit
@@ -78,22 +130,17 @@ export function AutomationCard({
         if (e.key === "Enter") handleCardClick();
       }}
       className={cn(
-        "overflow-hidden p-5 text-left",
-        automationCardSurfaceClassName,
+        "flex min-w-0 flex-col gap-3 overflow-hidden p-4 text-left",
+        extensionModuleCardSurfaceClassName,
         extensionModuleCardInteractiveClassName,
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-semibold text-white">
-            {automation.name}
-          </h3>
-          <p className="mt-1 line-clamp-2 text-sm text-muted">
-            {automation.prompt}
-          </p>
-        </div>
+      <header className="flex items-start justify-between gap-3">
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+          {automation.name}
+        </h3>
 
-        <div className="ml-4 flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {canManage && (
             <ToggleSwitch
               enabled={automation.enabled}
@@ -103,26 +150,20 @@ export function AutomationCard({
           )}
           {canManage && <KebabMenu items={menuItems} />}
         </div>
-      </div>
+      </header>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {automation.repository && (
-          <MetadataChip
-            icon={<FolderIcon className="size-3.5" />}
-            label={automation.repository}
-          />
-        )}
-        <MetadataChip
-          icon={<ClockIcon className="size-3.5" />}
-          label={scheduleLabel}
+      {automation.prompt ? (
+        <p className="line-clamp-2 text-xs leading-relaxed text-tertiary-light">
+          {automation.prompt}
+        </p>
+      ) : null}
+
+      {pills.length > 0 ? (
+        <SkillCardPillRow
+          pills={pills}
+          testId={`automation-pills-${automation.id}`}
         />
-        {automation.model && (
-          <MetadataChip
-            icon={<SparkleIcon className="size-3.5" />}
-            label={automation.model}
-          />
-        )}
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -1,3 +1,6 @@
+import { cn } from "#/utils/utils";
+import { extensionModuleCardPillClassName } from "#/utils/extension-module-card-classes";
+
 interface MetadataChipProps {
   icon: React.ReactNode;
   label: string;
@@ -5,7 +8,7 @@ interface MetadataChipProps {
 
 export function MetadataChip({ icon, label }: MetadataChipProps) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--oh-border)] px-3 py-1 text-xs text-muted">
+    <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
       {icon}
       {label}
     </span>

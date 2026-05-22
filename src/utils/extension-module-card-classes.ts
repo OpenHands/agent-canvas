@@ -5,10 +5,6 @@ export const extensionModuleCardSurfaceClassName =
 export const extensionModuleCardInteractiveClassName =
   "cursor-pointer transition-[border-color] hover:border-white/40 focus-visible:outline-none focus-visible:border-white/40";
 
-/** Saved automation list cards keep rounded-2xl while sharing extension module chrome. */
-export const automationCardSurfaceClassName =
-  "rounded-2xl border border-[var(--oh-border)] bg-base-secondary";
-
 /** Shared pill chrome for Skills, automation cards, and related modals. */
 export const extensionModuleCardPillClassName =
   "inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-full border border-[var(--oh-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[11px] leading-4 text-tertiary-light";
