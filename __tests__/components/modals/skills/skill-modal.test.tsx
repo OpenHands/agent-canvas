@@ -50,12 +50,30 @@ describe("SkillsModal", () => {
   });
 
   describe("Refresh Button Rendering", () => {
-    it("should render the refresh button with correct text and test ID", async () => {
+    it("should render the refresh button as an icon-only control with accessible label", async () => {
       renderWithProviders(<SkillsModal {...defaultProps} />);
 
       const refreshButton = await screen.findByTestId("refresh-skills");
       expect(refreshButton).toBeInTheDocument();
-      expect(refreshButton).toHaveTextContent("BUTTON$REFRESH");
+      expect(refreshButton).toHaveAttribute(
+        "aria-label",
+        "BUTTON$REFRESH",
+      );
+      expect(refreshButton).not.toHaveTextContent("BUTTON$REFRESH");
+    });
+  });
+
+  describe("Close Button", () => {
+    it("should render the close button and call onClose when clicked", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<SkillsModal {...defaultProps} />);
+
+      const closeButton = await screen.findByTestId("close-skills-modal");
+      expect(closeButton).toBeInTheDocument();
+
+      await user.click(closeButton);
+
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -73,6 +91,24 @@ describe("SkillsModal", () => {
       await user.click(refreshButton);
 
       expect(refreshSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe("Runtime waiting state", () => {
+    it("shows the warning, refresh button, and spinner while the runtime is starting", async () => {
+      vi.mocked(useAgentState).mockReturnValue({
+        curAgentState: AgentState.LOADING,
+      });
+
+      renderWithProviders(<SkillsModal {...defaultProps} />);
+
+      expect(await screen.findByTestId("refresh-skills")).toBeInTheDocument();
+      expect(screen.getByText("SKILLS_MODAL$WARNING")).toBeInTheDocument();
+      expect(screen.getByTestId("skills-runtime-waiting")).toBeInTheDocument();
+      expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
+      expect(
+        screen.getByText("DIFF_VIEWER$WAITING_FOR_RUNTIME"),
+      ).toBeInTheDocument();
     });
   });
 

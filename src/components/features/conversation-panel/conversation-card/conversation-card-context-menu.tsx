@@ -8,7 +8,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { ConversationNameContextMenuIconText } from "../../conversation/conversation-name-context-menu-icon-text";
 
 import EditIcon from "#/icons/u-edit.svg?react";
-import RobotIcon from "#/icons/u-robot.svg?react";
+import SkillsIcon from "#/icons/skills.svg?react";
 import ToolsIcon from "#/icons/u-tools.svg?react";
 import DownloadIcon from "#/icons/u-download.svg?react";
 import CreditCardIcon from "#/icons/u-credit-card.svg?react";
@@ -134,7 +134,14 @@ export function ConversationCardContextMenu({
               onClick={onShowSkills}
             >
               <ConversationNameContextMenuIconText
-                icon={<RobotIcon width={16} height={16} />}
+                icon={
+                  <SkillsIcon
+                    width={16}
+                    height={16}
+                    className="stroke-[1.75]"
+                    aria-hidden
+                  />
+                }
                 text={t(I18nKey.CONVERSATION$SHOW_SKILLS)}
               />
             </ContextMenuListItem>

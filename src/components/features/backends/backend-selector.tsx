@@ -279,6 +279,7 @@ export function BackendSelector({
         setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
       });
 
+      // @spec BM-002 — Switching backends keeps the user on the same page
       if (conversationMatch) navigate("/conversations");
       else if (automationDetailMatch) navigate("/automations");
 
@@ -324,7 +325,6 @@ export function BackendSelector({
             placeholder={active.backend.name}
             loading={someCloudLoading}
             options={options}
-            italicPlaceholder={false}
             className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
           />
         </div>
