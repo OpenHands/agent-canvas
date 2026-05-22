@@ -1,8 +1,8 @@
 import { cn } from "#/utils/utils";
 
-/** Expanded sidebar icon column beside labels. */
+/** Expanded sidebar icon column beside labels (matches 36px nav rows). */
 export const SIDEBAR_ICON_SLOT_CLASS =
-  "flex h-10 w-[18px] shrink-0 items-center justify-center";
+  "flex h-9 w-[18px] shrink-0 items-center justify-center";
 
 /** Collapsed rail: 40×40 control; aside `md:px-2.5` is the only horizontal inset. */
 export const SIDEBAR_COLLAPSED_ICON_SLOT_CLASS = "relative size-10 shrink-0";
@@ -35,7 +35,7 @@ export function sidebarNavRowClassName(options?: {
 }): string {
   const { indent = false, collapsed = false } = options ?? {};
   return cn(
-    "flex h-10 min-h-10 min-w-0 items-center rounded-md transition-colors",
+    "flex h-9 min-h-9 min-w-0 items-center rounded-md transition-colors",
     "text-sm leading-5 w-full",
     collapsed
       ? "group gap-0 px-0 overflow-visible bg-transparent hover:bg-transparent"

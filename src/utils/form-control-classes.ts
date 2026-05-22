@@ -76,8 +76,8 @@ export const formControlButtonClassName = cn(
   "text-sm disabled:cursor-not-allowed disabled:opacity-30",
 );
 
-/** Helper text under a left-aligned {@link SettingsSwitch} (w-12 + gap-2). */
-export const formControlSwitchDescriptionClassName = "pl-14";
+/** Helper text under a left-aligned {@link SettingsSwitch} (40px track + gap-2). */
+export const formControlSwitchDescriptionClassName = "pl-12";
 
 /** Filter / enum dropdown triggers beside search toolbars. */
 export const formControlFilterTriggerClassName = cn(
