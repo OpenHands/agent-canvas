@@ -1,4 +1,5 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { describe, it, expect, beforeEach } from "vitest";
 
 import { useResizablePanels } from "#/hooks/use-resizable-panels";
@@ -54,5 +55,34 @@ describe("useResizablePanels", () => {
 
     expect(result.current.leftWidth).toBe(60);
     expect(result.current.rightWidth).toBe(40);
+  });
+
+  it("mounts a full-viewport drag shield while dragging so iframe-heavy panes do not steal pointer events", () => {
+    const { result } = renderHook(() =>
+      useResizablePanels({
+        defaultLeftWidth: 50,
+        minLeftWidth: 30,
+        maxLeftWidth: 80,
+        storageKey: "test-panel-width",
+      }),
+    );
+
+    expect(document.querySelector("[data-panel-drag-shield]")).toBeNull();
+
+    act(() => {
+      result.current.handleMouseDown({
+        preventDefault: () => {},
+      } as unknown as ReactMouseEvent<HTMLDivElement>);
+    });
+
+    const shield = document.querySelector("[data-panel-drag-shield]");
+    expect(shield).not.toBeNull();
+    expect(shield).toBeInstanceOf(HTMLDivElement);
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent("mouseup"));
+    });
+
+    expect(document.querySelector("[data-panel-drag-shield]")).toBeNull();
   });
 });
