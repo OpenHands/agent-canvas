@@ -1,6 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { CircleX, X } from "lucide-react";
+import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -63,6 +64,13 @@ export function ErrorMessageBanner({
       )}
       data-testid="error-message-banner"
     >
+      <CircleX
+        aria-hidden
+        className="h-4 w-4 shrink-0"
+        strokeWidth={2}
+        style={{ color: OH_STATUS_ERROR_COLOR }}
+        data-testid="error-message-banner-icon"
+      />
       <div className="min-w-0 flex-1">
         <div
           ref={contentRef}

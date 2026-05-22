@@ -1,6 +1,7 @@
 import { CSSProperties } from "react";
 import { CircleX } from "lucide-react";
 import toast, { ToastOptions } from "react-hot-toast";
+import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { calculateToastDuration } from "./toast-duration";
 import i18n from "#/i18n";
 
@@ -24,21 +25,26 @@ export const TOAST_OPTIONS: ToastOptions = {
 const ERROR_TOAST_ICON = (
   <CircleX
     aria-hidden
-    size={20}
+    size={16}
     strokeWidth={2}
-    className="shrink-0 text-[var(--oh-status-error)]"
+    className="shrink-0"
+    style={{ color: OH_STATUS_ERROR_COLOR }}
   />
 );
 
 export const ERROR_TOAST_OPTIONS: ToastOptions = {
   ...TOAST_OPTIONS,
   icon: ERROR_TOAST_ICON,
+  iconTheme: {
+    primary: OH_STATUS_ERROR_COLOR,
+    secondary: "var(--oh-color-base)",
+  },
 };
 
 export const displayErrorToast = (error: string | null | undefined) => {
   const errorMessage = error || i18n.t("STATUS$ERROR");
   const duration = calculateToastDuration(errorMessage, 4000);
-  toast.error(
+  toast(
     <span className="[word-break:break-word] [overflow-wrap:anywhere]">
       {errorMessage}
     </span>,

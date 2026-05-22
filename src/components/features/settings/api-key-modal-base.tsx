@@ -83,7 +83,7 @@ export function ApiKeyModalBase({
         // runtime prop-driven width; cannot move to className
         style={{ width }}
       >
-        <h3 id="modal-title" className="text-xl font-medium">
+        <h3 id="modal-title" className="text-xl font-medium text-white">
           {title}
         </h3>
         {children}

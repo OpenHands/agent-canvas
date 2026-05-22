@@ -6,8 +6,8 @@ import {
   formControlTransitionClassName,
 } from "#/utils/form-control-classes";
 
-/** 40px row height — taller than form controls for settings list/table rows. */
-export const settingsListRowHeightClassName = "h-10 min-h-10";
+/** 48px row height — taller than form controls for settings list/table rows. */
+export const settingsListRowHeightClassName = "h-12 min-h-12";
 
 /** Bordered list shell shared by secrets, LLM profiles, and similar settings tables. */
 export const settingsListContainerClassName = cn(
@@ -26,9 +26,9 @@ export const settingsListScrollContainerClassName = cn(
 export const settingsListDividerClassName =
   "divide-y divide-[var(--oh-border)]";
 
-/** Interactive row hover — background only; text/icon color snaps instantly. */
+/** Interactive row hover on dark list surfaces (base-secondary). */
 export const settingsListRowHoverClassName =
-  "hover:bg-[var(--oh-interactive-hover)]";
+  "hover:bg-[var(--oh-interactive-hover-low)]";
 
 export const settingsListRowClassName = cn(
   settingsListRowHeightClassName,
@@ -61,5 +61,5 @@ export const settingsListTableCellClassName = cn(
 export const settingsListIconActionButtonClassName = cn(
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted",
   formControlTransitionClassName,
-  "hover:bg-[var(--oh-interactive-hover)] hover:text-white",
+  "hover:bg-[var(--oh-interactive-hover-low)] hover:text-white",
 );

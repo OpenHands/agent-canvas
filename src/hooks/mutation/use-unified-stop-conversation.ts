@@ -40,10 +40,7 @@ export const useUnifiedPauseConversation = () => {
       if (context?.toastId) {
         toast.dismiss(context.toastId);
       }
-      toast.error(
-        t(I18nKey.TOAST$FAILED_TO_STOP_CONVERSATION),
-        ERROR_TOAST_OPTIONS,
-      );
+      toast(t(I18nKey.TOAST$FAILED_TO_STOP_CONVERSATION), ERROR_TOAST_OPTIONS);
 
       if (context?.previousConversations) {
         queryClient.setQueryData(
