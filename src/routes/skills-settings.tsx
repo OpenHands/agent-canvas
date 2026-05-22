@@ -5,6 +5,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useSkills } from "#/hooks/query/use-skills";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { SkillCard } from "#/components/features/skills/skill-card";
+import { SkillDetailModal } from "#/components/features/skills/skill-detail-modal";
 import { SkillsToolbar } from "#/components/features/skills/skills-toolbar";
 import type { SkillTypeFilter } from "#/components/features/skills/skill-type-filter";
 import { I18nKey } from "#/i18n/declaration";
@@ -13,12 +14,15 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { cn } from "#/utils/utils";
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import type { SkillInfo } from "#/types/settings";
+import { getSkillCardDescription } from "#/components/features/skills/get-skill-card-description";
 
 function matchesSearch(skill: SkillInfo, query: string): boolean {
   if (!query) return true;
   const haystacks = [
     skill.name,
+    getSkillCardDescription(skill),
     skill.description ?? "",
+    skill.content ?? "",
     skill.license ?? "",
     skill.compatibility ?? "",
     ...(skill.triggers ?? []),
@@ -40,6 +44,9 @@ function SkillsSettingsScreen() {
     React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<SkillTypeFilter>("all");
+  const [selectedSkill, setSelectedSkill] = React.useState<SkillInfo | null>(
+    null,
+  );
 
   // Sync local state with server settings when data first arrives
   React.useEffect(() => {
@@ -136,13 +143,14 @@ function SkillsSettingsScreen() {
                   {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
                 </p>
               ) : (
-                <section className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
+                <section className="flex min-w-0 flex-col gap-3">
+                  <div className="grid min-w-0 grid-cols-2 gap-3">
                     {filteredSkills.map((skill) => (
                       <SkillCard
                         key={skill.name}
                         skill={skill}
                         enabled={!disabledSet.has(skill.name)}
+                        onOpen={() => setSelectedSkill(skill)}
                         onToggle={(enabled) =>
                           handleToggle(skill.name, enabled)
                         }
@@ -152,6 +160,15 @@ function SkillsSettingsScreen() {
                 </section>
               )}
             </>
+          )}
+
+          {selectedSkill && (
+            <SkillDetailModal
+              skill={selectedSkill}
+              enabled={!disabledSet.has(selectedSkill.name)}
+              onToggle={(enabled) => handleToggle(selectedSkill.name, enabled)}
+              onClose={() => setSelectedSkill(null)}
+            />
           )}
         </div>
       </main>

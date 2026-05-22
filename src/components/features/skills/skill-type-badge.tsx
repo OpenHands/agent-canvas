@@ -31,6 +31,10 @@ const TYPE_CONFIG: Record<
   },
 };
 
+export function getSkillTypeLabelKey(type: SkillType): I18nKey {
+  return TYPE_CONFIG[type].labelKey;
+}
+
 export function SkillTypeBadge({ type }: SkillTypeBadgeProps) {
   const { t } = useTranslation("openhands");
   const config = TYPE_CONFIG[type];
@@ -38,7 +42,7 @@ export function SkillTypeBadge({ type }: SkillTypeBadgeProps) {
     <span
       data-testid={`skill-type-badge-${type}`}
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
         config.className,
       )}
     >

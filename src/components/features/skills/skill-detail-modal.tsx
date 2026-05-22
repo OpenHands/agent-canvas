@@ -1,0 +1,192 @@
+import React from "react";
+import { useTranslation } from "react-i18next";
+import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { I18nKey } from "#/i18n/declaration";
+import type { SkillInfo } from "#/types/settings";
+import { cn } from "#/utils/utils";
+import CopyIcon from "#/icons/copy.svg?react";
+import CheckmarkIcon from "#/icons/checkmark.svg?react";
+import { SkillIconBadge } from "./skill-icon-badge";
+import { getSkillCardDescription } from "./get-skill-card-description";
+import { buildSkillPills } from "./build-skill-pills";
+
+interface SkillDetailModalProps {
+  skill: SkillInfo;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  onClose: () => void;
+}
+
+function ReadonlyTextArea({
+  testId,
+  label,
+  value,
+}: {
+  testId: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <label className="flex min-w-0 w-full flex-col gap-2.5">
+      <span className="text-sm">{label}</span>
+      <textarea
+        data-testid={testId}
+        readOnly
+        value={value}
+        rows={Math.min(12, Math.max(4, value.split("\n").length))}
+        className={cn(
+          "bg-[var(--oh-surface-raised)] border border-[var(--oh-border-subtle)] w-full min-w-0 rounded-sm p-2 text-sm",
+          "cursor-not-allowed resize-y custom-scrollbar",
+        )}
+      />
+    </label>
+  );
+}
+
+export function SkillDetailModal({
+  skill,
+  enabled,
+  onToggle,
+  onClose,
+}: SkillDetailModalProps) {
+  const { t } = useTranslation("openhands");
+  const [sourceCopied, setSourceCopied] = React.useState(false);
+
+  const description = getSkillCardDescription(skill);
+  const pills = React.useMemo(
+    () =>
+      buildSkillPills(skill, t, {
+        variant: "detail",
+        testIdPrefix: "skill-modal-pill",
+      }),
+    [skill, t],
+  );
+
+  const handleCopySource = async () => {
+    if (!skill.source) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(skill.source);
+    setSourceCopied(true);
+  };
+
+  React.useEffect(() => {
+    if (!sourceCopied) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => setSourceCopied(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [sourceCopied]);
+
+  return (
+    <ModalBackdrop onClose={onClose} aria-label={skill.name}>
+      <div
+        data-testid="skill-detail-modal"
+        data-skill-name={skill.name}
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
+      >
+        <div className="flex items-start gap-3">
+          <SkillIconBadge skillName={skill.name} />
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2
+                  data-testid={`skill-modal-name-${skill.name}`}
+                  className="text-lg font-semibold"
+                >
+                  {skill.name}
+                </h2>
+                {skill.source ? (
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1">
+                    <p
+                      data-testid={`skill-modal-source-${skill.name}`}
+                      className="min-w-0 flex-1 truncate text-xs text-tertiary-alt"
+                      title={skill.source}
+                    >
+                      {skill.source}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid={`skill-modal-copy-source-${skill.name}`}
+                      aria-label={t(
+                        sourceCopied
+                          ? I18nKey.BUTTON$COPIED
+                          : I18nKey.SETTINGS$SKILLS_COPY_PATH,
+                      )}
+                      disabled={sourceCopied}
+                      onClick={handleCopySource}
+                      className="shrink-0 cursor-pointer border-0 bg-transparent p-0.5 text-tertiary-alt hover:text-white disabled:cursor-default [&_path]:fill-current"
+                    >
+                      {sourceCopied ? (
+                        <CheckmarkIcon width={12} height={12} />
+                      ) : (
+                        <CopyIcon width={12} height={12} />
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="shrink-0">
+                <SettingsSwitch
+                  testId={`skill-modal-toggle-${skill.name}`}
+                  isToggled={enabled}
+                  onToggle={onToggle}
+                  togglePosition="right"
+                >
+                  {t(
+                    enabled
+                      ? I18nKey.SETTINGS$SKILLS_ENABLED
+                      : I18nKey.SETTINGS$SKILLS_DISABLED,
+                  )}
+                </SettingsSwitch>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {description ? (
+          <p
+            data-testid={`skill-modal-description-${skill.name}`}
+            className="text-xs text-content-2"
+          >
+            {description}
+          </p>
+        ) : null}
+
+        {pills.length > 0 ? (
+          <div
+            data-testid={`skill-modal-pills-${skill.name}`}
+            className="flex flex-wrap gap-1.5"
+          >
+            {pills.map((pill) => (
+              <React.Fragment key={pill.id}>{pill.node}</React.Fragment>
+            ))}
+          </div>
+        ) : null}
+
+        {skill.content ? (
+          <ReadonlyTextArea
+            testId={`skill-modal-field-content-${skill.name}`}
+            label={t(I18nKey.SETTINGS$SKILLS_CONTENT)}
+            value={skill.content}
+          />
+        ) : null}
+
+        <div className="mt-2 flex justify-end gap-2">
+          <BrandButton
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            testId="skill-detail-close"
+          >
+            {t(I18nKey.BUTTON$CLOSE)}
+          </BrandButton>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}

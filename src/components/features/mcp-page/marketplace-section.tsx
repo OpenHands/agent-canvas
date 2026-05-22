@@ -15,6 +15,7 @@ interface MarketplaceSectionProps {
   isInstalled: (entry: MarketplaceEntry) => boolean;
   backendKind: "local" | "cloud";
   onSelect: (entry: MarketplaceEntry) => void;
+  onToggle: (entry: MarketplaceEntry, selected: boolean) => void;
   /** Empty string = no filter. */
   query?: string;
 }
@@ -23,6 +24,7 @@ export function MarketplaceSection({
   isInstalled,
   backendKind,
   onSelect,
+  onToggle,
   query = "",
 }: MarketplaceSectionProps) {
   const { t } = useTranslation("openhands");
@@ -64,6 +66,7 @@ export function MarketplaceSection({
               entry={entry}
               installed={isInstalled(entry)}
               onClick={() => onSelect(entry)}
+              onToggle={(selected) => onToggle(entry, selected)}
             />
           ))}
         </div>

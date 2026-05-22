@@ -87,6 +87,21 @@ export default function MCPPage() {
     setInstallEntry(entry);
   };
 
+  const handleMarketplaceToggle = (
+    entry: MarketplaceEntry,
+    selected: boolean,
+  ) => {
+    if (selected) {
+      setInstallEntry(entry);
+      return;
+    }
+
+    const match = findInstalledMatch(entry.template, allServers);
+    if (match) {
+      setServerToDelete(match);
+    }
+  };
+
   const handleEdit = (server: MCPServerConfig) => {
     setEditingServer(server);
   };
@@ -180,6 +195,7 @@ export default function MCPPage() {
               isInstalled={isInstalled}
               backendKind={backendKind}
               onSelect={handleMarketplaceClick}
+              onToggle={handleMarketplaceToggle}
               query={searchQuery}
             />
           ) : null}
