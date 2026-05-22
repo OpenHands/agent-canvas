@@ -53,7 +53,7 @@ export function InstalledServersSection({
         <p className="text-sm text-tertiary-light">
           {t(I18nKey.MCP$INSTALLED_EMPTY_TITLE)}
         </p>
-        <p className="text-xs text-tertiary-alt mt-1">
+        <p className="text-xs text-tertiary-light mt-1">
           {t(I18nKey.MCP$INSTALLED_EMPTY_HINT)}
         </p>
       </div>
