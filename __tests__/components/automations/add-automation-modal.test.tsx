@@ -55,7 +55,7 @@ describe("AddAutomationModal", () => {
     const user = userEvent.setup();
     const { onClose } = renderModal();
 
-    await user.click(screen.getByLabelText(I18nKey.BUTTON$CLOSE));
+    await user.click(screen.getByTestId("add-automation-modal-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
