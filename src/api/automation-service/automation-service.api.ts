@@ -2,6 +2,7 @@ import axios from "axios";
 import type {
   Automation,
   AutomationsResponse,
+  AutomationRun,
   AutomationRunsResponse,
 } from "#/types/automation";
 import {
@@ -163,6 +164,22 @@ class AutomationService {
     enabled: boolean,
   ): Promise<Automation> {
     return AutomationService.updateAutomation(id, { enabled });
+  }
+
+  static async dispatchAutomation(id: string): Promise<AutomationRun> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/dispatch`;
+
+    if (active.kind === "cloud") {
+      return callCloudProxy<AutomationRun>({
+        backend: active,
+        method: "POST",
+        path,
+      });
+    }
+
+    const { data } = await localAutomationAxios.post<AutomationRun>(path);
+    return data;
   }
 
   static async checkHealth(): Promise<AutomationHealthResponse> {
