@@ -26,7 +26,7 @@ function getServerTransportLabel(type: MCPServerConfig["type"]) {
     case "shttp":
       return "HTTP";
     case "stdio":
-      return "stdio";
+      return "STDIO";
     default:
       return type;
   }

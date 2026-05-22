@@ -22,7 +22,7 @@ export function MarketplaceCard({
   const transportLabel = (() => {
     switch (entry.template.kind) {
       case "stdio":
-        return "stdio";
+        return "STDIO";
       case "shttp":
         return "HTTP";
       case "sse":
