@@ -33,6 +33,7 @@ import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
 import {
   groupConversations,
+  getGroupConversationPreview,
   sortConversationsByField,
   type ConversationGroupLaunch,
 } from "./conversation-panel-list-helpers";
@@ -140,6 +141,9 @@ export function ConversationPanel({
   const [collapsedGroupIds, setCollapsedGroupIds] = React.useState<
     ReadonlySet<string>
   >(() => new Set());
+  const [expandedGroupPreviewIds, setExpandedGroupPreviewIds] = React.useState<
+    ReadonlySet<string>
+  >(() => new Set());
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
     setCollapsedGroupIds((prev) => {
@@ -153,9 +157,22 @@ export function ConversationPanel({
     });
   }, []);
 
+  const toggleGroupPreviewExpanded = React.useCallback((groupId: string) => {
+    setExpandedGroupPreviewIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     if (organizeMode !== "grouped") {
       setCollapsedGroupIds(new Set());
+      setExpandedGroupPreviewIds(new Set());
     }
   }, [organizeMode]);
 
@@ -586,7 +603,17 @@ export function ConversationPanel({
           >
             {conversationGroups.map((group) => {
               const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+              const groupTestIdSuffix = group.id.replace(
+                /[^a-zA-Z0-9_-]/g,
+                "-",
+              );
               const expanded = !collapsedGroupIds.has(group.id);
+              const previewExpanded = expandedGroupPreviewIds.has(group.id);
+              const { visibleConversations, isPreviewTruncated, isShowingAll } =
+                getGroupConversationPreview(group.conversations, {
+                  expanded: previewExpanded,
+                  activeConversationId: currentConversationId,
+                });
               return (
                 <section key={group.id} aria-labelledby={headingId}>
                   <div
@@ -636,7 +663,21 @@ export function ConversationPanel({
                   </div>
                   {expanded ? (
                     <div className="mt-0.5 space-y-0.5">
-                      {group.conversations.map(renderConversationCard)}
+                      {visibleConversations.map(renderConversationCard)}
+                      {isPreviewTruncated ? (
+                        <div className="pl-2">
+                          <button
+                            type="button"
+                            data-testid={`thread-folder-view-more-${groupTestIdSuffix}`}
+                            onClick={() => toggleGroupPreviewExpanded(group.id)}
+                            className="ml-[26px] cursor-pointer text-xs text-[var(--oh-muted)] hover:text-white"
+                          >
+                            {isShowingAll
+                              ? t(I18nKey.CONVERSATION_PANEL$LESS)
+                              : t(I18nKey.CONVERSATION_PANEL$MORE)}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </section>
