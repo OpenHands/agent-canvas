@@ -326,7 +326,7 @@ export function BackendSelector({
             loading={someCloudLoading}
             options={options}
             italicPlaceholder={false}
-            className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
+            className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)] focus-within:border-transparent focus-within:ring-0"
           />
         </div>
         {!hideTrigger ? (

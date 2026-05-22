@@ -78,6 +78,7 @@ describe("custom-toast-handlers", () => {
         expect.objectContaining({
           duration: 4000, // Should use minimum duration of 4000ms for errors
           position: "top-right",
+          icon: expect.anything(),
           style: expect.objectContaining({
             borderRadius: "var(--oh-radius)",
             maxWidth: "400px",
@@ -97,6 +98,7 @@ describe("custom-toast-handlers", () => {
         expect.objectContaining({
           duration: expect.any(Number),
           position: "top-right",
+          icon: expect.anything(),
           style: expect.objectContaining({
             borderRadius: "var(--oh-radius)",
             maxWidth: "400px",

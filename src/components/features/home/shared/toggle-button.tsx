@@ -1,5 +1,8 @@
+import {
+  ComboboxCaretIcon,
+  comboboxCaretButtonClassName,
+} from "#/ui/combobox-caret";
 import { cn } from "#/utils/utils";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 
 interface ToggleButtonProps {
   isOpen: boolean;
@@ -21,20 +24,16 @@ export function ToggleButton({
       {...getToggleButtonProps({
         disabled,
         className: cn(
+          comboboxCaretButtonClassName,
           "text-[#fff]",
-          "disabled:cursor-not-allowed disabled:opacity-60",
+          isOpen && "rotate-180",
+          disabled && "cursor-not-allowed opacity-60",
         ),
       })}
       type="button"
       aria-label="Toggle menu"
     >
-      <ChevronDownSmallIcon
-        className={cn(
-          "w-4 h-4 transition-transform",
-          isOpen && "rotate-180",
-          iconClassName,
-        )}
-      />
+      <ComboboxCaretIcon className={iconClassName} />
     </button>
   );
 }

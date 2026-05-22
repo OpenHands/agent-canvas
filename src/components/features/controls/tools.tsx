@@ -3,7 +3,7 @@ import { Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import { ToolsContextMenu } from "./tools-context-menu";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -60,12 +60,7 @@ export function Tools() {
         <span className="text-sm font-normal leading-5">
           {t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
         </span>
-        <ChevronDownSmallIcon
-          width={18}
-          height={18}
-          color="currentColor"
-          aria-hidden
-        />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <ToolsContextMenu

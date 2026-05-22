@@ -322,7 +322,6 @@ export function GitRepoDropdown({
             isOpen={isOpen}
             disabled={disabled}
             getToggleButtonProps={getToggleButtonProps}
-            iconClassName="w-10 h-10"
           />
         </div>
       </div>

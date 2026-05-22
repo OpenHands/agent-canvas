@@ -1,6 +1,6 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -81,13 +81,7 @@ export function ChatInputModel() {
         }}
       >
         <span>{truncatedModelLabel}</span>
-        <ChevronDownSmallIcon
-          width={18}
-          height={18}
-          color="currentColor"
-          className="shrink-0"
-          aria-hidden
-        />
+        <ComboboxCaretInline isOpen={isPopoverOpen} />
       </button>
 
       {isPopoverOpen && (

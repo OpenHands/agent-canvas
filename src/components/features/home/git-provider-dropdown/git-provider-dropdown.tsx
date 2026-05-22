@@ -190,10 +190,7 @@ export function GitProviderDropdown({
             isOpen={isOpen}
             disabled={disabled}
             getToggleButtonProps={getToggleButtonProps}
-            iconClassName={cn(
-              "w-[23px] h-[23px] translate-y-[1px]",
-              toggleButtonClassName,
-            )}
+            iconClassName={toggleButtonClassName}
           />
         </div>
 

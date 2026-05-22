@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -96,13 +96,7 @@ export function SwitchProfileButton() {
         <span className="truncate">
           {activeProfileName ?? t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
         </span>
-        <ChevronDownSmallIcon
-          width={18}
-          height={18}
-          color="currentColor"
-          className="shrink-0"
-          aria-hidden
-        />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <SwitchProfileContextMenu
