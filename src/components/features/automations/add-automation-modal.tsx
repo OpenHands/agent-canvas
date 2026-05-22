@@ -24,7 +24,7 @@ export function AddAutomationModal({
     >
       <div
         data-testid="add-automation-modal"
-        className="relative flex w-full max-w-2xl flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
+        className="relative flex w-full max-w-lg flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
       >
         <ModalCloseButton
           onClose={onClose}
@@ -39,7 +39,7 @@ export function AddAutomationModal({
           </h2>
         </header>
         <div className="px-6 pb-6">
-          <CreateInstructionsContent />
+          <CreateInstructionsContent onLaunch={onClose} />
         </div>
       </div>
     </ModalBackdrop>
