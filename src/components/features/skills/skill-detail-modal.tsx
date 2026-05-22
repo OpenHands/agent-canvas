@@ -13,6 +13,7 @@ import MessageSquareShareIcon from "#/icons/message-square-share.svg?react";
 import { SkillIconBadge } from "./skill-icon-badge";
 import { getSkillCardDescription } from "./get-skill-card-description";
 import { buildSkillPills } from "./build-skill-pills";
+import { isCopyableSkillSource } from "./is-copyable-skill-source";
 import { SkillCardPillRow } from "./skill-card-pill-row";
 import { getSkillChatLaunchMessage } from "./get-skill-chat-launch-message";
 import { useLaunchSkillInChat } from "#/hooks/use-launch-skill-in-chat";
@@ -73,6 +74,7 @@ export function SkillDetailModal({
       }),
     [skill, t],
   );
+  const showCopySource = isCopyableSkillSource(skill.source);
 
   const handleCopySource = async () => {
     if (!skill.source) {
@@ -118,24 +120,26 @@ export function SkillDetailModal({
                 >
                   {skill.source}
                 </p>
-                <button
-                  type="button"
-                  data-testid={`skill-modal-copy-source-${skill.name}`}
-                  aria-label={t(
-                    sourceCopied
-                      ? I18nKey.BUTTON$COPIED
-                      : I18nKey.SETTINGS$SKILLS_COPY_PATH,
-                  )}
-                  disabled={sourceCopied}
-                  onClick={handleCopySource}
-                  className="shrink-0 cursor-pointer border-0 bg-transparent p-0.5 text-tertiary-alt hover:text-white disabled:cursor-default [&_path]:fill-current"
-                >
-                  {sourceCopied ? (
-                    <CheckmarkIcon width={12} height={12} />
-                  ) : (
-                    <CopyIcon width={12} height={12} />
-                  )}
-                </button>
+                {showCopySource ? (
+                  <button
+                    type="button"
+                    data-testid={`skill-modal-copy-source-${skill.name}`}
+                    aria-label={t(
+                      sourceCopied
+                        ? I18nKey.BUTTON$COPIED
+                        : I18nKey.SETTINGS$SKILLS_COPY_PATH,
+                    )}
+                    disabled={sourceCopied}
+                    onClick={handleCopySource}
+                    className="shrink-0 cursor-pointer border-0 bg-transparent p-0.5 text-tertiary-alt hover:text-white disabled:cursor-default [&_path]:fill-current"
+                  >
+                    {sourceCopied ? (
+                      <CheckmarkIcon width={12} height={12} />
+                    ) : (
+                      <CopyIcon width={12} height={12} />
+                    )}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>

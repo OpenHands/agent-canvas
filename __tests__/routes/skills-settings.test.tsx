@@ -160,6 +160,21 @@ Full skill body.`,
     expect(writeText).toHaveBeenCalledWith(skill.source);
   });
 
+  it("hides the copy button when the source is a scope label instead of a path", async () => {
+    const skill = buildSkill({ name: "add_repo_inst", source: "global" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+
+    expect(
+      within(card).getByTestId(`skill-source-${skill.name}`),
+    ).toHaveTextContent("global");
+    expect(
+      within(card).queryByTestId(`skill-copy-source-${skill.name}`),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters skills by name, description, or trigger via the search input", async () => {
     vi.spyOn(SkillsService, "getSkills").mockResolvedValue([
       buildSkill({ name: "deno", description: "Deno runtime helper" }),
