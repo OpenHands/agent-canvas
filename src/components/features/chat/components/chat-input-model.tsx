@@ -8,6 +8,10 @@ import { ContextMenu } from "#/ui/context-menu";
 import { Divider } from "#/ui/divider";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import {
+  ACP_PROVIDERS,
+  resolveEffectiveAcpModel,
+} from "#/constants/acp-providers";
 import { cn } from "#/utils/utils";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -28,21 +32,33 @@ export function ChatInputModel() {
   // Home page has no active conversation; fall back to the user's default
   // model so the switcher renders consistently across both surfaces.
   const { data: settings } = useSettings();
-  // ACP conversations do not use the OpenHands LLM profile. Show the ACP
-  // model only when the adapter/settings provide one, and link users to Agent
-  // settings instead of the LLM profile page.
+  // ACP conversations do not use the OpenHands LLM profile. Resolve the model
+  // label through the shared helper so the displayed value matches what the
+  // conversation-creation path will actually send to the agent-server (the
+  // helper applies provider defaults + filters out the SDK ``"default"``
+  // placeholders + the ``"acp-managed"`` sentinel).
   const isActiveAcpConversation = conversation?.agent_kind === "acp";
   const isHomeAcp =
     !conversation && settings?.agent_settings?.agent_kind === "acp";
-  const settingsAcpModel =
-    typeof settings?.agent_settings?.acp_model === "string"
-      ? settings.agent_settings.acp_model.trim() || null
-      : null;
-  const llmModel = isActiveAcpConversation
-    ? conversation?.llm_model
-    : isHomeAcp
-      ? settingsAcpModel
-      : (conversation?.llm_model ?? settings?.llm_model);
+  const acpProvider = isHomeAcp
+    ? ACP_PROVIDERS.find(
+        ({ key }) => key === settings?.agent_settings?.acp_server,
+      )
+    : undefined;
+  let llmModel: string | null | undefined;
+  if (isActiveAcpConversation) {
+    llmModel = conversation?.llm_model;
+  } else if (isHomeAcp) {
+    llmModel = resolveEffectiveAcpModel({
+      configured:
+        typeof settings?.agent_settings?.acp_model === "string"
+          ? settings.agent_settings.acp_model
+          : null,
+      providerDefault: acpProvider?.default_model,
+    });
+  } else {
+    llmModel = conversation?.llm_model ?? settings?.llm_model;
+  }
   const destinationPath =
     isActiveAcpConversation || isHomeAcp ? "/settings/agent" : "/settings";
   const llmDestinationLabel = t(

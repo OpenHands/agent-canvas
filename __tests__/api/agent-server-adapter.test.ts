@@ -609,6 +609,33 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
+  it("filters ACP default placeholders surfaced via the configured acp_model", () => {
+    // Older settings may have persisted the SDK's literal "default" string
+    // into ``acp_model``. Surfacing it on the chip would lie about what's
+    // running — the placeholder filter is applied to every candidate, not
+    // just the runtime fields.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "Default (recommended)",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBeNull();
+  });
+
+  it("filters ACP default placeholders surfaced via agent.llm.model", () => {
+    // Same defense, one rung lower in the precedence chain.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "default" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBeNull();
+  });
+
   it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
     // The ``acpserver`` conversation tag is stamped at create time
     // (``buildStartConversationRequest``) but never previously plumbed
@@ -1044,12 +1071,14 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent.acp_command).toEqual([]);
   });
 
-  it("omits acp_model when settings contains an empty string", () => {
+  it("seeds the provider default when settings contains an empty acp_model", () => {
     // The form may carry an empty string after a user clears the model
-    // input; the agent-server expects ``null`` for "use provider default."
-    // Empty strings would pass the spawn but bias model selection on
-    // some providers (e.g. claude-agent-acp's _meta would set
-    // ``model: ''``).
+    // input. Older behavior left ``acp_model`` absent and relied on the
+    // agent-server's own default; the registry-default path
+    // (resolveEffectiveAcpModel) is now authoritative on Canvas's side,
+    // so an empty string resolves to the provider's ``default_model``
+    // before the request leaves the client. Keeps the displayed Settings
+    // → Agent default in sync with what the runtime actually starts.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -1058,6 +1087,29 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: [],
+          acp_model: "",
+        },
+      },
+    }) as {
+      agent: Record<string, unknown> & { acp_model?: unknown };
+    };
+
+    expect(payload.agent.acp_model).toBe("claude-opus-4-7");
+  });
+
+  it("omits acp_model for the custom preset when none is configured", () => {
+    // The Custom preset has no registered ``default_model``, so an empty
+    // ``acp_model`` falls through to ``undefined`` — the agent-server then
+    // applies its own default. Distinct from the built-in providers
+    // which substitute their registry default.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: ["my-custom-acp"],
           acp_model: "",
         },
       },

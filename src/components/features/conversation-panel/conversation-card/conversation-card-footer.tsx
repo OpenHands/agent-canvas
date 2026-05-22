@@ -8,9 +8,11 @@ import { isExecutionPaused } from "#/utils/status";
 import {
   getAcpProviderDisplayName,
   resolveAcpProviderIcon,
-  type ACPProviderIcon,
 } from "#/constants/acp-providers";
-import { AgentBrandIcon } from "#/components/shared/agent-brand-icon";
+import {
+  AgentBrandIcon,
+  type AgentBrandIconKind,
+} from "#/components/shared/agent-brand-icon";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 
@@ -62,8 +64,11 @@ export function ConversationCardFooter({
   // resolved through PR 730's adapter chain, falling back to the provider
   // display name when no model is available so the chip never collapses to
   // icon-only.
-  let chip: { kind: ACPProviderIcon; text: string; tooltip: string } | null =
-    null;
+  let chip: {
+    kind: AgentBrandIconKind;
+    text: string;
+    tooltip: string;
+  } | null = null;
   if (agentKind === "acp") {
     const providerName =
       getAcpProviderDisplayName(acpServer) ??

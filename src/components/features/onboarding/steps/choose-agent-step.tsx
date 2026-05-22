@@ -12,8 +12,8 @@ import {
   ACP_PROVIDER_FALLBACK_ICON,
   ACP_PROVIDERS,
   buildAcpAgentSettingsDiff,
-  type ACPProviderIcon,
 } from "#/constants/acp-providers";
+import { type AgentBrandIconKind } from "#/components/shared/agent-brand-icon";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -35,7 +35,7 @@ const CODEX_MARK_PATH =
 const GEMINI_MARK_PATH =
   "M12 0C12.904 6.056 17.944 11.096 24 12C17.944 12.904 12.904 17.944 12 24C11.096 17.944 6.056 12.904 0 12C6.056 11.096 11.096 6.056 12 0Z";
 
-function getAgentOptionIcon(id: string): ACPProviderIcon {
+function getAgentOptionIcon(id: string): AgentBrandIconKind {
   if (id === "openhands") return "openhands";
 
   return (

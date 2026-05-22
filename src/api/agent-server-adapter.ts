@@ -1,7 +1,10 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
-import { ACP_PROVIDERS } from "#/constants/acp-providers";
+import {
+  ACP_PROVIDERS,
+  resolveEffectiveAcpModel,
+} from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import { getAgentServerWorkingDir } from "./agent-server-config";
@@ -241,41 +244,6 @@ export function getDefaultConversationTitle(conversationId: string): string {
   return `Conversation ${conversationId.slice(0, 5)}`;
 }
 
-function nonEmptyString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-// SDK placeholder strings the ACP wrapper returns before the user has
-// chosen a real model — surfacing either would lie about what's running.
-const ACP_DEFAULT_PLACEHOLDERS = new Set(["default", "default (recommended)"]);
-function isAcpDefaultPlaceholder(value: string): boolean {
-  return ACP_DEFAULT_PLACEHOLDERS.has(value.trim().toLowerCase());
-}
-
-// Sentinel ``agent.llm.model`` returned by older SDKs for ACP conversations
-// in lieu of a real model. Suppressed at the display boundary.
-export const ACP_MANAGED_SENTINEL = "acp-managed";
-
-/**
- * Resolve the model string to surface on an ACP conversation, preferring
- * (in order) SDK runtime fields → Canvas-configured ``acp_model`` →
- * ``agent.llm.model`` (unless it's the {@link ACP_MANAGED_SENTINEL}).
- * Placeholder strings like ``"Default (recommended)"`` are skipped so the
- * chip never shows a generic label when a concrete one is reachable.
- */
-function resolveAcpDisplayModel(info: DirectConversationInfo): string | null {
-  for (const candidate of [info.current_model_name, info.current_model_id]) {
-    const value = nonEmptyString(candidate);
-    if (value && !isAcpDefaultPlaceholder(value)) return value;
-  }
-  const configured = nonEmptyString(info.agent?.acp_model);
-  if (configured) return configured;
-  const llmModel = nonEmptyString(info.agent?.llm?.model);
-  return llmModel === ACP_MANAGED_SENTINEL ? null : llmModel;
-}
-
 export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
@@ -304,8 +272,17 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    // Chip path: no ``providerDefault`` — the chip must distinguish
+    // "no concrete model" (fall back to the provider display name in
+    // ConversationCardFooter) from "default" (would lie about what's
+    // running on the subprocess).
     llm_model: isAcp
-      ? resolveAcpDisplayModel(info)
+      ? resolveEffectiveAcpModel({
+          runtimeName: info.current_model_name,
+          runtimeId: info.current_model_id,
+          configured: info.agent?.acp_model,
+          sdkLlm: info.agent?.llm?.model,
+        })
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
     metrics: info.metrics
       ? {
@@ -610,14 +587,8 @@ function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
   // ``buildStartConversationRequest``).
   const payload: SettingsRecord = {};
   for (const key of ACP_SETTINGS_KEYS) {
+    if (key === "acp_model") continue;
     if (agentSettings[key] !== undefined && agentSettings[key] !== null) {
-      if (key === "acp_model") {
-        const model = nonEmptyString(agentSettings[key]);
-        if (model) {
-          payload[key] = model;
-        }
-        continue;
-      }
       payload[key] = agentSettings[key];
     }
   }
@@ -632,18 +603,30 @@ function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
   // command for every built-in preset, while leaving ``acp_server: custom``
   // (and any unknown key) untouched — those genuinely require the user's
   // ``acp_command`` entry.
+  const serverKey =
+    typeof agentSettings.acp_server === "string"
+      ? agentSettings.acp_server
+      : undefined;
+  const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
   const cmd = payload.acp_command;
   const isEmpty = Array.isArray(cmd) && cmd.length === 0;
   const noCommand = cmd === undefined;
-  if (isEmpty || noCommand) {
-    const serverKey =
-      typeof agentSettings.acp_server === "string"
-        ? agentSettings.acp_server
-        : undefined;
-    const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
-    if (provider) {
-      payload.acp_command = [...provider.default_command];
-    }
+  if ((isEmpty || noCommand) && provider) {
+    payload.acp_command = [...provider.default_command];
+  }
+
+  // Saved settings may carry ``acp_model: null`` (existing users predating
+  // the default-model registry, or savedfields that the agent-server stripped).
+  // Fall back to the provider's ``default_model`` so the conversation starts
+  // with whatever the Settings → Agent UI shows — without that, the form's
+  // displayed default would silently not take effect at runtime until the
+  // user re-saved the page.
+  const effectiveModel = resolveEffectiveAcpModel({
+    configured: agentSettings.acp_model as string | null | undefined,
+    providerDefault: provider?.default_model,
+  });
+  if (effectiveModel) {
+    payload.acp_model = effectiveModel;
   }
 
   return payload;

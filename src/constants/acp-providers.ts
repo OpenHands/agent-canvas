@@ -1,13 +1,70 @@
 import { I18nKey } from "#/i18n/declaration";
 
 export type ACPProviderIcon =
-  | "openhands"
   | "claude-code"
   | "codex"
   | "gemini"
   | "cli-generic";
 
 export const ACP_PROVIDER_FALLBACK_ICON: ACPProviderIcon = "cli-generic";
+
+// SDK placeholder strings the ACP wrapper returns before the user has
+// chosen a real model — surfacing either would lie about what's running.
+export const ACP_DEFAULT_PLACEHOLDERS = new Set([
+  "default",
+  "default (recommended)",
+]);
+
+// Sentinel ``agent.llm.model`` returned by older SDKs for ACP conversations
+// in lieu of a real model. Suppressed at every consumer that resolves a
+// display string.
+export const ACP_MANAGED_SENTINEL = "acp-managed";
+
+/**
+ * Filter for "real" ACP model strings — non-empty, not the SDK's "default"
+ * placeholder, not the legacy ``acp-managed`` sentinel. Returns the trimmed
+ * value on success, ``null`` otherwise.
+ */
+function realAcpModel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (ACP_DEFAULT_PLACEHOLDERS.has(trimmed.toLowerCase())) return null;
+  if (trimmed === ACP_MANAGED_SENTINEL) return null;
+  return trimmed;
+}
+
+/**
+ * Single source of truth for resolving the model string to surface for an
+ * ACP conversation/settings context. Consumed by the conversation adapter
+ * (chip text), the conversation-creation path (concrete ``acp_model``
+ * payload), the Settings → Agent form (initial value), and the chat-input
+ * model label.
+ *
+ * Precedence: SDK runtime fields → user-configured ``acp_model`` →
+ * legacy ``agent.llm.model`` → provider default (when ``providerDefault``
+ * is passed). Pass ``providerDefault`` only on surfaces that should
+ * silently substitute the registry default; omit it for the conversation
+ * chip, which must distinguish "no concrete model" from "default".
+ */
+export function resolveEffectiveAcpModel(inputs: {
+  runtimeName?: string | null;
+  runtimeId?: string | null;
+  configured?: string | null;
+  sdkLlm?: string | null;
+  providerDefault?: string | null;
+}): string | null {
+  for (const candidate of [
+    inputs.runtimeName,
+    inputs.runtimeId,
+    inputs.configured,
+    inputs.sdkLlm,
+  ]) {
+    const value = realAcpModel(candidate);
+    if (value) return value;
+  }
+  return inputs.providerDefault ?? null;
+}
 
 /**
  * Built-in ACP (Agent Client Protocol) provider registry.

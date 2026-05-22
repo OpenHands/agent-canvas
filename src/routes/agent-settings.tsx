@@ -360,6 +360,11 @@ function AgentSettingsScreen() {
                 setAcpModel(provider.default_model ?? "");
                 setIsCustomAcpModel(false);
               } else if (preset === ACP_CUSTOM_PRESET_KEY) {
+                // Switching to Custom must clear any built-in default the
+                // user just left — otherwise saving the custom command
+                // silently leaks e.g. ``claude-opus-4-7`` into
+                // ``acp_model`` for an unrelated wrapper.
+                setAcpModel("");
                 setIsCustomAcpModel(true);
               }
               setIsDirty(true);

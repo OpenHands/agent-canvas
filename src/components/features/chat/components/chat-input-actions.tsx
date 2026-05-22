@@ -21,6 +21,7 @@ import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useSettings } from "#/hooks/query/use-settings";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
@@ -65,18 +66,26 @@ export function ChatInputActions({
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
+  const { data: settings } = useSettings();
   const isCloud = backend.kind === "cloud";
   const isAcpConversation = conversation?.agent_kind === "acp";
+  // Home screen: no active conversation yet, but Settings → Agent may already
+  // be configured for ACP. The chat input on the home page should reflect
+  // that — the next-created conversation will inherit it — so route the model
+  // label to ChatInputModel (which knows how to show the ACP model) instead
+  // of SwitchProfileButton (which would hide itself for ACP and leave the
+  // home screen with no model affordance at all).
+  const isHomeAcp =
+    !conversation && settings?.agent_settings?.agent_kind === "acp";
+  const isAcpContext = isAcpConversation || isHomeAcp;
   const llmDestinationLabel = t(
-    isAcpConversation
+    isAcpContext
       ? I18nKey.SETTINGS$NAV_AGENT
       : isCloud
         ? I18nKey.SETTINGS$LLM_SETTINGS
         : I18nKey.SETTINGS$LLM_PROFILES,
   );
-  const modelDestinationPath = isAcpConversation
-    ? "/settings/agent"
-    : "/settings";
+  const modelDestinationPath = isAcpContext ? "/settings/agent" : "/settings";
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -499,7 +508,7 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud || isAcpConversation ? (
+            {isCloud || isAcpContext ? (
               <ChatInputModel />
             ) : (
               <SwitchProfileButton />

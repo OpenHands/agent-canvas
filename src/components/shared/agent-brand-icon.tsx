@@ -11,8 +11,16 @@ import {
 import type { ACPProviderIcon } from "#/constants/acp-providers";
 import { cn } from "#/utils/utils";
 
+/**
+ * Icons the conversation chip + onboarding tiles can render. Strictly broader
+ * than {@link ACPProviderIcon} — that type covers ACP CLI subprocesses only
+ * (Claude Code, Codex, Gemini, generic terminal fallback), whereas this type
+ * additionally includes the native OpenHands harness.
+ */
+export type AgentBrandIconKind = "openhands" | ACPProviderIcon;
+
 interface AgentBrandIconProps {
-  kind: ACPProviderIcon;
+  kind: AgentBrandIconKind;
   size?: number;
   className?: string;
   "data-testid"?: string;

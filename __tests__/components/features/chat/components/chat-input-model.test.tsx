@@ -172,27 +172,29 @@ describe("ChatInputModel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders nothing on the home page when ACP is the default agent", () => {
-    // Home-screen gating: no active conversation, so the
-    // per-conversation ``agent_kind`` check can't catch this case.
-    // Fall back to ``settings.agent_settings.agent_kind`` — that's
-    // the kind the next-created conversation will inherit. Showing
-    // the LLM picker here would put up a control that becomes a
-    // silent no-op the moment the user sends their first message.
+  it("shows the provider default on the home page when ACP is the default agent and no model is saved", () => {
+    // Home-screen gating: no active conversation and no saved ``acp_model``.
+    // The next-created conversation will inherit the provider's
+    // ``default_model`` (see buildConfiguredAcpAgentSettings), so the picker
+    // shows that same default — matching what the runtime will actually
+    // start. Picker links to /settings/agent (not /settings) since
+    // ``settings.llm_model`` doesn't apply to ACP.
     useActiveConversationMock.mockReturnValue({ data: undefined });
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
-        // settings.llm_model is still set (the user has an OpenHands
-        // default configured), but agent_kind=acp wins.
+        // settings.llm_model is set (user has an OpenHands default
+        // configured), but agent_kind=acp suppresses it.
         llm_model: "anthropic/claude-sonnet-4-20250514",
       },
     });
 
     renderWithProviders(<ChatInputModel />);
 
-    expect(
-      screen.queryByTestId("chat-input-llm-model"),
-    ).not.toBeInTheDocument();
+    const model = screen.getByTestId("chat-input-llm-model");
+    // Claude Code's registered default; see CLAUDE_MODELS in acp-providers.ts.
+    expect(model).toHaveAttribute("title", "claude-opus-4-7");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
 });
