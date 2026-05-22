@@ -749,17 +749,24 @@ export function buildNpmScriptCommand(
   env = process.env,
   nodeExecPath = process.execPath,
 ) {
-  if (env.npm_execpath) {
-    return {
-      command: env.npm_node_execpath || nodeExecPath,
-      args: [env.npm_execpath, "run", scriptName],
-    };
-  }
-
+  // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
+  // npm_execpath points to a path like
+  // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
+  // spaces. When that path is passed as an argument with shell:true in
+  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
+  // as a command, producing "not recognized as an internal or external command".
+  // Using "npm" via cmd.exe avoids the problem entirely.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
     };
   }
 
