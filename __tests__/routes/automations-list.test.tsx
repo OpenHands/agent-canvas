@@ -153,6 +153,7 @@ describe("AutomationsList — view mode toggle", () => {
     });
     await screen.findByTestId("automation-card-auto-1");
 
+    await user.click(screen.getByTestId("automations-view-toggle"));
     await user.click(screen.getByTestId("automations-view-toggle-list"));
 
     expect(

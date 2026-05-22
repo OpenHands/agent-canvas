@@ -41,7 +41,7 @@ describe("AutomationListRow", () => {
 
     expect(
       screen.getByTestId("automation-list-row-automation-1"),
-    ).toHaveClass("px-5");
+    ).toBeInTheDocument();
     expect(screen.getByText("GitHub PR Reviewer")).toBeInTheDocument();
     expect(
       screen.getByTestId("automation-pills-automation-1"),

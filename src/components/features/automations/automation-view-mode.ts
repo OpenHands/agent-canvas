@@ -16,7 +16,7 @@ export function writeStoredAutomationViewMode(view: AutomationViewMode): void {
 }
 
 export const automationListTableClassName =
-  "border border-[var(--oh-border)] rounded-md divide-y divide-[var(--oh-border-subtle)]";
+  "overflow-hidden rounded-md border border-[var(--oh-border)] bg-base-secondary";
 
 export const automationListRowClassName =
-  "flex min-w-0 items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--oh-interactive-hover)] focus-visible:outline-none focus-visible:bg-[var(--oh-interactive-hover)]";
+  "border-t border-[var(--oh-border)] transition-colors hover:bg-base-tertiary focus-visible:outline-none focus-visible:bg-base-tertiary";

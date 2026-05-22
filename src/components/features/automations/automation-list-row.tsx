@@ -22,7 +22,7 @@ interface AutomationListRowProps {
 }
 
 const listRunNowButtonClassName =
-  "flex h-6 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-interactive-hover)] hover:text-[var(--oh-foreground)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--oh-muted)]";
+  "inline-flex cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted";
 
 export function AutomationListRow({
   automation,
@@ -64,9 +64,7 @@ export function AutomationListRow({
   };
 
   return (
-    <div
-      role="link"
-      tabIndex={0}
+    <tr
       data-testid={`automation-list-row-${automation.id}`}
       onClick={handleRowClick}
       onKeyDown={(event) => {
@@ -74,45 +72,49 @@ export function AutomationListRow({
           handleRowClick();
         }
       }}
+      tabIndex={0}
       className={cn(automationListRowClassName, "cursor-pointer")}
     >
-      <span
-        className="min-w-0 max-w-[40%] shrink-0 truncate text-sm font-medium text-white"
-        title={automation.name}
-      >
-        {automation.name}
-      </span>
-
-      {pills.length > 0 ? (
-        <div className="min-w-0 flex-1">
-          <SkillCardPillRow
-            pills={pills}
-            testId={`automation-pills-${automation.id}`}
-          />
-        </div>
-      ) : (
-        <div className="min-w-0 flex-1" />
-      )}
-
-      <div className="flex shrink-0 items-center gap-0.5">
-        {canManage ? (
-          <button
-            type="button"
-            data-testid={`automation-run-now-${automation.id}`}
-            aria-label={t(I18nKey.AUTOMATIONS$RUN_NOW)}
-            aria-busy={isRunPending}
-            disabled={isRunPending}
-            onClick={(event) => {
-              event.stopPropagation();
-              onRunNow(automation.id);
-            }}
-            className={listRunNowButtonClassName}
+      <td className="px-5 py-4">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="max-w-[40%] shrink-0 truncate text-sm font-medium text-white"
+            title={automation.name}
           >
-            <PlayIcon className="size-3.5 shrink-0" aria-hidden />
-          </button>
-        ) : null}
-        <KebabMenu items={menuItems} />
-      </div>
-    </div>
+            {automation.name}
+          </span>
+          {pills.length > 0 ? (
+            <div className="min-w-0 flex-1">
+              <SkillCardPillRow
+                pills={pills}
+                testId={`automation-pills-${automation.id}`}
+              />
+            </div>
+          ) : null}
+        </div>
+      </td>
+
+      <td className="w-0 whitespace-nowrap px-5 py-4">
+        <div className="flex items-center justify-end gap-0.5">
+          {canManage ? (
+            <button
+              type="button"
+              data-testid={`automation-run-now-${automation.id}`}
+              aria-label={t(I18nKey.AUTOMATIONS$RUN_NOW)}
+              aria-busy={isRunPending}
+              disabled={isRunPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRunNow(automation.id);
+              }}
+              className={listRunNowButtonClassName}
+            >
+              <PlayIcon className="size-4 shrink-0" aria-hidden />
+            </button>
+          ) : null}
+          <KebabMenu items={menuItems} />
+        </div>
+      </td>
+    </tr>
   );
 }

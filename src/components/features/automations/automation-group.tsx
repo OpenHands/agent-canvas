@@ -55,17 +55,21 @@ export function AutomationGroup({
         </div>
       ) : (
         <div className={cn(automationListTableClassName, "mt-3")}>
-          {automations.map((automation) => (
-            <AutomationListRow
-              key={automation.id}
-              automation={automation}
-              onToggle={onToggle}
-              onRunNow={onRunNow}
-              isRunPending={runPendingId === automation.id}
-              onDelete={onDelete}
-              onEdit={onEdit}
-            />
-          ))}
+          <table className="w-full min-w-full [&>tbody>tr:first-child]:border-t-0">
+            <tbody>
+              {automations.map((automation) => (
+                <AutomationListRow
+                  key={automation.id}
+                  automation={automation}
+                  onToggle={onToggle}
+                  onRunNow={onRunNow}
+                  isRunPending={runPendingId === automation.id}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </section>

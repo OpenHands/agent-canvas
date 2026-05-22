@@ -1,6 +1,10 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { Grid2x2, Rows3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
 import { I18nKey } from "#/i18n/declaration";
+import { ContextMenu } from "#/ui/context-menu";
 import { cn } from "#/utils/utils";
 import type { AutomationViewMode } from "./automation-view-mode";
 
@@ -9,49 +13,165 @@ interface AutomationViewToggleProps {
   onChange: (view: AutomationViewMode) => void;
 }
 
-const toggleButtonClassName = (isActive: boolean) =>
-  cn(
-    "inline-flex size-7 cursor-pointer items-center justify-center rounded transition-colors",
-    isActive
-      ? "bg-[var(--oh-interactive-hover)] text-white"
-      : "text-[var(--oh-muted)] hover:text-white",
+const VIEW_OPTIONS: {
+  value: AutomationViewMode;
+  icon: typeof Grid2x2;
+  labelKey: I18nKey;
+  testId: string;
+}[] = [
+  {
+    value: "grid",
+    icon: Grid2x2,
+    labelKey: I18nKey.AUTOMATIONS$VIEW_GRID,
+    testId: "automations-view-toggle-grid",
+  },
+  {
+    value: "list",
+    icon: Rows3,
+    labelKey: I18nKey.AUTOMATIONS$VIEW_LIST,
+    testId: "automations-view-toggle-list",
+  },
+];
+
+function ViewMenuItemContent({
+  icon: Icon,
+  label,
+  isSelected,
+}: {
+  icon: typeof Grid2x2;
+  label: string;
+  isSelected: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 w-full items-center gap-2">
+      <span
+        className="flex shrink-0 items-center text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:size-4 [&_svg]:text-current"
+        aria-hidden
+      >
+        <Icon />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {isSelected ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-white" aria-hidden />
+      ) : null}
+    </span>
   );
+}
 
 export function AutomationViewToggle({
   view,
   onChange,
 }: AutomationViewToggleProps) {
   const { t } = useTranslation("openhands");
+  const [open, setOpen] = useState(false);
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+
+  const activeOption =
+    VIEW_OPTIONS.find((option) => option.value === view) ?? VIEW_OPTIONS[0]!;
+  const ActiveIcon = activeOption.icon;
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return undefined;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const gap = 4;
+      setPortalStyle({
+        position: "fixed",
+        zIndex: 9999,
+        top: rect.bottom + gap,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const menu =
+    open && portalStyle ? (
+      <ContextMenu ref={menuRef} theme="popover" className="min-w-[10rem]">
+        {VIEW_OPTIONS.map((option) => (
+          <li key={option.value}>
+            <ContextMenuListItem
+              testId={option.testId}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className="group"
+            >
+              <ViewMenuItemContent
+                icon={option.icon}
+                label={t(option.labelKey)}
+                isSelected={view === option.value}
+              />
+            </ContextMenuListItem>
+          </li>
+        ))}
+      </ContextMenu>
+    ) : null;
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={t(I18nKey.AUTOMATIONS$VIEW_MODE)}
-      data-testid="automations-view-toggle"
-      className="inline-flex shrink-0 items-center rounded-md bg-[var(--oh-surface-raised)] p-0.5"
-    >
+    <>
       <button
+        ref={triggerRef}
         type="button"
-        role="radio"
-        aria-checked={view === "grid"}
-        aria-label={t(I18nKey.AUTOMATIONS$VIEW_GRID)}
-        data-testid="automations-view-toggle-grid"
-        onClick={() => onChange("grid")}
-        className={toggleButtonClassName(view === "grid")}
+        data-testid="automations-view-toggle"
+        aria-label={t(I18nKey.AUTOMATIONS$VIEW_MODE)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] text-white transition-colors hover:bg-[var(--oh-interactive-hover)] focus-visible:outline-none",
+        )}
       >
-        <Grid2x2 className="size-4" aria-hidden />
+        <ActiveIcon className="size-4" aria-hidden />
       </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={view === "list"}
-        aria-label={t(I18nKey.AUTOMATIONS$VIEW_LIST)}
-        data-testid="automations-view-toggle-list"
-        onClick={() => onChange("list")}
-        className={toggleButtonClassName(view === "list")}
-      >
-        <Rows3 className="size-4" aria-hidden />
-      </button>
-    </div>
+
+      {open && portalStyle && typeof document !== "undefined"
+        ? ReactDOM.createPortal(
+            <div style={portalStyle}>{menu}</div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

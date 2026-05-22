@@ -8,22 +8,19 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("AutomationViewToggle", () => {
-  it("renders grid and list options with the list option selectable", async () => {
+  it("opens a menu from the icon trigger and switches to list view", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
     render(<AutomationViewToggle view="grid" onChange={onChange} />);
 
-    expect(screen.getByTestId("automations-view-toggle-grid")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(screen.getByTestId("automations-view-toggle-list")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    const trigger = screen.getByTestId("automations-view-toggle");
+    expect(trigger).toHaveClass("size-9");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
 
+    await user.click(trigger);
     await user.click(screen.getByTestId("automations-view-toggle-list"));
+
     expect(onChange).toHaveBeenCalledWith("list");
   });
 });
