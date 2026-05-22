@@ -1,122 +1,112 @@
-import { useState } from "react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import TerminalIcon from "#/icons/terminal.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
-import ChevronDownIcon from "#/icons/chevron-down.svg?react";
-import { cn } from "#/utils/utils";
-import { NavigationLink } from "#/components/shared/navigation-link";
+import { useNavigation } from "#/context/navigation-context";
+import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
+import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
+import { useConversationStore } from "#/stores/conversation-store";
+import {
+  setConversationState,
+  setPendingTaskDraft,
+} from "#/utils/conversation-local-storage";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
-const NEW_CONVERSATION_URL = "/";
-const PLUGIN_COMMAND = "/openhands-automation create";
-const PLUGIN_INSTALL_URL =
-  "https://github.com/OpenHands/extensions#quick-start";
+const AUTOMATION_PROMPT = "/openhands-automation create";
 
-interface CreateInstructionsProps {
-  /** If true, the instructions are collapsible and start collapsed */
-  collapsible?: boolean;
-}
-
-export function CreateInstructions({
-  collapsible = false,
-}: CreateInstructionsProps) {
+/**
+ * "Create an automation from scratch" card shown when the automations
+ * list is empty. Clicking the button starts a new conversation
+ * pre-filled with `/openhands-automation create` so the OpenHands
+ * automation plugin command runs immediately.
+ */
+export function CreateInstructions() {
   const { t } = useTranslation("openhands");
-  const [isExpanded, setIsExpanded] = useState(!collapsible);
+  const { navigate } = useNavigation();
+  const createConversation = useCreateConversation();
+  const isCreatingConversation = useIsCreatingConversation();
+  const setMessageToSend = useConversationStore(
+    (state) => state.setMessageToSend,
+  );
+  const launchInFlightRef = useRef(false);
 
-  const content = (
-    <>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {/* Option 1: Claude Code / Codex */}
-        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
-          <div className="flex items-center gap-2">
-            <TerminalIcon className="size-5 text-muted" />
-            <span className="text-sm font-medium text-content">
-              {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_TITLE)}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            <a
-              href={PLUGIN_INSTALL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground transition-colors"
-            >
-              {t(I18nKey.AUTOMATIONS$EMPTY_INSTALL_PLUGIN)}
-            </a>{" "}
-            {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_DESC)}
-          </p>
-          <code className="mt-2 block rounded bg-surface-raised px-3 py-2 font-mono text-xs text-content">
-            {PLUGIN_COMMAND}
-          </code>
-        </div>
+  const handleStart = () => {
+    if (
+      launchInFlightRef.current ||
+      createConversation.isPending ||
+      isCreatingConversation
+    ) {
+      return;
+    }
+    launchInFlightRef.current = true;
 
-        {/* Option 2: OpenHands Cloud conversation */}
-        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
-          <div className="flex items-center gap-2">
-            <SparkleIcon className="size-5 text-muted" />
-            <span className="text-sm font-medium text-content">
-              {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_TITLE)}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC)}
-          </p>
-          <NavigationLink
-            to={NEW_CONVERSATION_URL}
-            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-medium text-content hover:bg-surface-raised transition-colors"
-          >
-            {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
-            <span aria-hidden="true">→</span>
-          </NavigationLink>
+    createConversation.mutate(
+      {},
+      {
+        onSuccess: (conversation) => {
+          if (
+            conversation.conversation_id.startsWith("task-") &&
+            conversation.task_id
+          ) {
+            setPendingTaskDraft(conversation.task_id, AUTOMATION_PROMPT);
+          } else {
+            setConversationState(conversation.conversation_id, {
+              draftMessage: AUTOMATION_PROMPT,
+            });
+          }
+          navigate?.(`/conversations/${conversation.conversation_id}`);
+          window.setTimeout(() => setMessageToSend(AUTOMATION_PROMPT), 0);
+          // Reset the re-entry guard in case the component stays mounted
+          // (e.g. `navigate` is a noop because no NavigationProvider is
+          // wired up); otherwise the button would be permanently disabled.
+          launchInFlightRef.current = false;
+        },
+        onError: () => {
+          launchInFlightRef.current = false;
+        },
+      },
+    );
+  };
+
+  const disabled = createConversation.isPending || isCreatingConversation;
+
+  return (
+    <div className="mx-auto w-full max-w-xl">
+      <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
+        <div className="flex items-center gap-2">
+          <SparkleIcon className="size-5 text-muted" />
+          <span className="text-sm font-medium text-content">
+            {t(I18nKey.AUTOMATIONS$CREATE_FROM_SCRATCH_TITLE)}
+          </span>
         </div>
+        <p className="mt-2 text-sm text-muted">
+          {t(I18nKey.AUTOMATIONS$CREATE_FROM_SCRATCH_DESC)}
+        </p>
+        <code className="mt-2 block rounded bg-surface-raised px-3 py-2 font-mono text-xs text-content">
+          {AUTOMATION_PROMPT}
+        </code>
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={disabled}
+          className="mt-3 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
+          <span aria-hidden="true">→</span>
+        </button>
       </div>
 
-      {/* Documentation link */}
       <p className="mt-4 text-center text-sm text-muted">
         <a
           href={DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:text-foreground transition-colors"
+          className="underline transition-colors hover:text-foreground"
         >
           {t(I18nKey.AUTOMATIONS$EMPTY_LEARN_MORE)}
         </a>
       </p>
-    </>
-  );
-
-  if (collapsible) {
-    return (
-      <div className="w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)]">
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          aria-expanded={isExpanded}
-          className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-raised transition-colors rounded-lg"
-        >
-          <span className="text-sm font-medium text-content">
-            {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-5 text-muted transition-transform",
-              isExpanded && "rotate-180",
-            )}
-          />
-        </button>
-        {isExpanded && <div className="px-4 pb-4">{content}</div>}
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full max-w-2xl">
-      <h3 className="text-center text-sm font-medium text-content">
-        {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
-      </h3>
-      {content}
     </div>
   );
 }

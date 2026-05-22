@@ -11,7 +11,6 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { SearchInput } from "#/components/features/automations/search-input";
 import { AutomationGroup } from "#/components/features/automations/automation-group";
 import { AutomationCardSkeleton } from "#/components/features/automations/automation-card-skeleton";
-import { EmptyState } from "#/components/features/automations/empty-state";
 import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
@@ -170,14 +169,11 @@ export default function AutomationsList() {
           {isError && !isLoading && <ErrorState onRetry={refetch} />}
 
           {!isLoading && !isError && data?.automations.length === 0 && (
-            <EmptyState />
+            <CreateInstructions />
           )}
 
           {!isLoading && !isError && data && data.automations.length > 0 && (
             <>
-              {/* Collapsible creation instructions at the top */}
-              <CreateInstructions collapsible />
-
               <AutomationGroup
                 title={t(I18nKey.AUTOMATIONS$ACTIVE)}
                 count={activeAutomations.length}
