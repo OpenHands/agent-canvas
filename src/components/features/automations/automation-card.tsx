@@ -2,14 +2,15 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
-import { ToggleSwitch } from "./toggle-switch";
 import { KebabMenu } from "./kebab-menu";
 import type { KebabMenuItem } from "./kebab-menu";
 import { useHasPermission } from "#/hooks/use-has-permission";
 import { useNavigation } from "#/context/navigation-context";
+import { FileText } from "lucide-react";
 import FolderIcon from "#/icons/folder.svg?react";
 import ClockIcon from "#/icons/clock.svg?react";
 import SparkleIcon from "#/icons/sparkle.svg?react";
+import PlayIcon from "#/icons/play.svg?react";
 import PowerIcon from "#/icons/power.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
@@ -27,6 +28,8 @@ import {
 interface AutomationCardProps {
   automation: Automation;
   onToggle: (id: string, enabled: boolean) => void;
+  onRunNow: (id: string) => void;
+  isRunPending?: boolean;
   onDelete: (id: string) => void;
   onEdit?: (id: string) => void;
 }
@@ -74,9 +77,14 @@ function buildAutomationMetadataPills(
   return pills;
 }
 
+const cardActionButtonClassName =
+  "flex h-6 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-interactive-hover)] hover:text-[var(--oh-foreground)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--oh-muted)]";
+
 export function AutomationCard({
   automation,
   onToggle,
+  onRunNow,
+  isRunPending = false,
   onDelete,
   onEdit,
 }: AutomationCardProps) {
@@ -91,8 +99,27 @@ export function AutomationCard({
     [automation, scheduleLabel],
   );
 
+  const handleView = () => {
+    navigate?.(`/automations/${automation.id}`);
+  };
+
   const menuItems: KebabMenuItem[] = [
-    ...(onEdit
+    ...(canManage
+      ? [
+          {
+            label: t(I18nKey.AUTOMATIONS$RUN_NOW),
+            icon: <PlayIcon className="size-4" />,
+            onClick: () => onRunNow(automation.id),
+            disabled: isRunPending,
+          },
+        ]
+      : []),
+    {
+      label: t(I18nKey.COMMON$VIEW),
+      icon: <FileText className="size-4" aria-hidden />,
+      onClick: handleView,
+    },
+    ...(canManage && onEdit
       ? [
           {
             label: t(I18nKey.AUTOMATIONS$EDIT),
@@ -101,23 +128,26 @@ export function AutomationCard({
           },
         ]
       : []),
-    {
-      label: automation.enabled
-        ? t(I18nKey.AUTOMATIONS$TURN_OFF)
-        : t(I18nKey.AUTOMATIONS$TURN_ON),
-      icon: <PowerIcon className="size-4" />,
-      onClick: () => onToggle(automation.id, automation.enabled),
-    },
-    {
-      label: t(I18nKey.AUTOMATIONS$DELETE),
-      icon: <TrashIcon className="size-4" />,
-      onClick: () => onDelete(automation.id),
-      variant: "danger",
-    },
+    ...(canManage
+      ? [
+          {
+            label: automation.enabled
+              ? t(I18nKey.AUTOMATIONS$TURN_OFF)
+              : t(I18nKey.AUTOMATIONS$TURN_ON),
+            icon: <PowerIcon className="size-4" />,
+            onClick: () => onToggle(automation.id, automation.enabled),
+          },
+          {
+            label: t(I18nKey.AUTOMATIONS$DELETE),
+            icon: <TrashIcon className="size-4" />,
+            onClick: () => onDelete(automation.id),
+          },
+        ]
+      : []),
   ];
 
   const handleCardClick = () => {
-    navigate?.(`/automations/${automation.id}`);
+    handleView();
   };
 
   return (
@@ -140,15 +170,24 @@ export function AutomationCard({
           {automation.name}
         </h3>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {canManage && (
-            <ToggleSwitch
-              enabled={automation.enabled}
-              label={`Toggle ${automation.name}`}
-              onToggle={() => onToggle(automation.id, automation.enabled)}
-            />
-          )}
-          {canManage && <KebabMenu items={menuItems} />}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {canManage ? (
+            <button
+              type="button"
+              data-testid={`automation-run-now-${automation.id}`}
+              aria-label={t(I18nKey.AUTOMATIONS$RUN_NOW)}
+              aria-busy={isRunPending}
+              disabled={isRunPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRunNow(automation.id);
+              }}
+              className={cardActionButtonClassName}
+            >
+              <PlayIcon className="size-3.5" aria-hidden />
+            </button>
+          ) : null}
+          <KebabMenu items={menuItems} />
         </div>
       </header>
 
