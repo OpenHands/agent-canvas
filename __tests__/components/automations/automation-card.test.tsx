@@ -57,7 +57,7 @@ describe("AutomationCard", () => {
 
     expect(
       screen.getByTestId("automation-run-now-automation-1"),
-    ).toHaveAttribute("aria-label", "AUTOMATIONS$RUN_NOW");
+    ).toHaveTextContent("AUTOMATIONS$RUN_NOW");
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 
     await user.click(
@@ -65,6 +65,6 @@ describe("AutomationCard", () => {
     );
 
     expect(screen.getByText("COMMON$VIEW")).toBeInTheDocument();
-    expect(screen.getByText("AUTOMATIONS$RUN_NOW")).toBeInTheDocument();
+    expect(screen.getAllByText("AUTOMATIONS$RUN_NOW")).toHaveLength(2);
   });
 });

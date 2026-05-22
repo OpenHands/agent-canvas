@@ -77,8 +77,8 @@ function buildAutomationMetadataPills(
   return pills;
 }
 
-const cardActionButtonClassName =
-  "flex h-6 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-interactive-hover)] hover:text-[var(--oh-foreground)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--oh-muted)]";
+const cardRunNowButtonClassName =
+  "flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-xs text-[var(--oh-muted)] transition-colors hover:bg-[var(--oh-interactive-hover)] hover:text-[var(--oh-foreground)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--oh-muted)]";
 
 export function AutomationCard({
   automation,
@@ -175,16 +175,16 @@ export function AutomationCard({
             <button
               type="button"
               data-testid={`automation-run-now-${automation.id}`}
-              aria-label={t(I18nKey.AUTOMATIONS$RUN_NOW)}
               aria-busy={isRunPending}
               disabled={isRunPending}
               onClick={(event) => {
                 event.stopPropagation();
                 onRunNow(automation.id);
               }}
-              className={cardActionButtonClassName}
+              className={cardRunNowButtonClassName}
             >
-              <PlayIcon className="size-3.5" aria-hidden />
+              <PlayIcon className="size-3.5 shrink-0" aria-hidden />
+              {t(I18nKey.AUTOMATIONS$RUN_NOW)}
             </button>
           ) : null}
           <KebabMenu items={menuItems} />
