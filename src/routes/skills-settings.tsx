@@ -6,7 +6,9 @@ import { useSkills } from "#/hooks/query/use-skills";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { SkillCard } from "#/components/features/skills/skill-card";
 import { SkillDetailModal } from "#/components/features/skills/skill-detail-modal";
+import { AddSkillModal } from "#/components/features/skills/add-skill-modal";
 import { SkillsToolbar } from "#/components/features/skills/skills-toolbar";
+import { BrandButton } from "#/components/features/settings/brand-button";
 import type { SkillTypeFilter } from "#/components/features/skills/skill-type-filter";
 import { I18nKey } from "#/i18n/declaration";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -47,6 +49,7 @@ function SkillsSettingsScreen() {
   const [selectedSkill, setSelectedSkill] = React.useState<SkillInfo | null>(
     null,
   );
+  const [showAddSkillModal, setShowAddSkillModal] = React.useState(false);
 
   // Sync local state with server settings when data first arrives
   React.useEffect(() => {
@@ -98,16 +101,27 @@ function SkillsSettingsScreen() {
       <ExtensionsNavigation />
       <main className={cn(settingsLikeMainScrollClassName, "h-full")}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
-          <div className="min-w-0 space-y-1">
-            <h2 className="text-xl font-semibold leading-6 text-foreground">
-              {t(I18nKey.SETTINGS$SKILLS_TITLE)}
-            </h2>
-            <div
-              data-testid="skills-settings-description"
-              className="max-w-2xl text-sm text-tertiary-light"
-            >
-              {t(I18nKey.SETTINGS$SKILLS_PAGE_DESCRIPTION)}
+          <div className="flex min-w-0 items-start justify-between gap-4">
+            <div className="min-w-0 space-y-1">
+              <h2 className="text-xl font-semibold leading-6 text-foreground">
+                {t(I18nKey.SETTINGS$SKILLS_TITLE)}
+              </h2>
+              <div
+                data-testid="skills-settings-description"
+                className="max-w-2xl text-sm text-tertiary-light"
+              >
+                {t(I18nKey.SETTINGS$SKILLS_PAGE_DESCRIPTION)}
+              </div>
             </div>
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId="skills-add-skill-button"
+              className="flex-shrink-0 whitespace-nowrap"
+              onClick={() => setShowAddSkillModal(true)}
+            >
+              {t(I18nKey.SETTINGS$SKILLS_ADD_BUTTON)}
+            </BrandButton>
           </div>
 
           {isLoading && (
@@ -169,6 +183,10 @@ function SkillsSettingsScreen() {
               onToggle={(enabled) => handleToggle(selectedSkill.name, enabled)}
               onClose={() => setSelectedSkill(null)}
             />
+          )}
+
+          {showAddSkillModal && (
+            <AddSkillModal onClose={() => setShowAddSkillModal(false)} />
           )}
         </div>
       </main>

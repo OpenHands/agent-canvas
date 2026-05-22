@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import SkillsService from "#/api/skills-service";
+import { ADD_SKILL_DOCS_URL } from "#/constants/skills-docs";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings, SkillInfo } from "#/types/settings";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -238,7 +239,10 @@ Full skill body.`,
       within(modal).getByTestId(`skill-modal-toggle-${skill.name}`),
     );
 
-    expect(card).toHaveClass("opacity-70");
+    expect(card).not.toHaveClass("opacity-70");
+    expect(
+      within(card).getByTestId(`skill-toggle-${skill.name}`),
+    ).toHaveAttribute("aria-checked", "false");
     expect(within(modal).getByText("SETTINGS$SKILLS_DISABLED")).toBeInTheDocument();
   });
 
@@ -252,7 +256,10 @@ Full skill body.`,
 
     await user.click(within(card).getByTestId(`skill-toggle-${skill.name}`));
 
-    expect(card).toHaveClass("opacity-70");
+    expect(card).not.toHaveClass("opacity-70");
+    expect(
+      within(card).getByTestId(`skill-toggle-${skill.name}`),
+    ).toHaveAttribute("aria-checked", "false");
     expect(screen.queryByTestId("skill-detail-modal")).not.toBeInTheDocument();
   });
 
@@ -268,5 +275,46 @@ Full skill body.`,
     });
 
     expect(screen.getByTestId("skills-no-match")).toBeInTheDocument();
+  });
+
+  it("opens the add skill modal with docs link and closes it", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([]);
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId("skills-add-skill-button");
+
+    await user.click(screen.getByTestId("skills-add-skill-button"));
+
+    const modal = await screen.findByTestId("add-skill-modal");
+    expect(modal).toBeInTheDocument();
+    expect(screen.getByTestId("add-skill-modal-example")).toHaveTextContent(
+      "/add-skill https://github.com/OpenHands/extensions/tree/main/skills/codereview",
+    );
+    expect(screen.getByTestId("add-skill-modal-docs-link")).toHaveAttribute(
+      "href",
+      ADD_SKILL_DOCS_URL,
+    );
+
+    await user.click(screen.getByTestId("add-skill-modal-dismiss"));
+
+    expect(screen.queryByTestId("add-skill-modal")).not.toBeInTheDocument();
+  });
+
+  it("copies the example command from the add skill modal", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([]);
+
+    renderSkillsSettingsScreen();
+    await user.click(await screen.findByTestId("skills-add-skill-button"));
+    await screen.findByTestId("add-skill-modal");
+
+    await user.click(screen.getByTestId("add-skill-modal-example-copy"));
+
+    expect(writeText).toHaveBeenCalledWith(
+      "/add-skill https://github.com/OpenHands/extensions/tree/main/skills/codereview",
+    );
   });
 });
