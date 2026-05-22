@@ -216,7 +216,7 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("agent-command-input");
     await user.click(screen.getByLabelText("SETTINGS$AGENT_MODEL"));
-    await user.click(await screen.findByText("Claude Opus 4.7"));
+    await user.click(await screen.findByText("Claude Haiku 4.5"));
     await user.click(screen.getByTestId("agent-save-button"));
 
     await waitFor(() => {
@@ -225,7 +225,7 @@ describe("AgentSettingsScreen", () => {
     const call = save.mock.calls[0]?.[0] as {
       agent_settings_diff?: Record<string, unknown>;
     };
-    expect(call.agent_settings_diff?.acp_model).toBe("claude-opus-4-7");
+    expect(call.agent_settings_diff?.acp_model).toBe("haiku");
   });
 
   it("saves an ACP diff when switching to ACP + Claude Code", async () => {
@@ -279,7 +279,7 @@ describe("AgentSettingsScreen", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: "claude-sonnet-4-6",
+      acp_model: "sonnet",
     });
   });
 

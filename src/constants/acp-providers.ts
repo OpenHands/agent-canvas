@@ -73,46 +73,47 @@ export interface ACPModelOption {
   label: string;
 }
 
-const CODEX_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
-
-function buildCodexModelOptions(
-  models: Array<{ id: string; label: string }>,
-): ACPModelOption[] {
-  return models.flatMap((model) =>
-    CODEX_REASONING_EFFORTS.map((effort) => ({
-      id: `${model.id}/${effort}`,
-      label: `${model.label} (${effort})`,
-    })),
-  );
-}
-
 const CLAUDE_MODELS: ACPModelOption[] = [
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "claude-sonnet-4-6[1m]", label: "Claude Sonnet 4.6 (1M)" },
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
-  { id: "claude-opus-4-7[1m]", label: "Claude Opus 4.7 (1M)" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { id: "sonnet", label: "Claude Sonnet 4.6" },
+  { id: "sonnet[1m]", label: "Claude Sonnet 4.6 (1M)" },
+  { id: "haiku", label: "Claude Haiku 4.5" },
 ];
 
-const CODEX_MODELS: ACPModelOption[] = buildCodexModelOptions([
-  { id: "gpt-5.5", label: "GPT-5.5" },
-  { id: "gpt-5.4", label: "GPT-5.4" },
-  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-  { id: "gpt-5.2", label: "GPT-5.2" },
-]);
+const CODEX_MODELS: ACPModelOption[] = [
+  { id: "gpt-5.5/low", label: "GPT-5.5 (low)" },
+  { id: "gpt-5.5/medium", label: "GPT-5.5 (medium)" },
+  { id: "gpt-5.5/high", label: "GPT-5.5 (high)" },
+  { id: "gpt-5.5/xhigh", label: "GPT-5.5 (xhigh)" },
+  { id: "gpt-5.4/low", label: "GPT-5.4 (low)" },
+  { id: "gpt-5.4/medium", label: "GPT-5.4 (medium)" },
+  { id: "gpt-5.4/high", label: "GPT-5.4 (high)" },
+  { id: "gpt-5.4/xhigh", label: "GPT-5.4 (xhigh)" },
+  { id: "gpt-5.4-mini/low", label: "GPT-5.4 Mini (low)" },
+  { id: "gpt-5.4-mini/medium", label: "GPT-5.4 Mini (medium)" },
+  { id: "gpt-5.4-mini/high", label: "GPT-5.4 Mini (high)" },
+  { id: "gpt-5.4-mini/xhigh", label: "GPT-5.4 Mini (xhigh)" },
+  { id: "gpt-5.3-codex/low", label: "GPT-5.3 Codex (low)" },
+  { id: "gpt-5.3-codex/medium", label: "GPT-5.3 Codex (medium)" },
+  { id: "gpt-5.3-codex/high", label: "GPT-5.3 Codex (high)" },
+  { id: "gpt-5.3-codex/xhigh", label: "GPT-5.3 Codex (xhigh)" },
+  { id: "gpt-5.2/low", label: "GPT-5.2 (low)" },
+  { id: "gpt-5.2/medium", label: "GPT-5.2 (medium)" },
+  { id: "gpt-5.2/high", label: "GPT-5.2 (high)" },
+  { id: "gpt-5.2/xhigh", label: "GPT-5.2 (xhigh)" },
+];
 
 const GEMINI_MODELS: ACPModelOption[] = [
-  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-  { id: "gemini-3-pro-preview", label: "Gemini 3 Pro Preview" },
-  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview" },
-  { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro Preview" },
+  { id: "auto-gemini-3", label: "Auto (Gemini 3)" },
+  { id: "auto-gemini-2.5", label: "Auto (Gemini 2.5)" },
+  { id: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview" },
+  { id: "gemini-3-flash-preview", label: "gemini-3-flash-preview" },
   {
     id: "gemini-3.1-flash-lite-preview",
-    label: "Gemini 3.1 Flash Lite Preview",
+    label: "gemini-3.1-flash-lite-preview",
   },
+  { id: "gemini-2.5-pro", label: "gemini-2.5-pro" },
+  { id: "gemini-2.5-flash", label: "gemini-2.5-flash" },
+  { id: "gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite" },
 ];
 
 // Each entry's ``default_command`` is the published-package npx
@@ -129,7 +130,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
     available_models: CLAUDE_MODELS,
-    default_model: "claude-sonnet-4-6",
+    default_model: "sonnet",
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
     icon: "claude-code",
   },
