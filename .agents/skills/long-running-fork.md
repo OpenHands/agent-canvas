@@ -171,13 +171,6 @@ describes. Specifically:
 
 #### Sidebar
 
-- **Sidebar nav-label rename** — three left-nav labels swapped: "New" →
-  **Code**, "Extensions" → **Customize**, "Automations" → **Automate** (the
-  third was previously a `t(I18nKey.SIDEBAR$AUTOMATIONS)` call). Each line
-  carries an `rbren's mod:` marker comment.
-  Files: `src/components/features/sidebar/sidebar.tsx`
-  Introduced: 9d130c4
-
 - **Workspace-/repo-picker dropdown on the conversations nav row** —
   new fork-local component `RbrenWorkspacePicker` renders a small
   outline-bordered chevron-down button on the right edge of the
@@ -402,6 +395,38 @@ is omitted.
     docker tooling (#634/#635/#666), ACP onboarding (#643), and assorted
     test fixes. No MODLOG entries were retired in this sync. Marker
     count unchanged at 18.
+
+- **2026-05-22** — synced upstream `main` at `27aea4bd` ("feat(ui):
+  modal polish — skills, hooks, tools, metrics, and conversation menu
+  (#721)").
+  - Sync commit: this commit (see `git log` for hash)
+  - Conflicts: `src/components/features/sidebar/sidebar.tsx`,
+    `.agents/skills/long-running-fork.md`
+  - Notes: Pulled in 24 upstream commits (`4f14ce10..27aea4bd`) via
+    `git rebase --empty=drop upstream/main`. The dominant churn this
+    cycle was PR #623 ("fix(ui): left navigation rail, mobile drawer,
+    and responsive chrome"), which **extracted the sidebar rail body
+    into a new `SidebarRailBody` component** in
+    `src/components/features/sidebar/sidebar-rail-body.tsx`, leaving
+    `sidebar.tsx` as a thin shell that just renders
+    `<SidebarRailBody ...>`. Every fork-local sidebar mod migrated from
+    `sidebar.tsx` onto the new file: (a) the `compact` prop on the
+    collapsed-rail `OpenHandsLogoButton`, (b) the workspace-/repo-picker
+    flex wrap around the conversations `SidebarNavLink`, and (c) the
+    expanded-mode logo-container width fix that drops upstream's
+    `w-[18px] justify-center` so the wordmark doesn't get clipped. The
+    fork-local "Sidebar nav-label rename" commit (`6774c377`) was
+    **retired** — upstream's `translation.json` now resolves
+    `SIDEBAR$AUTOMATIONS` to `"Automate"` in `en` (and every other
+    locale), matching the fork's prior hardcoded "Automate" override; the
+    rename commit was therefore `git rebase --skip`-ped and its MODLOG
+    entry removed. Two MODLOG entries had their `Files:` list updated
+    from `sidebar.tsx` → `sidebar-rail-body.tsx` ("Sidebar logo
+    tinted ..." and "Workspace-/repo-picker dropdown ..."), and the
+    latter's title was generalized from "Code nav row" to "conversations
+    nav row" since upstream is now relabeling that link
+    (`"Code"` → `"New Chat"` this cycle). Marker count dropped from 18 →
+    17 (one retired: the `label="Automate"` override marker).
 
 ## Core Principles
 
