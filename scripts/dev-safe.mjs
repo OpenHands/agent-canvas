@@ -602,6 +602,17 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Force Python to use UTF-8 for all file I/O and streams.
+    //
+    // On Windows, Python defaults to the system ANSI codepage (e.g. cp1252).
+    // The agent-server writes conversation metadata JSON that can contain
+    // emoji (e.g. ✅ U+2705) which cp1252 cannot encode, producing:
+    //   UnicodeEncodeError: 'charmap' codec can't encode character '\u2705'
+    // Setting PYTHONUTF8=1 enables Python's UTF-8 mode (PEP 540) for the
+    // entire agent-server process, matching the behaviour on Linux/macOS
+    // where the locale is already UTF-8.
+    // This is a no-op on Linux/macOS where the locale is already UTF-8.
+    PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
