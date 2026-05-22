@@ -126,7 +126,7 @@ export function RunLogsModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="pr-8 text-lg font-semibold text-white">
+        <h2 className="pr-8 text-lg font-semibold text-content-2">
           {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TITLE)}
         </h2>
 

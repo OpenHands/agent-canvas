@@ -134,14 +134,11 @@ export function useConversationNameContextMenu({
     onContextMenuToggle?.(false);
   };
 
-  const handleTogglePublic = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const handleTogglePublic = (nextIsPublic?: boolean) => {
     if (conversationId && conversation) {
       updatePublicFlag({
         conversationId,
-        isPublic: !conversation.public,
+        isPublic: nextIsPublic ?? !conversation.public,
       });
     }
     // Intentionally don't close the menu — let the user see the toggle flip.

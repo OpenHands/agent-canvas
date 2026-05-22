@@ -376,7 +376,7 @@ export function MCPServerForm({
               defaultValue={server?.args?.join("\n") || ""}
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
-                "bg-tertiary border border-[var(--oh-border-input)] w-full rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt resize-none",
+                "bg-tertiary border border-[var(--oh-border-input)] w-full rounded-sm p-2 placeholder:text-tertiary-alt resize-none",
                 "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
               )}
             />
@@ -400,7 +400,7 @@ export function MCPServerForm({
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
                 "resize-none",
-                "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+                "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:text-tertiary-alt",
                 "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
               )}
             />
