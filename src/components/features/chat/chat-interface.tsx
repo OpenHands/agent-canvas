@@ -431,7 +431,7 @@ export function ChatInterface() {
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 md:px-4"
+          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
