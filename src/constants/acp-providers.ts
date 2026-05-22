@@ -73,10 +73,25 @@ export interface ACPModelOption {
   label: string;
 }
 
+// Canonical model IDs the Claude Code CLI binary's model registry recognises
+// (verified by string-scanning v2.1.146 of the bundled ``claude`` native
+// binary). ``[1m]`` is the SDK-documented 1M-context suffix; we use the
+// version-agnostic alias so the option auto-tracks the newest 1M-capable
+// model. ``opusplan`` routes planning to Opus and execution to Sonnet.
+// Availability for any of these ultimately depends on the user's Anthropic
+// plan tier — surfacing them here matches what the CLI *accepts*, not what
+// every account can actually invoke.
 const CLAUDE_MODELS: ACPModelOption[] = [
-  { id: "sonnet", label: "Claude Sonnet 4.6" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
+  { id: "opus[1m]", label: "Claude Opus 4.6 (1M)" },
+  { id: "claude-opus-4-5", label: "Claude Opus 4.5" },
+  { id: "claude-opus-4-1-20250805", label: "Claude Opus 4.1" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
   { id: "sonnet[1m]", label: "Claude Sonnet 4.6 (1M)" },
-  { id: "haiku", label: "Claude Haiku 4.5" },
+  { id: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { id: "opusplan", label: "Opus (plan) + Sonnet (execute)" },
 ];
 
 const CODEX_MODELS: ACPModelOption[] = [
@@ -130,7 +145,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
     available_models: CLAUDE_MODELS,
-    default_model: "sonnet",
+    default_model: "claude-opus-4-7",
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
     icon: "claude-code",
   },
@@ -185,6 +200,23 @@ export function getAcpProviderDisplayName(
   if (!key) return null;
   const found = ACP_PROVIDERS.find((p) => p.key === key);
   return found ? found.display_name : null;
+}
+
+/**
+ * Resolve an ACP provider registry key to the icon discriminator the
+ * conversation chip should render alongside the model text.
+ *
+ * Falls back to {@link ACP_PROVIDER_FALLBACK_ICON} for ``"custom"``,
+ * unknown keys, or a missing key — the chip then shows a neutral
+ * terminal glyph that still communicates "this is an ACP conversation"
+ * without claiming a brand identity we don't know.
+ */
+export function resolveAcpProviderIcon(
+  key: string | null | undefined,
+): ACPProviderIcon {
+  if (!key) return ACP_PROVIDER_FALLBACK_ICON;
+  const found = ACP_PROVIDERS.find((p) => p.key === key);
+  return found?.icon ?? ACP_PROVIDER_FALLBACK_ICON;
 }
 
 /**

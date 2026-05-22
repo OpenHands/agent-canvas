@@ -5,7 +5,12 @@ import { I18nKey } from "#/i18n/declaration";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionPaused } from "#/utils/status";
-import { getAcpProviderDisplayName } from "#/constants/acp-providers";
+import {
+  getAcpProviderDisplayName,
+  resolveAcpProviderIcon,
+  type ACPProviderIcon,
+} from "#/constants/acp-providers";
+import { AgentBrandIcon } from "#/components/shared/agent-brand-icon";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 
@@ -18,13 +23,11 @@ interface ConversationCardFooterProps {
   showRepositoryMetadata?: boolean;
   showTimestamp?: boolean;
   llmModel?: string | null;
-  showLlmModel?: boolean;
   /**
-   * High-level kind of the conversation's agent. The ACP-agent chip is
-   * only rendered when this is ``"acp"``. The OpenHands rendering path
-   * is intentionally untouched — for OpenHands conversations the chip is
-   * suppressed regardless of any ``acpServer`` value (defensive against
-   * stray wire tags on non-ACP conversations).
+   * High-level kind of the conversation's agent. Drives the chip's icon:
+   * the OpenHands logo for native conversations and the resolved ACP brand
+   * mark for ACP conversations. Defensive against stray ``acpServer``
+   * values reaching an OpenHands card.
    */
   agentKind?: "openhands" | "acp" | null;
   /**
@@ -32,9 +35,7 @@ interface ConversationCardFooterProps {
    * ``"gemini-cli"`` / unknown / null). Resolved to a human display name
    * via {@link getAcpProviderDisplayName}; unknown / null falls back to
    * a generic "ACP" label so a Custom-command preset still produces a
-   * useful chip. Always shown for ACP conversations — this is identity
-   * info, not gated by the ``showLlmModel`` preference (which is about
-   * LLM model strings, an orthogonal concern).
+   * useful chip.
    */
   acpServer?: string | null;
 }
@@ -48,7 +49,6 @@ export function ConversationCardFooter({
   showRepositoryMetadata = true,
   showTimestamp = true,
   llmModel,
-  showLlmModel = false,
   agentKind = null,
   acpServer = null,
 }: ConversationCardFooterProps) {
@@ -56,11 +56,27 @@ export function ConversationCardFooter({
 
   const isPaused = isExecutionPaused(executionStatus);
 
-  const acpDisplayName =
-    agentKind === "acp"
-      ? (getAcpProviderDisplayName(acpServer) ??
-        t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC))
-      : null;
+  // Single inline chip per conversation: [brand mark] {model text}. Always
+  // shown when there's something meaningful to render — OpenHands shows the
+  // logo + ``agent.llm.model``; ACP shows the provider brand mark + model
+  // resolved through PR 730's adapter chain, falling back to the provider
+  // display name when no model is available so the chip never collapses to
+  // icon-only.
+  let chip: { kind: ACPProviderIcon; text: string; tooltip: string } | null =
+    null;
+  if (agentKind === "acp") {
+    const providerName =
+      getAcpProviderDisplayName(acpServer) ??
+      t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC);
+    const text = llmModel ?? providerName;
+    chip = {
+      kind: resolveAcpProviderIcon(acpServer),
+      text,
+      tooltip: llmModel ? `${providerName} · ${llmModel}` : providerName,
+    };
+  } else if (llmModel) {
+    chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+  }
 
   return (
     <div
@@ -69,24 +85,17 @@ export function ConversationCardFooter({
         isPaused && "opacity-60",
       )}
     >
-      {acpDisplayName ? (
+      {chip ? (
         <div className="pl-[18px]">
           <span
-            data-testid="conversation-card-acp-badge"
-            className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[var(--oh-surface-raised)] text-[var(--oh-muted)] text-xs font-medium max-w-full truncate"
-            title={acpDisplayName}
+            data-testid="conversation-card-agent-chip"
+            className="inline-flex items-center gap-1 text-xs text-[var(--oh-muted)] max-w-full min-w-0"
+            title={chip.tooltip}
           >
-            {acpDisplayName}
+            <AgentBrandIcon kind={chip.kind} />
+            <span className="truncate">{chip.text}</span>
           </span>
         </div>
-      ) : null}
-      {showLlmModel && llmModel ? (
-        <span
-          className="min-w-0 max-w-full truncate pl-[18px] text-xs text-[var(--oh-muted)]"
-          title={llmModel}
-        >
-          {llmModel}
-        </span>
       ) : null}
       <div
         className={cn(

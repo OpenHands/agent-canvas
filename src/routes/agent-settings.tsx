@@ -212,11 +212,12 @@ function AgentSettingsScreen() {
         : selectedProvider && isDefaultProviderCommand
           ? selectedProvider.key
           : ACP_CUSTOM_PRESET_KEY;
-      const effectiveModel =
-        acpModel.trim() || (selectedProvider?.default_model ?? null);
+      // ``model: undefined`` lets buildAcpAgentSettingsDiff seed the provider's
+      // ``default_model`` for built-in keys; for the custom preset it falls
+      // through to ``null`` since custom has no default.
       const agentSettingsDiff = buildAcpAgentSettingsDiff(providerKey, {
         command: useDefault ? [] : commandTokens,
-        model: effectiveModel,
+        model: acpModel.trim() || undefined,
         allowUnknownServer: preserveUnknownServer,
       });
 

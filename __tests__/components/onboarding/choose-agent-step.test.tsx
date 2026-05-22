@@ -168,7 +168,7 @@ describe("ChooseAgentStep", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: "sonnet",
+      acp_model: "claude-opus-4-7",
     });
   });
 

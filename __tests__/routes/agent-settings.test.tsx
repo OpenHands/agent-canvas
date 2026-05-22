@@ -152,6 +152,10 @@ describe("AgentSettingsScreen", () => {
   });
 
   it("shows the ACP form when the active agent_kind is acp", async () => {
+    // Use a model ID that isn't in CLAUDE_MODELS so the form falls through to
+    // the custom-input branch — that's the path this test is asserting (saved
+    // value round-trips into the visible input). Known IDs go through the
+    // dropdown instead and are covered separately.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -159,7 +163,7 @@ describe("AgentSettingsScreen", () => {
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-          acp_model: "claude-opus-4-5",
+          acp_model: "my-pinned-fork-model",
         },
       }),
     );
@@ -174,7 +178,7 @@ describe("AgentSettingsScreen", () => {
     const modelInput = screen.getByTestId(
       "agent-model-input",
     ) as HTMLInputElement;
-    expect(modelInput.value).toBe("claude-opus-4-5");
+    expect(modelInput.value).toBe("my-pinned-fork-model");
   });
 
   it("defaults built-in ACP providers to a suggested model when none is saved", async () => {
@@ -194,7 +198,7 @@ describe("AgentSettingsScreen", () => {
 
     await screen.findByTestId("agent-command-input");
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Sonnet 4.6",
+      "Claude Opus 4.7",
     );
   });
 
@@ -225,7 +229,7 @@ describe("AgentSettingsScreen", () => {
     const call = save.mock.calls[0]?.[0] as {
       agent_settings_diff?: Record<string, unknown>;
     };
-    expect(call.agent_settings_diff?.acp_model).toBe("haiku");
+    expect(call.agent_settings_diff?.acp_model).toBe("claude-haiku-4-5");
   });
 
   it("saves an ACP diff when switching to ACP + Claude Code", async () => {
@@ -257,7 +261,7 @@ describe("AgentSettingsScreen", () => {
       "npx -y @agentclientprotocol/claude-agent-acp",
     );
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Sonnet 4.6",
+      "Claude Opus 4.7",
     );
 
     await user.click(screen.getByTestId("agent-save-button"));
@@ -279,7 +283,7 @@ describe("AgentSettingsScreen", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: "sonnet",
+      acp_model: "claude-opus-4-7",
     });
   });
 
