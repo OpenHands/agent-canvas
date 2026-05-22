@@ -1,8 +1,8 @@
 import React from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Dropdown } from "#/ui/dropdown/dropdown";
-import { DropdownOption } from "#/ui/dropdown/types";
 import { I18nKey } from "#/i18n/declaration";
+import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
 
 interface EnumFilterDropdownProps<T extends string> {
@@ -21,46 +21,86 @@ export function EnumFilterDropdown<T extends string>({
   labelKeyByValue,
 }: EnumFilterDropdownProps<T>) {
   const { t } = useTranslation("openhands");
-
-  const dropdownOptions = React.useMemo<DropdownOption[]>(
-    () =>
-      options.map((option) => ({
-        value: option,
-        label: t(labelKeyByValue[option]),
-      })),
-    [labelKeyByValue, options, t],
+  const [open, setOpen] = React.useState(false);
+  const containerRef = useClickOutsideElement<HTMLDivElement>(() =>
+    setOpen(false),
   );
 
-  const selectedOption =
-    dropdownOptions.find((option) => option.value === value) ??
-    dropdownOptions[0];
-  const defaultOption = dropdownOptions[0];
+  const defaultOption = options[0];
+  const selectedLabel = t(labelKeyByValue[value]);
 
   return (
-    <div className="shrink-0 w-auto">
-      <Dropdown
-        key={value}
-        testId={testId}
-        options={dropdownOptions}
-        defaultValue={selectedOption}
-        placeholder={selectedOption.label}
-        onChange={(item) => {
-          if (item) {
-            onChange(item.value as T);
-          }
-        }}
-        italicPlaceholder={false}
-        fitContent
+    <div
+      ref={containerRef}
+      className="relative shrink-0 w-auto"
+      data-testid={testId}
+    >
+      <button
+        type="button"
+        data-testid="dropdown-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
+        onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          "rounded-lg border border-[var(--oh-border)] bg-base-secondary",
-          "px-3 py-2 text-sm font-medium text-white",
-          "focus-within:border-white/40 focus-within:ring-1 focus-within:ring-white/20",
-          "transition-colors",
+          "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+          "border-[var(--oh-border)] bg-base-secondary text-white",
+          "focus-visible:border-white/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20",
           defaultOption &&
-            value !== defaultOption.value &&
+            value !== defaultOption &&
             "border-white/60 bg-white/10",
         )}
-      />
+      >
+        <span className="whitespace-nowrap">{selectedLabel}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-tertiary-alt transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          data-testid={`${testId}-menu`}
+          aria-label={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
+          className={cn(
+            "absolute right-0 top-full z-50 mt-1 min-w-full w-max",
+            "max-h-60 overflow-auto rounded-[6px] bg-tertiary p-1 context-menu-box-shadow",
+          )}
+        >
+          {options.map((option) => {
+            const selected = option === value;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-testid={`${testId}-${option}`}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-white",
+                  "hover:bg-[var(--oh-interactive-hover)] cursor-pointer",
+                  selected && "bg-[var(--oh-interactive-selected)]",
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  {t(labelKeyByValue[option])}
+                </span>
+                {selected ? (
+                  <Check className="h-4 w-4 shrink-0" aria-hidden />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

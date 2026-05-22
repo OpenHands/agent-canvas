@@ -154,9 +154,7 @@ describe("MCPPage", () => {
 
     const filter = screen.getByTestId("mcp-section-filter");
     fireEvent.click(within(filter).getByTestId("dropdown-trigger"));
-    fireEvent.click(
-      screen.getByRole("option", { name: "MCP$INSTALLED_TITLE" }),
-    );
+    fireEvent.click(screen.getByTestId("mcp-section-filter-installed"));
 
     await waitFor(() => {
       expect(
@@ -175,9 +173,7 @@ describe("MCPPage", () => {
 
     const filter = screen.getByTestId("mcp-section-filter");
     fireEvent.click(within(filter).getByTestId("dropdown-trigger"));
-    fireEvent.click(
-      screen.getByRole("option", { name: "MCP$LIBRARY_TITLE" }),
-    );
+    fireEvent.click(screen.getByTestId("mcp-section-filter-library"));
 
     await waitFor(() => {
       expect(screen.queryByTestId("mcp-installed-empty")).not.toBeInTheDocument();
