@@ -22,7 +22,6 @@ import {
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import { useSidebarCollapsed } from "#/components/features/sidebar/sidebar-collapse-context";
 import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
@@ -118,6 +117,12 @@ interface BackendSelectorProps {
   onOpenAddBackend?: () => void;
   /** Same as onOpenAddBackend but for the Manage Backends modal. */
   onOpenManageBackends?: () => void;
+  /**
+   * Whether the surrounding sidebar rail is in its collapsed variant. Passed
+   * down from `SidebarRailBody` so the mobile drawer (which always renders
+   * the expanded rail) can override the persisted desktop value.
+   */
+  sidebarCollapsed?: boolean;
 }
 
 export function BackendSelector({
@@ -127,6 +132,7 @@ export function BackendSelector({
   onSelectOption,
   onOpenAddBackend,
   onOpenManageBackends,
+  sidebarCollapsed = false,
 }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, active, setActive } = useActiveBackendContext();
@@ -167,7 +173,6 @@ export function BackendSelector({
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
-  const sidebarCollapsed = useSidebarCollapsed();
   const isRightPanelShown = useConversationStore(
     (state) => state.isRightPanelShown,
   );
@@ -274,6 +279,7 @@ export function BackendSelector({
         setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
       });
 
+      // @spec BM-002 — Switching backends keeps the user on the same page
       if (conversationMatch) navigate("/conversations");
       else if (automationDetailMatch) navigate("/automations");
 

@@ -8,9 +8,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
-import { SidebarCollapseContext } from "./sidebar-collapse-context";
 import { useSidebarMobileNav } from "./sidebar-mobile-nav-context";
-import { useSidebarCollapsedState } from "#/hooks/use-sidebar-collapsed";
+import { useSidebarStore } from "#/stores/sidebar-store";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 // The LLM settings modal is only mounted when the settings query 404s and
@@ -50,7 +49,8 @@ export function Sidebar() {
   const { backends, active } = useActiveBackendContext();
   const healthByBackendId = useBackendsHealth(backends);
   const activeBackendHealth = healthByBackendId[active.backend.id];
-  const [collapsed, setCollapsed] = useSidebarCollapsedState();
+  const collapsed = useSidebarStore((state) => state.collapsed);
+  const setCollapsed = useSidebarStore((state) => state.setCollapsed);
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const [collapsedBackendPopoverOpen, setCollapsedBackendPopoverOpen] =
     React.useState(false);
@@ -192,7 +192,7 @@ export function Sidebar() {
   };
 
   return (
-    <SidebarCollapseContext.Provider value={collapsed}>
+    <>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the aside acts as a hit-area for the collapsed rail; nested controls handle their own keyboard interactions. */}
       <aside
         aria-label={t(I18nKey.SIDEBAR$NAVIGATION_LABEL)}
@@ -248,15 +248,13 @@ export function Sidebar() {
             )}
             style={{ transitionDuration: `${MOBILE_DRAWER_TRANSITION_MS}ms` }}
           >
-            <SidebarCollapseContext.Provider value={false}>
-              <SidebarRailBody
-                collapsed={false}
-                showCollapseToggle={false}
-                showMobileCloseButton
-                onCloseMobile={closeMobileNav}
-                {...railBodyProps}
-              />
-            </SidebarCollapseContext.Provider>
+            <SidebarRailBody
+              collapsed={false}
+              showCollapseToggle={false}
+              showMobileCloseButton
+              onCloseMobile={closeMobileNav}
+              {...railBodyProps}
+            />
           </aside>
         </>
       ) : null}
@@ -281,6 +279,6 @@ export function Sidebar() {
           />
         </React.Suspense>
       )}
-    </SidebarCollapseContext.Provider>
+    </>
   );
 }

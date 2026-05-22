@@ -533,7 +533,7 @@ export const SETTINGS_HANDLERS = [
         "claude-sonnet-4-5-20250929",
       ],
       verified_providers: MOCK_VERIFIED_PROVIDERS,
-      default_model: "openhands/claude-opus-4-5-20251101",
+      default_model: "openhands/minimax-m2.7",
     }),
   ),
 

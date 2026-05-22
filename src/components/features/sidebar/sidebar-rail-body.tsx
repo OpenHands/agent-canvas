@@ -212,7 +212,7 @@ export function SidebarRailBody({
         />
       </nav>
 
-      <SidebarConversationList />
+      <SidebarConversationList collapsed={collapsed} />
 
       {collapsed && showCollapseToggle ? (
         <nav
@@ -293,6 +293,7 @@ export function SidebarRailBody({
                 onClick={(event) => event.stopPropagation()}
               >
                 <BackendSelector
+                  sidebarCollapsed={collapsed}
                   hideTrigger
                   defaultOpen
                   openUpward
@@ -313,7 +314,7 @@ export function SidebarRailBody({
             "-ml-2.5 w-[calc(100%+0.625rem)] border-t border-[var(--oh-border)] pt-2 px-2.5",
           )}
         >
-          <BackendSelector openUpward />
+          <BackendSelector sidebarCollapsed={collapsed} openUpward />
         </div>
       ) : null}
     </div>
