@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
 
 interface EnumFilterDropdownProps<T extends string> {
   testId: string;
@@ -33,6 +34,7 @@ export function EnumFilterDropdown<T extends string>({
   const selectedOption =
     dropdownOptions.find((option) => option.value === value) ??
     dropdownOptions[0];
+  const defaultOption = dropdownOptions[0];
 
   return (
     <div className="shrink-0 w-auto">
@@ -49,6 +51,15 @@ export function EnumFilterDropdown<T extends string>({
         }}
         italicPlaceholder={false}
         fitContent
+        className={cn(
+          "rounded-lg border border-[var(--oh-border)] bg-base-secondary",
+          "px-3 py-2 text-sm font-medium text-white",
+          "focus-within:border-white/40 focus-within:ring-1 focus-within:ring-white/20",
+          "transition-colors",
+          defaultOption &&
+            value !== defaultOption.value &&
+            "border-white/60 bg-white/10",
+        )}
       />
     </div>
   );

@@ -24,7 +24,7 @@ export function DropdownInput({
         className: cn(
           "outline-none bg-transparent text-white not-italic",
           fitContent
-            ? "w-auto field-sizing-content whitespace-nowrap"
+            ? "w-auto field-sizing-content whitespace-nowrap text-sm"
             : "flex-1 min-w-0",
           italicPlaceholder &&
             "placeholder:italic placeholder:text-tertiary-alt",
