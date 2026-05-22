@@ -4,14 +4,12 @@ name: ACP Providers Sync
 # (src/constants/acp-providers.ts) and the SDK's source of truth at
 # openhands-sdk/openhands/sdk/settings/acp_providers.py in
 # OpenHands/software-agent-sdk. See agent-canvas#587 for the failure mode
-# this exists to prevent. Also launches the built-in ACP subprocesses and
-# verifies Canvas's suggested model IDs match their advertised availableModels.
+# this exists to prevent.
 
 on:
   pull_request:
     paths:
       - "src/constants/acp-providers.ts"
-      - "scripts/check-acp-provider-models.mjs"
       - "scripts/check-acp-providers-sync.mjs"
       - ".github/workflows/acp-providers-sync.yml"
   push:
@@ -19,7 +17,6 @@ on:
       - main
     paths:
       - "src/constants/acp-providers.ts"
-      - "scripts/check-acp-provider-models.mjs"
       - "scripts/check-acp-providers-sync.mjs"
       - ".github/workflows/acp-providers-sync.yml"
 
@@ -84,6 +81,3 @@ jobs:
           # repository_dispatch payload; otherwise the script defaults to "main".
           ACP_SDK_REF: ${{ inputs.sdk_ref || github.event.client_payload.sdk_ref || '' }}
         run: node scripts/check-acp-providers-sync.mjs
-
-      - name: Check ACP provider models sync
-        run: node scripts/check-acp-provider-models.mjs

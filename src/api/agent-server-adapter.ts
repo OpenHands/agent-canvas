@@ -39,13 +39,9 @@ export interface DirectConversationInfo {
   } | null;
   agent?: {
     /**
-     * Pydantic discriminator from the SDK union. ``"ACPAgent"`` means the
-     * conversation runs an ACP CLI subprocess (model selection lives on
-     * the subprocess via ``acp_model``, not on ``agent.llm``); ``"Agent"``
-     * means the conversation drives an LLM directly through litellm.
-     * Used by ``toAppConversation`` to mark ACP conversations so LLM-switch
-     * affordances stay gated even when ``llm_model`` carries the ACP display
-     * model.
+     * Pydantic discriminator from the SDK union: ``"ACPAgent"`` for ACP CLI
+     * subprocesses (model lives on the subprocess via ``acp_model``),
+     * ``"Agent"`` for direct litellm. Read by {@link toAppConversation}.
      */
     kind?: string | null;
     acp_model?: string | null;
@@ -251,9 +247,33 @@ function nonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+// SDK placeholder strings the ACP wrapper returns before the user has
+// chosen a real model — surfacing either would lie about what's running.
+const ACP_DEFAULT_PLACEHOLDERS = new Set(["default", "default (recommended)"]);
 function isAcpDefaultPlaceholder(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return normalized === "default" || normalized === "default (recommended)";
+  return ACP_DEFAULT_PLACEHOLDERS.has(value.trim().toLowerCase());
+}
+
+// Sentinel ``agent.llm.model`` returned by older SDKs for ACP conversations
+// in lieu of a real model. Suppressed at the display boundary.
+export const ACP_MANAGED_SENTINEL = "acp-managed";
+
+/**
+ * Resolve the model string to surface on an ACP conversation, preferring
+ * (in order) SDK runtime fields → Canvas-configured ``acp_model`` →
+ * ``agent.llm.model`` (unless it's the {@link ACP_MANAGED_SENTINEL}).
+ * Placeholder strings like ``"Default (recommended)"`` are skipped so the
+ * chip never shows a generic label when a concrete one is reachable.
+ */
+function resolveAcpDisplayModel(info: DirectConversationInfo): string | null {
+  for (const candidate of [info.current_model_name, info.current_model_id]) {
+    const value = nonEmptyString(candidate);
+    if (value && !isAcpDefaultPlaceholder(value)) return value;
+  }
+  const configured = nonEmptyString(info.agent?.acp_model);
+  if (configured) return configured;
+  const llmModel = nonEmptyString(info.agent?.llm?.model);
+  return llmModel === ACP_MANAGED_SENTINEL ? null : llmModel;
 }
 
 export function toAppConversation(
@@ -270,17 +290,6 @@ export function toAppConversation(
   // conversation — the chip is identity info for the ACP CLI subprocess,
   // and showing it on a non-ACP conversation would be a lie.
   const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
-  const acpRuntimeName = nonEmptyString(info.current_model_name);
-  const acpRuntimeId = nonEmptyString(info.current_model_id);
-  const acpConfiguredModel = nonEmptyString(info.agent?.acp_model);
-  const acpLlmModel = nonEmptyString(info.agent?.llm?.model);
-  const acpDisplayModel =
-    acpRuntimeName && !isAcpDefaultPlaceholder(acpRuntimeName)
-      ? acpRuntimeName
-      : acpRuntimeId && !isAcpDefaultPlaceholder(acpRuntimeId)
-        ? acpRuntimeId
-        : (acpConfiguredModel ??
-          (acpLlmModel !== "acp-managed" ? acpLlmModel : null));
   return {
     id: info.id,
     created_by_user_id: null,
@@ -296,7 +305,7 @@ export function toAppConversation(
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
     llm_model: isAcp
-      ? acpDisplayModel
+      ? resolveAcpDisplayModel(info)
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
     metrics: info.metrics
       ? {
