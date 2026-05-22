@@ -71,7 +71,6 @@ export function SkillCard({
         "flex min-w-0 flex-col gap-3 overflow-hidden p-4",
         extensionModuleCardSurfaceClassName,
         extensionModuleCardInteractiveClassName,
-        !enabled && "opacity-70",
       )}
     >
       <div className="flex items-start gap-3">
