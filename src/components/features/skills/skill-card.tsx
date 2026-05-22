@@ -122,6 +122,7 @@ export function SkillCard({
               testId={`skill-toggle-${skill.name}`}
               isSelected={enabled}
               onToggle={onToggle}
+              disableTooltipKey={I18nKey.COMMON$DISABLE}
             />
           </header>
 

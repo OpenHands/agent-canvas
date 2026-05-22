@@ -16,6 +16,7 @@ interface CirclePlusCheckToggleProps {
   enableLabelKey?: I18nKey;
   disableLabelKey?: I18nKey;
   enableTooltipKey?: I18nKey;
+  disableTooltipKey?: I18nKey;
   removeTooltipKey?: I18nKey;
 }
 
@@ -55,10 +56,11 @@ export function CirclePlusCheckToggle({
   enableLabelKey = I18nKey.SETTINGS$SKILLS_ENABLE_SKILL,
   disableLabelKey = I18nKey.SETTINGS$SKILLS_DISABLE_SKILL,
   enableTooltipKey = I18nKey.COMMON$ENABLE,
+  disableTooltipKey,
   removeTooltipKey = I18nKey.COMMON$REMOVE,
 }: CirclePlusCheckToggleProps) {
   const { t } = useTranslation("openhands");
-  const [isHovered, setIsHovered] = React.useState(false);
+  const [isPointerOver, setIsPointerOver] = React.useState(false);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -66,10 +68,12 @@ export function CirclePlusCheckToggle({
       return;
     }
     onToggle(!isSelected);
+    event.currentTarget.blur();
   };
 
-  const showRemoveIcon = isSelected && isHovered;
-  const tooltipLabel = t(isSelected ? removeTooltipKey : enableTooltipKey);
+  const showRemoveIcon = isSelected && isPointerOver;
+  const selectedTooltipKey = disableTooltipKey ?? removeTooltipKey;
+  const tooltipLabel = t(isSelected ? selectedTooltipKey : enableTooltipKey);
   const ariaLabel = t(isSelected ? disableLabelKey : enableLabelKey);
 
   return (
@@ -83,18 +87,16 @@ export function CirclePlusCheckToggle({
         disabled={isDisabled}
         aria-label={ariaLabel}
         onClick={handleClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onFocus={() => setIsHovered(true)}
-        onBlur={() => setIsHovered(false)}
+        onPointerEnter={() => setIsPointerOver(true)}
+        onPointerLeave={() => setIsPointerOver(false)}
         className={cn(
-          "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 transition-colors",
+          "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full p-0 transition-colors",
           isSelected &&
             (showRemoveIcon
-              ? "bg-[rgba(248,113,113,0.14)] text-[#ef4444] hover:bg-[rgba(248,113,113,0.24)]"
-              : "bg-white text-base hover:bg-white/90 [&_path]:fill-current"),
+              ? "border-0 bg-[rgba(248,113,113,0.14)] text-[#ef4444] hover:bg-[rgba(248,113,113,0.24)]"
+              : "border border-white bg-transparent text-white [&_path]:fill-current"),
           !isSelected &&
-            "bg-surface-raised text-white hover:bg-[var(--oh-interactive-hover)]",
+            "border-0 bg-surface-raised text-white hover:bg-[var(--oh-interactive-hover)]",
           isDisabled && "cursor-not-allowed opacity-50",
           className,
         )}

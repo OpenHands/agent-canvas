@@ -74,11 +74,28 @@ describe("CirclePlusCheckToggle", () => {
 
     const toggle = screen.getByTestId("skill-toggle");
     expect(toggle).toHaveAttribute("data-showing-remove", "false");
+    expect(toggle.className).toContain("border-white");
+    expect(toggle.className).not.toContain("bg-white");
 
     await user.hover(toggle);
     expect(toggle).toHaveAttribute("data-showing-remove", "true");
 
     await user.unhover(toggle);
+    expect(toggle).toHaveAttribute("data-showing-remove", "false");
+  });
+
+  it("does not show remove styling for keyboard focus alone", () => {
+    render(
+      <CirclePlusCheckToggle
+        testId="skill-toggle"
+        isSelected
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByTestId("skill-toggle");
+    toggle.focus();
+
     expect(toggle).toHaveAttribute("data-showing-remove", "false");
   });
 

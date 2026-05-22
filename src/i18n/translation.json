@@ -19702,6 +19702,23 @@
     "uk": "Увімкнути",
     "ca": "Activa"
   },
+  "COMMON$DISABLE": {
+    "en": "Disable",
+    "ja": "無効化",
+    "zh-CN": "禁用",
+    "zh-TW": "停用",
+    "ko-KR": "사용 안 함",
+    "no": "Deaktiver",
+    "it": "Disabilita",
+    "pt": "Desativar",
+    "es": "Desactivar",
+    "ar": "تعطيل",
+    "fr": "Désactiver",
+    "tr": "Devre dışı bırak",
+    "de": "Deaktivieren",
+    "uk": "Вимкнути",
+    "ca": "Desactiva"
+  },
   "COMMON$REMOVE": {
     "en": "Remove",
     "ja": "削除",
