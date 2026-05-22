@@ -11423,6 +11423,23 @@
     "uk": "Автоматизації не налаштовано",
     "ca": "No hi ha automatitzacions configurades"
   },
+  "AUTOMATIONS$EMPTY_HINT": {
+    "en": "Pick one from the recommendations below to get started.",
+    "ja": "下のおすすめから1つ選んで始めましょう。",
+    "zh-CN": "从下方的推荐中选择一个开始使用。",
+    "zh-TW": "從下方的推薦中選擇一個開始使用。",
+    "ko-KR": "시작하려면 아래 추천 항목에서 하나를 선택하세요.",
+    "no": "Velg en fra anbefalingene nedenfor for å komme i gang.",
+    "it": "Scegline uno dai consigli qui sotto per iniziare.",
+    "pt": "Escolha um das recomendações abaixo para começar.",
+    "es": "Elige una de las recomendaciones de abajo para empezar.",
+    "ar": "اختر واحدًا من التوصيات أدناه للبدء.",
+    "fr": "Choisissez-en un parmi les recommandations ci-dessous pour commencer.",
+    "tr": "Başlamak için aşağıdaki önerilerden birini seçin.",
+    "de": "Wählen Sie unten eine Empfehlung aus, um loszulegen.",
+    "uk": "Виберіть одну з рекомендацій нижче, щоб почати.",
+    "ca": "Tria'n una de les recomanacions de sota per començar."
+  },
   "AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE": {
     "en": "How to create an automation",
     "ja": "オートメーションの作成方法",
