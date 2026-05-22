@@ -554,19 +554,59 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
-  it("marks ACP conversations and nulls llm_model so the chat UI can't mislead", () => {
-    // The SDK's ACPAgent carries a sentinel ``llm`` (``acp-managed``) for
-    // cost-attribution only; the *real* model lives on the ACP subprocess via
-    // ``acp_model`` and isn't surfaced on ``agent.llm.model``. Surfacing the
-    // sentinel as ``llm_model`` would let SwitchProfileButton render an
-    // affordance to "change the model" on a Claude-Code conversation while
-    // the running subprocess kept its own — a confusing silent no-op.
+  it("marks ACP conversations and surfaces the configured acp_model", () => {
+    // The SDK's ACPAgent may still carry a sentinel ``llm`` (``acp-managed``)
+    // for cost-attribution. Consumers should see the concrete ACP model Canvas
+    // configured, while SwitchProfileButton remains gated by agent_kind.
     const result = toAppConversation({
       ...baseInfo,
-      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-sonnet-4-6",
+        llm: { model: "acp-managed" },
+      },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBeNull();
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("prefers ACP runtime model fields over configured acp_model", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      current_model_id: "claude-sonnet-4-6",
+      current_model_name: "Claude Sonnet 4.6",
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-opus-4-7",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("Claude Sonnet 4.6");
+  });
+
+  it("does not surface ACP default placeholders when a configured model exists", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      current_model_id: "default",
+      current_model_name: "Default (recommended)",
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-sonnet-4-6",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("falls back to a non-sentinel ACP llm.model for SDKs that mirror acp_model there", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "claude-sonnet-4-6" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
   it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
@@ -647,8 +687,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
             url_from_agent: "http://localhost:18001",
             api_prefix: "/api/automation",
             docs_url: "http://localhost:18001/api/automation/docs",
-            openapi_url:
-              "http://localhost:18001/api/automation/openapi.json",
+            openapi_url: "http://localhost:18001/api/automation/openapi.json",
             auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
           },
         },
@@ -660,9 +699,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("dev:automation");
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
-    expect(suffix).toContain(
-      "http://localhost:18001/api/automation/docs",
-    );
+    expect(suffix).toContain("http://localhost:18001/api/automation/docs");
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
@@ -1007,7 +1044,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent.acp_command).toEqual([]);
   });
 
-  it("treats acp_model: '' (empty string) as 'no override'", () => {
+  it("omits acp_model when settings contains an empty string", () => {
     // The form may carry an empty string after a user clears the model
     // input; the agent-server expects ``null`` for "use provider default."
     // Empty strings would pass the spawn but bias model selection on
@@ -1028,14 +1065,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       agent: Record<string, unknown> & { acp_model?: unknown };
     };
 
-    // ``buildConfiguredAcpAgentSettings`` already filters undefined +
-    // null; the empty string falls through, which is a known nit. The
-    // adapter's contract is "forward what settings says"; the
-    // canonicalisation belongs in the save path
-    // (``agent-settings.tsx::handleSave`` already does
-    // ``acpModel.trim() || null``). Pin the current behaviour so a
-    // future change to either side is a deliberate decision.
-    expect(payload.agent.acp_model).toBe("");
+    expect(payload.agent.acp_model).toBeUndefined();
   });
 
   it("ACP → OpenHands → ACP round trip leaves no field leakage", () => {

@@ -34,6 +34,7 @@ type AgentType = "openhands" | "acp";
 
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
+const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -68,6 +69,15 @@ function getEnableSubAgentsValue(
   return field?.default === true;
 }
 
+function isKnownAcpModel(
+  provider: ACPProviderConfig | undefined,
+  model: string,
+): boolean {
+  return (
+    provider?.available_models?.some(({ id }) => id === model.trim()) ?? false
+  );
+}
+
 function AgentSettingsScreen() {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
@@ -98,6 +108,7 @@ function AgentSettingsScreen() {
   const [agentType, setAgentType] = useState<AgentType>("openhands");
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
+  const [isCustomAcpModel, setIsCustomAcpModel] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
   const lastInitializedSettingsRef = useRef<unknown>(null);
@@ -134,13 +145,20 @@ function AgentSettingsScreen() {
       loadedCommandTextRef.current = renderedCommandText;
 
       const savedModel = settings.agent_settings?.acp_model;
-      setAcpModel(typeof savedModel === "string" ? savedModel : "");
+      const normalizedSavedModel =
+        typeof savedModel === "string" ? savedModel.trim() : "";
+      setAcpModel(normalizedSavedModel || provider?.default_model || "");
+      setIsCustomAcpModel(
+        !!normalizedSavedModel &&
+          (!provider || !isKnownAcpModel(provider, normalizedSavedModel)),
+      );
     } else {
       setAgentType("openhands");
       setCommandText("");
       setAcpModel("");
       loadedAcpServerRef.current = null;
       loadedCommandTextRef.current = "";
+      setIsCustomAcpModel(false);
     }
     setIsDirty(false);
   }, [settings]);
@@ -159,6 +177,13 @@ function AgentSettingsScreen() {
   const selectedProvider = ACP_PROVIDERS.find(
     ({ key }) => key === selectedPreset,
   );
+  const modelSuggestions = selectedProvider?.available_models ?? [];
+  const hasModelSuggestions = modelSuggestions.length > 0;
+  const selectedModelIsSuggestion = isKnownAcpModel(selectedProvider, acpModel);
+  const selectedModelKey =
+    isCustomAcpModel || !selectedModelIsSuggestion
+      ? ACP_CUSTOM_MODEL_KEY
+      : acpModel;
   const isDefaultProviderCommand =
     !!selectedProvider &&
     commandTokens.join(" ") === selectedProvider.default_command.join(" ");
@@ -187,9 +212,11 @@ function AgentSettingsScreen() {
         : selectedProvider && isDefaultProviderCommand
           ? selectedProvider.key
           : ACP_CUSTOM_PRESET_KEY;
+      const effectiveModel =
+        acpModel.trim() || (selectedProvider?.default_model ?? null);
       const agentSettingsDiff = buildAcpAgentSettingsDiff(providerKey, {
         command: useDefault ? [] : commandTokens,
-        model: acpModel.trim() || null,
+        model: effectiveModel,
         allowUnknownServer: preserveUnknownServer,
       });
 
@@ -277,7 +304,11 @@ function AgentSettingsScreen() {
             const preferred = ACP_PROVIDERS[0];
             if (preferred) {
               setCommandText(formatCommand(preferred.default_command));
+              setAcpModel(preferred.default_model ?? "");
+              setIsCustomAcpModel(false);
             }
+          } else if (newType === "openhands") {
+            setIsCustomAcpModel(false);
           }
           setIsDirty(true);
         }}
@@ -325,6 +356,10 @@ function AgentSettingsScreen() {
               const provider = ACP_PROVIDERS.find(({ key: k }) => k === preset);
               if (provider) {
                 setCommandText(formatCommand(provider.default_command));
+                setAcpModel(provider.default_model ?? "");
+                setIsCustomAcpModel(false);
+              } else if (preset === ACP_CUSTOM_PRESET_KEY) {
+                setIsCustomAcpModel(true);
               }
               setIsDirty(true);
             }}
@@ -350,18 +385,54 @@ function AgentSettingsScreen() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <SettingsInput
-              testId="agent-model-input"
-              label={t(I18nKey.SETTINGS$AGENT_MODEL)}
-              type="text"
-              className="w-full"
-              value={acpModel}
-              showOptionalTag
-              onChange={(value) => {
-                setAcpModel(value);
-                setIsDirty(true);
-              }}
-            />
+            {hasModelSuggestions && (
+              <SettingsDropdownInput
+                testId="agent-model-selector"
+                name="agent-model"
+                label={t(I18nKey.SETTINGS$AGENT_MODEL)}
+                items={[
+                  ...modelSuggestions.map((model) => ({
+                    key: model.id,
+                    label: model.label,
+                  })),
+                  {
+                    key: ACP_CUSTOM_MODEL_KEY,
+                    label: t(I18nKey.SETTINGS$AGENT_PRESET_CUSTOM),
+                  },
+                ]}
+                selectedKey={selectedModelKey}
+                onSelectionChange={(key) => {
+                  if (!key) return;
+                  const modelKey = String(key);
+                  if (modelKey === ACP_CUSTOM_MODEL_KEY) {
+                    setIsCustomAcpModel(true);
+                    setAcpModel("");
+                  } else {
+                    setIsCustomAcpModel(false);
+                    setAcpModel(modelKey);
+                  }
+                  setIsDirty(true);
+                }}
+              />
+            )}
+            {(!hasModelSuggestions || isCustomAcpModel) && (
+              <SettingsInput
+                testId="agent-model-input"
+                label={
+                  hasModelSuggestions
+                    ? t(I18nKey.SETTINGS$AGENT_CUSTOM_MODEL)
+                    : t(I18nKey.SETTINGS$AGENT_MODEL)
+                }
+                type="text"
+                className="w-full"
+                value={acpModel}
+                showOptionalTag
+                onChange={(value) => {
+                  setAcpModel(value);
+                  setIsDirty(true);
+                }}
+              />
+            )}
             <Typography.Text className="text-xs text-[#717888]">
               {t(I18nKey.SETTINGS$AGENT_MODEL_HINT)}
             </Typography.Text>

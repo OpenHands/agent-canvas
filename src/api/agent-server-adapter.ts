@@ -43,15 +43,18 @@ export interface DirectConversationInfo {
      * conversation runs an ACP CLI subprocess (model selection lives on
      * the subprocess via ``acp_model``, not on ``agent.llm``); ``"Agent"``
      * means the conversation drives an LLM directly through litellm.
-     * Used by ``toAppConversation`` to null out ``llm_model`` for ACP
-     * conversations so the chat UI doesn't expose LLM-switch affordances
-     * that would silently no-op against the running ACP subprocess.
+     * Used by ``toAppConversation`` to mark ACP conversations so LLM-switch
+     * affordances stay gated even when ``llm_model`` carries the ACP display
+     * model.
      */
     kind?: string | null;
+    acp_model?: string | null;
     llm?: {
       model?: string | null;
     } | null;
   } | null;
+  current_model_id?: string | null;
+  current_model_name?: string | null;
   workspace?: {
     working_dir?: string | null;
   } | null;
@@ -242,24 +245,42 @@ export function getDefaultConversationTitle(conversationId: string): string {
   return `Conversation ${conversationId.slice(0, 5)}`;
 }
 
+function nonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isAcpDefaultPlaceholder(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "default" || normalized === "default (recommended)";
+}
+
 export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
   const metadata = getStoredConversationMetadata(info.id);
-  // ACPAgent conversations carry a dummy ``llm`` on the SDK side (the real
-  // model lives on the ACP subprocess via ``acp_model``), so surfacing
-  // ``agent.llm.model`` as the conversation's "active LLM" would lie to
-  // every consumer downstream — most visibly the chat header's
-  // SwitchProfileButton, which would otherwise let the user switch
-  // profiles on a Claude-Code conversation while the running subprocess
-  // keeps its own model. Null at the boundary so no consumer has to
-  // re-derive the rule. Mirrors OpenHands PR #14401.
+  // ACPAgent conversations carry a sentinel ``llm`` on older SDKs. Prefer the
+  // runtime model fields when available, then the configured ``acp_model`` that
+  // Canvas saves for built-in providers. ``agent_kind`` still gates model
+  // switching, so surfacing this string is display-only.
   const isAcp = info.agent?.kind === "ACPAgent";
   // Only surface ``acp_server`` for ACP conversations even if the wire
   // payload accidentally carries an ``acpserver`` tag on an OpenHands
   // conversation — the chip is identity info for the ACP CLI subprocess,
   // and showing it on a non-ACP conversation would be a lie.
   const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
+  const acpRuntimeName = nonEmptyString(info.current_model_name);
+  const acpRuntimeId = nonEmptyString(info.current_model_id);
+  const acpConfiguredModel = nonEmptyString(info.agent?.acp_model);
+  const acpLlmModel = nonEmptyString(info.agent?.llm?.model);
+  const acpDisplayModel =
+    acpRuntimeName && !isAcpDefaultPlaceholder(acpRuntimeName)
+      ? acpRuntimeName
+      : acpRuntimeId && !isAcpDefaultPlaceholder(acpRuntimeId)
+        ? acpRuntimeId
+        : (acpConfiguredModel ??
+          (acpLlmModel !== "acp-managed" ? acpLlmModel : null));
   return {
     id: info.id,
     created_by_user_id: null,
@@ -275,7 +296,7 @@ export function toAppConversation(
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
     llm_model: isAcp
-      ? null
+      ? acpDisplayModel
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
     metrics: info.metrics
       ? {
@@ -581,6 +602,13 @@ function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
   const payload: SettingsRecord = {};
   for (const key of ACP_SETTINGS_KEYS) {
     if (agentSettings[key] !== undefined && agentSettings[key] !== null) {
+      if (key === "acp_model") {
+        const model = nonEmptyString(agentSettings[key]);
+        if (model) {
+          payload[key] = model;
+        }
+        continue;
+      }
       payload[key] = agentSettings[key];
     }
   }

@@ -66,9 +66,17 @@ export function ChatInputActions({
   const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
+  const isAcpConversation = conversation?.agent_kind === "acp";
   const llmDestinationLabel = t(
-    isCloud ? I18nKey.SETTINGS$LLM_SETTINGS : I18nKey.SETTINGS$LLM_PROFILES,
+    isAcpConversation
+      ? I18nKey.SETTINGS$NAV_AGENT
+      : isCloud
+        ? I18nKey.SETTINGS$LLM_SETTINGS
+        : I18nKey.SETTINGS$LLM_PROFILES,
   );
+  const modelDestinationPath = isAcpConversation
+    ? "/settings/agent"
+    : "/settings";
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -449,7 +457,7 @@ export function ChatInputActions({
               <Divider inset="menu" />
               <li className="text-sm">
                 <NavigationLink
-                  to="/settings"
+                  to={modelDestinationPath}
                   onClick={closeOverflowMenus}
                   className="group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)] transition-colors"
                 >
@@ -491,7 +499,11 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud ? <ChatInputModel /> : <SwitchProfileButton />}
+            {isCloud || isAcpConversation ? (
+              <ChatInputModel />
+            ) : (
+              <SwitchProfileButton />
+            )}
           </div>
 
           {hasOverflowItems && (

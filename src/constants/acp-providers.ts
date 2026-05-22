@@ -44,6 +44,14 @@ export interface ACPProviderConfig {
    */
   default_command: string[];
   /**
+   * Canvas-local suggested ACP model IDs. These mirror the current runtime
+   * picker values for the built-in harnesses, but are not authoritative access
+   * checks; users can still enter a custom override in Settings -> Agent.
+   */
+  available_models?: ACPModelOption[];
+  /** Model ID preselected for built-in providers so Canvas never saves blank. */
+  default_model?: string;
+  /**
    * i18n key for the one-line provider description rendered under the
    * onboarding tile. Stored on the registry so adding a new ACP
    * provider only requires editing this file (not the onboarding tile
@@ -58,6 +66,55 @@ export interface ACPProviderConfig {
   icon?: ACPProviderIcon;
 }
 
+export interface ACPModelOption {
+  /** Exact model ID sent as ``acp_model``. */
+  id: string;
+  /** Human-readable label shown in Settings -> Agent. */
+  label: string;
+}
+
+const CODEX_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
+
+function buildCodexModelOptions(
+  models: Array<{ id: string; label: string }>,
+): ACPModelOption[] {
+  return models.flatMap((model) =>
+    CODEX_REASONING_EFFORTS.map((effort) => ({
+      id: `${model.id}/${effort}`,
+      label: `${model.label} (${effort})`,
+    })),
+  );
+}
+
+const CLAUDE_MODELS: ACPModelOption[] = [
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { id: "claude-sonnet-4-6[1m]", label: "Claude Sonnet 4.6 (1M)" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "claude-opus-4-7[1m]", label: "Claude Opus 4.7 (1M)" },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+];
+
+const CODEX_MODELS: ACPModelOption[] = buildCodexModelOptions([
+  { id: "gpt-5.5", label: "GPT-5.5" },
+  { id: "gpt-5.4", label: "GPT-5.4" },
+  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+  { id: "gpt-5.2", label: "GPT-5.2" },
+]);
+
+const GEMINI_MODELS: ACPModelOption[] = [
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+  { id: "gemini-3-pro-preview", label: "Gemini 3 Pro Preview" },
+  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview" },
+  { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro Preview" },
+  {
+    id: "gemini-3.1-flash-lite-preview",
+    label: "Gemini 3.1 Flash Lite Preview",
+  },
+];
+
 // Each entry's ``default_command`` is the published-package npx
 // invocation that speaks the ACP JSON-RPC protocol on stdio. Verified
 // against the upstream npm registry on the date noted below — if a
@@ -71,6 +128,8 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // Verified 2026-05-19. Official Anthropic-maintained ACP wrapper
     // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+    available_models: CLAUDE_MODELS,
+    default_model: "claude-sonnet-4-6",
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
     icon: "claude-code",
   },
@@ -82,6 +141,8 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // OpenAI Codex CLI — NOT ``@openai/codex acp`` (no ``acp``
     // subcommand on that package).
     default_command: ["npx", "-y", "@zed-industries/codex-acp"],
+    available_models: CODEX_MODELS,
+    default_model: "gpt-5.5/medium",
     description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
     icon: "codex",
   },
@@ -92,6 +153,8 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // Verified 2026-05-19. Official Google CLI; ``--acp`` switches it
     // into ACP server mode on stdio.
     default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
+    available_models: GEMINI_MODELS,
+    default_model: "gemini-2.5-pro",
     description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
     icon: "gemini",
   },
@@ -170,6 +233,11 @@ export function buildAcpAgentSettingsDiff(
     return null;
   }
 
+  const model =
+    options.model === undefined
+      ? (provider?.default_model ?? null)
+      : options.model;
+
   // ``acp_args: []`` resets any API-set ``acp_args`` that would
   // otherwise survive and concatenate to ``acp_command`` at spawn time
   // (the agent-server merges the two before exec). Callers building the
@@ -181,6 +249,6 @@ export function buildAcpAgentSettingsDiff(
     acp_server: providerKey,
     acp_command: options.command ?? [],
     acp_args: [],
-    acp_model: options.model ?? null,
+    acp_model: model ?? null,
   };
 }

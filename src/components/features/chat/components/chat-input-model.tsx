@@ -28,28 +28,29 @@ export function ChatInputModel() {
   // Home page has no active conversation; fall back to the user's default
   // model so the switcher renders consistently across both surfaces.
   const { data: settings } = useSettings();
-  // ACPAgent conversations have no OpenHands LLM (the model lives on the
-  // ACP subprocess via ``acp_model``), so ``toAppConversation`` writes a
-  // null ``llm_model`` for them. Don't fall back to ``settings.llm_model``
-  // here — that would resurrect the user's *default* OpenHands model on a
-  // Claude-Code conversation and link to /settings, both of which lie
-  // about what model is actually running.
-  //
-  // On the home screen ``conversation`` is undefined, so we also have to
-  // consult ``settings.agent_settings.agent_kind`` — that's the kind the
-  // next-created conversation will inherit. Without the fallback, ACP
-  // users would still see the LLM-profile control on the home page,
-  // contradicting the ACP nav gating elsewhere.
-  const isAcpActive =
-    conversation?.agent_kind === "acp" ||
-    (!conversation && settings?.agent_settings?.agent_kind === "acp");
-  const llmModel = isAcpActive
-    ? null
-    : (conversation?.llm_model ?? settings?.llm_model);
+  // ACP conversations do not use the OpenHands LLM profile. Show the ACP
+  // model only when the adapter/settings provide one, and link users to Agent
+  // settings instead of the LLM profile page.
+  const isActiveAcpConversation = conversation?.agent_kind === "acp";
+  const isHomeAcp =
+    !conversation && settings?.agent_settings?.agent_kind === "acp";
+  const settingsAcpModel =
+    typeof settings?.agent_settings?.acp_model === "string"
+      ? settings.agent_settings.acp_model.trim() || null
+      : null;
+  const llmModel = isActiveAcpConversation
+    ? conversation?.llm_model
+    : isHomeAcp
+      ? settingsAcpModel
+      : (conversation?.llm_model ?? settings?.llm_model);
+  const destinationPath =
+    isActiveAcpConversation || isHomeAcp ? "/settings/agent" : "/settings";
   const llmDestinationLabel = t(
-    backend.kind === "cloud"
-      ? I18nKey.SETTINGS$LLM_SETTINGS
-      : I18nKey.SETTINGS$LLM_PROFILES,
+    isActiveAcpConversation || isHomeAcp
+      ? I18nKey.SETTINGS$NAV_AGENT
+      : backend.kind === "cloud"
+        ? I18nKey.SETTINGS$LLM_SETTINGS
+        : I18nKey.SETTINGS$LLM_PROFILES,
   );
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
 
@@ -105,7 +106,7 @@ export function ChatInputModel() {
           <Divider />
           <li className="text-sm">
             <NavigationLink
-              to="/settings"
+              to={destinationPath}
               onClick={() => setIsPopoverOpen(false)}
               className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
             >

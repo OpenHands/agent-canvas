@@ -62,6 +62,42 @@ describe("ChatInputModel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders an ACP conversation model and links to Agent settings", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    const model = screen.getByTestId("chat-input-llm-model");
+    expect(model).toHaveAttribute("title", "claude-sonnet-4-6");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+  });
+
+  it("does not fall back to the OpenHands settings model for active ACP conversations", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
+    });
+    useSettingsMock.mockReturnValue({
+      data: { llm_model: "openai/gpt-4o" },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back to the user's default model from settings when there is no active conversation", () => {
     // Arrange — home page render: no conversation yet, but the user has
     // a default model configured. The switcher should still show.
@@ -78,6 +114,26 @@ describe("ChatInputModel", () => {
       "title",
       "anthropic/claude-sonnet-4-20250514",
     );
+  });
+
+  it("uses the ACP settings model on the home page when ACP is active", () => {
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({
+      data: {
+        llm_model: "openai/gpt-4o",
+        agent_settings: {
+          agent_kind: "acp",
+          acp_model: "gemini-2.5-pro",
+        },
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    const model = screen.getByTestId("chat-input-llm-model");
+    expect(model).toHaveAttribute("title", "gemini-2.5-pro");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
 
   it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
