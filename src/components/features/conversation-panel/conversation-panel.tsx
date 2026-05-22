@@ -670,7 +670,7 @@ export function ConversationPanel({
                             type="button"
                             data-testid={`thread-folder-view-more-${groupTestIdSuffix}`}
                             onClick={() => toggleGroupPreviewExpanded(group.id)}
-                            className="ml-[26px] cursor-pointer text-xs text-[var(--oh-muted)] hover:text-white"
+                            className="ml-[26px] cursor-pointer text-xs text-[var(--oh-text-dim)] hover:text-white"
                           >
                             {isShowingAll
                               ? t(I18nKey.CONVERSATION_PANEL$LESS)
