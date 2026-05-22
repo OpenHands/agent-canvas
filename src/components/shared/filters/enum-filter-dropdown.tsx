@@ -10,7 +10,6 @@ interface EnumFilterDropdownProps<T extends string> {
   onChange: (value: T) => void;
   options: readonly T[];
   labelKeyByValue: Record<T, I18nKey>;
-  widthClassName?: string;
 }
 
 export function EnumFilterDropdown<T extends string>({
@@ -19,7 +18,6 @@ export function EnumFilterDropdown<T extends string>({
   onChange,
   options,
   labelKeyByValue,
-  widthClassName = "w-[9rem]",
 }: EnumFilterDropdownProps<T>) {
   const { t } = useTranslation("openhands");
 
@@ -37,7 +35,7 @@ export function EnumFilterDropdown<T extends string>({
     dropdownOptions[0];
 
   return (
-    <div className={`shrink-0 ${widthClassName}`}>
+    <div className="shrink-0 w-auto">
       <Dropdown
         key={value}
         testId={testId}
@@ -50,6 +48,7 @@ export function EnumFilterDropdown<T extends string>({
           }
         }}
         italicPlaceholder={false}
+        fitContent
       />
     </div>
   );

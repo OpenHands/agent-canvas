@@ -6,6 +6,7 @@ interface DropdownInputProps {
   getInputProps: (props?: object) => object;
   /** When false, placeholder hint keeps upright type (e.g. backend selector). */
   italicPlaceholder?: boolean;
+  fitContent?: boolean;
 }
 
 export function DropdownInput({
@@ -13,6 +14,7 @@ export function DropdownInput({
   isDisabled,
   getInputProps,
   italicPlaceholder = true,
+  fitContent = false,
 }: DropdownInputProps) {
   return (
     <input
@@ -20,7 +22,10 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "flex-1 min-w-0 outline-none bg-transparent text-white not-italic",
+          "outline-none bg-transparent text-white not-italic",
+          fitContent
+            ? "w-auto field-sizing-content whitespace-nowrap"
+            : "flex-1 min-w-0",
           italicPlaceholder &&
             "placeholder:italic placeholder:text-tertiary-alt",
           !italicPlaceholder && "placeholder:text-tertiary-alt",
