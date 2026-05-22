@@ -119,7 +119,7 @@ export function SidebarRailBody({
                   : "opacity-0 pointer-events-none",
               )}
             >
-              <ChevronRight width={16} height={16} />
+              <ChevronRight width={14} height={14} />
             </button>
           ) : null}
         </div>
@@ -136,7 +136,7 @@ export function SidebarRailBody({
               "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
             )}
           >
-            <ChevronLeft width={16} height={16} />
+            <ChevronLeft width={14} height={14} />
           </button>
         ) : null}
         {!collapsed && showMobileCloseButton ? (
@@ -151,7 +151,7 @@ export function SidebarRailBody({
               "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
             )}
           >
-            <ChevronLeft width={16} height={16} />
+            <ChevronLeft width={14} height={14} />
           </button>
         ) : null}
       </div>

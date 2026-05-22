@@ -80,7 +80,7 @@ export function sidebarNavLabelClassName(collapsed: boolean): string {
 }
 
 export const SIDEBAR_ICON_BUTTON_CLASS = cn(
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-md",
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
   navInteractiveTransitionClassName,
   "cursor-pointer",
 );
@@ -92,7 +92,7 @@ export const SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS = cn(
 );
 
 export const SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS = cn(
-  "absolute left-1/2 top-1/2 hidden size-8 -translate-x-1/2 -translate-y-1/2 md:inline-flex",
+  "absolute left-1/2 top-1/2 hidden h-7 w-7 -translate-x-1/2 -translate-y-1/2 md:inline-flex",
   "items-center justify-center rounded-md",
   navInteractiveTransitionClassName,
   "cursor-pointer",
