@@ -44,6 +44,27 @@ describe("CirclePlusCheckToggle", () => {
     expect(onToggle).toHaveBeenCalledWith(false);
   });
 
+  it("shows a remove icon on hover when selected", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CirclePlusCheckToggle
+        testId="skill-toggle"
+        isSelected
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByTestId("skill-toggle");
+    expect(toggle).toHaveAttribute("data-showing-remove", "false");
+
+    await user.hover(toggle);
+    expect(toggle).toHaveAttribute("data-showing-remove", "true");
+
+    await user.unhover(toggle);
+    expect(toggle).toHaveAttribute("data-showing-remove", "false");
+  });
+
   it("stops click propagation for nested card handlers", async () => {
     const user = userEvent.setup();
     const onCardClick = vi.fn();
