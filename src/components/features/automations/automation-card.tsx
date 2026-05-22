@@ -13,6 +13,8 @@ import SparkleIcon from "#/icons/sparkle.svg?react";
 import PowerIcon from "#/icons/power.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
+import { cn } from "#/utils/utils";
+import { extensionModuleCardInteractiveClassName } from "#/utils/extension-module-card-classes";
 
 interface AutomationCardProps {
   automation: Automation;
@@ -71,7 +73,10 @@ export function AutomationCard({
       onKeyDown={(e) => {
         if (e.key === "Enter") handleCardClick();
       }}
-      className="cursor-pointer rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-5 transition-colors hover:border-[var(--oh-border)]"
+      className={cn(
+        "rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-5",
+        extensionModuleCardInteractiveClassName,
+      )}
     >
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
