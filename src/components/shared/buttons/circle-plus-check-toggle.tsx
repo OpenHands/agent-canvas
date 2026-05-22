@@ -19,6 +19,27 @@ interface CirclePlusCheckToggleProps {
   removeTooltipKey?: I18nKey;
 }
 
+export function CirclePlusBadge({
+  className,
+  testId,
+}: {
+  className?: string;
+  testId?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid={testId}
+      className={cn(
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-raised text-white",
+        className,
+      )}
+    >
+      <PlusIcon className="size-3" />
+    </span>
+  );
+}
+
 export function CirclePlusCheckToggle({
   testId,
   isSelected,

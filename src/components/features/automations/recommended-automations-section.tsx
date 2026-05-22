@@ -15,6 +15,7 @@ import {
   SkillCardPillRow,
   type SkillCardPill,
 } from "#/components/features/skills/skill-card-pill-row";
+import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   findInstalledMatch,
@@ -196,17 +197,22 @@ export function RecommendedAutomationsSection({
                   testId={`recommended-automation-icon-${automation.id}`}
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-semibold text-white">
-                      {automation.name}
-                    </h3>
-                    <p className="mt-0.5 truncate text-xs text-tertiary-alt">
-                      {automation.category}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-tertiary-light">
-                      {automation.description}
-                    </p>
-                  </div>
+                  <header className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-semibold text-white">
+                        {automation.name}
+                      </h3>
+                      <p className="mt-0.5 truncate text-xs text-tertiary-alt">
+                        {automation.category}
+                      </p>
+                    </div>
+                    <CirclePlusBadge
+                      testId={`recommended-automation-plus-${automation.id}`}
+                    />
+                  </header>
+                  <p className="line-clamp-2 text-xs leading-relaxed text-tertiary-light">
+                    {automation.description}
+                  </p>
 
                   <SkillCardPillRow
                     pills={buildRecommendedAutomationPills(

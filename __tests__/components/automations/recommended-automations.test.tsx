@@ -265,6 +265,25 @@ describe("recommended automations", () => {
     }
   });
 
+  it("shows a decorative plus badge on each card without toggle behavior", () => {
+    render(
+      <RecommendedAutomationsSection
+        backendKind="local"
+        installedServers={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const plusBadge = screen.getByTestId(
+      "recommended-automation-plus-github-pr-reviewer",
+    );
+    expect(plusBadge.tagName).toBe("SPAN");
+    expect(plusBadge).toHaveAttribute("aria-hidden", "true");
+    expect(
+      plusBadge.querySelector('[role="switch"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it("selects a recommendation directly from its card", () => {
     const automation = AUTOMATION_CATALOG.find(
       (item) => item.id === "github-pr-reviewer",
