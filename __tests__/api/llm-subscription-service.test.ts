@@ -1,16 +1,17 @@
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import LLMSubscriptionService from "#/api/llm-subscription-service";
-import {
-  OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
-  OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
-  OPENAI_SUBSCRIPTION_LOGOUT_PATH,
-  OPENAI_SUBSCRIPTION_STATUS_PATH,
-} from "#/constants/llm-subscription";
-
-const { mockGet, mockPost, mockClose } = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-  mockPost: vi.fn(),
+const {
+  mockGetStatus,
+  mockStartDeviceLogin,
+  mockPollDeviceLogin,
+  mockLogout,
+  mockClose,
+} = vi.hoisted(() => ({
+  mockGetStatus: vi.fn(),
+  mockStartDeviceLogin: vi.fn(),
+  mockPollDeviceLogin: vi.fn(),
+  mockLogout: vi.fn(),
   mockClose: vi.fn(),
 }));
 
@@ -21,7 +22,13 @@ vi.mock("@openhands/typescript-client/clients", async () => {
   return {
     ...actual,
     LLMMetadataClient: vi.fn(function LLMMetadataClientMock() {
-      return { client: { get: mockGet, post: mockPost }, close: mockClose };
+      return {
+        getOpenAISubscriptionStatus: mockGetStatus,
+        startOpenAISubscriptionDeviceLogin: mockStartDeviceLogin,
+        pollOpenAISubscriptionDeviceLogin: mockPollDeviceLogin,
+        logoutOpenAISubscription: mockLogout,
+        close: mockClose,
+      };
     }),
   };
 });
@@ -40,12 +47,10 @@ describe("LLMSubscriptionService", () => {
   });
 
   it("normalizes OpenAI subscription status", async () => {
-    mockGet.mockResolvedValue({
-      data: {
-        authenticated: true,
-        email: "user@example.com",
-        expires_at: 123,
-      },
+    mockGetStatus.mockResolvedValue({
+      authenticated: true,
+      email: "user@example.com",
+      expires_at: 123,
     });
 
     await expect(LLMSubscriptionService.getOpenAIStatus()).resolves.toEqual({
@@ -60,20 +65,18 @@ describe("LLMSubscriptionService", () => {
       apiKey: "session-key",
       workingDir: "/workspace/project",
     });
-    expect(mockGet).toHaveBeenCalledWith(OPENAI_SUBSCRIPTION_STATUS_PATH);
+    expect(mockGetStatus).toHaveBeenCalled();
     expect(mockClose).toHaveBeenCalled();
   });
 
   it("normalizes device login challenge responses", async () => {
-    mockPost.mockResolvedValue({
-      data: {
-        device_code: "device-123",
-        user_code: "ABCD-EFGH",
-        verification_uri: "https://auth.openai.com/activate",
-        verification_uri_complete: "https://auth.openai.com/activate?code=ABCD",
-        expires_in: 900,
-        interval: 5,
-      },
+    mockStartDeviceLogin.mockResolvedValue({
+      device_code: "device-123",
+      user_code: "ABCD-EFGH",
+      verification_uri: "https://auth.openai.com/activate",
+      verification_uri_complete: "https://auth.openai.com/activate?code=ABCD",
+      expires_in: 900,
+      interval: 5,
     });
 
     await expect(
@@ -87,31 +90,26 @@ describe("LLMSubscriptionService", () => {
       intervalSeconds: 5,
     });
 
-    expect(mockPost).toHaveBeenCalledWith(
-      OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
-    );
+    expect(mockStartDeviceLogin).toHaveBeenCalled();
   });
 
   it("posts the device code when polling login", async () => {
-    mockPost.mockResolvedValue({ data: { connected: true } });
+    mockPollDeviceLogin.mockResolvedValue({ connected: true });
 
     await expect(
       LLMSubscriptionService.pollOpenAIDeviceLogin("device-123"),
     ).resolves.toMatchObject({ connected: true });
 
-    expect(mockPost).toHaveBeenCalledWith(
-      OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
-      { device_code: "device-123" },
-    );
+    expect(mockPollDeviceLogin).toHaveBeenCalledWith("device-123");
   });
 
   it("calls the logout endpoint", async () => {
-    mockPost.mockResolvedValue({ data: { connected: false } });
+    mockLogout.mockResolvedValue({ connected: false });
 
     await expect(LLMSubscriptionService.logoutOpenAI()).resolves.toMatchObject({
       connected: false,
     });
 
-    expect(mockPost).toHaveBeenCalledWith(OPENAI_SUBSCRIPTION_LOGOUT_PATH);
+    expect(mockLogout).toHaveBeenCalled();
   });
 });

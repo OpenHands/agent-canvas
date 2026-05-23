@@ -1,21 +1,6 @@
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
-import {
-  OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
-  OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
-  OPENAI_SUBSCRIPTION_LOGOUT_PATH,
-  OPENAI_SUBSCRIPTION_STATUS_PATH,
-  OPENAI_SUBSCRIPTION_VENDOR,
-} from "#/constants/llm-subscription";
-
-type AgentServerHttpTransport = {
-  get<T>(url: string): Promise<{ data: T }>;
-  post<T>(url: string, data?: unknown): Promise<{ data: T }>;
-};
-
-type LLMMetadataClientWithTransport = {
-  client?: AgentServerHttpTransport;
-};
+import { OPENAI_SUBSCRIPTION_VENDOR } from "#/constants/llm-subscription";
 
 type RawSubscriptionStatus = Record<string, unknown>;
 type RawDeviceStart = Record<string, unknown>;
@@ -75,21 +60,12 @@ const readBoolean = (
   return false;
 };
 
-const getTransport = (client: LLMMetadataClient): AgentServerHttpTransport => {
-  const transport = (client as unknown as LLMMetadataClientWithTransport)
-    .client;
-  if (!transport) {
-    throw new Error("LLM metadata client transport is unavailable");
-  }
-  return transport;
-};
-
 async function withLlmClient<T>(
-  callback: (transport: AgentServerHttpTransport) => Promise<T>,
+  callback: (client: LLMMetadataClient) => Promise<T>,
 ): Promise<T> {
   const client = new LLMMetadataClient(getAgentServerClientOptions());
   try {
-    return await callback(getTransport(client));
+    return await callback(client);
   } finally {
     client.close();
   }
@@ -145,41 +121,33 @@ function normalizeDeviceChallenge(
 
 class LLMSubscriptionService {
   static async getOpenAIStatus(): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (transport) => {
-      const response = await transport.get<RawSubscriptionStatus>(
-        OPENAI_SUBSCRIPTION_STATUS_PATH,
-      );
-      return normalizeStatus(response.data);
+    return withLlmClient(async (client) => {
+      const response = await client.getOpenAISubscriptionStatus();
+      return normalizeStatus(response as unknown as RawSubscriptionStatus);
     });
   }
 
   static async startOpenAIDeviceLogin(): Promise<LLMSubscriptionDeviceChallenge> {
-    return withLlmClient(async (transport) => {
-      const response = await transport.post<RawDeviceStart>(
-        OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
-      );
-      return normalizeDeviceChallenge(response.data);
+    return withLlmClient(async (client) => {
+      const response = await client.startOpenAISubscriptionDeviceLogin();
+      return normalizeDeviceChallenge(response as unknown as RawDeviceStart);
     });
   }
 
   static async pollOpenAIDeviceLogin(
     deviceCode: string,
   ): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (transport) => {
-      const response = await transport.post<RawSubscriptionStatus>(
-        OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
-        { device_code: deviceCode },
-      );
-      return normalizeStatus(response.data);
+    return withLlmClient(async (client) => {
+      const response =
+        await client.pollOpenAISubscriptionDeviceLogin(deviceCode);
+      return normalizeStatus(response as unknown as RawSubscriptionStatus);
     });
   }
 
   static async logoutOpenAI(): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (transport) => {
-      const response = await transport.post<RawSubscriptionStatus>(
-        OPENAI_SUBSCRIPTION_LOGOUT_PATH,
-      );
-      return normalizeStatus(response.data);
+    return withLlmClient(async (client) => {
+      const response = await client.logoutOpenAISubscription();
+      return normalizeStatus(response as unknown as RawSubscriptionStatus);
     });
   }
 }
