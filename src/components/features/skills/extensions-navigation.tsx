@@ -7,6 +7,10 @@ import { cn } from "#/utils/utils";
 import SkillsIcon from "#/icons/skills.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
+import {
+  SIDEBAR_ROW_INTERACTIVE_CLASS,
+  sidebarNavRowClassName,
+} from "#/components/features/sidebar/sidebar-layout";
 import { I18nKey } from "#/i18n/declaration";
 import { useSidebarStore } from "#/stores/sidebar-store";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
@@ -130,7 +134,10 @@ export function ExtensionsNavigation() {
                 <span
                   aria-disabled="true"
                   data-testid={`sidebar-extensions-${item.to}`}
-                  className="flex items-center gap-2 rounded-md text-sm leading-5 truncate px-2 py-2 w-full text-[var(--oh-muted)] opacity-50 cursor-not-allowed"
+                  className={cn(
+                    sidebarNavRowClassName(),
+                    "truncate text-[var(--oh-muted)] opacity-50 cursor-not-allowed",
+                  )}
                 >
                   {baseRow}
                   {label}
@@ -148,10 +155,11 @@ export function ExtensionsNavigation() {
               data-testid={`sidebar-extensions-${item.to}`}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2 rounded-md transition-colors text-sm leading-5 truncate px-2 py-2 w-full",
+                  sidebarNavRowClassName(),
+                  "truncate",
                   isActive
-                    ? "bg-tertiary text-white font-medium"
-                    : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+                    ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
+                    : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
                 )
               }
             >

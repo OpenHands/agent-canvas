@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
+import {
+  TOAST_OPTIONS,
+  displayErrorToast,
+} from "#/utils/custom-toast-handlers";
 import { useNavigation } from "#/context/navigation-context";
 import { I18nKey } from "#/i18n/declaration";
 import { ExecutionStatus } from "#/types/agent-server/core";
@@ -37,7 +40,7 @@ export const useUnifiedPauseConversation = () => {
       if (context?.toastId) {
         toast.dismiss(context.toastId);
       }
-      toast.error(t(I18nKey.TOAST$FAILED_TO_STOP_CONVERSATION), TOAST_OPTIONS);
+      displayErrorToast(t(I18nKey.TOAST$FAILED_TO_STOP_CONVERSATION));
 
       if (context?.previousConversations) {
         queryClient.setQueryData(

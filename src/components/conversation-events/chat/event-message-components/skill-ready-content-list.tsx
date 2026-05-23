@@ -45,7 +45,7 @@ export function SkillReadyContentList({ items }: SkillReadyContentListProps) {
                   <ChevronRight size={14} />
                 )}
               </Typography.Text>
-              <Typography.Text className="font-semibold text-[var(--oh-foreground)] text-sm">
+              <Typography.Text className="font-normal text-[var(--oh-foreground)] text-sm">
                 {item.name}
               </Typography.Text>
             </button>

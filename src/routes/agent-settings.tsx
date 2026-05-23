@@ -10,6 +10,8 @@ import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
+import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
+import { cn } from "#/utils/utils";
 import { SettingsFieldSchema } from "#/types/settings";
 import {
   displayErrorToast,
@@ -295,7 +297,12 @@ function AgentSettingsScreen() {
             {subAgentsLabel}
           </SettingsSwitch>
           {subAgentsDescription ? (
-            <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
+            <Typography.Paragraph
+              className={cn(
+                formControlSwitchDescriptionClassName,
+                "text-tertiary-alt text-xs leading-5",
+              )}
+            >
               {subAgentsDescription}
             </Typography.Paragraph>
           ) : null}

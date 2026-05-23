@@ -95,7 +95,7 @@ function SkillsSettingsScreen() {
       <main className={cn(settingsLikeMainScrollClassName, "h-full")}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0 space-y-1">
-            <h2 className="text-xl font-semibold leading-6 text-foreground">
+            <h2 className="text-xl font-medium leading-6 text-foreground">
               {t(I18nKey.SETTINGS$SKILLS_TITLE)}
             </h2>
             <div

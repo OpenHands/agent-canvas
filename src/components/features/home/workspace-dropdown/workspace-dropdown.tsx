@@ -3,6 +3,7 @@ import { useCombobox } from "downshift";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "#/utils/utils";
+import { formControlFieldClassName } from "#/utils/form-control-classes";
 import { LocalWorkspace } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
@@ -168,7 +169,7 @@ export function WorkspaceDropdown({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
+      <div className="group relative text-[var(--oh-muted)] hover:text-white">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           <RepoIcon width={16} height={16} />
         </div>
@@ -177,11 +178,10 @@ export function WorkspaceDropdown({
             disabled,
             placeholder: placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER),
             className: cn(
-              "w-full px-3 py-2 border border-[var(--oh-border-input)] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
-              "bg-tertiary text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
-              "focus:outline-none focus:ring-0 focus:border-[var(--oh-border-input)]",
-              "disabled:bg-tertiary disabled:cursor-not-allowed disabled:opacity-60",
-              "pl-7 pr-16 text-sm font-normal leading-5",
+              formControlFieldClassName,
+              "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",
+              "placeholder:text-[var(--oh-muted)]",
+              "disabled:cursor-not-allowed disabled:opacity-60",
             ),
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
               setInputValue(e.target.value);
@@ -196,7 +196,6 @@ export function WorkspaceDropdown({
             isOpen={isOpen}
             disabled={disabled}
             getToggleButtonProps={getToggleButtonProps}
-            iconClassName="w-10 h-10"
           />
         </div>
       </div>

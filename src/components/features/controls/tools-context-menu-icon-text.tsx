@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 interface ToolsContextMenuIconTextProps {
   icon: React.ReactNode;
@@ -22,7 +23,10 @@ export function ToolsContextMenuIconText({
     >
       <div className="flex min-w-0 items-center gap-2">
         <span
-          className="flex shrink-0 items-center text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:text-current"
+          className={cn(
+            "flex shrink-0 items-center text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:text-current",
+            formControlTransitionClassName,
+          )}
           aria-hidden
         >
           {icon}
@@ -31,7 +35,10 @@ export function ToolsContextMenuIconText({
       </div>
       {rightIcon ? (
         <span
-          className="flex shrink-0 items-center text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:text-current"
+          className={cn(
+            "flex shrink-0 items-center text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:text-current",
+            formControlTransitionClassName,
+          )}
           aria-hidden
         >
           {rightIcon}

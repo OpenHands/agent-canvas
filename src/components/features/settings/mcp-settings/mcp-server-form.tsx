@@ -6,6 +6,7 @@ import { SettingsDropdownInput } from "../settings-dropdown-input";
 import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
+import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -376,8 +377,9 @@ export function MCPServerForm({
               defaultValue={server?.args?.join("\n") || ""}
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
-                "bg-tertiary border border-[var(--oh-border-input)] w-full rounded-sm p-2 placeholder:text-tertiary-alt resize-none",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
             <p className="text-xs text-tertiary-alt">
@@ -399,9 +401,9 @@ export function MCPServerForm({
               defaultValue={formatEnvironmentVariables(server?.env)}
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
-                "resize-none",
-                "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:text-tertiary-alt",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
           </label>

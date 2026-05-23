@@ -87,7 +87,7 @@ export function CustomServerEditor({
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <BaseModalTitle
-            className="text-lg"
+            className="text-lg font-medium"
             title={
               isEditing
                 ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)

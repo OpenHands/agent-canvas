@@ -136,9 +136,7 @@ export function WorkspaceSelectionForm({
         }
         onClick={handleLaunch}
         className={
-          onConfirm
-            ? "w-full font-semibold"
-            : "w-auto absolute bottom-5 left-5 right-5 font-semibold"
+          onConfirm ? "w-full" : "w-auto absolute bottom-5 left-5 right-5"
         }
       >
         {onConfirm

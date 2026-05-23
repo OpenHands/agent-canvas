@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import {
+  formControlInlineInputClassName,
+  formControlShellClassName,
+} from "#/utils/form-control-classes";
+import {
   SKILL_TYPE_FILTER_OPTIONS,
   type SkillTypeFilter,
 } from "./skill-type-filter";
@@ -36,15 +40,11 @@ export function SkillsToolbar({
   return (
     <div data-testid="skills-toolbar" className="flex flex-col gap-6">
       <div
-        className={cn(
-          "relative flex items-center w-full lg:w-1/2",
-          "rounded-lg border border-[var(--oh-border)] bg-base-secondary",
-          "focus-within:border-white/40 focus-within:ring-1 focus-within:ring-white/20",
-          "transition-colors",
-        )}
+        data-testid="skills-toolbar-search"
+        className={cn(formControlShellClassName, "w-full lg:w-1/2")}
       >
         <Search
-          className="ml-3 h-4 w-4 text-tertiary-alt shrink-0"
+          className="ml-3 h-4 w-4 shrink-0 text-tertiary-alt"
           aria-hidden
         />
         <input
@@ -54,11 +54,7 @@ export function SkillsToolbar({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t(I18nKey.SETTINGS$SKILLS_SEARCH_PLACEHOLDER)}
           aria-label={t(I18nKey.SETTINGS$SKILLS_SEARCH_PLACEHOLDER)}
-          className={cn(
-            "flex-1 min-w-0 bg-transparent border-0 outline-none",
-            "px-3 py-2 text-sm placeholder:text-tertiary-alt",
-            "[&::-webkit-search-cancel-button]:hidden",
-          )}
+          className={formControlInlineInputClassName}
         />
         {search && (
           <button
@@ -87,7 +83,7 @@ export function SkillsToolbar({
                 aria-pressed={active}
                 onClick={() => onTypeFilterChange(option)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  "rounded-full border px-3 py-1 text-xs font-normal transition-colors cursor-pointer",
                   active
                     ? "border-white/60 bg-white/10 text-white"
                     : "border-[var(--oh-border)] bg-transparent text-tertiary-light hover:border-[var(--cool-grey-500)] hover:text-white",

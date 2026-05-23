@@ -26,7 +26,7 @@ export function SettingsModal({ onClose, settings }: SettingsModalProps) {
           MODAL_MAX_WIDTH_VIEWPORT,
         )}
       >
-        <span className="text-5 leading-6 font-semibold -tracking-[0.2px]">
+        <span className="text-5 leading-6 font-medium -tracking-[0.2px]">
           {t(I18nKey.AI_SETTINGS$TITLE)}
         </span>
         <HelpLink

@@ -522,7 +522,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
         <h4
-          className="text-lg font-bold text-content-2"
+          className="text-lg font-medium text-white"
           data-testid="add-backend-cloud-title"
         >
           {t(I18nKey.BACKEND$CLOUD_TITLE)}

@@ -65,7 +65,7 @@ export function CreateInstructions({
           </p>
           <NavigationLink
             to={NEW_CONVERSATION_URL}
-            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-medium text-content hover:bg-surface-raised transition-colors"
+            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-normal text-content hover:bg-surface-raised transition-colors"
           >
             {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
             <span aria-hidden="true">→</span>
@@ -96,7 +96,7 @@ export function CreateInstructions({
           aria-expanded={isExpanded}
           className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-raised transition-colors rounded-lg"
         >
-          <span className="text-sm font-medium text-content">
+          <span className="text-sm font-normal text-content">
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon

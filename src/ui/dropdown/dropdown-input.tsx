@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { formControlInlineInputClassName } from "#/utils/form-control-classes";
 
 interface DropdownInputProps {
   placeholder?: string;
@@ -17,7 +18,8 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "flex-1 min-w-0 outline-none bg-transparent text-white not-italic placeholder:text-tertiary-alt",
+          formControlInlineInputClassName,
+          "px-0 not-italic text-inherit",
         ),
       })}
     />

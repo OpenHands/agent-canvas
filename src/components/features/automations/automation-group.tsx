@@ -24,7 +24,7 @@ export function AutomationGroup({
   return (
     <section>
       <div className="flex items-center">
-        <h2 className="text-sm font-semibold text-white">{title}</h2>
+        <h2 className="text-sm font-medium text-white">{title}</h2>
         <StatusBadge count={count} />
       </div>
       <div className="mt-3 flex flex-col gap-3">

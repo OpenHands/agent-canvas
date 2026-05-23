@@ -159,7 +159,10 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
           )}
         >
           <div className="flex items-start justify-between gap-4 p-5">
-            <BaseModalTitle title={t(I18nKey.BACKEND$MANAGE_TITLE)} />
+            <BaseModalTitle
+              title={t(I18nKey.BACKEND$MANAGE_TITLE)}
+              className="text-white"
+            />
             <button
               type="button"
               onClick={onClose}

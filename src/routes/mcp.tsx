@@ -137,7 +137,7 @@ export default function MCPPage() {
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold leading-6 text-foreground">
+                <h2 className="text-xl font-medium leading-6 text-foreground">
                   {t(I18nKey.SETTINGS$MCP_TITLE)}
                 </h2>
                 <div className="max-w-2xl text-sm text-tertiary-light">
@@ -159,7 +159,7 @@ export default function MCPPage() {
           <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-base font-medium text-foreground">
               {t(I18nKey.MCP$INSTALLED_TITLE)}
             </h2>
             <InstalledServersSection

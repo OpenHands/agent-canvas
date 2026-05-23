@@ -111,7 +111,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
             type="button"
             onClick={() => setShowFullDescription((prev) => !prev)}
             data-testid={`skill-show-more-${skill.name}`}
-            className="mt-1 text-xs font-medium text-[var(--oh-muted)] hover:text-white hover:underline transition-colors"
+            className="mt-1 text-xs font-normal text-[var(--oh-muted)] hover:text-white hover:underline transition-colors"
           >
             {showFullDescription
               ? t(I18nKey.SETTINGS$SKILLS_SHOW_LESS)
@@ -143,7 +143,7 @@ export function SkillCard({ skill, enabled, onToggle }: SkillCardProps) {
             data-testid={`skill-details-toggle-${skill.name}`}
             aria-expanded={detailsOpen}
             onClick={() => setDetailsOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between text-xs font-medium text-tertiary-light hover:text-white"
+            className="flex w-full items-center justify-between text-xs font-normal text-tertiary-light hover:text-white"
           >
             <span>{t(I18nKey.SETTINGS$SKILLS_DETAILS)}</span>
             <ChevronDownIcon

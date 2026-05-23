@@ -71,7 +71,7 @@ export function DetailHeader({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-content">
+          <h1 className="text-xl font-medium text-content">
             {automation.name}
           </h1>
           <ActiveStatusBadge active={automation.enabled} />

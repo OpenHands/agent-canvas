@@ -96,7 +96,7 @@ export function RecommendedAutomationsSection({
   return (
     <section data-testid="recommended-automations-section">
       <div className="flex items-center">
-        <h2 className="text-sm font-semibold text-white">
+        <h2 className="text-sm font-medium text-white">
           {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
         </h2>
         <StatusBadge count={visibleAutomations.length} />
@@ -122,10 +122,10 @@ export function RecommendedAutomationsSection({
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-muted">
+                  <div className="text-xs font-normal text-muted">
                     {automation.category}
                   </div>
-                  <h3 className="mt-1 truncate text-base font-semibold text-white">
+                  <h3 className="mt-1 truncate text-base font-normal text-white">
                     {automation.name}
                   </h3>
                   <p className="mt-1 line-clamp-2 text-sm text-muted">

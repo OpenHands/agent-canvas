@@ -9,6 +9,16 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
+const mockDisplayErrorToast = vi.fn();
+
+vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/utils/custom-toast-handlers")>();
+  return {
+    ...actual,
+    displayErrorToast: (...args: unknown[]) => mockDisplayErrorToast(...args),
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -294,7 +304,6 @@ describe("HomeChatLauncher", () => {
   });
 
   it("surfaces a toast and skips navigation when conversation creation fails", async () => {
-    const toastErrorSpy = vi.spyOn(toast, "error");
     vi.spyOn(AgentServerConversationService, "createConversation").mockRejectedValue(
       new Error("Network down"),
     );
@@ -303,7 +312,7 @@ describe("HomeChatLauncher", () => {
     const user = userEvent.setup();
     await user.click(screen.getByTestId("stub-chat-submit"));
 
-    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalled());
+    await waitFor(() => expect(mockDisplayErrorToast).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
