@@ -2,11 +2,14 @@
 
 Status: working build plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
+Agent execution checklist: [ExtensionsSystemAgentExecutionPlan.md](./ExtensionsSystemAgentExecutionPlan.md)
 Target branch: `dv/extensions-poc-v1`
 
 ## 1. Purpose
 
 This document turns the Extensions RFC into a practical MVP / PoC build path. The RFC should stay clean and reviewable as the product/architecture proposal. This plan is the working artifact for agents and developers implementing the proof, testing risky assumptions, and tightening the design based on real code.
+
+For multi-agent implementation, use [ExtensionsSystemAgentExecutionPlan.md](./ExtensionsSystemAgentExecutionPlan.md) as the task checklist. It breaks this plan into gates, parallel workstreams, task IDs, file ownership, verification commands, and handoff notes.
 
 The MVP should be built as a vertical proof, not as isolated architecture layers. The first complete proof should demonstrate:
 

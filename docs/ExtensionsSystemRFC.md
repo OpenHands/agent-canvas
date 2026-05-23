@@ -858,6 +858,8 @@ Extension views look like regular Canvas pages but are visibly extension-owned: 
 
 ## 25. Implementation Plan
 
+The multi-agent, checkable execution checklist for this plan lives in [ExtensionsSystemAgentExecutionPlan.md](./ExtensionsSystemAgentExecutionPlan.md). Use this section for PR boundaries and the execution plan for task ownership, dependencies, verification commands, and handoff notes.
+
 ### PR 0 — Contract and types
 
 Files: `docs/ExtensionsSystemRFC.md`, `src/extensions/types.ts`, `src/extensions/manifest-schema.ts`, `src/extensions/manifest-validation.ts`, `src/extensions/artifact-detection.ts`, `__tests__/extensions/manifest-validation.test.ts`.
