@@ -1,28 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { AutomationRunStatus } from "#/types/automation";
 import type {
   Automation,
+  AutomationRun,
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
 import type { Backend } from "#/api/backend-registry/types";
 
 // Use vi.hoisted to define mocks that will be available during vi.mock hoisting
-const { mockGet, mockPatch, mockPost, mockDelete, mockCallCloudProxy, mockGetActive } =
-  vi.hoisted(() => ({
-    mockGet: vi.fn(),
-    mockPatch: vi.fn(),
-    mockPost: vi.fn(),
-    mockDelete: vi.fn(),
-    mockCallCloudProxy: vi.fn(),
-    mockGetActive: vi.fn(),
-  }));
+const {
+  mockGet,
+  mockPatch,
+  mockPost,
+  mockDelete,
+  mockCallCloudProxy,
+  mockGetActive,
+} = vi.hoisted(() => ({
+  mockGet: vi.fn(),
+  mockPatch: vi.fn(),
+  mockPost: vi.fn(),
+  mockDelete: vi.fn(),
+  mockCallCloudProxy: vi.fn(),
+  mockGetActive: vi.fn(),
+}));
 
 vi.mock("axios", () => ({
   default: {
     create: () => ({
       get: mockGet,
-      patch: mockPatch,
       post: mockPost,
+
+      patch: mockPatch,
       delete: mockDelete,
       interceptors: {
         request: {
@@ -67,9 +76,19 @@ const mockAutomation: Automation = {
   trigger: { type: "schedule", schedule_human: "Daily at 09:00" },
   enabled: true,
   repository: "acme/repo",
-  model: "Claude Opus",
+  model: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-02T00:00:00Z",
+};
+
+const mockRun: AutomationRun = {
+  id: "run-1",
+  status: AutomationRunStatus.PENDING,
+  conversation_id: null,
+  bash_command_id: null,
+  error_detail: null,
+  started_at: "2026-01-03T00:00:00Z",
+  completed_at: null,
 };
 
 describe("AutomationService", () => {
@@ -169,6 +188,31 @@ describe("AutomationService", () => {
         name: "Updated Name",
       });
       expect(result).toEqual(updated);
+    });
+
+    it("sends model profile updates to the automation API", async () => {
+      const updated = { ...mockAutomation, model: "careful-profile" };
+      mockPatch.mockResolvedValue({ data: updated });
+
+      const result = await AutomationService.updateAutomation("1", {
+        model: "careful-profile",
+      });
+
+      expect(mockPatch).toHaveBeenCalledWith("/api/automation/v1/1", {
+        model: "careful-profile",
+      });
+      expect(result).toEqual(updated);
+    });
+  });
+
+  describe("dispatchAutomation", () => {
+    it("posts to the dispatch endpoint", async () => {
+      mockPost.mockResolvedValue({ data: mockRun });
+
+      const result = await AutomationService.dispatchAutomation("1");
+
+      expect(mockPost).toHaveBeenCalledWith("/api/automation/v1/1/dispatch");
+      expect(result).toEqual(mockRun);
     });
   });
 
@@ -304,6 +348,20 @@ describe("AutomationService", () => {
         path: "/api/automation/v1/abc",
       });
       expect(result).toEqual(mockAutomation);
+    });
+
+    it("dispatchAutomation forwards method POST via callCloudProxy", async () => {
+      mockCallCloudProxy.mockResolvedValue(mockRun);
+
+      const result = await AutomationService.dispatchAutomation("abc");
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "POST",
+        path: "/api/automation/v1/abc/dispatch",
+      });
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(result).toEqual(mockRun);
     });
 
     it("updateAutomation forwards method PATCH and body via callCloudProxy", async () => {

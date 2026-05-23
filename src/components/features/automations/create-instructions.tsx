@@ -108,7 +108,7 @@ export function CreateInstructions({
           aria-expanded={isExpanded}
           className="flex w-full items-center justify-between rounded-lg p-4 text-left transition-colors hover:bg-surface-raised"
         >
-          <span className="text-sm font-medium text-content">
+          <span className="text-sm font-normal text-content">
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon

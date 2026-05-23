@@ -31,7 +31,7 @@ export function SkillsToolbar({
         )}
       >
         <Search
-          className="ml-3 h-4 w-4 text-tertiary-alt shrink-0"
+          className="ml-3 h-4 w-4 shrink-0 text-tertiary-alt"
           aria-hidden
         />
         <input
@@ -41,11 +41,6 @@ export function SkillsToolbar({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t(I18nKey.SETTINGS$SKILLS_SEARCH_PLACEHOLDER)}
           aria-label={t(I18nKey.SETTINGS$SKILLS_SEARCH_PLACEHOLDER)}
-          className={cn(
-            "flex-1 min-w-0 bg-transparent border-0 outline-none",
-            "px-3 py-2 text-sm placeholder:text-tertiary-alt",
-            "[&::-webkit-search-cancel-button]:hidden",
-          )}
         />
         {search ? (
           <button

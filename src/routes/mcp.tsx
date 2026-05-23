@@ -113,7 +113,10 @@ export default function MCPPage() {
 
   if (isLoading || !settings) {
     return (
-      <div data-testid="mcp-page" className="flex h-full gap-10">
+      <div
+        data-testid="mcp-page"
+        className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+      >
         <ExtensionsNavigation />
         <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
           <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
@@ -123,14 +126,17 @@ export default function MCPPage() {
   }
 
   return (
-    <div data-testid="mcp-page" className="flex h-full gap-10">
+    <div
+      data-testid="mcp-page"
+      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+    >
       <ExtensionsNavigation />
       <main className={settingsLikeMainScrollClassName}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold leading-6 text-foreground">
+                <h2 className="text-xl font-medium leading-6 text-foreground">
                   {t(I18nKey.SETTINGS$MCP_TITLE)}
                 </h2>
                 <div className="max-w-2xl text-sm text-tertiary-light">

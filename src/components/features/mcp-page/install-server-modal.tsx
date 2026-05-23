@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
+import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -12,6 +13,9 @@ import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+
+const ICON_BUTTON_CLASS =
+  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -282,6 +286,16 @@ export function InstallServerModal({
             <h2 className="text-lg font-semibold">{entry.name}</h2>
             <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className={ICON_BUTTON_CLASS}
+            aria-label={t(I18nKey.BUTTON$CLOSE)}
+            data-testid="close-mcp-install-modal"
+          >
+            <X size={20} aria-hidden />
+          </button>
         </div>
 
         {entry.installHint && (

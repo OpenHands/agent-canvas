@@ -5,7 +5,7 @@ export function EmptyState() {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="rounded-md p-4 text-center">
+    <div className="text-center">
       <p className="text-[var(--oh-muted)]">
         {t(I18nKey.CONVERSATION$NO_METRICS)}
       </p>

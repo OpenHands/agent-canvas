@@ -3,6 +3,8 @@ import React, { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { OptionalTag } from "./optional-tag";
 import { cn } from "#/utils/utils";
+import { formControlSettingsFieldClassName } from "#/utils/form-control-classes";
+import { heroUiAutocompleteSelectorButtonClassName } from "#/ui/combobox-caret";
 
 interface SettingsDropdownInputProps {
   testId: string;
@@ -65,7 +67,7 @@ export function SettingsDropdownInput({
         aria-label={typeof label === "string" ? label : name}
         data-testid={testId}
         name={name}
-        items={items}
+        defaultItems={items}
         defaultSelectedKey={defaultSelectedKey}
         selectedKey={selectedKey}
         onSelectionChange={onSelectionChange}
@@ -79,14 +81,13 @@ export function SettingsDropdownInput({
         className="w-full"
         classNames={{
           popoverContent: "bg-content1 rounded-xl",
-          selectorButton:
-            "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
+          selectorButton: heroUiAutocompleteSelectorButtonClassName,
         }}
         selectorButtonProps={{ disableRipple: true }}
         inputProps={{
           classNames: {
             inputWrapper: cn(
-              "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 placeholder:italic",
+              formControlSettingsFieldClassName,
               inputWrapperClassName,
             ),
             input: inputClassName,

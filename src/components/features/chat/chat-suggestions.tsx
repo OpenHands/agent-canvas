@@ -25,7 +25,7 @@ export function ChatSuggestions({ onSuggestionsClick }: ChatSuggestionsProps) {
           className="pointer-events-auto absolute inset-x-4 bottom-[151px] top-0 flex flex-col items-center justify-center md:inset-x-8"
         >
           <div className="flex flex-col items-center p-4 rounded-xl w-full">
-            <span className="text-[32px] font-bold leading-5 text-white pb-6">
+            <span className="pb-6 text-[32px] font-medium leading-5 text-white">
               {t(I18nKey.LANDING$TITLE)}
             </span>
           </div>

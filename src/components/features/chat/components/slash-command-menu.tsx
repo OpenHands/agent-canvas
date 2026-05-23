@@ -110,7 +110,7 @@ function SlashCommandMenuItem({
         onSelect(item);
       }}
     >
-      <Text className="font-semibold">{item.command}</Text>
+      <Text className="font-normal">{item.command}</Text>
       {description && (
         <Text className="text-xs text-[var(--oh-muted)] mt-0.5 truncate block">
           {description}

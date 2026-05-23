@@ -115,8 +115,8 @@
   --oh-status-success: #1FBD53;
   --oh-status-error: #FF684E;
   --oh-link: var(--cool-grey-100);
-  --oh-radius: 5px;
-  --oh-field-radius: 5px;
+  --oh-radius: 8px;
+  --oh-field-radius: 8px;
   --oh-surface-shadow: none;
   --oh-overlay-shadow: none;
   --oh-field-shadow: none;
@@ -421,34 +421,34 @@ button.extension-module-card-interactive {
 }
 
 .loader {
-  background: #c9b974;
+  background: var(--oh-color-primary);
   animation: l5 1s infinite linear alternate;
 }
 
 @keyframes l5 {
   0% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: #c9b974;
+      20px 0 var(--oh-color-primary),
+      -20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
+    background: var(--oh-color-primary);
   }
   33% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 var(--oh-color-primary),
+      -20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
   }
   66% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent),
+      -20px 0 var(--oh-color-primary);
+    background: color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
   }
   100% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: #c9b974;
+      20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent),
+      -20px 0 var(--oh-color-primary);
+    background: var(--oh-color-primary);
   }
 }
 

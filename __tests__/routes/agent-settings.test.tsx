@@ -60,6 +60,30 @@ describe("AgentSettingsScreen", () => {
     expect(screen.queryByTestId("agent-command-input")).not.toBeInTheDocument();
   });
 
+  it("labels the save button 'Save Changes' for consistency with other settings pages", async () => {
+    // Arrange — render with any valid settings; the label is independent
+    // of the form's state.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+        },
+      }),
+    );
+
+    // Act
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    // Assert — t() is stubbed to return the key, so the rendered text is
+    // the translation key. SETTINGS$SAVE_CHANGES = "Save Changes" in
+    // public/locales/en/openhands.json; BUTTON$SAVE = "Save" (the bug).
+    expect(screen.getByTestId("agent-save-button")).toHaveTextContent(
+      "SETTINGS$SAVE_CHANGES",
+    );
+  });
+
   it("saves enable_sub_agents when toggling on the OpenHands path", async () => {
     const user = userEvent.setup();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(

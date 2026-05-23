@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { formControlInlineInputClassName } from "#/utils/form-control-classes";
 
 interface DropdownInputProps {
   placeholder?: string;
@@ -29,6 +30,8 @@ export function DropdownInput({
           italicPlaceholder &&
             "placeholder:italic placeholder:text-tertiary-alt",
           !italicPlaceholder && "placeholder:text-tertiary-alt",
+          formControlInlineInputClassName,
+          "px-0 not-italic text-inherit",
         ),
       })}
     />

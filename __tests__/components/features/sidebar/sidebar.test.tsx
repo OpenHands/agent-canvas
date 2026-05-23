@@ -1,9 +1,16 @@
-import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
 import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
+import { useSidebarStore } from "#/stores/sidebar-store";
 import {
   NavigationProvider,
   type NavigationContextValue,
@@ -20,9 +27,9 @@ vi.mock("react-i18next", async () => {
     ...(actual as object),
     useTranslation: () => ({
       t: (key: string) => {
-        const entry = (
-          translations as Record<string, Record<string, string>>
-        )[key];
+        const entry = (translations as Record<string, Record<string, string>>)[
+          key
+        ];
         return entry?.en ?? key;
       },
       i18n: { language: "en", exists: () => false },
@@ -215,16 +222,22 @@ function renderSidebar(currentPath: string) {
 describe("Sidebar", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    // Zustand store is a module singleton; reset it so collapsed state from
+    // a prior test doesn't bleed into this one.
+    useSidebarStore.setState({ collapsed: false });
   });
 
   afterEach(() => {
     window.localStorage.clear();
+    useSidebarStore.setState({ collapsed: false });
   });
 
   it("opens and closes the mobile navigation drawer from the menu button", async () => {
     renderSidebar("/conversations");
 
-    expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sidebar-mobile-drawer"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("sidebar-mobile-menu-toggle"));
     const drawer = screen.getByTestId("sidebar-mobile-drawer");
@@ -235,7 +248,9 @@ describe("Sidebar", () => {
 
     fireEvent.click(within(drawer).getByTestId("sidebar-mobile-drawer-close"));
     await waitFor(() => {
-      expect(screen.queryByTestId("sidebar-mobile-drawer")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("sidebar-mobile-drawer"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -258,7 +273,7 @@ describe("Sidebar", () => {
 
   it("expands the sidebar when the toggle is clicked from the collapsed state", () => {
     // Arrange: simulate a user whose sidebar was previously collapsed.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     // Act
@@ -269,7 +284,7 @@ describe("Sidebar", () => {
   });
 
   it("expands the sidebar when collapsed rail empty space is clicked", () => {
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     const sidebar = getDesktopSidebar(true);
@@ -280,7 +295,7 @@ describe("Sidebar", () => {
   });
 
   it("shows collapsed server/settings action icons when sidebar is collapsed", () => {
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     expect(screen.getByTestId("collapsed-settings-link")).toBeInTheDocument();
@@ -291,7 +306,7 @@ describe("Sidebar", () => {
   });
 
   it("navigates to settings when collapsed settings icon is clicked", () => {
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     const { navigate } = renderSidebar("/conversations");
 
     fireEvent.click(screen.getByTestId("collapsed-settings-link"));
@@ -299,7 +314,7 @@ describe("Sidebar", () => {
   });
 
   it("opens the backend popover when hovering the collapsed backend icon", async () => {
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     expect(screen.queryByTestId("backend-selector")).not.toBeInTheDocument();
@@ -314,7 +329,7 @@ describe("Sidebar", () => {
     // Bug: clicking a backend <li role='option'> bubbled up to the aside's
     // rail-collapse handler (which only bails on a/button/[role=button]),
     // so selecting a backend would expand the sidebar mid-switch.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     const sidebar = getDesktopSidebar(true);
@@ -338,7 +353,7 @@ describe("Sidebar", () => {
     // out of the popover toward the centred modal, mouseLeave closed the
     // popover, which unmounted BackendSelector and tore the modal down with
     // it. Modal state must live above the popover to survive its unmount.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     const trigger = screen.getByTestId("collapsed-backend-selector-link");
@@ -359,7 +374,7 @@ describe("Sidebar", () => {
   });
 
   it("keeps the Manage Backends modal open after the popover closes", async () => {
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     renderSidebar("/conversations");
 
     const trigger = screen.getByTestId("collapsed-backend-selector-link");
@@ -387,7 +402,7 @@ describe("Sidebar", () => {
     // downshift and was treated as "outside". The fix stops propagation on
     // the button so neither event reaches the window listeners that close
     // the menu.
-    window.localStorage.setItem("openhands-sidebar-collapsed", "true");
+    useSidebarStore.setState({ collapsed: true });
     const windowMouseDown = vi.fn();
     const windowMouseUp = vi.fn();
     window.addEventListener("mousedown", windowMouseDown);

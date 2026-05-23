@@ -1,6 +1,7 @@
 import React from "react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
 import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 interface EllipsisButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -49,7 +50,8 @@ export const EllipsisButton = React.forwardRef<
       onClick={onClick}
       aria-label={ariaLabel}
       className={cn(
-        "p-1 rounded-md cursor-pointer transition-colors",
+        "p-1 rounded-md cursor-pointer",
+        formControlTransitionClassName,
         "text-[var(--oh-muted)] hover:text-white hover:bg-white/10",
         "flex items-center justify-center",
         className,

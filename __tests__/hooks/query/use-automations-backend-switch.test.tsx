@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import AutomationService from "#/api/automation-service/automation-service.api";
@@ -10,11 +10,16 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
-import { useAutomations } from "#/hooks/query/use-automations";
+import {
+  useAutomations,
+  useDispatchAutomation,
+} from "#/hooks/query/use-automations";
 import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import type { Backend } from "#/api/backend-registry/types";
+import { AutomationRunStatus } from "#/types/automation";
 import type {
   Automation,
+  AutomationRun,
   AutomationsResponse,
 } from "#/types/automation";
 
@@ -22,6 +27,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
     getAutomations: vi.fn(),
     getAutomation: vi.fn(),
+    dispatchAutomation: vi.fn(),
   },
 }));
 
@@ -48,9 +54,19 @@ const automation: Automation = {
   trigger: { type: "schedule", schedule_human: "Daily" },
   enabled: true,
   repository: "acme/repo",
-  model: "Claude",
+  model: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
+};
+
+const automationRun: AutomationRun = {
+  id: "run-1",
+  status: AutomationRunStatus.PENDING,
+  conversation_id: null,
+  bash_command_id: null,
+  error_detail: null,
+  started_at: "2026-01-02T00:00:00Z",
+  completed_at: null,
 };
 
 const listResponse: AutomationsResponse = {
@@ -76,6 +92,11 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   vi.mocked(AutomationService.getAutomations).mockReset();
   vi.mocked(AutomationService.getAutomation).mockReset();
+  vi.mocked(AutomationService.dispatchAutomation).mockReset();
+  vi.mocked(AutomationService.dispatchAutomation).mockResolvedValue(
+    automationRun,
+  );
+
   vi.mocked(AutomationService.getAutomations).mockResolvedValue(listResponse);
   vi.mocked(AutomationService.getAutomation).mockResolvedValue(automation);
   setRegisteredBackends([localBackend, cloudBackend]);
@@ -109,10 +130,9 @@ describe("automation hooks — backend switch", () => {
   });
 
   it("useAutomationDetail refetches when the active backend changes", async () => {
-    const { result } = renderHook(
-      () => useAutomationDetail({ id: "auto-1" }),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => useAutomationDetail({ id: "auto-1" }), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
 
@@ -121,5 +141,17 @@ describe("automation hooks — backend switch", () => {
     await waitFor(() => {
       expect(AutomationService.getAutomation).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("useDispatchAutomation dispatches the selected automation", async () => {
+    const { result } = renderHook(() => useDispatchAutomation(), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync("auto-1");
+    });
+
+    expect(AutomationService.dispatchAutomation).toHaveBeenCalledWith("auto-1");
   });
 });

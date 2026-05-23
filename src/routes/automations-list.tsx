@@ -130,7 +130,7 @@ export default function AutomationsList() {
     return (
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
-          <h1 className="text-xl font-semibold text-content">
+          <h1 className="text-xl font-medium text-content">
             {t(I18nKey.AUTOMATIONS$TITLE)}
           </h1>
           <p className="mt-1 text-sm text-muted">
@@ -151,7 +151,7 @@ export default function AutomationsList() {
     return (
       <div className="min-h-full">
         <div className="p-6 max-w-4xl mx-auto">
-          <h1 className="text-xl font-semibold text-content">
+          <h1 className="text-xl font-medium text-content">
             {t(I18nKey.AUTOMATIONS$TITLE)}
           </h1>
           <p className="mt-1 text-sm text-muted">
