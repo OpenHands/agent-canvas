@@ -10,12 +10,22 @@ This document turns the Extensions RFC into a practical MVP / PoC build path. Th
 
 The MVP should be built as a vertical proof, not as isolated architecture layers. The first complete proof should demonstrate:
 
-1. A local or npm-packed extension installs into `~/.openhands/agent-canvas/installations`.
+1. A local or npm-packed Agent Canvas extension installs into `~/.openhands/agent-canvas/installations`.
 2. The Packages page shows the installed extension and its diagnostics.
 3. A trusted `browser.module` view renders at `/extensions/:extensionId/:viewId/*`.
 4. A view can contribute a primary Sidebar entry after Automations and before the conversation list.
 5. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
 6. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
+
+## 1.1 Scope Locks From The RFC
+
+These decisions should keep the build from spreading sideways:
+
+- First-class install/enable support is for Agent Canvas extension manifests only. Standalone SDK plugins, `SKILL.md` folders, and future MCP-template artifacts can be detected, but they return an explicit unsupported-in-MVP diagnostic unless wrapped by an extension.
+- CLI management commands must dispatch before stack startup, before the static `build/` existence check, and before importing `scripts/dev-with-automation.mjs`.
+- Extension author types need a real package subpath: `@openhands/agent-canvas/extensions`, emitted under `dist/extensions/*` and included in npm release checks.
+- Conversation contribution work targets the current start payload: top-level `agent_settings` plus optional top-level `plugins`. Do not reintroduce the legacy `agent` payload shape.
+- Package-relative/local SDK plugin sources are MVP only when the launcher says `localInstallStoreReadable=true`. ACP runtimes skip extension SDK plugins unless a pinned-version smoke proves the exact plugin shape is compatible.
 
 ## 2. Risk-Burner Spikes
 
@@ -29,15 +39,17 @@ Add a tiny fixture SDK plugin under:
 examples/extensions/hello-canvas/agent/hello-plugin
 ```
 
-Start a local conversation with its resolved absolute path in `plugins`. Confirm the current pinned Agent Server accepts the `PluginSource` shape and can load a package-relative path when `localInstallStoreReadable` is true.
+Start a local conversation with its resolved absolute path in top-level `plugins`. Confirm the current pinned Agent Server (`config/defaults.json` pins `agentServer` to `1.23.0`) accepts the SDK `PluginSource` shape (`source`, optional `ref`, optional `repo_path`) and can load a package-relative path when `localInstallStoreReadable` is true. The plugin root should contain `.plugin/plugin.json`; if a fixture uses a local path, resolve `source` directly to the plugin root and omit `repo_path`.
 
-If this fails, keep context contributions in MVP and move SDK plugin merge behind a feature flag until the SDK team confirms the loading contract.
+Also run the same contribution preflight with an ACP agent configuration. If ACP fails or the plugin injects MCP/hooks/tool/agent-definition state, keep ACP on context-only extension support and show disabled reasons for SDK plugin contributions. If the local-path smoke fails for the pinned server, keep context contributions in MVP and move SDK plugin merge behind a feature flag until the SDK team confirms the loading contract.
 
 ### 2.2 Static Dynamic-Import Smoke
 
 Serve a tiny browser-ready ESM file from a local test host and dynamically import it from the static production build.
 
 The extension module must use only bundled or relative imports. This proves the DOM-island `mount()` contract works without Vite, shared React, import maps, or module federation.
+
+Add a negative fixture with a bare runtime import such as `react` and verify validation rejects it with an actionable diagnostic. Type-only imports from `@openhands/agent-canvas/extensions` are fine because the extension build erases them; runtime imports from that package are not MVP-supported.
 
 ### 2.3 Launcher Route Smoke
 
@@ -46,10 +58,25 @@ Start a toy Extension Host and route `/api/canvas/installations/*` plus `/canvas
 Cover:
 
 - `scripts/dev-with-automation.mjs` ingress routes.
+- `scripts/dev-safe.mjs` / `dev:minimal`, where direct Vite proxying must handle Extension Host routes without the automation ingress.
 - `scripts/static-server.mjs` routes used by the packaged CLI/static mode.
 - `vite.config.ts` proxy support for direct Vite access, especially `/canvas-extensions/*`.
 
 Exit criteria: a browser opened through either the ingress port or direct Vite/static port can fetch registry JSON and import a browser module from `/canvas-extensions/...`.
+
+### 2.4 Npm Package / CLI Smoke
+
+Before any UI work, prove the upcoming release path:
+
+```sh
+npm run build
+npm run build:lib
+npm pack --dry-run
+node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs doctor
+```
+
+Then install from a packed tarball into a temp npm prefix and verify `agent-canvas list` and `agent-canvas doctor` work without a source checkout. This catches missing `scripts`, `build`, `dist/extensions`, schema files, and command-dispatch regressions before the feature depends on them.
 
 ## 3. Walking Skeleton
 
@@ -65,6 +92,7 @@ Add:
 - storage-path helpers
 - path normalization
 - manifest validation
+- public package export wiring for `@openhands/agent-canvas/extensions`
 
 Keep validation deliberately boring:
 
@@ -76,6 +104,8 @@ Keep validation deliberately boring:
 
 Avoid a large JSON Schema dependency unless configuration forms force it.
 
+PR 0 should also update `package.json#exports` for `./extensions` and make sure the library build emits `dist/extensions/*`. Keep the actual Extension Host and CLI behavior out of PR 0.
+
 ### 3.2 Manager Library
 
 Add `scripts/extension-manager.mjs` as the single source of truth for install-store reads/writes. Both CLI and HTTP host call this module.
@@ -84,7 +114,8 @@ It owns:
 
 - Store bootstrap: `package.json`, `package-lock.json`, `config.json`, `artifacts.json`, `logs/`.
 - Artifact detection.
-- Install from local path, tarball, npm spec.
+- Install Agent Canvas extension manifests from local path, tarball, npm spec.
+- Typed unsupported diagnostics for detected standalone SDK plugins, standalone skills, and placeholder MCP templates.
 - Enable/disable/remove/update.
 - Registry and launch-contribution projection.
 - Dev registration reads/writes.
@@ -102,7 +133,7 @@ agent-canvas doctor
 agent-canvas --disable-extensions
 ```
 
-MVP install can support local paths first, then npm specs. Npm installs must run in the private install store with install scripts denied by default.
+This dispatch must happen before checking for `build/` and before importing launcher scripts. MVP install can support local extension paths first, then npm specs. Npm installs must run in the private install store with install scripts denied by default. Standalone SDK plugin/skill/MCP-template inputs should return clear unsupported diagnostics rather than mutating user runtime state.
 
 ### 3.4 Extension Host
 
@@ -133,9 +164,12 @@ The launcher also emits frontend env/runtime metadata for:
 
 - `VITE_EXTENSIONS_ENABLED` or equivalent kill-switch state.
 - `VITE_LOCAL_INSTALL_STORE_READABLE=true` only when this `agent-canvas` process started the local Agent Server.
+- Extension Host route/base metadata if direct Vite/static access needs it.
 - Extension Host URL for dev tooling if needed.
 
 Do not expose a write-capable Extension Host key in agent prompts.
+
+Route precedence is the failure-prone part: `/api/canvas/installations/*` and `/canvas-extensions/*` must match before `/api/*` and static SPA fallback in every launcher path.
 
 ## 4. Frontend Proof
 
@@ -143,7 +177,7 @@ Do not expose a write-capable Extension Host key in agent prompts.
 
 Add `src/api/extensions-service.ts` for every `/api/canvas/installations/*` call.
 
-Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist entry for this wrapper, mirroring automation.
+Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist entry for this wrapper, mirroring automation but covering the current blanket `fetch('/api/...')` rule as well as axios. The exception should allow only `/api/canvas/installations/*` from the wrapper; it must not weaken the Agent Server rule for arbitrary `/api/*` calls.
 
 ### 4.2 Packages Page
 
@@ -155,6 +189,7 @@ The page should:
 - Show Enabled, Installed, Disabled, Invalid, and Dev sections.
 - Show install source, version, contribution badges, required secrets, diagnostics, enable/disable/remove actions.
 - Stay dense and operational; no marketplace browsing in MVP.
+- Route all visible strings, tooltips, and action labels through i18n keys.
 
 ### 4.3 View Host
 
@@ -212,7 +247,9 @@ Compute disabled reasons before launch:
 - Context blocks: allowed anywhere `system_message_suffix` is accepted.
 - Remote SDK plugin sources: allowed where `plugins` are accepted.
 - Package-relative/local SDK plugin paths: allowed only when `localInstallStoreReadable` is true.
+- ACP runtimes: context-only unless the SDK plugin smoke proves the exact plugin shape is ACP-compatible.
 - MCP templates: visible as setup requirements, never silently installed.
+- Public skills: do not assume public marketplace skills are loaded; current frontend defaults `VITE_LOAD_PUBLIC_SKILLS` to false unless explicitly set true.
 
 ### 5.3 Create-Conversation Merge
 
@@ -222,6 +259,7 @@ Extend the create-conversation path with an `extensionSystemSuffix` option:
 - `AgentServerConversationService.createConversation()` asks the extensions service for enabled/selected contributions.
 - Plugin specs merge with existing `/launch` plugin selections and dedupe by `source/ref/repo_path`.
 - `agent-server-adapter.ts` appends `<AGENT_CANVAS_RUNTIME>` and `<AGENT_CANVAS_EXTENSIONS>` after `<RUNTIME_SERVICES>`.
+- The adapter continues to emit top-level `agent_settings` and top-level `plugins`; no `agent` payload field is added.
 - `conversationInstructions` remains user-message content and never receives extension context.
 
 For the first proof, a `hello.canvas` launch template should append a recognizable context block so the payload/unit test can prove the suffix path works without depending on LLM behavior.
@@ -255,8 +293,11 @@ The MVP is proven when this scriptable path works from a clean checkout:
 
 ```sh
 npm run build
+npm run build:lib
+npm pack --dry-run
 node bin/agent-canvas.mjs install ./examples/extensions/hello-canvas --yes
 node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs doctor
 node bin/agent-canvas.mjs
 ```
 
@@ -269,11 +310,15 @@ Then in the browser:
 5. Start its launch template and verify the conversation payload includes the extension context suffix.
 6. In `npm run dev`, register the same extension with `--dev`, rebuild the extension output, and see the view remount with the new code.
 
+Release-path acceptance should also install the packed `@openhands/agent-canvas` tarball into a temp npm prefix and repeat `agent-canvas list`, `agent-canvas doctor`, and one packed/local extension install without relying on repo-local files outside the package.
+
 ## 8. Testing Strategy
 
-**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; asset route path validation; CLI arg parsing; no-install-scripts default; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
+**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
 
-**Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball; fetch registry and asset URLs; verify mutating routes require the session API key; verify `doctor` reports invalid manifests and missing assets.
+**Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball; fetch registry and asset URLs; verify route precedence before `/api/*` in Vite, ingress, static server, and packaged CLI paths; verify mutating routes require the session API key; verify `doctor` reports invalid manifests, unsupported standalone artifacts, and missing assets.
+
+**Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/extensions` resolves for type consumers.
 
 **Component:** Packages page empty/installed/enabled/invalid/dev states; install/enable/disable/remove action wiring; primary Sidebar extension entries in expanded/collapsed/mobile states; extension view loading/error/remount; extension settings read/patch; launch template preflight for incompatible SDK plugin paths.
 
@@ -291,6 +336,7 @@ npm run typecheck && npm test && npm run build
 
 - Marketplace/catalog discovery.
 - Sandboxed iframe runtime.
+- Standalone SDK plugin / standalone skill / standalone MCP-template management.
 - Package signing/provenance UI.
 - Rich command palette integration.
 - Agent-mediated installation.
