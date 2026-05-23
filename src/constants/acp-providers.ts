@@ -151,6 +151,12 @@ const CLAUDE_MODELS: ACPModelOption[] = [
   { id: "opusplan", label: "Opus (plan) + Sonnet (execute)" },
 ];
 
+// Model IDs accepted by the ``@zed-industries/codex-acp`` wrapper, mirroring
+// the Codex CLI's own ``/model`` picker. Format is ``<base-model>/<effort>``
+// where the trailing tier (``low``/``medium``/``high``/``xhigh``) hints the
+// reasoning effort for that turn. Sourced from the Codex CLI's documented
+// runtime options as of 2026-05-22 — see ``acp_model`` registry tracker
+// in agent-canvas#740 for the long-term plan.
 const CODEX_MODELS: ACPModelOption[] = [
   { id: "gpt-5.5/low", label: "GPT-5.5 (low)" },
   { id: "gpt-5.5/medium", label: "GPT-5.5 (medium)" },
@@ -174,18 +180,24 @@ const CODEX_MODELS: ACPModelOption[] = [
   { id: "gpt-5.2/xhigh", label: "GPT-5.2 (xhigh)" },
 ];
 
+// Model IDs accepted by ``@google/gemini-cli --acp``. The ``auto-gemini-*``
+// entries delegate version selection to the CLI's router; the explicit
+// ``gemini-3.1-*`` / ``gemini-2.5-*`` entries pin to a specific snapshot.
+// Sourced from the Gemini CLI's documented model list as of 2026-05-22 —
+// see agent-canvas#740 for the long-term plan to move this registry
+// upstream.
 const GEMINI_MODELS: ACPModelOption[] = [
   { id: "auto-gemini-3", label: "Auto (Gemini 3)" },
   { id: "auto-gemini-2.5", label: "Auto (Gemini 2.5)" },
-  { id: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview" },
-  { id: "gemini-3-flash-preview", label: "gemini-3-flash-preview" },
+  { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (preview)" },
+  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash (preview)" },
   {
     id: "gemini-3.1-flash-lite-preview",
-    label: "gemini-3.1-flash-lite-preview",
+    label: "Gemini 3.1 Flash Lite (preview)",
   },
-  { id: "gemini-2.5-pro", label: "gemini-2.5-pro" },
-  { id: "gemini-2.5-flash", label: "gemini-2.5-flash" },
-  { id: "gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite" },
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
 ];
 
 // Each entry's ``default_command`` is the published-package npx
