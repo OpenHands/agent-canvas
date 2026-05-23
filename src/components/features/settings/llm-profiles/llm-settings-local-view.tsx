@@ -20,6 +20,16 @@ import {
 } from "#/utils/derive-profile-name";
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
 import { SettingsFormValues } from "#/utils/sdk-settings-schema";
+import {
+  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
+  LLM_AUTH_TYPE_API_KEY,
+  LLM_AUTH_TYPE_KEY,
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  LLM_SUBSCRIPTION_VENDOR_KEY,
+  OPENAI_SUBSCRIPTION_VENDOR,
+  isOpenAISubscriptionModel,
+  resolveLlmAuthType,
+} from "#/constants/llm-subscription";
 import { ArrowLeft } from "lucide-react";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
@@ -109,6 +119,10 @@ export function LlmSettingsLocalView() {
           "llm.model": (config.model as string) ?? "",
           "llm.api_key": (config.api_key as string) ?? "",
           "llm.base_url": (config.base_url as string) ?? "",
+          [LLM_AUTH_TYPE_KEY]: resolveLlmAuthType(config.auth_type),
+          [LLM_SUBSCRIPTION_VENDOR_KEY]:
+            (config.subscription_vendor as string) ??
+            OPENAI_SUBSCRIPTION_VENDOR,
         };
 
         setEditingProfile({ profile, initialValues });
@@ -163,6 +177,7 @@ export function LlmSettingsLocalView() {
       typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
     const baseUrl =
       typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+    const authType = resolveLlmAuthType(values[LLM_AUTH_TYPE_KEY]);
 
     if (!model) {
       displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
@@ -182,30 +197,28 @@ export function LlmSettingsLocalView() {
         await ProfilesService.renameProfile(originalName, trimmedName);
       }
 
-      // Build the LLM config object
       const llmConfig: Record<string, unknown> = { model };
 
-      // API key handling:
-      // - If user entered a new key, use it
-      // - In edit mode with no new key, preserve the existing encrypted key
-      //   (fetched with exposeSecrets='encrypted' and passed back to server)
-      // - In create mode with no key, omit api_key entirely
-      //
-      // Note: The current UX doesn't support explicitly clearing an API key.
-      // If needed, a future enhancement could add a "Clear API Key" option.
-      // The encrypted key format is stable and can be round-tripped to the server.
-      if (apiKey) {
-        llmConfig.api_key = apiKey;
-      } else if (
-        viewMode === "edit" &&
-        editingProfile?.initialValues["llm.api_key"]
-      ) {
-        llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
-      }
+      if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+        llmConfig.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+        llmConfig.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+        if (!isOpenAISubscriptionModel(model)) {
+          llmConfig.model = DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
+        }
+      } else {
+        llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
+        if (apiKey) {
+          llmConfig.api_key = apiKey;
+        } else if (
+          viewMode === "edit" &&
+          editingProfile?.initialValues["llm.api_key"]
+        ) {
+          llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
+        }
 
-      // Only include base_url if set
-      if (baseUrl) {
-        llmConfig.base_url = baseUrl;
+        if (baseUrl) {
+          llmConfig.base_url = baseUrl;
+        }
       }
 
       await saveProfile.mutateAsync({
@@ -318,7 +331,13 @@ export function LlmSettingsLocalView() {
             ? // Edit mode: use the existing profile values
               editingProfile.initialValues
             : // Create mode: start with empty fields for a fresh profile
-              { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
+              {
+                "llm.model": "",
+                "llm.api_key": "",
+                "llm.base_url": "",
+                [LLM_AUTH_TYPE_KEY]: LLM_AUTH_TYPE_API_KEY,
+                [LLM_SUBSCRIPTION_VENDOR_KEY]: OPENAI_SUBSCRIPTION_VENDOR,
+              }
         }
         onSaveControlChange={handleSaveControlChange}
       />

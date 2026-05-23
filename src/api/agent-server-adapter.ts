@@ -19,6 +19,14 @@ import {
 } from "./conversation-service/agent-server-conversation-service.types";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
+import LLMSubscriptionService from "./llm-subscription-service";
+import {
+  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  OPENAI_SUBSCRIPTION_VENDOR,
+  isOpenAISubscriptionModel,
+  isSubscriptionLlmConfig,
+} from "#/constants/llm-subscription";
 
 export interface DirectConversationInfo {
   id: string;
@@ -579,6 +587,19 @@ function buildConfiguredOpenHandsAgentSettings(
     delete llm.base_url;
   }
 
+  if (isSubscriptionLlmConfig(llm)) {
+    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+    if (!isOpenAISubscriptionModel(String(llm.model))) {
+      llm.model = DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
+    }
+    delete llm.api_key;
+    delete llm.base_url;
+  } else {
+    delete llm.auth_type;
+    delete llm.subscription_vendor;
+  }
+
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
     delete agentSettings.mcp_config;
@@ -793,6 +814,21 @@ export function buildStartConversationRequest(
   return payload;
 }
 
+export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =
+  "Connect your ChatGPT subscription before starting a conversation with this LLM profile.";
+
+export async function assertSubscriptionAuthReady(
+  agentSettings: Record<string, unknown>,
+): Promise<void> {
+  const llm = toRecord(agentSettings.llm);
+  if (!isSubscriptionLlmConfig(llm)) return;
+
+  const status = await LLMSubscriptionService.getOpenAIStatus();
+  if (!status.connected) {
+    throw new Error(SUBSCRIPTION_LOGIN_REQUIRED_ERROR);
+  }
+}
+
 export async function buildStartConversationRequestWithEncryptedSettings(options: {
   settings: Settings;
   query?: string;
@@ -810,6 +846,8 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
+
+  await assertSubscriptionAuthReady(agentSettings);
 
   return buildStartConversationRequest({
     ...options,

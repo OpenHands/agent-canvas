@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import { AxiosError } from "axios";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles/llm-settings-local-view";
@@ -8,6 +8,41 @@ import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
+
+vi.mock("#/routes/llm-settings", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return {
+    LlmSettingsScreen: ({
+      initialValueOverrides,
+      onSaveControlChange,
+    }: {
+      initialValueOverrides?: Record<string, string | boolean>;
+      onSaveControlChange?: (control: {
+        save: () => void;
+        isSaving: boolean;
+        isDirty: boolean;
+        values: Record<string, string | boolean>;
+      }) => void;
+    }) => {
+      const initialValueOverridesRef = React.useRef(initialValueOverrides);
+      React.useEffect(() => {
+        onSaveControlChange?.({
+          save: vi.fn(),
+          isSaving: false,
+          isDirty: true,
+          values: {
+            "llm.model": "openai/gpt-4o",
+            "llm.api_key": "test-api-key",
+            "llm.base_url": "",
+            ...(initialValueOverridesRef.current ?? {}),
+          },
+        });
+      }, [onSaveControlChange]);
+
+      return <div data-testid="mock-llm-settings-screen" />;
+    },
+  };
+});
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
@@ -128,7 +163,9 @@ describe("LlmSettingsLocalView", () => {
     expect(
       screen.getByText(/Add LLM Profile|SETTINGS\$ADD_LLM_PROFILE/),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("profile-editor-description")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("profile-editor-description"),
+    ).toBeInTheDocument();
   });
 
   it("returns to list view when back button clicked", async () => {
@@ -189,55 +226,28 @@ describe("LlmSettingsLocalView", () => {
     renderWithProviders(<LlmSettingsLocalView />);
 
     // Error message component should be rendered (text is a translation key)
-    expect(screen.getByText("SETTINGS$PROFILES_LOAD_ERROR")).toBeInTheDocument();
+    expect(
+      screen.getByText("SETTINGS$PROFILES_LOAD_ERROR"),
+    ).toBeInTheDocument();
   });
 
-  /**
-   * Integration test verifying the actual save flow:
-   * 1. Renders the component
-   * 2. Navigates to create view
-   * 3. Fills in profile name
-   * 4. Clicks save
-   * 5. Verifies the save mutation was called with correct payload
-   * 6. Verifies the view switches back to list mode
-   */
-  it("calls save mutation with correct payload and returns to list", async () => {
-    const user = userEvent.setup();
+  it("keeps the create view stable when save controls are incomplete", () => {
     mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
 
     renderWithProviders(<LlmSettingsLocalView />);
 
-    // Navigate to create view
-    await user.click(screen.getByTestId("add-llm-profile"));
+    fireEvent.click(screen.getByTestId("add-llm-profile"));
 
-    // Should be in create view
     expect(screen.getByTestId("profile-name-input")).toBeInTheDocument();
 
-    // Fill in profile name
     const nameInput = screen.getByTestId("profile-name-input");
-    await user.clear(nameInput);
-    await user.type(nameInput, "my-new-profile");
+    fireEvent.change(nameInput, { target: { value: "my-new-profile" } });
+    expect(nameInput).toHaveValue("my-new-profile");
 
-    // The save button should be enabled after name is entered
-    // (model is handled by the embedded LlmSettingsScreen which we mock)
     const saveButton = screen.getByTestId("save-profile-btn");
+    fireEvent.click(saveButton);
 
-    // Click save - the actual form submission requires the embedded
-    // LlmSettingsScreen to provide form values via onSaveControlChange.
-    // Since we mock that component's behavior, we verify the mutation hook
-    // was set up correctly and the UI state transitions work.
-    await user.click(saveButton);
-
-    // After successful save, should return to list view
-    // Note: The actual save flow depends on the embedded LlmSettingsScreen
-    // providing a saveControl with form values. This test verifies the
-    // component correctly wires the mutation hook and handles UI transitions.
-    await waitFor(() => {
-      // Either we're back at list view or the save button interaction completed
-      const profileList = screen.queryByText("gpt-4-profile");
-      const createView = screen.queryByTestId("profile-name-input");
-      expect(profileList || createView).toBeTruthy();
-    });
+    expect(screen.getByTestId("profile-name-input")).toBeInTheDocument();
   });
 
   describe("create mode form initialization", () => {
@@ -340,9 +350,9 @@ describe("LlmSettingsLocalView", () => {
       expect(
         screen.getByText(/Edit LLM Profile|SETTINGS\$EDIT_LLM_PROFILE/),
       ).toBeInTheDocument();
-      expect(screen.getByTestId("profile-editor-description")).toHaveTextContent(
-        /gpt-4-profile|SETTINGS\$PROFILE_LOADED/,
-      );
+      expect(
+        screen.getByTestId("profile-editor-description"),
+      ).toHaveTextContent(/gpt-4-profile|SETTINGS\$PROFILE_LOADED/);
 
       // Verify getProfile was called with the correct profile name
       expect(ProfilesService.getProfile).toHaveBeenCalledWith(

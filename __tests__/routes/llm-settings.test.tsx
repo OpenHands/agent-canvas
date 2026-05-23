@@ -11,6 +11,7 @@ import { Settings } from "#/types/settings";
 import * as activeBackendContext from "#/contexts/active-backend-context";
 import type { Backend } from "#/api/backend-registry/types";
 import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
+import LLMSubscriptionService from "#/api/llm-subscription-service";
 
 vi.mock("#/hooks/query/use-llm-profiles");
 
@@ -161,6 +162,38 @@ describe("LlmSettingsScreen", () => {
 
     expect(screen.getByTestId("llm-api-key-input")).toHaveValue("");
     expect(screen.queryByTestId("set-indicator")).not.toBeInTheDocument();
+  });
+
+  it("renders ChatGPT subscription settings without API key fields", async () => {
+    vi.spyOn(LLMSubscriptionService, "getOpenAIStatus").mockResolvedValue({
+      vendor: "openai",
+      connected: false,
+      accountEmail: null,
+      expiresAt: null,
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "gpt-5.2-codex",
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "gpt-5.2-codex",
+            auth_type: "subscription",
+            subscription_vendor: "openai",
+          },
+        },
+      }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-subscription-settings");
+
+    expect(
+      screen.getByTestId("openai-subscription-auth-card"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("llm-api-key-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("base-url-input")).not.toBeInTheDocument();
   });
 });
 

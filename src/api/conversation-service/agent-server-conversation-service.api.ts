@@ -32,6 +32,7 @@ import {
 } from "../cloud/conversation-service.api";
 import {
   DirectConversationInfo,
+  assertSubscriptionAuthReady,
   buildStartConversationRequestWithEncryptedSettings,
   emptyHooksResponse,
   getDefaultConversationTitle,
@@ -652,6 +653,8 @@ class AgentServerConversationService {
     if (!isLLMConfig(profile.config)) {
       throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
     }
+
+    await assertSubscriptionAuthReady({ llm: profile.config });
 
     await new ConversationClient(getAgentServerClientOptions()).switchLLM(
       conversationId,
