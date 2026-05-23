@@ -37,6 +37,8 @@ interface SettingsInputProps {
   /** Renders a red asterisk next to the label to mark the field as required. */
   showRequiredTag?: boolean;
   onBlur?: () => void;
+  /** Extra classes merged onto the `<input>` element. */
+  inputClassName?: string;
 }
 
 export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
@@ -67,6 +69,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
       error,
       showRequiredTag,
       onBlur,
+      inputClassName,
     },
     ref,
   ) {
@@ -107,6 +110,7 @@ export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
             formControlSettingsFieldClassName,
             "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
             error && "border-red-500",
+            inputClassName,
           )}
         />
         {error && (

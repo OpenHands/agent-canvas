@@ -34,11 +34,27 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
       return false;
     }
 
+    // The model switch tool reuses the same inline model message UI as
+    // `/model <profile>` once the observation arrives.
+    if (actionType === "SwitchLLMAction") {
+      return false;
+    }
+
     return true;
   }
 
   // Render observation events
   if (isObservationEvent(event)) {
+    // Successful model switches are rendered through ModelMessages so they
+    // look identical to `/model <profile>` confirmations. Failed switches
+    // still render as observations so the error remains visible in chat.
+    if (
+      event.observation.kind === "SwitchLLMObservation" &&
+      !event.observation.is_error
+    ) {
+      return false;
+    }
+
     return true;
   }
 

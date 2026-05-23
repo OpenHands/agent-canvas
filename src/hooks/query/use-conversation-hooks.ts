@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { HookEvent } from "#/api/conversation-service/agent-server-conversation-service.types";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useConversationId } from "../use-conversation-id";
 import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
@@ -14,7 +14,9 @@ export const useConversationHooks = () => {
         throw new Error("No conversation ID provided");
       }
 
-      return [] as HookEvent[];
+      const { hooks } =
+        await AgentServerConversationService.getHooks(conversationId);
+      return hooks;
     },
     enabled:
       !!conversationId &&

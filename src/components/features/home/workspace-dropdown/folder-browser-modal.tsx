@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
@@ -205,14 +210,17 @@ export function FolderBrowserModal({
         data-testid="folder-browser-modal"
         className={cn(
           "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-xl",
-          "w-[720px] max-w-[90vw] h-[480px]",
+          modalWidthClassName("xl"),
+          MODAL_MAX_WIDTH_VIEWPORT,
+          "h-[480px]",
         )}
       >
         {/* Title bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
-          <span className="text-sm font-medium text-white">
-            {t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
-          </span>
+          <BaseModalTitle
+            className="text-sm font-medium text-white"
+            title={t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
+          />
         </div>
 
         {/* Body: sidebar + main */}

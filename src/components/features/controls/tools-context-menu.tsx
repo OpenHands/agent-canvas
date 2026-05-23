@@ -10,7 +10,8 @@ import { Divider } from "#/ui/divider";
 import { I18nKey } from "#/i18n/declaration";
 
 import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
-import RobotIcon from "#/icons/u-robot.svg?react";
+import SkillsIcon from "#/icons/skills.svg?react";
+import FishingHookIcon from "#/icons/fishing-hook.svg?react";
 import ToolsIcon from "#/icons/u-tools.svg?react";
 import SettingsIcon from "#/icons/settings.svg?react";
 import CarretRightFillIcon from "#/icons/carret-right-fill.svg?react";
@@ -122,7 +123,14 @@ export function ToolsContextMenu({
 
       <ContextMenuListItem testId="show-skills-button" onClick={onShowSkills}>
         <ToolsContextMenuIconText
-          icon={<RobotIcon width={16} height={16} />}
+          icon={
+            <SkillsIcon
+              width={16}
+              height={16}
+              className="stroke-[1.75]"
+              aria-hidden
+            />
+          }
           text={t(I18nKey.CONVERSATION$SHOW_SKILLS)}
         />
       </ContextMenuListItem>
@@ -131,7 +139,7 @@ export function ToolsContextMenu({
       {shouldShowHooks && (
         <ContextMenuListItem testId="show-hooks-button" onClick={onShowHooks}>
           <ToolsContextMenuIconText
-            icon={<ToolsIcon width={16} height={16} />}
+            icon={<FishingHookIcon width={16} height={16} aria-hidden />}
             text={t(I18nKey.CONVERSATION$SHOW_HOOKS)}
           />
         </ContextMenuListItem>

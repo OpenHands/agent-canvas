@@ -20,6 +20,8 @@ interface DetailHeaderProps {
    */
   onEdit?: () => void;
   onDelete: () => void;
+  onRunNow?: () => void;
+  isRunningNow?: boolean;
 }
 
 export function DetailHeader({
@@ -27,6 +29,8 @@ export function DetailHeader({
   onToggle,
   onEdit,
   onDelete,
+  onRunNow,
+  isRunningNow = false,
 }: DetailHeaderProps) {
   const { t } = useTranslation("openhands");
   const canManage = useHasPermission("manage_automations");
@@ -73,6 +77,16 @@ export function DetailHeader({
           <ActiveStatusBadge active={automation.enabled} />
         </div>
         <div className="flex items-center gap-2">
+          {canManage && onRunNow && (
+            <button
+              type="button"
+              className="rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isRunningNow}
+              onClick={onRunNow}
+            >
+              {isRunningNow ? "Starting…" : "Run now"}
+            </button>
+          )}
           {canManage && (
             <ToggleSwitch
               enabled={automation.enabled}

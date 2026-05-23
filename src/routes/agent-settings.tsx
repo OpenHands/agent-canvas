@@ -343,7 +343,7 @@ function AgentSettingsScreen() {
             </Typography.Text>
             <textarea
               data-testid="agent-command-input"
-              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
+              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
               value={commandText}
               placeholder={commandPlaceholder}
               onChange={(e) => {
