@@ -171,7 +171,7 @@ describe("CustomServerEditor", () => {
     const onClose = vi.fn();
     renderWith(<EditorOnceSettingsLoaded onClose={onClose} />);
 
-    fireEvent.click(await screen.findByTestId("close-mcp-custom-editor"));
+    fireEvent.click(await screen.findByTestId("mcp-custom-editor-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });

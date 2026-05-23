@@ -10,9 +10,14 @@ vi.mock("#/utils/conversation-local-storage", () => ({
   setConversationState: vi.fn(),
 }));
 
-// Mock the getTextContent utility
+// Mock the chat-input utilities. The hook uses both `getTextContent`
+// (to read the current contentEditable text) and `focusContentEditableAtEnd`
+// (to place the caret at the end of the input after restoring a draft).
+// Both need to be mocked here so the hook doesn't crash on
+// `focusContentEditableAtEnd is not a function`.
 vi.mock("#/components/features/chat/utils/chat-input.utils", () => ({
   getTextContent: vi.fn((el: HTMLDivElement | null) => el?.textContent || ""),
+  focusContentEditableAtEnd: vi.fn(),
 }));
 
 describe("useDraftPersistence", () => {

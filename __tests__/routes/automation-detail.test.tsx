@@ -118,8 +118,9 @@ describe("AutomationDetail — Edit is local-only", () => {
       expect(AutomationService.getAutomation).toHaveBeenCalledTimes(1);
     });
 
-    // Act — open the kebab menu.
-    await user.click(screen.getByLabelText("Automation actions"));
+    // Act — open the kebab menu. The aria-label resolves to the I18n key
+    // in tests because `t` is mocked to return the key itself.
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
 
     // Assert — Edit entry is present alongside the other actions.
     expect(
@@ -139,7 +140,7 @@ describe("AutomationDetail — Edit is local-only", () => {
     });
 
     // Act
-    await user.click(screen.getByLabelText("Automation actions"));
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
 
     // Assert — Edit must not appear on cloud; Delete still does, proving
     // we opened the menu and didn't merely fail to render.
