@@ -15,6 +15,7 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
@@ -113,9 +114,12 @@ export default function MCPPage() {
 
   if (isLoading || !settings) {
     return (
-      <div data-testid="mcp-page" className="flex h-full gap-10">
+      <div
+        data-testid="mcp-page"
+        className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+      >
         <ExtensionsNavigation />
-        <div className="flex h-full flex-1 items-center justify-center">
+        <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
           <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
         </div>
       </div>
@@ -123,9 +127,12 @@ export default function MCPPage() {
   }
 
   return (
-    <div data-testid="mcp-page" className="flex h-full gap-10">
+    <div
+      data-testid="mcp-page"
+      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+    >
       <ExtensionsNavigation />
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar-always pr-[14px] pt-8 pb-12">
+      <main className={settingsLikeMainScrollClassName}>
         <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
@@ -179,9 +186,8 @@ export default function MCPPage() {
           />
         )}
 
-        {/* Custom (or non-marketplace) server editor — falls back to the
-            legacy MCPServerForm for full control. The empty-id sentinel
-            (`{ id: "", type: "sse" }`) means "add new". */}
+        {/* Custom (or non-marketplace) server editor. The empty-id
+            sentinel (`{ id: "", type: "sse" }`) means "add new". */}
         {editingServer && (
           <CustomServerEditor
             server={editingServer}

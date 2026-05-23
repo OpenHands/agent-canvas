@@ -66,6 +66,7 @@ describe("InstallServerModal", () => {
     expect(sentMcpConfig.mcp_config.mcpServers).toMatchObject({
       slack: {
         command: "npx",
+        args: ["-y", "@zencoderai/slack-mcp-server"],
         env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
       },
     });
@@ -181,6 +182,16 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
+  it("calls onClose when the header close button is clicked", async () => {
+    const onClose = vi.fn();
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    renderWith(<InstallServerModal entry={slack} onClose={onClose} />);
+
+    fireEvent.click(await screen.findByTestId("close-mcp-install-modal"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("places Cancel before Install in the footer so the dominant action is the last focusable button", async () => {
     // Arrange: render with any marketplace entry so the footer is mounted.
     const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
@@ -194,8 +205,7 @@ describe("InstallServerModal", () => {
     // Assert: Cancel precedes the dominant Install action in DOM order.
     // eslint-disable-next-line no-bitwise
     expect(
-      cancel.compareDocumentPosition(submit) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 });

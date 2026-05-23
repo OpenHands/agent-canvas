@@ -66,6 +66,7 @@ describe("buildStartConversationRequest", () => {
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
           agent: "CodeActAgent",
+          enable_sub_agents: true,
           llm: {
             model: "nested-model",
             api_key: "  nested-key  ",
@@ -182,7 +183,7 @@ describe("buildStartConversationRequest", () => {
     ]);
   });
 
-  it("includes task_tool_set when the server advertises it but not browser tools", () => {
+  it("includes task_tool_set when sub-agents are enabled and the server advertises it but not browser tools", () => {
     mockIsAgentServerToolAvailable.mockImplementation(
       (toolName: string) => toolName === "task_tool_set",
     );
@@ -192,6 +193,7 @@ describe("buildStartConversationRequest", () => {
         ...DEFAULT_SETTINGS,
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: true,
           llm: { model: "nested-model" },
         },
       },
@@ -208,6 +210,26 @@ describe("buildStartConversationRequest", () => {
       { name: "canvas_ui", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
+  });
+
+  it("omits task_tool_set when sub-agents are disabled even if the server advertises it", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          enable_sub_agents: false,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as {
+      agent: {
+        tools: Array<{ name: string; params: Record<string, unknown> }>;
+      };
+    };
+
+    const toolNames = payload.agent.tools.map((t) => t.name);
+    expect(toolNames).not.toContain("task_tool_set");
   });
 
   it("derives confirmation and security settings the same way as OpenHands", () => {
@@ -315,6 +337,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message).toEqual({
       role: "user",
       content: [{ type: "text", text: "Follow the repo conventions." }],
+      run: true,
     });
   });
 
@@ -544,6 +567,48 @@ describe("toAppConversation", () => {
     });
     expect(result.agent_kind).toBe("acp");
     expect(result.llm_model).toBeNull();
+  });
+
+  it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
+    // The ``acpserver`` conversation tag is stamped at create time
+    // (``buildStartConversationRequest``) but never previously plumbed
+    // through on read — the sidebar chip in agent-canvas#405 needs this
+    // value to resolve the human display name ("Claude Code" / "Codex" /
+    // "Gemini CLI").
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.acp_server).toBe("claude-code");
+  });
+
+  it("leaves acp_server null when an ACP conversation has no tag stamped", () => {
+    // Older conversations created before the tag was added, or ACP
+    // conversations created via the raw API, won't have the tag. The
+    // sidebar should still render a chip ("ACP") — but the resolver gets
+    // null here and the UI fallback handles the generic label.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.acp_server).toBeNull();
+  });
+
+  it("ignores tags.acpserver on OpenHands conversations to prevent stray-tag bleed", () => {
+    // The agent-server's pydantic model doesn't enforce that ``acpserver``
+    // is only stamped on ACP conversations. Defensively gating on
+    // ``agent.kind === "ACPAgent"`` keeps a misconfigured tag from
+    // turning the sidebar of an OpenHands conversation into "Claude
+    // Code". Pairs with the ``llm_model`` null-out for ACP.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "Agent", llm: { model: "claude-sonnet-4-6" } },
+      tags: { [ACP_SERVER_TAG_KEY]: "claude-code" },
+    });
+    expect(result.agent_kind).toBe("openhands");
+    expect(result.acp_server).toBeNull();
   });
 });
 

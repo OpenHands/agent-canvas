@@ -4,7 +4,13 @@ import { useTranslation } from "react-i18next";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useNavigation } from "#/context/navigation-context";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
-import { useWorkspacesStore } from "#/stores/workspaces-store";
+import {
+  useAddWorkspaces,
+  useAddWorkspaceParents,
+  useRemoveWorkspace,
+  useRemoveWorkspaceParent,
+} from "#/hooks/mutation/use-local-workspaces-mutations";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -13,6 +19,7 @@ import RepoIcon from "#/icons/repo.svg?react";
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
 import { ManageWorkspacesModal } from "#/components/features/home/workspace-dropdown/manage-workspaces-modal";
 
+import { Divider } from "#/ui/divider";
 import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
 import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
 
@@ -61,13 +68,12 @@ export function LocalNewConversationMenu({
     enabled: useFixedPlacement,
   });
 
-  const {
-    workspaceParents,
-    addWorkspaces,
-    removeWorkspace,
-    addWorkspaceParents,
-    removeWorkspaceParent,
-  } = useWorkspacesStore();
+  const { data: workspacesData } = useLocalWorkspaces();
+  const workspaceParents = workspacesData?.workspaceParents ?? [];
+  const { mutate: addWorkspaces } = useAddWorkspaces();
+  const { mutate: removeWorkspace } = useRemoveWorkspace();
+  const { mutate: addWorkspaceParents } = useAddWorkspaceParents();
+  const { mutate: removeWorkspaceParent } = useRemoveWorkspaceParent();
   const { workspaces } = useResolvedWorkspaces();
   const [browserOpen, setBrowserOpen] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
@@ -199,7 +205,14 @@ export function LocalNewConversationMenu({
             ))}
           </ul>
 
-          <div className="mt-1 flex flex-col pt-1">
+          <div
+            className="flex flex-col"
+            data-testid="new-conversation-menu-footer"
+          >
+            <Divider
+              inset="menu"
+              testId="new-conversation-menu-footer-divider"
+            />
             <button
               type="button"
               data-testid="add-workspaces-button"

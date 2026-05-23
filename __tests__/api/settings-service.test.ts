@@ -53,7 +53,7 @@ describe("SettingsService", () => {
 
     // Should have normalized settings with derived fields
     expect(settings.agent).toBe("CodeActAgent");
-    expect(settings.llm_model).toBe("openhands/claude-opus-4-5-20251101");
+    expect(settings.llm_model).toBe("openhands/minimax-m2.7");
     expect(settings.confirmation_mode).toBe(false);
     expect(settings.security_analyzer).toBe("llm");
   });

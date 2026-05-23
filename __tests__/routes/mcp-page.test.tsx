@@ -107,8 +107,42 @@ describe("MCPPage", () => {
       screen.queryByTestId("mcp-marketplace-card-github"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("mcp-marketplace-card-postgres"),
+      screen.queryByTestId("mcp-marketplace-card-gitlab"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps installed custom servers visible and searchable even when they are not in the marketplace catalog", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              acme_internal: {
+                command: "npx",
+                args: ["-y", "@acme/internal-mcp-server"],
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    renderPage();
+
+    await screen.findByTestId("mcp-installed-list");
+    expect(screen.getByText("acme_internal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-acme_internal"),
+    ).not.toBeInTheDocument();
+
+    const search = screen.getByTestId("mcp-search-input");
+    fireEvent.change(search, { target: { value: "internal-mcp-server" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("acme_internal")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
   });
 
   it("shows a search-empty state when the query matches nothing", async () => {
@@ -136,7 +170,7 @@ describe("MCPPage", () => {
           mcpServers: {
             slack: {
               command: "npx",
-              args: ["-y", "@modelcontextprotocol/server-slack"],
+              args: ["-y", "@zencoderai/slack-mcp-server"],
               env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
             },
           },
@@ -212,7 +246,7 @@ describe("MCPPage", () => {
             mcpServers: {
               slack: {
                 command: "npx",
-                args: ["-y", "@modelcontextprotocol/server-slack"],
+                args: ["-y", "@zencoderai/slack-mcp-server"],
                 env: { SLACK_BOT_TOKEN: "xoxb-old", SLACK_TEAM_ID: "T01" },
               },
             },

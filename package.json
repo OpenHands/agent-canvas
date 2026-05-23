@@ -23,8 +23,8 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#3bba8e3bd8a134ad190347549d9aead98b081980",
-    "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v0.6.0",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#7b33f64ffccf95f7ccd2ec640aeae84ab1cc2c75",
+    "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#af9688c493d465b38c99dbac2302d462c76dc8ff",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tailwindcss/vite": "4.2.4",
@@ -94,7 +94,8 @@
     "typecheck:staged": "react-router typegen && npx tsc --noEmit --skipLibCheck",
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
-    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json"
+    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
+    "build:docker": "node scripts/docker-build.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [

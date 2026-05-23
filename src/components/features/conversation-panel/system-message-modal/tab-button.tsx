@@ -22,8 +22,8 @@ export function TabButton({
       className={cn(
         "px-4 py-2 font-medium border-b-2 transition-colors",
         isActive
-          ? "border-primary text-content-2"
-          : "border-transparent hover:text-[var(--oh-border-subtle)] dark:hover:text-[var(--oh-text-tertiary)]",
+          ? "border-foreground text-foreground"
+          : "border-transparent text-[var(--oh-muted)] hover:text-[var(--oh-foreground)]",
         disabled && "opacity-50 cursor-not-allowed",
         className,
       )}

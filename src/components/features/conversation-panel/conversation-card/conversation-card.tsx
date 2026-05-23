@@ -33,6 +33,8 @@ interface ConversationCardProps {
   showRepositoryMetadata?: boolean;
   llmModel?: string | null;
   showLlmProfiles?: boolean;
+  agentKind?: "openhands" | "acp" | null;
+  acpServer?: string | null;
 }
 
 export function ConversationCard({
@@ -55,6 +57,8 @@ export function ConversationCard({
   showRepositoryMetadata = true,
   llmModel = null,
   showLlmProfiles = false,
+  agentKind = null,
+  acpServer = null,
 }: ConversationCardProps) {
   const posthog = usePostHog();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
@@ -128,7 +132,9 @@ export function ConversationCard({
 
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
   const shouldRenderFooter =
-    showRepositoryMetadata || (!!llmModel && showLlmProfiles);
+    showRepositoryMetadata ||
+    (!!llmModel && showLlmProfiles) ||
+    agentKind === "acp";
 
   return (
     <div
@@ -151,13 +157,7 @@ export function ConversationCard({
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
           />
-          {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
-            <ConversationStatusBadges
-              conversationStatus={
-                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
-              }
-            />
-          )}
+          {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 
         <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">
@@ -210,6 +210,8 @@ export function ConversationCard({
           showTimestamp={false}
           llmModel={llmModel}
           showLlmModel={showLlmProfiles}
+          agentKind={agentKind}
+          acpServer={acpServer}
         />
       )}
     </div>

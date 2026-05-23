@@ -17,8 +17,7 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "flex-1 min-w-0 outline-none bg-transparent text-white",
-          "placeholder:italic placeholder:text-tertiary-alt",
+          "flex-1 min-w-0 outline-none bg-transparent text-white not-italic placeholder:text-tertiary-alt",
         ),
       })}
     />

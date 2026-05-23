@@ -21,7 +21,7 @@ describe("findInstalledMatch", () => {
         type: "stdio",
         name: "slack",
         command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-slack"],
+        args: ["-y", "@zencoderai/slack-mcp-server"],
       },
     ]);
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
@@ -122,7 +122,7 @@ describe("installedServerMatchesQuery", () => {
     type: "stdio" as const,
     name: "slack",
     command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-slack"],
+    args: ["-y", "@zencoderai/slack-mcp-server"],
   };
 
   it("matches by stdio server name", () => {

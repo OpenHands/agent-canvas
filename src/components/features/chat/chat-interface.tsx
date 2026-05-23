@@ -25,6 +25,7 @@ import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
@@ -408,7 +409,7 @@ export function ChatInterface() {
   return (
     <ScrollProvider value={scrollProviderValue}>
       <div
-        className="h-full flex flex-col justify-between pl-0 md:pl-4 pr-0 md:pr-4 relative"
+        className="relative flex h-full flex-col justify-between px-4"
         data-testid="chat-interface"
       >
         {!hasSubstantiveAgentActions &&
@@ -430,7 +431,7 @@ export function ChatInterface() {
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2"
+          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
@@ -491,6 +492,11 @@ export function ChatInterface() {
             <ErrorMessageBanner
               message={errorMessage}
               onDismiss={removeErrorMessage}
+              onRetry={
+                errorMessage === SERVER_CONNECTION_ERROR_MESSAGE
+                  ? () => conversationWebSocket?.reconnect()
+                  : undefined
+              }
             />
           )}
 
