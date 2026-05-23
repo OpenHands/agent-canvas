@@ -8,7 +8,7 @@ Target: `OpenHands/agent-canvas`
 
 Agent Canvas should ship a first-class **Extensions** system: user-installable npm packages that extend the local Canvas experience and optionally contribute components to the agent runtime through SDK-supported surfaces.
 
-An Extension can contribute UI views, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces — Canvas does not patch or load code inside the Agent Server.
+An Extension can contribute UI views, primary navigation entries, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces — Canvas does not patch or load code inside the Agent Server.
 
 The MVP delivers CLI install, a Packages management page, trusted same-origin extension views, dev-mode authoring with live reload, and SDK plugin / context merging on conversation launch. Marketplace, signing, sandboxed iframe views, parent-React component extensions, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
 
@@ -266,7 +266,12 @@ The manifest path must resolve inside the package root. Path traversal is reject
         "id": "dashboard",
         "title": "GitHub",
         "route": "/github",
-        "navigation": { "location": "extensions", "order": 300, "icon": "./dist/github.svg" }
+        "navigation": {
+          "location": "primarySidebar",
+          "slot": "afterAutomations",
+          "order": 300,
+          "icon": "./dist/github.svg"
+        }
       }
     ],
     "agentPlugins": [
@@ -348,6 +353,26 @@ This is the minimum coverage needed today to keep the iframe option open later a
 ### 12.1 `views`
 
 Routes rendered by Canvas at `/extensions/:extensionId/:viewId/*`.
+
+Views may optionally declare a navigation entry:
+
+```json
+{
+  "navigation": {
+    "location": "primarySidebar",
+    "slot": "afterAutomations",
+    "order": 300,
+    "icon": "./dist/cost-dashboard.svg"
+  }
+}
+```
+
+MVP navigation locations:
+
+- `primarySidebar` — top-level Canvas sidebar entry. MVP supports the `afterAutomations` slot, rendered after Automations and before the conversation list. This covers dashboard-style extensions such as a Cost Dashboard.
+- `extensions` — entry inside the Customize / Extensions hub. Use this for management/configuration views or lower-priority extension pages.
+
+Primary sidebar entries are for user-facing app surfaces, not transient launch templates. They must point at an extension view route, use a static icon asset from the extension package, and remain disabled when the extension is disabled or invalid. If multiple enabled extensions contribute to the same slot, Canvas sorts by `order`, then extension display name, then view ID for deterministic rendering.
 
 **MVP runtime: trusted same-origin browser module.** The extension's `browser.module` is loaded by the Canvas frontend with dynamic `import()` and mounted into a Canvas-owned DOM container at the view route. The extension exports a `mount()` function, receives the typed context (§13), and owns rendering inside that container. It may use React, Svelte, vanilla DOM, or another framework as long as the shipped module is browser-ready. It should use Canvas CSS variables/design tokens and host-provided APIs instead of importing Canvas internals.
 
@@ -538,7 +563,7 @@ export interface InstallableArtifactRegistryEntry {
 
 Permission groups:
 
-- `ui.views` — render trusted same-origin browser-module views.
+- `ui.views` — render trusted same-origin browser-module views and their declared navigation entries.
 - `ui.commands` — register commands.
 - `agent.sdkPlugins` — include SDK plugins in conversation launches.
 - `agent.context` — append extension context to system suffix.
@@ -794,6 +819,10 @@ Each extension card shows: display name, package name, version; state; contribut
 
 For launch templates: show required MCPs; show SDK plugins to be included; show context blocks to be appended; require confirmation on first use of any agent-affecting extension.
 
+### Primary navigation UX
+
+Enabled views with `navigation.location: "primarySidebar"` render as top-level Sidebar entries. For MVP, entries appear in the `afterAutomations` slot: after Automations and before the conversation list. Collapsed Sidebar mode shows only the icon with a tooltip. Mobile drawer mode shows the same entry in the same relative position.
+
 ### Extension view UX
 
 Extension views look like regular Canvas pages but are visibly extension-owned: title from manifest; small extension badge; browser-module loading/error states; diagnostics link.
@@ -826,7 +855,7 @@ Deliverables: Packages page replaces "Plugins coming soon"; install/enable/disab
 
 Files: `src/routes/extension-view-host.tsx`, `src/extensions/runtime/*`, sidebar components, `scripts/extension-host.mjs`.
 
-Deliverables: route `/extensions/:extensionId/:viewId/*`; DOM-container host for trusted `browser.module` extensions; dynamic import with cache-busting support; browser asset serving; `mount()`/`dispose()` lifecycle; minimal `navigation` and `ui.toast` APIs; example extension package with a bundled browser-ready module.
+Deliverables: route `/extensions/:extensionId/:viewId/*`; DOM-container host for trusted `browser.module` extensions; dynamic import with cache-busting support; browser asset serving; `mount()`/`dispose()` lifecycle; primary-sidebar navigation entries for views; minimal `navigation` and `ui.toast` APIs; example extension package with a bundled browser-ready module.
 
 ### PR 3b — Dev extension watch mode
 
