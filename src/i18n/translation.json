@@ -12461,7 +12461,7 @@
     "ca": "Carrega'n més"
   },
   "AUTOMATIONS$DETAIL$MODEL": {
-    "en": "Model",
+    "en": "LLM profile",
     "ja": "モデル",
     "zh-CN": "模型",
     "zh-TW": "模型",

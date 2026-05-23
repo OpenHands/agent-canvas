@@ -123,6 +123,12 @@ export const updateConversationExecutionStatusInCache = (
 ): void =>
   patchConversationInCache(queryClient, conversationId, { execution_status });
 
+export const updateConversationLlmModelInCache = (
+  queryClient: QueryClient,
+  conversationId: string,
+  llm_model: string,
+): void => patchConversationInCache(queryClient, conversationId, { llm_model });
+
 export const invalidateConversationQueries = (
   queryClient: QueryClient,
   conversationId: string,
