@@ -3,6 +3,10 @@
  * which persist the user's saved workspaces and workspace parents on the
  * server (workspace/.openhands/workspaces.json). All clients pointed at
  * the same agent-server see the same list.
+ *
+ * The SDK WorkspacesClient owns compatibility preflight behavior, so old
+ * agent-server backends surface the same typed version error without this
+ * frontend constructing a raw HttpClient.
  */
 import {
   WorkspacesClient,
