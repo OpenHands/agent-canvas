@@ -15,6 +15,7 @@ import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { LocalWorkspace } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
 import FolderIcon from "#/icons/folder.svg?react";
+import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 
 import { BrandButton } from "../settings/brand-button";
 import { WorkspaceDropdown } from "./workspace-dropdown/workspace-dropdown";
@@ -40,7 +41,7 @@ export function WorkspaceSelectionForm({
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
 
-  const { data: workspacesData } = useLocalWorkspaces();
+  const { data: workspacesData, error: workspacesError } = useLocalWorkspaces();
   const workspaceParents = workspacesData?.workspaceParents ?? [];
   const { mutate: addWorkspaces } = useAddWorkspaces();
   const { mutate: removeWorkspace } = useRemoveWorkspace();
@@ -50,7 +51,12 @@ export function WorkspaceSelectionForm({
     workspaces,
     isLoading: isLoadingWorkspaces,
     isError: hasWorkspaceError,
+    error: resolvedWorkspacesError,
   } = useResolvedWorkspaces();
+  const workspacesUnsupportedMessage = getWorkspacesUnsupportedMessage(
+    workspacesError ?? resolvedWorkspacesError,
+    t,
+  );
   const [selectedWorkspace, setSelectedWorkspace] =
     React.useState<LocalWorkspace | null>(null);
   const [isBrowserOpen, setIsBrowserOpen] = React.useState(false);
@@ -65,15 +71,20 @@ export function WorkspaceSelectionForm({
   const isCreatingConversation =
     isPending || isSuccess || isCreatingConversationElsewhere;
 
-  const showWorkspaceStatus = workspaceParents.length > 0;
+  const showWorkspaceStatus =
+    workspaceParents.length > 0 || Boolean(workspacesUnsupportedMessage);
   let workspaceStatusText: string | null = null;
-  if (isLoadingWorkspaces) {
+  if (workspacesUnsupportedMessage) {
+    workspaceStatusText = workspacesUnsupportedMessage;
+  } else if (isLoadingWorkspaces) {
     workspaceStatusText = t(I18nKey.HOME$LOADING);
   } else if (hasWorkspaceError) {
     workspaceStatusText = t(I18nKey.HOME$WORKSPACE_SCAN_ERROR);
   }
   const isDropdownDisabled =
-    isLoadingSettings || (isLoadingWorkspaces && workspaces.length === 0);
+    Boolean(workspacesUnsupportedMessage) ||
+    isLoadingSettings ||
+    (isLoadingWorkspaces && workspaces.length === 0);
 
   const handleLaunch = () => {
     if (!selectedWorkspace) return;
@@ -106,8 +117,15 @@ export function WorkspaceSelectionForm({
         <WorkspaceDropdown
           workspaces={workspaces}
           value={selectedWorkspace}
-          placeholder={isDropdownDisabled ? t(I18nKey.HOME$LOADING) : undefined}
+          placeholder={
+            workspacesUnsupportedMessage
+              ? t(I18nKey.HOME$WORKSPACES_UNSUPPORTED_PLACEHOLDER)
+              : isDropdownDisabled
+                ? t(I18nKey.HOME$LOADING)
+                : undefined
+          }
           disabled={isDropdownDisabled}
+          disabledTooltip={workspacesUnsupportedMessage}
           showManage={workspaces.length > 0 || workspaceParents.length > 0}
           onChange={setSelectedWorkspace}
           onAddClick={() => setIsBrowserOpen(true)}

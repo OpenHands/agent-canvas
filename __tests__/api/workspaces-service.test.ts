@@ -8,16 +8,29 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
-const { mockGet, mockPost, mockDelete } = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-  mockPost: vi.fn(),
-  mockDelete: vi.fn(),
-}));
+const { mockGet, mockPost, mockDelete, mockAssertAgentServerSupports } =
+  vi.hoisted(() => ({
+    mockGet: vi.fn(),
+    mockPost: vi.fn(),
+    mockDelete: vi.fn(),
+    mockAssertAgentServerSupports: vi.fn(),
+  }));
 
 vi.mock("@openhands/typescript-client/client/http-client", () => ({
   HttpClient: vi.fn(function HttpClientMock() {
     return { get: mockGet, post: mockPost, delete: mockDelete };
   }),
+}));
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  AgentServerFeatureRequirements: {
+    workspaces: {
+      feature: "workspaces",
+      displayName: "Workspaces",
+      minVersion: "1.23.0",
+    },
+  },
+  assertAgentServerSupports: mockAssertAgentServerSupports,
 }));
 
 const localBackend: Backend = {
@@ -36,6 +49,12 @@ beforeEach(() => {
   mockGet.mockReset();
   mockPost.mockReset();
   mockDelete.mockReset();
+  mockAssertAgentServerSupports.mockReset();
+  mockAssertAgentServerSupports.mockResolvedValue({
+    version: "1.23.0",
+    uptime: 1,
+    idle_time: 0,
+  });
 });
 
 afterEach(() => {
@@ -59,9 +78,26 @@ describe("WorkspacesService", () => {
     expect(result).toEqual(body);
   });
 
+  it("propagates the typed old-server error before calling /api/workspaces", async () => {
+    // Arrange
+    const error = {
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    };
+    mockAssertAgentServerSupports.mockRejectedValue(error);
+
+    // Act + Assert
+    await expect(WorkspacesService.listWorkspaces()).rejects.toBe(error);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
   it("addWorkspaces POSTs the items wrapped in a workspaces envelope", async () => {
     // Arrange
-    mockPost.mockResolvedValue({ data: { workspaces: [], workspaceParents: [] } });
+    mockPost.mockResolvedValue({
+      data: { workspaces: [], workspaceParents: [] },
+    });
     const items = [{ id: "/a", name: "a", path: "/a", parentPath: "/p" }];
 
     // Act
@@ -75,7 +111,9 @@ describe("WorkspacesService", () => {
 
   it("addWorkspaceParents POSTs the items wrapped in a parents envelope", async () => {
     // Arrange
-    mockPost.mockResolvedValue({ data: { workspaces: [], workspaceParents: [] } });
+    mockPost.mockResolvedValue({
+      data: { workspaces: [], workspaceParents: [] },
+    });
     const parents = [{ id: "/p", name: "p", path: "/p" }];
 
     // Act
