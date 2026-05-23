@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
 import { cn } from "#/utils/utils";
@@ -14,6 +14,9 @@ interface HooksModalHeaderProps {
   onClose: () => void;
 }
 
+const ICON_BUTTON_CLASS =
+  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
+
 export function HooksModalHeader({
   isLoading,
   isRefetching,
@@ -24,14 +27,15 @@ export function HooksModalHeader({
   const refreshLabel = t(I18nKey.BUTTON$REFRESH);
 
   return (
-    <div className="flex w-full items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <BaseModalTitle title={t(I18nKey.HOOKS_MODAL$TITLE)} />
-        <Typography.Text className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.HOOKS_MODAL$WARNING)}
-        </Typography.Text>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
+    <>
+      <ModalCloseButton onClose={onClose} testId="close-hooks-modal" />
+      <div className="flex w-full items-start justify-between gap-4 pr-10">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <BaseModalTitle title={t(I18nKey.HOOKS_MODAL$TITLE)} />
+          <Typography.Text className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.HOOKS_MODAL$WARNING)}
+          </Typography.Text>
+        </div>
         <StyledTooltip content={refreshLabel} placement="bottom">
           <button
             type="button"
@@ -39,10 +43,7 @@ export function HooksModalHeader({
             onClick={onRefresh}
             disabled={isLoading || isRefetching}
             aria-label={refreshLabel}
-            className={cn(
-              MODAL_ICON_BUTTON_CLASS,
-              "disabled:opacity-30 disabled:cursor-not-allowed",
-            )}
+            className={ICON_BUTTON_CLASS}
           >
             <RefreshCw
               size={18}
@@ -51,16 +52,7 @@ export function HooksModalHeader({
             />
           </button>
         </StyledTooltip>
-        <button
-          type="button"
-          onClick={onClose}
-          className={MODAL_ICON_BUTTON_CLASS}
-          aria-label={t(I18nKey.BUTTON$CLOSE)}
-          data-testid="close-hooks-modal"
-        >
-          <X size={20} aria-hidden />
-        </button>
       </div>
-    </div>
+    </>
   );
 }

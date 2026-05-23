@@ -1,8 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
-import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import {
   ADD_SKILL_DOCS_URL,
@@ -121,23 +120,13 @@ export function AddSkillModal({ onClose }: AddSkillModalProps) {
     >
       <div
         data-testid="add-skill-modal"
-        className="flex w-[520px] max-w-[90vw] max-h-[85vh] flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
+        className="relative flex w-[520px] max-w-[90vw] max-h-[85vh] flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
       >
+        <ModalCloseButton onClose={onClose} testId="add-skill-modal-close" />
         <header className="flex-shrink-0 px-6 pb-4 pt-6">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold text-white">
-              {t(I18nKey.SETTINGS$SKILLS_ADD_MODAL_TITLE)}
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
-              data-testid="add-skill-modal-close"
-              aria-label={t(I18nKey.BUTTON$CLOSE)}
-            >
-              <X size={20} aria-hidden />
-            </button>
-          </div>
+          <h2 className="pr-6 text-lg font-semibold">
+            {t(I18nKey.SETTINGS$SKILLS_ADD_MODAL_TITLE)}
+          </h2>
           <p className="mt-4 text-sm text-tertiary-light">
             {t(I18nKey.SETTINGS$SKILLS_ADD_MODAL_INTRO)}
           </p>

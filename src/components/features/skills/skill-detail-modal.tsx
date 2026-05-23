@@ -1,8 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
-import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { I18nKey } from "#/i18n/declaration";
@@ -100,14 +99,15 @@ export function SkillDetailModal({
       <div
         data-testid="skill-detail-modal"
         data-skill-name={skill.name}
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
+        className="relative bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
       >
-        <div className="flex items-start gap-3">
+        <ModalCloseButton onClose={onClose} testId="skill-detail-modal-close" />
+        <div className="flex items-start gap-3 pr-6">
           <SkillIconBadge skillName={skill.name} />
           <div className="min-w-0 flex-1">
             <h2
               data-testid={`skill-modal-name-${skill.name}`}
-              className="text-lg font-semibold text-white"
+              className="text-lg font-semibold"
             >
               {skill.name}
             </h2>
@@ -143,15 +143,6 @@ export function SkillDetailModal({
               </div>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
-            data-testid="skill-detail-modal-close"
-            aria-label={t(I18nKey.BUTTON$CLOSE)}
-          >
-            <X size={20} aria-hidden />
-          </button>
         </div>
 
         <div
