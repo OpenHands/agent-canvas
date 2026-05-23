@@ -13,9 +13,7 @@ import { GitBranchDropdown } from "#/components/features/home/git-branch-dropdow
 import { GitProviderDropdown } from "#/components/features/home/git-provider-dropdown/git-provider-dropdown";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { cn } from "#/utils/utils";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 
 interface OpenRepositoryModalProps {
   isOpen: boolean;
@@ -108,7 +106,7 @@ export function OpenRepositoryModal({
           <button
             type="button"
             onClick={handleClose}
-            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+            className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
             data-testid="close-open-repository-modal"
             aria-label={t(I18nKey.BUTTON$CLOSE)}
           >

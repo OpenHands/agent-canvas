@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -9,9 +10,6 @@ interface SystemMessageHeaderProps {
   openhandsVersion: string | null;
   onClose: () => void;
 }
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 export function SystemMessageHeader({
   agentClass,
@@ -52,7 +50,7 @@ export function SystemMessageHeader({
       <button
         type="button"
         onClick={onClose}
-        className={ICON_BUTTON_CLASS}
+        className={MODAL_ICON_BUTTON_CLASS}
         aria-label={t(I18nKey.BUTTON$CLOSE)}
         data-testid="close-system-message-modal"
       >

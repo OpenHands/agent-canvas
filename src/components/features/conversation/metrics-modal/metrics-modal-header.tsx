@@ -1,14 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { I18nKey } from "#/i18n/declaration";
 
 interface MetricsModalHeaderProps {
   onClose: () => void;
 }
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 export function MetricsModalHeader({ onClose }: MetricsModalHeaderProps) {
   const { t } = useTranslation("openhands");
@@ -19,7 +17,7 @@ export function MetricsModalHeader({ onClose }: MetricsModalHeaderProps) {
       <button
         type="button"
         onClick={onClose}
-        className={ICON_BUTTON_CLASS}
+        className={MODAL_ICON_BUTTON_CLASS}
         aria-label={t(I18nKey.BUTTON$CLOSE)}
         data-testid="close-metrics-modal"
       >

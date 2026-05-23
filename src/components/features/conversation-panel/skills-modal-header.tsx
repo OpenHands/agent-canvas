@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { RefreshCw, X } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
 import { cn } from "#/utils/utils";
@@ -12,9 +13,6 @@ interface SkillsModalHeaderProps {
   onRefresh: () => void;
   onClose: () => void;
 }
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 export function SkillsModalHeader({
   isLoading,
@@ -41,7 +39,10 @@ export function SkillsModalHeader({
             onClick={onRefresh}
             disabled={isLoading || isRefetching}
             aria-label={refreshLabel}
-            className={ICON_BUTTON_CLASS}
+            className={cn(
+              MODAL_ICON_BUTTON_CLASS,
+              "disabled:opacity-30 disabled:cursor-not-allowed",
+            )}
           >
             <RefreshCw
               size={18}
@@ -53,7 +54,7 @@ export function SkillsModalHeader({
         <button
           type="button"
           onClick={onClose}
-          className={ICON_BUTTON_CLASS}
+          className={MODAL_ICON_BUTTON_CLASS}
           aria-label={t(I18nKey.BUTTON$CLOSE)}
           data-testid="close-skills-modal"
         >

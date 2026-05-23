@@ -1,11 +1,13 @@
 import React from "react";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
-import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { MCPServerForm } from "#/components/features/settings/mcp-settings/mcp-server-form";
+import { cn } from "#/utils/utils";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
@@ -94,18 +96,25 @@ export function CustomServerEditor({
       >
         <div
           data-testid="mcp-custom-editor"
-          className="relative bg-base-secondary p-6 rounded-xl border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
+          className="bg-base-secondary p-6 rounded-xl border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
         >
-          <ModalCloseButton
-            onClose={onClose}
-            testId="mcp-custom-editor-close"
-            disabled={isDismissBlocked}
-          />
-          <h2 className="mb-4 pr-6 text-lg font-semibold">
-            {isEditing
-              ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
-              : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}
-          </h2>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h2 className="text-lg font-semibold text-white">
+              {isEditing
+                ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
+                : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isDismissBlocked}
+              className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
+              data-testid="mcp-custom-editor-close"
+              aria-label={t(I18nKey.BUTTON$CLOSE)}
+            >
+              <X size={20} aria-hidden />
+            </button>
+          </div>
           <MCPServerForm
             mode={isEditing ? "edit" : "add"}
             server={isEditing ? server : undefined}

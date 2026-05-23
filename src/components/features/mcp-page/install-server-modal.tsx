@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
-import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
@@ -13,9 +13,7 @@ import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
+import { cn } from "#/utils/utils";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -273,26 +271,21 @@ export function InstallServerModal({
         data-testid="mcp-install-modal"
         data-marketplace-id={entry.id}
         onSubmit={handleSubmit}
-        className="relative bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
+        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
       >
-        <ModalCloseButton
-          onClose={onClose}
-          testId="mcp-install-modal-close"
-          disabled={isPending}
-        />
-        <div className="flex items-start gap-3 pr-6">
+        <div className="flex items-start gap-3">
           <McpLogoBadge entry={entry} />
-          <div className="flex flex-col flex-1">
-            <h2 className="text-lg font-semibold">{entry.name}</h2>
+          <div className="flex flex-col flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-white">{entry.name}</h2>
             <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className={ICON_BUTTON_CLASS}
+            className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
+            data-testid="mcp-install-modal-close"
             aria-label={t(I18nKey.BUTTON$CLOSE)}
-            data-testid="close-mcp-install-modal"
           >
             <X size={20} aria-hidden />
           </button>

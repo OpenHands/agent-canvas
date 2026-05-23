@@ -21,11 +21,9 @@ import {
 } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendStatusDot } from "./backend-status-dot";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 const ROW_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
@@ -166,7 +164,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className={ICON_BUTTON_CLASS}
+              className={MODAL_ICON_BUTTON_CLASS}
               aria-label={t(I18nKey.BUTTON$CLOSE)}
               data-testid="close-manage-backends-modal"
             >

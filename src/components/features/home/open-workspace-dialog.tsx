@@ -7,10 +7,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { LocalWorkspace } from "#/types/workspace";
 import { useUserProviders } from "#/hooks/use-user-providers";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { WorkspaceSelectionForm } from "./workspace-selection-form";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface OpenWorkspaceDialogProps {
   isOpen: boolean;
@@ -39,7 +37,7 @@ export function OpenWorkspaceDialog({
           <button
             type="button"
             onClick={onClose}
-            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+            className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
             data-testid="close-open-workspace-dialog"
             aria-label={t(I18nKey.BUTTON$CLOSE)}
           >

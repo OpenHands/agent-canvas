@@ -1,11 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { IoClose } from "react-icons/io5";
+import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import {
   MODAL_MAX_WIDTH_VIEWPORT,
   modalWidthClassName,
 } from "#/components/shared/modals/modal-body";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -143,11 +144,11 @@ export function PluginLaunchModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-white hover:bg-tertiary cursor-pointer"
+            className={MODAL_ICON_BUTTON_CLASS}
             aria-label="Close"
             data-testid="close-button"
           >
-            <IoClose className="h-5 w-5" />
+            <X size={20} aria-hidden />
           </button>
         </div>
 

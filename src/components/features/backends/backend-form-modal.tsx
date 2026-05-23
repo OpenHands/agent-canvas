@@ -19,11 +19,9 @@ import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
+import { MODAL_ICON_BUTTON_CLASS } from "#/components/shared/modals/modal-icon-button-class";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 export type BackendFormMode = "add" | "edit";
 
@@ -613,11 +611,14 @@ export function BackendFormModal({
         >
           {/* Header */}
           <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-2">
-            <BaseModalTitle title={t(I18nKey.BACKEND$ADD_TITLE)} />
+            <BaseModalTitle
+              title={t(I18nKey.BACKEND$ADD_TITLE)}
+              className="text-white"
+            />
             <button
               type="button"
               onClick={onClose}
-              className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+              className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
               data-testid="add-backend-close"
               aria-label={t(I18nKey.BUTTON$CLOSE)}
             >
@@ -667,11 +668,14 @@ export function BackendFormModal({
         )}
       >
         <div className="flex items-start justify-between gap-4">
-          <BaseModalTitle title={t(I18nKey.BACKEND$EDIT_TITLE)} />
+          <BaseModalTitle
+            title={t(I18nKey.BACKEND$EDIT_TITLE)}
+            className="text-white"
+          />
           <button
             type="button"
             onClick={onClose}
-            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
+            className={cn(MODAL_ICON_BUTTON_CLASS, "shrink-0")}
             data-testid={`${testIdRoot}-close`}
             aria-label={t(I18nKey.BUTTON$CLOSE)}
           >
