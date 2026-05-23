@@ -5,7 +5,6 @@ import {
   ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -37,10 +36,7 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  getAgentServerClientOptions,
-  getAgentServerHttpClientOptions,
-} from "../agent-server-client-options";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -643,9 +639,9 @@ class AgentServerConversationService {
       exposeSecrets: "encrypted",
     });
 
-    await new HttpClient(getAgentServerHttpClientOptions()).post(
-      `/api/conversations/${conversationId}/switch_llm`,
-      { llm: profile.config },
+    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+      conversationId,
+      profile.config,
     );
   }
 }
