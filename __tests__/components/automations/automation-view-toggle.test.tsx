@@ -23,4 +23,24 @@ describe("AutomationViewToggle", () => {
 
     expect(onChange).toHaveBeenCalledWith("list");
   });
+
+  it("does not open the menu or fire onChange when disabled", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <AutomationViewToggle view="grid" onChange={onChange} disabled />,
+    );
+    const trigger = screen.getByTestId("automations-view-toggle");
+
+    // Act — try to open the menu
+    await user.click(trigger);
+
+    // Assert — menu items never render and onChange stays untouched
+    expect(trigger).toBeDisabled();
+    expect(
+      screen.queryByTestId("automations-view-toggle-list"),
+    ).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
