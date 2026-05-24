@@ -135,7 +135,7 @@ jobs:
             add_tag "$BRANCH"
           fi
 
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             add_tag "pr-${{ github.event.pull_request.number }}"
           fi
 

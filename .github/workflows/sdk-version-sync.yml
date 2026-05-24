@@ -62,8 +62,8 @@ jobs:
           CLIENT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
           INPUT_VALUE: ${{ inputs.sdk_version }}
         run: |
-          echo "Triggered by: $GITHUB_EVENT_NAME"
-          if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+          echo "Triggered by: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             echo "Event type: ${{ github.event.action }}"
             echo "Client payload: $CLIENT_PAYLOAD"
           fi
