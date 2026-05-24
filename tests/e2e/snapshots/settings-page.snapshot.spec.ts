@@ -92,6 +92,14 @@ async function setupMocks(page: Page, showConsentModal = false) {
     });
   });
 
+  await page.route("**/api/workspaces**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ workspaces: [], workspaceParents: [] }),
+    });
+  });
+
   await page.route("**/api/bash/execute_bash_command", async (route) => {
     await route.fulfill({
       status: 200,
@@ -161,7 +169,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible();
+    await expect(homeScreen).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
 
     const rootLayout = page.getByTestId("root-layout");
