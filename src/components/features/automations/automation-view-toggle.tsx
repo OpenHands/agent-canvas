@@ -11,6 +11,7 @@ import type { AutomationViewMode } from "./automation-view-mode";
 interface AutomationViewToggleProps {
   view: AutomationViewMode;
   onChange: (view: AutomationViewMode) => void;
+  disabled?: boolean;
 }
 
 const VIEW_OPTIONS: {
@@ -59,6 +60,7 @@ function ViewMenuItemContent({
 export function AutomationViewToggle({
   view,
   onChange,
+  disabled = false,
 }: AutomationViewToggleProps) {
   const { t } = useTranslation("openhands");
   const [open, setOpen] = useState(false);
@@ -156,9 +158,15 @@ export function AutomationViewToggle({
         aria-label={t(I18nKey.AUTOMATIONS$VIEW_MODE)}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        aria-disabled={disabled}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
         className={cn(
           "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-[var(--oh-border)] bg-base-secondary text-white transition-colors hover:bg-[var(--oh-interactive-hover)] focus-visible:border-white/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20",
+          "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-base-secondary",
         )}
       >
         <ActiveIcon className="size-4" aria-hidden />

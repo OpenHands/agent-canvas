@@ -124,6 +124,8 @@ export default function AutomationsList() {
   }, []);
 
   const hasMore = data ? data.total > data.automations.length : false;
+  const hasNoAutomations =
+    !isLoading && !isError && data?.automations.length === 0;
 
   // Show loading state while checking health
   if (isHealthLoading) {
@@ -193,6 +195,7 @@ export default function AutomationsList() {
           <AutomationViewToggle
             view={viewMode}
             onChange={handleViewModeChange}
+            disabled={hasNoAutomations}
           />
         </div>
 
@@ -208,9 +211,7 @@ export default function AutomationsList() {
 
           {isError && !isLoading && <ErrorState onRetry={refetch} />}
 
-          {!isLoading && !isError && data?.automations.length === 0 && (
-            <EmptyState />
-          )}
+          {hasNoAutomations && <EmptyState />}
 
           {!isLoading && !isError && data && data.automations.length > 0 && (
             <>

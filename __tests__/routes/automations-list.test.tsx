@@ -166,4 +166,27 @@ describe("AutomationsList — view mode toggle", () => {
       "list",
     );
   });
+
+  it("disables the view-mode toggle when the user has no automations", async () => {
+    // Arrange — service returns an empty list, so the page lands on EmptyState.
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [],
+      total: 0,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => {
+      expect(AutomationService.getAutomations).toHaveBeenCalledTimes(1);
+    });
+
+    // Act — try to open the toggle's grid/list menu.
+    const trigger = await screen.findByTestId("automations-view-toggle");
+    await user.click(trigger);
+
+    // Assert — toggle is disabled and clicking it does not reveal the menu.
+    expect(trigger).toBeDisabled();
+    expect(
+      screen.queryByTestId("automations-view-toggle-list"),
+    ).not.toBeInTheDocument();
+  });
 });
