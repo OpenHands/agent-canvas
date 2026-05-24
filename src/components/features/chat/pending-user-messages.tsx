@@ -9,11 +9,10 @@ import { ChatMessage } from "./chat-message";
 
 /**
  * Renders the queue of locally-tracked user messages that have been submitted
- * but not yet echoed back through the WebSocket. Each message starts as
- * "sending", switches to "queued" once the local send call succeeds, and is
- * removed only when the server echoes a real `UserMessageEvent`. If the API
- * rejects the send, the message switches to an "error" state with a retry
- * button.
+ * but not yet echoed back through the WebSocket. Each message shows a faded
+ * "sending" treatment until the server echoes a real `UserMessageEvent`
+ * (which removes it via `consumeMatchingPendingMessage`). If the API rejects the
+ * send, the message switches to an "error" state with a retry button.
  *
  * The queue is global but each entry is tagged with the conversation id it
  * was enqueued from; this component filters to only entries belonging to the
@@ -30,9 +29,6 @@ export function PendingUserMessages() {
   );
   const markPendingMessageSending = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageSending,
-  );
-  const markPendingMessageQueued = useOptimisticUserMessageStore(
-    (state) => state.markPendingMessageQueued,
   );
   const { send } = useSendMessage();
 
@@ -67,19 +63,13 @@ export function PendingUserMessages() {
             message.timestamp,
           ),
         );
-        markPendingMessageQueued(id);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to send message";
         markPendingMessageError(id, errorMessage);
       }
     },
-    [
-      send,
-      markPendingMessageError,
-      markPendingMessageQueued,
-      markPendingMessageSending,
-    ],
+    [send, markPendingMessageError, markPendingMessageSending],
   );
 
   if (visibleMessages.length === 0) {
@@ -93,7 +83,7 @@ export function PendingUserMessages() {
           key={message.id}
           type="user"
           message={message.text}
-          pendingStatus={message.status}
+          pendingStatus={message.status === "sent" ? undefined : message.status}
           onRetry={
             message.status === "error"
               ? () => handleRetry(message.id)

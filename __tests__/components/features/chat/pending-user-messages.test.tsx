@@ -33,7 +33,7 @@ describe("PendingUserMessages", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders each sending message with the faded treatment", () => {
+  it("renders each queued message with the faded 'sending' treatment", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
       conversationId: ACTIVE_CONVO,
       text: "first message",
@@ -74,10 +74,12 @@ describe("PendingUserMessages", () => {
   });
 
   it("shows an error state with a retry link when the message is in 'error'", () => {
-    const id = useOptimisticUserMessageStore.getState().enqueuePendingMessage({
-      conversationId: ACTIVE_CONVO,
-      text: "broken message",
-    });
+    const id = useOptimisticUserMessageStore
+      .getState()
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "broken message",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");
@@ -90,12 +92,14 @@ describe("PendingUserMessages", () => {
     expect(screen.getByTestId("chat-message-retry")).toBeInTheDocument();
   });
 
-  it("re-sends and flips to 'queued' when retry succeeds", async () => {
+  it("re-sends and flips back to 'sending' when retry is clicked", async () => {
     mockSend.mockResolvedValueOnce({ queued: false });
-    const id = useOptimisticUserMessageStore.getState().enqueuePendingMessage({
-      conversationId: ACTIVE_CONVO,
-      text: "retry me",
-    });
+    const id = useOptimisticUserMessageStore
+      .getState()
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "retry me",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");
@@ -114,18 +118,21 @@ describe("PendingUserMessages", () => {
     );
 
     await waitFor(() => {
-      const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
-      expect(entry.status).toBe("queued");
+      const [entry] =
+        useOptimisticUserMessageStore.getState().pendingMessages;
+      expect(entry.status).toBe("sending");
       expect(entry.errorMessage).toBeUndefined();
     });
   });
 
   it("flips back to 'error' if the retry attempt also fails", async () => {
     mockSend.mockRejectedValueOnce(new Error("still broken"));
-    const id = useOptimisticUserMessageStore.getState().enqueuePendingMessage({
-      conversationId: ACTIVE_CONVO,
-      text: "retry me",
-    });
+    const id = useOptimisticUserMessageStore
+      .getState()
+      .enqueuePendingMessage({
+        conversationId: ACTIVE_CONVO,
+        text: "retry me",
+      });
     useOptimisticUserMessageStore
       .getState()
       .markPendingMessageError(id, "Server unavailable");
@@ -136,7 +143,8 @@ describe("PendingUserMessages", () => {
     await user.click(screen.getByTestId("chat-message-retry"));
 
     await waitFor(() => {
-      const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
+      const [entry] =
+        useOptimisticUserMessageStore.getState().pendingMessages;
       expect(entry.status).toBe("error");
       expect(entry.errorMessage).toBe("still broken");
     });

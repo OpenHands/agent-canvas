@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  test,
+  vi,
+} from "vitest";
 import {
   fireEvent,
   render,
@@ -233,7 +241,11 @@ describe("ChatInterface - Chat Suggestions", () => {
       },
     });
 
-    renderWithQueryClient(<ChatInterface />, queryClient, "/task-abc");
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
 
     expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
   });
@@ -255,7 +267,11 @@ describe("ChatInterface - Chat Suggestions", () => {
       },
     });
 
-    renderWithQueryClient(<ChatInterface />, queryClient, "/task-abc");
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
 
     expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
   });
@@ -648,14 +664,7 @@ describe("ChatInterface - Pending message queue", () => {
     expect(screen.getByTestId("chat-message-sending")).toBeInTheDocument();
     expect(screen.queryByTestId("chat-message-retry")).not.toBeInTheDocument();
 
-    act(() => {
-      resolveSend?.({ queued: false });
-    });
-
-    await waitFor(() => {
-      expect(pendingMessage).toHaveAttribute("data-pending-status", "queued");
-    });
-    expect(screen.getByTestId("chat-message-queued")).toBeInTheDocument();
+    resolveSend?.({ queued: false });
   });
 
   it("flips the message to 'error' with a retry link when send rejects", async () => {

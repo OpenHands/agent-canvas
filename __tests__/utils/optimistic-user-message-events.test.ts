@@ -73,14 +73,13 @@ describe("optimistic-user-message-events", () => {
   });
 
   it("carries pending status into the optimistic event", () => {
-    const [event] = mergeOptimisticUserMessages(
-      [],
-      [{ ...pendingMessage, status: "queued" }],
-    );
+    const [event] = mergeOptimisticUserMessages([], [
+      { ...pendingMessage, status: "sent" },
+    ]);
 
     expect(isOptimisticUserMessageEvent(event)).toBe(true);
     if (isOptimisticUserMessageEvent(event)) {
-      expect(event.optimisticPendingStatus).toBe("queued");
+      expect(event.optimisticPendingStatus).toBe("sent");
       expect(event.llm_message.content).toEqual([
         { type: "text", text: "optimistic message" },
       ]);
@@ -88,10 +87,9 @@ describe("optimistic-user-message-events", () => {
   });
 
   it("does not duplicate an event that already exists", () => {
-    const merged = mergeOptimisticUserMessages(
-      [userEvent],
-      [{ ...pendingMessage, id: userEvent.id }],
-    );
+    const merged = mergeOptimisticUserMessages([userEvent], [
+      { ...pendingMessage, id: userEvent.id },
+    ]);
 
     expect(merged).toEqual([userEvent]);
   });

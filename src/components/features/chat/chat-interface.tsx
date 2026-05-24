@@ -42,7 +42,6 @@ import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { I18nKey } from "#/i18n/declaration";
-import { setConversationState } from "#/utils/conversation-local-storage";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -76,9 +75,6 @@ export function ChatInterface() {
   );
   const markPendingMessageError = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageError,
-  );
-  const markPendingMessageQueued = useOptimisticUserMessageStore(
-    (state) => state.markPendingMessageQueued,
   );
   const pendingMessages = useOptimisticUserMessageStore(
     (state) => state.pendingMessages,
@@ -341,11 +337,11 @@ export function ChatInterface() {
     const prompt =
       uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
 
-    // Enqueue the message into the local pending queue with status "sending" so
-    // the user immediately sees it in the chat. Once the local send call
-    // succeeds we mark it "queued"; only the server's echoed `UserMessageEvent`
-    // removes it, because later agent activity may still belong to the previous
-    // turn.
+    // Enqueue the message into the local pending queue with status "sending"
+    // so the user immediately sees it in the chat with a faded treatment. The
+    // entry is removed when the WebSocket echoes back the corresponding
+    // `UserMessageEvent`. If the API call to send the message fails, the entry
+    // is flipped to "error" with a retry link.
     const pendingId = enqueuePendingMessage({
       conversationId: conversationId!,
       // `text` is what the user sees in the bubble; `content` is what we
@@ -364,8 +360,6 @@ export function ChatInterface() {
       await send(
         createChatMessage(prompt, imageUrls, uploadedFiles, timestamp),
       );
-      markPendingMessageQueued(pendingId);
-      setConversationState(conversationId!, { draftMessage: null });
     } catch (sendError) {
       const sendErrorMessage =
         sendError instanceof Error
