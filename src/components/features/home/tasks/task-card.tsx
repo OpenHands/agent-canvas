@@ -47,6 +47,7 @@ export function TaskCard({ task }: TaskCardProps) {
           enqueuePendingMessage({
             conversationId: data.conversation_id,
             text: t("TASK$ADDRESSING_TASK"),
+            status: "queued",
           });
           navigate(`/conversations/${data.conversation_id}`);
         },

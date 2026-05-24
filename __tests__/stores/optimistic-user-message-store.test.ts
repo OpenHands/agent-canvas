@@ -74,38 +74,30 @@ describe("optimistic-user-message-store", () => {
     expect(entry.errorMessage).toBeUndefined();
   });
 
-  it("marks a sending message as sent", () => {
+  it("marks a sending message as queued", () => {
     const store = useOptimisticUserMessageStore.getState();
     const id = store.enqueuePendingMessage({
       conversationId: CONVO,
-      text: "accepted",
+      text: "queued",
     });
 
-    store.markPendingMessageSent(id);
+    store.markPendingMessageQueued(id);
 
     const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
-    expect(entry.status).toBe("sent");
+    expect(entry.status).toBe("queued");
     expect(entry.errorMessage).toBeUndefined();
   });
 
-  it("marks the oldest sending message in a conversation as sent", () => {
+  it("can enqueue an already queued message", () => {
     const store = useOptimisticUserMessageStore.getState();
-    const firstId = store.enqueuePendingMessage({
+    store.enqueuePendingMessage({
       conversationId: CONVO,
-      text: "first",
+      text: "queued",
+      status: "queued",
     });
-    store.enqueuePendingMessage({ conversationId: CONVO, text: "second" });
-    store.enqueuePendingMessage({ conversationId: "conv-b", text: "other" });
 
-    const marked = store.markOldestSendingMessageSent(CONVO);
-
-    expect(marked?.id).toBe(firstId);
-    const pending = useOptimisticUserMessageStore.getState().pendingMessages;
-    expect(pending.map((message) => message.status)).toEqual([
-      "sent",
-      "sending",
-      "sending",
-    ]);
+    const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(entry.status).toBe("queued");
   });
 
   it("enqueue stores `content` separately from `text` and defaults it to `text`", () => {
@@ -145,19 +137,18 @@ describe("optimistic-user-message-store", () => {
     const consumed = store.consumeMatchingPendingMessage(CONVO, "second");
 
     expect(consumed?.id).toBe(secondId);
-    const remaining =
-      useOptimisticUserMessageStore.getState().pendingMessages;
+    const remaining = useOptimisticUserMessageStore.getState().pendingMessages;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(firstId);
   });
 
-  it("consumeMatchingPendingMessage removes a sent optimistic message when the echo arrives", () => {
+  it("consumeMatchingPendingMessage removes a queued optimistic message when the echo arrives", () => {
     const store = useOptimisticUserMessageStore.getState();
     const id = store.enqueuePendingMessage({
       conversationId: CONVO,
       text: "accepted",
     });
-    store.markPendingMessageSent(id);
+    store.markPendingMessageQueued(id);
 
     const consumed = store.consumeMatchingPendingMessage(CONVO, "accepted");
 
@@ -203,8 +194,7 @@ describe("optimistic-user-message-store", () => {
     const consumed = store.consumeMatchingPendingMessage(CONVO, "second");
 
     expect(consumed?.id).toBe(secondId);
-    const remaining =
-      useOptimisticUserMessageStore.getState().pendingMessages;
+    const remaining = useOptimisticUserMessageStore.getState().pendingMessages;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(firstId);
     expect(remaining[0].status).toBe("error");
@@ -242,8 +232,7 @@ describe("optimistic-user-message-store", () => {
     const consumed = store.consumeMatchingPendingMessage("conv-b", "shared");
 
     expect(consumed?.id).toBe(bId);
-    const remaining =
-      useOptimisticUserMessageStore.getState().pendingMessages;
+    const remaining = useOptimisticUserMessageStore.getState().pendingMessages;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(aId);
   });
@@ -269,19 +258,19 @@ describe("optimistic-user-message-store", () => {
     expect(entry.errorMessage).toBe("Send timed out");
   });
 
-  it("watchdog timeout does nothing if the message was already marked sent", () => {
+  it("watchdog timeout does nothing if the message was already queued", () => {
     const store = useOptimisticUserMessageStore.getState();
     const id = store.enqueuePendingMessage({
       conversationId: CONVO,
       text: "accepted",
     });
-    store.markPendingMessageSent(id);
+    store.markPendingMessageQueued(id);
 
     vi.advanceTimersByTime(PENDING_MESSAGE_TIMEOUT_MS);
 
     const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
     expect(entry.id).toBe(id);
-    expect(entry.status).toBe("sent");
+    expect(entry.status).toBe("queued");
   });
 
   it("watchdog timeout does nothing if the echo already consumed the message", () => {
@@ -321,8 +310,7 @@ describe("optimistic-user-message-store", () => {
 
     store.removePendingMessage(firstId);
 
-    const remaining =
-      useOptimisticUserMessageStore.getState().pendingMessages;
+    const remaining = useOptimisticUserMessageStore.getState().pendingMessages;
     expect(remaining.map((m) => m.text)).toEqual(["second"]);
   });
 

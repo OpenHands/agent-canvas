@@ -41,6 +41,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const markPendingMessageError = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageError,
   );
+  const markPendingMessageQueued = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageQueued,
+  );
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
 
@@ -177,12 +180,18 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
                 timestamp: new Date().toISOString(),
               },
             }),
-          ).catch((error) => {
-            if (!pendingId) return;
-            const errorMessage =
-              error instanceof Error ? error.message : "Failed to send message";
-            markPendingMessageError(pendingId, errorMessage);
-          });
+          )
+            .then(() => {
+              if (pendingId) markPendingMessageQueued(pendingId);
+            })
+            .catch((error) => {
+              if (!pendingId) return;
+              const errorMessage =
+                error instanceof Error
+                  ? error.message
+                  : "Failed to send message";
+              markPendingMessageError(pendingId, errorMessage);
+            });
         },
       },
     );

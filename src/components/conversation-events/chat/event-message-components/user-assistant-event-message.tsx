@@ -26,6 +26,9 @@ export function UserAssistantEventMessage({
   const markPendingMessageSending = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageSending,
   );
+  const markPendingMessageQueued = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageQueued,
+  );
   const { send } = useSendMessage();
   const message = parseMessageFromEvent(event);
   const pendingStatus = isOptimisticUserMessageEvent(event)
@@ -62,19 +65,26 @@ export function UserAssistantEventMessage({
           pendingMessage.timestamp,
         ),
       );
+      markPendingMessageQueued(pendingMessage.id);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to send message";
       markPendingMessageError(pendingMessage.id, errorMessage);
     }
-  }, [event, markPendingMessageError, markPendingMessageSending, send]);
+  }, [
+    event,
+    markPendingMessageError,
+    markPendingMessageQueued,
+    markPendingMessageSending,
+    send,
+  ]);
 
   return (
     <ChatMessage
       type={event.source}
       message={message}
       isFromPlanningAgent={isFromPlanningAgent}
-      pendingStatus={pendingStatus === "sent" ? undefined : pendingStatus}
+      pendingStatus={pendingStatus}
       onRetry={pendingStatus === "error" ? handleRetry : undefined}
     >
       {imageUrls.length > 0 && (

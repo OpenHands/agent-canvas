@@ -8618,6 +8618,23 @@
     "uk": "Надсилання...",
     "ca": "Enviant..."
   },
+  "CHAT_INTERFACE$MESSAGE_QUEUED": {
+    "en": "Queued",
+    "ja": "キューに追加済み",
+    "zh-CN": "已排队",
+    "zh-TW": "已排入佇列",
+    "ko-KR": "대기열에 추가됨",
+    "no": "I kø",
+    "it": "In coda",
+    "pt": "Na fila",
+    "es": "En cola",
+    "ar": "في قائمة الانتظار",
+    "fr": "En file d'attente",
+    "tr": "Sırada",
+    "de": "In Warteschlange",
+    "uk": "У черзі",
+    "ca": "A la cua"
+  },
   "CHAT_INTERFACE$MESSAGE_SEND_FAILED": {
     "en": "Failed to send.",
     "ja": "送信に失敗しました。",

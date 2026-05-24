@@ -7,7 +7,7 @@ import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { I18nKey } from "#/i18n/declaration";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
-export type ChatMessagePendingStatus = "sending" | "error";
+export type ChatMessagePendingStatus = "sending" | "queued" | "error";
 
 interface ChatMessageProps {
   type: SourceType;
@@ -68,7 +68,8 @@ export function ChatMessage({
         isFromPlanningAgent &&
           type === "agent" &&
           "border border-[#597ff4] bg-tertiary p-4 mt-2",
-        pendingStatus === "sending" && "opacity-60",
+        (pendingStatus === "sending" || pendingStatus === "queued") &&
+          "opacity-60",
         pendingStatus === "error" && "border border-status-fail-border",
       )}
     >
@@ -126,6 +127,17 @@ export function ChatMessage({
           className="self-end text-xs italic text-content-muted"
         >
           {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
+        </span>
+      )}
+
+      {pendingStatus === "queued" && (
+        <span
+          role="status"
+          aria-live="polite"
+          data-testid="chat-message-queued"
+          className="self-end text-xs italic text-content-muted"
+        >
+          {t(I18nKey.CHAT_INTERFACE$MESSAGE_QUEUED)}
         </span>
       )}
 

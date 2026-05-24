@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type PendingUserMessageStatus = "sending" | "sent" | "error";
+export type PendingUserMessageStatus = "sending" | "queued" | "error";
 
 /**
  * How long a pending message is allowed to stay in "sending" state before we
@@ -52,6 +52,7 @@ export interface EnqueuePendingMessagePayload {
   imageUrls?: string[];
   fileUrls?: string[];
   timestamp?: string;
+  status?: PendingUserMessageStatus;
 }
 
 interface OptimisticUserMessageActions {
@@ -64,33 +65,24 @@ interface OptimisticUserMessageActions {
   enqueuePendingMessage: (payload: EnqueuePendingMessagePayload) => string;
   /** Mark a pending message as failed (the API rejected it). */
   markPendingMessageError: (id: string, errorMessage?: string) => void;
-  /** Mark a pending message as accepted by the server. */
-  markPendingMessageSent: (id: string) => void;
+  /** Mark a pending message as queued after the local send call succeeds. */
+  markPendingMessageQueued: (id: string) => void;
   /** Mark a pending message as sending again (used when retrying). */
   markPendingMessageSending: (id: string) => void;
   /** Drop a pending message from the queue (e.g., after success/cancellation). */
   removePendingMessage: (id: string) => void;
   /**
-   * Remove the pending message that matches the given echoed `content` in
-   * the given conversation. Matching is done by exact content equality on
-   * messages still in "sending" state; if no match exists we fall back to
-   * removing the oldest "sending" entry in that conversation so that an echo
-   * with a slightly munged body (e.g. trailing-whitespace stripped by the
-   * server) still clears its bubble. Scoping by `conversationId` ensures a
-   * stale ack for one conversation never pops a pending entry belonging to
-   * another.
+   * Remove the pending message that matches the given echoed `content` in the
+   * given conversation. Matching is done by exact content equality on non-error
+   * messages; if no match exists we fall back to removing the oldest non-error
+   * entry in that conversation so that an echo with a slightly munged body
+   * (e.g. trailing-whitespace stripped by the server) still clears its bubble.
+   * Scoping by `conversationId` ensures a stale ack for one conversation never
+   * pops a pending entry belonging to another.
    */
   consumeMatchingPendingMessage: (
     conversationId: string,
     content: string,
-  ) => PendingUserMessage | null;
-  /**
-   * Mark the oldest still-sending message in the conversation as accepted by
-   * the server. Used when the server streams agent work but does not echo the
-   * user message event on the live WebSocket path.
-   */
-  markOldestSendingMessageSent: (
-    conversationId: string,
   ) => PendingUserMessage | null;
   /** Wipe all queued messages (e.g., when changing conversations). */
   clearPendingMessages: () => void;
@@ -129,7 +121,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         conversationId: payload.conversationId,
         text: payload.text,
         content: payload.content ?? payload.text,
-        status: "sending",
+        status: payload.status ?? "sending",
         imageUrls: payload.imageUrls ?? [],
         fileUrls: payload.fileUrls ?? [],
         timestamp: payload.timestamp ?? new Date().toISOString(),
@@ -160,11 +152,11 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         ),
       })),
 
-    markPendingMessageSent: (id) =>
+    markPendingMessageQueued: (id) =>
       set((state) => ({
         pendingMessages: state.pendingMessages.map((message) =>
           message.id === id
-            ? { ...message, status: "sent", errorMessage: undefined }
+            ? { ...message, status: "queued", errorMessage: undefined }
             : message,
         ),
       })),
@@ -191,7 +183,7 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       // is what makes out-of-order echoes safe: an echo of "world" will pop
       // the "world" bubble, not the older "hello" one). If no exact match
       // exists — e.g. the server slightly munged the body — fall back to the
-      // oldest "sending" entry in this conversation so the user doesn't end
+      // oldest non-error entry in this conversation so the user doesn't end
       // up with a permanently-stuck bubble in the happy-path single-message
       // case.
       let consumed: PendingUserMessage | null = null;
@@ -214,28 +206,6 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         };
       });
       return consumed;
-    },
-
-    markOldestSendingMessageSent: (conversationId) => {
-      let marked: PendingUserMessage | null = null;
-      set((state) => {
-        const target = state.pendingMessages.find(
-          (message) =>
-            message.status === "sending" &&
-            message.conversationId === conversationId,
-        );
-        if (!target) return state;
-
-        marked = target;
-        return {
-          pendingMessages: state.pendingMessages.map((message) =>
-            message.id === target.id
-              ? { ...message, status: "sent", errorMessage: undefined }
-              : message,
-          ),
-        };
-      });
-      return marked;
     },
 
     clearPendingMessages: () => set(() => ({ ...initialState })),

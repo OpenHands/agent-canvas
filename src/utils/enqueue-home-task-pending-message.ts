@@ -26,5 +26,6 @@ export async function enqueueHomeTaskPendingMessage(options: {
     content: options.text,
     imageUrls,
     fileUrls: [],
+    status: "queued",
   });
 }

@@ -137,9 +137,6 @@ export function ConversationWebSocketProvider({
   const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
     (state) => state.consumeMatchingPendingMessage,
   );
-  const markOldestSendingMessageSent = useOptimisticUserMessageStore(
-    (state) => state.markOldestSendingMessageSent,
-  );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
 
@@ -458,12 +455,6 @@ export function ConversationWebSocketProvider({
               // Clear draft from localStorage - message was successfully delivered
               setConversationState(conversationId, { draftMessage: null });
             }
-          } else if (
-            conversationId &&
-            (event.source === "agent" || isConversationStateUpdateEvent(event))
-          ) {
-            markOldestSendingMessageSent(conversationId);
-            setConversationState(conversationId, { draftMessage: null });
           }
 
           // Handle cache invalidation for ActionEvent
@@ -559,7 +550,6 @@ export function ConversationWebSocketProvider({
       addEvent,
       setErrorMessage,
       consumeMatchingPendingMessage,
-      markOldestSendingMessageSent,
       queryClient,
       conversationId,
       setExecutionStatus,
@@ -645,12 +635,6 @@ export function ConversationWebSocketProvider({
               );
               setConversationState(conversationId, { draftMessage: null });
             }
-          } else if (
-            conversationId &&
-            (event.source === "agent" || isConversationStateUpdateEvent(event))
-          ) {
-            markOldestSendingMessageSent(conversationId);
-            setConversationState(conversationId, { draftMessage: null });
           }
 
           // Handle cache invalidation for ActionEvent
@@ -740,7 +724,6 @@ export function ConversationWebSocketProvider({
       expectedEventCountPlanning,
       setErrorMessage,
       consumeMatchingPendingMessage,
-      markOldestSendingMessageSent,
       queryClient,
       subConversations,
       conversationId,
