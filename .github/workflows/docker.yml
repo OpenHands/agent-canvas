@@ -96,22 +96,29 @@ jobs:
 
       - name: Compute metadata and tags
         id: prep
+        env:
+          AGENT_SERVER_IMAGE_INPUT: ${{ inputs.agent_server_image }}
+          DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
+          AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
+          DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
 
           # Resolve agent-server base image (input override > config/defaults.json)
-          if [ -n "${{ inputs.agent_server_image }}" ]; then
-            echo "agent_server_image=${{ inputs.agent_server_image }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$AGENT_SERVER_IMAGE_INPUT" ]; then
+            echo "agent_server_image=$AGENT_SERVER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
-            echo "agent_server_image=${{ steps.config.outputs.default_agent_server_image }}" >> "$GITHUB_OUTPUT"
+            echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
           fi
 
           # Resolve automation version (input override > config/defaults.json)
-          if [ -n "${{ inputs.automation_version }}" ]; then
-            echo "automation_version=${{ inputs.automation_version }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$AUTOMATION_VERSION_INPUT" ]; then
+            echo "automation_version=$AUTOMATION_VERSION_INPUT" >> "$GITHUB_OUTPUT"
           else
-            echo "automation_version=${{ steps.config.outputs.default_automation_version }}" >> "$GITHUB_OUTPUT"
+            echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
           # Build arch-suffixed tags (e.g., sha-abc1234-amd64)
@@ -130,8 +137,8 @@ jobs:
             add_tag "$BRANCH"
           fi
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            add_tag "pr-${{ github.event.pull_request.number }}"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            add_tag "pr-$PR_NUMBER"
           fi
 
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
@@ -193,27 +200,36 @@ jobs:
           sbom: true
 
       - name: Summary (${{ matrix.arch }})
+        env:
+          SHORT_SHA: ${{ steps.prep.outputs.short_sha }}
+          TAGS: ${{ steps.prep.outputs.tags }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          echo "Image: ${{ env.IMAGE }}"
+          echo "Image: $IMAGE"
           echo "Architecture: ${{ matrix.arch }}"
           echo "Platform: ${{ matrix.platform }}"
-          echo "Short SHA: ${{ steps.prep.outputs.short_sha }}"
-          echo "Tags: ${{ steps.prep.outputs.tags }}"
-          echo "Build digest: ${{ steps.build.outputs.digest }}"
+          echo "Short SHA: $SHORT_SHA"
+          echo "Tags: $TAGS"
+          echo "Build digest: $BUILD_DIGEST"
 
       - name: Save build info for consolidation
+        env:
+          SHORT_SHA: ${{ steps.prep.outputs.short_sha }}
+          TAGS: ${{ steps.prep.outputs.tags }}
+          AGENT_SERVER_IMAGE: ${{ steps.prep.outputs.agent_server_image }}
+          AUTOMATION_VERSION: ${{ steps.prep.outputs.automation_version }}
         run: |
           mkdir -p build-info
           jq -n \
             --arg arch "${{ matrix.arch }}" \
-            --arg image "${{ env.IMAGE }}" \
-            --arg short_sha "${{ steps.prep.outputs.short_sha }}" \
-            --arg tags "${{ steps.prep.outputs.tags }}" \
-            --arg agent_server_image "${{ steps.prep.outputs.agent_server_image }}" \
-            --arg automation_version "${{ steps.prep.outputs.automation_version }}" \
+            --arg image "$IMAGE" \
+            --arg short_sha "$SHORT_SHA" \
+            --arg tags "$TAGS" \
+            --arg agent_server_image "$AGENT_SERVER_IMAGE" \
+            --arg automation_version "$AUTOMATION_VERSION" \
             --arg platform "${{ matrix.platform }}" \
-            --arg git_sha "${{ env.RELEVANT_SHA }}" \
-            --arg git_ref "${{ env.RELEVANT_REF }}" \
+            --arg git_sha "$RELEVANT_SHA" \
+            --arg git_ref "$RELEVANT_REF" \
             '{arch: $arch, image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, platform: $platform, git_sha: $git_sha, git_ref: $git_ref}' \
             > "build-info/${{ matrix.arch }}.json"
           cat "build-info/${{ matrix.arch }}.json"
@@ -265,6 +281,9 @@ jobs:
 
       - name: Create and push multi-arch manifests
         id: create_manifests
+        env:
+          SHORT_SHA: ${{ steps.get_sha.outputs.short_sha }}
+          GIT_REF: ${{ github.ref }}
         run: |
           # Validate both architectures built successfully
           if [[ ! -f build-info/amd64.json ]] || [[ ! -f build-info/arm64.json ]]; then
@@ -273,7 +292,6 @@ jobs:
             exit 1
           fi
 
-          SHORT_SHA=${{ steps.get_sha.outputs.short_sha }}
           AMD64_TAGS_CSV=$(jq -r '.tags' build-info/amd64.json)
           declare -A SEEN_MANIFEST_TAGS=()
           MANIFEST_TAGS=()
@@ -315,7 +333,7 @@ jobs:
           done
 
           # Preserve a latest alias on main pushes.
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          if [ "$GIT_REF" == "refs/heads/main" ]; then
             LATEST_TAG="latest"
             create_manifest "$LATEST_TAG" "main"
             MANIFEST_TAGS+=("$LATEST_TAG")
@@ -456,8 +474,10 @@ jobs:
     steps:
       - name: Generate PR description from build summary
         id: generate_description
+        env:
+          BUILD_SUMMARY_JSON: ${{ needs.consolidate-build-info.outputs.build_summary }}
         run: |
-          BUILD_SUMMARY='${{ needs.consolidate-build-info.outputs.build_summary }}'
+          BUILD_SUMMARY="$BUILD_SUMMARY_JSON"
           echo "Build summary received:"
           echo "$BUILD_SUMMARY" | jq .
 

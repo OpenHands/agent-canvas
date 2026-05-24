@@ -26,8 +26,11 @@ jobs:
     steps:
       - name: Check if fork PR
         id: check_fork
+        env:
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
         run: |
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.event.pull_request.base.repo.full_name }}" ]; then
+          if [ "$PR_HEAD_REPO" != "$PR_BASE_REPO" ]; then
             echo "is_fork=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Fork PR detected - skipping automatic .pr cleanup."
           else
@@ -39,9 +42,10 @@ jobs:
         if: steps.check_fork.outputs.is_fork == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          pr_api="repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+          pr_api="repos/${{ github.repository }}/pulls/$PR_NUMBER"
           head_ref="$(gh api "$pr_api" --jq '.head.ref')"
           head_sha="$(gh api "$pr_api" --jq '.head.sha')"
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
@@ -220,8 +224,9 @@ jobs:
       - name: Delete snapshot artifacts branch
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          BRANCH="snapshot-artifacts/pr-${{ github.event.pull_request.number }}"
+          BRANCH="snapshot-artifacts/pr-$PR_NUMBER"
           if gh api --method DELETE "/repos/${{ github.repository }}/git/refs/heads/${BRANCH}" 2>/dev/null; then
             echo "Deleted branch '${BRANCH}'."
           else
