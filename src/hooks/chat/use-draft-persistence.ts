@@ -243,6 +243,12 @@ export const useDraftPersistence = (
   // lastHomeTextRef rather than chatInputRef because React clears ref.current
   // during the synchronous commit phase — before async useEffect cleanups run
   // — so the DOM ref is null by the time this function executes.
+  //
+  // We only write text back if the key already exists in sessionStorage.
+  // saveDraft writes synchronously on every keystroke, so the key is present
+  // whenever there is unsaved text. If the key is absent it was intentionally
+  // removed — most importantly by HomeChatLauncher.onSuccess after a
+  // successful conversation start — and we must not restore it here.
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) {
@@ -252,7 +258,9 @@ export const useDraftPersistence = (
         const text = lastHomeTextRef.current;
         try {
           if (text) {
-            sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+            if (sessionStorage.getItem(HOME_PROMPT_DRAFT_KEY) !== null) {
+              sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+            }
           } else {
             sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
           }
