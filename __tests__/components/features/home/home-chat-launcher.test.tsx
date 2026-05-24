@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { HomeChatLauncher } from "#/components/features/home/home-chat-launcher";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
@@ -207,8 +208,13 @@ const cloudBackend = {
 
 describe("HomeChatLauncher", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     mockUseActiveBackend.mockReturnValue(localBackend);
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
+      workspaces: [],
+      workspaceParents: [],
+    });
   });
 
   afterEach(() => {
@@ -251,7 +257,9 @@ describe("HomeChatLauncher", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("open-workspace-button"));
-    await user.click(await screen.findByTestId("stub-workspace-dialog-confirm"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
     await user.click(screen.getByTestId("stub-chat-submit"));
 
     await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
@@ -267,6 +275,27 @@ describe("HomeChatLauncher", () => {
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-ws"),
     );
+  });
+
+  it("disables the local workspace launcher when the agent server is too old", async () => {
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockRejectedValue({
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    });
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(screen.getByTestId("open-workspace-button")).toBeDisabled(),
+    );
+    const button = screen.getByTestId("open-workspace-button");
+    await user.hover(button.parentElement ?? button);
+
+    expect(
+      await screen.findByText("HOME$WORKSPACES_UNSUPPORTED_AGENT_SERVER"),
+    ).toBeInTheDocument();
   });
 
   it("passes the picked repository + branch payload on a cloud backend", async () => {
@@ -304,9 +333,10 @@ describe("HomeChatLauncher", () => {
   });
 
   it("surfaces a toast and skips navigation when conversation creation fails", async () => {
-    vi.spyOn(AgentServerConversationService, "createConversation").mockRejectedValue(
-      new Error("Network down"),
-    );
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(new Error("Network down"));
 
     renderLauncher();
     const user = userEvent.setup();

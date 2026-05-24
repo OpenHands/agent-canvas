@@ -7,6 +7,7 @@ import { formControlFieldClassName } from "#/utils/form-control-classes";
 import { LocalWorkspace } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 import { ClearButton } from "../shared/clear-button";
 import { ToggleButton } from "../shared/toggle-button";
@@ -20,6 +21,7 @@ export interface WorkspaceDropdownProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  disabledTooltip?: string | null;
   /**
    * Whether to surface the "Manage Workspaces" entry in the sticky footer.
    * Defaults to `workspaces.length > 0` when omitted; pass an explicit value
@@ -38,6 +40,7 @@ export function WorkspaceDropdown({
   placeholder,
   className,
   disabled = false,
+  disabledTooltip,
   showManage,
   onChange,
   onAddClick,
@@ -167,7 +170,7 @@ export function WorkspaceDropdown({
     [onAddClick, onManageClick, t, closeMenu, workspaces.length, showManage],
   );
 
-  return (
+  const control = (
     <div className={cn("relative", className)}>
       <div className="group relative text-[var(--oh-muted)] hover:text-white">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
@@ -216,5 +219,15 @@ export function WorkspaceDropdown({
         itemKey={(item) => item.id}
       />
     </div>
+  );
+
+  if (!disabledTooltip) {
+    return control;
+  }
+
+  return (
+    <StyledTooltip content={disabledTooltip} placement="top">
+      <span className="block">{control}</span>
+    </StyledTooltip>
   );
 }

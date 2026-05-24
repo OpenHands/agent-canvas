@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import { cn } from "#/utils/utils";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import {
   formControlBorderClassName,
   formControlSurfaceClassName,
@@ -13,12 +14,14 @@ interface OpenLauncherButtonProps {
   kind: "local" | "cloud";
   onClick: () => void;
   disabled?: boolean;
+  disabledTooltip?: string | null;
 }
 
 export function OpenLauncherButton({
   kind,
   onClick,
   disabled = false,
+  disabledTooltip,
 }: OpenLauncherButtonProps) {
   const { t } = useTranslation("openhands");
 
@@ -28,7 +31,7 @@ export function OpenLauncherButton({
     : t(I18nKey.COMMON$OPEN_REPOSITORY);
   const testId = isLocal ? "open-workspace-button" : "open-repository-button";
 
-  return (
+  const button = (
     <button
       type="button"
       data-testid={testId}
@@ -53,5 +56,15 @@ export function OpenLauncherButton({
       </span>
       <span className="text-sm font-normal leading-5">{label}</span>
     </button>
+  );
+
+  if (!disabledTooltip) {
+    return button;
+  }
+
+  return (
+    <StyledTooltip content={disabledTooltip} placement="top">
+      <span className="inline-flex">{button}</span>
+    </StyledTooltip>
   );
 }
