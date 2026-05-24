@@ -1,6 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { CircleX, X } from "lucide-react";
+import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -63,6 +64,13 @@ export function ErrorMessageBanner({
       )}
       data-testid="error-message-banner"
     >
+      <CircleX
+        aria-hidden
+        className="h-4 w-4 shrink-0"
+        strokeWidth={2}
+        style={{ color: OH_STATUS_ERROR_COLOR }}
+        data-testid="error-message-banner-icon"
+      />
       <div className="min-w-0 flex-1">
         <div
           ref={contentRef}
@@ -78,7 +86,7 @@ export function ErrorMessageBanner({
         {shouldShowToggle && (
           <button
             type="button"
-            className="mt-1 cursor-pointer text-xs font-semibold text-[var(--oh-foreground)] underline"
+            className="mt-1 cursor-pointer text-xs font-normal text-[var(--oh-foreground)] underline"
             onClick={() => setIsExpanded((prev) => !prev)}
             data-testid="error-message-banner-toggle"
           >
@@ -99,7 +107,7 @@ export function ErrorMessageBanner({
           <button
             type="button"
             onClick={onRetry}
-            className="cursor-pointer rounded-md border border-[var(--oh-border)] px-2 py-1 text-xs font-medium text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]"
+            className="cursor-pointer rounded-md border border-[var(--oh-border)] px-2 py-1 text-xs font-normal text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]"
             data-testid="error-message-banner-retry"
           >
             {t(I18nKey.CHAT_INTERFACE$MESSAGE_RETRY)}

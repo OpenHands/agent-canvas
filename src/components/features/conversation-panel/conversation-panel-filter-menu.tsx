@@ -19,6 +19,7 @@ import { I18nKey } from "#/i18n/declaration";
 import type { BackendKind } from "#/api/backend-registry/types";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 import type {
   ConversationSortField,
   OrganizeMode,
@@ -111,7 +112,10 @@ function MenuRow({
       )}
     >
       <Icon
-        className="h-3.5 w-3.5 shrink-0 text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]"
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]",
+          formControlTransitionClassName,
+        )}
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -234,7 +238,10 @@ export function ConversationPanelFilterMenu({
         aria-haspopup="menu"
         aria-expanded={filterMenuOpen}
         onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors"
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+          formControlTransitionClassName,
+        )}
       >
         <ListFilter
           className="lucide lucide-list-filter shrink-0"

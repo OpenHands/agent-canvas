@@ -1,11 +1,13 @@
-import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationSortOrder,
+  type LLMConfig,
+} from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
   ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
@@ -38,10 +40,7 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  getAgentServerClientOptions,
-  getAgentServerHttpClientOptions,
-} from "../agent-server-client-options";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -67,6 +66,10 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
+const INVALID_PROFILE_CONFIG_MESSAGE =
+  "Unable to switch LLM profiles because the selected agent server returned " +
+  "profile data this UI does not understand. Check the backend URL/session " +
+  "key and update the agent server if needed.";
 
 function invalidConversationResponse(): Error {
   return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
@@ -74,6 +77,10 @@ function invalidConversationResponse(): Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLLMConfig(value: unknown): value is LLMConfig {
+  return isRecord(value) && typeof value.model === "string";
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -674,10 +681,13 @@ class AgentServerConversationService {
     const profile = await profilesClient.getProfile(profileName, {
       exposeSecrets: "encrypted",
     });
+    if (!isLLMConfig(profile.config)) {
+      throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
+    }
 
-    await new HttpClient(getAgentServerHttpClientOptions()).post(
-      `/api/conversations/${conversationId}/switch_llm`,
-      { llm: profile.config },
+    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+      conversationId,
+      profile.config,
     );
   }
 }

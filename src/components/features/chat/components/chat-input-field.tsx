@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
+import { focusContentEditableAtEnd } from "#/components/features/chat/utils/chat-input.utils";
 import { cn } from "#/utils/utils";
 
 interface ChatInputFieldProps {
@@ -33,7 +34,7 @@ export function ChatInputField({
 
   React.useEffect(() => {
     if (!disabled) {
-      chatInputRef.current?.focus();
+      focusContentEditableAtEnd(chatInputRef.current);
     }
     // Focus on mount only — re-focusing on later `disabled` transitions
     // would steal focus from a user who has clicked elsewhere.

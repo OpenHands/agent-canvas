@@ -226,6 +226,14 @@ const getObservationEventTitle = (
         name: event.observation.skill_name,
       };
       break;
+    case "SwitchLLMObservation":
+      observationKey = event.observation.is_error
+        ? "MODEL$SWITCH_FAILED"
+        : "MODEL$SWITCHED_TO_PROFILE";
+      observationValues = {
+        name: event.observation.profile_name,
+      };
+      break;
     case "BrowserObservation":
       observationKey = "OBSERVATION_MESSAGE$BROWSE";
       break;

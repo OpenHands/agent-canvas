@@ -6,12 +6,14 @@ import toast from "react-hot-toast";
 
 import { HomeChatLauncher } from "#/components/features/home/home-chat-launcher";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
 const sendMessageWithAttachments = vi.fn();
 const mockClearAllFiles = vi.fn();
 const enqueueHomeTaskPendingMessage = vi.fn();
+const mockDisplayErrorToast = vi.fn();
 
 let mockImages: File[] = [];
 let mockFiles: File[] = [];
@@ -34,6 +36,15 @@ vi.mock("#/stores/conversation-store", () => ({
     clearAllFiles: mockClearAllFiles,
   }),
 }));
+
+vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/utils/custom-toast-handlers")>();
+  return {
+    ...actual,
+    displayErrorToast: (...args: unknown[]) => mockDisplayErrorToast(...args),
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -222,6 +233,7 @@ const cloudBackend = {
 
 describe("HomeChatLauncher", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     mockImages = [];
     mockFiles = [];
@@ -233,6 +245,10 @@ describe("HomeChatLauncher", () => {
       imageUrls: ["data:image/png;base64,abc"],
       fileUrls: [],
       timestamp: "2020-01-01T00:00:00.000Z",
+    });
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
+      workspaces: [],
+      workspaceParents: [],
     });
   });
 
@@ -276,7 +292,9 @@ describe("HomeChatLauncher", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("open-workspace-button"));
-    await user.click(await screen.findByTestId("stub-workspace-dialog-confirm"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
     await user.click(screen.getByTestId("stub-chat-submit"));
 
     await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
@@ -292,6 +310,27 @@ describe("HomeChatLauncher", () => {
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-ws"),
     );
+  });
+
+  it("disables the local workspace launcher when the agent server is too old", async () => {
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockRejectedValue({
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    });
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(screen.getByTestId("open-workspace-button")).toBeDisabled(),
+    );
+    const button = screen.getByTestId("open-workspace-button");
+    await user.hover(button.parentElement ?? button);
+
+    expect(
+      await screen.findByText("HOME$WORKSPACES_UNSUPPORTED_AGENT_SERVER"),
+    ).toBeInTheDocument();
   });
 
   it("passes the picked repository + branch payload on a cloud backend", async () => {
@@ -358,16 +397,16 @@ describe("HomeChatLauncher", () => {
   });
 
   it("surfaces a toast and skips navigation when conversation creation fails", async () => {
-    const toastErrorSpy = vi.spyOn(toast, "error");
-    vi.spyOn(AgentServerConversationService, "createConversation").mockRejectedValue(
-      new Error("Network down"),
-    );
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(new Error("Network down"));
 
     renderLauncher();
     const user = userEvent.setup();
     await user.click(screen.getByTestId("stub-chat-submit"));
 
-    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalled());
+    await waitFor(() => expect(mockDisplayErrorToast).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

@@ -129,7 +129,7 @@ export const clearFileInput = (element: HTMLInputElement | null): void => {
 /**
  * Ensure cursor stays visible when content is scrollable
  */
-export const ensureCursorVisible = (element: HTMLDivElement | null): void => {
+export const ensureCursorVisible = (element: HTMLElement | null): void => {
   if (!element) {
     return;
   }
@@ -151,4 +151,29 @@ export const ensureCursorVisible = (element: HTMLDivElement | null): void => {
   if (rect.bottom > inputRect.bottom) {
     element.scrollTop = element.scrollHeight - element.clientHeight;
   }
+};
+
+/**
+ * Focus a contentEditable input and place the caret at the end of its text.
+ */
+export const focusContentEditableAtEnd = (
+  element: HTMLElement | null,
+): void => {
+  if (!element) {
+    return;
+  }
+
+  element.focus();
+
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  ensureCursorVisible(element);
 };

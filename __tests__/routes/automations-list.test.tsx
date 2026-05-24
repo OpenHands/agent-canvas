@@ -51,7 +51,7 @@ const automation: Automation = {
   trigger: { type: "cron", schedule: "0 9 * * *", schedule_human: "Daily" },
   enabled: true,
   repository: "acme/repo",
-  model: "Claude",
+  model: "daily-profile",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -104,8 +104,9 @@ describe("AutomationsList — Edit from the row kebab is local-only", () => {
     });
     await screen.findByText(automation.name);
 
-    // Act — open the row kebab and pick Edit.
-    await user.click(screen.getByLabelText("Automation actions"));
+    // Act — open the row kebab and pick Edit. The aria-label resolves to
+    // the I18n key in tests because `t` is mocked to return the key itself.
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
     await user.click(
       screen.getByRole("button", { name: I18nKey.AUTOMATIONS$EDIT }),
     );
@@ -130,8 +131,9 @@ describe("AutomationsList — Edit from the row kebab is local-only", () => {
     });
     await screen.findByText(automation.name);
 
-    // Act — open the row kebab.
-    await user.click(screen.getByLabelText("Automation actions"));
+    // Act — open the row kebab. The aria-label resolves to the I18n key
+    // in tests because `t` is mocked to return the key itself.
+    await user.click(screen.getByLabelText(I18nKey.AUTOMATIONS$ACTIONS_MENU));
 
     // Assert — Edit must not appear on cloud; Delete still does, proving the
     // menu actually opened and we didn't merely fail to render it.
@@ -141,5 +143,50 @@ describe("AutomationsList — Edit from the row kebab is local-only", () => {
     expect(
       screen.getByRole("button", { name: I18nKey.AUTOMATIONS$DELETE }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AutomationsList — view mode toggle", () => {
+  it("switches saved automations from cards to table rows", async () => {
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => {
+      expect(AutomationService.getAutomations).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByTestId("automation-card-auto-1");
+
+    await user.click(screen.getByTestId("automations-view-toggle"));
+    await user.click(screen.getByTestId("automations-view-toggle-list"));
+
+    expect(
+      screen.queryByTestId("automation-card-auto-1"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-list-row-auto-1")).toBeInTheDocument();
+    expect(window.localStorage.getItem("openhands-automations-view")).toBe(
+      "list",
+    );
+  });
+
+  it("disables the view-mode toggle when the user has no automations", async () => {
+    // Arrange — service returns an empty list, so the page lands on EmptyState.
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [],
+      total: 0,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => {
+      expect(AutomationService.getAutomations).toHaveBeenCalledTimes(1);
+    });
+
+    // Act — try to open the toggle's grid/list menu.
+    const trigger = await screen.findByTestId("automations-view-toggle");
+    await user.click(trigger);
+
+    // Assert — toggle is disabled and clicking it does not reveal the menu.
+    expect(trigger).toBeDisabled();
+    expect(
+      screen.queryByTestId("automations-view-toggle-list"),
+    ).not.toBeInTheDocument();
   });
 });

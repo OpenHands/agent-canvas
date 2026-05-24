@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -144,7 +144,6 @@ export function ChangeAgentButton() {
     }
     return <LessonPlanIcon width={18} height={18} color="currentColor" />;
   }, [isExecutionAgent]);
-  const caretColor = "currentColor";
 
   return (
     <div className="relative">
@@ -176,7 +175,7 @@ export function ChangeAgentButton() {
             {buttonLabel}
           </Typography.Text>
         </div>
-        <ChevronDownSmallIcon width={18} height={18} color={caretColor} />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <ChangeAgentContextMenu

@@ -1,19 +1,27 @@
+import { Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import FolderIcon from "#/icons/folder.svg?react";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import { cn } from "#/utils/utils";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import {
+  formControlBorderClassName,
+  formControlSurfaceClassName,
+  formControlTransitionClassName,
+} from "#/utils/form-control-classes";
 
 interface OpenLauncherButtonProps {
   kind: "local" | "cloud";
   onClick: () => void;
   disabled?: boolean;
+  disabledTooltip?: string | null;
 }
 
 export function OpenLauncherButton({
   kind,
   onClick,
   disabled = false,
+  disabledTooltip,
 }: OpenLauncherButtonProps) {
   const { t } = useTranslation("openhands");
 
@@ -23,27 +31,40 @@ export function OpenLauncherButton({
     : t(I18nKey.COMMON$OPEN_REPOSITORY);
   const testId = isLocal ? "open-workspace-button" : "open-repository-button";
 
-  return (
+  const button = (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-row items-center gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] border border-[rgba(71,74,84,0.50)] bg-transparent",
+        "flex flex-row items-center gap-2 rounded-full px-2.5 py-1 text-white",
+        formControlBorderClassName,
+        formControlSurfaceClassName,
+        formControlTransitionClassName,
         disabled
-          ? "opacity-50 cursor-not-allowed"
-          : "hover:border-[var(--oh-border-subtle)] cursor-pointer",
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:bg-surface-raised",
       )}
     >
-      <span className="w-3 h-3 flex items-center justify-center text-white">
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {isLocal ? (
-          <FolderIcon width={12} height={12} />
+          <Folder aria-hidden className="h-4 w-4" strokeWidth={2} />
         ) : (
-          <RepoForkedIcon width={12} height={12} color="white" />
+          <RepoForkedIcon width={16} height={16} className="shrink-0" />
         )}
       </span>
-      <span className="font-normal text-white text-sm leading-5">{label}</span>
+      <span className="text-sm font-normal leading-5">{label}</span>
     </button>
+  );
+
+  if (!disabledTooltip) {
+    return button;
+  }
+
+  return (
+    <StyledTooltip content={disabledTooltip} placement="top">
+      <span className="inline-flex">{button}</span>
+    </StyledTooltip>
   );
 }

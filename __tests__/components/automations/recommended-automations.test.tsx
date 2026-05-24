@@ -185,6 +185,108 @@ describe("recommended automations", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a left-aligned MCP icon stack on each card", () => {
+    render(
+      <RecommendedAutomationsSection
+        backendKind="local"
+        installedServers={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("recommended-automation-icon-github-pr-reviewer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("recommended-automation-icon-research-brief-writer"),
+    ).toHaveAttribute("data-layout", "overlap");
+    expect(
+      screen.getByTestId(
+        "recommended-automation-icon-incident-retrospective-drafter",
+      ),
+    ).toHaveAttribute("data-layout", "quadrants");
+  });
+
+  it("renders missing MCP connect copy as a pill on the same row", () => {
+    const offsetWidthDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetWidth",
+    );
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get() {
+        return 120;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get() {
+        return 2000;
+      },
+    });
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+
+        unobserve() {}
+
+        disconnect() {}
+      },
+    );
+
+    try {
+      render(
+        <RecommendedAutomationsSection
+          backendKind="local"
+          installedServers={[]}
+          onSelect={vi.fn()}
+        />,
+      );
+
+      const pillRow = screen.getByTestId(
+        "recommended-automation-pills-research-brief-writer",
+      );
+      expect(pillRow).toHaveTextContent(
+        "RECOMMENDED_AUTOMATIONS$MISSING_CONNECT:2",
+      );
+      expect(pillRow).toHaveClass("flex-nowrap");
+      expect(pillRow).not.toHaveClass("flex-wrap");
+    } finally {
+      if (offsetWidthDescriptor) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "offsetWidth",
+          offsetWidthDescriptor,
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "offsetWidth");
+      }
+      Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows a decorative plus badge on each card without toggle behavior", () => {
+    render(
+      <RecommendedAutomationsSection
+        backendKind="local"
+        installedServers={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const plusBadge = screen.getByTestId(
+      "recommended-automation-plus-github-pr-reviewer",
+    );
+    expect(plusBadge.tagName).toBe("SPAN");
+    expect(plusBadge).toHaveAttribute("aria-hidden", "true");
+    expect(plusBadge.className).toContain("hover:bg-[var(--oh-interactive-hover)]");
+    expect(
+      plusBadge.querySelector('[role="switch"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it("selects a recommendation directly from its card", () => {
     const automation = AUTOMATION_CATALOG.find(
       (item) => item.id === "github-pr-reviewer",

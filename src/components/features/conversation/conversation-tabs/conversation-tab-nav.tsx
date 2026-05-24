@@ -47,7 +47,7 @@ export function ConversationTabNav({
     >
       <Icon className={cn("w-5 h-5 text-inherit flex-shrink-0")} />
       {isActive && label && (
-        <span className="text-sm font-medium whitespace-nowrap">{label}</span>
+        <span className="text-sm font-normal whitespace-nowrap">{label}</span>
       )}
     </button>
   );

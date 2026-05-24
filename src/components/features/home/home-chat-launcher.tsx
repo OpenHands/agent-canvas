@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
+import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -20,6 +21,7 @@ import {
   displayErrorToast,
   TOAST_OPTIONS,
 } from "#/utils/custom-toast-handlers";
+import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
@@ -46,6 +48,10 @@ export function HomeChatLauncher() {
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
   const { handleUpload } = useChatAttachmentUpload();
+  const { error: workspacesError } = useLocalWorkspaces({ enabled: isLocal });
+  const workspacesUnsupportedMessage = isLocal
+    ? getWorkspacesUnsupportedMessage(workspacesError, t)
+    : null;
 
   const hasSelection = isLocal
     ? !!pendingWorkspace
@@ -200,7 +206,8 @@ export function HomeChatLauncher() {
           <OpenLauncherButton
             kind={isLocal ? "local" : "cloud"}
             onClick={() => setIsDialogOpen(true)}
-            disabled={isCreating}
+            disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
+            disabledTooltip={workspacesUnsupportedMessage}
           />
         )}
       </div>

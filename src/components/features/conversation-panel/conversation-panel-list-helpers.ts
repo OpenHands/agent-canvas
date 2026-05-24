@@ -6,6 +6,57 @@ export type ConversationSortField = "created" | "updated";
 export type ThreadScope = "all" | "relevant";
 export type OrganizeMode = "grouped" | "chronological";
 
+/** Max conversations shown under a workspace/repo folder before "View more". */
+export const GROUP_CONVERSATIONS_PREVIEW_LIMIT = 5;
+
+interface GroupConversationPreviewOptions {
+  limit?: number;
+  expanded: boolean;
+  activeConversationId?: string | null;
+}
+
+export function getGroupConversationPreview(
+  conversations: readonly AppConversation[],
+  options: GroupConversationPreviewOptions,
+): {
+  visibleConversations: AppConversation[];
+  isPreviewTruncated: boolean;
+  isShowingAll: boolean;
+} {
+  const limit = options.limit ?? GROUP_CONVERSATIONS_PREVIEW_LIMIT;
+
+  if (options.expanded || conversations.length <= limit) {
+    return {
+      visibleConversations: [...conversations],
+      isPreviewTruncated: conversations.length > limit,
+      isShowingAll: true,
+    };
+  }
+
+  const activeIndex =
+    options.activeConversationId != null
+      ? conversations.findIndex((c) => c.id === options.activeConversationId)
+      : -1;
+
+  if (activeIndex >= limit) {
+    const activeConversation = conversations[activeIndex];
+    return {
+      visibleConversations: [
+        ...conversations.slice(0, limit - 1),
+        activeConversation,
+      ],
+      isPreviewTruncated: true,
+      isShowingAll: false,
+    };
+  }
+
+  return {
+    visibleConversations: conversations.slice(0, limit),
+    isPreviewTruncated: conversations.length > limit,
+    isShowingAll: false,
+  };
+}
+
 /** Subset of `useCreateConversation` variables for launching from a group row */
 export type ConversationGroupLaunch = {
   workingDir?: string;

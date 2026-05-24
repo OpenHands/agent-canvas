@@ -26,7 +26,7 @@ function ProfileRow({ profile }: ProfileRowProps) {
         <span className="text-neutral-300">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
-        <span className="font-semibold text-neutral-200 text-sm">
+        <span className="font-normal text-neutral-200 text-sm">
           {profile.name}
         </span>
       </button>

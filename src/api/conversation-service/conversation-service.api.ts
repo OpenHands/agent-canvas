@@ -1,5 +1,4 @@
 import { VSCodeClient } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { uploadFilesToConversation } from "#/api/conversation-file-upload.api";
 import {
@@ -52,9 +51,7 @@ class ConversationService {
     conversationId: string,
   ): Promise<GetTrajectoryResponse> {
     const page = await new RemoteEventsList(
-      new HttpClient(
-        getAgentServerHttpClientOptions(this.getClientOverrides()),
-      ),
+      getAgentServerHttpClientOptions(this.getClientOverrides()),
       conversationId,
     ).search({ limit: 10000 });
 

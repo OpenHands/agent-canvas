@@ -43,6 +43,18 @@ describe("agent-server API access", () => {
       }
 
       if (
+        /from\s+["']@openhands\/typescript-client\/client\/http-client["']/.test(
+          source,
+        )
+      ) {
+        fileViolations.push("imports the low-level SDK HttpClient directly");
+      }
+
+      if (/\bnew\s+HttpClient\s*\(/.test(source)) {
+        fileViolations.push("constructs HttpClient directly");
+      }
+
+      if (
         (/\baxios\s*\(/.test(source) ||
           /\baxios\s*\.\s*(?:create|get|post|put|patch|delete|request)\s*\(/.test(
             source,
