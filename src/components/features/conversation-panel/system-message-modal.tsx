@@ -37,12 +37,14 @@ export function SystemMessageModal({
     isOpen && (
       <ModalBackdrop onClose={onClose}>
         <ModalBody
-          width="medium"
-          className="max-h-[80vh] flex flex-col items-start"
+          width="lg"
+          className="relative max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
+          testID="system-message-modal"
         >
           <SystemMessageHeader
             agentClass={systemMessage.agent_class}
             openhandsVersion={systemMessage.openhands_version}
+            onClose={onClose}
           />
 
           <div className="w-full">
@@ -54,7 +56,7 @@ export function SystemMessageModal({
               }
             />
 
-            <div className="max-h-[51vh] overflow-auto rounded-md custom-scrollbar-always">
+            <div className="h-[60vh] overflow-auto rounded-md border border-[var(--oh-border)] bg-surface-raised custom-scrollbar-always">
               <TabContent
                 activeTab={activeTab}
                 systemMessage={systemMessage}

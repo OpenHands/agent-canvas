@@ -173,11 +173,12 @@ describe("ProfileActionsMenu", () => {
     expect(menuItems).toHaveLength(4);
   });
 
-  it("marks the Delete menu item as destructive", () => {
+  it("styles Delete like other menu items", () => {
     render(<ProfileActionsMenu {...defaultProps} />);
 
     const deleteButton = screen.getByTestId("profile-delete");
-    expect(deleteButton).toHaveAttribute("data-destructive", "true");
+    expect(deleteButton).not.toHaveAttribute("data-destructive");
+    expect(deleteButton.className).not.toMatch(/text-red/);
   });
 
   it("does not call onClose when clicking inside the menu container", () => {

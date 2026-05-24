@@ -39,6 +39,21 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(),
 }));
 
+// Shared seed configs reused across tests.
+const SEED_LOCAL_1 = {
+  name: "Local 1",
+  host: "http://localhost:9000",
+  apiKey: "k",
+  kind: "local" as const,
+};
+
+const SEED_CLOUD_PRODUCTION = {
+  name: "Production",
+  host: "https://app.all-hands.dev",
+  apiKey: "bearer-key",
+  kind: "cloud" as const,
+};
+
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -141,12 +156,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
           ctx.addBackend({
             name: "Production",
             host: "https://app.all-hands.dev",
@@ -181,12 +191,11 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          cloudId = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          }).id;
+          cloudId = ctx.addBackend(SEED_CLOUD_PRODUCTION).id;
+          // Add a second backend so auto-switch lands here, leaving the
+          // cloud backend unselected (the dropdown only expands org rows
+          // for non-active cloud backends).
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -245,6 +254,9 @@ describe("BackendSelector", () => {
             apiKey: "key-acme",
             kind: "cloud",
           });
+          // Land on a local backend so both cloud backends are unselected
+          // and their org rows render in the dropdown.
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -289,12 +301,10 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          });
+          ctx.addBackend(SEED_CLOUD_PRODUCTION);
+          // Land on a local backend so the cloud backend is unselected
+          // and its org rows render in the dropdown.
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -333,12 +343,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          cloudId = ctx.addBackend({
-            name: "Production",
-            host: "https://app.all-hands.dev",
-            apiKey: "bearer-key",
-            kind: "cloud",
-          }).id;
+          cloudId = ctx.addBackend(SEED_CLOUD_PRODUCTION).id;
           // Simulate the post-refresh malformed state: active backend is
           // the cloud one but no orgId is set yet.
           ctx.setActive(cloudId, null);
@@ -364,49 +369,64 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
       </TestSeed>,
     );
 
+    // Auto-switch lands on "Local 1"; click the seeded default to switch.
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
     const wrapper = screen.getByTestId("backend-selector");
     const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local 1");
+    expect(input.value).toBe("Local");
   });
 
-  it("redirects to home when switching backends from a conversation route", async () => {
-    function ConversationRoute() {
+  // @spec BM-002 — Switching backends keeps the user on the same page
+  it.each([
+    {
+      name: "conversation detail → conversations list",
+      startPath: "/conversations/abc",
+      startRoute: "/conversations/:conversationId",
+      landingRoute: "/conversations",
+      expectRedirect: true,
+    },
+    {
+      name: "automation detail → automations list",
+      startPath: "/automations/abc-123",
+      startRoute: "/automations/:automationId",
+      landingRoute: "/automations",
+      expectRedirect: true,
+    },
+    {
+      name: "settings → stays on settings",
+      startPath: "/settings",
+      startRoute: "/settings",
+      landingRoute: "/conversations",
+      expectRedirect: false,
+    },
+  ])("$name", async ({ startPath, startRoute, landingRoute, expectRedirect }) => {
+    function StartRoute() {
       return (
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
+          <div data-testid="start-route" />
           <BackendSelector />
         </TestSeed>
       );
     }
-    function HomeRoute() {
-      return <div data-testid="home" />;
+    function LandingRoute() {
+      return <div data-testid="landing-route" />;
     }
     const RouterStub = createRoutesStub([
-      { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/conversations", Component: HomeRoute },
+      { path: startRoute, Component: StartRoute },
+      { path: landingRoute, Component: LandingRoute },
     ]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -414,62 +434,22 @@ describe("BackendSelector", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ActiveBackendProvider>
-          <RouterStub initialEntries={["/conversations/abc"]} />
+          <RouterStub initialEntries={[startPath]} />
         </ActiveBackendProvider>
       </QueryClientProvider>,
     );
 
     const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
+    await user.click(screen.getByText("Local"));
 
-    expect(await screen.findByTestId("home")).toBeInTheDocument();
-  });
-
-  it("stays on the current page when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
-          }}
-        >
-          <div data-testid="settings-route" />
-          <BackendSelector />
-        </TestSeed>
-      );
+    if (expectRedirect) {
+      expect(await screen.findByTestId("landing-route")).toBeInTheDocument();
+    } else {
+      await waitFor(() => {
+        expect(screen.getByTestId("start-route")).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("landing-route")).not.toBeInTheDocument();
     }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/conversations", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
-
-    // The settings route is still in the DOM after the switch — no
-    // redirect to /conversations or anywhere else.
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-route")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
   });
 
   it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {
@@ -495,17 +475,17 @@ describe("BackendSelector", () => {
     );
     render(<EnvironmentSwitchOverlay />);
 
-    // Act — select a different backend, then immediately unmount the
-    // selector (the click itself would do this in production via the
-    // outside-click handler).
+    // Act — auto-switch lands on "Acme Local"; click the seeded default
+    // to trigger a switch, then immediately unmount the selector (the
+    // click itself would do this in production via the outside-click handler).
     const user = await openDropdown();
-    await user.click(screen.getByText("Acme Local"));
+    await user.click(screen.getByText("Local"));
     selectorRender.unmount();
 
     // Assert — the overlay is still in the DOM with the chosen target
     expect(screen.getByTestId("environment-switch-overlay")).toHaveAttribute(
       "data-target",
-      "Acme Local",
+      "Local",
     );
   });
 
@@ -560,12 +540,7 @@ describe("BackendSelector", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          ctx.addBackend({
-            name: "Local 1",
-            host: "http://localhost:9000",
-            apiKey: "k",
-            kind: "local",
-          });
+          ctx.addBackend(SEED_LOCAL_1);
         }}
       >
         <BackendSelector />
@@ -599,6 +574,7 @@ describe("BackendSelector", () => {
     expect(remaining.map((b: { name: string }) => b.name)).toEqual(["Local"]);
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
     // Pre-seed the registry and active selection in localStorage so the
     // initial render already reflects `Local 1` as active. Seeding via
@@ -656,94 +632,6 @@ describe("BackendSelector", () => {
     expect(input.value).toBe("Local");
   });
 
-  it("redirects to the automations list when switching backends from an automation detail route", async () => {
-    function AutomationDetailRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function AutomationsListRoute() {
-      return <div data-testid="automations-list" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/automations/:automationId", Component: AutomationDetailRoute },
-      { path: "/automations", Component: AutomationsListRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/automations/abc-123"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
-
-    expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
-  });
-
-  it("does not redirect when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const settingsButton = screen.getByTestId("backend-selector-settings-link");
-    expect(settingsButton).toHaveAttribute("data-active", "true");
-
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local 1"));
-
-    const wrapper = screen.getByTestId("backend-selector");
-    const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local 1");
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
-  });
-
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
       vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
@@ -755,12 +643,7 @@ describe("BackendSelector", () => {
       renderWithProviders(
         <TestSeed
           onMount={(ctx) => {
-            ctx.addBackend({
-              name: "Local 1",
-              host: "http://localhost:9000",
-              apiKey: "k",
-              kind: "local",
-            });
+            ctx.addBackend(SEED_LOCAL_1);
           }}
         >
           <BackendSelector />

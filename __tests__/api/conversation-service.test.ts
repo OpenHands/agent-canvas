@@ -38,11 +38,11 @@ describe("ConversationService", () => {
       );
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "a.txt" }),
-        "/workspace/a.txt",
+        "/workspace/project/a.txt",
       );
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "b.txt" }),
-        "/workspace/b.txt",
+        "/workspace/project/b.txt",
       );
       expect(result).toEqual({
         uploaded_files: ["a.txt", "b.txt"],
@@ -59,12 +59,27 @@ describe("ConversationService", () => {
 
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "../../evil.txt" }),
-        "/workspace/evil.txt",
+        "/workspace/project/evil.txt",
       );
       expect(result).toEqual({
         uploaded_files: ["evil.txt"],
         skipped_files: [],
       });
+    });
+
+    it("uploads into the active conversation workspace when set", async () => {
+      ConversationService.setCurrentConversation({
+        id: "conv-1",
+        workspace: { working_dir: "/workspace/project/my-app" },
+      } as never);
+      fileUploadMock.mockResolvedValue(undefined);
+
+      await ConversationService.uploadFiles("conv-1", [makeFile("doc.txt")]);
+
+      expect(fileUploadMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "doc.txt" }),
+        "/workspace/project/my-app/doc.txt",
+      );
     });
 
     it("uses the current conversation session key and reports per-file failures", async () => {

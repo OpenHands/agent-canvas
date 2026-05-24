@@ -18,14 +18,14 @@ export function SkillTriggers({ triggers }: SkillTriggersProps) {
       <Typography.Text className="text-sm font-semibold text-[var(--oh-text-tertiary)] mb-2">
         {t(I18nKey.COMMON$TRIGGERS)}
       </Typography.Text>
-      <div className="flex flex-wrap gap-1">
+      <div className="mt-2 flex flex-wrap gap-1">
         {triggers.map((trigger) => (
-          <Typography.Text
+          <span
             key={trigger}
-            className="px-2 py-1 text-xs rounded-full bg-blue-900"
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 border border-[var(--oh-border)] bg-[var(--oh-surface)] text-tertiary-light"
           >
             {trigger}
-          </Typography.Text>
+          </span>
         ))}
       </div>
     </div>

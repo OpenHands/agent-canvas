@@ -76,6 +76,30 @@ describe("ActiveBackendProvider", () => {
     });
   });
 
+  // @spec BM-001 — Auto-switch to newly connected backend
+  it("addBackend automatically switches the active backend to the newly added one", () => {
+    const { result } = renderHook(() => useActiveBackendContext(), {
+      wrapper: makeWrapper(),
+    });
+
+    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+
+    let added: { id: string } | null = null;
+    act(() => {
+      added = result.current.addBackend({
+        name: "OpenHands Cloud",
+        host: "https://app.all-hands.dev",
+        apiKey: "bearer-token",
+        kind: "cloud",
+      });
+    });
+
+    expect(result.current.active.backend.id).toBe(added!.id);
+    // Previous backends remain in the registry.
+    expect(result.current.backends).toHaveLength(2);
+    expect(result.current.backends.find((b) => b.id === DEFAULT_LOCAL_BACKEND_ID)).toBeDefined();
+  });
+
   it("setActive switches the active backend without touching unrelated React Query cache entries", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(["dummy"], { value: 1 });
@@ -107,6 +131,7 @@ describe("ActiveBackendProvider", () => {
     expect(queryClient.getQueryData(["dummy"])).toEqual({ value: 1 });
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("removeBackend falls back to the seeded default when the active backend is removed", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),
@@ -135,6 +160,7 @@ describe("ActiveBackendProvider", () => {
     expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
   });
 
+  // @spec BM-003 — Fallback on active backend removal
   it("removeBackend allows removing the seeded default and falls back to a synthesized env-derived backend", () => {
     const { result } = renderHook(() => useActiveBackendContext(), {
       wrapper: makeWrapper(),

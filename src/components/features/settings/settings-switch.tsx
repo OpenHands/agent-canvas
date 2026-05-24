@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import { StyledSwitchComponent } from "./styled-switch-component";
+import { ToggleSwitchVisual } from "#/ui/toggle-switch";
 
 interface SettingsSwitchProps {
   testId?: string;
@@ -49,7 +49,7 @@ export function SettingsSwitch({
   );
 
   const toggle = (
-    <StyledSwitchComponent isToggled={controlledIsToggled ?? isToggled} />
+    <ToggleSwitchVisual enabled={controlledIsToggled ?? isToggled} />
   );
 
   const label =

@@ -240,7 +240,7 @@ export function RepositorySelectionForm({
             },
           );
         }}
-        className="w-full font-semibold"
+        className="w-full"
       >
         {onConfirm
           ? t(I18nKey.BUTTON$CONFIRM)

@@ -182,6 +182,16 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
+  it("closes from the top-right close button", async () => {
+    const onClose = vi.fn();
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    renderWith(<InstallServerModal entry={slack} onClose={onClose} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    fireEvent.click(screen.getByTestId("mcp-install-modal-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("places Cancel before Install in the footer so the dominant action is the last focusable button", async () => {
     // Arrange: render with any marketplace entry so the footer is mounted.
     const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;

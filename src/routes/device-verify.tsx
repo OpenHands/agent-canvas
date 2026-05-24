@@ -102,7 +102,7 @@ export default function DeviceVerify() {
                 </svg>
               )}
             </div>
-            <h2 className="text-xl font-semibold mb-2">
+            <h2 className="text-xl font-medium mb-2">
               {verificationResult.success
                 ? t(I18nKey.DEVICE$SUCCESS_TITLE)
                 : t(I18nKey.DEVICE$ERROR_TITLE)}

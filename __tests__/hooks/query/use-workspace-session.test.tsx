@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { callCloudProxy } from "#/api/cloud/proxy";
 import {
   joinWorkspaceUrl,
   useWorkspaceSession,
@@ -20,6 +21,22 @@ vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
       startWorkspaceSession: startWorkspaceSessionMock,
     };
   }),
+}));
+
+const callCloudProxyMock = vi.fn();
+vi.mock("#/api/cloud/proxy", () => ({
+  callCloudProxy: (...args: unknown[]) => callCloudProxyMock(...args),
+}));
+
+const getAgentServerClientOptionsMock = vi.fn();
+vi.mock("#/api/agent-server-client-options", () => ({
+  getAgentServerClientOptions: (...args: unknown[]) =>
+    getAgentServerClientOptionsMock(...args),
+}));
+
+const getActiveBackendMock = vi.fn();
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getActiveBackend: () => getActiveBackendMock(),
 }));
 
 const useActiveConversationMock = vi.fn();
@@ -60,7 +77,10 @@ function flushScheduler(ms = 10): Promise<void> {
 
 beforeEach(() => {
   startWorkspaceSessionMock.mockReset();
+  callCloudProxyMock.mockReset();
+  getAgentServerClientOptionsMock.mockReset();
   vi.mocked(RemoteWorkspace).mockClear();
+  getActiveBackendMock.mockReset();
   useActiveConversationMock.mockReset();
   useRuntimeIsReadyMock.mockReset();
   useRuntimeIsReadyMock.mockReturnValue(true);
@@ -71,43 +91,139 @@ afterEach(() => {
 });
 
 describe("useWorkspaceSession", () => {
-  it("calls startWorkspaceSession and exposes the returned baseUrl", async () => {
-    useActiveConversationMock.mockReturnValue({
-      data: {
-        id: "conv-1",
-        conversation_url: "https://agent.example.com/api/conversations/conv-1",
-        session_api_key: "key-abc",
-      },
-    });
-    startWorkspaceSessionMock.mockResolvedValue(
-      "https://agent.example.com/api/conversations/conv-1/workspace/",
-    );
-
-    const { result } = renderHook(() => useWorkspaceSession(), {
-      wrapper: makeWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.data?.baseUrl).toBe(
+  describe("local backend", () => {
+    it("calls startWorkspaceSession and exposes the returned baseUrl", async () => {
+      getActiveBackendMock.mockReturnValue({
+        backend: { id: "local-1", kind: "local", host: "http://localhost:8000" },
+      });
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-1",
+          conversation_url:
+            "https://agent.example.com/api/conversations/conv-1",
+          session_api_key: "key-abc",
+        },
+      });
+      startWorkspaceSessionMock.mockResolvedValue(
         "https://agent.example.com/api/conversations/conv-1/workspace/",
       );
+      getAgentServerClientOptionsMock.mockReturnValue({
+        host: "http://agent.example.com",
+        apiKey: "key-abc",
+        workingDir: "workspace/project",
+      });
+
+      const { result } = renderHook(() => useWorkspaceSession(), {
+        wrapper: makeWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.data?.baseUrl).toBe(
+          "https://agent.example.com/api/conversations/conv-1/workspace/",
+        );
+      });
+
+      expect(getAgentServerClientOptionsMock).toHaveBeenCalledTimes(1);
+      expect(getAgentServerClientOptionsMock).toHaveBeenCalledWith({
+        conversationUrl:
+          "https://agent.example.com/api/conversations/conv-1",
+        sessionApiKey: "key-abc",
+      });
+      expect(RemoteWorkspace).toHaveBeenCalledTimes(1);
+      expect(RemoteWorkspace).toHaveBeenCalledWith({
+        host: "http://agent.example.com",
+        apiKey: "key-abc",
+        workingDir: "workspace/project",
+      });
+      expect(startWorkspaceSessionMock).toHaveBeenCalledTimes(1);
+      expect(startWorkspaceSessionMock).toHaveBeenCalledWith("conv-1");
+      expect(callCloudProxyMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cloud backend", () => {
+    it("routes through callCloudProxy with correct path and auth", async () => {
+      getActiveBackendMock.mockReturnValue({
+        backend: {
+          id: "cloud-1",
+          kind: "cloud",
+          host: "https://app.all-hands.dev",
+        },
+      });
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-cloud",
+          conversation_url:
+            "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud",
+          session_api_key: "cloud-key-xyz",
+        },
+      });
+      callCloudProxyMock.mockResolvedValue({
+        base_url: "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud/workspace/",
+      });
+
+      const { result } = renderHook(() => useWorkspaceSession(), {
+        wrapper: makeWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.data?.baseUrl).toBe(
+          "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud/workspace/",
+        );
+      });
+
+      expect(callCloudProxyMock).toHaveBeenCalledTimes(1);
+      const proxyCall = callCloudProxyMock.mock.calls[0][0];
+      expect(proxyCall.backend.id).toBe("cloud-1");
+      expect(proxyCall.method).toBe("POST");
+      expect(proxyCall.path).toBe("/api/auth/workspace-session");
+      expect(proxyCall.body).toEqual({ conversation_id: "conv-cloud" });
+      expect(proxyCall.authMode).toBe("session-api-key");
+      expect(proxyCall.sessionApiKey).toBe("cloud-key-xyz");
+      // buildHttpBaseUrl uses the browser's protocol, which in jsdom is http:
+      expect(proxyCall.hostOverride).toBe(
+        "http://abc123.prod-runtime.all-hands.dev",
+      );
+      expect(RemoteWorkspace).not.toHaveBeenCalled();
     });
 
-    expect(RemoteWorkspace).toHaveBeenCalledTimes(1);
-    expect(RemoteWorkspace).toHaveBeenCalledWith({
-      host: "http://agent.example.com",
-      apiKey: "key-abc",
-      workingDir: "workspace/project",
+    it("surfaces the error when the cloud workspace-session POST fails", async () => {
+      getActiveBackendMock.mockReturnValue({
+        backend: {
+          id: "cloud-1",
+          kind: "cloud",
+          host: "https://app.all-hands.dev",
+        },
+      });
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-cloud",
+          conversation_url:
+            "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud",
+          session_api_key: "bad-key",
+        },
+      });
+      callCloudProxyMock.mockRejectedValue(new Error("401 Unauthorized"));
+
+      const { result } = renderHook(() => useWorkspaceSession(), {
+        wrapper: makeWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.error?.message).toMatch(/401/);
+      expect(result.current.data).toBeNull();
     });
-    expect(startWorkspaceSessionMock).toHaveBeenCalledTimes(1);
-    expect(startWorkspaceSessionMock).toHaveBeenCalledWith("conv-1");
   });
 
   it("does not call startWorkspaceSession until the runtime is ready", async () => {
+    getActiveBackendMock.mockReturnValue({
+      backend: { id: "local-1", kind: "local", host: "http://localhost:8000" },
+    });
     useActiveConversationMock.mockReturnValue({
       data: {
         id: "conv-1",
-        conversation_url: "https://agent.example.com/api/conversations/conv-1",
+        conversation_url:
+          "https://agent.example.com/api/conversations/conv-1",
         session_api_key: "key-abc",
       },
     });
@@ -120,35 +236,21 @@ describe("useWorkspaceSession", () => {
     // Give react-query a tick to schedule (it shouldn't).
     await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
+    expect(callCloudProxyMock).not.toHaveBeenCalled();
     expect(result.current.data).toBeNull();
   });
 
   it("does not call startWorkspaceSession without a conversation id", async () => {
+    getActiveBackendMock.mockReturnValue({
+      backend: { id: "local-1", kind: "local", host: "http://localhost:8000" },
+    });
     useActiveConversationMock.mockReturnValue({ data: undefined });
 
     renderHook(() => useWorkspaceSession(), { wrapper: makeWrapper() });
 
     await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
-  });
-
-  it("surfaces the error when the workspace-session POST fails", async () => {
-    useActiveConversationMock.mockReturnValue({
-      data: {
-        id: "conv-1",
-        conversation_url: "https://agent.example.com/api/conversations/conv-1",
-        session_api_key: "bad-key",
-      },
-    });
-    startWorkspaceSessionMock.mockRejectedValue(new Error("401 Unauthorized"));
-
-    const { result } = renderHook(() => useWorkspaceSession(), {
-      wrapper: makeWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toMatch(/401/);
-    expect(result.current.data).toBeNull();
+    expect(callCloudProxyMock).not.toHaveBeenCalled();
   });
 });
 

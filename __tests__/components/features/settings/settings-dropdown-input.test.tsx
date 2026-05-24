@@ -41,6 +41,29 @@ describe("SettingsDropdownInput", () => {
     expect(onSelectionChange).toHaveBeenCalledWith("spanish");
   });
 
+  it("filters options while typing", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SettingsDropdownInput
+        defaultSelectedKey="english"
+        items={items}
+        label="Language"
+        name="language"
+        testId="language-input"
+      />,
+    );
+
+    const input = screen.getByLabelText("Language");
+    await user.click(input);
+    await user.clear(input);
+    await user.keyboard("Germ");
+
+    expect(await screen.findByText("German")).toBeInTheDocument();
+    expect(screen.queryByText("English")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spanish")).not.toBeInTheDocument();
+  });
+
   it("clears the selection when the clear button is pressed", async () => {
     const user = userEvent.setup();
     const onSelectionChange = vi.fn();

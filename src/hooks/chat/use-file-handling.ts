@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useState, useEffect } from "react";
+import type { ChatAttachmentUploadOptions } from "#/hooks/chat/use-chat-attachment-upload";
 
 interface UseFileHandlingReturn {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -15,7 +16,7 @@ interface UseFileHandlingReturn {
  * Hook for handling file operations (upload, drag & drop)
  */
 export const useFileHandling = (
-  onFilesPaste?: (files: File[]) => void,
+  onFilesPaste?: (files: File[], options?: ChatAttachmentUploadOptions) => void,
 ): UseFileHandlingReturn => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
@@ -23,9 +24,9 @@ export const useFileHandling = (
 
   // Function to add files and notify parent
   const addFiles = useCallback(
-    (files: File[]) => {
+    (files: File[], options?: ChatAttachmentUploadOptions) => {
       if (onFilesPaste && files.length > 0) {
-        onFilesPaste(files);
+        onFilesPaste(files, options);
       }
     },
     [onFilesPaste],
@@ -36,7 +37,7 @@ export const useFileHandling = (
     const handlePasteFiles = (event: CustomEvent) => {
       const files = event.detail.files as File[];
       if (files && files.length > 0) {
-        addFiles(files);
+        addFiles(files, { fromPaste: true });
       }
     };
 
