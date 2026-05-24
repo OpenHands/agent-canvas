@@ -102,10 +102,6 @@ vi.mock(
 );
 
 // Mock RepoForkedIcon
-vi.mock("#/icons/repo-forked.svg?react", () => ({
-  default: () => <div data-testid="repo-forked-icon" />,
-}));
-
 describe("OpenRepositoryModal", () => {
   const mockOnClose = vi.fn();
   const mockOnLaunch = vi.fn();
@@ -142,9 +138,26 @@ describe("OpenRepositoryModal", () => {
       screen.getByText("CONVERSATION$OPEN_REPOSITORY"),
     ).toBeInTheDocument();
     expect(
+      screen.getByTestId("close-open-repository-modal"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("CONVERSATION$SELECT_OR_INSERT_LINK"),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("repo-forked-icon")).toBeInTheDocument();
+  });
+
+  it("calls onClose when the header close button is clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <OpenRepositoryModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onLaunch={mockOnLaunch}
+      />,
+    );
+
+    await user.click(screen.getByTestId("close-open-repository-modal"));
+
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
   it("should render Launch and Cancel buttons", () => {

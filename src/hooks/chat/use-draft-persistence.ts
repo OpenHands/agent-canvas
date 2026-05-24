@@ -4,7 +4,10 @@ import {
   getConversationState,
   setConversationState,
 } from "#/utils/conversation-local-storage";
-import { getTextContent } from "#/components/features/chat/utils/chat-input.utils";
+import {
+  focusContentEditableAtEnd,
+  getTextContent,
+} from "#/components/features/chat/utils/chat-input.utils";
 
 /**
  * Check if a conversation ID is a temporary task ID.
@@ -159,13 +162,7 @@ export const useDraftPersistence = (
     // Only restore if there's a saved draft and the input is empty
     if (draftMessage && getTextContent(element).trim() === "") {
       element.textContent = draftMessage;
-      // Move cursor to end
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      focusContentEditableAtEnd(element);
     }
 
     hasRestoredRef.current = true;

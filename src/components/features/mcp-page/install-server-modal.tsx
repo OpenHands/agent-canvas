@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
@@ -268,18 +269,23 @@ export function InstallServerModal({
         data-testid="mcp-install-modal"
         data-marketplace-id={entry.id}
         onSubmit={handleSubmit}
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
+        className="relative bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[85vh] overflow-y-auto custom-scrollbar"
       >
-        <div className="flex items-start gap-3">
+        <ModalCloseButton
+          onClose={onClose}
+          testId="mcp-install-modal-close"
+          disabled={isPending}
+        />
+        <div className="flex items-start gap-3 pr-6">
           <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
             <h2 className="text-lg font-semibold">{entry.name}</h2>
-            <p className="text-xs text-tertiary-alt">{entry.description}</p>
+            <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
         </div>
 
         {entry.installHint && (
-          <p className="text-xs text-content-2">{entry.installHint}</p>
+          <p className="text-xs text-tertiary-light">{entry.installHint}</p>
         )}
 
         {entry.docsUrl && (

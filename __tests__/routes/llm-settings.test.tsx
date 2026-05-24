@@ -26,14 +26,18 @@ function buildSettings(overrides: Partial<Settings> = {}): Settings {
   };
 }
 
-function renderLlmSettingsScreen() {
-  return render(<LlmSettingsScreen />, {
+function renderLlmSettingsScreen(
+  props: Parameters<typeof LlmSettingsScreen>[0] = {},
+) {
+  return render(<LlmSettingsScreen {...props} />, {
     wrapper: ({ children }) => (
       <MemoryRouter>
         <QueryClientProvider
-          client={new QueryClient({
-            defaultOptions: { queries: { retry: false } },
-          })}
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
         >
           {children}
         </QueryClientProvider>
@@ -47,9 +51,11 @@ function renderLlmSettingsRoute() {
     wrapper: ({ children }) => (
       <MemoryRouter>
         <QueryClientProvider
-          client={new QueryClient({
-            defaultOptions: { queries: { retry: false } },
-          })}
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
         >
           {children}
         </QueryClientProvider>
@@ -119,6 +125,42 @@ describe("LlmSettingsScreen", () => {
 
     expect(screen.getByTestId("llm-provider-input")).toBeInTheDocument();
     expect(screen.getByTestId("llm-api-key-input")).toBeInTheDocument();
+  });
+
+  it("shows the API key as set on the global settings page when a key exists", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_model: "openai/gpt-4o", llm_api_key_set: true }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+
+    expect(screen.getByTestId("set-indicator")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-api-key-input")).toHaveValue("");
+  });
+
+  it("does not show a 'key set' indicator for a brand-new embedded profile even when a global key exists (bug #640)", async () => {
+    // A global key exists, but a fresh profile form must look unset so the user
+    // knows they have to enter one — otherwise the profile saves with no key.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_model: "openai/gpt-4o", llm_api_key_set: true }),
+    );
+
+    renderLlmSettingsScreen({
+      embedded: true,
+      hideSaveButton: true,
+      initialValueOverrides: {
+        "llm.model": "",
+        "llm.api_key": "",
+        "llm.base_url": "",
+      },
+    });
+
+    await screen.findByTestId("llm-settings-screen");
+
+    expect(screen.getByTestId("llm-api-key-input")).toHaveValue("");
+    expect(screen.queryByTestId("set-indicator")).not.toBeInTheDocument();
   });
 });
 

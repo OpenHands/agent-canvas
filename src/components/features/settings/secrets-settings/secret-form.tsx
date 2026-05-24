@@ -6,6 +6,10 @@ import { useCreateSecret } from "#/hooks/mutation/use-create-secret";
 import { useUpdateSecret } from "#/hooks/mutation/use-update-secret";
 import { SettingsInput } from "../settings-input";
 import { cn } from "#/utils/utils";
+import {
+  formControlMultilineFieldClassName,
+  formControlSettingsFieldClassName,
+} from "#/utils/form-control-classes";
 import { BrandButton } from "../brand-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { OptionalTag } from "../optional-tag";
@@ -138,7 +142,8 @@ export function SecretForm({
             required
             className={cn(
               "resize-none",
-              "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+              formControlMultilineFieldClassName,
+              "placeholder:italic",
               "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
             )}
             rows={8}
@@ -156,9 +161,8 @@ export function SecretForm({
           name="secret-description"
           defaultValue={secretDescription}
           className={cn(
-            "resize-none",
-            "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
-            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+            formControlSettingsFieldClassName,
+            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
           )}
         />
       </label>

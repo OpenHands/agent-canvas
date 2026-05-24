@@ -118,7 +118,7 @@ describe("AddBackendModal – two-column layout", () => {
     expect(submit).not.toBeDisabled();
   });
 
-  it("saves the backend and closes WITHOUT switching the active selection", async () => {
+  it("saves the backend, switches to it, and closes", async () => {
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
 
@@ -146,14 +146,39 @@ describe("AddBackendModal – two-column layout", () => {
       kind: "local",
     });
 
-    // Adding a backend must NOT change the active selection.
-    expect(window.localStorage.getItem("openhands-active-backend")).toBeNull();
+    // Active selection must point at the newly added backend.
+    const active = JSON.parse(
+      window.localStorage.getItem("openhands-active-backend") ?? "null",
+    );
+    expect(active).toEqual({ backendId: added.id, orgId: null });
   });
 
-  it("shows the close button", () => {
+  it("closes when the header close button is clicked", async () => {
+    const user = userEvent.setup();
     const onClose = vi.fn();
     renderWithProviders(<AddBackendModal onClose={onClose} />);
 
-    expect(screen.getByTestId("add-backend-close")).toBeInTheDocument();
+    await user.click(screen.getByTestId("add-backend-close"));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps advanced host settings in the layout when collapsed", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("add-backend-cloud-host")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("add-backend-advanced-toggle"));
+
+    expect(screen.getByTestId("add-backend-cloud-host")).toBeInTheDocument();
+  });
+
+  it("renders the cloud login button without a key icon prefix", () => {
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    const loginButton = screen.getByTestId("add-backend-login-button");
+    expect(loginButton.textContent?.trim()).not.toMatch(/^🔑/);
+    expect(loginButton.textContent).not.toContain("🔑");
   });
 });

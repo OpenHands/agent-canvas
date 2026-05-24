@@ -58,7 +58,7 @@ export function NewConversationButton({
           aria-label={compact ? newConversationLabel : undefined}
           className={cn(
             "flex items-center rounded-md cursor-pointer transition-colors",
-            "text-sm font-medium text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
+            "text-sm text-white bg-[var(--oh-surface)]/60 hover:bg-[var(--oh-surface-raised)]",
             "border border-[var(--oh-border)]",
             compact
               ? "justify-center w-10 h-10 p-0 mx-auto"

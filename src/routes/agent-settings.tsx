@@ -10,6 +10,8 @@ import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
+import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
+import { cn } from "#/utils/utils";
 import { SettingsFieldSchema } from "#/types/settings";
 import {
   displayErrorToast,
@@ -295,7 +297,12 @@ function AgentSettingsScreen() {
             {subAgentsLabel}
           </SettingsSwitch>
           {subAgentsDescription ? (
-            <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
+            <Typography.Paragraph
+              className={cn(
+                formControlSwitchDescriptionClassName,
+                "text-tertiary-alt text-xs leading-5",
+              )}
+            >
               {subAgentsDescription}
             </Typography.Paragraph>
           ) : null}
@@ -336,7 +343,7 @@ function AgentSettingsScreen() {
             </Typography.Text>
             <textarea
               data-testid="agent-command-input"
-              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
+              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
               value={commandText}
               placeholder={commandPlaceholder}
               onChange={(e) => {
@@ -377,7 +384,9 @@ function AgentSettingsScreen() {
           isDisabled={isSaving || !effectiveIsDirty || isAcpInvalid}
           onClick={handleSave}
         >
-          {isSaving ? t(I18nKey.SETTINGS$SAVING) : t(I18nKey.BUTTON$SAVE)}
+          {isSaving
+            ? t(I18nKey.SETTINGS$SAVING)
+            : t(I18nKey.SETTINGS$SAVE_CHANGES)}
         </BrandButton>
       </div>
     </div>
