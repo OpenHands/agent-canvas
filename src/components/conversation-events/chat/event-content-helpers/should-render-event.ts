@@ -7,6 +7,7 @@ import {
   isConversationStateUpdateEvent,
   isHookExecutionEvent,
   isACPToolCallEvent,
+  isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 
 export const shouldRenderEvent = (event: OpenHandsEvent) => {
@@ -87,6 +88,10 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
   // at the original position once it arrives.
   if (isACPToolCallEvent(event)) {
     return event.status === "completed" || event.status === "failed";
+  }
+
+  if (isStreamingDeltaEvent(event)) {
+    return event.content !== null || event.reasoning_content !== null;
   }
 
   // Don't render any other event types (system events, etc.)

@@ -7,6 +7,7 @@ import {
   createUserMessageEvent,
 } from "test-utils";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
+import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 import {
   ActionEvent,
   ObservationEvent,
@@ -93,6 +94,46 @@ describe("shouldRenderEvent - ACPToolCallEvent", () => {
     const event = makeACPEvent({ status: null });
 
     expect(shouldRenderEvent(event)).toBe(false);
+  });
+});
+
+describe("shouldRenderEvent - StreamingDeltaEvent", () => {
+  const makeStreamingDelta = (
+    overrides: Partial<StreamingDeltaEvent> = {},
+  ): StreamingDeltaEvent => ({
+    id: "delta-1",
+    kind: "StreamingDeltaEvent",
+    timestamp: "2024-01-01T00:00:00Z",
+    source: "agent",
+    content: "I'll start working on that.",
+    reasoning_content: null,
+    ...overrides,
+  });
+
+  it("renders text deltas", () => {
+    expect(shouldRenderEvent(makeStreamingDelta())).toBe(true);
+  });
+
+  it("renders reasoning-only deltas", () => {
+    expect(
+      shouldRenderEvent(
+        makeStreamingDelta({
+          content: null,
+          reasoning_content: "thinking",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("hides empty deltas", () => {
+    expect(
+      shouldRenderEvent(
+        makeStreamingDelta({
+          content: null,
+          reasoning_content: null,
+        }),
+      ),
+    ).toBe(false);
   });
 });
 

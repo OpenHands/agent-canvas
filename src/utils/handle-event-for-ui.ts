@@ -1,8 +1,33 @@
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import {
   isACPToolCallEvent,
+  isActionEvent,
+  isMessageEvent,
   isObservationEvent,
+  isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
+import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
+
+const mergeStreamingDeltaEvent = (
+  incoming: StreamingDeltaEvent,
+  existing: StreamingDeltaEvent,
+): StreamingDeltaEvent => ({
+  ...incoming,
+  content: `${existing.content ?? ""}${incoming.content ?? ""}` || null,
+  reasoning_content:
+    `${existing.reasoning_content ?? ""}${incoming.reasoning_content ?? ""}` ||
+    null,
+});
+
+const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (isMessageEvent(event) && event.source === "user") {
+      return index;
+    }
+  }
+  return -1;
+};
 
 /**
  * Handles adding an event to the UI events array
@@ -18,6 +43,35 @@ export const handleEventForUI = (
   uiEvents: OpenHandsEvent[],
 ): OpenHandsEvent[] => {
   const newUiEvents = [...uiEvents];
+
+  if (isStreamingDeltaEvent(event)) {
+    if (event.content === null && event.reasoning_content === null) {
+      return newUiEvents;
+    }
+
+    const lastIndex = newUiEvents.length - 1;
+    const lastEvent = newUiEvents[lastIndex];
+    if (lastEvent && isStreamingDeltaEvent(lastEvent)) {
+      newUiEvents[lastIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+      return newUiEvents;
+    }
+
+    newUiEvents.push(event);
+    return newUiEvents;
+  }
+
+  if (
+    (isActionEvent(event) && event.action.kind === "FinishAction") ||
+    (isMessageEvent(event) && event.source === "agent")
+  ) {
+    const lastUserMessageIndex = findLastUserMessageIndex(newUiEvents);
+    const finalizedUiEvents = newUiEvents.filter(
+      (uiEvent, index) =>
+        index <= lastUserMessageIndex || !isStreamingDeltaEvent(uiEvent),
+    );
+    finalizedUiEvents.push(event);
+    return finalizedUiEvents;
+  }
 
   if (isACPToolCallEvent(event)) {
     const existingIndex = newUiEvents.findIndex(
