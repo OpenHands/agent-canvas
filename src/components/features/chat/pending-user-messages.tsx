@@ -57,7 +57,7 @@ export function PendingUserMessages() {
       try {
         await send(
           createChatMessage(
-            message.text,
+            message.content,
             message.imageUrls,
             message.fileUrls,
             message.timestamp,
@@ -83,7 +83,7 @@ export function PendingUserMessages() {
           key={message.id}
           type="user"
           message={message.text}
-          pendingStatus={message.status}
+          pendingStatus={message.status === "sent" ? undefined : message.status}
           onRetry={
             message.status === "error"
               ? () => handleRetry(message.id)

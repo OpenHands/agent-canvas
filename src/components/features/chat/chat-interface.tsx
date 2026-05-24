@@ -28,13 +28,13 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages } from "#/components/conversation-events/chat/messages";
-import { PendingUserMessages } from "./pending-user-messages";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
+import { mergeOptimisticUserMessages } from "#/utils/optimistic-user-message-events";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
 import { getStatusColor, getStatusText } from "#/utils/utils";
@@ -225,6 +225,24 @@ export function ChatInterface() {
     [pendingMessages, conversationId],
   );
 
+  const visiblePendingMessages = React.useMemo(
+    () =>
+      conversationId
+        ? pendingMessages.filter((message) =>
+            matchesPendingConversationId(
+              conversationId,
+              message.conversationId,
+            ),
+          )
+        : [],
+    [pendingMessages, conversationId],
+  );
+
+  const renderableEventsWithPending = React.useMemo(
+    () => mergeOptimisticUserMessages(renderableEvents, visiblePendingMessages),
+    [renderableEvents, visiblePendingMessages],
+  );
+
   // Show V1 messages immediately if events exist in store (e.g., remount),
   // if the user already has a locally-tracked pending bubble (home-page cloud
   // submit while history/WS catch up), or once loading completes. This
@@ -375,7 +393,11 @@ export function ChatInterface() {
     }
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
-  }, [renderableEvents.length, hasPendingUserMessages, scrollDomToBottom]);
+  }, [
+    renderableEventsWithPending.length,
+    hasPendingUserMessages,
+    scrollDomToBottom,
+  ]);
 
   // Auto-load older events when the chat content doesn't overflow the
   // scroll area (no scrollbar to drag, no wheel events past 0). We
@@ -395,7 +417,7 @@ export function ChatInterface() {
     const target = scrollRef.current;
     if (!target) return;
     maybeLoadOlderRef.current(target);
-  }, [renderableEvents.length, hasMoreOlderEvents]);
+  }, [renderableEventsWithPending.length, hasMoreOlderEvents]);
 
   // Create a ScrollProvider with the scroll hook values
   const scrollProviderValue = {
@@ -497,22 +519,13 @@ export function ChatInterface() {
               anchored to `null` and live above the message list. */}
           <ModelMessages conversationId={conversationId} anchorEventId={null} />
 
-          {showConversationMessages && renderableEvents.length > 0 && (
-            <Messages
-              messages={renderableEvents}
-              allEvents={allConversationEvents}
-            />
-          )}
-
-          {/*
-            Render the local pending-message queue independently so messages
-            the user just submitted show up immediately (with a faded "sending"
-            treatment) even before any real conversation event has come back
-            from the server. Entries drain (FIFO) when the matching
-            UserMessageEvent echoes back over the WebSocket, so this never
-            double-renders alongside the real event list.
-          */}
-          <PendingUserMessages />
+          {showConversationMessages &&
+            renderableEventsWithPending.length > 0 && (
+              <Messages
+                messages={renderableEventsWithPending}
+                allEvents={allConversationEvents}
+              />
+            )}
         </div>
 
         <div className="flex flex-col gap-[6px]">

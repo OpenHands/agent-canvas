@@ -4,6 +4,10 @@ import { ChatMessage } from "../../../features/chat/chat-message";
 import { ImageCarousel } from "../../../features/images/image-carousel";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
 import { parseMessageFromEvent } from "../event-content-helpers/parse-message-from-event";
+import { isOptimisticUserMessageEvent } from "#/utils/optimistic-user-message-events";
+import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useSendMessage } from "#/hooks/use-send-message";
+import { createChatMessage } from "#/services/chat-service";
 
 interface UserAssistantEventMessageProps {
   event: MessageEvent;
@@ -16,7 +20,17 @@ export function UserAssistantEventMessage({
   isLastMessage,
   isFromPlanningAgent,
 }: UserAssistantEventMessageProps) {
+  const markPendingMessageError = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageError,
+  );
+  const markPendingMessageSending = useOptimisticUserMessageStore(
+    (state) => state.markPendingMessageSending,
+  );
+  const { send } = useSendMessage();
   const message = parseMessageFromEvent(event);
+  const pendingStatus = isOptimisticUserMessageEvent(event)
+    ? event.optimisticPendingStatus
+    : undefined;
 
   const imageUrls: string[] = [];
   if (Array.isArray(event.llm_message.content)) {
@@ -27,11 +41,41 @@ export function UserAssistantEventMessage({
     });
   }
 
+  const handleRetry = React.useCallback(async () => {
+    if (!isOptimisticUserMessageEvent(event)) return;
+
+    const pendingMessage = useOptimisticUserMessageStore
+      .getState()
+      .pendingMessages.find(
+        (entry) => entry.id === event.optimisticPendingMessageId,
+      );
+    if (!pendingMessage) return;
+
+    markPendingMessageSending(pendingMessage.id);
+
+    try {
+      await send(
+        createChatMessage(
+          pendingMessage.content,
+          pendingMessage.imageUrls,
+          pendingMessage.fileUrls,
+          pendingMessage.timestamp,
+        ),
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to send message";
+      markPendingMessageError(pendingMessage.id, errorMessage);
+    }
+  }, [event, markPendingMessageError, markPendingMessageSending, send]);
+
   return (
     <ChatMessage
       type={event.source}
       message={message}
       isFromPlanningAgent={isFromPlanningAgent}
+      pendingStatus={pendingStatus === "sent" ? undefined : pendingStatus}
+      onRetry={pendingStatus === "error" ? handleRetry : undefined}
     >
       {imageUrls.length > 0 && (
         <ImageCarousel size="small" images={imageUrls} />

@@ -74,6 +74,40 @@ describe("optimistic-user-message-store", () => {
     expect(entry.errorMessage).toBeUndefined();
   });
 
+  it("marks a sending message as sent", () => {
+    const store = useOptimisticUserMessageStore.getState();
+    const id = store.enqueuePendingMessage({
+      conversationId: CONVO,
+      text: "accepted",
+    });
+
+    store.markPendingMessageSent(id);
+
+    const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(entry.status).toBe("sent");
+    expect(entry.errorMessage).toBeUndefined();
+  });
+
+  it("marks the oldest sending message in a conversation as sent", () => {
+    const store = useOptimisticUserMessageStore.getState();
+    const firstId = store.enqueuePendingMessage({
+      conversationId: CONVO,
+      text: "first",
+    });
+    store.enqueuePendingMessage({ conversationId: CONVO, text: "second" });
+    store.enqueuePendingMessage({ conversationId: "conv-b", text: "other" });
+
+    const marked = store.markOldestSendingMessageSent(CONVO);
+
+    expect(marked?.id).toBe(firstId);
+    const pending = useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(pending.map((message) => message.status)).toEqual([
+      "sent",
+      "sending",
+      "sending",
+    ]);
+  });
+
   it("enqueue stores `content` separately from `text` and defaults it to `text`", () => {
     const store = useOptimisticUserMessageStore.getState();
     const idA = store.enqueuePendingMessage({
@@ -115,6 +149,22 @@ describe("optimistic-user-message-store", () => {
       useOptimisticUserMessageStore.getState().pendingMessages;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(firstId);
+  });
+
+  it("consumeMatchingPendingMessage removes a sent optimistic message when the echo arrives", () => {
+    const store = useOptimisticUserMessageStore.getState();
+    const id = store.enqueuePendingMessage({
+      conversationId: CONVO,
+      text: "accepted",
+    });
+    store.markPendingMessageSent(id);
+
+    const consumed = store.consumeMatchingPendingMessage(CONVO, "accepted");
+
+    expect(consumed?.id).toBe(id);
+    expect(
+      useOptimisticUserMessageStore.getState().pendingMessages,
+    ).toHaveLength(0);
   });
 
   it("consumeMatchingPendingMessage falls back to oldest sending entry when no exact match exists", () => {
@@ -217,6 +267,21 @@ describe("optimistic-user-message-store", () => {
     expect(entry.id).toBe(id);
     expect(entry.status).toBe("error");
     expect(entry.errorMessage).toBe("Send timed out");
+  });
+
+  it("watchdog timeout does nothing if the message was already marked sent", () => {
+    const store = useOptimisticUserMessageStore.getState();
+    const id = store.enqueuePendingMessage({
+      conversationId: CONVO,
+      text: "accepted",
+    });
+    store.markPendingMessageSent(id);
+
+    vi.advanceTimersByTime(PENDING_MESSAGE_TIMEOUT_MS);
+
+    const [entry] = useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(entry.id).toBe(id);
+    expect(entry.status).toBe("sent");
   });
 
   it("watchdog timeout does nothing if the echo already consumed the message", () => {
