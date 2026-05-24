@@ -310,30 +310,97 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("removes provisional deltas from the current turn when finish arrives", () => {
+    it("finalizes streamed deltas in place when finish arrives", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
-      const uiEvents = [
-        mockMessageEvent,
-        handleEventForUI(second, handleEventForUI(first, [])).at(-1)!,
-      ];
+      const streamedDelta = handleEventForUI(
+        second,
+        handleEventForUI(first, []),
+      ).at(-1)!;
+      const uiEvents = [mockMessageEvent, streamedDelta];
 
       const result = handleEventForUI(mockFinishActionEvent, uiEvents);
 
-      expect(result).toEqual([mockMessageEvent, mockFinishActionEvent]);
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...streamedDelta,
+          content: "I'll start working on that. Done.",
+        },
+      ]);
     });
 
-    it("removes provisional deltas from the current turn when an agent message arrives", () => {
+    it("finalizes streamed deltas in place when an agent message arrives", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
-      const uiEvents = [
-        mockMessageEvent,
-        handleEventForUI(second, handleEventForUI(first, [])).at(-1)!,
-      ];
+      const streamedDelta = handleEventForUI(
+        second,
+        handleEventForUI(first, []),
+      ).at(-1)!;
+      const uiEvents = [mockMessageEvent, streamedDelta];
 
       const result = handleEventForUI(mockAgentMessageEvent, uiEvents);
 
-      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...streamedDelta,
+          content: "I'll start working on that. Done.",
+        },
+      ]);
+    });
+
+    it("keeps streamed deltas in their original locations when the final message aggregates them", () => {
+      const first = makeStreamingDelta(
+        "delta-1",
+        "I'll start working on that.",
+      );
+      const second = makeStreamingDelta("delta-2", "I found the issue.");
+      const aggregateAgentMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I'll start working on that.I found the issue.",
+            },
+          ],
+        },
+      };
+
+      const afterFirst = handleEventForUI(first, [mockMessageEvent]);
+      const afterObservation = handleEventForUI(mockObservationEvent, afterFirst);
+      const afterSecond = handleEventForUI(second, afterObservation);
+      const result = handleEventForUI(aggregateAgentMessage, afterSecond);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        first,
+        mockObservationEvent,
+        second,
+      ]);
+    });
+
+    it("appends a distinct final message that does not match streamed text", () => {
+      const streamedDelta = makeStreamingDelta(
+        "delta-1",
+        "I'll start working on that.",
+      );
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Done." }],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, streamedDelta, finalMessage]);
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
@@ -366,6 +433,7 @@ describe("handleEventForUI", () => {
         oldUserMessage,
         oldDelta,
         nextUserMessage,
+        currentDelta,
         mockFinishActionEvent,
       ]);
     });

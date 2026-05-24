@@ -1,4 +1,4 @@
-import { OpenHandsEvent } from "#/types/agent-server/core";
+import { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
 import {
   isACPToolCallEvent,
   isActionEvent,
@@ -19,6 +19,14 @@ const mergeStreamingDeltaEvent = (
     null,
 });
 
+const appendContentToStreamingDeltaEvent = (
+  existing: StreamingDeltaEvent,
+  content: string,
+): StreamingDeltaEvent => ({
+  ...existing,
+  content: `${existing.content ?? ""}${content}` || null,
+});
+
 const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -27,6 +35,100 @@ const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
     }
   }
   return -1;
+};
+
+const getAgentMessageText = (event: MessageEvent): string =>
+  event.llm_message.content
+    .filter((content) => content.type === "text")
+    .map((content) => content.text)
+    .join("\n");
+
+const getFinalAgentText = (event: OpenHandsEvent): string | null => {
+  if (isActionEvent(event) && event.action.kind === "FinishAction") {
+    return event.action.message;
+  }
+
+  if (isMessageEvent(event) && event.source === "agent") {
+    return getAgentMessageText(event);
+  }
+
+  return null;
+};
+
+const findTextSegmentsInOrder = (
+  text: string,
+  segments: string[],
+): { matched: boolean; lastMatchEnd: number } => {
+  let searchStart = 0;
+  let lastMatchEnd = 0;
+
+  for (const segment of segments) {
+    const index = text.indexOf(segment, searchStart);
+    if (index === -1) {
+      return { matched: false, lastMatchEnd };
+    }
+    lastMatchEnd = index + segment.length;
+    searchStart = lastMatchEnd;
+  }
+
+  return { matched: true, lastMatchEnd };
+};
+
+const finalizeStreamingDeltasInPlace = (
+  finalEvent: OpenHandsEvent,
+  uiEvents: OpenHandsEvent[],
+): OpenHandsEvent[] | null => {
+  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
+  const currentTurnStreamingDeltaIndexes = uiEvents
+    .map((uiEvent, index) => ({ uiEvent, index }))
+    .filter(
+      ({ uiEvent, index }) =>
+        index > lastUserMessageIndex && isStreamingDeltaEvent(uiEvent),
+    )
+    .map(({ index }) => index);
+
+  if (currentTurnStreamingDeltaIndexes.length === 0) {
+    return null;
+  }
+
+  const finalText = getFinalAgentText(finalEvent);
+  const streamingSegments = currentTurnStreamingDeltaIndexes
+    .map((index) => uiEvents[index])
+    .filter(isStreamingDeltaEvent)
+    .map((uiEvent) => uiEvent.content ?? "")
+    .filter((content) => content.length > 0);
+
+  if (!finalText || streamingSegments.length === 0) {
+    return null;
+  }
+
+  const nextUiEvents = [...uiEvents];
+  const streamedText = streamingSegments.join("");
+  let unstreamedSuffix = "";
+
+  if (finalText.startsWith(streamedText)) {
+    unstreamedSuffix = finalText.slice(streamedText.length);
+  } else {
+    const match = findTextSegmentsInOrder(finalText, streamingSegments);
+    if (!match.matched) {
+      return null;
+    }
+    unstreamedSuffix = finalText.slice(match.lastMatchEnd);
+  }
+
+  const lastDeltaIndex =
+    currentTurnStreamingDeltaIndexes[
+      currentTurnStreamingDeltaIndexes.length - 1
+    ];
+  const lastDelta = nextUiEvents[lastDeltaIndex];
+  if (unstreamedSuffix && isStreamingDeltaEvent(lastDelta)) {
+    nextUiEvents[lastDeltaIndex] = appendContentToStreamingDeltaEvent(
+      lastDelta,
+      unstreamedSuffix,
+    );
+  }
+
+  return nextUiEvents;
 };
 
 /**
@@ -64,13 +166,13 @@ export const handleEventForUI = (
     (isActionEvent(event) && event.action.kind === "FinishAction") ||
     (isMessageEvent(event) && event.source === "agent")
   ) {
-    const lastUserMessageIndex = findLastUserMessageIndex(newUiEvents);
-    const finalizedUiEvents = newUiEvents.filter(
-      (uiEvent, index) =>
-        index <= lastUserMessageIndex || !isStreamingDeltaEvent(uiEvent),
+    const finalizedUiEvents = finalizeStreamingDeltasInPlace(
+      event,
+      newUiEvents,
     );
-    finalizedUiEvents.push(event);
-    return finalizedUiEvents;
+    if (finalizedUiEvents) {
+      return finalizedUiEvents;
+    }
   }
 
   if (isACPToolCallEvent(event)) {
