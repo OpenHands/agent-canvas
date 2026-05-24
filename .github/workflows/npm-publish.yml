@@ -97,9 +97,7 @@ jobs:
           fi
 
       - name: Publish to npm with provenance
-        env:
-          NPM_TAG: ${{ steps.npm-tag.outputs.tag }}
-        run: npm publish --access public --provenance --tag "$NPM_TAG"
+        run: npm publish --access public --provenance --tag ${{ steps.npm-tag.outputs.tag }}
 
       - name: Also tag as latest for prerelease versions
         if: steps.npm-tag.outputs.also_latest == 'true'

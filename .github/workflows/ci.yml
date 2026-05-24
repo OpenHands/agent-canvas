@@ -28,10 +28,9 @@ jobs:
       - name: Build test matrix
         id: matrix
         env:
-          EVENT_NAME: ${{ github.event_name }}
           GIT_REF: ${{ github.ref }}
         run: |
-          if [ "$EVENT_NAME" = "push" ] && [ "$GIT_REF" = "refs/heads/main" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GIT_REF" = "refs/heads/main" ]; then
             echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true},{"name":"windows","os":"windows-latest","full_checks":false}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true}]}' >> "$GITHUB_OUTPUT"
@@ -161,17 +160,16 @@ jobs:
         if: steps.pr_context.outputs.is_fork != 'true'
         env:
           PR_HEAD_REPO: ${{ steps.pr_context.outputs.head_repo }}
-          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           set -euo pipefail
           git init .
           git remote remove pr-head >/dev/null 2>&1 || true
           git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
-          git fetch pr-head "$PR_HEAD_SHA"
+          git fetch pr-head "${{ steps.pr_context.outputs.head_sha }}"
           git checkout --detach FETCH_HEAD
           actual_sha="$(git rev-parse HEAD)"
-          if [ "$actual_sha" != "$PR_HEAD_SHA" ]; then
-            echo "::error::SHA mismatch: expected $PR_HEAD_SHA, got $actual_sha"
+          if [ "$actual_sha" != "${{ steps.pr_context.outputs.head_sha }}" ]; then
+            echo "::error::SHA mismatch: expected ${{ steps.pr_context.outputs.head_sha }}, got $actual_sha"
             exit 1
           fi
 
@@ -211,13 +209,12 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status running \
             --model "$LIVE_E2E_LLM_MODEL" \
             --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
-            --commit "$PR_HEAD_SHA" \
+            --commit "${{ steps.pr_context.outputs.head_sha }}" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           node tests/e2e/live/scripts/upsert-pr-comment.mjs \
@@ -266,10 +263,8 @@ jobs:
         id: live_video_preview
         if: always() && steps.live_media.outputs.video_path != '' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
-        env:
-          VIDEO_PATH: ${{ steps.live_media.outputs.video_path }}
         run: |
-          video_path="$VIDEO_PATH"
+          video_path="${{ steps.live_media.outputs.video_path }}"
           if [ ! -f "$video_path" ]; then
             echo "::warning::Live E2E video file was not found, skipping GIF preview generation."
             exit 0
@@ -292,7 +287,6 @@ jobs:
           PR_ARTIFACT_PUSH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || github.token }}
           PR_HEAD_IS_FORK: ${{ steps.pr_context.outputs.is_fork }}
           PR_HEAD_REF: ${{ steps.pr_context.outputs.head_ref }}
-          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
           SCREENSHOT_PATH: ${{ steps.live_media.outputs.screenshot_path || '' }}
           VIDEO_PATH: ${{ steps.live_media.outputs.video_path || '' }}
           VIDEO_PREVIEW_PATH: ${{ steps.live_video_preview.outputs.video_preview_path || '' }}
@@ -408,18 +402,15 @@ jobs:
       - name: Determine live E2E result
         id: live_status
         if: always() && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        env:
-          HAS_LLM_KEY: ${{ steps.live_credential.outputs.has_key }}
-          LIVE_TEST_EXIT_CODE: ${{ steps.live_test.outputs.exit_code }}
         run: |
-          if [ "$HAS_LLM_KEY" != "true" ]; then
+          if [ "${{ steps.live_credential.outputs.has_key }}" != "true" ]; then
             echo "status=skipped" >> "$GITHUB_OUTPUT"
             echo "reason=LLM_API_KEY is not configured." >> "$GITHUB_OUTPUT"
             echo "exit_code=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          exit_code="$LIVE_TEST_EXIT_CODE"
+          exit_code="${{ steps.live_test.outputs.exit_code }}"
           if [ -z "$exit_code" ]; then
             exit_code=1
           fi
@@ -441,7 +432,6 @@ jobs:
           LIVE_E2E_REASON: ${{ steps.live_status.outputs.reason }}
           LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.publish_live_media.outputs.video_preview_url || '' }}
           LIVE_E2E_VIDEO_URL: ${{ steps.publish_live_media.outputs.video_url || '' }}
-          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status "$LIVE_E2E_STATUS" \
@@ -453,7 +443,7 @@ jobs:
             --screenshot-url "$LIVE_E2E_SCREENSHOT_URL" \
             --video-preview-url "$LIVE_E2E_VIDEO_PREVIEW_URL" \
             --video-url "$LIVE_E2E_VIDEO_URL" \
-            --commit "$PR_HEAD_SHA" \
+            --commit "${{ steps.pr_context.outputs.head_sha }}" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           cat "$LIVE_E2E_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
@@ -469,6 +459,4 @@ jobs:
 
       - name: Fail live E2E job when tests fail
         if: always() && steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        env:
-          LIVE_STATUS_EXIT_CODE: ${{ steps.live_status.outputs.exit_code }}
-        run: exit "$LIVE_STATUS_EXIT_CODE"
+        run: exit "${{ steps.live_status.outputs.exit_code }}"
