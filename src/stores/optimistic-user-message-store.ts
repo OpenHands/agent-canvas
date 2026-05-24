@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type PendingUserMessageStatus = "sending" | "sent" | "error";
+export type PendingUserMessageStatus = "sending" | "error";
 
 /**
  * How long a pending message is allowed to stay in "sending" state before we
@@ -64,8 +64,6 @@ interface OptimisticUserMessageActions {
   enqueuePendingMessage: (payload: EnqueuePendingMessagePayload) => string;
   /** Mark a pending message as failed (the API rejected it). */
   markPendingMessageError: (id: string, errorMessage?: string) => void;
-  /** Mark a pending message as accepted by the server. */
-  markPendingMessageSent: (id: string) => void;
   /** Mark a pending message as sending again (used when retrying). */
   markPendingMessageSending: (id: string) => void;
   /** Drop a pending message from the queue (e.g., after success/cancellation). */
@@ -83,14 +81,6 @@ interface OptimisticUserMessageActions {
   consumeMatchingPendingMessage: (
     conversationId: string,
     content: string,
-  ) => PendingUserMessage | null;
-  /**
-   * Mark the oldest still-sending message in the conversation as accepted by
-   * the server. Used when the server streams agent work but does not echo the
-   * user message event on the live WebSocket path.
-   */
-  markOldestSendingMessageSent: (
-    conversationId: string,
   ) => PendingUserMessage | null;
   /** Wipe all queued messages (e.g., when changing conversations). */
   clearPendingMessages: () => void;
@@ -160,15 +150,6 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         ),
       })),
 
-    markPendingMessageSent: (id) =>
-      set((state) => ({
-        pendingMessages: state.pendingMessages.map((message) =>
-          message.id === id
-            ? { ...message, status: "sent", errorMessage: undefined }
-            : message,
-        ),
-      })),
-
     markPendingMessageSending: (id) =>
       set((state) => ({
         pendingMessages: state.pendingMessages.map((message) =>
@@ -196,15 +177,15 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
       // case.
       let consumed: PendingUserMessage | null = null;
       set((state) => {
-        const confirmable = state.pendingMessages
+        const sending = state.pendingMessages
           .map((m, i) => ({ m, i }))
           .filter(
             ({ m }) =>
-              m.status !== "error" && m.conversationId === conversationId,
+              m.status === "sending" && m.conversationId === conversationId,
           );
-        if (confirmable.length === 0) return state;
-        const exact = confirmable.find(({ m }) => m.content === content);
-        const target = exact ?? confirmable[0];
+        if (sending.length === 0) return state;
+        const exact = sending.find(({ m }) => m.content === content);
+        const target = exact ?? sending[0];
         consumed = target.m;
         return {
           pendingMessages: [
@@ -214,28 +195,6 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
         };
       });
       return consumed;
-    },
-
-    markOldestSendingMessageSent: (conversationId) => {
-      let marked: PendingUserMessage | null = null;
-      set((state) => {
-        const target = state.pendingMessages.find(
-          (message) =>
-            message.status === "sending" &&
-            message.conversationId === conversationId,
-        );
-        if (!target) return state;
-
-        marked = target;
-        return {
-          pendingMessages: state.pendingMessages.map((message) =>
-            message.id === target.id
-              ? { ...message, status: "sent", errorMessage: undefined }
-              : message,
-          ),
-        };
-      });
-      return marked;
     },
 
     clearPendingMessages: () => set(() => ({ ...initialState })),

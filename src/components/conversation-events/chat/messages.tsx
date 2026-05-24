@@ -8,7 +8,6 @@ import { ThoughtEventMessage } from "./event-message-components/thought-event-me
 import { useModelStore } from "#/stores/model-store";
 import { ModelMessages } from "#/components/features/chat/model-messages";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
-import { isOptimisticUserMessageEvent } from "#/utils/optimistic-user-message-events";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";
 // import MemoryIcon from "#/icons/memory_icon.svg?react";
@@ -19,15 +18,6 @@ interface MessagesProps {
 }
 
 const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
-
-const getEventListSignature = (events: OpenHandsEvent[]) =>
-  events
-    .map((event) =>
-      isOptimisticUserMessageEvent(event)
-        ? `${event.id}:${event.optimisticPendingStatus}`
-        : String(event.id),
-    )
-    .join("|");
 
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
@@ -142,8 +132,6 @@ export const Messages: React.FC<MessagesProps> = React.memo(
   (prevProps, nextProps) =>
     prevProps.messages.length === nextProps.messages.length &&
     prevProps.allEvents.length === nextProps.allEvents.length &&
-    getEventListSignature(prevProps.messages) ===
-      getEventListSignature(nextProps.messages) &&
     getLastEventId(prevProps.messages) === getLastEventId(nextProps.messages) &&
     getLastEventId(prevProps.allEvents) === getLastEventId(nextProps.allEvents),
 );
