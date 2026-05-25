@@ -1,6 +1,9 @@
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { useQuery } from "@tanstack/react-query";
 
+import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { callCloudProxy } from "#/api/cloud/proxy";
+import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -57,6 +60,24 @@ export function useWorkspaceSession(): {
       sessionApiKey,
     ],
     queryFn: async () => {
+      const active = getActiveBackend().backend;
+
+      if (active.kind === "cloud" && conversationUrl) {
+        // Cloud conversations: route through callCloudProxy to avoid CORS
+        // restrictions on direct browser → runtime sandbox calls.
+        const response = await callCloudProxy<{ base_url: string }>({
+          backend: active,
+          method: "POST",
+          hostOverride: buildHttpBaseUrl(conversationUrl),
+          path: "/api/auth/workspace-session",
+          body: { conversation_id: conversationId },
+          authMode: "session-api-key",
+          sessionApiKey,
+        });
+        return { baseUrl: response.base_url };
+      }
+
+      // Local conversations: use the SDK client directly.
       const workspace = new RemoteWorkspace(
         getAgentServerClientOptions({
           conversationUrl,

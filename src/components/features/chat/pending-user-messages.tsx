@@ -3,6 +3,8 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
+import { ImageCarousel } from "#/components/features/images/image-carousel";
 import { ChatMessage } from "./chat-message";
 
 /**
@@ -33,8 +35,11 @@ export function PendingUserMessages() {
   const visibleMessages = React.useMemo(
     () =>
       conversationId
-        ? pendingMessages.filter(
-            (message) => message.conversationId === conversationId,
+        ? pendingMessages.filter((message) =>
+            matchesPendingConversationId(
+              conversationId,
+              message.conversationId,
+            ),
           )
         : [],
     [pendingMessages, conversationId],
@@ -84,7 +89,11 @@ export function PendingUserMessages() {
               ? () => handleRetry(message.id)
               : undefined
           }
-        />
+        >
+          {message.imageUrls.length > 0 && (
+            <ImageCarousel size="small" images={message.imageUrls} />
+          )}
+        </ChatMessage>
       ))}
     </>
   );

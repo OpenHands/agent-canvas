@@ -1,5 +1,14 @@
 import { I18nKey } from "#/i18n/declaration";
 
+export type ACPProviderIcon =
+  | "openhands"
+  | "claude-code"
+  | "codex"
+  | "gemini"
+  | "cli-generic";
+
+export const ACP_PROVIDER_FALLBACK_ICON: ACPProviderIcon = "cli-generic";
+
 /**
  * Built-in ACP (Agent Client Protocol) provider registry.
  *
@@ -41,6 +50,12 @@ export interface ACPProviderConfig {
    * list separately).
    */
   description_key: I18nKey;
+  /**
+   * Serializable icon key used by UI surfaces that render provider
+   * choices. Kept as a string so the SDK mirror check can continue to
+   * parse this registry without importing React components.
+   */
+  icon?: ACPProviderIcon;
 }
 
 // Each entry's ``default_command`` is the published-package npx
@@ -57,6 +72,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // around the Claude Code CLI.
     default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
+    icon: "claude-code",
   },
   {
     key: "codex",
@@ -67,6 +83,7 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // subcommand on that package).
     default_command: ["npx", "-y", "@zed-industries/codex-acp"],
     description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
+    icon: "codex",
   },
   {
     key: "gemini-cli",
@@ -76,10 +93,35 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
     // into ACP server mode on stdio.
     default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
     description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
+    icon: "gemini",
   },
 ];
 
 export const ACP_CUSTOM_PRESET_KEY = "custom";
+
+/**
+ * Resolve an ACP provider registry key (the value stored under
+ * ``tags.acpserver`` on a conversation) to a human display name for the
+ * sidebar chip.
+ *
+ * Returns ``null`` for an empty / null key and for keys not in
+ * {@link ACP_PROVIDERS} — most notably ``"custom"`` (the user-supplied
+ * command preset has no canonical brand name) and any forward-compatible
+ * value Canvas's registry doesn't know about yet. Callers should fall
+ * back to a generic ``"ACP"`` label in that case so the chip still
+ * communicates "this is an ACP conversation".
+ *
+ * Kept separate from {@link buildAcpAgentSettingsDiff}'s lookup so the
+ * conversation-card render path can resolve display names without
+ * importing the settings-payload builder.
+ */
+export function getAcpProviderDisplayName(
+  key: string | null | undefined,
+): string | null {
+  if (!key) return null;
+  const found = ACP_PROVIDERS.find((p) => p.key === key);
+  return found ? found.display_name : null;
+}
 
 /**
  * Build the ``agent_settings_diff`` payload PATCH /api/settings expects

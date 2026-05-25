@@ -5,6 +5,7 @@ import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
   useDeleteAutomation,
+  useDispatchAutomation,
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -60,6 +61,7 @@ export default function AutomationDetail() {
 
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
+  const dispatchMutation = useDispatchAutomation();
 
   const is404 =
     isError && isAxiosError(error) && error.response?.status === 404;
@@ -131,6 +133,10 @@ export default function AutomationDetail() {
     });
   };
 
+  const handleRunNow = () => {
+    dispatchMutation.mutate(automation.id);
+  };
+
   // Edit is a local-backend-only feature in MVP — cloud automations
   // are managed elsewhere and we don't yet surface them here.
   const canEdit = active.backend.kind === "local";
@@ -145,6 +151,8 @@ export default function AutomationDetail() {
             onToggle={handleToggle}
             onEdit={canEdit ? () => setShowEditModal(true) : undefined}
             onDelete={() => setShowDeleteModal(true)}
+            onRunNow={handleRunNow}
+            isRunningNow={dispatchMutation.isPending}
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
           <ConfigurationSection automation={automation} />

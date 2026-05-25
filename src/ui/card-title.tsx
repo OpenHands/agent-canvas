@@ -11,7 +11,7 @@ const cardTitleVariants = cva("flex items-center", {
       default: "text-base",
     },
     fontWeight: {
-      default: "font-bold",
+      default: "font-medium",
     },
     textColor: {
       default: "text-white",

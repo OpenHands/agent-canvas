@@ -1,5 +1,4 @@
 import { ServerClient } from "@openhands/typescript-client/clients";
-import { HttpError } from "@openhands/typescript-client/client/http-client";
 import type { ServerInfo as BaseServerInfo } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
@@ -52,6 +51,15 @@ export function isAgentServerToolAvailable(toolName: string) {
   return availableTools.includes(toolName);
 }
 
+function isSdkHttpError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.name === "HttpError" &&
+    "status" in error &&
+    typeof error.status === "number"
+  );
+}
+
 export async function loadAgentServerInfo() {
   // The probe is a *local* agent-server concern — it verifies the runtime
   // hosting the GUI is reachable. It must NEVER run against the active
@@ -70,7 +78,7 @@ export async function loadAgentServerInfo() {
     ).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
-    if (error instanceof HttpError) {
+    if (isSdkHttpError(error)) {
       throw error;
     }
 

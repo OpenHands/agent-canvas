@@ -24,11 +24,11 @@ const {
   mockFileClient,
   mockSettingsClient,
   mockSwitchProfile,
+  mockSwitchLLM,
   mockGetSettings,
   mockGetSettingsForConversation,
   mockGetProfile,
   mockActivateProfile,
-  mockSdkHttpPost,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -37,11 +37,11 @@ const {
   mockFileClient: vi.fn(),
   mockSettingsClient: vi.fn(),
   mockSwitchProfile: vi.fn(),
+  mockSwitchLLM: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
   mockGetProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
-  mockSdkHttpPost: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", async () => {
@@ -71,12 +71,6 @@ vi.mock("@openhands/typescript-client/clients", async () => {
   };
 });
 
-vi.mock("@openhands/typescript-client/client/http-client", () => ({
-  HttpClient: vi.fn(function HttpClientMock() {
-    return { post: mockSdkHttpPost };
-  }),
-}));
-
 vi.mock("#/api/agent-server-config", () => ({
   DEFAULT_WORKING_DIR: "workspace/project",
   getAgentServerBaseUrl: vi.fn(() => "http://localhost:54928"),
@@ -105,7 +99,7 @@ describe("AgentServerConversationService", () => {
     mockHttpDelete.mockReset();
     mockGetProfile.mockReset();
     mockActivateProfile.mockReset();
-    mockSdkHttpPost.mockReset();
+    mockSwitchLLM.mockReset();
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
     vi.mocked(ProfilesClient).mockClear();
@@ -133,6 +127,7 @@ describe("AgentServerConversationService", () => {
       sendEvent: vi.fn(),
       updateConversation: vi.fn(),
       switchProfile: mockSwitchProfile,
+      switchLLM: mockSwitchLLM,
     });
     mockFileClient.mockReturnValue({
       downloadTextFile: async (path: string) => {
@@ -497,6 +492,66 @@ describe("AgentServerConversationService", () => {
         "/workspace/project/agent-canvas",
       );
     });
+
+    it("extracts the acpserver tag from the wire payload for the sidebar chip", async () => {
+      // The agent-server stamps ``tags.acpserver`` at conversation create
+      // time (see ``buildStartConversationRequest``); the read path
+      // must surface it so the conversation card can render the human
+      // ACP-agent badge ("Claude Code" / "Codex" / "Gemini CLI").
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+            tags: { acpserver: "claude-code" },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp",
+        ]);
+
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.acp_server).toBe("claude-code");
+    });
+
+    it("drops non-string tag values while preserving the well-typed ones", async () => {
+      // The wire field is server-validated to ``Record[str, str]`` but a
+      // misbehaving server (or a future schema drift) shouldn't crash the
+      // parser — we drop non-string values and keep the rest so the
+      // sidebar still gets whatever good keys made it through.
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-malformed-tags",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+            tags: {
+              acpserver: "codex",
+              numeric: 42,
+              nested: { inner: "x" },
+              listy: ["a", "b"],
+              nully: null,
+            },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-malformed-tags",
+        ]);
+
+      // ``acp_server`` is the surfaced field on AppConversation; tags is
+      // only on DirectConversationInfo. Asserting both via this read
+      // path keeps the test honest end-to-end.
+      expect(conversation?.acp_server).toBe("codex");
+    });
   });
 
   describe("switchProfile", () => {
@@ -521,17 +576,14 @@ describe("AgentServerConversationService", () => {
         config: llmConfig,
         api_key_set: true,
       });
-      mockSdkHttpPost.mockResolvedValue({ data: undefined });
+      mockSwitchLLM.mockResolvedValue(undefined);
 
       await AgentServerConversationService.switchProfile("conv-1", "haiku");
 
       expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
         exposeSecrets: "encrypted",
       });
-      expect(mockSdkHttpPost).toHaveBeenCalledWith(
-        "/api/conversations/conv-1/switch_llm",
-        { llm: llmConfig },
-      );
+      expect(mockSwitchLLM).toHaveBeenCalledWith("conv-1", llmConfig);
       // Per-convo path: global default is left untouched.
       expect(mockActivateProfile).not.toHaveBeenCalled();
     });
@@ -548,7 +600,7 @@ describe("AgentServerConversationService", () => {
       expect(mockActivateProfile).toHaveBeenCalledWith("haiku");
       // Home-page path: don't touch any conversation's LLM.
       expect(mockGetProfile).not.toHaveBeenCalled();
-      expect(mockSdkHttpPost).not.toHaveBeenCalled();
+      expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
     it("rejects profile switching on cloud backends before any network call", async () => {
@@ -569,7 +621,7 @@ describe("AgentServerConversationService", () => {
       );
       expect(mockActivateProfile).not.toHaveBeenCalled();
       expect(mockGetProfile).not.toHaveBeenCalled();
-      expect(mockSdkHttpPost).not.toHaveBeenCalled();
+      expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
   });
 

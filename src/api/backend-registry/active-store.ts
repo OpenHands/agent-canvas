@@ -46,6 +46,7 @@ function computeSnapshot(
     // makes sense in the context of a specific cloud backend.
   }
 
+  // @spec BM-003 — Fallback on active backend removal
   if (!activeBackend) {
     activeBackend = pickLocalBackend(backends);
     activeOrgId = null;

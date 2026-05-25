@@ -10,7 +10,9 @@ export interface Automation {
   trigger: AutomationTrigger;
   enabled: boolean;
   repository?: string;
-  model?: string;
+  /** LLM/model profile name used for automation runs. */
+  model?: string | null;
+
   created_at: string;
   updated_at: string;
   prompt: string | null;

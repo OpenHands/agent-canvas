@@ -9,6 +9,7 @@ import { SettingsNavHeader } from "./settings-nav-header";
 import { SettingsNavDivider } from "./settings-nav-divider";
 import { SettingsNavLink } from "./settings-nav-link";
 import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
+import { navInteractiveTransitionClassName } from "#/components/features/sidebar/sidebar-layout";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
 
 interface SettingsNavigationProps {
@@ -111,7 +112,10 @@ export function SettingsMobileDrawer({
           <button
             type="button"
             onClick={onCloseMobileMenu}
-            className="cursor-pointer rounded-md p-0.5 transition-colors hover:bg-tertiary md:hidden"
+            className={cn(
+              "cursor-pointer rounded-md p-0.5 hover:bg-tertiary md:hidden",
+              navInteractiveTransitionClassName,
+            )}
             aria-label="Close navigation menu"
           >
             <CloseIcon width={32} height={32} />

@@ -272,4 +272,24 @@ describe("optimistic-user-message-store", () => {
       useOptimisticUserMessageStore.getState().pendingMessages,
     ).toHaveLength(0);
   });
+
+  it("reassignPendingMessages moves entries from a task id to the real conversation id", () => {
+    const store = useOptimisticUserMessageStore.getState();
+    store.enqueuePendingMessage({
+      conversationId: "task-abc",
+      text: "hello",
+    });
+    store.enqueuePendingMessage({
+      conversationId: "other-convo",
+      text: "untouched",
+    });
+
+    store.reassignPendingMessages("task-abc", "real-convo");
+
+    const pending = useOptimisticUserMessageStore.getState().pendingMessages;
+    expect(pending.map((m) => [m.conversationId, m.text])).toEqual([
+      ["real-convo", "hello"],
+      ["other-convo", "untouched"],
+    ]);
+  });
 });

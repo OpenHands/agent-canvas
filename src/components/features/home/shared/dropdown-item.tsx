@@ -44,7 +44,7 @@ export function DropdownItem<T>({
     <li key={getItemKey(item)} {...itemProps}>
       <div className="flex items-center gap-2">
         {renderIcon?.(item)}
-        <span className="font-medium">{getDisplayText(item)}</span>
+        <span className="font-normal">{getDisplayText(item)}</span>
       </div>
     </li>
   );

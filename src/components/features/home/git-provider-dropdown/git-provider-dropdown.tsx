@@ -156,7 +156,7 @@ export function GitProviderDropdown({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
+      <div className="group relative text-[var(--oh-muted)] hover:text-white">
         {/* Provider icon */}
         {selectedItem && (
           <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
@@ -174,7 +174,7 @@ export function GitProviderDropdown({
             readOnly: true, // Make it non-searchable like the original
             className: cn(
               "w-29.5 h-6 py-0 border border-[var(--oh-border-input)] rounded shadow-none h-6 min-h-6 max-h-6 ",
-              "bg-tertiary text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
+              "text-inherit bg-tertiary placeholder:text-[var(--oh-muted)]",
               "focus:outline-none focus:ring-0 focus:border-[var(--oh-border-input)]",
               "disabled:bg-tertiary disabled:cursor-not-allowed disabled:opacity-60",
               "pl-1.5 pr-[1px] cursor-pointer text-xs font-normal leading-5", // Space for toggle button and pointer cursor
@@ -190,10 +190,7 @@ export function GitProviderDropdown({
             isOpen={isOpen}
             disabled={disabled}
             getToggleButtonProps={getToggleButtonProps}
-            iconClassName={cn(
-              "w-[23px] h-[23px] translate-y-[1px]",
-              toggleButtonClassName,
-            )}
+            iconClassName={toggleButtonClassName}
           />
         </div>
 

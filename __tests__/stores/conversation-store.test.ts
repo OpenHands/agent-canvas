@@ -33,7 +33,8 @@ describe("conversation store", () => {
       planContent: null,
       subConversationTaskId: null,
       shouldHideSuggestions: false,
-      uploadImagesAsFiles: false,
+      imagesMarkedUploadAsFile: [],
+      pastedImageNames: [],
     });
   });
 
@@ -48,23 +49,57 @@ describe("conversation store", () => {
     });
   });
 
-  describe("uploadImagesAsFiles", () => {
-    it("defaults to false and is updated by setUploadImagesAsFiles", () => {
-      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
+  describe("imagesMarkedUploadAsFile", () => {
+    it("toggles per-image upload-as-file marks by file name", () => {
+      expect(useConversationStore.getState().imagesMarkedUploadAsFile).toEqual(
+        [],
+      );
 
-      useConversationStore.getState().setUploadImagesAsFiles(true);
-      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(true);
+      useConversationStore.getState().toggleImageUploadAsFile("paste.png");
+      expect(useConversationStore.getState().imagesMarkedUploadAsFile).toEqual(
+        ["paste.png"],
+      );
 
-      useConversationStore.getState().setUploadImagesAsFiles(false);
-      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
+      useConversationStore.getState().toggleImageUploadAsFile("paste.png");
+      expect(useConversationStore.getState().imagesMarkedUploadAsFile).toEqual(
+        [],
+      );
     });
 
-    it("is reset to false by clearAllFiles", () => {
-      useConversationStore.getState().setUploadImagesAsFiles(true);
-      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(true);
+    it("clears marks when an image is removed", () => {
+      const image = new File(["x"], "paste.png", { type: "image/png" });
+      useConversationStore.getState().addImages([image]);
+      useConversationStore.getState().toggleImageUploadAsFile("paste.png");
+      useConversationStore.getState().removeImage(0);
 
+      expect(useConversationStore.getState().imagesMarkedUploadAsFile).toEqual(
+        [],
+      );
+    });
+
+    it("is reset by clearAllFiles", () => {
+      useConversationStore.getState().toggleImageUploadAsFile("paste.png");
       useConversationStore.getState().clearAllFiles();
-      expect(useConversationStore.getState().uploadImagesAsFiles).toBe(false);
+      expect(useConversationStore.getState().imagesMarkedUploadAsFile).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("pastedImageNames", () => {
+    it("tracks attached image names for the upload-as-file control", () => {
+      useConversationStore.getState().markImagesAsPasted(["shot.png"]);
+      expect(useConversationStore.getState().pastedImageNames).toEqual([
+        "shot.png",
+      ]);
+    });
+
+    it("clears pasted names when the image is removed", () => {
+      const image = new File(["x"], "shot.png", { type: "image/png" });
+      useConversationStore.getState().addImages([image]);
+      useConversationStore.getState().markImagesAsPasted(["shot.png"]);
+      useConversationStore.getState().removeImage(0);
+      expect(useConversationStore.getState().pastedImageNames).toEqual([]);
     });
   });
 

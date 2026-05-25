@@ -3,11 +3,17 @@ import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
+import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { MCPServerForm } from "#/components/features/settings/mcp-settings/mcp-server-form";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
+import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { MCPServerConfig } from "#/types/mcp-server";
-import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import {
+  displayErrorToast,
+  displaySuccessToast,
+} from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
 interface CustomServerEditorProps {
@@ -17,9 +23,9 @@ interface CustomServerEditorProps {
 }
 
 /**
- * Modal wrapper around the legacy `MCPServerForm` so power users can
- * still hand-author arbitrary stdio / SSE / SHTTP entries without
- * reaching for raw JSON. An empty `server.id` means "Add new".
+ * Modal wrapper around `MCPServerForm` so users can hand-author
+ * arbitrary stdio / SSE / SHTTP entries without reaching for raw JSON.
+ * An empty `server.id` means "Add new".
  */
 export function CustomServerEditor({
   server,
@@ -30,9 +36,13 @@ export function CustomServerEditor({
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
   const { mutate: updateMcpServer, isPending: isUpdating } =
     useUpdateMcpServer();
+  const { mutate: deleteMcpServer, isPending: isDeleting } =
+    useDeleteMcpServer();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   const isEditing = !!server.id;
-  const isPending = isAdding || isUpdating;
+  const isPending = isAdding || isUpdating || isDeleting;
+  const isDismissBlocked = isPending || showDeleteConfirm;
 
   // Shared error handler so both add and update surface backend errors
   // as a toast instead of failing silently — previously these calls
@@ -54,36 +64,68 @@ export function CustomServerEditor({
     }
   };
 
+  const handleConfirmDelete = () => {
+    deleteMcpServer(server, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.MCP$REMOVE_SUCCESS));
+        setShowDeleteConfirm(false);
+        onClose();
+      },
+      onError: (err) => {
+        handleError(err);
+        setShowDeleteConfirm(false);
+      },
+    });
+  };
+
   return (
-    <ModalBackdrop
-      // Block backdrop-click / Escape from dismissing the modal while
-      // a mutation is in flight — closing mid-request would orphan
-      // the request and leave the user with no error feedback.
-      onClose={isPending ? undefined : onClose}
-      closeOnEscape={!isPending}
-      aria-label={
-        isEditing
-          ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
-          : t(I18nKey.MCP$ADD_CUSTOM_TITLE)
-      }
-    >
-      <div
-        data-testid="mcp-custom-editor"
-        className="bg-base-secondary p-6 rounded-xl border border-[var(--oh-border)] w-[680px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
-      >
-        <h2 className="text-lg font-semibold mb-4">
-          {isEditing
+    <>
+      <ModalBackdrop
+        // Block backdrop-click / Escape from dismissing the modal while
+        // a mutation is in flight — closing mid-request would orphan
+        // the request and leave the user with no error feedback.
+        onClose={isDismissBlocked ? undefined : onClose}
+        closeOnEscape={!isDismissBlocked}
+        aria-label={
+          isEditing
             ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
-            : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}
-        </h2>
-        <MCPServerForm
-          mode={isEditing ? "edit" : "add"}
-          server={isEditing ? server : undefined}
-          existingServers={existingServers}
-          onSubmit={handleSubmit}
-          onCancel={onClose}
+            : t(I18nKey.MCP$ADD_CUSTOM_TITLE)
+        }
+      >
+        <div
+          data-testid="mcp-custom-editor"
+          className="relative bg-base-secondary p-6 rounded-xl border border-[var(--oh-border)] w-[520px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"
+        >
+          <ModalCloseButton
+            onClose={onClose}
+            testId="mcp-custom-editor-close"
+            disabled={isDismissBlocked}
+          />
+          <h2 className="mb-4 pr-6 text-lg font-semibold">
+            {isEditing
+              ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
+              : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}
+          </h2>
+          <MCPServerForm
+            mode={isEditing ? "edit" : "add"}
+            server={isEditing ? server : undefined}
+            existingServers={existingServers}
+            onSubmit={handleSubmit}
+            onCancel={onClose}
+            onDelete={isEditing ? () => setShowDeleteConfirm(true) : undefined}
+            isActionDisabled={isPending}
+          />
+        </div>
+      </ModalBackdrop>
+
+      {showDeleteConfirm ? (
+        <ConfirmationModal
+          text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={handleConfirmDelete}
+          isConfirming={isDeleting}
         />
-      </div>
-    </ModalBackdrop>
+      ) : null}
+    </>
   );
 }

@@ -340,6 +340,19 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: ["vitest.setup.ts"],
       exclude: [...configDefaults.exclude, "tests"],
+      // The full suite runs many DOM-heavy tests in parallel, which can
+      // push individual `userEvent`-driven tests past Vitest's 5000ms
+      // default on busy machines (the skills-settings and i18n
+      // namespace tests are the typical victims). Bumping the global
+      // timeout keeps these tests deterministic without changing any
+      // production behavior.
+      testTimeout: 30000,
+      hookTimeout: 30000,
+      server: {
+        deps: {
+          inline: ["@openhands/typescript-client"],
+        },
+      },
       coverage: {
         reporter: ["text", "json", "html", "lcov", "text-summary"],
         reportsDirectory: "coverage",

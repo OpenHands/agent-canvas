@@ -15,6 +15,7 @@ import {
   GlobObservation,
   GrepObservation,
   InvokeSkillObservation,
+  SwitchLLMObservation,
 } from "#/types/agent-server/core/base/observation";
 
 // File Editor Observations
@@ -169,6 +170,33 @@ const getInvokeSkillObservationContent = (
     content = `${content.slice(0, MAX_CONTENT_LENGTH)}...(truncated)`;
   }
   return content;
+};
+
+const getSwitchLLMObservationContent = (
+  event: ObservationEvent<SwitchLLMObservation>,
+): string => {
+  const { observation } = event;
+
+  const textContent = observation.content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("\n");
+
+  if (observation.is_error) {
+    return textContent
+      ? `**Error:**\n${textContent}`
+      : `**Error:**\nFailed to switch LLM profile \`${observation.profile_name}\`.`;
+  }
+
+  const parts = [`**Profile:** \`${observation.profile_name}\``];
+  if (observation.active_model) {
+    parts.push(`**Active model:** \`${observation.active_model}\``);
+  }
+  if (observation.reason) {
+    parts.push(`**Reason:** ${observation.reason}`);
+  }
+
+  return parts.join("\n");
 };
 
 // Complex Observations
@@ -371,6 +399,11 @@ export const getObservationContent = (event: ObservationEvent): string => {
     case "InvokeSkillObservation":
       return getInvokeSkillObservationContent(
         event as ObservationEvent<InvokeSkillObservation>,
+      );
+
+    case "SwitchLLMObservation":
+      return getSwitchLLMObservationContent(
+        event as ObservationEvent<SwitchLLMObservation>,
       );
 
     default:

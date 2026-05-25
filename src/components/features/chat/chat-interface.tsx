@@ -25,6 +25,7 @@ import { ChatMessagesSkeleton } from "./chat-messages-skeleton";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
@@ -33,6 +34,7 @@ import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
+import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
 import { getStatusColor, getStatusText } from "#/utils/utils";
@@ -56,6 +58,9 @@ export function ChatInterface() {
   const { errorMessage, removeErrorMessage, setErrorMessage } =
     useErrorMessageStore();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
+  // Hide empty-state chrome for the entire `/conversations/task-{uuid}` route,
+  // including the brief READY window before redirect completes.
+  const isProvisioningTask = isTask;
   const conversationWebSocket = useConversationWebSocket();
   const { send } = useSendMessage();
   const {
@@ -164,7 +169,9 @@ export function ChatInterface() {
   } | null>(null);
   const maybeLoadOlder = React.useCallback(
     (target: HTMLElement) => {
-      if (isLoadingOlderEvents || !hasMoreOlderEvents) return;
+      if (isProvisioningTask || isLoadingOlderEvents || !hasMoreOlderEvents) {
+        return;
+      }
 
       const atTop = target.scrollTop <= SCROLL_TOP_THRESHOLD_PX;
       const noOverflow =
@@ -184,7 +191,14 @@ export function ChatInterface() {
         setErrorMessage(message);
       });
     },
-    [hasMoreOlderEvents, isLoadingOlderEvents, loadOlder, setErrorMessage, t],
+    [
+      hasMoreOlderEvents,
+      isLoadingOlderEvents,
+      isProvisioningTask,
+      loadOlder,
+      setErrorMessage,
+      t,
+    ],
   );
 
   const handleWheelForPagination = React.useCallback(
@@ -198,14 +212,28 @@ export function ChatInterface() {
     [maybeLoadOlder],
   );
 
-  const hasPendingUserMessages = pendingMessages.length > 0;
+  const hasPendingUserMessages = React.useMemo(
+    () =>
+      conversationId
+        ? pendingMessages.some((message) =>
+            matchesPendingConversationId(
+              conversationId,
+              message.conversationId,
+            ),
+          )
+        : false,
+    [pendingMessages, conversationId],
+  );
 
   // Show V1 messages immediately if events exist in store (e.g., remount),
-  // or once loading completes. This replaces the old transition-observation
-  // pattern (useState + useEffect watching loading→loaded) which always showed
-  // skeleton on remount because local state initialized to false.
+  // if the user already has a locally-tracked pending bubble (home-page cloud
+  // submit while history/WS catch up), or once loading completes. This
+  // replaces the old transition-observation pattern (useState + useEffect
+  // watching loading→loaded) which always showed skeleton on remount because
+  // local state initialized to false.
   const showConversationMessages =
     allConversationEvents.length > 0 ||
+    hasPendingUserMessages ||
     !conversationWebSocket?.isLoadingHistory;
 
   const isReturningToConversation = !!conversationId;
@@ -408,7 +436,7 @@ export function ChatInterface() {
   return (
     <ScrollProvider value={scrollProviderValue}>
       <div
-        className="h-full flex flex-col justify-between pl-0 md:pl-4 pr-0 md:pr-4 relative"
+        className="relative flex h-full flex-col justify-between px-4"
         data-testid="chat-interface"
       >
         {!hasSubstantiveAgentActions &&
@@ -416,6 +444,8 @@ export function ChatInterface() {
           !userEventsExist &&
           !hasModelEntries &&
           !isChatLoading &&
+          !isProvisioningTask &&
+          totalEvents === 0 &&
           !isArchivedConversation && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
@@ -430,7 +460,7 @@ export function ChatInterface() {
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2"
+          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
@@ -491,6 +521,11 @@ export function ChatInterface() {
             <ErrorMessageBanner
               message={errorMessage}
               onDismiss={removeErrorMessage}
+              onRetry={
+                errorMessage === SERVER_CONNECTION_ERROR_MESSAGE
+                  ? () => conversationWebSocket?.reconnect()
+                  : undefined
+              }
             />
           )}
 

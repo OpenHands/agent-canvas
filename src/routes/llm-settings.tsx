@@ -157,6 +157,16 @@ export function LlmSettingsScreen({
           : "";
       const showOpenHandsApiKeyHelp = modelValue.startsWith("openhands/");
 
+      const apiKeyValue =
+        typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
+      // For embedded profile forms (create/edit) the global
+      // `llm_api_key_set` flag is misleading: a brand-new profile would show a
+      // "key set" indicator just because some other profile has a key. Reflect
+      // the form's own key state instead so create mode starts visibly unset.
+      const apiKeyIsSet = embedded
+        ? apiKeyValue.length > 0
+        : Boolean(settings?.llm_api_key_set);
+
       const renderApiKeyInput = (testId: string, helpTestId: string) => (
         <>
           <SettingsInput
@@ -164,18 +174,12 @@ export function LlmSettingsScreen({
             label={t(I18nKey.SETTINGS_FORM$API_KEY)}
             type="password"
             className="w-full"
-            value={
-              typeof values["llm.api_key"] === "string"
-                ? values["llm.api_key"]
-                : ""
-            }
-            placeholder={settings?.llm_api_key_set ? "<hidden>" : ""}
+            value={apiKeyValue}
+            placeholder={apiKeyIsSet ? "<hidden>" : ""}
             onChange={(value) => onChange("llm.api_key", value)}
             isDisabled={isDisabled}
             startContent={
-              settings?.llm_api_key_set ? (
-                <KeyStatusIcon isSet={settings.llm_api_key_set} />
-              ) : undefined
+              apiKeyIsSet ? <KeyStatusIcon isSet={apiKeyIsSet} /> : undefined
             }
           />
 
@@ -257,7 +261,7 @@ export function LlmSettingsScreen({
         </div>
       );
     },
-    [defaultModel, settings?.llm_api_key_set, t],
+    [defaultModel, embedded, settings?.llm_api_key_set, t],
   );
 
   const buildPayload = React.useCallback(
