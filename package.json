@@ -25,8 +25,8 @@
     "@monaco-editor/react": "4.7.0",
     "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#7b33f64ffccf95f7ccd2ec640aeae84ab1cc2c75",
     "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v1.23.0",
-    "@react-router/node": "7.14.2",
-    "@react-router/serve": "7.14.2",
+    "@react-router/node": "7.15.1",
+    "@react-router/serve": "7.15.1",
     "@tailwindcss/vite": "4.2.4",
     "@tanstack/react-query": "5.100.9",
     "@types/shell-quote": "^1.7.5",
@@ -41,7 +41,7 @@
     "i18next": "26.0.8",
     "i18next-browser-languagedetector": "8.2.1",
     "i18next-http-backend": "4.0.0",
-    "isbot": "5.1.39",
+    "isbot": "5.1.40",
     "lucide-react": "1.14.0",
     "monaco-editor": "0.55.1",
     "posthog-js": "1.372.6",
@@ -51,7 +51,7 @@
     "react-i18next": "17.0.6",
     "react-icons": "5.6.0",
     "react-markdown": "10.1.0",
-    "react-router": "7.14.2",
+    "react-router": "7.15.1",
     "react-syntax-highlighter": "16.1.1",
     "rehype-raw": "7.0.0",
     "rehype-sanitize": "6.0.0",
@@ -114,7 +114,7 @@
     "@eslint/js": "9.39.4",
     "@mswjs/socket.io-binding": "0.2.0",
     "@playwright/test": "1.59.1",
-    "@react-router/dev": "7.14.2",
+    "@react-router/dev": "7.15.1",
     "@tailwindcss/typography": "0.5.19",
     "@tanstack/eslint-plugin-query": "5.100.9",
     "@testing-library/dom": "10.4.1",
@@ -220,6 +220,6 @@
   "peerDependencies": {
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "react-router": "7.14.2"
+    "react-router": "7.15.1"
   }
 }
