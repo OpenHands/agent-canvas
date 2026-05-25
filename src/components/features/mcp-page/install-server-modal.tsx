@@ -1,16 +1,21 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
+import { v4 as uuidv4 } from "uuid";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
-import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
+import {
+  getInstallableMcpConnectionOption,
+  type McpMarketplaceConnectionOption,
+} from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
 interface InstallServerModalProps {
@@ -24,16 +29,34 @@ interface FieldState {
   errors: Record<string, string | null>;
 }
 
+function optionNeedsCredentialField(
+  option: McpMarketplaceConnectionOption | undefined,
+): boolean {
+  if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
+    return false;
+  }
+  return ["api_key", "bearer", "basic"].includes(option.auth.strategy);
+}
+
+function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
+  if (option.transport.kind === "stdio") {
+    return option.auth.apiKeyOptional ?? false;
+  }
+  return option.auth.apiKeyOptional ?? option.transport.apiKeyOptional ?? false;
+}
+
 function makeInitialState(entry: MarketplaceEntry): FieldState {
   const values: Record<string, string> = {};
-  if (entry.template.kind === "stdio") {
-    for (const field of entry.template.envFields ?? []) {
+  const option = getInstallableMcpConnectionOption(entry);
+  const template = option?.transport;
+  if (template?.kind === "stdio") {
+    for (const field of template.envFields ?? []) {
       values[field.key] = "";
     }
-    for (const field of entry.template.argFields ?? []) {
+    for (const field of template.argFields ?? []) {
       values[field.key] = "";
     }
-  } else if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+  } else if (optionNeedsCredentialField(option)) {
     values.api_key = "";
   }
   return { values, errors: {} };
@@ -57,6 +80,8 @@ export function InstallServerModal({
     makeInitialState(entry),
   );
   const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const option = getInstallableMcpConnectionOption(entry);
+  const template = option?.transport;
 
   const isPending = isAdding;
 
@@ -90,11 +115,13 @@ export function InstallServerModal({
   const handleHttpServerSubmit = () => {
     // TS narrows this branch to shttp|sse; the equality guard is a
     // runtime/defensive belt to make the helper safe in isolation.
-    if (entry.template.kind !== "shttp" && entry.template.kind !== "sse") {
+    if (template?.kind !== "shttp" && template?.kind !== "sse") {
       return;
     }
+    if (!option) return;
     const apiKey = state.values.api_key?.trim() ?? "";
-    if (!entry.template.apiKeyOptional && !apiKey) {
+    const needsCredential = optionNeedsCredentialField(option);
+    if (needsCredential && !isCredentialOptional(option) && !apiKey) {
       setState((prev) => ({
         ...prev,
         errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
@@ -102,17 +129,17 @@ export function InstallServerModal({
       return;
     }
     const payload: MCPServerConfig = {
-      id: `${entry.template.kind}-${Date.now()}`,
-      type: entry.template.kind,
-      url: entry.template.url,
-      ...(apiKey && { api_key: apiKey }),
+      id: `${template.kind}-${uuidv4()}`,
+      type: template.kind,
+      url: template.url,
+      ...(needsCredential && apiKey && { api_key: apiKey }),
     };
     submitServer(payload);
   };
 
   const handleStdioSubmit = () => {
-    if (entry.template.kind !== "stdio") return;
-    const stdio = entry.template;
+    if (template?.kind !== "stdio") return;
+    const stdio = template;
     const errors: Record<string, string | null> = {};
 
     for (const field of stdio.envFields ?? []) {
@@ -147,7 +174,7 @@ export function InstallServerModal({
     }
 
     const payload: MCPServerConfig = {
-      id: `stdio-${Date.now()}`,
+      id: `stdio-${uuidv4()}`,
       type: "stdio",
       name: stdio.serverName,
       command: stdio.command,
@@ -160,15 +187,16 @@ export function InstallServerModal({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setGlobalError(null);
-    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+    if (template?.kind === "shttp" || template?.kind === "sse") {
       return handleHttpServerSubmit();
     }
     return handleStdioSubmit();
   };
 
   const renderFields = () => {
-    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
-      const apiKeyOptional = entry.template.apiKeyOptional ?? false;
+    if (template?.kind === "shttp" || template?.kind === "sse") {
+      const shouldRenderCredential = optionNeedsCredentialField(option);
+      const apiKeyOptional = option ? isCredentialOptional(option) : false;
       return (
         <>
           <SettingsInput
@@ -176,33 +204,36 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={entry.template.url}
+            value={template.url}
             onChange={() => {}}
             isDisabled
             className="w-full"
           />
-          <div className="flex flex-col gap-1">
-            <SettingsInput
-              testId="mcp-install-field-api_key"
-              name="api_key"
-              type="password"
-              label={t(I18nKey.SETTINGS$MCP_API_KEY)}
-              value={state.values.api_key ?? ""}
-              onChange={(v) => setValue("api_key", v)}
-              placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
-              showOptionalTag={apiKeyOptional}
-              required={!apiKeyOptional}
-              className="w-full"
-            />
-            {state.errors.api_key && (
-              <p className="text-xs text-red-500">{state.errors.api_key}</p>
-            )}
-          </div>
+          {shouldRenderCredential ? (
+            <div className="flex flex-col gap-1">
+              <SettingsInput
+                testId="mcp-install-field-api_key"
+                name="api_key"
+                type="password"
+                label={t(I18nKey.SETTINGS$MCP_API_KEY)}
+                value={state.values.api_key ?? ""}
+                onChange={(v) => setValue("api_key", v)}
+                placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
+                showOptionalTag={apiKeyOptional}
+                required={!apiKeyOptional}
+                className="w-full"
+              />
+              {state.errors.api_key && (
+                <p className="text-xs text-red-500">{state.errors.api_key}</p>
+              )}
+            </div>
+          ) : null}
         </>
       );
     }
 
-    const stdio = entry.template;
+    if (template?.kind !== "stdio") return null;
+    const stdio = template;
     return (
       <>
         <SettingsInput

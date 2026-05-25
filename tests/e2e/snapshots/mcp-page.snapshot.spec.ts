@@ -4,7 +4,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
 /**
  * Visual snapshot tests for the MCP page (/mcp).
  *
- * The MCP marketplace catalog is imported from @openhands/extensions/mcps,
+ * The MCP marketplace catalog is imported from @openhands/extensions/integrations,
  * so it never requires an API call.  Installed servers are read from
  * settings.agent_settings.mcp_config (SDK format: { mcpServers: { ... } }).
  *
@@ -28,12 +28,59 @@ async function dismissConsentModal(page: Page) {
 /**
  * Wire up the base routes every MCP page test needs.
  *
- * NOTE: Settings requests go to the same-origin Vite dev server where MSW
- * wins over page.route(). We dismiss the consent modal after navigation
- * instead of trying to suppress it here.
+ * Settings are owned here rather than by the real local backend. MCP saves do a
+ * pre-clear PATCH followed by the new config write, so the snapshot flow needs
+ * a deterministic in-memory settings response.
  */
 async function setupMocks(page: Page) {
   await seedLocalStorage(page);
+
+  let agentSettings: Record<string, unknown> = {};
+  let conversationSettings: Record<string, unknown> = {};
+
+  await page.route("**/api/settings", async (route) => {
+    const request = route.request();
+
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          agent_settings: agentSettings,
+          conversation_settings: conversationSettings,
+          llm_api_key_is_set: true,
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === "PATCH") {
+      const body = request.postDataJSON() as {
+        agent_settings_diff?: Record<string, unknown>;
+        conversation_settings_diff?: Record<string, unknown>;
+      };
+      agentSettings = {
+        ...agentSettings,
+        ...(body.agent_settings_diff ?? {}),
+      };
+      conversationSettings = {
+        ...conversationSettings,
+        ...(body.conversation_settings_diff ?? {}),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          agent_settings: agentSettings,
+          conversation_settings: conversationSettings,
+          llm_api_key_is_set: true,
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
 
   await page.route("**/api/conversations/search**", async (route) => {
     await route.fulfill({
@@ -141,13 +188,16 @@ test.describe("MCP Page Visual Snapshots", () => {
     await expect(mcpPage).toBeVisible({ timeout: 15_000 });
 
     await test.step("step 1 – marketplace before install", async () => {
-      await expect(
-        page.getByTestId("mcp-marketplace-card-slack"),
-      ).toBeVisible({ timeout: 5_000 });
-      await expect(mcpPage).toHaveScreenshot("mcp-slack-install-1-marketplace.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
+      await expect(page.getByTestId("mcp-marketplace-card-slack")).toBeVisible({
+        timeout: 5_000,
       });
+      await expect(mcpPage).toHaveScreenshot(
+        "mcp-slack-install-1-marketplace.png",
+        {
+          animations: "disabled",
+          maxDiffPixelRatio: 0.01,
+        },
+      );
     });
 
     await test.step("step 2 – Slack install modal open", async () => {
@@ -155,10 +205,13 @@ test.describe("MCP Page Visual Snapshots", () => {
       await expect(page.getByTestId("mcp-install-modal")).toBeVisible({
         timeout: 5_000,
       });
-      await expect(rootLayout).toHaveScreenshot("mcp-slack-install-2-modal.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expect(rootLayout).toHaveScreenshot(
+        "mcp-slack-install-2-modal.png",
+        {
+          animations: "disabled",
+          maxDiffPixelRatio: 0.01,
+        },
+      );
     });
 
     await test.step("step 3 – fill in bot token and team ID", async () => {
@@ -168,10 +221,13 @@ test.describe("MCP Page Visual Snapshots", () => {
       await page
         .getByTestId("mcp-install-field-SLACK_TEAM_ID")
         .fill("T01ABC123");
-      await expect(rootLayout).toHaveScreenshot("mcp-slack-install-3-filled.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expect(rootLayout).toHaveScreenshot(
+        "mcp-slack-install-3-filled.png",
+        {
+          animations: "disabled",
+          maxDiffPixelRatio: 0.01,
+        },
+      );
     });
 
     await test.step("step 4 – submit and confirm Slack is installed", async () => {
@@ -190,10 +246,13 @@ test.describe("MCP Page Visual Snapshots", () => {
       // Brief wait to let the toast and any animations settle
       await page.waitForTimeout(400);
 
-      await expect(mcpPage).toHaveScreenshot("mcp-slack-install-4-installed.png", {
-        animations: "disabled",
-        maxDiffPixelRatio: 0.01,
-      });
+      await expect(mcpPage).toHaveScreenshot(
+        "mcp-slack-install-4-installed.png",
+        {
+          animations: "disabled",
+          maxDiffPixelRatio: 0.01,
+        },
+      );
     });
   });
 

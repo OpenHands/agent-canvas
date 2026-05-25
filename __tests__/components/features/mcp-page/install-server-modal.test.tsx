@@ -6,9 +6,9 @@ import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -32,7 +32,7 @@ describe("InstallServerModal", () => {
     );
   });
 
-  it("requires Slack token + team id and posts a stdio mcp_config diff", async () => {
+  it("uses Slack's API fallback when the default option is OAuth", async () => {
     const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -120,14 +120,23 @@ describe("InstallServerModal", () => {
     // without relying on the catalog choosing to mark one this way.
     const entry: MarketplaceEntry = {
       id: "synthetic-required",
+      kind: "mcp",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: false,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: false,
+          },
+          auth: { strategy: "api_key" },
+        },
+      ],
     };
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -154,14 +163,23 @@ describe("InstallServerModal", () => {
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
     const entry: MarketplaceEntry = {
       id: "synthetic-optional",
+      kind: "mcp",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
     const getSpy = vi
       .spyOn(SettingsService, "getSettings")

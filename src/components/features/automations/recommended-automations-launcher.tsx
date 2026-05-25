@@ -13,12 +13,13 @@ import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import {
-  findInstalledMatch,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
@@ -29,8 +30,9 @@ interface RecommendedAutomationsLauncherProps {
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
-  return automation.requiredMcpIds
-    .map((id) => getMarketplaceEntryById(id, MCP_MARKETPLACE))
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+  return automation.requiredIntegrationIds
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -154,7 +156,7 @@ export function RecommendedAutomationsLauncher({
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
       getRequiredEntries(automation).filter(
-        (entry) => !findInstalledMatch(entry.template, installedMcpServers),
+        (entry) => !findInstalledEntryMatch(entry, installedMcpServers),
       ),
     [installedMcpServers],
   );
