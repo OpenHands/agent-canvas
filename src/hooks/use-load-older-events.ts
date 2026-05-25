@@ -2,7 +2,11 @@ import React from "react";
 import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import { useEventStore } from "#/stores/use-event-store";
-import { INITIAL_HISTORY_PAGE_SIZE } from "#/hooks/query/use-conversation-history";
+import {
+  INITIAL_HISTORY_PAGE_SIZE,
+  useConversationHistory,
+} from "#/hooks/query/use-conversation-history";
+import { isTaskConversationId } from "#/utils/conversation-local-storage";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 
 const getEventTimestamp = (event: OpenHandsEvent): string | undefined =>
@@ -36,7 +40,13 @@ interface UseLoadOlderEventsResult {
 export const useLoadOlderEvents = (
   conversationId?: string | null,
 ): UseLoadOlderEventsResult => {
+  const isTaskConversation =
+    !!conversationId && isTaskConversationId(conversationId);
+  const realConversationId = isTaskConversation ? undefined : conversationId;
+
   const { data: conversation } = useUserConversation(conversationId ?? null);
+  const { data: initialHistory, isFetched: isInitialHistoryFetched } =
+    useConversationHistory(realConversationId ?? undefined);
   const addEvents = useEventStore((state) => state.addEvents);
 
   const [isLoading, setIsLoading] = React.useState(false);
@@ -45,14 +55,50 @@ export const useLoadOlderEvents = (
   const hasMoreRef = React.useRef(true);
 
   React.useEffect(() => {
-    hasMoreRef.current = true;
     isLoadingRef.current = false;
-    setHasMore(true);
     setIsLoading(false);
-  }, [conversationId]);
+
+    if (isTaskConversation) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+      return;
+    }
+
+    hasMoreRef.current = true;
+    setHasMore(true);
+  }, [conversationId, isTaskConversation]);
+
+  // Mirror the initial REST page: if the tail fetch already returned
+  // everything, don't auto-trigger an older-events request on short chats.
+  React.useEffect(() => {
+    if (isTaskConversation || !isInitialHistoryFetched || !initialHistory) {
+      return;
+    }
+    if (!initialHistory.hasMore) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+    }
+  }, [
+    isTaskConversation,
+    isInitialHistoryFetched,
+    initialHistory?.hasMore,
+    realConversationId,
+  ]);
 
   const loadOlder = React.useCallback(async () => {
-    if (!conversationId || isLoadingRef.current || !hasMoreRef.current) {
+    if (
+      !conversationId ||
+      isTaskConversationId(conversationId) ||
+      isLoadingRef.current ||
+      !hasMoreRef.current
+    ) {
+      return;
+    }
+
+    // Cloud/local metadata (runtime URL, session key) isn't available on
+    // start-task placeholder routes and may still be loading right after
+    // redirect from `/conversations/task-{uuid}`.
+    if (!conversation) {
       return;
     }
 
@@ -65,11 +111,11 @@ export const useLoadOlderEvents = (
 
     const oldestTimestamp = getEventTimestamp(oldest);
     if (!oldestTimestamp) {
+      // Nothing paginate-able — treat as exhausted rather than surfacing an
+      // error banner on brand-new conversations.
       hasMoreRef.current = false;
       setHasMore(false);
-      throw new Error(
-        "Unable to load older events because the oldest loaded event has no timestamp.",
-      );
+      return;
     }
 
     isLoadingRef.current = true;
@@ -111,6 +157,7 @@ export const useLoadOlderEvents = (
     }
   }, [
     conversationId,
+    conversation,
     conversation?.conversation_url,
     conversation?.session_api_key,
     addEvents,

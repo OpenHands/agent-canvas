@@ -28,7 +28,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   },
   {
     icon: <CircuitIcon width={16} height={16} />,
-    to: "/settings",
+    to: "/settings/llm",
     text: "SETTINGS$NAV_LLM",
     subtitle: "SETTINGS$PAGE_LLM_SUBLINE",
     disabledByAcp: true,

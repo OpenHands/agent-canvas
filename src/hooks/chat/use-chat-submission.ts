@@ -3,6 +3,7 @@ import {
   clearTextContent,
   clearFileInput,
 } from "#/components/features/chat/utils/chat-input.utils";
+import { useConversationStore } from "#/stores/conversation-store";
 
 /**
  * Hook for handling chat message submission
@@ -18,8 +19,10 @@ export const useChatSubmission = (
   const handleSubmit = useCallback(() => {
     const message = chatInputRef.current?.innerText || "";
     const trimmedMessage = message.trim();
+    const { images, files } = useConversationStore.getState();
+    const hasAttachments = images.length > 0 || files.length > 0;
 
-    if (!trimmedMessage) {
+    if (!trimmedMessage && !hasAttachments) {
       return;
     }
 

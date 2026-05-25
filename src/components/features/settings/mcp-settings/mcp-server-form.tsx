@@ -1,11 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { Trash2 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsInput } from "../settings-input";
 import { SettingsDropdownInput } from "../settings-dropdown-input";
 import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
+import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -27,6 +29,8 @@ interface MCPServerFormProps {
   existingServers?: MCPServerConfig[];
   onSubmit: (server: MCPServerConfig) => void;
   onCancel: () => void;
+  onDelete?: () => void;
+  isActionDisabled?: boolean;
 }
 
 export function MCPServerForm({
@@ -35,6 +39,8 @@ export function MCPServerForm({
   existingServers,
   onSubmit,
   onCancel,
+  onDelete,
+  isActionDisabled = false,
 }: MCPServerFormProps) {
   const { t } = useTranslation("openhands");
   const [serverType, setServerType] = React.useState<MCPServerType>(
@@ -376,8 +382,9 @@ export function MCPServerForm({
               defaultValue={server?.args?.join("\n") || ""}
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
-                "bg-tertiary border border-[var(--oh-border-input)] w-full rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt resize-none",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
             <p className="text-xs text-tertiary-alt">
@@ -399,28 +406,55 @@ export function MCPServerForm({
               defaultValue={formatEnvironmentVariables(server?.env)}
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
-                "resize-none",
-                "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
           </label>
         </>
       )}
 
-      <div className="flex items-center justify-end gap-2 w-full">
-        <BrandButton
-          testId="cancel-button"
-          type="button"
-          variant="secondary"
-          onClick={onCancel}
-        >
-          {t(I18nKey.BUTTON$CANCEL)}
-        </BrandButton>
-        <BrandButton testId="submit-button" type="submit" variant="primary">
-          {mode === "add" && t(I18nKey.SETTINGS$MCP_ADD_SERVER)}
-          {mode === "edit" && t(I18nKey.SETTINGS$MCP_SAVE_SERVER)}
-        </BrandButton>
+      <div
+        className={cn(
+          "flex w-full items-center gap-2",
+          onDelete ? "justify-between" : "justify-end",
+        )}
+      >
+        {onDelete ? (
+          <BrandButton
+            testId="mcp-custom-editor-delete"
+            type="button"
+            variant="secondary"
+            onClick={onDelete}
+            isDisabled={isActionDisabled}
+            startContent={
+              <Trash2 aria-hidden className="size-4" strokeWidth={2} />
+            }
+          >
+            {t(I18nKey.BUTTON$DELETE)}
+          </BrandButton>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <BrandButton
+            testId="cancel-button"
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            isDisabled={isActionDisabled}
+          >
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+          <BrandButton
+            testId="submit-button"
+            type="submit"
+            variant="primary"
+            isDisabled={isActionDisabled}
+          >
+            {mode === "add" && t(I18nKey.SETTINGS$MCP_ADD_SERVER)}
+            {mode === "edit" && t(I18nKey.SETTINGS$MCP_SAVE_SERVER)}
+          </BrandButton>
+        </div>
       </div>
     </form>
   );

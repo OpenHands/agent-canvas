@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  getGroupConversationPreview,
   groupConversations,
+  GROUP_CONVERSATIONS_PREVIEW_LIMIT,
   parseConversationTimeMs,
   sortConversationsByField,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
@@ -210,6 +212,48 @@ describe("conversation-panel-list-helpers", () => {
         ids: ["repo-git"],
       },
     ]);
+  });
+
+  it("limits grouped folder previews to five conversations with an expand path", () => {
+    const conversations = Array.from({ length: 6 }, (_, index) => ({
+      ...base,
+      id: `c-${index}`,
+      title: `Conversation ${index}`,
+      updated_at: `2024-01-0${index + 1}T00:00:00.000Z`,
+    }));
+
+    const truncated = getGroupConversationPreview(conversations, {
+      expanded: false,
+    });
+    expect(truncated.visibleConversations.map((c) => c.id)).toEqual([
+      "c-0",
+      "c-1",
+      "c-2",
+      "c-3",
+      "c-4",
+    ]);
+    expect(truncated.isPreviewTruncated).toBe(true);
+    expect(truncated.isShowingAll).toBe(false);
+
+    const expanded = getGroupConversationPreview(conversations, {
+      expanded: true,
+    });
+    expect(expanded.visibleConversations).toHaveLength(6);
+    expect(expanded.isPreviewTruncated).toBe(true);
+    expect(expanded.isShowingAll).toBe(true);
+
+    const withActiveBeyondPreview = getGroupConversationPreview(conversations, {
+      expanded: false,
+      activeConversationId: "c-5",
+    });
+    expect(withActiveBeyondPreview.visibleConversations.map((c) => c.id)).toEqual([
+      "c-0",
+      "c-1",
+      "c-2",
+      "c-3",
+      "c-5",
+    ]);
+    expect(GROUP_CONVERSATIONS_PREVIEW_LIMIT).toBe(5);
   });
 
   it("groups local conversations by selected_workspace, collapsing per-conversation worktree paths", () => {

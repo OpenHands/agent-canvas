@@ -20,10 +20,6 @@ vi.mock("#/components/features/controls/agent-status", () => ({
   AgentStatus: () => <div data-testid="agent-status-stub" />,
 }));
 
-vi.mock("#/components/features/controls/tools", () => ({
-  Tools: () => <div data-testid="tools-stub" />,
-}));
-
 vi.mock("#/components/features/chat/change-agent-button", () => ({
   ChangeAgentButton: () => <div data-testid="change-agent-button-stub" />,
 }));

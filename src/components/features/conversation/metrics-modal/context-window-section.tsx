@@ -25,7 +25,7 @@ export function ContextWindowSection({
       </div>
       <div className="w-full h-1.5 bg-tertiary rounded-full overflow-hidden">
         <div
-          className="h-full bg-blue-500 transition-all duration-300"
+          className="h-full bg-foreground transition-all duration-300"
           // runtime usage-percentage width
           style={{ width: `${progressWidth}%` }}
         />

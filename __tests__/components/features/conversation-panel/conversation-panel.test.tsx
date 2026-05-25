@@ -33,29 +33,37 @@ vi.mock("#/hooks/mutation/use-unified-stop-conversation", () => ({
 
 // Helper to create complete AppConversation mock data
 // Default timestamps use "now" so conversations are considered recent and
-// rendered eagerly by the panel.
+// rendered eagerly by the panel.  Each call produces a timestamp 1 s older
+// than the previous one so that the sort-by-updated_at order matches the
+// array insertion order (first created → newest → cards[0]).
+let _mockConversationCounter = 0;
 const createMockConversation = (
   overrides: Partial<AppConversation> = {},
-): AppConversation => ({
-  id: "test-id",
-  title: "Test Conversation",
-  selected_repository: null,
-  git_provider: null,
-  selected_branch: null,
-  updated_at: new Date().toISOString(),
-  created_at: new Date().toISOString(),
-  execution_status: ExecutionStatus.FINISHED,
-  conversation_url: null,
-  created_by_user_id: "user1",
-  metrics: null,
-  llm_model: null,
-  trigger: null,
-  pr_number: [],
-  session_api_key: null,
-  sandbox_id: null,
-  sub_conversation_ids: [],
-  ...overrides,
-});
+): AppConversation => {
+  const ts = new Date(
+    Date.now() - _mockConversationCounter++ * 1000,
+  ).toISOString();
+  return {
+    id: "test-id",
+    title: "Test Conversation",
+    selected_repository: null,
+    git_provider: null,
+    selected_branch: null,
+    updated_at: ts,
+    created_at: ts,
+    execution_status: ExecutionStatus.FINISHED,
+    conversation_url: null,
+    created_by_user_id: "user1",
+    metrics: null,
+    llm_model: null,
+    trigger: null,
+    pr_number: [],
+    session_api_key: null,
+    sandbox_id: null,
+    sub_conversation_ids: [],
+    ...overrides,
+  };
+};
 
 // Mock toast handlers to prevent unhandled rejection errors
 vi.mock("#/utils/custom-toast-handlers", () => ({
@@ -138,6 +146,20 @@ describe("ConversationPanel", () => {
 
     const emptyState = await screen.findByText("CONVERSATION$NO_CONVERSATIONS");
     expect(emptyState).toBeInTheDocument();
+  });
+
+  it("does not show load more when the visible list is empty even if another page exists", async () => {
+    vi.spyOn(AgentServerConversationService, "searchConversations").mockResolvedValue({
+      items: [],
+      next_page_id: "page-2",
+    });
+
+    renderConversationPanel();
+
+    await screen.findByText("CONVERSATION$NO_CONVERSATIONS");
+    expect(
+      screen.queryByTestId("load-more-conversations"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not flash the loading skeleton during a background refetch when the list is empty", async () => {
@@ -1279,6 +1301,22 @@ describe("ConversationPanel", () => {
       expect(
         within(summary).getByTestId("older-conversations-filter-toggle"),
       ).toBeInTheDocument();
+    });
+
+    it("shows icons on hide and delete-all filter menu actions", async () => {
+      const user = userEvent.setup();
+      renderConversationPanel();
+
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+
+      const hideRow = await screen.findByTestId("toggle-older-conversations");
+      expect(hideRow.querySelector("svg")).toBeInTheDocument();
+      expect(hideRow).toHaveClass("group");
+
+      const deleteAllRow = screen.getByTestId("delete-all-conversations");
+      expect(deleteAllRow.querySelector("svg")).toBeInTheDocument();
+      expect(deleteAllRow).toHaveClass("text-[var(--oh-foreground)]");
+      expect(deleteAllRow).not.toHaveClass("text-danger");
     });
 
     it("toggles older conversations visibility via the filter dropdown", async () => {
