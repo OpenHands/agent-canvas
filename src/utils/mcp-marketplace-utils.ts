@@ -34,6 +34,9 @@ export function getDefaultMcpConnectionOption(
 function isLocallyInstallableMcpOption(
   option: McpMarketplaceConnectionOption,
 ): boolean {
+  // The local install modal writes static MCP server config. OAuth options
+  // describe hosted redirect flows, so prefer an API/stdio fallback when one
+  // exists and leave OAuth as the default connection for hosted integrations.
   return option.auth.strategy !== "oauth2";
 }
 
