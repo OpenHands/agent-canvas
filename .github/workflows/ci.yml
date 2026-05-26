@@ -391,7 +391,7 @@ jobs:
       - name: Upload live E2E artifacts
         id: upload_live_artifacts
         if: always() && steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: live-agent-server-e2e
           if-no-files-found: ignore

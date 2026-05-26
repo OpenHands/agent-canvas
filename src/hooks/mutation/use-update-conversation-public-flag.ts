@@ -2,10 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { I18nKey } from "#/i18n/declaration";
-import {
-  displaySuccessToast,
-  displayErrorToast,
-} from "#/utils/custom-toast-handlers";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 export const useUpdateConversationPublicFlag = () => {
   const queryClient = useQueryClient();
@@ -18,39 +15,35 @@ export const useUpdateConversationPublicFlag = () => {
         variables.isPublic,
       ),
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: ["user", "conversation", variables.conversationId],
-      });
-
-      const previousConversation = queryClient.getQueryData([
+      const conversationQueryKey = [
         "user",
         "conversation",
         variables.conversationId,
-      ]);
+      ] as const;
 
-      queryClient.setQueryData(
-        ["user", "conversation", variables.conversationId],
+      await queryClient.cancelQueries({ queryKey: conversationQueryKey });
+
+      const previousEntries = queryClient.getQueriesData({
+        queryKey: conversationQueryKey,
+      });
+
+      queryClient.setQueriesData(
+        { queryKey: conversationQueryKey },
         (old: unknown) =>
           old && typeof old === "object"
             ? { ...old, public: variables.isPublic }
             : old,
       );
 
-      return { previousConversation };
+      return { previousEntries };
     },
     onError: (_err, variables, context) => {
-      if (context?.previousConversation) {
-        queryClient.setQueryData(
-          ["user", "conversation", variables.conversationId],
-          context.previousConversation,
-        );
-      }
+      context?.previousEntries?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
       displayErrorToast(
         t(I18nKey.CONVERSATION$FAILED_TO_UPDATE_PUBLIC_SHARING),
       );
-    },
-    onSuccess: () => {
-      displaySuccessToast(t(I18nKey.CONVERSATION$PUBLIC_SHARING_UPDATED));
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({

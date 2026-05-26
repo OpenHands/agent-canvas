@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import { cn } from "#/utils/utils";
+import { formControlButtonClassName } from "#/utils/form-control-classes";
 
 interface BrandButtonProps {
   testId?: string;
@@ -48,16 +49,16 @@ export const BrandButton = forwardRef<
       aria-label={ariaLabel}
       aria-busy={ariaBusy}
       className={cn(
-        "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer",
+        formControlButtonClassName,
         variant === "primary" &&
           "bg-primary text-[var(--oh-color-base)] hover:opacity-80",
         variant === "secondary" &&
-          "border border-[var(--oh-border)] text-white hover:bg-surface-raised",
+          "border border-[var(--oh-border)] bg-base-secondary text-white hover:bg-surface-raised",
         variant === "tertiary" &&
           "bg-[var(--oh-interactive-hover)] text-white hover:opacity-80",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         variant === "ghost-danger" &&
-          "bg-transparent text-red-600 underline hover:text-red-700 hover:no-underline font-medium",
+          "h-auto min-h-0 bg-transparent px-0 text-red-600 underline hover:text-red-700 hover:no-underline font-normal",
         startContent && "flex items-center justify-center gap-2",
         className,
       )}

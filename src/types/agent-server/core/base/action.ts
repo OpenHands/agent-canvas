@@ -277,6 +277,17 @@ export interface InvokeSkillAction extends ActionBase<"InvokeSkillAction"> {
   name: string;
 }
 
+export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
+  /**
+   * Name of the saved LLM profile to use for future agent steps.
+   */
+  profile_name: string;
+  /**
+   * Brief reason why this profile is a better fit for the next step.
+   */
+  reason: string;
+}
+
 /**
  * Frontend-injected custom tool. Emitted over the existing WebSocket as a
  * regular ActionEvent; intercepted client-side by handleCanvasUIAction.
@@ -311,4 +322,5 @@ export type Action =
   | GlobAction
   | GrepAction
   | InvokeSkillAction
+  | SwitchLLMAction
   | CanvasUIAction;

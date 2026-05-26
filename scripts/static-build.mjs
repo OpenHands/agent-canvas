@@ -24,6 +24,11 @@ export function buildFrontend(config, args = {}) {
     }
     logStep("build", "Skipping frontend build (--skip-build)");
     logService("build", `Reusing existing build/ at ${buildDir}`, c.dim);
+    logService(
+      "build",
+      "Source edits will NOT appear until you run without --skip-build (or `npm run build`).",
+      c.yellow,
+    );
     return;
   }
 

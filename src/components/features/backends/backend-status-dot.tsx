@@ -21,7 +21,7 @@ export function BackendStatusDot({
   let label: string;
   let status: string;
   if (isConnected === true) {
-    color = "bg-green-500";
+    color = "bg-[var(--oh-status-success)]";
     label = "Connected";
     status = "connected";
   } else if (isConnected === false) {

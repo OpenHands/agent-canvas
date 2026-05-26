@@ -133,8 +133,7 @@ export function ConversationCard({
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
   const shouldRenderFooter =
     showRepositoryMetadata ||
-    (!!llmModel && showLlmProfiles) ||
-    agentKind === "acp";
+    (showLlmProfiles && (agentKind === "acp" || !!llmModel));
 
   return (
     <div
@@ -157,13 +156,7 @@ export function ConversationCard({
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
           />
-          {(sandboxStatus === "MISSING" || sandboxStatus === "ERROR") && (
-            <ConversationStatusBadges
-              conversationStatus={
-                sandboxStatus === "MISSING" ? "ARCHIVED" : "ERROR"
-              }
-            />
-          )}
+          {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 
         <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">
@@ -215,7 +208,7 @@ export function ConversationCard({
           showRepositoryMetadata={showRepositoryMetadata}
           showTimestamp={false}
           llmModel={llmModel}
-          showLlmModel={showLlmProfiles}
+          showAgentChip={showLlmProfiles}
           agentKind={agentKind}
           acpServer={acpServer}
         />

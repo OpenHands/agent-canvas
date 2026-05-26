@@ -21,7 +21,7 @@ export function ConversationLoading({ className }: ConversationLoadingProps) {
         className="h-8 w-8 shrink-0 animate-spin text-[var(--oh-text-secondary)]"
         aria-hidden
       />
-      <span className="text-base font-normal leading-5 text-[var(--oh-focus)] opacity-80">
+      <span className="text-base font-normal leading-5 text-[var(--oh-text-secondary)]">
         {t(I18nKey.HOME$LOADING)}
       </span>
     </div>

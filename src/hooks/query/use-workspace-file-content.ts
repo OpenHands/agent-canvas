@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { getActiveBackend } from "#/api/backend-registry/active-store";
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import {
@@ -108,6 +110,21 @@ function isLikelyBinary(buffer: ArrayBuffer): boolean {
   return false;
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  // Chunk to stay under the call-stack limit of `String.fromCharCode(...arr)`
+  // for larger files (>~100KB) while avoiding per-byte allocation.
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + CHUNK) as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
+
 /**
  * Reads a single file out of the active conversation's workspace via the
  * agent server's static workspace fileserver and classifies it as
@@ -137,24 +154,72 @@ export function useWorkspaceFileContent(relativePath: string | null) {
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
+  const sessionApiKey = conversation?.session_api_key;
   const baseUrl = workspaceSession?.baseUrl;
+  const isCloud = getActiveBackend().backend.kind === "cloud";
 
   return useQuery<WorkspaceFileContent>({
     queryKey: [
       "workspace-file-content",
       conversationId,
       conversationUrl,
-      baseUrl,
+      sessionApiKey,
+      isCloud ? "cloud" : baseUrl,
       relativePath,
       workspaceMutationCount,
     ],
     queryFn: async () => {
       if (!relativePath) throw new Error("No path");
+
+      const kind = classifyKind(relativePath);
+      const mimeType = guessMimeType(relativePath);
+
+      if (isCloud) {
+        // Cloud: no static fileserver cookie path is reachable from the
+        // browser. Fetch bytes server-side through callCloudProxy and
+        // hand the consumer a self-contained `data:` URI for iframe /
+        // <img> rendering.
+        const buffer = await AgentServerRuntimeService.downloadFile(
+          conversationUrl,
+          sessionApiKey,
+          relativePath,
+        );
+        if (kind === "text") {
+          if (isLikelyBinary(buffer)) {
+            return {
+              path: relativePath,
+              kind: "binary",
+              text: null,
+              staticUrl: `data:application/octet-stream;base64,${arrayBufferToBase64(buffer)}`,
+              mimeType: "application/octet-stream",
+            };
+          }
+          const text = new TextDecoder("utf-8", { fatal: false }).decode(
+            buffer,
+          );
+          return {
+            path: relativePath,
+            kind: "text",
+            text,
+            staticUrl: `data:${mimeType};charset=utf-8;base64,${arrayBufferToBase64(buffer)}`,
+            mimeType,
+          };
+        }
+        return {
+          path: relativePath,
+          kind,
+          text: null,
+          staticUrl: `data:${mimeType};base64,${arrayBufferToBase64(buffer)}`,
+          mimeType,
+        };
+      }
+
+      // Local: rely on the workspace-session cookie minted by
+      // useWorkspaceSession to authenticate the same-origin static
+      // fileserver fetch.
       if (!baseUrl) throw new Error("No workspace session");
 
       const staticUrl = joinWorkspaceUrl(baseUrl, relativePath);
-      const kind = classifyKind(relativePath);
-      const mimeType = guessMimeType(relativePath);
 
       // Image / PDF: don't fetch the bytes — the consumer renders them
       // directly via `staticUrl` in an iframe or <img>. The browser
@@ -203,7 +268,11 @@ export function useWorkspaceFileContent(relativePath: string | null) {
         mimeType,
       };
     },
-    enabled: runtimeIsReady && !!conversationId && !!baseUrl && !!relativePath,
+    enabled:
+      runtimeIsReady &&
+      !!conversationId &&
+      !!relativePath &&
+      (isCloud || !!baseUrl),
     retry: false,
     staleTime: 1000 * 5,
     gcTime: 1000 * 60,

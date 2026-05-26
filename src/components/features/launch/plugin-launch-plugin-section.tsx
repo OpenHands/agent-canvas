@@ -42,7 +42,7 @@ export function PluginLaunchPluginSection({
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-base-tertiary rounded-t-lg cursor-pointer"
         data-testid={`plugin-section-${originalIndex}`}
       >
-        <Typography.Text className="text-base font-medium">
+        <Typography.Text className="text-base font-normal">
           {getPluginDisplayName(plugin)}
         </Typography.Text>
         {isExpanded ? (

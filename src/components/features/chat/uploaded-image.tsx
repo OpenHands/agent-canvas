@@ -1,17 +1,24 @@
 import React from "react";
 import { LoaderCircle } from "lucide-react";
+import { PastedImageUploadAsFileButton } from "./pasted-image-upload-as-file-button";
 import { RemoveFileButton } from "./remove-file-button";
 
 interface UploadedImageProps {
   image: File;
   onRemove: () => void;
   isLoading?: boolean;
+  showUploadAsFileToggle?: boolean;
+  uploadAsFileActive?: boolean;
+  onToggleUploadAsFile?: () => void;
 }
 
 export function UploadedImage({
   image,
   onRemove,
   isLoading = false,
+  showUploadAsFileToggle = false,
+  uploadAsFileActive = false,
+  onToggleUploadAsFile,
 }: UploadedImageProps) {
   const [imageUrl, setImageUrl] = React.useState<string>("");
 
@@ -27,8 +34,7 @@ export function UploadedImage({
   }, [image]);
 
   return (
-    <div className="group min-w-[51px] min-h-[49px] w-[51px] h-[49px] rounded-lg bg-[var(--oh-interactive-hover)] relative flex items-center justify-center">
-      <RemoveFileButton onClick={onRemove} />
+    <div className="group relative flex h-[49px] w-[51px] min-h-[49px] min-w-[51px] items-center justify-center rounded-lg bg-[var(--oh-interactive-hover)]">
       {isLoading ? (
         <LoaderCircle className="animate-spin w-5 h-5" color="white" />
       ) : (
@@ -36,9 +42,16 @@ export function UploadedImage({
           <img
             src={imageUrl}
             alt={image.name}
-            className="w-full h-full object-cover rounded-lg"
+            className="h-full w-full rounded-lg object-cover"
           />
         )
+      )}
+      <RemoveFileButton onClick={onRemove} />
+      {showUploadAsFileToggle && onToggleUploadAsFile && (
+        <PastedImageUploadAsFileButton
+          active={uploadAsFileActive}
+          onToggle={onToggleUploadAsFile}
+        />
       )}
     </div>
   );
