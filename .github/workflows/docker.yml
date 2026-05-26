@@ -142,7 +142,7 @@ jobs:
             VERSION_BASE="${VERSION%%-*}"
             VERSION_BASE="${VERSION_BASE%%+*}"
 
-            # Only create abbreviated + latest tags for stable (non-pre-release) versions
+            # Abbreviated major.minor / major tags only for stable (non-pre-release) versions
             if [[ "$VERSION" != *"-"* ]] && [[ "$VERSION" != *"+"* ]]; then
               # major.minor
               MINOR="${VERSION_BASE%.*}"
@@ -154,8 +154,10 @@ jobs:
               if [ "$MAJOR" != "$VERSION_BASE" ] && [ "$MAJOR" != "$MINOR" ]; then
                 add_tag "$MAJOR"
               fi
-              add_tag "latest"
             fi
+
+            # Always tag `latest` for any versioned release (including pre-releases)
+            add_tag "latest"
           fi
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
@@ -314,12 +316,12 @@ jobs:
             create_manifest "$MANIFEST_TAG"
           done
 
-          # `latest` multi-arch manifest is created automatically above when a
-          # stable version tag is pushed (the per-arch build adds `latest-{arch}`
-          # tags for non-pre-release tags, and the loop above merges them into a
-          # `latest` manifest). We intentionally do NOT alias main to latest here
-          # so that `latest` always points at the highest stable tagged release,
-          # not at unreleased main-branch code.
+          # `latest` multi-arch manifest is created automatically above when any
+          # version tag is pushed (including pre-releases). The per-arch build
+          # adds `latest-{arch}` tags and the loop above merges them into a
+          # `latest` manifest. We do NOT alias main to latest here so that
+          # `latest` always points at the most recent tagged release, not at
+          # unreleased main-branch code.
 
           MANIFEST_TAG_CSV=$(IFS=,; echo "${MANIFEST_TAGS[*]}")
           echo "manifest_tags=$MANIFEST_TAG_CSV" >> "$GITHUB_OUTPUT"
