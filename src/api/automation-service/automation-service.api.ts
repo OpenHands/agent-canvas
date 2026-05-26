@@ -20,9 +20,8 @@ export interface AutomationHealthResponse {
 
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
-// The sidecar authenticates via a Bearer token using the same key value as
-// the agent-server's session API key (`VITE_SESSION_API_KEY`), just sent in
-// a different header format (`Authorization: Bearer …` vs `X-Session-API-Key`).
+// Both backends use the same session API key (`VITE_SESSION_API_KEY`)
+// and the same `X-Session-API-Key` header for consistency.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
@@ -35,7 +34,7 @@ localAutomationAxios.interceptors.request.use((config) => {
 
   const apiKey = import.meta.env.VITE_SESSION_API_KEY?.trim();
   if (apiKey) {
-    config.headers.set("Authorization", `Bearer ${apiKey}`);
+    config.headers.set("X-Session-API-Key", apiKey);
   }
   return config;
 });

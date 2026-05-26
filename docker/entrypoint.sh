@@ -16,8 +16,8 @@
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
 #                          and persisted if not provided)
 #   OPENHANDS_AUTOMATION_API_KEY – Override automation backend auth key
-#                          (defaults to session API key so both backends
-#                          share one credential)
+#                          (defaults to session API key — both backends
+#                          use the same `X-Session-API-Key` header)
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
@@ -78,9 +78,8 @@ if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
   export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
 fi
 
-# Both backends share the same API key value: the agent-server validates it
-# via `X-Session-API-Key` and the automation backend validates it via
-# `Authorization: Bearer …`.  Default OPENHANDS_AUTOMATION_API_KEY to the
+# Both backends share the same API key value and the same `X-Session-API-Key`
+# header for authentication.  Default OPENHANDS_AUTOMATION_API_KEY to the
 # session key so a single credential secures the whole stack.
 EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
 export OPENHANDS_AUTOMATION_API_KEY="${OPENHANDS_AUTOMATION_API_KEY:-${EFFECTIVE_SESSION_KEY}}"

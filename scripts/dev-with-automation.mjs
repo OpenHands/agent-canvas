@@ -38,9 +38,8 @@
  * Secrets:
  *   The session API key is automatically seeded into agent-server secrets
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
- *   Both the agent-server and automation backend use the same key value —
- *   the agent-server accepts it via `X-Session-API-Key` and the automation
- *   backend accepts it via `Authorization: Bearer …`.
+ *   Both the agent-server and automation backend use the same key value
+ *   and the same `X-Session-API-Key` header for authentication.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -338,8 +337,7 @@ async function buildConfig(args, env = process.env) {
   const vscodePort = ports.backend + 1000;
 
   // Session API key — shared by both agent-server and automation backend.
-  // The agent-server validates it via `X-Session-API-Key`; the automation
-  // backend validates it via `Authorization: Bearer …`.
+  // Both validate it via the `X-Session-API-Key` header.
   const stateDir = join(homedir(), ".openhands", "agent-canvas");
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
@@ -765,8 +763,8 @@ function startVite(config) {
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key — used by the frontend for both agent-server
-      // (`X-Session-API-Key`) and automation (`Authorization: Bearer …`) auth.
+      // Session API key — used by the frontend for both agent-server and
+      // automation auth via the `X-Session-API-Key` header.
       VITE_SESSION_API_KEY: config.sessionApiKey,
       // Inform the frontend (and downstream, the agent's system prompt) about
       // which services are available in this dev stack.

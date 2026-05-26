@@ -50,7 +50,7 @@ export function buildFrontend(config, args = {}) {
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       // Bake the session API key — used by the frontend for both agent-server
-      // (`X-Session-API-Key`) and automation (`Authorization: Bearer …`) auth.
+      // and automation auth via the `X-Session-API-Key` header.
       VITE_SESSION_API_KEY: config.sessionApiKey,
       // Bake a description of the runtime services in this dev stack so the
       // frontend can populate the agent's <RUNTIME_SERVICES> system-prompt
