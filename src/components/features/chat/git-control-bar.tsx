@@ -23,6 +23,7 @@ import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useUserProviders } from "#/hooks/use-user-providers";
 
 interface GitControlBarProps {
   onSuggestionsClick: (value: string) => void;
@@ -43,6 +44,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   );
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
+  const { providers } = useUserProviders();
+  const providerTokensReady = isLocalBackend || providers.length > 0;
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
@@ -237,6 +240,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             >
               <GitControlBarPullButton
                 onSuggestionsClick={onSuggestionsClick}
+                hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 isConversationReady={isConversationReady}
               />
             </GitControlBarTooltipWrapper>
@@ -249,6 +254,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
               <GitControlBarPushButton
                 onSuggestionsClick={onSuggestionsClick}
                 hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 currentGitProvider={gitProvider}
                 isConversationReady={isConversationReady}
               />
@@ -262,6 +268,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
               <GitControlBarPrButton
                 onSuggestionsClick={onSuggestionsClick}
                 hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 currentGitProvider={gitProvider}
                 isConversationReady={isConversationReady}
               />

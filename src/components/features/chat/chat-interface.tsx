@@ -460,7 +460,7 @@ export function ChatInterface() {
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
+          className="custom-scrollbar-always flex min-h-0 grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
@@ -515,7 +515,7 @@ export function ChatInterface() {
           <PendingUserMessages />
         </div>
 
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex shrink-0 flex-col gap-[6px]">
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner

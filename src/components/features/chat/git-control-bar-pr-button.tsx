@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import PRIcon from "#/icons/u-pr.svg?react";
 import { cn, getCreatePRPrompt } from "#/utils/utils";
-import { useUserProviders } from "#/hooks/use-user-providers";
 import { I18nKey } from "#/i18n/declaration";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
@@ -9,6 +8,7 @@ import { useTracking } from "#/hooks/use-tracking";
 interface GitControlBarPrButtonProps {
   onSuggestionsClick: (value: string) => void;
   hasRepository: boolean;
+  providerTokensReady: boolean;
   currentGitProvider: Provider;
   isConversationReady?: boolean;
 }
@@ -16,17 +16,15 @@ interface GitControlBarPrButtonProps {
 export function GitControlBarPrButton({
   onSuggestionsClick,
   hasRepository,
+  providerTokensReady,
   currentGitProvider,
   isConversationReady = true,
 }: GitControlBarPrButtonProps) {
   const { t } = useTranslation("openhands");
   const { trackCreatePrButtonClick } = useTracking();
 
-  const { providers } = useUserProviders();
-
-  const providersAreSet = providers.length > 0;
   const isButtonEnabled =
-    providersAreSet && hasRepository && isConversationReady;
+    providerTokensReady && hasRepository && isConversationReady;
 
   const handlePrClick = () => {
     trackCreatePrButtonClick();
