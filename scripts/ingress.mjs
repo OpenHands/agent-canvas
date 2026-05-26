@@ -30,6 +30,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const config = {
     port: 8000,
+    host: "0.0.0.0",
     routes: {},
     defaultBackend: null,
   };
@@ -39,6 +40,10 @@ function parseArgs() {
       case "-p":
       case "--port":
         config.port = parseInt(args[++i], 10);
+        break;
+      case "-H":
+      case "--host":
+        config.host = args[++i];
         break;
       case "-r":
       case "--route":
@@ -71,6 +76,7 @@ USAGE:
 
 OPTIONS:
   -p, --port <port>           Port to listen on (default: 8000)
+  -H, --host <host>           Host to bind to (default: 0.0.0.0)
   -r, --route <path=url>      Add a route (can be repeated)
   -d, --default <url>         Default backend for unmatched routes
   -h, --help                  Show this help
@@ -116,6 +122,7 @@ function buildConfig(args, env = process.env) {
 
   return {
     port: args.port || parseInt(env.INGRESS_PORT, 10) || 8000,
+    host: args.host || env.INGRESS_HOST || "0.0.0.0",
     routes,
     defaultBackend: args.defaultBackend || env.INGRESS_DEFAULT || null,
   };
@@ -347,12 +354,13 @@ function startIngress(config) {
     }
   });
 
-  server.listen(config.port, () => {
+  server.listen(config.port, config.host, () => {
+    const displayHost = config.host === "0.0.0.0" ? "localhost" : config.host;
     console.log("");
     console.log("╔═══════════════════════════════════════════════════════════════╗");
     console.log("║  Ingress Proxy                                                ║");
     console.log("╠═══════════════════════════════════════════════════════════════╣");
-    console.log(`║  Listening on: http://localhost:${config.port}/`.padEnd(66) + "║");
+    console.log(`║  Listening on: http://${displayHost}:${config.port}/ (${config.host})`.padEnd(66) + "║");
     console.log("╠═══════════════════════════════════════════════════════════════╣");
     console.log("║  Routes:                                                      ║");
 

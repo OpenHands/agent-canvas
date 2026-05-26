@@ -406,7 +406,14 @@ When adding code that needs a new string, decide up front which rule it falls un
   - `scripts/check-sdk-version-sync.mjs` checks the released `openhands-automation` package against `versions.automationSdk` in `config/defaults.json`; that value may intentionally lag `versions.agentServer` while automation has not yet published a matching release.
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` defaults to a generated key persisted across restarts because static frontend builds bake it into `VITE_AUTOMATION_API_KEY`. Set the env var explicitly to rotate or pin it. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
-- `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
+- `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix. Supports `--host` to bind to a specific interface (default: `0.0.0.0`).
+
+- Auth modes for `agent-canvas` (and `scripts/dev-with-automation.mjs`):
+  - **Local mode** (default, no flags): ingress binds to `127.0.0.1`. A session API key is auto-generated and written to `/backends.json` in the static build directory at startup. The frontend fetches `/backends.json` on load (`loadBackendsJson()` in `entry.client.tsx`) and uses the `localBackendApiKey` value so the user never has to paste anything. Safe for localhost.
+  - **Public mode** (`--public`): ingress binds to `0.0.0.0`. Requires `LOCAL_BACKEND_API_KEY` env var (used as the session API key). No `/backends.json` is written. The frontend detects the missing key when `/server_info` returns 401 and shows `ApiKeyEntryScreen` (full-screen key-paste prompt, `src/components/features/backends/api-key-entry-screen.tsx`). The pasted key is persisted to localStorage (`openhands-agent-server-config`) and the page reloads.
+  - Session API key resolution order in the frontend (`getConfiguredSessionApiKey()` in `agent-server-config.ts`): (1) localStorage override, (2) runtime `/backends.json` (`runtimeApiKey`), (3) build-time `VITE_SESSION_API_KEY`.
+  - `static-build.mjs` intentionally does NOT bake `VITE_SESSION_API_KEY` into static builds anymore — the key is injected at runtime via `/backends.json`.
+  - Docker entrypoint (`docker/entrypoint.sh`) always writes `/backends.json` since it auto-generates session keys.
 - `scripts/dev-safe.mjs` (now `npm run dev:minimal`) runs just agent-server + Vite without automation.
 - Vite dev mode can black-screen on first load with `504 Outdated Optimize Dep` if core client-entry deps are not prebundled; keep `react`, `react/jsx-runtime`, `react-dom/client`, and `react-router/dom` in `optimizeDeps.include`.
 - Bundle/dev-graph hygiene (Tier 1 cleanup landed):

@@ -13,8 +13,14 @@ import {
 } from "./components/providers";
 import { waitForI18n } from "./i18n";
 import { shouldStartMockWorker } from "./mocks/should-start-mock-worker";
+import { loadBackendsJson } from "./api/agent-server-config";
 
 async function prepareApp() {
+  // Load runtime API key from /backends.json (written by local-mode launcher).
+  // Must complete before i18n / React hydration so the backend registry
+  // seeds with the correct key on first read.
+  await loadBackendsJson();
+
   await waitForI18n();
 
   if (shouldStartMockWorker()) {

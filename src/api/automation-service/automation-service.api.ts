@@ -9,6 +9,7 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
+import { getConfiguredSessionApiKey } from "../agent-server-config";
 import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
@@ -20,8 +21,8 @@ export interface AutomationHealthResponse {
 
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
-// Both backends use the same session API key (`VITE_SESSION_API_KEY`)
-// and the same `X-Session-API-Key` header for consistency.
+// Both backends use the same session API key and the same
+// `X-Session-API-Key` header for consistency.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
@@ -32,7 +33,9 @@ localAutomationAxios.interceptors.request.use((config) => {
   // eslint-disable-next-line no-param-reassign
   if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
 
-  const apiKey = import.meta.env.VITE_SESSION_API_KEY?.trim();
+  // Use the runtime key resolution (localStorage → /backends.json → VITE env)
+  // so automation auth works in all auth modes (local, public, dev).
+  const apiKey = getConfiguredSessionApiKey();
   if (apiKey) {
     config.headers.set("X-Session-API-Key", apiKey);
   }

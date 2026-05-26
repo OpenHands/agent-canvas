@@ -31,11 +31,24 @@ and serves pre-built static frontend assets.
 USAGE:
   npx @openhands/agent-canvas [options]
 
+MODES:
+  (default)             Local mode — listens on 127.0.0.1 only,
+                        auto-generates an API key and bundles it into
+                        the frontend so no manual setup is needed.
+                        Safe for localhost; do NOT expose to the network.
+
+  --public              Public mode — listens on 0.0.0.0 (all interfaces).
+                        Requires LOCAL_BACKEND_API_KEY env var.
+                        The key is NOT bundled into the frontend; users
+                        must paste it when the UI loads.
+
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
+  --public              Enable public mode (see above)
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:
+  LOCAL_BACKEND_API_KEY        Required in --public mode; ignored otherwise
   OH_SECRET_KEY                Secret key for encrypting settings
   OH_AGENT_SERVER_GIT_REF      Git ref for agent-server
   OH_AGENT_SERVER_LOCAL_PATH   Path to local SDK checkout (for development)
@@ -45,8 +58,11 @@ Note: LLM settings are configured through the web UI settings page,
 not environment variables.
 
 EXAMPLES:
-  # Start full stack
+  # Start in local mode (localhost only, zero setup)
   npx @openhands/agent-canvas
+
+  # Start in public mode (accessible from the network)
+  LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public
 
   # Use a specific port
   npx @openhands/agent-canvas --port 3000
@@ -56,6 +72,8 @@ EXAMPLES:
 `);
   process.exit(0);
 }
+
+const publicMode = args.includes("--public");
 
 // Check build exists before doing anything else
 if (!existsSync(BUILD_DIR)) {
@@ -86,6 +104,7 @@ main({
   staticMode: true,
   staticDir: BUILD_DIR,
   mode: "agent-canvas",
+  publicMode,
 }).catch((err) => {
   console.error(`Fatal error: ${err.message}`);
   if (err.stack) {

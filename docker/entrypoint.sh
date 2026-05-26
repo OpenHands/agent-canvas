@@ -177,7 +177,21 @@ wait_for_port "$AUTOMATION_PORT" "Automation Server" 60 &
 WAIT_PID2=$!
 wait "$WAIT_PID1" "$WAIT_PID2"
 
-# ── 4. Start static server (frontend + proxy) ────────────────────────────────
+# ── 4. Write /backends.json for frontend auto-auth ──────────────────────────
+# The frontend fetches /backends.json on load to pick up the session API key.
+# In Docker the key is always auto-generated (or explicitly provided), so we
+# always write the file. Users who want "paste the key" behaviour should set
+# LOCAL_BACKEND_API_KEY and NOT write backends.json (future Docker --public
+# support).
+BACKENDS_JSON="/opt/agent-canvas/frontend/backends.json"
+SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
+if [ -n "$SESSION_KEY" ]; then
+  printf '{"localBackendApiKey":"%s"}\n' "$SESSION_KEY" > "$BACKENDS_JSON"
+  chmod 644 "$BACKENDS_JSON"
+  log "Wrote $BACKENDS_JSON for frontend auto-auth"
+fi
+
+# ── 5. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
 
 node /opt/agent-canvas/static-server.mjs \
