@@ -142,7 +142,7 @@ describe("useWorkspaceSession", () => {
   });
 
   describe("cloud backend", () => {
-    it("routes through callCloudProxy with correct path and auth", async () => {
+    it("does not fire any request — workspace-session is local-only", async () => {
       getActiveBackendMock.mockReturnValue({
         backend: {
           id: "cloud-1",
@@ -158,59 +158,14 @@ describe("useWorkspaceSession", () => {
           session_api_key: "cloud-key-xyz",
         },
       });
-      callCloudProxyMock.mockResolvedValue({
-        base_url: "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud/workspace/",
-      });
 
       const { result } = renderHook(() => useWorkspaceSession(), {
         wrapper: makeWrapper(),
       });
 
-      await waitFor(() => {
-        expect(result.current.data?.baseUrl).toBe(
-          "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud/workspace/",
-        );
-      });
-
-      expect(callCloudProxyMock).toHaveBeenCalledTimes(1);
-      const proxyCall = callCloudProxyMock.mock.calls[0][0];
-      expect(proxyCall.backend.id).toBe("cloud-1");
-      expect(proxyCall.method).toBe("POST");
-      expect(proxyCall.path).toBe("/api/auth/workspace-session");
-      expect(proxyCall.body).toEqual({ conversation_id: "conv-cloud" });
-      expect(proxyCall.authMode).toBe("session-api-key");
-      expect(proxyCall.sessionApiKey).toBe("cloud-key-xyz");
-      // buildHttpBaseUrl uses the browser's protocol, which in jsdom is http:
-      expect(proxyCall.hostOverride).toBe(
-        "http://abc123.prod-runtime.all-hands.dev",
-      );
-      expect(RemoteWorkspace).not.toHaveBeenCalled();
-    });
-
-    it("surfaces the error when the cloud workspace-session POST fails", async () => {
-      getActiveBackendMock.mockReturnValue({
-        backend: {
-          id: "cloud-1",
-          kind: "cloud",
-          host: "https://app.all-hands.dev",
-        },
-      });
-      useActiveConversationMock.mockReturnValue({
-        data: {
-          id: "conv-cloud",
-          conversation_url:
-            "https://abc123.prod-runtime.all-hands.dev/api/conversations/conv-cloud",
-          session_api_key: "bad-key",
-        },
-      });
-      callCloudProxyMock.mockRejectedValue(new Error("401 Unauthorized"));
-
-      const { result } = renderHook(() => useWorkspaceSession(), {
-        wrapper: makeWrapper(),
-      });
-
-      await waitFor(() => expect(result.current.isError).toBe(true));
-      expect(result.current.error?.message).toMatch(/401/);
+      await flushScheduler();
+      expect(callCloudProxyMock).not.toHaveBeenCalled();
+      expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
       expect(result.current.data).toBeNull();
     });
   });
