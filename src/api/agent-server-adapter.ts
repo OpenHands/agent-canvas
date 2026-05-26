@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import {
-  ACP_PROVIDERS,
+  getAcpProvider,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
@@ -537,7 +537,7 @@ function resolveAcpCommand(agentSettings: SettingsRecord): unknown {
     typeof agentSettings.acp_server === "string"
       ? agentSettings.acp_server
       : undefined;
-  const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
+  const provider = getAcpProvider(serverKey);
   return provider ? [...provider.default_command] : cmd;
 }
 
@@ -573,7 +573,7 @@ function buildConfiguredAcpAgentSettings(
     typeof agentSettings.acp_server === "string"
       ? agentSettings.acp_server
       : undefined;
-  const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
+  const provider = getAcpProvider(serverKey);
   const effectiveModel = resolveEffectiveAcpModel({
     configured: agentSettings.acp_model as string | null | undefined,
     providerDefault: provider?.default_model,

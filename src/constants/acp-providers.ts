@@ -251,6 +251,22 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = [
 export const ACP_CUSTOM_PRESET_KEY = "custom";
 
 /**
+ * Look up a built-in ACP provider config by its registry key.
+ *
+ * Returns ``undefined`` for an empty / null key, for the ``"custom"`` preset
+ * (which has no registry entry), and for any forward-compatible key Canvas's
+ * registry doesn't know about yet. Centralizes the ``ACP_PROVIDERS.find(...)``
+ * lookup shared by the resolvers below and by the adapter / settings surfaces
+ * so the key-comparison shape lives in one place.
+ */
+export function getAcpProvider(
+  key: string | null | undefined,
+): ACPProviderConfig | undefined {
+  if (!key) return undefined;
+  return ACP_PROVIDERS.find((provider) => provider.key === key);
+}
+
+/**
  * Resolve an ACP provider registry key (the value stored under
  * ``tags.acpserver`` on a conversation) to a human display name for the
  * sidebar chip.
@@ -269,8 +285,7 @@ export const ACP_CUSTOM_PRESET_KEY = "custom";
 export function getAcpProviderDisplayName(
   key: string | null | undefined,
 ): string | null {
-  if (!key) return null;
-  const found = ACP_PROVIDERS.find((p) => p.key === key);
+  const found = getAcpProvider(key);
   return found ? found.display_name : null;
 }
 
@@ -286,9 +301,7 @@ export function getAcpProviderDisplayName(
 export function resolveAcpProviderIcon(
   key: string | null | undefined,
 ): ACPProviderIcon {
-  if (!key) return ACP_PROVIDER_FALLBACK_ICON;
-  const found = ACP_PROVIDERS.find((p) => p.key === key);
-  return found?.icon ?? ACP_PROVIDER_FALLBACK_ICON;
+  return getAcpProvider(key)?.icon ?? ACP_PROVIDER_FALLBACK_ICON;
 }
 
 /**
@@ -306,7 +319,7 @@ export function labelForAcpModel(
   modelId: string | null | undefined,
 ): string | null {
   if (!modelId) return null;
-  const provider = ACP_PROVIDERS.find((p) => p.key === serverKey);
+  const provider = getAcpProvider(serverKey);
   const match = provider?.available_models?.find((m) => m.id === modelId);
   return match?.label ?? modelId;
 }
@@ -351,9 +364,7 @@ export function buildAcpAgentSettingsDiff(
   }
 
   const isCustom = providerKey === ACP_CUSTOM_PRESET_KEY;
-  const provider = isCustom
-    ? undefined
-    : ACP_PROVIDERS.find(({ key }) => key === providerKey);
+  const provider = isCustom ? undefined : getAcpProvider(providerKey);
   if (!isCustom && !provider && !options.allowUnknownServer) {
     return null;
   }

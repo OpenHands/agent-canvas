@@ -598,8 +598,8 @@ describe("ConversationCard", () => {
   });
 
   describe("Agent chip", () => {
-    // The agent chip is gated by the conversation panel's "LLM model" toggle
-    // (``showLlmProfiles``), off by default — one control for both ACP and
+    // The agent chip is gated by the conversation panel's "Agent / model"
+    // toggle (``showLlmProfiles``), off by default — one control for both ACP and
     // OpenHands cards. The renders below pass ``showLlmProfiles`` to exercise
     // the chip; the gating itself is covered by the first two tests.
     it("hides the chip by default (LLM-model toggle off) for ACP", () => {

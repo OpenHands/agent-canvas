@@ -26,6 +26,7 @@ import {
   ACP_PROVIDERS,
   ACP_CUSTOM_PRESET_KEY,
   buildAcpAgentSettingsDiff,
+  getAcpProvider,
   type ACPProviderConfig,
 } from "#/constants/acp-providers";
 import { parseCommand, formatCommand } from "#/utils/acp-command";
@@ -130,7 +131,7 @@ function AgentSettingsScreen() {
       const rawAcpServer = settings.agent_settings?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
-      const provider = ACP_PROVIDERS.find(({ key }) => key === acpServer);
+      const provider = getAcpProvider(acpServer);
       const storedCommand = toStringArray(settings.agent_settings?.acp_command);
       const effectiveBaseCommand =
         storedCommand.length > 0
@@ -176,9 +177,7 @@ function AgentSettingsScreen() {
   const commandTokens = parseCommand(commandText);
   const isAcpInvalid = isAcp && commandTokens.length === 0;
   const selectedPreset = detectPreset(commandText, ACP_PROVIDERS);
-  const selectedProvider = ACP_PROVIDERS.find(
-    ({ key }) => key === selectedPreset,
-  );
+  const selectedProvider = getAcpProvider(selectedPreset);
   const modelSuggestions = selectedProvider?.available_models ?? [];
   const hasModelSuggestions = modelSuggestions.length > 0;
   const selectedModelIsSuggestion = isKnownAcpModel(selectedProvider, acpModel);
@@ -361,7 +360,7 @@ function AgentSettingsScreen() {
             onSelectionChange={(key) => {
               if (!key) return;
               const preset = String(key);
-              const provider = ACP_PROVIDERS.find(({ key: k }) => k === preset);
+              const provider = getAcpProvider(preset);
               if (provider) {
                 setCommandText(formatCommand(provider.default_command));
                 setAcpModel(provider.default_model ?? "");
@@ -388,7 +387,25 @@ function AgentSettingsScreen() {
               value={commandText}
               placeholder={commandPlaceholder}
               onChange={(e) => {
-                setCommandText(e.target.value);
+                const nextCommandText = e.target.value;
+                // Keep the model selector in sync with the command being
+                // typed. Editing the command into a *different* provider — or
+                // into a custom command — must drop the previous provider's
+                // model, or Save would silently persist e.g.
+                // ``claude-opus-4-7`` against a Codex / custom wrapper. The
+                // preset dropdown already does this; the textarea is the other
+                // way a user changes provider, so it needs the same
+                // reconciliation. Gated on the *detected preset* actually
+                // changing, so it never clobbers a model the user is editing
+                // within the same provider.
+                const prevPreset = detectPreset(commandText, ACP_PROVIDERS);
+                const nextPreset = detectPreset(nextCommandText, ACP_PROVIDERS);
+                if (nextPreset !== prevPreset) {
+                  const nextProvider = getAcpProvider(nextPreset);
+                  setAcpModel(nextProvider?.default_model ?? "");
+                  setIsCustomAcpModel(false);
+                }
+                setCommandText(nextCommandText);
                 setIsDirty(true);
               }}
             />
@@ -428,7 +445,7 @@ function AgentSettingsScreen() {
                 }}
               />
             )}
-            {(!hasModelSuggestions || isCustomAcpModel) && (
+            {selectedModelKey === ACP_CUSTOM_MODEL_KEY && (
               <SettingsInput
                 testId="agent-model-input"
                 label={

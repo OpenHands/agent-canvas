@@ -67,6 +67,7 @@ describe("ChatInputModel", () => {
       data: {
         conversation_id: "test-conversation-id",
         agent_kind: "acp",
+        acp_server: "claude-code",
         llm_model: "claude-sonnet-4-6",
       },
     });
@@ -74,7 +75,9 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    expect(model).toHaveAttribute("title", "claude-sonnet-4-6");
+    // ACP surfaces show the provider's human label (matching the conversation
+    // list chip), resolved from ``acp_server`` + the raw ``acp_model`` id.
+    expect(model).toHaveAttribute("title", "Claude Sonnet 4.6");
     fireEvent.click(model);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
@@ -192,8 +195,10 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    // Claude Code's registered default; see CLAUDE_MODELS in acp-providers.ts.
-    expect(model).toHaveAttribute("title", "claude-opus-4-7");
+    // Claude Code's registered default (``claude-opus-4-7``), shown as its
+    // human label to match the conversation list chip. See CLAUDE_MODELS in
+    // acp-providers.ts.
+    expect(model).toHaveAttribute("title", "Claude Opus 4.7");
     fireEvent.click(model);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });

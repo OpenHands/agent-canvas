@@ -21,6 +21,7 @@ import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation"
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import { labelForAcpModel } from "#/constants/acp-providers";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -66,6 +67,13 @@ export function ChatInputActions({
   // selects an ACP agent, since the next conversation will inherit it.
   const { isAcpContext, destinationPath, destinationLabel } =
     useAcpModelContext();
+  // Mirror ChatInputModel: ACP conversations show the provider's human label
+  // (e.g. "Claude Opus 4.7") in the overflow model submenu, not the raw
+  // ``acp_model`` id. OpenHands keeps the raw model string.
+  const overflowModelLabel = isAcpContext
+    ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
+      conversation?.llm_model)
+    : conversation?.llm_model;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -364,7 +372,7 @@ export function ChatInputActions({
             >
               <li className="text-sm">
                 <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">
-                  {conversation?.llm_model}
+                  {overflowModelLabel}
                 </div>
               </li>
               <Divider inset="menu" />
