@@ -3,7 +3,6 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 
 const useActiveBackendMock = vi.fn();
@@ -21,7 +20,15 @@ vi.mock("#/hooks/use-runtime-is-ready", () => ({
   useRuntimeIsReady: () => useRuntimeIsReadyMock(),
 }));
 
-const executeCommandSpy = vi.spyOn(AgentServerRuntimeService, "executeCommand");
+const runCommandMock = vi.fn();
+const useBashCommandRunnerMock = vi.fn();
+vi.mock("#/hooks/use-bash-command-runner", () => ({
+  useBashCommandRunner: (
+    conversationUrl: string | null | undefined,
+    sessionApiKey: string | null | undefined,
+    enabled: boolean,
+  ) => useBashCommandRunnerMock(conversationUrl, sessionApiKey, enabled),
+}));
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -65,13 +72,15 @@ describe("useLocalGitInfo", () => {
     useActiveBackendMock.mockReset();
     useActiveConversationMock.mockReset();
     useRuntimeIsReadyMock.mockReset();
-    executeCommandSpy.mockReset();
+    runCommandMock.mockReset();
+    useBashCommandRunnerMock.mockReset();
+    useBashCommandRunnerMock.mockImplementation(() => runCommandMock);
 
     useRuntimeIsReadyMock.mockReturnValue(true);
     useActiveConversationMock.mockReturnValue({
       data: conversationWithoutRepo,
     });
-    executeCommandSpy.mockResolvedValue({
+    runCommandMock.mockResolvedValue({
       exit_code: 0,
       stdout: "git@github.com:acme/widgets.git\n",
       stderr: "",
@@ -82,7 +91,7 @@ describe("useLocalGitInfo", () => {
     vi.clearAllMocks();
   });
 
-  it("does not call executeCommand on a cloud backend even when conversation metadata is incomplete", async () => {
+  it("does not call the bash runner on a cloud backend even when conversation metadata is incomplete", async () => {
     // Arrange
     useActiveBackendMock.mockReturnValue(makeBackend("cloud"));
 
@@ -96,13 +105,19 @@ describe("useLocalGitInfo", () => {
       setTimeout(resolve, 20);
     });
     expect(result.current.fetchStatus).toBe("idle");
-    expect(executeCommandSpy).not.toHaveBeenCalled();
+    expect(runCommandMock).not.toHaveBeenCalled();
+    // The bash command runner should be created in a disabled state on cloud.
+    expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
+      conversationWithoutRepo.conversation_url,
+      conversationWithoutRepo.session_api_key,
+      false,
+    );
   });
 
-  it("probes git metadata via executeCommand on a local backend when conversation metadata is incomplete", async () => {
+  it("probes git metadata via the bash runner on a local backend when conversation metadata is incomplete", async () => {
     // Arrange
     useActiveBackendMock.mockReturnValue(makeBackend("local"));
-    executeCommandSpy
+    runCommandMock
       .mockResolvedValueOnce({
         exit_code: 0,
         stdout: "git@github.com:acme/widgets.git\n",
@@ -121,9 +136,12 @@ describe("useLocalGitInfo", () => {
 
     // Assert
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(executeCommandSpy).toHaveBeenCalledWith(
+    expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
       conversationWithoutRepo.conversation_url,
       conversationWithoutRepo.session_api_key,
+      true,
+    );
+    expect(runCommandMock).toHaveBeenCalledWith(
       "git remote get-url origin",
       "/workspace/project",
       10,
