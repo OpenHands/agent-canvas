@@ -32,6 +32,11 @@ const fetchConversationData = async (
   };
 };
 
+/**
+ * Stop a running conversation.
+ * - Cloud mode: Pauses the sandbox (waits for current LLM call to finish).
+ * - Local mode: Interrupts immediately (cancels in-flight requests).
+ */
 export const pauseConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey, sandboxId } =
     await fetchConversationData(conversationId);
@@ -46,9 +51,12 @@ export const pauseConversation = async (conversationId: string) => {
     return { success: true };
   }
 
+  // In local mode, use /interrupt instead of /pause so in-flight LLM
+  // requests are cancelled immediately rather than waiting for the
+  // current call to finish.
   return new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-  ).pauseConversation(conversationId);
+  ).interruptConversation(conversationId);
 };
 
 /**
@@ -114,6 +122,12 @@ export const updateConversationExecutionStatusInCache = (
   execution_status: ExecutionStatusValue,
 ): void =>
   patchConversationInCache(queryClient, conversationId, { execution_status });
+
+export const updateConversationLlmModelInCache = (
+  queryClient: QueryClient,
+  conversationId: string,
+  llm_model: string,
+): void => patchConversationInCache(queryClient, conversationId, { llm_model });
 
 export const invalidateConversationQueries = (
   queryClient: QueryClient,

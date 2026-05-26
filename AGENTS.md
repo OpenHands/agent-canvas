@@ -119,6 +119,7 @@ you are running inside of — NOT the automation backend.
 - Snapshots are organized by `{snapshotDir}/{testFilePath}/{projectName}/{arg}.png` (configured in `playwright.config.ts`).
 - **Conversation page snapshot tests**: The dev server uses MSW service workers for API mocking. For conversation-page tests, rely on MSW's pre-defined mock conversations (IDs "1", "2", "3" in `src/mocks/conversation-handlers.ts`) rather than fighting Playwright route interception. MSW's service worker intercepts requests before Playwright `page.route()` can; Playwright route interceptors only see requests that escape the service worker. Stub WebSocket via `page.addInitScript()` and inject events into the Zustand store via the exposed `window.__OH_EVENT_STORE__` API. Use `test.describe.configure({ mode: "serial" })` for conversation tests since the WebSocket stub + heavier page setup can cause intermittent failures in parallel mode.
 - **Baseline generation for CI**: Baselines generated locally will NOT match CI (different OS, fonts, rendering). Baselines are regenerated automatically on every push to `main`. After adding new snapshot tests, open a PR — the new snapshots will be shown as "🆕 New" in the PR comment and become the baseline when the PR merges. To force-refresh baselines from main without waiting for a code push, trigger the "Snapshot Tests" workflow manually with `force_update=true`.
+- **Mock conversation timestamps must ALL be `now`-relative**: `src/mocks/conversation-handlers.ts` defines mock conversations sorted by `updated_at` descending in the sidebar. Every conversation's `created_at`/`updated_at` must use `now - X * days` (relative to module-load time), never a fixed absolute date like `PAGINATION_BASE_TIME`. Mixing the two strategies causes a sort-order crossover as real time passes — the fixed-date conversation ages past a relative one and they swap positions, breaking every snapshot that includes the sidebar. `PAGINATION_BASE_TIME` is kept only for internal event timestamps used by pagination tests; conversation listing timestamps are decoupled from it.
 - **MSW handler state is PAGE-level JS, not service-worker state**: In MSW 2.x browser mode the request handlers (including mutable Maps like `automations`) are compiled into the client bundle and run in the main thread. `page.reload()` re-initialises all module-level state (e.g. `const automations = new Map(...)` runs fresh on every page load). Tests that need to show an "empty list" state must NOT call `page.reload()` after deleting items. Instead: make the DELETE fetches from `page.evaluate()` (which DO go through MSW), then call `window.__TEST_INVALIDATE_QUERIES__()` (exposed in mock mode by `entry.client.tsx`) to trigger React Query's cache invalidation in-place without a reload. Example: the automations empty-state snapshot test in `tests/e2e/snapshots/automations.snapshot.spec.ts`.
 
 ## Live End-to-End Test Framework
@@ -155,7 +156,7 @@ you are running inside of — NOT the automation backend.
 - `src/components/shared/buttons/styled-tooltip.tsx` should keep HeroUI tooltip animations disabled in Vitest (`disableAnimation` when `import.meta.env.MODE === "test"`); otherwise full-suite runs can end with unhandled `window is not defined` rejections from `framer-motion` after jsdom teardown (seen via `recent-conversation` tests in CI).
 - `__tests__/i18n/library-namespace.test.ts` imports the full library entry and can exceed Vitest's default 5s timeout under full-suite load; keep an explicit higher timeout on that case unless the test is substantially narrowed.
 
-- `@openhands/typescript-client` is currently pinned to commit `ef62e82fc3dfb03991a1c8025429caf354427263` because the package metadata needed by this PR has not been published as a consistent npm/tagged release yet. That commit ships the needed typed clients plus subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace`. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
+- `@openhands/typescript-client` should be pinned to a released git tag/version rather than an unreleased commit SHA; when agent-canvas needs new client API, release/tag the client first and then update the dependency to that tag. Released versions should include the typed clients, agent-server version compatibility helpers, `WorkspacesClient`, `ConversationClient.switchLLM`, and subpath exports for `client/http-client`, `events/remote-events-list`, and `workspace/remote-workspace` needed by the agent-canvas agent-server integration. `RemoteWorkspace.gitChanges`/`gitDiff` accept an optional `{ ref }` option; agent-canvas passes `'HEAD'` so the changes panel reflects working-tree + index versus the latest commit (i.e. staged + unstaged) instead of a diff against the upstream/default branch.
 - The `@openhands/typescript-client` git dep must be expressed as a `git+https://github.com/...` URL in both `package.json` and the top-level dep entry of `package-lock.json`; the `github:OpenHands/...` shorthand normalizes to `git+ssh://` inside the lockfile, and Vercel's build environment has no GitHub SSH key, so an ssh-pinned lockfile makes Vercel fall back to a stale cached tarball and the bundler then fails with `[MISSING_EXPORT] ConversationClient/FileClient/SharedClient is not exported by .../dist/clients.js`. `scripts/vercel-install.sh` (wired up via `vercel.json`'s `installCommand`) defensively rewrites any leftover `git+ssh://git@github.com/` resolved URLs to `git+https://github.com/` and adds matching `git config --global url..insteadOf` aliases before invoking `npm ci`, so a future regression that re-introduces an ssh-pinned lockfile entry still builds on Vercel. See GitHub issue #384 for the original failure and PR #382 for the prior single-shot lockfile fix that this generalizes.
 
 ## API Access Rules
@@ -254,6 +255,71 @@ if (getActiveBackend().backend.kind === "cloud") {
 return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 ```
 
+## No Magic Strings
+
+Inline string literals that carry meaning (user-facing copy, identifiers, keys, route paths, storage keys, event types, query keys, env-var names, etc.) **must not** appear at call sites. Magic strings drift across files, defeat search/refactor, bypass `tsc`'s spell-checking, and ship untranslated UI text. The `i18next/no-literal-string` rule is set to `"error"` in `eslint.config.js` and CI fails on violations — do not silence it with `eslint-disable` unless the string is genuinely non-localizable (e.g. the `⌘↩` keyboard glyph in `plan-preview.tsx` / `conversation-tabs.tsx`).
+
+### Rule 1 — User-facing strings go through i18n
+
+Every visible string (button labels, headings, validation messages, `aria-label`, `title`, `alt`, toast copy, placeholders) **must** be routed through `react-i18next`'s `t()` keyed by an `I18nKey` enum member. Keys are declared once in `src/i18n/translation.json` with values for all 15 supported languages (see `src/i18n/index.ts::AvailableLanguages`), and `npm run make-i18n` regenerates `src/i18n/declaration.ts` + `public/locales/<lang>/openhands.json`. `npm run check-translation-completeness` fails CI if any key is missing a language.
+
+```tsx
+// CORRECT
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
+
+const { t } = useTranslation("openhands");
+return <button aria-label={t(I18nKey.CHAT$DISMISS_LABEL)}>{t(I18nKey.CHAT$DISMISS)}</button>;
+
+// WRONG -- ships English to every locale; flagged by i18next/no-literal-string
+return <button aria-label="Dismiss">Dismiss</button>;
+```
+
+Key naming follows the existing `CATEGORY$IDENTIFIER` convention (see `src/i18n/translation.json` — common prefixes: `CHAT_INTERFACE$`, `SETTINGS$`, `COMMON$`, `BUTTON$`, `HOME$`, `MICROAGENT$`, etc.). Reuse an existing prefix; only introduce a new one when no sensible bucket exists.
+
+Caveat: `eslint-plugin-i18next`'s recommended config catches JSX text children but NOT string-literal prop values like `aria-label="…"` or string ternaries passed to props. Even when the rule does not flag them, treat them as user-facing strings and route them through `t()`. If you find a hardcoded prop string, fix it; do not assume the linter's silence is approval.
+
+### Rule 2 — Non-UI identifiers live in named constants, not inline literals
+
+For strings the user never sees but the program reads (storage keys, event names, query keys, route paths, env-var names, header names, hardcoded paths, feature-flag identifiers), declare a single named constant in the closest module that owns the concept and import it everywhere else. Co-locate related constants in a tiny dedicated file (`*-keys.ts`, `*-constants.ts`) when more than two callers need them.
+
+```ts
+// CORRECT
+const ONBOARDING_COMPLETED_KEY = "openhands-onboarded";
+localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+
+// CORRECT -- query keys go through SETTINGS_QUERY_KEYS / SECRETS_QUERY_KEYS / …
+//            in src/hooks/query/query-keys.ts (enforced by no-restricted-syntax)
+queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEYS.all });
+
+// WRONG -- duplicated literal across files, no compile-time link, silent typo risk
+localStorage.setItem("openhands-onboarded", "true");
+queryClient.invalidateQueries({ queryKey: ["settings"] });
+```
+
+Already-named constants in this repo include `DEFAULT_WORKING_DIR` (`src/api/agent-server-config.ts`), `OPENHANDS_I18N_NAMESPACE` (`src/i18n/index.ts`), `BUNDLED_BACKEND_ID` (backend registry), and the `*_QUERY_KEYS` helpers in `src/hooks/query/query-keys.ts`. Reuse these instead of re-inlining the literal.
+
+### Rule 3 — Discriminated-union tags use string-literal types, not bare strings
+
+When a string is part of a discriminated union or enum-like set (event kinds, backend kinds, tab IDs, agent statuses, observation result statuses), the type itself should constrain the literal. Pass values typed against that union, not raw `string`, so callers get autocomplete and the compiler catches typos.
+
+```ts
+// CORRECT
+type BackendKind = "local" | "cloud";
+if (backend.kind === "cloud") { … }
+
+// WRONG -- `backend.kind` typed as `string`; "clould" compiles fine
+if (backend.kind === "clould") { … }
+```
+
+### Allowed exceptions
+
+- Test fixtures (`__tests__/`, `tests/e2e/`) may use inline literals for setup data — tests are the boundary where strings stop being magic.
+- Non-localizable display glyphs (keyboard shortcuts like `⌘↩`, currency symbols, etc.) may stay inline behind an `eslint-disable-next-line i18next/no-literal-string` comment. Keep the disable on the single offending line; never widen it to a file-level disable for a single glyph.
+- Generated files (`src/i18n/declaration.ts`, `public/locales/<lang>/openhands.json`) are produced by `npm run make-i18n`; do not hand-edit, do not lint-target.
+
+When adding code that needs a new string, decide up front which rule it falls under: if a user reads it → Rule 1; if the program reads it → Rule 2; if it tags a union → Rule 3. Do not commit code that fails any of these rules just because the linter happens not to catch it.
+
 - Use `@openhands/typescript-client` classes directly for agent-server-backed REST/workspace/event/VS Code calls. Centralize host/session API key/working-directory option assembly through `src/api/agent-server-client-options.ts`; the backend fallback policy itself lives in `src/api/backend-registry/active-store.ts`.
 - Local verification/build gotchas:
   - `npm run typecheck` assumes generated translation types exist; run `npm run make-i18n` first if `src/i18n/declaration.ts` is missing.
@@ -321,10 +387,10 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.22.1")
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.23.1")
   - `OH_SECRET_KEY` — secret key for settings encryption; uses a static default for local dev since it's needed for reading persisted encrypted values across restarts
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
-  - Default: released PyPI version `1.22.1` for agent-server SDK libraries
+  - Default: released PyPI version `1.23.1` for agent-server SDK libraries
 
 - Security: `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys when needed and persist the defaults so static builds, localStorage, and restarted services stay in sync:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; persisted at `~/.openhands/agent-canvas/session-api-key.txt` unless overridden via env var
@@ -337,7 +403,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → frontend server (:3001), either Vite or static depending on launcher mode
   - Environment variables: `PORT` (ingress port, default: 8000), `OH_AUTOMATION_GIT_REF` (git ref, overrides default version), `OH_AUTOMATION_VERSION` (default: `1.0.0a3`), `AUTOMATION_LOCAL_API_KEY` (optional, use a fixed key; default: persisted generated key), `OH_AUTOMATION_API_KEY_PATH` (override the persisted default key path)
-  - `scripts/check-sdk-version-sync.mjs` checks the released `openhands-automation` package against `DEFAULT_AUTOMATION_SDK_VERSION` in `scripts/dev-with-automation.mjs`; that value may intentionally lag `DEFAULT_AGENT_SERVER_VERSION` while automation has not yet published a matching release.
+  - `scripts/check-sdk-version-sync.mjs` checks the released `openhands-automation` package against `versions.automationSdk` in `config/defaults.json`; that value may intentionally lag `versions.agentServer` while automation has not yet published a matching release.
   - Access points: `http://localhost:8000/` (main UI), `http://localhost:8000/api/automation/docs` (API docs)
   - Security: `AUTOMATION_LOCAL_API_KEY` defaults to a generated key persisted across restarts because static frontend builds bake it into `VITE_AUTOMATION_API_KEY`. Set the env var explicitly to rotate or pin it. The cipher key (`OH_SECRET_KEY`) keeps a static default for local dev since it's used for encrypting/decrypting persisted settings values.
 - `scripts/ingress.mjs` is a standalone HTTP reverse proxy that can be used independently to route traffic to multiple backends based on URL path prefix.
@@ -400,7 +466,7 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
-- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data and MCP logo mappings live in `@openhands/extensions/mcps`; the Slack catalog entry there should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server`. Deprecated marketplace entries removed upstream (for example GitLab / Google Maps / Postgres / Puppeteer / SQLite) should disappear from the marketplace grid, but existing installed servers with those names must still render in the Installed section and stay searchable/editable/deletable via the raw server `name` / `command` fallback in `src/utils/mcp-marketplace-utils.ts` + `InstalledServerCard`. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
+- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data and MCP logo mappings live in `@openhands/extensions/mcps`; the Slack catalog entry there should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server`. Deprecated marketplace entries removed upstream (for example GitLab / Google Maps / Postgres / Puppeteer / SQLite) should disappear from the marketplace grid. The Installed section still needs to render and search arbitrary non-catalog custom servers via the raw server `name` / `command` fallback in `src/utils/mcp-marketplace-utils.ts` + `InstalledServerCard`. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.
@@ -437,5 +503,15 @@ return new ConversationClient(getAgentServerClientOptions()).someMethod(...);
 - Settings naming is backend-aware today: local `/settings` is profile-oriented (`use-settings-nav-items.ts` renames the first settings item/title/subtitle to `LLM Profiles` and `chat-input-model.tsx` / `chat-input-actions.tsx` link there as `LLM Profiles`), while cloud keeps the generic `LLM Settings` copy because cloud still edits raw settings rather than saved profiles. The local profile editor (`llm-settings-local-view.tsx`) should keep explicit create/edit profile headings plus helper text so users know they are saving a profile, not mutating the current conversation directly.
 
 - ESLint config (flat, ESLint 9): the project uses `eslint.config.js` (not `.eslintrc`) and runs on `eslint@9.x`, not 10. The constraint pinning us below 10 is `eslint-plugin-react@7.37.x`, which still calls `context.getFilename()` at rule-load time — that API was removed in ESLint 10 and `@eslint/compat`'s `fixupPluginRules` does NOT shim it. Don't try to bump eslint past 9 until eslint-plugin-react ships a v10-compatible release. Import rules come from `eslint-plugin-import-x` (the maintained fork of `eslint-plugin-import`) but are registered under both `import-x/` and `import/` prefixes via `plugins: { import: importXPlugin, ... }` so existing `// eslint-disable-next-line import/...` directives keep working. `linterOptions.reportUnusedDisableDirectives` is set to `"warn"` (not "off") so stale airbnb-era disable comments still surface in lint output without failing CI. The TS-overrides block has an `ignores: ["src/hooks/query/query-keys.ts"]` so the `no-restricted-syntax` rule banning raw `["settings", ...]` query keys doesn't fire on the file that defines the helpers themselves. No `.npmrc` / `legacy-peer-deps` flag is needed — all our plugins declare ESLint 9 peer compatibility.
+
+- **Centralized config**: `config/defaults.json` is the single source of truth for version pins (agent-server, automation, automation SDK), port defaults, persistence paths, package names, and the dev secret key. All consumers read from this file:
+  - JS scripts (`dev-safe.mjs`, `dev-with-automation.mjs`, `check-sdk-version-sync.mjs`) read it via `JSON.parse(readFileSync(...))`.
+  - Docker: a `config-gen` build stage converts the JSON to `/opt/agent-canvas/defaults.env` (shell-sourceable); `entrypoint.sh` sources it at startup.
+  - CI workflow: a `Read defaults from config/defaults.json` step uses `node -p` to extract values into `$GITHUB_OUTPUT`.
+  - Dockerfile ARG defaults are kept as fallbacks for local `docker build` without the CI workflow; CI always passes `--build-arg` overrides from the JSON.
+  - To bump a version, edit `config/defaults.json` only — the JS scripts, Docker build, and CI workflow all derive their values from it.
+- Docker all-in-one image: `.github/workflows/docker.yml` builds and publishes `ghcr.io/openhands/agent-canvas` — a combined image that bundles the agent-server (from `ghcr.io/openhands/agent-server`), the automation server (`openhands-automation` via pip), and the agent-canvas frontend (static build). The Dockerfile lives at `docker/Dockerfile`, the entrypoint at `docker/entrypoint.sh`. The workflow structure mirrors the SDK repo's `server.yml`: a `build-and-push-image` matrix job (2 × arch: amd64 on `ubuntu-24.04`, arm64 on `ubuntu-24.04-arm`) pushes arch-suffixed tags, then `merge-manifests` creates multi-arch manifests via `docker buildx imagetools create`, then `consolidate-build-info` aggregates artifacts, and `update-pr-description` updates the PR body (using `<!-- AGENT_CANVAS_DOCKER_START -->` / `<!-- AGENT_CANVAS_DOCKER_END -->` markers). The workflow triggers on push to main, `v*` tags (releases), PRs, and `workflow_dispatch`. On release tags it also pushes semver tags (e.g. `1.2.3`, `1.2`, `1`, `latest`). Fork PRs are skipped (no GHCR auth). The image exposes port 8000 as a unified entry point: `/api/automation/*` → automation (:18001), `/api/*` → agent-server (:18000), `/*` → static frontend. The Dockerfile accepts a `VITE_APP_ENV` build arg (default empty → staging PostHog key); the CI workflow passes `VITE_APP_ENV=production` only for tagged releases (`refs/tags/v*`), so PR and main-branch images use the staging key while release images use the production key, matching the `build:lib` npm path. The entrypoint auto-generates **both** the session API key and `OH_SECRET_KEY` (persisted to `~/.openhands/agent-canvas/session-api-key.txt` and `secret-key.txt` respectively) when none is provided, so the image runs secure by default. Users can override either via env var (`OH_SECRET_KEY`, `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0`). Unlike `scripts/dev-safe.mjs` (which uses a static default secret key for local dev convenience), the Docker entrypoint never falls back to a known default.
+
+- Spec files live under `specs/`. Spec IDs are stable — never renumber. Mark deprecated specs with ~~strikethrough~~. Tag implementation code and tests with `// @spec BM-002 — Short title` comments so specs are grep-able across the codebase (`grep -rn '@spec BM-' src/ __tests__/`). Place the comment on the line immediately above the relevant code block or test. When multiple tests cover the same spec, use `it.each` if the test structure is identical.
 
 - Cloud conversation resume gating: when a cloud conversation is closed from the UI (`pauseCloudSandbox` is called), the conversation's `conversation_url` is NOT cleared -- it still points to the old sandbox host. `WebSocketProviderWrapper` must suppress the URL (pass `null` to `ConversationWebSocketProvider`) while `sandbox_status === "PAUSED"`, otherwise the WebSocket immediately tries the stale URL before the sandbox wakes. Symmetrically, `useActiveConversation`'s refetch interval must fast-poll (3 s) on both `!conversation_url` AND `sandbox_status === "PAUSED"` -- checking only the missing URL would leave the hook on the 30 s interval while the sandbox is resuming. The resume sequence: navigate -> sandbox PAUSED detected -> `resumeCloudSandbox` called (in `conversation.tsx`) -> fast-poll detects RUNNING -> `conversationUrl` unblocked -> WebSocket connects.

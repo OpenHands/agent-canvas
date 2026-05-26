@@ -58,7 +58,7 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
           !hasSuggestedTasks && "mb-[14px]",
         )}
       >
-        <h3 className="text-xs leading-4 text-white font-semibold py-[14px] pl-[14px]">
+        <h3 className="text-xs leading-4 text-white font-medium py-[14px] pl-[14px]">
           {t(I18nKey.TASKS$SUGGESTED_TASKS)}
         </h3>
       </div>

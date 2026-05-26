@@ -29,7 +29,7 @@ vi.mock("#/components/shared/buttons/styled-tooltip", () => ({
   ),
 }));
 
-const llmItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings")!;
+const llmItem = OSS_NAV_ITEMS.find((item) => item.to === "/settings/llm")!;
 const condenserItem = OSS_NAV_ITEMS.find(
   (item) => item.to === "/settings/condenser",
 )!;
@@ -138,7 +138,7 @@ describe("SettingsNavigation", () => {
     // SidebarNavLink renders disabled items as a non-link span with
     // ``aria-disabled="true"`` and ``opacity-50`` styling.
     const llmLink = within(desktopNav).getByTestId(
-      "sidebar-settings-/settings",
+      "sidebar-settings-/settings/llm",
     );
     const condenserLink = within(desktopNav).getByTestId(
       "sidebar-settings-/settings/condenser",
@@ -157,7 +157,7 @@ describe("SettingsNavigation", () => {
     );
     const desktopNav = screen.getByTestId("settings-navbar-desktop");
     const llmLink = within(desktopNav).getByTestId(
-      "sidebar-settings-/settings",
+      "sidebar-settings-/settings/llm",
     );
     expect(llmLink).not.toHaveAttribute("aria-disabled", "true");
   });

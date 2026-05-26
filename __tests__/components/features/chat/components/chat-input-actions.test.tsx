@@ -12,16 +12,18 @@ import type { Backend } from "#/api/backend-registry/types";
 
 const useActiveConversationMock = vi.fn<
   () => {
-    data: { conversation_id: string; llm_model: string | null } | undefined;
+    data:
+      | {
+          conversation_id: string;
+          agent_kind?: "openhands" | "acp";
+          llm_model: string | null;
+        }
+      | undefined;
   }
 >(() => ({ data: undefined }));
 
 vi.mock("#/components/features/controls/agent-status", () => ({
   AgentStatus: () => <div data-testid="agent-status-stub" />,
-}));
-
-vi.mock("#/components/features/controls/tools", () => ({
-  Tools: () => <div data-testid="tools-stub" />,
 }));
 
 vi.mock("#/components/features/chat/change-agent-button", () => ({
@@ -75,6 +77,26 @@ describe("ChatInputActions", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the static model label for local ACP conversations", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputActions disabled={false} />);
+
+    expect(screen.getByTestId("chat-input-llm-model")).toHaveAttribute(
+      "title",
+      "claude-sonnet-4-6",
+    );
+    expect(
+      screen.queryByTestId("switch-profile-button-stub"),
     ).not.toBeInTheDocument();
   });
 

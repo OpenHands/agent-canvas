@@ -33,6 +33,7 @@ import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
 import {
   groupConversations,
+  getGroupConversationPreview,
   sortConversationsByField,
   type ConversationGroupLaunch,
 } from "./conversation-panel-list-helpers";
@@ -140,6 +141,9 @@ export function ConversationPanel({
   const [collapsedGroupIds, setCollapsedGroupIds] = React.useState<
     ReadonlySet<string>
   >(() => new Set());
+  const [expandedGroupPreviewIds, setExpandedGroupPreviewIds] = React.useState<
+    ReadonlySet<string>
+  >(() => new Set());
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
     setCollapsedGroupIds((prev) => {
@@ -153,12 +157,27 @@ export function ConversationPanel({
     });
   }, []);
 
+  const toggleGroupPreviewExpanded = React.useCallback((groupId: string) => {
+    setExpandedGroupPreviewIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     if (organizeMode !== "grouped") {
       setCollapsedGroupIds(new Set());
+      setExpandedGroupPreviewIds(new Set());
     }
   }, [organizeMode]);
+
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
   const [selectedConversationId, setSelectedConversationId] = React.useState<
     string | null
   >(null);
@@ -168,8 +187,14 @@ export function ConversationPanel({
     string | null
   >(null);
 
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    usePaginatedConversations();
+  const {
+    data,
+    isLoading,
+    isFetched,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = usePaginatedConversations();
 
   // Fetch in-progress start tasks
   const { data: startTasks } = useStartTasks();
@@ -260,6 +285,11 @@ export function ConversationPanel({
     return conversationGroups.reduce((n, g) => n + g.conversations.length, 0);
   }, [conversationGroups]);
 
+  const listIsEffectivelyEmpty =
+    organizeMode === "grouped" && !compact
+      ? visibleGroupedCount === 0
+      : visibleFlatCount === 0;
+
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
   const { mutate: pauseConversation } = useUnifiedPauseConversation();
@@ -272,7 +302,10 @@ export function ConversationPanel({
   const olderHidden = olderScoped.length > 0 && !showOlderConversations;
   // Compact mode also hides "Load more" — paginating into archived
   // conversations contradicts the "active only" intent of the icon rail.
-  const showLoadMore = !!hasNextPage && !olderHidden && !compact;
+  // Do not show when the visible list is empty (e.g. filters hide every
+  // loaded conversation) — that state already shows "No conversations found".
+  const showLoadMore =
+    !!hasNextPage && !olderHidden && !compact && !listIsEffectivelyEmpty;
 
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversationFlow = useIsCreatingConversation();
@@ -399,6 +432,8 @@ export function ConversationPanel({
             showRepositoryMetadata={showRepoBranchMetadata}
             llmModel={conversation.llm_model}
             showLlmProfiles={showLlmProfiles}
+            agentKind={conversation.agent_kind}
+            acpServer={conversation.acp_server}
           />
         );
       }
@@ -407,7 +442,7 @@ export function ConversationPanel({
           key={conversation.id}
           to={`/conversations/${conversation.id}`}
           onClick={onClose}
-          className="block py-0.5"
+          className="block"
         >
           <ConversationCard
             onDelete={() =>
@@ -440,6 +475,8 @@ export function ConversationPanel({
             showRepositoryMetadata={showRepoBranchMetadata}
             llmModel={conversation.llm_model}
             showLlmProfiles={showLlmProfiles}
+            agentKind={conversation.agent_kind}
+            acpServer={conversation.acp_server}
           />
         </NavigationLink>
       );
@@ -461,17 +498,16 @@ export function ConversationPanel({
   // child fills the panel and scrolls when its content overflows. Modals are
   // siblings of the scroll element and are `position: fixed`, so they don't
   // participate in the panel's scroll geometry.
-  // Gate on `isLoading` (true only during the first fetch with no cached
-  // data), not `isFetching` — the latter flips back to true on every 10s
-  // background refetch, causing the skeleton/empty-state to flicker when
-  // the list is empty.
-  const showInitialSkeleton = isLoading;
-  const listIsEffectivelyEmpty =
-    organizeMode === "grouped" && !compact
-      ? visibleGroupedCount === 0
-      : visibleFlatCount === 0;
+  // Gate on `isLoading` / `!isFetched` (true only until the first fetch settles),
+  // not `isFetching` — the latter flips back to true on every 10s background
+  // refetch, causing the skeleton/empty-state to flicker when the list is empty.
+  const showInitialSkeleton = isLoading || !isFetched;
   const showEmptyState =
-    !isLoading && !compact && listIsEffectivelyEmpty && !startTasks?.length;
+    isFetched &&
+    !isLoading &&
+    !compact &&
+    listIsEffectivelyEmpty &&
+    !startTasks?.length;
 
   const showConversationHeader = !compact;
 
@@ -484,15 +520,17 @@ export function ConversationPanel({
       {showConversationHeader && (
         <div
           className={cn(
-            "-mx-2 border-b",
+            // Pull flush to the sidebar edges: `-ml-2.5` matches aside `pl-2.5`;
+            // width extends by that inset on the right now that aside is `pr-0`.
+            "-ml-2.5 w-[calc(100%+0.625rem)] max-w-none box-border border-b",
             isListScrolled ? "border-[var(--oh-border)]" : "border-transparent",
           )}
         >
           <div
             data-testid="older-conversations-summary"
-            className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 pl-4 pr-2 text-[var(--oh-muted)]"
+            className="flex min-w-0 flex-nowrap items-center gap-x-2 py-2 pl-4 pr-2.5 text-[var(--oh-muted)]"
           >
-            <span className="text-sm font-medium text-[var(--oh-muted)]">
+            <span className="min-w-0 truncate text-sm font-medium text-[var(--oh-muted)]">
               {t(I18nKey.SIDEBAR$CONVERSATIONS)}
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -526,16 +564,23 @@ export function ConversationPanel({
 
       <div
         ref={scrollContainerRef}
+        data-testid="conversation-panel-list-scroll"
         onScroll={(event) => {
           setIsListScrolled(event.currentTarget.scrollTop > 0);
         }}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar-always",
+          !compact && "conversation-panel-list-scroll",
+        )}
       >
         {showInitialSkeleton && <ConversationCardSkeleton compact={compact} />}
 
         {!compact && showEmptyState && (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8">
-            <p className="text-[var(--oh-muted)]">
+          <div
+            data-testid="conversation-panel-empty-state"
+            className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8"
+          >
+            <p className="text-xs text-[var(--oh-muted)]">
               {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}
             </p>
           </div>
@@ -570,12 +615,22 @@ export function ConversationPanel({
           >
             {conversationGroups.map((group) => {
               const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+              const groupTestIdSuffix = group.id.replace(
+                /[^a-zA-Z0-9_-]/g,
+                "-",
+              );
               const expanded = !collapsedGroupIds.has(group.id);
+              const previewExpanded = expandedGroupPreviewIds.has(group.id);
+              const { visibleConversations, isPreviewTruncated, isShowingAll } =
+                getGroupConversationPreview(group.conversations, {
+                  expanded: previewExpanded,
+                  activeConversationId: currentConversationId,
+                });
               return (
                 <section key={group.id} aria-labelledby={headingId}>
                   <div
                     className={cn(
-                      "flex h-8 w-full min-w-0 items-center gap-0.5 rounded-md pl-2 pr-1 text-sm font-medium",
+                      "flex h-8 w-full min-w-0 items-center gap-0.5 rounded-md pl-2 pr-1 text-sm font-normal",
                       "text-[var(--oh-muted)] transition-colors",
                       "hover:bg-[var(--oh-surface-raised)] hover:text-white",
                     )}
@@ -620,7 +675,21 @@ export function ConversationPanel({
                   </div>
                   {expanded ? (
                     <div className="mt-0.5 space-y-0.5">
-                      {group.conversations.map(renderConversationCard)}
+                      {visibleConversations.map(renderConversationCard)}
+                      {isPreviewTruncated ? (
+                        <div className="pl-2">
+                          <button
+                            type="button"
+                            data-testid={`thread-folder-view-more-${groupTestIdSuffix}`}
+                            onClick={() => toggleGroupPreviewExpanded(group.id)}
+                            className="ml-[26px] cursor-pointer text-xs text-[var(--oh-text-dim)] hover:text-white"
+                          >
+                            {isShowingAll
+                              ? t(I18nKey.CONVERSATION_PANEL$LESS)
+                              : t(I18nKey.CONVERSATION_PANEL$MORE)}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </section>
@@ -632,7 +701,9 @@ export function ConversationPanel({
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "chronological" ? (
-          <>{sortedVisibleConversations.map(renderConversationCard)}</>
+          <div className="space-y-0.5">
+            {sortedVisibleConversations.map(renderConversationCard)}
+          </div>
         ) : null}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist

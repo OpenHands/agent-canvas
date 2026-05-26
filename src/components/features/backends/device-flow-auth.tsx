@@ -138,7 +138,7 @@ export function DeviceFlowAuth({
           className="w-full"
           isDisabled={isDisabled}
         >
-          🔑 {t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
+          {t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
         </BrandButton>
       )}
 

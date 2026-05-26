@@ -1,9 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Cpu, Wrench } from "lucide-react";
+import { Cpu } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
-import { Tools } from "../../controls/tools";
 import { ChangeAgentButton } from "../change-agent-button";
 import { ChatInputModel } from "./chat-input-model";
 import { SwitchProfileButton } from "../switch-profile-button";
@@ -21,24 +20,21 @@ import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
+import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import { labelForAcpModel } from "#/constants/acp-providers";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
 import { I18nKey } from "#/i18n/declaration";
-import { SystemMessageModal } from "../../conversation-panel/system-message-modal";
-import { SkillsModal } from "../../conversation-panel/skills-modal";
-import { HooksModal } from "../../conversation-panel/hooks-modal";
-import { ToolsContextMenu } from "../../controls/tools-context-menu";
 import { ToolsContextMenuIconText } from "../../controls/tools-context-menu-icon-text";
 import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { ContextMenu } from "#/ui/context-menu";
 import { Divider } from "#/ui/divider";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
-import { CONTEXT_MENU_ICON_TEXT_CLASSNAME } from "#/utils/constants";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 interface ChatInputActionsProps {
   disabled: boolean;
@@ -61,15 +57,23 @@ export function ChatInputActions({
   const unifiedPauseMutation = useUnifiedPauseConversation();
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
-  // Optional because the chat input also renders on the home page (no
-  // conversation route yet). Conversation-scoped actions below guard on this.
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
-  const llmDestinationLabel = t(
-    isCloud ? I18nKey.SETTINGS$LLM_SETTINGS : I18nKey.SETTINGS$LLM_PROFILES,
-  );
+  // Shared with ChatInputModel: routes the model affordance to ChatInputModel
+  // (which knows how to show the ACP model) instead of SwitchProfileButton for
+  // ACP conversations — and for the home screen when Settings → Agent already
+  // selects an ACP agent, since the next conversation will inherit it.
+  const { isAcpContext, destinationPath, destinationLabel } =
+    useAcpModelContext();
+  // Mirror ChatInputModel: ACP conversations show the provider's human label
+  // (e.g. "Claude Opus 4.7") in the overflow model submenu, not the raw
+  // ``acp_model`` id. OpenHands keeps the raw model string.
+  const overflowModelLabel = isAcpContext
+    ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
+      conversation?.llm_model)
+    : conversation?.llm_model;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -78,7 +82,6 @@ export function ChatInputActions({
   const actionsRowRef = React.useRef<HTMLDivElement>(null);
   const rightSectionRef = React.useRef<HTMLDivElement>(null);
   const addFileRef = React.useRef<HTMLDivElement>(null);
-  const toolsRef = React.useRef<HTMLDivElement>(null);
   const codeRef = React.useRef<HTMLDivElement>(null);
   const modelRef = React.useRef<HTMLDivElement>(null);
   const overflowTriggerRef = React.useRef<HTMLButtonElement>(null);
@@ -87,41 +90,19 @@ export function ChatInputActions({
   );
   const [rightSectionWidth, setRightSectionWidth] = React.useState(0);
   const [addFileWidth, setAddFileWidth] = React.useState(32);
-  const [toolsWidth, setToolsWidth] = React.useState(100);
   const [codeWidth, setCodeWidth] = React.useState(96);
   const [modelWidth, setModelWidth] = React.useState(120);
   const [isOverflowOpen, setIsOverflowOpen] = React.useState(false);
   const [activeSubmenu, setActiveSubmenu] = React.useState<
-    "tools" | "agent" | "model" | null
+    "agent" | "model" | null
   >(null);
   const [overflowPortalStyle, setOverflowPortalStyle] =
     React.useState<React.CSSProperties>();
-
-  const {
-    handleShowAgentTools,
-    handleShowSkills,
-    handleShowHooks,
-    systemModalVisible,
-    setSystemModalVisible,
-    skillsModalVisible,
-    setSkillsModalVisible,
-    hooksModalVisible,
-    setHooksModalVisible,
-    systemMessage,
-    shouldShowAgentTools,
-    shouldShowHooks,
-  } = useConversationNameContextMenu({
-    conversationId: conversationId ?? undefined,
-    executionStatus: conversation?.execution_status,
-    showOptions: true,
-    onContextMenuToggle: setIsOverflowOpen,
-  });
 
   React.useEffect(() => {
     const rowEl = actionsRowRef.current;
     const rightEl = rightSectionRef.current;
     const addEl = addFileRef.current;
-    const toolsEl = toolsRef.current;
     const codeEl = codeRef.current;
     const modelEl = modelRef.current;
 
@@ -129,7 +110,6 @@ export function ChatInputActions({
       !rowEl ||
       !rightEl ||
       !addEl ||
-      !toolsEl ||
       !modelEl ||
       (isCloud && !codeEl) ||
       typeof ResizeObserver === "undefined"
@@ -141,13 +121,11 @@ export function ChatInputActions({
       const nextRowWidth = rowEl.getBoundingClientRect().width;
       const nextRightWidth = rightEl.getBoundingClientRect().width;
       const nextAddWidth = addEl.getBoundingClientRect().width;
-      const nextToolsWidth = toolsEl.getBoundingClientRect().width;
       const nextModelWidth = modelEl.getBoundingClientRect().width;
 
       if (nextRowWidth > 0) setActionsRowWidth(nextRowWidth);
       if (nextRightWidth > 0) setRightSectionWidth(nextRightWidth);
       if (nextAddWidth > 0) setAddFileWidth(nextAddWidth);
-      if (nextToolsWidth > 0) setToolsWidth(nextToolsWidth);
       if (nextModelWidth > 0) setModelWidth(nextModelWidth);
 
       if (codeEl) {
@@ -163,7 +141,6 @@ export function ChatInputActions({
     observer.observe(rowEl);
     observer.observe(rightEl);
     observer.observe(addEl);
-    observer.observe(toolsEl);
     observer.observe(modelEl);
     if (codeEl) {
       observer.observe(codeEl);
@@ -176,13 +153,11 @@ export function ChatInputActions({
 
   const handlePauseAgent = () => {
     if (!conversationId) return;
-    // Pause the conversation (agent execution)
     pauseConversationMutation.mutate({ conversationId });
   };
 
   const handleResumeAgentClick = () => {
     if (!conversationId) return;
-    // Resume the conversation (agent execution)
     resumeConversationMutation.mutate({ conversationId });
   };
 
@@ -197,15 +172,9 @@ export function ChatInputActions({
     (availableWidth: number) => {
       let remaining = availableWidth;
       const next = {
-        showToolsInline: false,
         showCodeInline: false,
         showModelInline: false,
       };
-
-      if (remaining >= toolsWidth) {
-        next.showToolsInline = true;
-        remaining -= toolsWidth + INLINE_GAP;
-      }
 
       if (isCloud && remaining >= codeWidth) {
         next.showCodeInline = true;
@@ -218,7 +187,7 @@ export function ChatInputActions({
 
       return next;
     },
-    [toolsWidth, isCloud, codeWidth, modelWidth],
+    [isCloud, codeWidth, modelWidth],
   );
 
   const leftBaseWidth =
@@ -226,7 +195,6 @@ export function ChatInputActions({
 
   const fitWithoutOverflow = fitOptionalItems(leftBaseWidth);
   const allOptionalFit =
-    fitWithoutOverflow.showToolsInline &&
     (!isCloud || fitWithoutOverflow.showCodeInline) &&
     fitWithoutOverflow.showModelInline;
 
@@ -234,17 +202,13 @@ export function ChatInputActions({
     ? fitWithoutOverflow
     : fitOptionalItems(leftBaseWidth - OVERFLOW_BUTTON_WIDTH - INLINE_GAP);
 
-  const showToolsInline = fitWithOverflow.showToolsInline;
   const showCodeInline = !isCloud ? false : fitWithOverflow.showCodeInline;
   const showModelInline = fitWithOverflow.showModelInline;
   const showAddFileInline = true;
   const showAgentStatusInline = actionsRowWidth >= 360;
 
   const hasOverflowItems =
-    !showAddFileInline ||
-    !showToolsInline ||
-    (isCloud && !showCodeInline) ||
-    !showModelInline;
+    !showAddFileInline || (isCloud && !showCodeInline) || !showModelInline;
 
   React.useEffect(() => {
     if (!hasOverflowItems) {
@@ -267,11 +231,6 @@ export function ChatInputActions({
     setActiveSubmenu(null);
     setIsOverflowOpen(false);
   };
-
-  const contextMenuListItemClassName = cn(
-    "cursor-pointer p-0 h-auto hover:bg-transparent",
-    CONTEXT_MENU_ICON_TEXT_CLASSNAME,
-  );
 
   React.useLayoutEffect(() => {
     if (!isOverflowOpen || !overflowTriggerRef.current) {
@@ -310,44 +269,6 @@ export function ChatInputActions({
       alignment="left"
       className="!static !top-auto !bottom-auto !left-auto !right-auto !mt-0 overflow-visible min-w-[200px]"
     >
-      {!showToolsInline && (
-        <div className="relative group/overflow-tools">
-          <ContextMenuListItem
-            testId="overflow-tools-button"
-            onClick={() =>
-              setActiveSubmenu((current) =>
-                current === "tools" ? null : "tools",
-              )
-            }
-            className={contextMenuListItemClassName}
-          >
-            <ToolsContextMenuIconText
-              icon={<Wrench width={16} height={16} strokeWidth={2} />}
-              text={t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
-              rightIcon={<CarretRightFillIcon width={10} height={10} />}
-              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
-            />
-          </ContextMenuListItem>
-          <div
-            className={cn(
-              "absolute left-full top-[-6px] z-60 opacity-0 invisible pointer-events-none transition-all duration-200 ml-[1px]",
-              "group-hover/overflow-tools:opacity-100 group-hover/overflow-tools:visible group-hover/overflow-tools:pointer-events-auto",
-              "hover:opacity-100 hover:visible hover:pointer-events-auto",
-              activeSubmenu === "tools" &&
-                "opacity-100 visible pointer-events-auto",
-            )}
-          >
-            <ToolsContextMenu
-              onClose={closeOverflowMenus}
-              onShowSkills={handleShowSkills}
-              onShowHooks={handleShowHooks}
-              onShowAgentTools={handleShowAgentTools}
-              shouldShowAgentTools={shouldShowAgentTools}
-              shouldShowHooks={shouldShowHooks}
-            />
-          </div>
-        </div>
-      )}
       {isCloud && !showCodeInline && (
         <div className="relative group/overflow-agent">
           <ContextMenuListItem
@@ -358,7 +279,6 @@ export function ChatInputActions({
               )
             }
             isDisabled={isAgentSwitcherDisabled}
-            className={contextMenuListItemClassName}
           >
             <ToolsContextMenuIconText
               icon={<CodePillIcon className="h-[11px] w-[11px]" />}
@@ -368,7 +288,6 @@ export function ChatInputActions({
                   : t(I18nKey.COMMON$PLAN)
               }
               rightIcon={<CarretRightFillIcon width={10} height={10} />}
-              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
             />
           </ContextMenuListItem>
           {!isAgentSwitcherDisabled && (
@@ -383,7 +302,7 @@ export function ChatInputActions({
             >
               <ContextMenu
                 testId="overflow-agent-submenu"
-                className="overflow-visible min-w-[195px]"
+                className="overflow-visible min-w-[195px] gap-0"
               >
                 <ContextMenuListItem
                   testId="overflow-agent-code"
@@ -393,12 +312,10 @@ export function ChatInputActions({
                     setConversationMode("code");
                     closeOverflowMenus();
                   }}
-                  className={contextMenuListItemClassName}
                 >
                   <ToolsContextMenuIconText
                     icon={<CodePillIcon className="h-[11px] w-[11px]" />}
                     text={t(I18nKey.COMMON$CODE)}
-                    className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
                   />
                 </ContextMenuListItem>
                 <ContextMenuListItem
@@ -407,7 +324,6 @@ export function ChatInputActions({
                     handlePlanClick(event);
                     closeOverflowMenus();
                   }}
-                  className={contextMenuListItemClassName}
                 >
                   <ToolsContextMenuIconText
                     icon={
@@ -418,7 +334,6 @@ export function ChatInputActions({
                       />
                     }
                     text={t(I18nKey.COMMON$PLAN)}
-                    className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
                   />
                 </ContextMenuListItem>
               </ContextMenu>
@@ -435,13 +350,11 @@ export function ChatInputActions({
                 current === "model" ? null : "model",
               )
             }
-            className={contextMenuListItemClassName}
           >
             <ToolsContextMenuIconText
               icon={<Cpu width={16} height={16} strokeWidth={2} aria-hidden />}
               text="Model"
               rightIcon={<CarretRightFillIcon width={10} height={10} />}
-              className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
             />
           </ContextMenuListItem>
           <div
@@ -455,27 +368,33 @@ export function ChatInputActions({
           >
             <ContextMenu
               testId="overflow-model-submenu"
-              className="overflow-visible min-w-[220px] max-w-[320px]"
+              className="overflow-visible min-w-[220px] max-w-[320px] gap-0"
             >
               <li className="text-sm">
-                <div className="p-2 leading-5 text-white break-all">
-                  {conversation?.llm_model}
+                <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">
+                  {overflowModelLabel}
                 </div>
               </li>
-              <Divider />
+              <Divider inset="menu" />
               <li className="text-sm">
                 <NavigationLink
-                  to="/settings"
+                  to={destinationPath}
                   onClick={closeOverflowMenus}
-                  className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
+                  className={cn(
+                    "group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
+                    formControlTransitionClassName,
+                  )}
                 >
                   <SettingsGearIcon
                     width={16}
                     height={16}
-                    className="shrink-0"
+                    className={cn(
+                      "shrink-0 text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)]",
+                      formControlTransitionClassName,
+                    )}
                     aria-hidden
                   />
-                  <span>{llmDestinationLabel}</span>
+                  <span>{destinationLabel}</span>
                 </NavigationLink>
               </li>
             </ContextMenu>
@@ -498,16 +417,17 @@ export function ChatInputActions({
               handleFileIconClick={onAddFileClick}
             />
           </div>
-          <div ref={toolsRef} className={cn(!showToolsInline && "hidden")}>
-            <Tools />
-          </div>
           {isCloud && (
             <div ref={codeRef} className={cn(!showCodeInline && "hidden")}>
               <ChangeAgentButton />
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud ? <ChatInputModel /> : <SwitchProfileButton />}
+            {isCloud || isAcpContext ? (
+              <ChatInputModel />
+            ) : (
+              <SwitchProfileButton />
+            )}
           </div>
 
           {hasOverflowItems && (
@@ -516,7 +436,8 @@ export function ChatInputActions({
                 ref={overflowTriggerRef}
                 type="button"
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-full text-[var(--oh-muted)] transition-colors",
+                  "flex size-6 items-center justify-center rounded-full text-[var(--oh-muted)]",
+                  formControlTransitionClassName,
                   "hover:bg-white/10 hover:text-white cursor-pointer",
                 )}
                 aria-label="More input actions"
@@ -539,7 +460,6 @@ export function ChatInputActions({
                 typeof document !== "undefined" &&
                 overflowPortalStyle &&
                 ReactDOM.createPortal(
-                  // portal position computed from DOM bounding rect at runtime
                   <div style={overflowPortalStyle}>{overflowMenu}</div>,
                   document.body,
                 )}
@@ -567,18 +487,6 @@ export function ChatInputActions({
           />
         )}
       </div>
-
-      <SystemMessageModal
-        isOpen={systemModalVisible}
-        onClose={() => setSystemModalVisible(false)}
-        systemMessage={systemMessage || null}
-      />
-      {skillsModalVisible && (
-        <SkillsModal onClose={() => setSkillsModalVisible(false)} />
-      )}
-      {hooksModalVisible && (
-        <HooksModal onClose={() => setHooksModalVisible(false)} />
-      )}
     </div>
   );
 }

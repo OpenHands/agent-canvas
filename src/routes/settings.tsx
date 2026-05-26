@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Outlet, redirect, useLocation, useMatches } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Route } from "./+types/settings";
@@ -8,6 +8,7 @@ import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
 import { Typography } from "#/ui/typography";
+import { useBreakpoint } from "#/hooks/use-breakpoint";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import {
@@ -15,6 +16,7 @@ import {
   isSettingsPageHidden,
 } from "#/utils/settings-utils";
 import { redirectIfAcpActive } from "#/utils/acp-route-guard";
+import { SettingsSectionHeaderProvider } from "#/contexts/settings-section-header-context";
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
@@ -56,6 +58,8 @@ function SettingsScreen() {
   const location = useLocation();
   const matches = useMatches();
   const navItems = useSettingsNavItems();
+  const isMobile = useBreakpoint(768);
+  const [hideSectionHeader, setHideSectionHeader] = useState(false);
 
   const { currentSectionTitle, currentSectionSubtitle } = useMemo(() => {
     const currentRenderedItem = navItems.find(
@@ -82,28 +86,34 @@ function SettingsScreen() {
 
   const routeHandle = matches.find((m) => m.pathname === location.pathname)
     ?.handle as { hideTitle?: boolean } | undefined;
-  const shouldHideTitle = routeHandle?.hideTitle === true;
+  const isMobileHub = isMobile && location.pathname === "/settings";
+  const shouldHideTitle =
+    routeHandle?.hideTitle === true || isMobileHub || hideSectionHeader;
 
   return (
     <main data-testid="settings-screen" className="min-h-0">
-      <SettingsLayout navigationItems={navItems}>
-        <div className="flex flex-col gap-6 pb-8">
-          {!shouldHideTitle && (
-            <header className="space-y-1">
-              <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
-              {currentSectionSubtitle ? (
-                <p
-                  data-testid="settings-page-subtitle"
-                  className="text-sm leading-5 text-tertiary-light"
-                >
-                  {t(currentSectionSubtitle)}
-                </p>
-              ) : null}
-            </header>
-          )}
-          <Outlet />
-        </div>
-      </SettingsLayout>
+      <SettingsSectionHeaderProvider
+        setHideSectionHeader={setHideSectionHeader}
+      >
+        <SettingsLayout navigationItems={navItems}>
+          <div className="flex flex-col gap-6 pb-8">
+            {!shouldHideTitle && (
+              <header className="space-y-1">
+                <Typography.H2>{t(currentSectionTitle)}</Typography.H2>
+                {currentSectionSubtitle ? (
+                  <p
+                    data-testid="settings-page-subtitle"
+                    className="text-sm leading-5 text-tertiary-light"
+                  >
+                    {t(currentSectionSubtitle)}
+                  </p>
+                ) : null}
+              </header>
+            )}
+            <Outlet />
+          </div>
+        </SettingsLayout>
+      </SettingsSectionHeaderProvider>
     </main>
   );
 }

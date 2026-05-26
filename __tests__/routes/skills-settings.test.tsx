@@ -5,9 +5,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import SkillsService from "#/api/skills-service";
+import {
+  ADD_SKILL_DOCS_URL,
+  ADD_SKILL_EXAMPLE_COMMAND,
+} from "#/constants/skills-docs";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings, SkillInfo } from "#/types/settings";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+
+const navigateMock = vi.fn();
+
+vi.mock("#/context/navigation-context", () => ({
+  useNavigation: () => ({
+    navigate: navigateMock,
+    currentPath: "/skills",
+    conversationId: null,
+    isNavigating: false,
+  }),
+  NavigationProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -58,6 +74,7 @@ function renderSkillsSettingsScreen() {
 describe("SkillsSettingsScreen", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    navigateMock.mockReset();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
   });
 
@@ -82,27 +99,78 @@ describe("SkillsSettingsScreen", () => {
     );
   });
 
-  it("surfaces the YAML description and a friendly type label instead of the raw source path", async () => {
-    // Arrange: a skill whose source is a long local filesystem path and whose
-    // type is the internal "knowledge" identifier.
-    const skill = buildSkill();
+  it("shows card subtitle text from skill content when description is omitted", async () => {
+    const skill = buildSkill({
+      name: "SSH Microagent",
+      description: null,
+      content: `---
+description: Connect and run commands on remote machines over SSH.
+---
+# SSH Microagent
+
+Full skill body.`,
+      triggers: ["ssh"],
+    });
     vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
 
-    // Act
     renderSkillsSettingsScreen();
     const card = await screen.findByTestId(`skill-card-${skill.name}`);
 
-    // Assert: description is the primary subtitle, the type is rendered as
-    // its friendly label key, and the raw filesystem path is hidden until
-    // the user opens the Details disclosure.
+    expect(
+      within(card).getByTestId(`skill-description-${skill.name}`),
+    ).toHaveTextContent("Connect and run commands on remote machines over SSH.");
+  });
+
+  it("surfaces the YAML description under the card title with the source path beneath it", async () => {
+    const skill = buildSkill();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+
     expect(
       within(card).getByTestId(`skill-description-${skill.name}`),
     ).toHaveTextContent(skill.description!);
     expect(
+      within(card).getByTestId(`skill-source-${skill.name}`),
+    ).toHaveTextContent(skill.source!);
+    expect(
+      within(card).getByTestId(`skill-icon-${skill.name}`),
+    ).toBeInTheDocument();
+    expect(
       within(card).getByTestId("skill-type-badge-knowledge"),
     ).toHaveTextContent("SETTINGS$SKILLS_TYPE_KNOWLEDGE");
+  });
+
+  it("copies the source path when the copy button is clicked", async () => {
+    const user = userEvent.setup();
+    const skill = buildSkill();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+
+    await user.click(
+      within(card).getByTestId(`skill-copy-source-${skill.name}`),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(skill.source);
+  });
+
+  it("hides the copy button when the source is a scope label instead of a path", async () => {
+    const skill = buildSkill({ name: "add_repo_inst", source: "global" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+
     expect(
-      within(card).queryByTestId(`skill-source-${skill.name}`),
+      within(card).getByTestId(`skill-source-${skill.name}`),
+    ).toHaveTextContent("global");
+    expect(
+      within(card).queryByTestId(`skill-copy-source-${skill.name}`),
     ).not.toBeInTheDocument();
   });
 
@@ -143,13 +211,15 @@ describe("SkillsSettingsScreen", () => {
     renderSkillsSettingsScreen();
     await screen.findByTestId("skill-card-deno");
 
+    const filter = screen.getByTestId("skills-type-filter");
+    await user.click(within(filter).getByTestId("dropdown-trigger"));
     await user.click(screen.getByTestId("skills-type-filter-repo"));
 
     expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
     expect(screen.getByTestId("skill-card-global-rules")).toBeInTheDocument();
   });
 
-  it("reveals license, compatibility, allowed tools, and source path when Details is expanded", async () => {
+  it("opens a detail modal with full metadata when a skill card is clicked", async () => {
     const user = userEvent.setup();
     const skill = buildSkill({
       name: "rich",
@@ -163,17 +233,65 @@ describe("SkillsSettingsScreen", () => {
     renderSkillsSettingsScreen();
     const card = await screen.findByTestId(`skill-card-${skill.name}`);
 
+    await user.click(card);
+
+    const modal = await screen.findByTestId("skill-detail-modal");
+    expect(modal).toHaveAttribute("data-skill-name", skill.name);
+    expect(
+      within(modal).getByTestId(`skill-modal-pill-${skill.name}-license`),
+    ).toHaveTextContent("MIT");
+    expect(
+      within(modal).getByTestId(`skill-modal-pill-${skill.name}-compatibility`),
+    ).toHaveTextContent("Requires Python 3.11+");
+    expect(
+      within(modal).getByTestId(`skill-modal-pill-${skill.name}-tool-bash`),
+    ).toHaveTextContent("bash");
+    expect(
+      within(modal).getByTestId(`skill-modal-pill-${skill.name}-tool-execute_bash`),
+    ).toHaveTextContent("execute_bash");
+    expect(
+      within(modal).getByTestId(`skill-modal-toggle-${skill.name}`),
+    ).toBeInTheDocument();
+  });
+
+  it("toggles a skill from the detail modal", async () => {
+    const user = userEvent.setup();
+    const skill = buildSkill({ name: "toggle-me" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+    await user.click(card);
+
+    const modal = await screen.findByTestId("skill-detail-modal");
+    expect(within(modal).getByText("SETTINGS$SKILLS_ENABLED")).toBeInTheDocument();
+
     await user.click(
-      within(card).getByTestId(`skill-details-toggle-${skill.name}`),
+      within(modal).getByTestId(`skill-modal-toggle-${skill.name}`),
     );
 
-    const details = within(card).getByTestId(`skill-details-${skill.name}`);
-    expect(details).toHaveTextContent("MIT");
-    expect(details).toHaveTextContent("Requires Python 3.11+");
-    expect(details).toHaveTextContent("execute_bash");
+    expect(card).not.toHaveClass("opacity-70");
     expect(
-      within(card).getByTestId(`skill-source-${skill.name}`),
-    ).toHaveTextContent(skill.source!);
+      within(card).getByTestId(`skill-toggle-${skill.name}`),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(within(modal).getByText("SETTINGS$SKILLS_DISABLED")).toBeInTheDocument();
+  });
+
+  it("toggles a skill from the card without opening the modal", async () => {
+    const user = userEvent.setup();
+    const skill = buildSkill({ name: "card-toggle" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    renderSkillsSettingsScreen();
+    const card = await screen.findByTestId(`skill-card-${skill.name}`);
+
+    await user.click(within(card).getByTestId(`skill-toggle-${skill.name}`));
+
+    expect(card).not.toHaveClass("opacity-70");
+    expect(
+      within(card).getByTestId(`skill-toggle-${skill.name}`),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByTestId("skill-detail-modal")).not.toBeInTheDocument();
   });
 
   it("shows an empty-state message when no skills match the current filters", async () => {
@@ -188,5 +306,44 @@ describe("SkillsSettingsScreen", () => {
     });
 
     expect(screen.getByTestId("skills-no-match")).toBeInTheDocument();
+  });
+
+  it("opens the add skill modal with docs link and closes it", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([]);
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId("skills-add-skill-button");
+
+    await user.click(screen.getByTestId("skills-add-skill-button"));
+
+    const modal = await screen.findByTestId("add-skill-modal");
+    expect(modal).toBeInTheDocument();
+    expect(screen.getByTestId("add-skill-modal-example")).toHaveTextContent(
+      "/add-skill https://github.com/OpenHands/extensions/tree/main/skills/codereview",
+    );
+    expect(screen.getByTestId("add-skill-modal-docs-link")).toHaveAttribute(
+      "href",
+      ADD_SKILL_DOCS_URL,
+    );
+
+    await user.click(screen.getByTestId("add-skill-modal-dismiss"));
+
+    expect(screen.queryByTestId("add-skill-modal")).not.toBeInTheDocument();
+  });
+
+  it("copies the example command from the add skill modal", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([]);
+
+    renderSkillsSettingsScreen();
+    await user.click(await screen.findByTestId("skills-add-skill-button"));
+    await screen.findByTestId("add-skill-modal");
+
+    await user.click(screen.getByTestId("add-skill-modal-example-copy"));
+
+    expect(writeText).toHaveBeenCalledWith(ADD_SKILL_EXAMPLE_COMMAND);
   });
 });

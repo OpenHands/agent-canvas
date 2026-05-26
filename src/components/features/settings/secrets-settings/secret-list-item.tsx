@@ -1,13 +1,24 @@
 import { Pencil, Trash2 } from "lucide-react";
+import { cn } from "#/utils/utils";
+import {
+  settingsListIconActionButtonClassName,
+  settingsListRowClassName,
+  settingsListTableCellClassName,
+  settingsListTableRowClassName,
+} from "#/utils/settings-list-classes";
 
 export function SecretListItemSkeleton() {
   return (
-    <div className="border-t border-[var(--oh-border-input)] last-of-type:border-b w-full min-w-0 pr-2.5 py-[13px] flex items-center justify-between">
-      <div className="flex items-center justify-between w-1/3">
-        <span className="skeleton h-4 w-1/2" />
+    <div
+      className={cn(
+        settingsListRowClassName,
+        "justify-between border-t border-[var(--oh-border)] first:border-t-0",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-4">
         <span className="skeleton h-4 w-1/4" />
+        <span className="skeleton h-4 w-1/2" />
       </div>
-
       <div className="flex items-center gap-1">
         <span className="skeleton h-4 w-4" />
         <span className="skeleton h-4 w-4" />
@@ -30,29 +41,35 @@ export function SecretListItem({
   onDelete,
 }: SecretListItemProps) {
   return (
-    <tr
-      data-testid="secret-item"
-      className="border-t border-[var(--oh-border)]"
-    >
-      <td className="px-3 py-2 text-sm text-content-2 truncate" title={title}>
+    <tr data-testid="secret-item" className={settingsListTableRowClassName}>
+      <td
+        className={cn(
+          settingsListTableCellClassName,
+          "text-content-2 truncate",
+        )}
+        title={title}
+      >
         {title}
       </td>
 
       <td
-        className="px-3 py-2 truncate overflow-hidden whitespace-nowrap text-sm text-content-2 opacity-80"
+        className={cn(
+          settingsListTableCellClassName,
+          "truncate text-content-2 opacity-80",
+        )}
         title={description || ""}
       >
         {description || ""}
       </td>
 
-      <td className="px-3 py-2">
+      <td className={settingsListTableCellClassName}>
         <div className="flex items-center justify-end gap-0.5">
           <button
             data-testid="edit-secret-button"
             type="button"
             onClick={onEdit}
             aria-label={`Edit ${title}`}
-            className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
+            className={settingsListIconActionButtonClassName}
           >
             <Pencil aria-hidden className="size-4" strokeWidth={2} />
           </button>
@@ -61,7 +78,7 @@ export function SecretListItem({
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${title}`}
-            className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
+            className={settingsListIconActionButtonClassName}
           >
             <Trash2 aria-hidden className="size-4" strokeWidth={2} />
           </button>

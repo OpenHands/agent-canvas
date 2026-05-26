@@ -9,13 +9,19 @@ export default [
   layout("routes/root-layout.tsx", [
     index("routes/index-redirect.tsx"),
     route("conversations", "routes/home.tsx"),
+    route(
+      "conversations/:conversationId/panel",
+      "routes/conversation-panel.tsx",
+    ),
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("launch", "routes/launch.tsx"),
+    route("customize", "routes/extensions-hub.tsx"),
     route("skills", "routes/skills-settings.tsx"),
     route("plugins", "routes/skills-plugins.tsx"),
     route("mcp", "routes/mcp.tsx"),
     route("settings", "routes/settings.tsx", [
-      index("routes/llm-settings.tsx"),
+      index("routes/settings-index.tsx"),
+      route("llm", "routes/llm-settings.tsx"),
       route("agent", "routes/agent-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),

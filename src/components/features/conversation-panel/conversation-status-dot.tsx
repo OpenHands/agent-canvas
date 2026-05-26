@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { FaArchive } from "react-icons/fa";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
@@ -133,7 +134,16 @@ export function ConversationStatusDot({
 
   const visual = effectiveVisual;
   const label = t(labelKeyFor(visual, isArchived));
-  const indicator = renderIndicator(visual);
+  const indicator = isArchived ? (
+    <FaArchive
+      data-testid="conversation-status-archived"
+      size={10}
+      className="shrink-0 text-[var(--oh-muted)] opacity-60"
+      aria-hidden
+    />
+  ) : (
+    renderIndicator(visual)
+  );
 
   const dot = (
     <div className="w-2.5 h-2.5 flex items-center justify-center shrink-0">

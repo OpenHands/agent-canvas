@@ -290,6 +290,29 @@ export interface InvokeSkillObservation extends ObservationBase<"InvokeSkillObse
   is_error?: boolean;
 }
 
+export interface SwitchLLMObservation extends ObservationBase<"SwitchLLMObservation"> {
+  /**
+   * Content returned from the switch LLM tool.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether the profile switch resulted in an error.
+   */
+  is_error: boolean;
+  /**
+   * Name of the profile the agent attempted to activate.
+   */
+  profile_name: string;
+  /**
+   * Reason the agent gave for the switch.
+   */
+  reason: string | null;
+  /**
+   * Model configured by the activated profile, when available.
+   */
+  active_model: string | null;
+}
+
 export type Observation =
   | MCPToolObservation
   | FinishObservation
@@ -303,4 +326,5 @@ export type Observation =
   | PlanningFileEditorObservation
   | GlobObservation
   | GrepObservation
-  | InvokeSkillObservation;
+  | InvokeSkillObservation
+  | SwitchLLMObservation;

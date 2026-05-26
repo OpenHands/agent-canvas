@@ -214,6 +214,8 @@ test.describe("Skills Page Visual Snapshots", () => {
       timeout: 5_000,
     });
 
+    const filter = page.getByTestId("skills-type-filter");
+    await filter.getByTestId("dropdown-trigger").click();
     await page.getByTestId("skills-type-filter-agentskills").click();
     await page.waitForTimeout(300);
 

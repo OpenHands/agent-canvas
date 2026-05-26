@@ -22,10 +22,19 @@ import {
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 
-const DEFAULT_BACKEND_PORT = 18000;
+// ── Centralized config (single source of truth for versions, ports, etc.) ───
+const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
+const SHARED_DEFAULTS = JSON.parse(
+  readFileSync(
+    path.join(__dev_safe_dirname, "..", "config", "defaults.json"),
+    "utf-8",
+  ),
+);
+
+const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
-const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
+const DEFAULT_AGENT_SERVER_PACKAGE = SHARED_DEFAULTS.packages.agentServer;
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
 const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-agent-server",
@@ -33,12 +42,8 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-// Default secret key for local development (DO NOT use in production)
-// This is kept static because it's used for encrypting/decrypting persisted settings
-const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
-// Default agent-server version (released PyPI version)
-// Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.22.1";
+const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
+const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**
@@ -332,7 +337,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.23.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -391,6 +396,8 @@ export function buildAgentServerCommand(env = process.env) {
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${version}`,
       "--with",
+      `openhands-sdk==${version}`,
+      "--with",
       `openhands-tools==${version}`,
       "--with",
       `openhands-workspace==${version}`,
@@ -403,6 +410,8 @@ export function buildAgentServerCommand(env = process.env) {
     uvxArgs.push(
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${DEFAULT_AGENT_SERVER_VERSION}`,
+      "--with",
+      `openhands-sdk==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
       `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",

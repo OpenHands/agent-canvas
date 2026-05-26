@@ -2,6 +2,11 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { InstalledServerCard } from "./installed-server-card";
+import {
+  extensionModuleCardGridClassName,
+  extensionModuleCardGridContainerClassName,
+  extensionModuleEmptyStateClassName,
+} from "#/utils/extension-module-card-classes";
 
 interface InstalledServersSectionProps {
   /** Already-filtered list — search filtering happens upstream. */
@@ -37,9 +42,9 @@ export function InstalledServersSection({
       return (
         <div
           data-testid="mcp-installed-empty-search"
-          className="rounded-xl border border-dashed border-[var(--oh-border)] p-6 text-center"
+          className="rounded-xl border border-[var(--oh-border)] p-6 text-center"
         >
-          <p className="text-xs text-tertiary-alt">
+          <p className="text-xs text-tertiary-light">
             {t(I18nKey.MCP$SEARCH_EMPTY)}
           </p>
         </div>
@@ -48,12 +53,12 @@ export function InstalledServersSection({
     return (
       <div
         data-testid="mcp-installed-empty"
-        className="rounded-xl border border-dashed border-[var(--oh-border)] p-8 text-center"
+        className={extensionModuleEmptyStateClassName}
       >
-        <p className="text-sm text-content-2">
+        <p className="text-sm text-white">
           {t(I18nKey.MCP$INSTALLED_EMPTY_TITLE)}
         </p>
-        <p className="text-xs text-tertiary-alt mt-1">
+        <p className="text-xs text-tertiary-light mt-1">
           {t(I18nKey.MCP$INSTALLED_EMPTY_HINT)}
         </p>
       </div>
@@ -61,18 +66,20 @@ export function InstalledServersSection({
   }
 
   return (
-    <div
-      data-testid="mcp-installed-list"
-      className="grid gap-3 grid-cols-1 md:grid-cols-2"
-    >
-      {servers.map((server) => (
-        <InstalledServerCard
-          key={server.id}
-          server={server}
-          onEdit={() => onEdit(server)}
-          onDelete={() => onDelete(server.id)}
-        />
-      ))}
+    <div className={extensionModuleCardGridContainerClassName}>
+      <div
+        data-testid="mcp-installed-list"
+        className={extensionModuleCardGridClassName}
+      >
+        {servers.map((server) => (
+          <InstalledServerCard
+            key={server.id}
+            server={server}
+            onEdit={() => onEdit(server)}
+            onDelete={() => onDelete(server.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
