@@ -82,6 +82,10 @@ fi
 # header for authentication.  Default OPENHANDS_AUTOMATION_API_KEY to the
 # session key so a single credential secures the whole stack.
 EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
+if [ -z "$EFFECTIVE_SESSION_KEY" ]; then
+  log "ERROR: No session API key available — cannot configure automation auth"
+  exit 1
+fi
 export OPENHANDS_AUTOMATION_API_KEY="${OPENHANDS_AUTOMATION_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 export AUTOMATION_LOCAL_API_KEY="${AUTOMATION_LOCAL_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 export AUTOMATION_AGENT_SERVER_API_KEY="${AUTOMATION_AGENT_SERVER_API_KEY:-${EFFECTIVE_SESSION_KEY}}"

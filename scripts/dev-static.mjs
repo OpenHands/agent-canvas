@@ -324,7 +324,7 @@ function startAgentServer(config) {
 }
 
 function buildAutomationBackendEnv(config) {
-  // Both backends share the same key value (config.localApiKey === config.sessionApiKey).
+  // Both backends share the same session API key value.
   return {
     AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
     AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,

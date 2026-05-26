@@ -118,9 +118,8 @@ describe("buildAutomationCommand", () => {
 
 describe("buildAgentServerAutomationEnv", () => {
   it("exposes the session API key as OPENHANDS_AUTOMATION_API_KEY for agent curl commands", () => {
-    // localApiKey === sessionApiKey in the unified key model
     expect(
-      buildAgentServerAutomationEnv({ localApiKey: "shared-session-key" }),
+      buildAgentServerAutomationEnv({ sessionApiKey: "shared-session-key" }),
     ).toEqual({
       OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
     });
@@ -288,12 +287,10 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("localApiKey is the same as sessionApiKey (unified key)", async () => {
+  it("sessionApiKey is a 64-char hex string by default", async () => {
     const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    // Both backends share the same key value
-    expect(config.localApiKey).toBe(config.sessionApiKey);
-    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("falls back to a freshly persisted session API key by default", async () => {

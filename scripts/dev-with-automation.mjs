@@ -85,14 +85,6 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
-// Legacy path kept only so the export doesn't break any downstream importers.
-// The automation backend now reuses the session API key — no separate file.
-const DEFAULT_AUTOMATION_API_KEY_PATH = join(
-  homedir(),
-  ".openhands",
-  "agent-canvas",
-  "automation-api-key.txt",
-);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -364,7 +356,6 @@ async function buildConfig(args, env = process.env) {
     stateDir,
 
     // Auth — single key for both backends
-    localApiKey: sessionApiKey,
     sessionApiKey,
 
     verbose: args.verbose,
@@ -518,12 +509,13 @@ async function waitForService(name, url, timeoutMs = 30000) {
 
 function buildAgentServerAutomationEnv(config) {
   return {
-    // Make the local automation backend key available to terminal commands
-    // spawned by the agent-server. The launcher also seeds this into Settings
-    // > Secrets, but agents commonly create automations with a curl command
-    // that references `$OPENHANDS_AUTOMATION_API_KEY`; exposing it here keeps
-    // that path working even before/without secret-registry env expansion.
-    OPENHANDS_AUTOMATION_API_KEY: config.localApiKey,
+    // Make the session API key available to terminal commands spawned by the
+    // agent-server as OPENHANDS_AUTOMATION_API_KEY. The launcher also seeds
+    // this into Settings > Secrets, but agents commonly create automations
+    // with a curl command that references `$OPENHANDS_AUTOMATION_API_KEY`;
+    // exposing it here keeps that path working even before/without
+    // secret-registry env expansion.
+    OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
   };
 }
 
@@ -640,7 +632,7 @@ function startAutomationBackend(config) {
           config.automationWorkspaceBase ||
           join(config.stateDir, "workspaces"),
         // Local API key for self-hosted auth (no cloud API needed)
-        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+        AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
         // CORS: allow localhost origins for dev
         AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
@@ -1121,7 +1113,6 @@ export {
   DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
-  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
