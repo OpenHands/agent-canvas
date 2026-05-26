@@ -83,21 +83,29 @@ export function SidebarRailBody({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={sidebarHeaderRowClassName(collapsed)}>
-        {collapsed && showCollapseToggle ? (
-          <div className={SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS}>
-            <div
-              className={cn(
+        <div
+          className={cn(
+            collapsed && showCollapseToggle
+              ? SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS
+              : "flex min-w-0 shrink-0 items-center",
+          )}
+        >
+          <div
+            className={cn(
+              collapsed &&
+                showCollapseToggle &&
                 "flex h-full w-full items-center justify-start pl-2.5 transition-opacity duration-150",
-                showCollapsedExpandButton && "opacity-0",
-              )}
-            >
-              <OpenHandsLogoButton
-                logoWidth={SIDEBAR_LOGO_WIDTH}
-                logoHeight={SIDEBAR_LOGO_HEIGHT}
-                logoClassName="max-w-none"
-                className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
-              />
-            </div>
+              collapsed && showCollapsedExpandButton && "opacity-0",
+            )}
+          >
+            <OpenHandsLogoButton
+              logoWidth={SIDEBAR_LOGO_WIDTH}
+              logoHeight={SIDEBAR_LOGO_HEIGHT}
+              logoClassName="max-w-none"
+              className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
+            />
+          </div>
+          {collapsed && showCollapseToggle ? (
             <button
               type="button"
               data-testid="sidebar-collapse-toggle"
@@ -111,50 +119,41 @@ export function SidebarRailBody({
                   : "opacity-0 pointer-events-none",
               )}
             >
-              <ChevronRight width={16} height={16} />
+              <ChevronRight width={14} height={14} />
             </button>
-          </div>
-        ) : (
-          <>
-            <OpenHandsLogoButton
-              logoWidth={SIDEBAR_LOGO_WIDTH}
-              logoHeight={SIDEBAR_LOGO_HEIGHT}
-              logoClassName="max-w-none"
-              className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
-            />
-            {showCollapseToggle ? (
-              <button
-                type="button"
-                data-testid="sidebar-collapse-toggle"
-                aria-pressed={collapsed}
-                aria-label={collapseToggleLabel}
-                onClick={onCollapse}
-                className={cn(
-                  "hidden md:inline-flex ml-auto",
-                  SIDEBAR_ICON_BUTTON_CLASS,
-                  "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-                )}
-              >
-                <ChevronLeft width={16} height={16} />
-              </button>
-            ) : null}
-            {showMobileCloseButton ? (
-              <button
-                type="button"
-                data-testid="sidebar-mobile-drawer-close"
-                onClick={onCloseMobile}
-                aria-label={t(I18nKey.SIDEBAR$CLOSE_MENU)}
-                className={cn(
-                  "inline-flex ml-auto",
-                  SIDEBAR_ICON_BUTTON_CLASS,
-                  "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-                )}
-              >
-                <ChevronLeft width={16} height={16} />
-              </button>
-            ) : null}
-          </>
-        )}
+          ) : null}
+        </div>
+        {!collapsed && showCollapseToggle ? (
+          <button
+            type="button"
+            data-testid="sidebar-collapse-toggle"
+            aria-pressed={collapsed}
+            aria-label={collapseToggleLabel}
+            onClick={onCollapse}
+            className={cn(
+              "hidden md:inline-flex ml-auto",
+              SIDEBAR_ICON_BUTTON_CLASS,
+              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+            )}
+          >
+            <ChevronLeft width={14} height={14} />
+          </button>
+        ) : null}
+        {!collapsed && showMobileCloseButton ? (
+          <button
+            type="button"
+            data-testid="sidebar-mobile-drawer-close"
+            onClick={onCloseMobile}
+            aria-label={t(I18nKey.SIDEBAR$CLOSE_MENU)}
+            className={cn(
+              "inline-flex ml-auto",
+              SIDEBAR_ICON_BUTTON_CLASS,
+              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+            )}
+          >
+            <ChevronLeft width={14} height={14} />
+          </button>
+        ) : null}
       </div>
 
       <nav className={sidebarNavListClassName(collapsed)}>

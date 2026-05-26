@@ -20,7 +20,7 @@ export function BaseModalTitle({ title, id, className }: BaseModalTitleProps) {
     <span
       id={id}
       className={cn(
-        "text-xl leading-6 -tracking-[0.01em] font-semibold text-content-2",
+        "text-xl leading-6 -tracking-[0.01em] font-medium text-content-2",
         className,
       )}
     >

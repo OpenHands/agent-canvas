@@ -4,16 +4,18 @@
  * server (workspace/.openhands/workspaces.json). All clients pointed at
  * the same agent-server see the same list.
  *
- * No SDK client exists for this resource yet, so we call HttpClient directly
- * — the same pattern used elsewhere (e.g. switch_llm in the conversation
- * service). The lint test at src/api/no-direct-agent-server-calls.test.ts
- * allows HttpClient and only rejects raw axios / createHttpClient.
+ * The SDK WorkspacesClient owns compatibility preflight behavior, so old
+ * agent-server backends surface the same typed version error without this
+ * frontend constructing a raw HttpClient.
  */
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
+import {
+  WorkspacesClient,
+  type WorkspacesListResponse as SdkWorkspacesListResponse,
+} from "@openhands/typescript-client/clients";
 
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
-import { getAgentServerHttpClientOptions } from "../agent-server-client-options";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 export interface WorkspacesListResponse {
   workspaces: LocalWorkspace[];
@@ -21,42 +23,44 @@ export interface WorkspacesListResponse {
 }
 
 function client() {
-  return new HttpClient(getAgentServerHttpClientOptions());
+  return new WorkspacesClient(getAgentServerClientOptions());
+}
+
+function toLocalWorkspacesResponse(
+  response: SdkWorkspacesListResponse,
+): WorkspacesListResponse {
+  return {
+    workspaces: response.workspaces.map(({ parentPath, ...workspace }) => ({
+      ...workspace,
+      ...(parentPath ? { parentPath } : {}),
+    })),
+    workspaceParents: response.workspaceParents,
+  };
 }
 
 class WorkspacesService {
   static async listWorkspaces(): Promise<WorkspacesListResponse> {
-    const res = await client().get<WorkspacesListResponse>("/api/workspaces");
-    return res.data;
+    return toLocalWorkspacesResponse(await client().listWorkspaces());
   }
 
   static async addWorkspaces(
     items: LocalWorkspace[],
   ): Promise<WorkspacesListResponse> {
-    const res = await client().post<WorkspacesListResponse>("/api/workspaces", {
-      workspaces: items,
-    });
-    return res.data;
+    return toLocalWorkspacesResponse(await client().addWorkspaces(items));
   }
 
   static async removeWorkspace(path: string): Promise<void> {
-    await client().delete(`/api/workspaces?path=${encodeURIComponent(path)}`);
+    await client().deleteWorkspace(path);
   }
 
   static async addWorkspaceParents(
     items: LocalWorkspaceParent[],
   ): Promise<WorkspacesListResponse> {
-    const res = await client().post<WorkspacesListResponse>(
-      "/api/workspaces/parents",
-      { parents: items },
-    );
-    return res.data;
+    return toLocalWorkspacesResponse(await client().addWorkspaceParents(items));
   }
 
   static async removeWorkspaceParent(path: string): Promise<void> {
-    await client().delete(
-      `/api/workspaces/parents?path=${encodeURIComponent(path)}`,
-    );
+    await client().deleteWorkspaceParent(path);
   }
 }
 

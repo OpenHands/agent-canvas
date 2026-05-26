@@ -9,6 +9,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { mapProvider } from "#/utils/map-provider";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import { cn } from "#/utils/utils";
+import { formControlSettingsFieldClassName } from "#/utils/form-control-classes";
+import { heroUiAutocompleteSelectorButtonClassName } from "#/ui/combobox-caret";
 import { HelpLink } from "#/ui/help-link";
 import { PRODUCT_URL } from "#/utils/constants";
 import { useSearchProviders } from "#/hooks/query/use-search-providers";
@@ -142,14 +144,12 @@ export function ModelSelector({
           classNames={{
             popoverContent:
               "bg-content1 rounded-xl border border-[var(--oh-border)]",
-            selectorButton:
-              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
+            selectorButton: heroUiAutocompleteSelectorButtonClassName,
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
+              inputWrapper: formControlSettingsFieldClassName,
             },
           }}
         >
@@ -213,14 +213,12 @@ export function ModelSelector({
           classNames={{
             popoverContent:
               "bg-content1 rounded-xl border border-[var(--oh-border)]",
-            selectorButton:
-              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
+            selectorButton: heroUiAutocompleteSelectorButtonClassName,
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
+              inputWrapper: formControlSettingsFieldClassName,
             },
           }}
         >

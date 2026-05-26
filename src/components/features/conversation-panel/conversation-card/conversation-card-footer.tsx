@@ -5,7 +5,15 @@ import { I18nKey } from "#/i18n/declaration";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionPaused } from "#/utils/status";
-import { getAcpProviderDisplayName } from "#/constants/acp-providers";
+import {
+  getAcpProviderDisplayName,
+  labelForAcpModel,
+  resolveAcpProviderIcon,
+} from "#/constants/acp-providers";
+import {
+  AgentBrandIcon,
+  type AgentBrandIconKind,
+} from "#/components/shared/agent-brand-icon";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 
@@ -18,13 +26,17 @@ interface ConversationCardFooterProps {
   showRepositoryMetadata?: boolean;
   showTimestamp?: boolean;
   llmModel?: string | null;
-  showLlmModel?: boolean;
   /**
-   * High-level kind of the conversation's agent. The ACP-agent chip is
-   * only rendered when this is ``"acp"``. The OpenHands rendering path
-   * is intentionally untouched — for OpenHands conversations the chip is
-   * suppressed regardless of any ``acpServer`` value (defensive against
-   * stray wire tags on non-ACP conversations).
+   * Whether to render the agent/model chip. Wired to the conversation
+   * panel's "LLM model" toggle (off by default); gates the chip uniformly
+   * for both ACP and OpenHands cards.
+   */
+  showAgentChip?: boolean;
+  /**
+   * High-level kind of the conversation's agent. Drives the chip's icon:
+   * the OpenHands logo for native conversations and the resolved ACP brand
+   * mark for ACP conversations. Defensive against stray ``acpServer``
+   * values reaching an OpenHands card.
    */
   agentKind?: "openhands" | "acp" | null;
   /**
@@ -32,9 +44,7 @@ interface ConversationCardFooterProps {
    * ``"gemini-cli"`` / unknown / null). Resolved to a human display name
    * via {@link getAcpProviderDisplayName}; unknown / null falls back to
    * a generic "ACP" label so a Custom-command preset still produces a
-   * useful chip. Always shown for ACP conversations — this is identity
-   * info, not gated by the ``showLlmModel`` preference (which is about
-   * LLM model strings, an orthogonal concern).
+   * useful chip.
    */
   acpServer?: string | null;
 }
@@ -48,7 +58,7 @@ export function ConversationCardFooter({
   showRepositoryMetadata = true,
   showTimestamp = true,
   llmModel,
-  showLlmModel = false,
+  showAgentChip = false,
   agentKind = null,
   acpServer = null,
 }: ConversationCardFooterProps) {
@@ -56,11 +66,40 @@ export function ConversationCardFooter({
 
   const isPaused = isExecutionPaused(executionStatus);
 
-  const acpDisplayName =
-    agentKind === "acp"
-      ? (getAcpProviderDisplayName(acpServer) ??
-        t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC))
-      : null;
+  // Single inline chip per conversation: [brand mark] {model text}. Gated by
+  // the conversation panel's "LLM model" toggle (off by default) and applied
+  // uniformly to both kinds — OpenHands shows the logo + ``agent.llm.model``;
+  // ACP shows the provider brand mark + model resolved through PR 730's
+  // adapter chain, falling back to the provider display name when no model is
+  // available so the chip never collapses to icon-only.
+  let chip: {
+    kind: AgentBrandIconKind;
+    text: string;
+    tooltip: string;
+  } | null = null;
+  if (showAgentChip) {
+    if (agentKind === "acp") {
+      const providerName =
+        getAcpProviderDisplayName(acpServer) ??
+        t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC);
+      // Prefer the provider's picker label (e.g. "Claude Opus 4.7") over the
+      // raw ``acp_model`` ID; falls back to the raw ID for custom overrides
+      // and to the provider name when there's no model at all.
+      const modelLabel = labelForAcpModel(acpServer, llmModel);
+      const text = modelLabel ?? providerName;
+      chip = {
+        kind: resolveAcpProviderIcon(acpServer),
+        text,
+        tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
+      };
+    } else if (llmModel) {
+      chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+    }
+  }
+
+  // Match title text start: 18px status column + gap-2 (8px).
+  const metadataIndentClass =
+    executionStatus !== undefined ? "pl-[26px]" : undefined;
 
   return (
     <div
@@ -69,30 +108,22 @@ export function ConversationCardFooter({
         isPaused && "opacity-60",
       )}
     >
-      {acpDisplayName ? (
-        <div className="pl-[18px]">
+      {chip ? (
+        <div className={metadataIndentClass}>
           <span
-            data-testid="conversation-card-acp-badge"
-            className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[var(--oh-surface-raised)] text-[var(--oh-muted)] text-xs font-medium max-w-full truncate"
-            title={acpDisplayName}
+            data-testid="conversation-card-agent-chip"
+            className="inline-flex items-center gap-1 text-xs text-[var(--oh-muted)] max-w-full min-w-0"
+            title={chip.tooltip}
           >
-            {acpDisplayName}
+            <AgentBrandIcon kind={chip.kind} />
+            <span className="truncate">{chip.text}</span>
           </span>
         </div>
       ) : null}
-      {showLlmModel && llmModel ? (
-        <span
-          className="min-w-0 max-w-full truncate pl-[18px] text-xs text-[var(--oh-muted)]"
-          title={llmModel}
-        >
-          {llmModel}
-        </span>
-      ) : null}
       <div
         className={cn(
-          // Align repo/workspace row with the title (status dot + gap).
           "flex flex-row items-center gap-2 w-full min-w-0",
-          showRepositoryMetadata && "pl-[18px]",
+          showRepositoryMetadata && metadataIndentClass,
         )}
       >
         {showRepositoryMetadata &&

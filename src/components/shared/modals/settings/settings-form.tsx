@@ -117,7 +117,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             testId="save-settings-button"
             type="submit"
             variant="primary"
-            className="w-full font-semibold"
+            className="w-full"
           >
             {t(I18nKey.BUTTON$SAVE)}
           </BrandButton>

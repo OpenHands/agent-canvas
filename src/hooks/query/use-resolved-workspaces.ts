@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { FileClient } from "@openhands/typescript-client/clients";
+import {
+  FileClient,
+  isAgentServerVersionError,
+} from "@openhands/typescript-client/clients";
 
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
@@ -10,6 +13,7 @@ interface UseResolvedWorkspacesResult {
   workspaces: LocalWorkspace[];
   isLoading: boolean;
   isError: boolean;
+  error: unknown;
 }
 
 /**
@@ -45,7 +49,9 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     data,
     isLoading: isLoadingList,
     isError: isErrorList,
+    error: listError,
   } = useLocalWorkspaces();
+  const workspacesUnsupported = isAgentServerVersionError(listError);
   const workspaces = data?.workspaces ?? [];
   const storedParents = data?.workspaceParents ?? [];
 
@@ -55,23 +61,26 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     const seen = new Set(storedParents.map((p) => p.path));
     // Filter out implicit parents that conflict with user-added ones (by path)
     // so custom names/ids are preserved.
-    const implicitParents = INCLUDE_IMPLICIT_WORKSPACE_PARENTS
-      ? IMPLICIT_WORKSPACE_PARENTS
-      : [];
+    const implicitParents =
+      INCLUDE_IMPLICIT_WORKSPACE_PARENTS && !workspacesUnsupported
+        ? IMPLICIT_WORKSPACE_PARENTS
+        : [];
     const extras = implicitParents.filter((p) => !seen.has(p.path));
     return extras.length === 0 ? storedParents : [...storedParents, ...extras];
-  }, [storedParents]);
+  }, [storedParents, workspacesUnsupported]);
 
   const parentQueries = useQueries({
-    queries: workspaceParents.map((parent) => ({
-      queryKey: ["file", "search_subdirs", parent.path],
-      queryFn: () =>
-        new FileClient(getAgentServerClientOptions()).searchSubdirectories(
-          parent.path,
-        ),
-      retry: false,
-      meta: { disableToast: true },
-    })),
+    queries: workspacesUnsupported
+      ? []
+      : workspaceParents.map((parent) => ({
+          queryKey: ["file", "search_subdirs", parent.path],
+          queryFn: () =>
+            new FileClient(getAgentServerClientOptions()).searchSubdirectories(
+              parent.path,
+            ),
+          retry: false,
+          meta: { disableToast: true },
+        })),
   });
 
   const isLoading = isLoadingList || parentQueries.some((q) => q.isLoading);
@@ -115,5 +124,5 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     return Array.from(byPath.values());
   }, [workspaces, workspaceParents, queriesFingerprint]);
 
-  return { workspaces: merged, isLoading, isError };
+  return { workspaces: merged, isLoading, isError, error: listError };
 }

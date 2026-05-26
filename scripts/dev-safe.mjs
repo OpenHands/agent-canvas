@@ -396,6 +396,8 @@ export function buildAgentServerCommand(env = process.env) {
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${version}`,
       "--with",
+      `openhands-sdk==${version}`,
+      "--with",
       `openhands-tools==${version}`,
       "--with",
       `openhands-workspace==${version}`,
@@ -408,6 +410,8 @@ export function buildAgentServerCommand(env = process.env) {
     uvxArgs.push(
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${DEFAULT_AGENT_SERVER_VERSION}`,
+      "--with",
+      `openhands-sdk==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
       `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",

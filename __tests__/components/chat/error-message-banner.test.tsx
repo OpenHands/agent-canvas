@@ -34,6 +34,13 @@ describe("ErrorMessageBanner", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a red error icon beside the message", () => {
+    render(<ErrorMessageBanner message="Something went wrong" />);
+
+    const icon = screen.getByTestId("error-message-banner-icon");
+    expect(icon).toHaveStyle({ color: "var(--oh-status-error)" });
+  });
+
   it("uses greyscale theme tokens instead of red error styling", () => {
     render(<ErrorMessageBanner message="Something went wrong" />);
 

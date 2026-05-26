@@ -18,6 +18,11 @@ import {
   parseTimeOfDay,
   type SchedulePresetKind,
 } from "#/utils/automation-schedule";
+import { cn } from "#/utils/utils";
+import {
+  formControlMultilineFieldClassName,
+  formControlSettingsFieldClassName,
+} from "#/utils/form-control-classes";
 import XMarkIcon from "#/icons/x-mark.svg?react";
 
 interface EditAutomationModalProps {
@@ -214,7 +219,7 @@ export function EditAutomationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-semibold text-content-2">
+        <h2 className="text-lg font-medium text-white">
           {t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         </h2>
 
@@ -244,7 +249,10 @@ export function EditAutomationModal({
                 setForm((f) => ({ ...f, prompt: e.target.value }))
               }
               rows={4}
-              className="bg-tertiary border border-[var(--oh-border-input)] w-full min-w-0 rounded-sm p-2 text-sm placeholder:text-tertiary-alt"
+              className={cn(
+                formControlMultilineFieldClassName,
+                "placeholder:italic",
+              )}
             />
             <span className="text-xs text-muted">
               {t(I18nKey.AUTOMATIONS$EDIT_PROMPT_HINT)}
@@ -291,7 +299,10 @@ export function EditAutomationModal({
                 setForm((f) => ({ ...f, timeOfDay: e.target.value }))
               }
               disabled={form.isCustomSchedule && !isTimeEditable}
-              className="bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 disabled:bg-[var(--oh-surface-raised)] disabled:cursor-not-allowed"
+              className={cn(
+                formControlSettingsFieldClassName,
+                "disabled:bg-[var(--oh-surface-raised)]",
+              )}
             />
             {automation.timezone && (
               <span className="text-xs text-muted">
