@@ -141,11 +141,14 @@ export interface ACPModelOption {
 const CLAUDE_MODELS: ACPModelOption[] = [
   { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
   { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
-  { id: "opus[1m]", label: "Claude Opus 4.6 (1M)" },
+  // The 1M-context entries use the version-agnostic ``[1m]`` aliases, so the
+  // label must stay version-less too — pinning a number here (e.g. "4.6")
+  // would lie the moment the alias resolves to a newer model.
+  { id: "opus[1m]", label: "Claude Opus (1M)" },
   { id: "claude-opus-4-5", label: "Claude Opus 4.5" },
   { id: "claude-opus-4-1-20250805", label: "Claude Opus 4.1" },
   { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "sonnet[1m]", label: "Claude Sonnet 4.6 (1M)" },
+  { id: "sonnet[1m]", label: "Claude Sonnet (1M)" },
   { id: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
   { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
   { id: "opusplan", label: "Opus (plan) + Sonnet (execute)" },
@@ -286,6 +289,26 @@ export function resolveAcpProviderIcon(
   if (!key) return ACP_PROVIDER_FALLBACK_ICON;
   const found = ACP_PROVIDERS.find((p) => p.key === key);
   return found?.icon ?? ACP_PROVIDER_FALLBACK_ICON;
+}
+
+/**
+ * Resolve a raw ``acp_model`` ID to the human-readable label the provider's
+ * picker shows for it (e.g. ``"claude-opus-4-7"`` → ``"Claude Opus 4.7"``).
+ *
+ * Falls back to the raw ID when the provider is unknown or the ID isn't one
+ * of its registered {@link ACPModelOption}s — so a user's custom override
+ * still renders something meaningful rather than nothing. Returns ``null``
+ * only when there is no model to show, letting the conversation chip decide
+ * to display the provider name instead.
+ */
+export function labelForAcpModel(
+  serverKey: string | null | undefined,
+  modelId: string | null | undefined,
+): string | null {
+  if (!modelId) return null;
+  const provider = ACP_PROVIDERS.find((p) => p.key === serverKey);
+  const match = provider?.available_models?.find((m) => m.id === modelId);
+  return match?.label ?? modelId;
 }
 
 /**

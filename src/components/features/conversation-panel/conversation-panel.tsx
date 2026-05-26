@@ -109,12 +109,6 @@ export function ConversationPanel({
   const toggleShowRepoBranchMetadata = useConversationPanelPreferencesStore(
     (state) => state.toggleShowRepoBranchMetadata,
   );
-  const showLlmProfiles = useConversationPanelPreferencesStore(
-    (state) => state.showLlmProfiles,
-  );
-  const toggleShowLlmProfiles = useConversationPanelPreferencesStore(
-    (state) => state.toggleShowLlmProfiles,
-  );
   const organizeMode = useConversationPanelPreferencesStore(
     (state) => state.organizeMode,
   );
@@ -549,8 +543,6 @@ export function ConversationPanel({
                 toggleShowOlderConversations={toggleShowOlderConversations}
                 showRepoBranchMetadata={showRepoBranchMetadata}
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
-                showLlmProfiles={showLlmProfiles}
-                toggleShowLlmProfiles={toggleShowLlmProfiles}
                 totalConversationsCount={conversations.length}
                 onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
               />

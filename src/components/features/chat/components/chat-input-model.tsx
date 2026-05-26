@@ -1,20 +1,18 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useAcpModelContext } from "#/hooks/use-acp-model-context";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenu } from "#/ui/context-menu";
 import { Divider } from "#/ui/divider";
-import { I18nKey } from "#/i18n/declaration";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   ACP_PROVIDERS,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { cn } from "#/utils/utils";
 import React from "react";
-import { useTranslation } from "react-i18next";
 
 const MODEL_LABEL_MAX_CHARS = 10;
 
@@ -26,20 +24,21 @@ function truncateModelLabel(model: string): string {
 }
 
 export function ChatInputModel() {
-  const { t } = useTranslation("openhands");
-  const { backend } = useActiveBackend();
   const { data: conversation } = useActiveConversation();
   // Home page has no active conversation; fall back to the user's default
   // model so the switcher renders consistently across both surfaces.
   const { data: settings } = useSettings();
+  const {
+    isActiveAcpConversation,
+    isHomeAcp,
+    destinationPath,
+    destinationLabel,
+  } = useAcpModelContext();
   // ACP conversations do not use the OpenHands LLM profile. Resolve the model
   // label through the shared helper so the displayed value matches what the
   // conversation-creation path will actually send to the agent-server (the
   // helper applies provider defaults + filters out the SDK ``"default"``
   // placeholders + the ``"acp-managed"`` sentinel).
-  const isActiveAcpConversation = conversation?.agent_kind === "acp";
-  const isHomeAcp =
-    !conversation && settings?.agent_settings?.agent_kind === "acp";
   const acpProvider = isHomeAcp
     ? ACP_PROVIDERS.find(
         ({ key }) => key === settings?.agent_settings?.acp_server,
@@ -59,15 +58,6 @@ export function ChatInputModel() {
   } else {
     llmModel = conversation?.llm_model ?? settings?.llm_model;
   }
-  const destinationPath =
-    isActiveAcpConversation || isHomeAcp ? "/settings/agent" : "/settings";
-  const llmDestinationLabel = t(
-    isActiveAcpConversation || isHomeAcp
-      ? I18nKey.SETTINGS$NAV_AGENT
-      : backend.kind === "cloud"
-        ? I18nKey.SETTINGS$LLM_SETTINGS
-        : I18nKey.SETTINGS$LLM_PROFILES,
-  );
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
 
   const popoverRef = useClickOutsideElement<HTMLUListElement>(() => {
@@ -126,7 +116,7 @@ export function ChatInputModel() {
                 className="shrink-0"
                 aria-hidden
               />
-              <span>{llmDestinationLabel}</span>
+              <span>{destinationLabel}</span>
             </NavigationLink>
           </li>
         </ContextMenu>

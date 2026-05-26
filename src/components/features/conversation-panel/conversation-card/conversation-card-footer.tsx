@@ -7,6 +7,7 @@ import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { isExecutionPaused } from "#/utils/status";
 import {
   getAcpProviderDisplayName,
+  labelForAcpModel,
   resolveAcpProviderIcon,
 } from "#/constants/acp-providers";
 import {
@@ -73,11 +74,15 @@ export function ConversationCardFooter({
     const providerName =
       getAcpProviderDisplayName(acpServer) ??
       t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC);
-    const text = llmModel ?? providerName;
+    // Prefer the provider's picker label (e.g. "Claude Opus 4.7") over the
+    // raw ``acp_model`` ID; falls back to the raw ID for custom overrides and
+    // to the provider name when there's no model at all.
+    const modelLabel = labelForAcpModel(acpServer, llmModel);
+    const text = modelLabel ?? providerName;
     chip = {
       kind: resolveAcpProviderIcon(acpServer),
       text,
-      tooltip: llmModel ? `${providerName} · ${llmModel}` : providerName,
+      tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
     };
   } else if (llmModel) {
     chip = { kind: "openhands", text: llmModel, tooltip: llmModel };

@@ -1,7 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bot,
   CalendarArrowDown,
   Check,
   Clock3,
@@ -144,8 +143,6 @@ export interface ConversationPanelFilterMenuProps {
   toggleShowOlderConversations: () => void;
   showRepoBranchMetadata: boolean;
   toggleShowRepoBranchMetadata: () => void;
-  showLlmProfiles: boolean;
-  toggleShowLlmProfiles: () => void;
   totalConversationsCount: number;
   onRequestDeleteAll: () => void;
 }
@@ -165,8 +162,6 @@ export function ConversationPanelFilterMenu({
   toggleShowOlderConversations,
   showRepoBranchMetadata,
   toggleShowRepoBranchMetadata,
-  showLlmProfiles,
-  toggleShowLlmProfiles,
   totalConversationsCount,
   onRequestDeleteAll,
 }: ConversationPanelFilterMenuProps) {
@@ -332,16 +327,6 @@ export function ConversationPanelFilterMenu({
 
           <MenuSeparator />
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$METADATA)}</MenuHeading>
-          <MenuRow
-            icon={Bot}
-            label={t(I18nKey.CONVERSATION_PANEL$LLM_MODEL)}
-            selected={showLlmProfiles}
-            testId="toggle-llm-profiles"
-            onClick={() => {
-              toggleShowLlmProfiles();
-              setFilterMenuOpen(false);
-            }}
-          />
           <MenuRow
             icon={GitBranch}
             label={t(I18nKey.CONVERSATION_PANEL$REPO_BRANCH)}

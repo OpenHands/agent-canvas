@@ -622,6 +622,26 @@ describe("ConversationCard", () => {
       ).toBeInTheDocument();
     });
 
+    it("shows the provider's picker label for a known model ID", () => {
+      // When ``llm_model`` is a registry-known ID, the chip renders the
+      // human label ("Claude Opus 4.7") instead of the raw ID — matching
+      // what the Settings → Agent picker shows for the same value.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="acp"
+          acpServer="claude-code"
+          llmModel="claude-opus-4-7"
+        />,
+      );
+
+      const chip = screen.getByTestId("conversation-card-agent-chip");
+      expect(chip).toHaveTextContent("Claude Opus 4.7");
+      expect(chip).toHaveAttribute("title", "Claude Code · Claude Opus 4.7");
+    });
+
     it("falls back to the provider display name for an ACP conversation with no model", () => {
       // No ``llm_model`` (older agent-server, no SDK runtime fields, no
       // configured ``acp_model``) — the chip still renders for identity, with

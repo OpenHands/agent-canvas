@@ -20,7 +20,7 @@ import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useSettings } from "#/hooks/query/use-settings";
+import { useAcpModelContext } from "#/hooks/use-acp-model-context";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -59,26 +59,13 @@ export function ChatInputActions({
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
-  const { data: settings } = useSettings();
   const isCloud = backend.kind === "cloud";
-  const isAcpConversation = conversation?.agent_kind === "acp";
-  // Home screen: no active conversation yet, but Settings → Agent may already
-  // be configured for ACP. The chat input on the home page should reflect
-  // that — the next-created conversation will inherit it — so route the model
-  // label to ChatInputModel (which knows how to show the ACP model) instead
-  // of SwitchProfileButton (which would hide itself for ACP and leave the
-  // home screen with no model affordance at all).
-  const isHomeAcp =
-    !conversation && settings?.agent_settings?.agent_kind === "acp";
-  const isAcpContext = isAcpConversation || isHomeAcp;
-  const llmDestinationLabel = t(
-    isAcpContext
-      ? I18nKey.SETTINGS$NAV_AGENT
-      : isCloud
-        ? I18nKey.SETTINGS$LLM_SETTINGS
-        : I18nKey.SETTINGS$LLM_PROFILES,
-  );
-  const modelDestinationPath = isAcpContext ? "/settings/agent" : "/settings";
+  // Shared with ChatInputModel: routes the model affordance to ChatInputModel
+  // (which knows how to show the ACP model) instead of SwitchProfileButton for
+  // ACP conversations — and for the home screen when Settings → Agent already
+  // selects an ACP agent, since the next conversation will inherit it.
+  const { isAcpContext, destinationPath, destinationLabel } =
+    useAcpModelContext();
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -383,7 +370,7 @@ export function ChatInputActions({
               <Divider inset="menu" />
               <li className="text-sm">
                 <NavigationLink
-                  to={modelDestinationPath}
+                  to={destinationPath}
                   onClick={closeOverflowMenus}
                   className={cn(
                     "group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
@@ -399,7 +386,7 @@ export function ChatInputActions({
                     )}
                     aria-hidden
                   />
-                  <span>{llmDestinationLabel}</span>
+                  <span>{destinationLabel}</span>
                 </NavigationLink>
               </li>
             </ContextMenu>

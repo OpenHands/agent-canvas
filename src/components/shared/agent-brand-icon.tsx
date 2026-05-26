@@ -19,6 +19,11 @@ import { cn } from "#/utils/utils";
  */
 export type AgentBrandIconKind = "openhands" | ACPProviderIcon;
 
+// The OpenHands wordmark renders at a 3:2 (width:height) ratio. Kept as a
+// named constant so the conversation chip and the onboarding tile (24×16)
+// stay visually identical — see ``AgentOptionIcon`` in choose-agent-step.tsx.
+const OPENHANDS_LOGO_ASPECT_RATIO = 3 / 2;
+
 interface AgentBrandIconProps {
   kind: AgentBrandIconKind;
   size?: number;
@@ -38,7 +43,7 @@ export function AgentBrandIcon({
     // inherits the chip's text color.
     return (
       <OpenHandsLogo
-        width={Math.round((size * 47) / 30)}
+        width={Math.round(size * OPENHANDS_LOGO_ASPECT_RATIO)}
         height={size}
         className={cn("shrink-0 [&_path]:fill-current", className)}
         data-testid={testId ?? "agent-brand-icon-openhands"}
