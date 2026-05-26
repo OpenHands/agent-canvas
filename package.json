@@ -172,6 +172,7 @@
     "dist",
     "bin",
     "build",
+    "config",
     "scripts"
   ],
   "exports": {
