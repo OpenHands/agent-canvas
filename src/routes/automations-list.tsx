@@ -1,6 +1,11 @@
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
+import {
+  displaySuccessToast,
+  displayErrorToast,
+} from "#/utils/custom-toast-handlers";
 import {
   useAutomations,
   useToggleAutomation,
@@ -94,7 +99,20 @@ export default function AutomationsList() {
   };
 
   const handleRunNow = (id: string) => {
-    dispatchMutation.mutate(id);
+    dispatchMutation.mutate(id, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS));
+      },
+      onError: (error) => {
+        const message = isAxiosError(error)
+          ? (error.response?.data as { message?: string } | undefined)
+              ?.message ||
+            error.message ||
+            t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)
+          : (error as Error).message || t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR);
+        displayErrorToast(message);
+      },
+    });
   };
 
   const handleDeleteRequest = (id: string) => {

@@ -16,7 +16,11 @@ import {
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import AutomationsList from "#/routes/automations-list";
 import type { Backend } from "#/api/backend-registry/types";
-import type { Automation, AutomationsResponse } from "#/types/automation";
+import {
+  AutomationRunStatus,
+  type Automation,
+  type AutomationsResponse,
+} from "#/types/automation";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
@@ -24,8 +28,14 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     updateAutomation: vi.fn(),
     toggleAutomation: vi.fn(),
     deleteAutomation: vi.fn(),
+    dispatchAutomation: vi.fn(),
     checkHealth: vi.fn(),
   },
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displaySuccessToast: vi.fn(),
+  displayErrorToast: vi.fn(),
 }));
 
 const localBackend: Backend = {
@@ -84,6 +94,7 @@ beforeEach(() => {
   vi.mocked(AutomationService.getAutomations).mockReset();
   vi.mocked(AutomationService.getAutomations).mockResolvedValue(listResponse);
   vi.mocked(AutomationService.updateAutomation).mockReset();
+  vi.mocked(AutomationService.dispatchAutomation).mockReset();
   setRegisteredBackends([localBackend, cloudBackend]);
   setActiveSelection({ backendId: localBackend.id });
 });
@@ -161,7 +172,9 @@ describe("AutomationsList — view mode toggle", () => {
     expect(
       screen.queryByTestId("automation-card-auto-1"),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("automation-list-row-auto-1")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("automation-list-row-auto-1"),
+    ).toBeInTheDocument();
     expect(window.localStorage.getItem("openhands-automations-view")).toBe(
       "list",
     );
@@ -188,5 +201,69 @@ describe("AutomationsList — view mode toggle", () => {
     expect(
       screen.queryByTestId("automations-view-toggle-list"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("AutomationsList — Run now toasts", () => {
+  beforeEach(async () => {
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    vi.mocked(displaySuccessToast).mockClear();
+    vi.mocked(displayErrorToast).mockClear();
+  });
+
+  it("shows a success toast after the dispatch API resolves", async () => {
+    // Arrange — service resolves with a fresh run record.
+    vi.mocked(AutomationService.dispatchAutomation).mockResolvedValue({
+      id: "run-1",
+      status: AutomationRunStatus.PENDING,
+      conversation_id: null,
+      bash_command_id: null,
+      error_detail: null,
+      started_at: "2026-01-02T00:00:00Z",
+      completed_at: null,
+    });
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByText(automation.name);
+
+    // Act — click the row's "Run now" button.
+    await user.click(screen.getByTestId(`automation-run-now-${automation.id}`));
+
+    // Assert — dispatch was called and success toast fired with the i18n key.
+    await waitFor(() => {
+      expect(AutomationService.dispatchAutomation).toHaveBeenCalledWith(
+        automation.id,
+      );
+    });
+    await waitFor(() => {
+      expect(displaySuccessToast).toHaveBeenCalledWith(
+        I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS,
+      );
+    });
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("shows an error toast when the dispatch API rejects", async () => {
+    // Arrange — service rejects with a plain Error so the fallback branch fires.
+    vi.mocked(AutomationService.dispatchAutomation).mockRejectedValue(
+      new Error("dispatch failed"),
+    );
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByText(automation.name);
+
+    // Act — click the row's "Run now" button.
+    await user.click(screen.getByTestId(`automation-run-now-${automation.id}`));
+
+    // Assert — error toast surfaces the rejection message; success toast never fires.
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("dispatch failed");
+    });
+    expect(displaySuccessToast).not.toHaveBeenCalled();
   });
 });
