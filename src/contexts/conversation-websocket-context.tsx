@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
@@ -12,6 +13,7 @@ import { ConversationClient } from "@openhands/typescript-client/clients";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
+import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -33,6 +35,7 @@ import {
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
+  isSwitchLLMObservationEvent,
   isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
 import { handleCanvasUIAction } from "#/services/canvas-ui";
@@ -55,6 +58,11 @@ import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  invalidateConversationQueries,
+  updateConversationLlmModelInCache,
+} from "#/hooks/mutation/conversation-mutation-utils";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -70,6 +78,7 @@ interface ConversationWebSocketContextType {
   connectionState: WebSocketConnectionState;
   sendMessage: (message: SendMessageRequest) => Promise<SendMessageResult>;
   isLoadingHistory: boolean;
+  reconnect: () => void;
 }
 
 const ConversationWebSocketContext = createContext<
@@ -207,7 +216,7 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
@@ -388,6 +397,13 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
+          const switchLLMObservation =
+            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
+              ? event
+              : null;
           addEvent(event);
 
           // ConversationErrorEvent / ServerErrorEvent render inline in the
@@ -495,6 +511,27 @@ export function ConversationWebSocketProvider({
           // Handle BrowserNavigateAction events - update browser store with URL
           if (isBrowserNavigateActionEvent(event)) {
             useBrowserStore.getState().setUrl(event.action.url);
+          }
+
+          if (
+            conversationId &&
+            switchLLMObservation &&
+            !switchLLMObservation.observation.is_error
+          ) {
+            recordModelSwitchMessage(
+              conversationId,
+              switchLLMObservation.observation.profile_name,
+            );
+
+            if (switchLLMObservation.observation.active_model) {
+              updateConversationLlmModelInCache(
+                queryClient,
+                conversationId,
+                switchLLMObservation.observation.active_model,
+              );
+            }
+
+            invalidateConversationQueries(queryClient, conversationId);
           }
 
           // Handle canvas_ui custom-tool ActionEvents - drive the frontend
@@ -733,7 +770,7 @@ export function ConversationWebSocketProvider({
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
-          setErrorMessage("Failed to connect to server");
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
         }
       },
       onMessage: handleMainMessage,
@@ -797,7 +834,7 @@ export function ConversationWebSocketProvider({
         setPlanningConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefPlanning.current) {
-          setErrorMessage("Failed to connect to server");
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
         }
       },
       onMessage: handlePlanningMessage,
@@ -813,15 +850,28 @@ export function ConversationWebSocketProvider({
   // Only attempt WebSocket connection when we have a valid URL
   // This prevents connection attempts during task polling phase
   const websocketUrl = wsUrl;
-  const { socket: mainSocket } = useWebSocket(
+  const { socket: mainSocket, reconnect: reconnectMain } = useWebSocket(
     websocketUrl || "",
     mainWebsocketOptions,
   );
 
-  const { socket: planningAgentSocket } = useWebSocket(
-    planningAgentWsUrl || "",
-    planningWebsocketOptions,
-  );
+  const { socket: planningAgentSocket, reconnect: reconnectPlanning } =
+    useWebSocket(planningAgentWsUrl || "", planningWebsocketOptions);
+
+  const reconnect = useCallback(() => {
+    removeErrorMessage();
+    const currentMode = useConversationStore.getState().conversationMode;
+    if (currentMode === "plan" && planningAgentWsUrl) {
+      reconnectPlanning();
+      return;
+    }
+    reconnectMain();
+  }, [
+    planningAgentWsUrl,
+    reconnectMain,
+    reconnectPlanning,
+    removeErrorMessage,
+  ]);
 
   // V1 send message function via WebSocket
   // Falls back to REST API queue when WebSocket is not connected
@@ -936,8 +986,8 @@ export function ConversationWebSocketProvider({
   }, [planningAgentSocket, planningAgentWsUrl]);
 
   const contextValue = useMemo(
-    () => ({ connectionState, sendMessage, isLoadingHistory }),
-    [connectionState, sendMessage, isLoadingHistory],
+    () => ({ connectionState, sendMessage, isLoadingHistory, reconnect }),
+    [connectionState, sendMessage, isLoadingHistory, reconnect],
   );
 
   return (

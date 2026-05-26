@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { updateConversationExecutionStatusInCache } from "./conversation-mutation-utils";
+import {
+  updateConversationExecutionStatusInCache,
+  updateConversationLlmModelInCache,
+} from "./conversation-mutation-utils";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
@@ -49,5 +52,58 @@ describe("updateConversationExecutionStatusInCache", () => {
     ).toMatchObject({
       execution_status: ExecutionStatus.PAUSED,
     });
+  });
+});
+
+describe("updateConversationLlmModelInCache", () => {
+  it("updates active conversation and list cache entries", () => {
+    const queryClient = new QueryClient();
+    const conversation = createConversation();
+    const otherConversation = { ...createConversation(), id: "conversation-2" };
+
+    queryClient.setQueryData(
+      ["user", "conversation", conversation.id, "backend-1", null],
+      conversation,
+    );
+    queryClient.setQueryData(["user", "conversations"], {
+      pages: [
+        {
+          items: [conversation, otherConversation],
+        },
+      ],
+    });
+
+    updateConversationLlmModelInCache(
+      queryClient,
+      conversation.id,
+      "anthropic/claude-haiku-4-5",
+    );
+
+    expect(
+      queryClient.getQueryData<AppConversation | null>([
+        "user",
+        "conversation",
+        conversation.id,
+        "backend-1",
+        null,
+      ]),
+    ).toMatchObject({
+      llm_model: "anthropic/claude-haiku-4-5",
+    });
+
+    expect(
+      queryClient.getQueryData<{
+        pages: Array<{ items: AppConversation[] }>;
+      }>(["user", "conversations"])?.pages[0].items,
+    ).toEqual([
+      expect.objectContaining({
+        id: conversation.id,
+        llm_model: "anthropic/claude-haiku-4-5",
+      }),
+      expect.objectContaining({
+        id: otherConversation.id,
+        llm_model: null,
+      }),
+    ]);
   });
 });

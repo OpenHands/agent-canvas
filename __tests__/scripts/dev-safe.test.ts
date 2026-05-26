@@ -321,6 +321,8 @@ describe("buildAgentServerCommand", () => {
       "--from",
       "openhands-agent-server==1.23.0",
       "--with",
+      "openhands-sdk==1.23.0",
+      "--with",
       "openhands-tools==1.23.0",
       "--with",
       "openhands-workspace==1.23.0",
@@ -338,6 +340,8 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.args).toEqual([
       "--from",
       "openhands-agent-server==1.18.0",
+      "--with",
+      "openhands-sdk==1.18.0",
       "--with",
       "openhands-tools==1.18.0",
       "--with",

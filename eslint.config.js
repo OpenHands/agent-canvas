@@ -143,6 +143,18 @@ export default [
       "i18next/no-literal-string": "error",
       "unused-imports/no-unused-imports": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@openhands/typescript-client/client/http-client",
+              message:
+                "Use typed @openhands/typescript-client clients instead of constructing HttpClient directly.",
+            },
+          ],
+        },
+      ],
 
       // Allow `interface Foo extends Bar<"foo"> {}` — the codebase uses this
       // discriminated-union pattern in `src/types/agent-server/**` and the

@@ -90,7 +90,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold text-white">
+        <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$BACKEND_TITLE)}
         </h2>
         <p className="text-sm text-[var(--oh-muted)]">

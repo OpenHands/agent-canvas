@@ -1,4 +1,7 @@
-import { ChevronDown } from "lucide-react";
+import {
+  ComboboxCaretIcon,
+  comboboxCaretButtonClassName,
+} from "#/ui/combobox-caret";
 import { cn } from "#/utils/utils";
 
 interface ToggleButtonProps {
@@ -18,13 +21,15 @@ export function ToggleButton({
       data-testid="dropdown-trigger"
       {...getToggleButtonProps({
         disabled: isDisabled,
-        className: cn("text-white", isDisabled && "cursor-not-allowed"),
+        className: cn(
+          comboboxCaretButtonClassName,
+          "text-current",
+          isOpen && "rotate-180",
+          isDisabled && "cursor-not-allowed",
+        ),
       })}
     >
-      <ChevronDown
-        size={16}
-        className={cn("transition-transform", isOpen && "rotate-180")}
-      />
+      <ComboboxCaretIcon />
     </button>
   );
 }

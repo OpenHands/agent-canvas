@@ -3,6 +3,7 @@ import { isMobileDevice } from "#/utils/utils";
 import {
   ensureCursorVisible,
   clearEmptyContent,
+  getClipboardFiles,
 } from "#/components/features/chat/utils/chat-input.utils";
 
 /**
@@ -35,8 +36,7 @@ export const useChatInputEvents = (
     (e: React.ClipboardEvent) => {
       e.preventDefault();
 
-      // Check if there are files in the clipboard
-      const files = Array.from(e.clipboardData.files);
+      const files = getClipboardFiles(e.clipboardData);
       const hasFiles = files.length > 0;
 
       if (hasFiles) {

@@ -662,7 +662,11 @@ describe("ConversationName public sharing", () => {
     renderConversationNameWithRouter();
 
     await user.click(screen.getByTestId("ellipsis-button"));
-    await user.click(screen.getByTestId("share-publicly-button"));
+    const toggleLabel = screen
+      .getByTestId("share-publicly-button")
+      .closest("label");
+    expect(toggleLabel).not.toBeNull();
+    await user.click(toggleLabel!);
 
     expect(updatePublicFlagSpy).toHaveBeenCalledWith(
       "test-conversation-id",

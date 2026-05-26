@@ -8,15 +8,29 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
-const { mockGet, mockPost, mockDelete } = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-  mockPost: vi.fn(),
-  mockDelete: vi.fn(),
+const {
+  mockListWorkspaces,
+  mockAddWorkspaces,
+  mockDeleteWorkspace,
+  mockAddWorkspaceParents,
+  mockDeleteWorkspaceParent,
+} = vi.hoisted(() => ({
+  mockListWorkspaces: vi.fn(),
+  mockAddWorkspaces: vi.fn(),
+  mockDeleteWorkspace: vi.fn(),
+  mockAddWorkspaceParents: vi.fn(),
+  mockDeleteWorkspaceParent: vi.fn(),
 }));
 
-vi.mock("@openhands/typescript-client/client/http-client", () => ({
-  HttpClient: vi.fn(function HttpClientMock() {
-    return { get: mockGet, post: mockPost, delete: mockDelete };
+vi.mock("@openhands/typescript-client/clients", () => ({
+  WorkspacesClient: vi.fn(function WorkspacesClientMock() {
+    return {
+      listWorkspaces: mockListWorkspaces,
+      addWorkspaces: mockAddWorkspaces,
+      deleteWorkspace: mockDeleteWorkspace,
+      addWorkspaceParents: mockAddWorkspaceParents,
+      deleteWorkspaceParent: mockDeleteWorkspaceParent,
+    };
   }),
 }));
 
@@ -33,9 +47,11 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([localBackend]);
   setActiveSelection({ backendId: localBackend.id });
-  mockGet.mockReset();
-  mockPost.mockReset();
-  mockDelete.mockReset();
+  mockListWorkspaces.mockReset();
+  mockAddWorkspaces.mockReset();
+  mockDeleteWorkspace.mockReset();
+  mockAddWorkspaceParents.mockReset();
+  mockDeleteWorkspaceParent.mockReset();
 });
 
 afterEach(() => {
@@ -43,73 +59,85 @@ afterEach(() => {
 });
 
 describe("WorkspacesService", () => {
-  it("listWorkspaces unwraps the response body returned by HttpClient.get", async () => {
+  it("listWorkspaces delegates to WorkspacesClient", async () => {
     // Arrange
     const body = {
       workspaces: [{ id: "/a", name: "a", path: "/a" }],
       workspaceParents: [{ id: "/p", name: "p", path: "/p" }],
     };
-    mockGet.mockResolvedValue({ data: body, status: 200 });
+    mockListWorkspaces.mockResolvedValue(body);
 
     // Act
     const result = await WorkspacesService.listWorkspaces();
 
     // Assert
-    expect(mockGet).toHaveBeenCalledWith("/api/workspaces");
+    expect(mockListWorkspaces).toHaveBeenCalledWith();
     expect(result).toEqual(body);
   });
 
-  it("addWorkspaces POSTs the items wrapped in a workspaces envelope", async () => {
+  it("propagates the typed old-server error from WorkspacesClient", async () => {
     // Arrange
-    mockPost.mockResolvedValue({ data: { workspaces: [], workspaceParents: [] } });
+    const error = {
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    };
+    mockListWorkspaces.mockRejectedValue(error);
+
+    // Act + Assert
+    await expect(WorkspacesService.listWorkspaces()).rejects.toBe(error);
+  });
+
+  it("addWorkspaces delegates to WorkspacesClient", async () => {
+    // Arrange
+    mockAddWorkspaces.mockResolvedValue({
+      workspaces: [],
+      workspaceParents: [],
+    });
     const items = [{ id: "/a", name: "a", path: "/a", parentPath: "/p" }];
 
     // Act
     await WorkspacesService.addWorkspaces(items);
 
     // Assert
-    expect(mockPost).toHaveBeenCalledWith("/api/workspaces", {
-      workspaces: items,
-    });
+    expect(mockAddWorkspaces).toHaveBeenCalledWith(items);
   });
 
-  it("addWorkspaceParents POSTs the items wrapped in a parents envelope", async () => {
+  it("addWorkspaceParents delegates to WorkspacesClient", async () => {
     // Arrange
-    mockPost.mockResolvedValue({ data: { workspaces: [], workspaceParents: [] } });
+    mockAddWorkspaceParents.mockResolvedValue({
+      workspaces: [],
+      workspaceParents: [],
+    });
     const parents = [{ id: "/p", name: "p", path: "/p" }];
 
     // Act
     await WorkspacesService.addWorkspaceParents(parents);
 
     // Assert
-    expect(mockPost).toHaveBeenCalledWith("/api/workspaces/parents", {
-      parents,
-    });
+    expect(mockAddWorkspaceParents).toHaveBeenCalledWith(parents);
   });
 
-  it("removeWorkspace URL-encodes the path so slashes survive the query string", async () => {
+  it("removeWorkspace delegates to WorkspacesClient", async () => {
     // Arrange
-    mockDelete.mockResolvedValue({ data: { deleted: true } });
+    mockDeleteWorkspace.mockResolvedValue({ deleted: true });
 
     // Act
     await WorkspacesService.removeWorkspace("/Users/me/dev/repo 1");
 
     // Assert
-    expect(mockDelete).toHaveBeenCalledWith(
-      "/api/workspaces?path=%2FUsers%2Fme%2Fdev%2Frepo%201",
-    );
+    expect(mockDeleteWorkspace).toHaveBeenCalledWith("/Users/me/dev/repo 1");
   });
 
-  it("removeWorkspaceParent targets the parents endpoint", async () => {
+  it("removeWorkspaceParent delegates to WorkspacesClient", async () => {
     // Arrange
-    mockDelete.mockResolvedValue({ data: { deleted: true } });
+    mockDeleteWorkspaceParent.mockResolvedValue({ deleted: true });
 
     // Act
     await WorkspacesService.removeWorkspaceParent("/parents/root");
 
     // Assert
-    expect(mockDelete).toHaveBeenCalledWith(
-      "/api/workspaces/parents?path=%2Fparents%2Froot",
-    );
+    expect(mockDeleteWorkspaceParent).toHaveBeenCalledWith("/parents/root");
   });
 });

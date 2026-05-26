@@ -21,7 +21,7 @@ export function ToggleButton({
       data-testid="toggle-button"
       onClick={onClick}
       className={cn(
-        "w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors",
+        "w-full py-3 px-3 text-left flex items-center justify-between hover:bg-tertiary transition-colors",
         className,
       )}
     >

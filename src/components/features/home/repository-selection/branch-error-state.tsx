@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import { formControlFieldClassName } from "#/utils/form-control-classes";
 
 interface BranchErrorStateProps {
   wrapperClassName?: string;
@@ -11,7 +12,8 @@ export function BranchErrorState({ wrapperClassName }: BranchErrorStateProps) {
     <div
       data-testid="branch-dropdown-error"
       className={cn(
-        "flex items-center gap-2 max-w-[500px] h-10 px-3 bg-tertiary border border-[var(--oh-border-input)] rounded-sm text-red-500",
+        formControlFieldClassName,
+        "flex max-w-[500px] items-center gap-2 text-red-500",
         wrapperClassName,
       )}
     >
