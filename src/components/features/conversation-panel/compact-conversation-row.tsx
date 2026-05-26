@@ -21,6 +21,7 @@ interface CompactConversationRowProps {
   onClose?: () => void;
   showRepositoryMetadata?: boolean;
   llmModel?: string | null;
+  showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
 }
@@ -43,6 +44,7 @@ export function CompactConversationRow({
   onClose,
   showRepositoryMetadata = true,
   llmModel = null,
+  showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
 }: CompactConversationRowProps) {
@@ -68,6 +70,7 @@ export function CompactConversationRow({
         workspaceWorkingDir={workspaceWorkingDir}
         showRepositoryMetadata={showRepositoryMetadata}
         llmModel={llmModel}
+        showAgentChip={showLlmProfiles}
         agentKind={agentKind}
         acpServer={acpServer}
       />

@@ -598,16 +598,54 @@ describe("ConversationCard", () => {
   });
 
   describe("Agent chip", () => {
-    it("renders the brand mark + model for an ACP conversation with a model", () => {
-      // PR 730 wires ``current_model_name``/``current_model_id``/configured
-      // ``acp_model`` into ``llm_model`` on the adapter so ACP conversations
-      // arrive at the card with a concrete model string. The chip shows the
-      // resolved Claude brand mark + that model text.
+    // The agent chip is gated by the conversation panel's "LLM model" toggle
+    // (``showLlmProfiles``), off by default — one control for both ACP and
+    // OpenHands cards. The renders below pass ``showLlmProfiles`` to exercise
+    // the chip; the gating itself is covered by the first two tests.
+    it("hides the chip by default (LLM-model toggle off) for ACP", () => {
       renderWithProviders(
         <ConversationCard
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="acp"
+          acpServer="claude-code"
+          llmModel="claude-opus-4-7"
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-agent-chip"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("hides the chip by default (LLM-model toggle off) for OpenHands", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          agentKind="openhands"
+          llmModel="claude-sonnet-4"
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-agent-chip"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the brand mark + model for an ACP conversation with a model", () => {
+      // PR 730 wires ``current_model_name``/``current_model_id``/configured
+      // ``acp_model`` into ``llm_model`` on the adapter so ACP conversations
+      // arrive at the card with a concrete model string. With the chip toggle
+      // on, the chip shows the resolved Claude brand mark + that model text.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
           llmModel="sonnet"
@@ -631,6 +669,7 @@ describe("ConversationCard", () => {
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
           llmModel="claude-opus-4-7"
@@ -651,6 +690,7 @@ describe("ConversationCard", () => {
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
         />,
@@ -672,6 +712,7 @@ describe("ConversationCard", () => {
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="acp"
           acpServer="custom"
         />,
@@ -693,6 +734,7 @@ describe("ConversationCard", () => {
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="acp"
           acpServer={null}
         />,
@@ -706,16 +748,16 @@ describe("ConversationCard", () => {
     });
 
     it("renders the OpenHands logo + model name for native conversations", () => {
-      // OpenHands native conversations show the same chip pattern as ACP
-      // cards: the OpenHands logo + the raw ``agent.llm.model`` string. No
-      // user-preference gate — surfacing the model is identity info, same
-      // as the ACP path. A stray ``acp_server`` value on an OpenHands card
-      // must not flip the icon to the Claude/Codex/Gemini brand mark.
+      // With the chip toggle on, OpenHands native conversations show the
+      // OpenHands logo + the raw ``agent.llm.model`` string. A stray
+      // ``acp_server`` value on an OpenHands card must not flip the icon to
+      // the Claude/Codex/Gemini brand mark.
       renderWithProviders(
         <ConversationCard
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="openhands"
           acpServer="claude-code"
           llmModel="claude-sonnet-4"
@@ -734,13 +776,14 @@ describe("ConversationCard", () => {
     });
 
     it("hides the chip for OpenHands conversations with no model", () => {
-      // No model string and no ACP server — nothing to display, so the
-      // chip collapses entirely rather than showing a bare logo.
+      // Toggle on, but no model string and no ACP server — nothing to
+      // display, so the chip collapses rather than showing a bare logo.
       renderWithProviders(
         <ConversationCard
           title="Conversation 1"
           selectedRepository={null}
           lastUpdatedAt="2021-10-01T12:00:00Z"
+          showLlmProfiles
           agentKind="openhands"
           llmModel={null}
         />,

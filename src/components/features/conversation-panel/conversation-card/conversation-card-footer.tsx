@@ -27,6 +27,12 @@ interface ConversationCardFooterProps {
   showTimestamp?: boolean;
   llmModel?: string | null;
   /**
+   * Whether to render the agent/model chip. Wired to the conversation
+   * panel's "LLM model" toggle (off by default); gates the chip uniformly
+   * for both ACP and OpenHands cards.
+   */
+  showAgentChip?: boolean;
+  /**
    * High-level kind of the conversation's agent. Drives the chip's icon:
    * the OpenHands logo for native conversations and the resolved ACP brand
    * mark for ACP conversations. Defensive against stray ``acpServer``
@@ -52,6 +58,7 @@ export function ConversationCardFooter({
   showRepositoryMetadata = true,
   showTimestamp = true,
   llmModel,
+  showAgentChip = false,
   agentKind = null,
   acpServer = null,
 }: ConversationCardFooterProps) {
@@ -59,33 +66,35 @@ export function ConversationCardFooter({
 
   const isPaused = isExecutionPaused(executionStatus);
 
-  // Single inline chip per conversation: [brand mark] {model text}. Always
-  // shown when there's something meaningful to render — OpenHands shows the
-  // logo + ``agent.llm.model``; ACP shows the provider brand mark + model
-  // resolved through PR 730's adapter chain, falling back to the provider
-  // display name when no model is available so the chip never collapses to
-  // icon-only.
+  // Single inline chip per conversation: [brand mark] {model text}. Gated by
+  // the conversation panel's "LLM model" toggle (off by default) and applied
+  // uniformly to both kinds — OpenHands shows the logo + ``agent.llm.model``;
+  // ACP shows the provider brand mark + model resolved through PR 730's
+  // adapter chain, falling back to the provider display name when no model is
+  // available so the chip never collapses to icon-only.
   let chip: {
     kind: AgentBrandIconKind;
     text: string;
     tooltip: string;
   } | null = null;
-  if (agentKind === "acp") {
-    const providerName =
-      getAcpProviderDisplayName(acpServer) ??
-      t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC);
-    // Prefer the provider's picker label (e.g. "Claude Opus 4.7") over the
-    // raw ``acp_model`` ID; falls back to the raw ID for custom overrides and
-    // to the provider name when there's no model at all.
-    const modelLabel = labelForAcpModel(acpServer, llmModel);
-    const text = modelLabel ?? providerName;
-    chip = {
-      kind: resolveAcpProviderIcon(acpServer),
-      text,
-      tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
-    };
-  } else if (llmModel) {
-    chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+  if (showAgentChip) {
+    if (agentKind === "acp") {
+      const providerName =
+        getAcpProviderDisplayName(acpServer) ??
+        t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC);
+      // Prefer the provider's picker label (e.g. "Claude Opus 4.7") over the
+      // raw ``acp_model`` ID; falls back to the raw ID for custom overrides
+      // and to the provider name when there's no model at all.
+      const modelLabel = labelForAcpModel(acpServer, llmModel);
+      const text = modelLabel ?? providerName;
+      chip = {
+        kind: resolveAcpProviderIcon(acpServer),
+        text,
+        tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
+      };
+    } else if (llmModel) {
+      chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+    }
   }
 
   // Match title text start: 18px status column + gap-2 (8px).

@@ -109,6 +109,12 @@ export function ConversationPanel({
   const toggleShowRepoBranchMetadata = useConversationPanelPreferencesStore(
     (state) => state.toggleShowRepoBranchMetadata,
   );
+  const showLlmProfiles = useConversationPanelPreferencesStore(
+    (state) => state.showLlmProfiles,
+  );
+  const toggleShowLlmProfiles = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowLlmProfiles,
+  );
   const organizeMode = useConversationPanelPreferencesStore(
     (state) => state.organizeMode,
   );
@@ -425,6 +431,7 @@ export function ConversationPanel({
             onClose={onClose}
             showRepositoryMetadata={showRepoBranchMetadata}
             llmModel={conversation.llm_model}
+            showLlmProfiles={showLlmProfiles}
             agentKind={conversation.agent_kind}
             acpServer={conversation.acp_server}
           />
@@ -467,6 +474,7 @@ export function ConversationPanel({
             }
             showRepositoryMetadata={showRepoBranchMetadata}
             llmModel={conversation.llm_model}
+            showLlmProfiles={showLlmProfiles}
             agentKind={conversation.agent_kind}
             acpServer={conversation.acp_server}
           />
@@ -482,6 +490,7 @@ export function ConversationPanel({
       onClose,
       openContextMenuId,
       showRepoBranchMetadata,
+      showLlmProfiles,
     ],
   );
 
@@ -543,6 +552,8 @@ export function ConversationPanel({
                 toggleShowOlderConversations={toggleShowOlderConversations}
                 showRepoBranchMetadata={showRepoBranchMetadata}
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
+                showLlmProfiles={showLlmProfiles}
+                toggleShowLlmProfiles={toggleShowLlmProfiles}
                 totalConversationsCount={conversations.length}
                 onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
               />

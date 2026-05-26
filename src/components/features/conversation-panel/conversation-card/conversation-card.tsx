@@ -32,6 +32,7 @@ interface ConversationCardProps {
   workspaceWorkingDir?: string | null;
   showRepositoryMetadata?: boolean;
   llmModel?: string | null;
+  showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
 }
@@ -55,6 +56,7 @@ export function ConversationCard({
   workspaceWorkingDir,
   showRepositoryMetadata = true,
   llmModel = null,
+  showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
 }: ConversationCardProps) {
@@ -130,7 +132,8 @@ export function ConversationCard({
 
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
   const shouldRenderFooter =
-    showRepositoryMetadata || !!llmModel || agentKind === "acp";
+    showRepositoryMetadata ||
+    (showLlmProfiles && (agentKind === "acp" || !!llmModel));
 
   return (
     <div
@@ -205,6 +208,7 @@ export function ConversationCard({
           showRepositoryMetadata={showRepositoryMetadata}
           showTimestamp={false}
           llmModel={llmModel}
+          showAgentChip={showLlmProfiles}
           agentKind={agentKind}
           acpServer={acpServer}
         />
