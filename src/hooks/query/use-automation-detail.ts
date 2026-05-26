@@ -5,6 +5,9 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 export const AUTOMATION_DETAIL_QUERY_KEY = ["automation-detail"] as const;
 export const AUTOMATION_RUNS_QUERY_KEY = ["automation-runs"] as const;
 
+const AUTOMATION_DETAIL_REFETCH_INTERVAL_MS = 45_000;
+const AUTOMATION_RUNS_REFETCH_INTERVAL_MS = 20_000;
+
 interface UseAutomationDetailOptions {
   id: string;
   enabled?: boolean;
@@ -13,6 +16,7 @@ interface UseAutomationDetailOptions {
 export function useAutomationDetail(options: UseAutomationDetailOptions) {
   const { id, enabled = true } = options;
   const active = useActiveBackend();
+  const isActive = !!id && enabled;
   return useQuery({
     queryKey: [
       ...AUTOMATION_DETAIL_QUERY_KEY,
@@ -21,8 +25,10 @@ export function useAutomationDetail(options: UseAutomationDetailOptions) {
       active.orgId,
     ],
     queryFn: () => AutomationService.getAutomation(id),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!id && enabled,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: isActive ? AUTOMATION_DETAIL_REFETCH_INTERVAL_MS : false,
+    enabled: isActive,
   });
 }
 
@@ -36,6 +42,7 @@ interface UseAutomationRunsOptions {
 export function useAutomationRuns(options: UseAutomationRunsOptions) {
   const { id, limit = 20, offset = 0, enabled = true } = options;
   const active = useActiveBackend();
+  const isActive = !!id && enabled;
   return useQuery({
     queryKey: [
       ...AUTOMATION_RUNS_QUERY_KEY,
@@ -45,7 +52,9 @@ export function useAutomationRuns(options: UseAutomationRunsOptions) {
       active.orgId,
     ],
     queryFn: () => AutomationService.getAutomationRuns(id, limit, offset),
-    staleTime: 60 * 1000,
-    enabled: !!id && enabled,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: isActive ? AUTOMATION_RUNS_REFETCH_INTERVAL_MS : false,
+    enabled: isActive,
   });
 }
