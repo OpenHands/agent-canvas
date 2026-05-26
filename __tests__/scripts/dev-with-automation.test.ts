@@ -412,7 +412,7 @@ describe("default constants", () => {
   });
 
   it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a3");
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a5");
   });
 
   it("has expected default backend port", () => {
