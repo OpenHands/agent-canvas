@@ -38,14 +38,19 @@ export function AgentBrandIcon({
   "data-testid": testId,
 }: AgentBrandIconProps) {
   if (kind === "openhands") {
-    // The shipped SVG paints every path ``fill="white"``. Override with
-    // ``fill-current`` on the descendant ``<path>`` nodes so the logo
-    // inherits the chip's text color.
+    // The shipped SVG draws the wordmark with ``fill="white"`` paths but
+    // leaves the two hand shapes as ``fill="transparent"`` (negative space).
+    // Recolor only the non-transparent paths to ``currentColor`` so the logo
+    // inherits the chip's text color *without* filling in the hands — a
+    // blanket ``[&_path]`` selector turns the whole mark into a solid blob.
     return (
       <OpenHandsLogo
         width={Math.round(size * OPENHANDS_LOGO_ASPECT_RATIO)}
         height={size}
-        className={cn("shrink-0 [&_path]:fill-current", className)}
+        className={cn(
+          "shrink-0 [&_path:not([fill=transparent])]:fill-current",
+          className,
+        )}
         data-testid={testId ?? "agent-brand-icon-openhands"}
         aria-hidden
       />
