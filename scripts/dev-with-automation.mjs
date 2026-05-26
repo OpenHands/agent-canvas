@@ -631,7 +631,7 @@ function startAutomationBackend(config) {
           process.env.AUTOMATION_WORKSPACE_BASE ||
           config.automationWorkspaceBase ||
           join(config.stateDir, "workspaces"),
-        // Local API key for self-hosted auth (no cloud API needed)
+        // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
         // CORS: allow localhost origins for dev
         AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
