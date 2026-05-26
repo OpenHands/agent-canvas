@@ -12,6 +12,8 @@ const packageJson = JSON.parse(
   types: string;
   exports: Record<string, unknown>;
   scripts: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 
 describe("package library metadata", () => {
@@ -47,6 +49,29 @@ describe("package library metadata", () => {
         require: "./dist/i18n/index.cjs",
       },
     });
+  });
+
+  // Git dependencies break `npm install -g` because npm clones the repo and
+  // runs the prepare script without devDependencies. All packages should be
+  // referenced from a registry; only @openhands/extensions is allowed as a git
+  // dep until it is published to npm.
+  it("does not use git dependencies (except @openhands/extensions)", () => {
+    const GIT_DEP_PATTERN = /^(git\+|git:|github:|bitbucket:|gitlab:)/;
+    const ALLOWED_GIT_DEPS = new Set(["@openhands/extensions"]);
+
+    const allDeps = {
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies,
+    };
+
+    const violations = Object.entries(allDeps)
+      .filter(
+        ([name, version]) =>
+          GIT_DEP_PATTERN.test(version) && !ALLOWED_GIT_DEPS.has(name),
+      )
+      .map(([name, version]) => `${name}: ${version}`);
+
+    expect(violations).toEqual([]);
   });
 
   it("uses local dev commands without Docker", () => {
