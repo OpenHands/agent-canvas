@@ -3,6 +3,7 @@ import { useRef } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
@@ -83,25 +84,29 @@ async function probeNestedRepoInDir(
 }
 
 /**
- * Probe git metadata directly from the workspace checkout via the agent
- * server's bash-events WebSocket (`git remote get-url origin`,
+ * Probe git metadata for a **local** backend's workspace checkout by
+ * shelling out via the agent server (`git remote get-url origin`,
  * `git rev-parse --abbrev-ref HEAD`).
  *
- * We intentionally keep this probe enabled until the active conversation has
- * a complete repo tuple (`selected_repository`, `git_provider`,
- * `selected_branch`) so the control bar can recover from partial metadata
- * hydration after connect/clone flows.
+ * Local-only by design. On cloud backends the conversation metadata
+ * (`selected_repository`, `git_provider`, `selected_branch`) is the
+ * source of truth, and probing via `/api/bash/execute_bash_command`
+ * would (a) leak the user's local `getAgentServerWorkingDir()` path to
+ * the cloud runtime when `workspace.working_dir` is missing, and
+ * (b) hit a bash endpoint we don't want the frontend driving on cloud.
  *
- * Commands are executed over a persistent WebSocket connection
- * (`/sockets/bash-events`) rather than individual REST calls, which avoids
- * the per-request HTTP overhead of the previous polling approach.
+ * On local, we keep the probe enabled until the active conversation
+ * has a complete repo tuple so the control bar can recover from
+ * partial metadata hydration after connect/clone flows.
  *
- * Returns `null` fields when the working dir is not a git checkout — callers
- * should treat that the same as "no repo detected".
+ * Returns `null` fields when the working dir is not a git checkout —
+ * callers should treat that the same as "no repo detected".
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const { backend } = useActiveBackend();
+  const isLocalBackend = backend.kind === "local";
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -113,6 +118,7 @@ export const useLocalGitInfo = () => {
   const hasConversationBranch = !!conversation?.selected_branch;
 
   const queryEnabled =
+    isLocalBackend &&
     runtimeIsReady &&
     !!conversationId &&
     (!hasConversationRepo ||
