@@ -14,11 +14,13 @@ import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import RepoIcon from "#/icons/repo.svg?react";
 
 import { FolderBrowserModal } from "#/components/features/home/workspace-dropdown/folder-browser-modal";
 import { ManageWorkspacesModal } from "#/components/features/home/workspace-dropdown/manage-workspaces-modal";
 
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { Divider } from "#/ui/divider";
 import { NEW_CONVERSATION_DROPDOWN_SURFACE } from "./new-conversation-dropdown-styles";
 import { usePopoverFixedPlacement } from "#/hooks/use-popover-fixed-placement";
@@ -68,13 +70,17 @@ export function LocalNewConversationMenu({
     enabled: useFixedPlacement,
   });
 
-  const { data: workspacesData } = useLocalWorkspaces();
+  const { data: workspacesData, error: workspacesError } = useLocalWorkspaces();
   const workspaceParents = workspacesData?.workspaceParents ?? [];
   const { mutate: addWorkspaces } = useAddWorkspaces();
   const { mutate: removeWorkspace } = useRemoveWorkspace();
   const { mutate: addWorkspaceParents } = useAddWorkspaceParents();
   const { mutate: removeWorkspaceParent } = useRemoveWorkspaceParent();
   const { workspaces } = useResolvedWorkspaces();
+  const workspacesUnsupportedMessage = getWorkspacesUnsupportedMessage(
+    workspacesError,
+    t,
+  );
   const [browserOpen, setBrowserOpen] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
 
@@ -139,6 +145,7 @@ export function LocalNewConversationMenu({
   }, []);
 
   const showPopover = open && (!useFixedPlacement || fixedBox !== null);
+  const workspaceActionsDisabled = Boolean(workspacesUnsupportedMessage);
 
   const fixedStyle: React.CSSProperties | undefined =
     useFixedPlacement && fixedBox
@@ -149,6 +156,32 @@ export function LocalNewConversationMenu({
           width: fixedBox.width,
         }
       : undefined;
+
+  const addWorkspacesButton = (
+    <button
+      type="button"
+      data-testid="add-workspaces-button"
+      disabled={workspaceActionsDisabled}
+      onMouseDown={keepPopoverOpenOnMouseDown}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (workspaceActionsDisabled) return;
+        setBrowserOpen(true);
+      }}
+      className={itemClass}
+    >
+      {t(I18nKey.HOME$ADD_WORKSPACES)}
+    </button>
+  );
+
+  const addWorkspacesControl = workspacesUnsupportedMessage ? (
+    <StyledTooltip content={workspacesUnsupportedMessage} placement="top">
+      <span className="block">{addWorkspacesButton}</span>
+    </StyledTooltip>
+  ) : (
+    addWorkspacesButton
+  );
 
   return (
     <div
@@ -213,19 +246,7 @@ export function LocalNewConversationMenu({
               inset="menu"
               testId="new-conversation-menu-footer-divider"
             />
-            <button
-              type="button"
-              data-testid="add-workspaces-button"
-              onMouseDown={keepPopoverOpenOnMouseDown}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setBrowserOpen(true);
-              }}
-              className={itemClass}
-            >
-              {t(I18nKey.HOME$ADD_WORKSPACES)}
-            </button>
+            {addWorkspacesControl}
             {(workspaces.length > 0 || workspaceParents.length > 0) && (
               <button
                 type="button"

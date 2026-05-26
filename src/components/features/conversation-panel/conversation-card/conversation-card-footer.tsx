@@ -83,6 +83,10 @@ export function ConversationCardFooter({
     chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
   }
 
+  // Match title text start: 18px status column + gap-2 (8px).
+  const metadataIndentClass =
+    executionStatus !== undefined ? "pl-[26px]" : undefined;
+
   return (
     <div
       className={cn(
@@ -91,7 +95,7 @@ export function ConversationCardFooter({
       )}
     >
       {chip ? (
-        <div className="pl-[18px]">
+        <div className={metadataIndentClass}>
           <span
             data-testid="conversation-card-agent-chip"
             className="inline-flex items-center gap-1 text-xs text-[var(--oh-muted)] max-w-full min-w-0"
@@ -104,9 +108,8 @@ export function ConversationCardFooter({
       ) : null}
       <div
         className={cn(
-          // Align repo/workspace row with the title (status dot + gap).
           "flex flex-row items-center gap-2 w-full min-w-0",
-          showRepositoryMetadata && "pl-[18px]",
+          showRepositoryMetadata && metadataIndentClass,
         )}
       >
         {showRepositoryMetadata &&

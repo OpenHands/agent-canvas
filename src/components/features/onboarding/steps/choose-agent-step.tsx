@@ -187,7 +187,7 @@ export function ChooseAgentStep({
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold text-white">
+        <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$AGENT_TITLE)}
         </h2>
         <p className="text-sm text-[var(--oh-muted)]">
@@ -221,7 +221,7 @@ export function ChooseAgentStep({
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <AgentOptionIcon id={option.id} muted={false} />
-                  <span className="truncate text-base font-medium text-white">
+                  <span className="truncate text-base font-normal text-white">
                     {option.label}
                   </span>
                 </div>

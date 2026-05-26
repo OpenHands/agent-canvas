@@ -66,7 +66,7 @@ export function MetricsModal({ isOpen, onOpenChange }: MetricsModalProps) {
     <ModalBackdrop onClose={() => onOpenChange(false)}>
       <ModalBody
         testID="metrics-modal"
-        className="items-start border border-[var(--oh-border)]"
+        className="relative items-start border border-[var(--oh-border)]"
       >
         <MetricsModalHeader onClose={() => onOpenChange(false)} />
         <div className="w-full">

@@ -9,6 +9,35 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { CustomServerEditor } from "#/components/features/mcp-page/custom-server-editor";
 import { useSettings } from "#/hooks/query/use-settings";
 
+import type { Settings } from "#/types/settings";
+import type { MCPServerConfig } from "#/types/mcp-server";
+
+const EDIT_STDIO_SERVER: MCPServerConfig = {
+  id: "stdio-0",
+  type: "stdio",
+  name: "github",
+  command: "docker",
+  args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
+};
+
+function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
+  return {
+    ...MOCK_DEFAULT_USER_SETTINGS,
+    agent_settings: {
+      ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+      mcp_config: {
+        mcpServers: {
+          github: {
+            command: "docker",
+            args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
+          },
+        },
+      },
+    },
+    ...overrides,
+  };
+}
+
 /**
  * Wrapper that only mounts the editor once `useSettings` has resolved.
  * `useAddMcpServer`'s `mutationFn` silently no-ops when settings is
@@ -23,6 +52,18 @@ function EditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
     <CustomServerEditor
       server={{ id: "", type: "sse" }}
       existingServers={[]}
+      onClose={onClose}
+    />
+  );
+}
+
+function EditEditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
+  const { data } = useSettings();
+  if (!data) return null;
+  return (
+    <CustomServerEditor
+      server={EDIT_STDIO_SERVER}
+      existingServers={[EDIT_STDIO_SERVER]}
       onClose={onClose}
     />
   );
@@ -87,11 +128,50 @@ describe("CustomServerEditor", () => {
     });
   });
 
+  it("closes from the top-right close button", async () => {
+    const onClose = vi.fn();
+    renderWith(<EditorOnceSettingsLoaded onClose={onClose} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    fireEvent.click(screen.getByTestId("mcp-custom-editor-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show delete in add mode", async () => {
+    renderWith(<EditorOnceSettingsLoaded onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    expect(
+      screen.queryByTestId("mcp-custom-editor-delete"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes an installed server after confirmation", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp(),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    const onClose = vi.fn();
+    renderWith(<EditEditorOnceSettingsLoaded onClose={onClose} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    fireEvent.click(screen.getByTestId("mcp-custom-editor-delete"));
+    expect(await screen.findByTestId("confirmation-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it("calls onClose when the header close button is clicked", async () => {
     const onClose = vi.fn();
     renderWith(<EditorOnceSettingsLoaded onClose={onClose} />);
 
-    fireEvent.click(await screen.findByTestId("close-mcp-custom-editor"));
+    fireEvent.click(await screen.findByTestId("mcp-custom-editor-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });

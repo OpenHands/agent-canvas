@@ -20,6 +20,8 @@ interface DetailHeaderProps {
    */
   onEdit?: () => void;
   onDelete: () => void;
+  onRunNow?: () => void;
+  isRunningNow?: boolean;
 }
 
 export function DetailHeader({
@@ -27,6 +29,8 @@ export function DetailHeader({
   onToggle,
   onEdit,
   onDelete,
+  onRunNow,
+  isRunningNow = false,
 }: DetailHeaderProps) {
   const { t } = useTranslation("openhands");
   const canManage = useHasPermission("manage_automations");
@@ -59,7 +63,6 @@ export function DetailHeader({
       label: t(I18nKey.AUTOMATIONS$DELETE),
       icon: <TrashIcon className="size-4" />,
       onClick: onDelete,
-      variant: "danger" as const,
     },
   ];
 
@@ -67,12 +70,22 @@ export function DetailHeader({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-content">
+          <h1 className="text-xl font-medium text-content">
             {automation.name}
           </h1>
           <ActiveStatusBadge active={automation.enabled} />
         </div>
         <div className="flex items-center gap-2">
+          {canManage && onRunNow && (
+            <button
+              type="button"
+              className="rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isRunningNow}
+              onClick={onRunNow}
+            >
+              {isRunningNow ? "Starting…" : "Run now"}
+            </button>
+          )}
           {canManage && (
             <ToggleSwitch
               enabled={automation.enabled}

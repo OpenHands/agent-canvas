@@ -1,24 +1,26 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
-import AutomationService from "#/api/automation-service/automation-service.api";
-import { ToggleSwitch } from "./toggle-switch";
-import { MetadataChip } from "./metadata-chip";
 import { KebabMenu } from "./kebab-menu";
-import type { KebabMenuItem } from "./kebab-menu";
 import { useHasPermission } from "#/hooks/use-has-permission";
 import { useNavigation } from "#/context/navigation-context";
-import FolderIcon from "#/icons/folder.svg?react";
-import ClockIcon from "#/icons/clock.svg?react";
-import SparkleIcon from "#/icons/sparkle.svg?react";
-import PowerIcon from "#/icons/power.svg?react";
-import DownloadIcon from "#/icons/download.svg?react";
-import TrashIcon from "#/icons/trash.svg?react";
-import EditIcon from "#/icons/u-edit.svg?react";
+import PlayIcon from "#/icons/play.svg?react";
+import { SkillCardPillRow } from "#/components/features/skills/skill-card-pill-row";
+import { cn } from "#/utils/utils";
+import {
+  extensionModuleCardInteractiveClassName,
+  extensionModuleCardSurfaceClassName,
+} from "#/utils/extension-module-card-classes";
+import { buildAutomationMetadataPills } from "./build-automation-pills";
+import { buildAutomationMenuItems } from "./build-automation-menu-items";
+import { automationRunNowTextButtonClassName } from "./automation-action-button-classes";
 
 interface AutomationCardProps {
   automation: Automation;
   onToggle: (id: string, enabled: boolean) => void;
+  onRunNow: (id: string) => void;
+  isRunPending?: boolean;
   onDelete: (id: string) => void;
   onEdit?: (id: string) => void;
 }
@@ -26,6 +28,8 @@ interface AutomationCardProps {
 export function AutomationCard({
   automation,
   onToggle,
+  onRunNow,
+  isRunPending = false,
   onDelete,
   onEdit,
 }: AutomationCardProps) {
@@ -35,93 +39,85 @@ export function AutomationCard({
 
   const scheduleLabel =
     automation.trigger.schedule_human || automation.trigger.type;
+  const pills = useMemo(
+    () => buildAutomationMetadataPills(automation, scheduleLabel),
+    [automation, scheduleLabel],
+  );
 
-  const menuItems: KebabMenuItem[] = [
-    ...(onEdit
-      ? [
-          {
-            label: t(I18nKey.AUTOMATIONS$EDIT),
-            icon: <EditIcon className="size-4" />,
-            onClick: () => onEdit(automation.id),
-          },
-        ]
-      : []),
-    {
-      label: automation.enabled
-        ? t(I18nKey.AUTOMATIONS$TURN_OFF)
-        : t(I18nKey.AUTOMATIONS$TURN_ON),
-      icon: <PowerIcon className="size-4" />,
-      onClick: () => onToggle(automation.id, automation.enabled),
-    },
-    {
-      label: t(I18nKey.AUTOMATIONS$DOWNLOAD_TARBALL),
-      icon: <DownloadIcon className="size-4" />,
-      onClick: () => {
-        AutomationService.downloadTarball(automation.id, automation.name);
-      },
-    },
-    {
-      label: t(I18nKey.AUTOMATIONS$DELETE),
-      icon: <TrashIcon className="size-4" />,
-      onClick: () => onDelete(automation.id),
-      variant: "danger",
-    },
-  ];
+  const handleView = () => {
+    navigate?.(`/automations/${automation.id}`);
+  };
+
+  const menuItems = buildAutomationMenuItems({
+    automation,
+    t,
+    canManage,
+    onRunNow,
+    isRunPending,
+    onView: handleView,
+    onEdit,
+    onToggle,
+    onDelete,
+  });
 
   const handleCardClick = () => {
-    navigate?.(`/automations/${automation.id}`);
+    handleView();
   };
 
   return (
     <div
       role="link"
       tabIndex={0}
+      data-testid={`automation-card-${automation.id}`}
       onClick={handleCardClick}
       onKeyDown={(e) => {
         if (e.key === "Enter") handleCardClick();
       }}
-      className="cursor-pointer rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-5 transition-colors hover:border-[var(--oh-border)]"
+      className={cn(
+        "flex min-w-0 flex-col gap-3 overflow-hidden p-4 text-left",
+        extensionModuleCardSurfaceClassName,
+        extensionModuleCardInteractiveClassName,
+      )}
     >
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-semibold text-white">
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <h3 className="truncate text-sm font-semibold text-white">
             {automation.name}
           </h3>
-          <p className="mt-1 line-clamp-2 text-sm text-muted">
-            {automation.prompt}
-          </p>
+          {automation.prompt ? (
+            <p className="line-clamp-2 text-xs leading-relaxed text-tertiary-light">
+              {automation.prompt}
+            </p>
+          ) : null}
         </div>
 
-        <div className="ml-4 flex shrink-0 items-center gap-2">
-          {canManage && (
-            <ToggleSwitch
-              enabled={automation.enabled}
-              label={`Toggle ${automation.name}`}
-              onToggle={() => onToggle(automation.id, automation.enabled)}
-            />
-          )}
-          {canManage && <KebabMenu items={menuItems} />}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {canManage ? (
+            <button
+              type="button"
+              data-testid={`automation-run-now-${automation.id}`}
+              aria-busy={isRunPending}
+              disabled={isRunPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRunNow(automation.id);
+              }}
+              className={automationRunNowTextButtonClassName}
+            >
+              <PlayIcon className="size-3.5 shrink-0" aria-hidden />
+              {t(I18nKey.AUTOMATIONS$RUN_NOW)}
+            </button>
+          ) : null}
+          <KebabMenu items={menuItems} />
         </div>
-      </div>
+      </header>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {automation.repository && (
-          <MetadataChip
-            icon={<FolderIcon className="size-3.5" />}
-            label={automation.repository}
-          />
-        )}
-        <MetadataChip
-          icon={<ClockIcon className="size-3.5" />}
-          label={scheduleLabel}
+      {pills.length > 0 ? (
+        <SkillCardPillRow
+          pills={pills}
+          testId={`automation-pills-${automation.id}`}
         />
-        {automation.model && (
-          <MetadataChip
-            icon={<SparkleIcon className="size-3.5" />}
-            label={automation.model}
-          />
-        )}
-      </div>
+      ) : null}
     </div>
   );
 }

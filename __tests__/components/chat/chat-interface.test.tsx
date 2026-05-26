@@ -31,6 +31,7 @@ import type { MessageEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
+import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { AgentState } from "#/types/agent-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { act } from "@testing-library/react";
@@ -66,6 +67,10 @@ vi.mock("#/hooks/use-conversation-name-context-menu", () => ({
 
 vi.mock("#/hooks/use-load-older-events", () => ({
   useLoadOlderEvents: vi.fn(),
+}));
+
+vi.mock("#/hooks/query/use-task-polling", () => ({
+  useTaskPolling: vi.fn(),
 }));
 
 vi.mock("#/hooks/use-agent-state", () => ({
@@ -107,6 +112,21 @@ beforeEach(() => {
   vi.mocked(useOptionalConversationId).mockReturnValue({
     conversationId: "test-conversation-id",
   });
+  vi.mocked(useTaskPolling).mockReturnValue({
+    isTask: false,
+    taskId: null,
+    conversationId: "test-conversation-id",
+    task: undefined,
+    taskStatus: undefined,
+    taskDetail: undefined,
+    taskError: null,
+    isLoadingTask: false,
+    repositoryInfo: {
+      selectedRepository: undefined,
+      selectedBranch: undefined,
+      gitProvider: undefined,
+    },
+  });
   // Default: pagination disabled (hasMore=false) so unrelated tests don't
   // accidentally trigger loadOlder via the on-mount auto-trigger effect.
   // Tests that exercise pagination override this.
@@ -127,6 +147,22 @@ describe("ChatInterface - Chat Suggestions", () => {
         queries: {
           retry: false,
         },
+      },
+    });
+
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: false,
+      taskId: null,
+      conversationId: "test-conversation-id",
+      task: undefined,
+      taskStatus: undefined,
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
       },
     });
 
@@ -185,6 +221,58 @@ describe("ChatInterface - Chat Suggestions", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     // Check if ChatSuggestions is not rendered with optimistic user message
+    expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
+  });
+
+  test("should hide chat suggestions while a cloud start task is provisioning", () => {
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: true,
+      taskId: "abc",
+      conversationId: null,
+      task: undefined,
+      taskStatus: "WORKING",
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
+      },
+    });
+
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
+
+    expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
+  });
+
+  test("should hide chat suggestions on a task route even when the task is READY", () => {
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: true,
+      taskId: "abc",
+      conversationId: null,
+      task: undefined,
+      taskStatus: "READY",
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
+      },
+    });
+
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
+
     expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
@@ -84,7 +84,7 @@ export function ChatInputModel() {
       <button
         type="button"
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,color]",
+          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none",
           "hover:text-white hover:bg-white/10 cursor-pointer",
         )}
         title={llmModel}
@@ -98,13 +98,7 @@ export function ChatInputModel() {
         }}
       >
         <span>{truncatedModelLabel}</span>
-        <ChevronDownSmallIcon
-          width={18}
-          height={18}
-          color="currentColor"
-          className="shrink-0"
-          aria-hidden
-        />
+        <ComboboxCaretInline isOpen={isPopoverOpen} />
       </button>
 
       {isPopoverOpen && (

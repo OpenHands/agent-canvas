@@ -115,8 +115,8 @@
   --oh-status-success: #1FBD53;
   --oh-status-error: #FF684E;
   --oh-link: var(--cool-grey-100);
-  --oh-radius: 5px;
-  --oh-field-radius: 5px;
+  --oh-radius: 8px;
+  --oh-field-radius: 8px;
   --oh-surface-shadow: none;
   --oh-overlay-shadow: none;
   --oh-field-shadow: none;
@@ -160,6 +160,38 @@
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
+}
+
+/* Skills / MCP / Automations tiles: no border at rest; hover/focus-visible only. */
+.extension-module-card-interactive {
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 150ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.extension-module-card-interactive {
+  appearance: none;
+}
+
+.extension-module-card-interactive:hover {
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.extension-module-card-interactive:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.extension-module-card-interactive:focus:not(:focus-visible) {
+  border-color: transparent;
+}
+
+.extension-module-card-interactive:focus-visible {
+  outline: none;
+  border-color: rgb(255 255 255 / 0.4);
 }
 
 .button-base {
@@ -389,34 +421,34 @@
 }
 
 .loader {
-  background: #c9b974;
+  background: var(--oh-color-primary);
   animation: l5 1s infinite linear alternate;
 }
 
 @keyframes l5 {
   0% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: #c9b974;
+      20px 0 var(--oh-color-primary),
+      -20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
+    background: var(--oh-color-primary);
   }
   33% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 var(--oh-color-primary),
+      -20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
   }
   66% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent),
+      -20px 0 var(--oh-color-primary);
+    background: color-mix(in srgb, var(--oh-color-primary) 10%, transparent);
   }
   100% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: #c9b974;
+      20px 0 color-mix(in srgb, var(--oh-color-primary) 10%, transparent),
+      -20px 0 var(--oh-color-primary);
+    background: var(--oh-color-primary);
   }
 }
 

@@ -4,4 +4,5 @@ export { MarketplaceSection } from "./marketplace-section";
 export { MarketplaceCard } from "./marketplace-card";
 export { InstallServerModal } from "./install-server-modal";
 export { CustomServerEditor } from "./custom-server-editor";
-export { MarketplaceSearch } from "./marketplace-search";
+export { McpToolbar } from "./mcp-toolbar";
+export type { McpSectionFilter } from "./mcp-section-filter";

@@ -10,7 +10,7 @@ function GotItButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-success bg-success/10 hover:bg-success/20 border border-success/30 transition-colors"
+      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-normal text-success bg-success/10 hover:bg-success/20 border border-success/30 transition-colors"
     >
       <CheckCircle className="w-3.5 h-3.5 fill-success" />
       <span>{t(I18nKey.CHAT_INTERFACE$BTW_GOT_IT)}</span>
