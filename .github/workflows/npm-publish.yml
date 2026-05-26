@@ -75,5 +75,13 @@ jobs:
       # Temporary: publish all versions (including prerelease) as "latest"
       # until the first stable release; see cleanup issue:
       # https://github.com/OpenHands/agent-canvas/issues/395
+      #
+      # Note: named prerelease dist-tags (alpha/beta/rc) are intentionally
+      # NOT published under this policy — only "latest" is used. This means
+      # `npm install @openhands/agent-canvas@alpha` will not resolve to any
+      # published version. When prerelease dist-tags need to be re-introduced
+      # (as part of the issue #395 cleanup), update this step to publish with
+      # a versioned dist-tag (e.g. --tag alpha) and only tag stable releases
+      # as "latest".
       - name: Publish to npm with provenance
         run: npm publish --access public --provenance --tag latest
