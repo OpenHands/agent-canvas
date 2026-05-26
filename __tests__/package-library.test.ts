@@ -56,7 +56,7 @@ describe("package library metadata", () => {
   // referenced from a registry; only @openhands/extensions is allowed as a git
   // dep until it is published to npm.
   it("does not use git dependencies (except @openhands/extensions)", () => {
-    const GIT_DEP_PATTERN = /^(git\+|git:|github:|bitbucket:|gitlab:)/;
+    const GIT_DEP_PATTERN = /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
     const ALLOWED_GIT_DEPS = new Set(["@openhands/extensions"]);
 
     const allDeps = {
