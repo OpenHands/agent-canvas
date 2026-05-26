@@ -1,13 +1,16 @@
-import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationSortOrder,
+  type LLMConfig,
+} from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
   ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
+import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
@@ -37,10 +40,7 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  getAgentServerClientOptions,
-  getAgentServerHttpClientOptions,
-} from "../agent-server-client-options";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -66,6 +66,10 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
+const INVALID_PROFILE_CONFIG_MESSAGE =
+  "Unable to switch LLM profiles because the selected agent server returned " +
+  "profile data this UI does not understand. Check the backend URL/session " +
+  "key and update the agent server if needed.";
 
 function invalidConversationResponse(): Error {
   return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
@@ -73,6 +77,10 @@ function invalidConversationResponse(): Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLLMConfig(value: unknown): value is LLMConfig {
+  return isRecord(value) && typeof value.model === "string";
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -281,14 +289,45 @@ class AgentServerConversationService {
   static async sendMessage(
     conversationId: string,
     message: SendMessageRequest,
+    runtime?: ConversationRuntimeContext | null,
   ): Promise<SendMessageResponse> {
-    await new ConversationClient(getAgentServerClientOptions()).sendEvent(
-      conversationId,
-      message,
-      {
-        run: true,
-      },
-    );
+    const active = getActiveBackend().backend;
+    let conversationUrl = runtime?.conversationUrl ?? null;
+    let sessionApiKey = runtime?.sessionApiKey ?? null;
+
+    if (active.kind === "cloud") {
+      if (!conversationUrl || !sessionApiKey) {
+        const [conversation] = await batchGetCloudConversations([
+          conversationId,
+        ]);
+        conversationUrl = conversation?.conversation_url?.trim() ?? null;
+        sessionApiKey = conversation?.session_api_key?.trim() ?? null;
+      }
+
+      if (!conversationUrl || !sessionApiKey) {
+        throw new Error(
+          "Conversation sandbox is still starting. Wait for it to finish, then try again.",
+        );
+      }
+
+      await callCloudProxy({
+        backend: active,
+        method: "POST",
+        hostOverride: buildHttpBaseUrl(conversationUrl),
+        path: `/api/conversations/${conversationId}/events`,
+        body: { ...message, run: true },
+        authMode: "session-api-key",
+        sessionApiKey,
+      });
+
+      return message;
+    }
+
+    await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).sendEvent(conversationId, message, {
+      run: true,
+    });
 
     return message;
   }
@@ -642,10 +681,13 @@ class AgentServerConversationService {
     const profile = await profilesClient.getProfile(profileName, {
       exposeSecrets: "encrypted",
     });
+    if (!isLLMConfig(profile.config)) {
+      throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
+    }
 
-    await new HttpClient(getAgentServerHttpClientOptions()).post(
-      `/api/conversations/${conversationId}/switch_llm`,
-      { llm: profile.config },
+    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+      conversationId,
+      profile.config,
     );
   }
 }

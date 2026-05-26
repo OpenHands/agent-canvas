@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import OpenHandsLogo from "#/assets/branding/openhands-logo.svg?react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { cn } from "#/utils/utils";
 
 const DEFAULT_LOGO_WIDTH = 46;
@@ -24,22 +23,19 @@ export function OpenHandsLogoButton({
 }: OpenHandsLogoButtonProps = {}) {
   const { t } = useTranslation("openhands");
 
-  const tooltipText = t(I18nKey.BRANDING$OPENHANDS);
   const ariaLabel = t(I18nKey.BRANDING$OPENHANDS_LOGO);
 
   return (
-    <StyledTooltip content={tooltipText}>
-      <NavigationLink
-        to="/conversations"
-        aria-label={ariaLabel}
-        className={cn(className)}
-      >
-        <OpenHandsLogo
-          width={logoWidth}
-          height={logoHeight}
-          className={cn("shrink-0", logoClassName)}
-        />
-      </NavigationLink>
-    </StyledTooltip>
+    <NavigationLink
+      to="/conversations"
+      aria-label={ariaLabel}
+      className={cn(className)}
+    >
+      <OpenHandsLogo
+        width={logoWidth}
+        height={logoHeight}
+        className={cn("shrink-0", logoClassName)}
+      />
+    </NavigationLink>
   );
 }

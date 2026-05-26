@@ -49,12 +49,12 @@ export function ServerStatusContextMenu({
       <ServerStatus
         executionStatus={executionStatus}
         isPausing={isPausing}
-        className="py-1"
+        className="pl-0 pr-2 py-1"
       />
 
       {shouldActionShown && (
         <>
-          <Divider />
+          <Divider inset="menu" />
 
           {isActive && onStopServer && (
             <ServerStatusContextMenuIconText

@@ -121,6 +121,45 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     expect(await within(menu).findByText("repo1")).toBeInTheDocument();
   });
 
+  it("shows a version-specific workspace message for old agent servers", async () => {
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockRejectedValue({
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    });
+
+    render(<WorkspaceSelectionForm />, {
+      wrapper: ({ children }) => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+              },
+            })
+          }
+        >
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).toBeDisabled(),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).toHaveAttribute(
+        "placeholder",
+        "HOME$WORKSPACES_UNSUPPORTED_PLACEHOLDER",
+      ),
+    );
+    expect(screen.getByTestId("workspace-status-message")).toHaveTextContent(
+      "HOME$WORKSPACES_UNSUPPORTED_AGENT_SERVER",
+    );
+  });
+
   it("Add Workspace dispatches addWorkspaces to the agent-server", async () => {
     // Arrange
     const addSpy = vi

@@ -62,6 +62,10 @@ export function ConversationCardFooter({
         t(I18nKey.CONVERSATION$ACP_AGENT_GENERIC))
       : null;
 
+  // Match title text start: 18px status column + gap-2 (8px).
+  const metadataIndentClass =
+    executionStatus !== undefined ? "pl-[26px]" : undefined;
+
   return (
     <div
       className={cn(
@@ -70,7 +74,7 @@ export function ConversationCardFooter({
       )}
     >
       {acpDisplayName ? (
-        <div className="pl-[18px]">
+        <div className={metadataIndentClass}>
           <span
             data-testid="conversation-card-acp-badge"
             className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[var(--oh-surface-raised)] text-[var(--oh-muted)] text-xs font-medium max-w-full truncate"
@@ -82,7 +86,10 @@ export function ConversationCardFooter({
       ) : null}
       {showLlmModel && llmModel ? (
         <span
-          className="min-w-0 max-w-full truncate pl-[18px] text-xs text-[var(--oh-muted)]"
+          className={cn(
+            "min-w-0 max-w-full truncate text-xs text-[var(--oh-muted)]",
+            metadataIndentClass,
+          )}
           title={llmModel}
         >
           {llmModel}
@@ -90,9 +97,8 @@ export function ConversationCardFooter({
       ) : null}
       <div
         className={cn(
-          // Align repo/workspace row with the title (status dot + gap).
           "flex flex-row items-center gap-2 w-full min-w-0",
-          showRepositoryMetadata && "pl-[18px]",
+          showRepositoryMetadata && metadataIndentClass,
         )}
       >
         {showRepositoryMetadata &&

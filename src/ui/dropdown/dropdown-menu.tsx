@@ -16,6 +16,7 @@ interface DropdownMenuProps {
   }) => object;
   footer?: React.ReactNode;
   openUpward?: boolean;
+  fitContent?: boolean;
 }
 
 export function DropdownMenu({
@@ -27,11 +28,13 @@ export function DropdownMenu({
   getItemProps,
   footer,
   openUpward = false,
+  fitContent = false,
 }: DropdownMenuProps) {
   return (
     <div
       className={cn(
-        "absolute z-50 w-full overflow-hidden text-white",
+        "absolute z-50 overflow-hidden text-white",
+        fitContent ? "min-w-full w-max" : "w-full",
         openUpward ? "bottom-full mb-1" : "mt-1",
         "bg-tertiary rounded-[6px] context-menu-box-shadow p-1",
         "max-h-60 overflow-auto",

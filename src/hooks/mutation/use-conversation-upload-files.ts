@@ -1,11 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import {
+  buildWorkspaceUploadPath,
+  getSafeUploadFileName,
+} from "#/api/workspace-upload-path";
 import { FileUploadSuccessResponse } from "#/api/open-hands.types";
 
 interface UploadFilesVariables {
   conversationUrl: string | null | undefined;
   sessionApiKey: string | null | undefined;
+  workingDir: string;
   files: File[];
 }
 
@@ -21,22 +26,25 @@ export const useConversationUploadFiles = () =>
     mutationFn: async (
       variables: UploadFilesVariables,
     ): Promise<FileUploadSuccessResponse> => {
-      const { conversationUrl, sessionApiKey, files } = variables;
+      const { conversationUrl, sessionApiKey, workingDir, files } = variables;
 
-      // Upload all files in parallel
       const uploadPromises = files.map(async (file) => {
         try {
-          // Upload to /workspace/{filename}
-          const filePath = `/workspace/${file.name}`;
+          const safeName = getSafeUploadFileName(file.name);
+          const filePath = buildWorkspaceUploadPath(file.name, workingDir);
           await new RemoteWorkspace(
-            getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+            getAgentServerClientOptions({
+              conversationUrl,
+              sessionApiKey,
+              workingDir,
+            }),
           ).fileUpload(file, filePath);
-          return { success: true as const, fileName: file.name, filePath };
+          return { success: true as const, fileName: safeName, filePath };
         } catch (error) {
           return {
             success: false as const,
             fileName: file.name,
-            filePath: `/workspace/${file.name}`,
+            filePath: buildWorkspaceUploadPath(file.name, workingDir),
             error: error instanceof Error ? error.message : "Unknown error",
           };
         }
