@@ -141,7 +141,15 @@ describe("recommended automations", () => {
     );
     expect(cards[1]).toHaveAttribute(
       "data-testid",
+      "recommended-automation-card-github-repo-monitor",
+    );
+    expect(cards[2]).toHaveAttribute(
+      "data-testid",
       "recommended-automation-card-slack-standup-digest",
+    );
+    expect(cards[3]).toHaveAttribute(
+      "data-testid",
+      "recommended-automation-card-slack-channel-monitor",
     );
   });
 
