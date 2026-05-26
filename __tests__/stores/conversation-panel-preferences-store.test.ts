@@ -11,6 +11,7 @@ describe("conversation-panel-preferences store", () => {
   it("defaults to showing older conversations, chronological list, and expected toggles", () => {
     const state = useConversationPanelPreferencesStore.getState();
     expect(state.showOlderConversations).toBe(true);
+    expect(state.hideInactiveConversations).toBe(false);
     expect(state.showRepoBranchMetadata).toBe(false);
     expect(state.showLlmProfiles).toBe(false);
     expect(state.organizeMode).toBe("chronological");
@@ -71,12 +72,52 @@ describe("conversation-panel-preferences store", () => {
     );
     expect(Object.keys(persisted.state).sort()).toEqual([
       "conversationSort",
+      "hideInactiveConversations",
       "organizeMode",
       "showLlmProfiles",
       "showOlderConversations",
       "showRepoBranchMetadata",
       "threadScope",
     ]);
+  });
+
+  it("toggles hideInactiveConversations and persists the new value to localStorage", () => {
+    useConversationPanelPreferencesStore
+      .getState()
+      .toggleHideInactiveConversations();
+
+    expect(
+      useConversationPanelPreferencesStore.getState().hideInactiveConversations,
+    ).toBe(true);
+
+    const persisted = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) ?? "{}",
+    );
+    expect(persisted.state.hideInactiveConversations).toBe(true);
+
+    // Toggle back to false.
+    useConversationPanelPreferencesStore
+      .getState()
+      .toggleHideInactiveConversations();
+    expect(
+      useConversationPanelPreferencesStore.getState().hideInactiveConversations,
+    ).toBe(false);
+  });
+
+  it("supports explicit setter for hideInactiveConversations", () => {
+    useConversationPanelPreferencesStore
+      .getState()
+      .setHideInactiveConversations(true);
+    expect(
+      useConversationPanelPreferencesStore.getState().hideInactiveConversations,
+    ).toBe(true);
+
+    useConversationPanelPreferencesStore
+      .getState()
+      .setHideInactiveConversations(false);
+    expect(
+      useConversationPanelPreferencesStore.getState().hideInactiveConversations,
+    ).toBe(false);
   });
 
   it("exposes setters and a toggler for the LLM-profiles preference", () => {
@@ -131,6 +172,7 @@ describe("conversation-panel-preferences store", () => {
     const state = useConversationPanelPreferencesStore.getState();
     expect({
       showOlderConversations: state.showOlderConversations,
+      hideInactiveConversations: state.hideInactiveConversations,
       showRepoBranchMetadata: state.showRepoBranchMetadata,
       showLlmProfiles: state.showLlmProfiles,
       organizeMode: state.organizeMode,
@@ -141,6 +183,7 @@ describe("conversation-panel-preferences store", () => {
       showOlderConversations: false,
       showRepoBranchMetadata: true,
       // Filled with defaults for missing fields.
+      hideInactiveConversations: false,
       showLlmProfiles: false,
       organizeMode: "chronological",
       conversationSort: "updated",
