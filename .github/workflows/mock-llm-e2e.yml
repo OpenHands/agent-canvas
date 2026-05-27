@@ -101,46 +101,35 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
-          PW_LOG="test-results-mock-llm/pw-output.log"
-          mkdir -p test-results-mock-llm
-          touch "$PW_LOG"
+          MARKER="test-results-mock-llm/.all-passed"
+          rm -f "$MARKER"
 
-          # Run Playwright in background, writing output to a log file.
-          # Our shell survives even if we have to kill Playwright (the
-          # webServer teardown can hang indefinitely on agent-server).
-          npm run test:e2e:mock-llm > "$PW_LOG" 2>&1 &
+          # Run Playwright in background so our shell survives if we have
+          # to kill it (the webServer teardown can hang indefinitely).
+          npm run test:e2e:mock-llm &
           PW_PID=$!
 
-          # Tail the log in background so CI still shows real-time output.
-          tail -f "$PW_LOG" &
-          TAIL_PID=$!
-
-          # Phase 1: Wait up to 5 min for the test summary to appear.
-          # Playwright's line reporter prints "N passed" in real-time,
-          # before webServer teardown starts.
-          test_deadline=$((SECONDS + 300))
-          tests_done=false
-          while [ "$SECONDS" -lt "$test_deadline" ]; do
+          # Wait up to 5 min for the tests to complete. The test writes
+          # .all-passed when every assertion succeeds; its appearance
+          # signals completion. Also watch for Playwright exiting normally.
+          deadline=$((SECONDS + 300))
+          while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
-              break  # Playwright exited naturally
+              break
             fi
-            if grep -qE "[0-9]+ passed" "$PW_LOG" 2>/dev/null; then
-              tests_done=true
-              echo "--- Test summary detected in output ---"
+            if [ -f "$MARKER" ]; then
+              echo "All tests passed (marker detected)"
               break
             fi
             sleep 2
           done
 
-          # Phase 2: If Playwright is still running (teardown hang),
-          # give it 15s grace then force-kill.
+          # If Playwright is still running, give it 15s to teardown
+          # cleanly, then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
-            if [ "$tests_done" = "true" ]; then
-              echo "Tests finished but webServer teardown is hanging — killing in 15s"
-            fi
             sleep 15
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::Killing lingering Playwright process tree"
+              echo "::warning::Killing lingering Playwright process (teardown hung)"
               kill "$PW_PID" 2>/dev/null
               sleep 5
               kill -9 "$PW_PID" 2>/dev/null
@@ -152,28 +141,19 @@ jobs:
             pw_exit=$?
           fi
 
-          # Stop the tail follower.
-          kill "$TAIL_PID" 2>/dev/null; wait "$TAIL_PID" 2>/dev/null
-
           echo "Playwright exited with code $pw_exit"
-          echo "PW_LOG exists: $([ -f "$PW_LOG" ] && echo yes || echo no), size: $(wc -c < "$PW_LOG" 2>/dev/null || echo 0)"
 
           # When killed during teardown, the exit code is non-zero but
-          # tests may have passed. Parse the line reporter summary.
-          if [ "$pw_exit" -ne 0 ] && [ -f "$PW_LOG" ]; then
-            echo "Searching for pass/fail in PW_LOG..."
-            grep -E "passed|failed|timed out" "$PW_LOG" | tail -5 || echo "(no grep match)"
-            if grep -qE "[0-9]+ passed" "$PW_LOG" && ! grep -qE "[0-9]+ failed|[0-9]+ timed out" "$PW_LOG"; then
-              echo "::notice::All tests passed per Playwright output; non-zero exit was teardown-related"
-              pw_exit=0
-            else
-              echo "Log check: pw_exit stays $pw_exit"
-            fi
-          else
-            echo "Skipping log check: pw_exit=$pw_exit, log exists=$([ -f "$PW_LOG" ] && echo yes || echo no)"
+          # tests may have passed. The test writes a .all-passed marker
+          # file at the end if every assertion succeeds — this is more
+          # reliable than parsing stdout or results.json (which Playwright
+          # only flushes on clean process exit).
+          MARKER="test-results-mock-llm/.all-passed"
+          if [ "$pw_exit" -ne 0 ] && [ -f "$MARKER" ]; then
+            echo "::notice::All tests passed (marker file present); non-zero exit was teardown-related"
+            pw_exit=0
           fi
 
-          echo "Final exit_code=$pw_exit"
           echo "exit_code=$pw_exit" >> "$GITHUB_OUTPUT"
           exit 0
 
