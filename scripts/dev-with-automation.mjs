@@ -35,12 +35,11 @@
  *     openhands-tools and openhands-workspace as editable so source edits are
  *     picked up without manual reinstall.
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
- *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
- *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
- *
  * Secrets:
- *   The automation API key is automatically seeded into agent-server secrets
+ *   The session API key is automatically seeded into agent-server secrets
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
+ *   Both the agent-server and automation backend use the same key value
+ *   and the same `X-Session-API-Key` header for authentication.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -86,15 +85,6 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
-// Where the auto-generated default automation API key is persisted. Static
-// frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
-// must remain stable across restarts and --skip-build reuse.
-const DEFAULT_AUTOMATION_API_KEY_PATH = join(
-  homedir(),
-  ".openhands",
-  "agent-canvas",
-  "automation-api-key.txt",
-);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -213,12 +203,11 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
-  AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
-  OH_AUTOMATION_API_KEY_PATH  Override persisted default automation key path
 
 SECRETS:
-  The automation API key is automatically seeded into agent-server secrets
+  The session API key is automatically seeded into agent-server secrets
   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
+  Both backends (agent-server and automation) share the same key value.
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -339,17 +328,8 @@ async function buildConfig(args, env = process.env) {
 
   const vscodePort = ports.backend + 1000;
 
-  // Local API key for automation backend auth. Keep the generated default
-  // stable across restarts because static frontend builds bake this value.
-  const automationApiKeyPath =
-    env.OH_AUTOMATION_API_KEY_PATH || DEFAULT_AUTOMATION_API_KEY_PATH;
-  const localApiKey =
-    env.AUTOMATION_LOCAL_API_KEY ||
-    getOrCreatePersistedApiKey(automationApiKeyPath, "automation");
-
-  // Session API key for agent-server auth
-  // Build a preliminary safe config to get the auto-generated session key
-  // This ensures both agent-server and frontend use the same key
+  // Session API key — shared by both agent-server and automation backend.
+  // Both validate it via the `X-Session-API-Key` header.
   const stateDir = join(homedir(), ".openhands", "agent-canvas");
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
@@ -375,8 +355,7 @@ async function buildConfig(args, env = process.env) {
     // Data directories (same as dev-safe.mjs)
     stateDir,
 
-    // Auth
-    localApiKey,
+    // Auth — single key for both backends
     sessionApiKey,
 
     verbose: args.verbose,
@@ -530,12 +509,13 @@ async function waitForService(name, url, timeoutMs = 30000) {
 
 function buildAgentServerAutomationEnv(config) {
   return {
-    // Make the local automation backend key available to terminal commands
-    // spawned by the agent-server. The launcher also seeds this into Settings
-    // > Secrets, but agents commonly create automations with a curl command
-    // that references `$OPENHANDS_AUTOMATION_API_KEY`; exposing it here keeps
-    // that path working even before/without secret-registry env expansion.
-    OPENHANDS_AUTOMATION_API_KEY: config.localApiKey,
+    // Make the session API key available to terminal commands spawned by the
+    // agent-server as OPENHANDS_AUTOMATION_API_KEY. The launcher also seeds
+    // this into Settings > Secrets, but agents commonly create automations
+    // with a curl command that references `$OPENHANDS_AUTOMATION_API_KEY`;
+    // exposing it here keeps that path working even before/without
+    // secret-registry env expansion.
+    OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
   };
 }
 
@@ -651,8 +631,8 @@ function startAutomationBackend(config) {
           process.env.AUTOMATION_WORKSPACE_BASE ||
           config.automationWorkspaceBase ||
           join(config.stateDir, "workspaces"),
-        // Local API key for self-hosted auth (no cloud API needed)
-        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+        // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
+        AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
         // CORS: allow localhost origins for dev
         AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
@@ -775,29 +755,25 @@ function startVite(config) {
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
       VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key for frontend to authenticate with agent-server
+      // Session API key — used by the frontend for both agent-server and
+      // automation auth via the `X-Session-API-Key` header.
       VITE_SESSION_API_KEY: config.sessionApiKey,
-      // Automation API key for frontend to authenticate with automation backend
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
       // Inform the frontend (and downstream, the agent's system prompt) about
       // which services are available in this dev stack.
       VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
-      // Session API key for agent-server auth (when SESSION_API_KEY is set)
-      ...(config.sessionApiKey && {
-        VITE_SESSION_API_KEY: config.sessionApiKey,
-      }),
     },
     color: c.magenta,
   });
 }
 
 /**
- * Seed the automation API key into agent-server's secrets store.
- * This makes the key available to agents during conversations.
+ * Seed the session API key into agent-server's secrets store as
+ * OPENHANDS_AUTOMATION_API_KEY so agents can authenticate with the
+ * automation backend in curl commands during conversations.
  *
  * Includes retry logic to handle slow server startup or transient failures.
  *
- * @param {object} config - Configuration object with agentServerPort, localApiKey, sessionApiKey
+ * @param {object} config - Configuration object with agentServerPort, sessionApiKey
  * @param {object} options - Options for retry behavior
  * @param {number} options.maxRetries - Maximum number of retry attempts (default: 5)
  * @param {number} options.retryDelayMs - Delay between retries in ms (default: 2000)
@@ -816,7 +792,7 @@ async function seedAutomationSecret(config, options = {}) {
   const url = `http://localhost:${config.agentServerPort}/api/settings/secrets`;
   const body = JSON.stringify({
     name: secretName,
-    value: config.localApiKey,
+    value: config.sessionApiKey,
     description: secretDescription,
   });
 
@@ -1137,7 +1113,6 @@ export {
   DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
-  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
