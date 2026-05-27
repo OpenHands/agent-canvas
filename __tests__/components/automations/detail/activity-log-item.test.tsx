@@ -134,3 +134,51 @@ describe("ActivityLogItem — logs button", () => {
     ).toBe(true);
   });
 });
+
+describe("ActivityLogItem — timestamp fallback", () => {
+  beforeEach(() => {
+    __resetActiveStoreForTests();
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+  });
+
+  afterEach(() => {
+    __resetActiveStoreForTests();
+    vi.useRealTimers();
+  });
+
+  it("renders the user's local time instead of the Unix epoch when started_at is unset on a Pending run", () => {
+    // Arrange: the backend reports started_at as epoch-zero while a run is
+    // still Pending. Pin "now" so the assertion is deterministic.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-27T13:00:00Z"));
+    const run = makeRun({
+      status: AutomationRunStatus.PENDING,
+      started_at: "1970-01-01T00:00:00Z",
+      conversation_id: null,
+      bash_command_id: null,
+    });
+
+    // Act
+    const { container } = renderItem(run);
+
+    // Assert: the row reflects the current clock, not 1970.
+    expect(container.textContent).toContain("2026");
+    expect(container.textContent).not.toContain("1970");
+  });
+
+  it("renders the backend-provided started_at unchanged when it is a valid timestamp", () => {
+    // Arrange: pin "now" to a different year so we can prove the row uses
+    // started_at rather than the fallback substitution.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-01-01T00:00:00Z"));
+    const run = makeRun({ started_at: "2027-03-15T09:00:00Z" });
+
+    // Act
+    const { container } = renderItem(run);
+
+    // Assert
+    expect(container.textContent).toContain("2027");
+    expect(container.textContent).not.toContain("2030");
+  });
+});
