@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   mock-llm-e2e:
@@ -21,6 +22,10 @@ jobs:
        contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+
+    env:
+      MOCK_LLM_REPORT_PATH: mock-llm-report.md
+      MOCK_LLM_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
       - name: Check out repository
@@ -61,9 +66,16 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run mock-LLM E2E tests
-        run: npm run test:e2e:mock-llm
+        id: run_tests
+        run: |
+          set +e
+          npm run test:e2e:mock-llm
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Upload test artifacts
+        id: upload_artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -73,3 +85,30 @@ jobs:
           path: |
             playwright-report-mock-llm/
             test-results-mock-llm/
+
+      - name: Render test report
+        if: always()
+        run: |
+          node tests/e2e/mock-llm/scripts/render-mock-llm-report.mjs \
+            --results "test-results-mock-llm/results.json" \
+            --output "$MOCK_LLM_REPORT_PATH" \
+            --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
+            --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
+          cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post PR comment
+        if: always() && github.event.pull_request.number
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node tests/e2e/live/scripts/upsert-pr-comment.mjs \
+            --issue-number "${{ github.event.pull_request.number }}" \
+            --marker "<!-- mock-llm-e2e-report -->" \
+            --body-file "$MOCK_LLM_REPORT_PATH"
+
+      - name: Fail job when tests fail
+        if: always()
+        run: |
+          exit_code="${{ steps.run_tests.outputs.exit_code }}"
+          exit "${exit_code:-1}"

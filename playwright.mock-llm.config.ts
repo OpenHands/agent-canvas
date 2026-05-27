@@ -51,6 +51,7 @@ export default defineConfig({
   timeout: 120_000,
   reporter: [
     ["line"],
+    ["json", { outputFile: "test-results-mock-llm/results.json" }],
     ["html", { outputFolder: "playwright-report-mock-llm", open: "never" }],
   ],
   outputDir: "test-results-mock-llm",
