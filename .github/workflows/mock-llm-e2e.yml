@@ -45,6 +45,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -73,9 +76,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
           kill $SERVER_PID
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
 
       - name: Run mock-LLM E2E tests
         id: run_tests
