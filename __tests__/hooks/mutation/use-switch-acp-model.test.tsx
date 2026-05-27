@@ -45,7 +45,7 @@ describe("useSwitchAcpModel", () => {
 
   it("live-switches the ACP model for an active conversation and invalidates conversation queries", async () => {
     vi.mocked(AgentServerConversationService.switchAcpModel).mockResolvedValue(
-      undefined as never,
+      undefined,
     );
 
     const { result, invalidateQueriesSpy } = renderSwitchHook();
@@ -76,7 +76,7 @@ describe("useSwitchAcpModel", () => {
   });
 
   it("persists the model as the agent-settings default on the home page (conversationId === null)", async () => {
-    vi.mocked(SettingsService.saveSettings).mockResolvedValue(true as never);
+    vi.mocked(SettingsService.saveSettings).mockResolvedValue(true);
 
     const { result, invalidateQueriesSpy } = renderSwitchHook();
 
