@@ -62,6 +62,45 @@ describe("ChatInputModel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders an ACP conversation model and links to Agent settings", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    const model = screen.getByTestId("chat-input-llm-model");
+    // ACP surfaces show the provider's human label (matching the conversation
+    // list chip), resolved from ``acp_server`` + the raw ``acp_model`` id.
+    expect(model).toHaveAttribute("title", "Claude Sonnet 4.6");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+  });
+
+  it("does not fall back to the OpenHands settings model for active ACP conversations", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
+    });
+    useSettingsMock.mockReturnValue({
+      data: { llm_model: "openai/gpt-4o" },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back to the user's default model from settings when there is no active conversation", () => {
     // Arrange — home page render: no conversation yet, but the user has
     // a default model configured. The switcher should still show.
@@ -78,6 +117,26 @@ describe("ChatInputModel", () => {
       "title",
       "anthropic/claude-sonnet-4-20250514",
     );
+  });
+
+  it("uses the ACP settings model on the home page when ACP is active", () => {
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({
+      data: {
+        llm_model: "openai/gpt-4o",
+        agent_settings: {
+          agent_kind: "acp",
+          acp_model: "gemini-2.5-pro",
+        },
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    const model = screen.getByTestId("chat-input-llm-model");
+    expect(model).toHaveAttribute("title", "gemini-2.5-pro");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
 
   it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
@@ -116,27 +175,31 @@ describe("ChatInputModel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders nothing on the home page when ACP is the default agent", () => {
-    // Home-screen gating: no active conversation, so the
-    // per-conversation ``agent_kind`` check can't catch this case.
-    // Fall back to ``settings.agent_settings.agent_kind`` — that's
-    // the kind the next-created conversation will inherit. Showing
-    // the LLM picker here would put up a control that becomes a
-    // silent no-op the moment the user sends their first message.
+  it("shows the provider default on the home page when ACP is the default agent and no model is saved", () => {
+    // Home-screen gating: no active conversation and no saved ``acp_model``.
+    // The next-created conversation will inherit the provider's
+    // ``default_model`` (see buildConfiguredAcpAgentSettings), so the picker
+    // shows that same default — matching what the runtime will actually
+    // start. Picker links to /settings/agent (not /settings) since
+    // ``settings.llm_model`` doesn't apply to ACP.
     useActiveConversationMock.mockReturnValue({ data: undefined });
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
-        // settings.llm_model is still set (the user has an OpenHands
-        // default configured), but agent_kind=acp wins.
+        // settings.llm_model is set (user has an OpenHands default
+        // configured), but agent_kind=acp suppresses it.
         llm_model: "anthropic/claude-sonnet-4-20250514",
       },
     });
 
     renderWithProviders(<ChatInputModel />);
 
-    expect(
-      screen.queryByTestId("chat-input-llm-model"),
-    ).not.toBeInTheDocument();
+    const model = screen.getByTestId("chat-input-llm-model");
+    // Claude Code's registered default (``claude-opus-4-7``), shown as its
+    // human label to match the conversation list chip. See CLAUDE_MODELS in
+    // acp-providers.ts.
+    expect(model).toHaveAttribute("title", "Claude Opus 4.7");
+    fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
 });

@@ -316,6 +316,10 @@ export const CONVERSATION_HANDLERS = [
     HttpResponse.json({ success: true }),
   ),
 
+  http.post("*/api/conversations/:conversationId/interrupt", async () =>
+    HttpResponse.json({ success: true }),
+  ),
+
   http.post("*/api/conversations/:conversationId/run", async () =>
     HttpResponse.json({ success: true }),
   ),

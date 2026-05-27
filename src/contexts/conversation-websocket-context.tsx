@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
@@ -12,6 +13,7 @@ import { ConversationClient } from "@openhands/typescript-client/clients";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
+import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -33,6 +35,7 @@ import {
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
+  isSwitchLLMObservationEvent,
   isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
 import { handleCanvasUIAction } from "#/services/canvas-ui";
@@ -55,6 +58,11 @@ import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  invalidateConversationQueries,
+  updateConversationLlmModelInCache,
+} from "#/hooks/mutation/conversation-mutation-utils";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -70,6 +78,7 @@ interface ConversationWebSocketContextType {
   connectionState: WebSocketConnectionState;
   sendMessage: (message: SendMessageRequest) => Promise<SendMessageResult>;
   isLoadingHistory: boolean;
+  reconnect: () => void;
 }
 
 const ConversationWebSocketContext = createContext<
@@ -124,7 +133,8 @@ export function ConversationWebSocketProvider({
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
-  const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
+  const { setErrorMessage, removeErrorMessage, clearConnectionError } =
+    useErrorMessageStore();
   const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
     (state) => state.consumeMatchingPendingMessage,
   );
@@ -160,8 +170,10 @@ export function ConversationWebSocketProvider({
     path?.toUpperCase().endsWith("PLAN.MD") ?? false;
 
   const handleNonErrorEvent = useCallback(() => {
-    removeErrorMessage();
-  }, [removeErrorMessage]);
+    // A normal event means connectivity recovered: clear a transient connection
+    // error, but keep sticky conversation errors (e.g. a wrong API key).
+    clearConnectionError();
+  }, [clearConnectionError]);
 
   // Helper function to update metrics from stats event
   const updateMetricsFromStats = useCallback(
@@ -207,7 +219,7 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
@@ -388,6 +400,13 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
+          const switchLLMObservation =
+            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
+              ? event
+              : null;
           addEvent(event);
 
           // Handle displayable error events - show error banner
@@ -410,7 +429,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Track credit limit reached if AgentErrorEvent has budget-related error
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -422,7 +442,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -495,6 +514,27 @@ export function ConversationWebSocketProvider({
           // Handle BrowserNavigateAction events - update browser store with URL
           if (isBrowserNavigateActionEvent(event)) {
             useBrowserStore.getState().setUrl(event.action.url);
+          }
+
+          if (
+            conversationId &&
+            switchLLMObservation &&
+            !switchLLMObservation.observation.is_error
+          ) {
+            recordModelSwitchMessage(
+              conversationId,
+              switchLLMObservation.observation.profile_name,
+            );
+
+            if (switchLLMObservation.observation.active_model) {
+              updateConversationLlmModelInCache(
+                queryClient,
+                conversationId,
+                switchLLMObservation.observation.active_model,
+              );
+            }
+
+            invalidateConversationQueries(queryClient, conversationId);
           }
 
           // Handle canvas_ui custom-tool ActionEvents - drive the frontend
@@ -571,7 +611,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Handle AgentErrorEvent specifically
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -583,7 +624,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -724,7 +764,7 @@ export function ConversationWebSocketProvider({
       onOpen: () => {
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
       },
       onClose: () => {
         setMainConnectionState("CLOSED");
@@ -733,7 +773,7 @@ export function ConversationWebSocketProvider({
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
-          setErrorMessage("Failed to connect to server");
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handleMainMessage,
@@ -741,7 +781,7 @@ export function ConversationWebSocketProvider({
   }, [
     handleMainMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     initialAfterTimestamp,
   ]);
@@ -765,7 +805,7 @@ export function ConversationWebSocketProvider({
       onOpen: async () => {
         setPlanningConnectionState("OPEN");
         hasConnectedRefPlanning.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
 
         // Fetch expected event count for history loading detection
         if (
@@ -797,7 +837,7 @@ export function ConversationWebSocketProvider({
         setPlanningConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefPlanning.current) {
-          setErrorMessage("Failed to connect to server");
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handlePlanningMessage,
@@ -805,7 +845,7 @@ export function ConversationWebSocketProvider({
   }, [
     handlePlanningMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     subConversations,
   ]);
@@ -813,15 +853,28 @@ export function ConversationWebSocketProvider({
   // Only attempt WebSocket connection when we have a valid URL
   // This prevents connection attempts during task polling phase
   const websocketUrl = wsUrl;
-  const { socket: mainSocket } = useWebSocket(
+  const { socket: mainSocket, reconnect: reconnectMain } = useWebSocket(
     websocketUrl || "",
     mainWebsocketOptions,
   );
 
-  const { socket: planningAgentSocket } = useWebSocket(
-    planningAgentWsUrl || "",
-    planningWebsocketOptions,
-  );
+  const { socket: planningAgentSocket, reconnect: reconnectPlanning } =
+    useWebSocket(planningAgentWsUrl || "", planningWebsocketOptions);
+
+  const reconnect = useCallback(() => {
+    removeErrorMessage();
+    const currentMode = useConversationStore.getState().conversationMode;
+    if (currentMode === "plan" && planningAgentWsUrl) {
+      reconnectPlanning();
+      return;
+    }
+    reconnectMain();
+  }, [
+    planningAgentWsUrl,
+    reconnectMain,
+    reconnectPlanning,
+    removeErrorMessage,
+  ]);
 
   // V1 send message function via WebSocket
   // Falls back to REST API queue when WebSocket is not connected
@@ -863,8 +916,9 @@ export function ConversationWebSocketProvider({
       }
 
       try {
-        // Send message through WebSocket as JSON
-        currentSocket.send(JSON.stringify(message));
+        // Send message through WebSocket as JSON with run: true so the
+        // agent loop starts automatically in async mode.
+        currentSocket.send(JSON.stringify({ ...message, run: true }));
         return { queued: false };
       } catch (error) {
         const errorMessage =
@@ -935,8 +989,8 @@ export function ConversationWebSocketProvider({
   }, [planningAgentSocket, planningAgentWsUrl]);
 
   const contextValue = useMemo(
-    () => ({ connectionState, sendMessage, isLoadingHistory }),
-    [connectionState, sendMessage, isLoadingHistory],
+    () => ({ connectionState, sendMessage, isLoadingHistory, reconnect }),
+    [connectionState, sendMessage, isLoadingHistory, reconnect],
   );
 
   return (

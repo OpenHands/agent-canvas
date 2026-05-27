@@ -65,7 +65,7 @@ export function ToolItem({ tool, index, isExpanded, onToggle }: ToolItemProps) {
     null;
 
   return (
-    <div className="rounded-md overflow-hidden">
+    <div>
       <ToggleButton
         title={String(name)}
         isExpanded={isExpanded}
@@ -73,12 +73,11 @@ export function ToolItem({ tool, index, isExpanded, onToggle }: ToolItemProps) {
       />
 
       {isExpanded && (
-        <div className="px-2 pb-3 pt-1">
+        <div className="px-3 pb-3 pt-1 border-t border-[var(--oh-border)]">
           <div className="mt-2 mb-3 text-sm text-[var(--oh-text-tertiary)] leading-relaxed">
             <MarkdownRenderer>{String(description)}</MarkdownRenderer>
           </div>
 
-          {/* Parameters section */}
           {parameters && <ToolParameters parameters={parameters} />}
         </div>
       )}

@@ -103,6 +103,27 @@ describe("Automation MSW Handlers", () => {
     });
   });
 
+  describe("POST /api/automation/v1/:id/dispatch", () => {
+    it("creates a pending run for an existing automation", async () => {
+      const id = MOCK_AUTOMATIONS_RESPONSE.automations[0].id;
+      const res = await fetch(`/api/automation/v1/${id}/dispatch`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      expect(res.status).toBe(201);
+      expect(data.status).toBe("PENDING");
+    });
+
+    it("returns 404 for non-existent automation", async () => {
+      const res = await fetch("/api/automation/v1/non-existent-id/dispatch", {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe("GET /api/automation/v1/:id/runs", () => {
     it("returns automation runs", async () => {
       const id = MOCK_AUTOMATIONS_RESPONSE.automations[0].id;

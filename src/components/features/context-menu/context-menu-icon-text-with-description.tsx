@@ -21,7 +21,7 @@ export function ContextMenuIconTextWithDescription({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 justify-center hover:bg-[var(--oh-interactive-hover)] rounded p-2",
+        "flex min-w-0 w-full flex-col justify-center gap-1",
         className,
       )}
     >

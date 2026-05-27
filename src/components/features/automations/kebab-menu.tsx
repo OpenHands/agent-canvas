@@ -1,12 +1,36 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import ReactDOM from "react-dom";
+import { useTranslation } from "react-i18next";
 import KebabVerticalIcon from "#/icons/kebab-vertical.svg?react";
-import { cn } from "#/utils/utils";
+import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
+import { I18nKey } from "#/i18n/declaration";
+import { ContextMenu } from "#/ui/context-menu";
+import { automationIconActionButtonClassName } from "./automation-action-button-classes";
 
 export interface KebabMenuItem {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
-  variant?: "default" | "danger";
+  disabled?: boolean;
+}
+
+interface KebabMenuItemContentProps {
+  icon: React.ReactNode;
+  label: string;
+}
+
+function KebabMenuItemContent({ icon, label }: KebabMenuItemContentProps) {
+  return (
+    <span className="flex min-w-0 w-full items-center gap-2">
+      <span
+        className="flex shrink-0 items-center text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:size-4 [&_svg]:text-current"
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </span>
+  );
 }
 
 interface KebabMenuProps {
@@ -14,58 +38,109 @@ interface KebabMenuProps {
 }
 
 export function KebabMenu({ items }: KebabMenuProps) {
+  const { t } = useTranslation("openhands");
   const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return undefined;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const gap = 4;
+      setPortalStyle({
+        position: "fixed",
+        zIndex: 9999,
+        top: rect.bottom + gap,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [open]);
 
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen(!open);
-        }}
-        className="flex size-8 cursor-pointer items-center justify-center rounded border border-[var(--oh-border)] bg-surface hover:bg-surface-raised"
-        aria-label="Automation actions"
-      >
-        <KebabVerticalIcon className="size-4 text-muted" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[var(--oh-border)] bg-surface-raised py-1 shadow-lg">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
+  const menu =
+    open && portalStyle ? (
+      <ContextMenu ref={menuRef} theme="popover" className="min-w-[10rem]">
+        {items.map((item) => (
+          <li key={item.label}>
+            <ContextMenuListItem
+              onClick={(event) => {
+                event.stopPropagation();
                 item.onClick();
                 setOpen(false);
               }}
-              className={cn(
-                "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-sm hover:bg-[var(--oh-interactive-hover)]",
-                item.variant === "danger" ? "text-danger" : "text-white",
-              )}
+              isDisabled={item.disabled}
+              className="group"
             >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+              <KebabMenuItemContent icon={item.icon} label={item.label} />
+            </ContextMenuListItem>
+          </li>
+        ))}
+      </ContextMenu>
+    ) : null;
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((current) => !current);
+        }}
+        className={automationIconActionButtonClassName}
+        aria-label={t(I18nKey.AUTOMATIONS$ACTIONS_MENU)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <KebabVerticalIcon className="size-4" />
+      </button>
+
+      {open && portalStyle && typeof document !== "undefined"
+        ? ReactDOM.createPortal(
+            <div style={portalStyle}>{menu}</div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

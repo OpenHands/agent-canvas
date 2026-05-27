@@ -1,6 +1,10 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { OnboardingProgressBar } from "./onboarding-progress-bar";
@@ -128,7 +132,9 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
           data-current-step={currentStep}
           className={cn(
             "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
-            "w-[560px] max-w-[92vw] max-h-[90vh]",
+            modalWidthClassName("lg"),
+            MODAL_MAX_WIDTH_VIEWPORT,
+            "max-h-[90vh]",
           )}
         >
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
