@@ -324,11 +324,11 @@ export function LlmSettingsLocalView() {
       />
 
       {/* Action buttons */}
-      <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
+      <div className="flex justify-start gap-3 pt-4">
         <BrandButton
           testId="cancel-profile-btn"
           type="button"
-          variant="tertiary"
+          variant="secondary"
           onClick={handleBackToList}
         >
           {t(I18nKey.BUTTON$CANCEL)}
