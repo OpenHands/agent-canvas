@@ -72,8 +72,12 @@ function PathComponent(props: { children?: ReactNode }) {
   };
 
   if (Array.isArray(children)) {
-    const processedChildren = children.map((child) =>
-      typeof child === "string" ? processPath(child) : child,
+    const processedChildren = children.map((child, index) =>
+      typeof child === "string" ? (
+        <span key={`${child}-${index}`}>{processPath(child)}</span>
+      ) : (
+        child
+      ),
     );
 
     return <strong className="font-mono">{processedChildren}</strong>;
