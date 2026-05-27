@@ -71,12 +71,14 @@ const listResponse: AutomationsResponse = {
   total: 1,
 };
 
-function renderList() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function renderList(queryClient?: QueryClient) {
+  const client =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ActiveBackendProvider>
         <MemoryRouter initialEntries={["/automations"]}>
           <AutomationsList />
@@ -312,5 +314,42 @@ describe("AutomationsList — Run now toasts", () => {
       expect(displayErrorToast).toHaveBeenCalledWith("dispatch failed");
     });
     expect(displaySuccessToast).not.toHaveBeenCalled();
+  });
+});
+
+describe("AutomationsList — list freshness on remount", () => {
+  it("surfaces automations created since the last visit without a manual refresh", async () => {
+    // Arrange — share a QueryClient across two mounts to simulate the user
+    // navigating away from /automations and back. Between the two mounts an
+    // agent has created a new automation, so the service starts returning
+    // it on the next call. Previously, the cached list was treated as fresh
+    // for 5 minutes and the second mount would have re-rendered the stale
+    // list without refetching.
+    const newAutomation: Automation = {
+      ...automation,
+      id: "auto-2",
+      name: "Hello World",
+    };
+    vi.mocked(AutomationService.getAutomations)
+      .mockReset()
+      .mockResolvedValueOnce(listResponse)
+      .mockResolvedValueOnce({
+        automations: [automation, newAutomation],
+        total: 2,
+      });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    // Act — first mount lands on the original list, then unmount and remount
+    // against the same QueryClient (the cache the bug used to serve stale).
+    const first = renderList(queryClient);
+    await screen.findByText(automation.name);
+    first.unmount();
+    renderList(queryClient);
+
+    // Assert — the remount refetched and surfaced the newly created
+    // automation, which is the user-observable behavior the bug blocked.
+    await screen.findByText(newAutomation.name);
   });
 });
