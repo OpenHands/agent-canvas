@@ -27,8 +27,6 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ## Quickstart
 
-### Direct Install
-
 You can install OpenHands to run agents on any machine: on your laptop, on a dedicated computer like a Mac Mini,
 or on a server in the cloud.
 
@@ -41,13 +39,40 @@ them from the same Agent Canvas frontend. E.g. you can share an Agent Server wit
 code review and dependency updates, then have your personal agents running on your laptop.
 
 > [!WARNING]
-> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
+> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
-**Prerequisites**:
+### Option 1: Docker
 
-- Node.js 22.12.x or later
-- `npm`
-- `uv` (for running the agent server via `uvx`)
+```sh
+docker pull ghcr.io/openhands/agent-canvas:latest
+```
+
+```sh
+docker run -it --rm \
+  -p 8000:8000 \
+  -v ~/.openhands:/home/openhands/.openhands \
+  -v ${PROJECTS_PATH}:/projects \
+  ghcr.io/openhands/agent-canvas:latest
+```
+
+Set `PROJECTS_PATH` to the directory containing your project folders (e.g. `~/projects`).
+The agent will be able to access any project under that path.
+
+### Option 2: NPM
+
+**Prerequisites**: Node.js 22.12.x or later, `uv`
+
+```sh
+npm install -g @openhands/agent-canvas
+```
+
+```sh
+agent-canvas
+```
+
+### Option 3: From Source
+
+**Prerequisites**: Node.js 22.12.x or later, `npm`, `uv` (for running the agent server via `uvx`)
 
 ```sh
 git clone https://github.com/OpenHands/agent-canvas.git
@@ -55,6 +80,8 @@ cd agent-canvas
 npm install
 npm run dev
 ```
+
+---
 
 Access the UI at [http://localhost:8000](http://localhost:8000). You can add additional backends directly from the UI.
 
