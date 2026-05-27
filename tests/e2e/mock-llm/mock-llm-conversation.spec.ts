@@ -213,16 +213,15 @@ test.describe("mock-LLM agent-server conversation", () => {
     await waitForTestId(page, "chat-interface");
     await waitForTestId(page, "interactive-chat-box");
 
-    // Type a message in the chat input
+    // Type a message in the chat input.
+    // IMPORTANT: Do NOT include BASH_TOKEN or REPLY_TOKEN in the user message.
+    // The mock LLM ignores the prompt entirely (TestLLM pops scripted responses
+    // from a deque), so the prompt text is irrelevant. Keeping the tokens out
+    // of the user bubble lets us assert they appear *only* in agent output.
     const chatInput = page.getByTestId("chat-input");
     await chatInput.click();
 
-    const userMessage = [
-      "Use the terminal/bash tool exactly once.",
-      `Run this exact command: printf '${BASH_TOKEN}\\n'`,
-      `After the command succeeds, reply with exactly: ${REPLY_TOKEN}`,
-      "Do not use any other tools.",
-    ].join("\n");
+    const userMessage = "Please run a quick terminal command and then reply.";
 
     // Use page.evaluate to set contenteditable text reliably
     await page.evaluate(
@@ -267,9 +266,8 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     await test.step("verify no error banners", async () => {
       const errorBanner = page.getByTestId("error-message-banner");
-      await expect(errorBanner).not.toBeVisible({ timeout: 2_000 }).catch(() => {
-        // If the banner IS visible, read its content for the failure message
-      });
+      // No .catch() — if the banner IS visible, this step must fail the test.
+      await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
   });
 });

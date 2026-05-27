@@ -1,0 +1,75 @@
+name: Mock-LLM E2E Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+
+concurrency:
+  group: mock-llm-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mock-llm-e2e:
+    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read defaults from config/defaults.json
+        id: defaults
+        run: |
+          echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install openhands-sdk (for mock LLM server)
+        run: uv pip install --system openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+
+      - name: Verify mock LLM server starts
+        run: |
+          python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port 9998 &
+          sleep 3
+          curl -sf http://127.0.0.1:9998/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -d '{"model":"test","messages":[]}' | python3 -m json.tool
+          kill %1
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mock-LLM E2E tests
+        run: npm run test:e2e:mock-llm
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-llm-e2e-results
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            playwright-report-mock-llm/
+            test-results-mock-llm/

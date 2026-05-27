@@ -8,7 +8,6 @@
 import {
   expect,
   type APIRequestContext,
-  type Locator,
   type Page,
 } from "@playwright/test";
 
@@ -102,7 +101,18 @@ export function getConversationIdFromURL(page: Page): string {
   return decodeURIComponent(match![1]);
 }
 
-/** Wait for text to appear in the chat (excluding user messages). */
+/**
+ * Wait for text to appear in the chat, but only inside agent/environment output.
+ *
+ * ChatMessage renders `data-testid="${type}-message"` where type is one of
+ * "user" | "agent" | "environment" | "hook". We strip user-message elements
+ * and search the rest, so tokens that only exist in the user's own prompt
+ * never cause a false positive.
+ *
+ * The check also scans `[data-testid="model-messages"]` (the wrapper for
+ * agent model output) and `[data-testid="event-group"]` (collapsed action
+ * groups) to catch output rendered through non-ChatMessage paths.
+ */
 export async function waitForNonUserMessageText(
   page: Page,
   text: string,
@@ -113,12 +123,22 @@ export async function waitForNonUserMessageText(
       () =>
         page
           .evaluate((searchText) => {
-            const body = document.body.cloneNode(true) as HTMLElement;
-            // Remove user message bubbles so we only check agent/system output
-            body
-              .querySelectorAll('[data-testid="user-message"]')
-              .forEach((n) => n.remove());
-            return body.textContent?.includes(searchText) ?? false;
+            // Strategy: check specific agent-output containers rather than
+            // cloning the whole body. This avoids false positives from user
+            // input, sidebar text, nav elements, etc.
+            const selectors = [
+              '[data-testid="agent-message"]',
+              '[data-testid="environment-message"]',
+              '[data-testid="model-messages"]',
+              '[data-testid="event-group"]',
+            ];
+            for (const sel of selectors) {
+              const elements = document.querySelectorAll(sel);
+              for (const el of elements) {
+                if (el.textContent?.includes(searchText)) return true;
+              }
+            }
+            return false;
           }, text)
           .catch(() => false),
       { timeout },
