@@ -117,11 +117,11 @@ describe("buildAutomationCommand", () => {
 });
 
 describe("buildAgentServerAutomationEnv", () => {
-  it("exposes the local automation API key under the name agents use in curl commands", () => {
+  it("exposes the session API key as OPENHANDS_AUTOMATION_API_KEY for agent curl commands", () => {
     expect(
-      buildAgentServerAutomationEnv({ localApiKey: "automation-local-key" }),
+      buildAgentServerAutomationEnv({ sessionApiKey: "shared-session-key" }),
     ).toEqual({
-      OPENHANDS_AUTOMATION_API_KEY: "automation-local-key",
+      OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
     });
   });
 });
@@ -153,7 +153,6 @@ describe("buildConfig", () => {
     keyDirs.push(dir);
     return {
       OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
-      OH_AUTOMATION_API_KEY_PATH: path.join(dir, "automation-api-key.txt"),
       ...extra,
     };
   }
@@ -288,33 +287,10 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("uses a persisted generated local automation API key by default", async () => {
+  it("sessionApiKey is a 64-char hex string by default", async () => {
     const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    // Default is a 64-char hex string (256-bit random key)
-    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it("reuses the persisted local automation API key across restarts", async () => {
-    const env = envWithIsolatedKeyPath();
-    const first = await buildConfig({}, env);
-
-    // Simulate a fresh process invocation (the file on disk should be
-    // what makes the key stable).
-    resetPersistedSessionApiKeyCache();
-
-    const second = await buildConfig({}, env);
-
-    expect(second.localApiKey).toBe(first.localApiKey);
-  });
-
-  it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
-    const config = await buildConfig(
-      {},
-      envWithIsolatedKeyPath({ AUTOMATION_LOCAL_API_KEY: "my-custom-key" }),
-    );
-
-    expect(config.localApiKey).toBe("my-custom-key");
+    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("falls back to a freshly persisted session API key by default", async () => {
@@ -451,7 +427,6 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
-    expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
     expect(output).toContain("SECRETS:");
   });

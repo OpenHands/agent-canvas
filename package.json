@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-alpha.4",
+  "version": "1.0.0-alpha.6",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -172,6 +172,7 @@
     "dist",
     "bin",
     "build",
+    "config",
     "scripts"
   ],
   "exports": {
