@@ -101,25 +101,40 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
+          RESULTS_FILE="test-results-mock-llm/results.json"
+
           # Run Playwright in a background job so our shell survives if we
           # have to kill it (the webServer teardown can hang indefinitely).
           npm run test:e2e:mock-llm &
           PW_PID=$!
 
-          # Wait up to 8 minutes for Playwright to finish.
-          # `wait` with `timeout` isn't portable; poll instead.
-          deadline=$((SECONDS + 480))
-          while kill -0 "$PW_PID" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+          # Phase 1: Wait up to 5 min for tests to complete.
+          # Playwright writes results.json after all tests finish (before
+          # webServer teardown), so its appearance signals test completion.
+          test_deadline=$((SECONDS + 300))
+          while [ "$SECONDS" -lt "$test_deadline" ]; do
+            if ! kill -0 "$PW_PID" 2>/dev/null; then
+              break  # Playwright exited naturally
+            fi
+            if [ -f "$RESULTS_FILE" ]; then
+              echo "results.json appeared — tests finished"
+              break
+            fi
             sleep 2
           done
 
+          # Phase 2: If Playwright is still running (teardown hang), give
+          # it 30s of grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
-            echo "::warning::Playwright still running after 8 min — sending SIGTERM"
-            kill -- -"$PW_PID" 2>/dev/null || kill "$PW_PID" 2>/dev/null
-            sleep 10
+            if [ -f "$RESULTS_FILE" ]; then
+              echo "Tests finished but webServer teardown is hanging — killing in 30s"
+              sleep 30
+            fi
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::SIGTERM ignored — sending SIGKILL"
-              kill -9 -- -"$PW_PID" 2>/dev/null || kill -9 "$PW_PID" 2>/dev/null
+              echo "::warning::Killing lingering Playwright process tree"
+              kill "$PW_PID" 2>/dev/null
+              sleep 5
+              kill -9 "$PW_PID" 2>/dev/null
             fi
             wait "$PW_PID" 2>/dev/null
             pw_exit=124
@@ -130,33 +145,26 @@ jobs:
 
           echo "Playwright exited with code $pw_exit"
 
-          # If timeout (124) or SIGKILL (137), check results.json to
+          # If Playwright didn't exit cleanly, check results.json to
           # distinguish "tests passed but teardown hung" from real failures.
-          if [ "$pw_exit" -ge 124 ]; then
-            if [ -f "test-results-mock-llm/results.json" ]; then
-              all_ok=$(node -e "
-                const r = require('./test-results-mock-llm/results.json');
-                const ok = (r.suites || []).every(function check(s) {
-                  return (s.specs || []).every(sp =>
-                    (sp.tests || []).every(t =>
-                      (t.results || []).at(-1)?.status === 'passed'
-                    )
-                  ) && (s.suites || []).every(check);
-                });
-                process.stdout.write(ok ? '1' : '0');
-              " 2>/dev/null || echo "0")
-              if [ "$all_ok" = "1" ]; then
-                echo "::notice::All tests passed; timeout was during teardown — marking as success"
-                pw_exit=0
-              else
-                echo "::warning::Tests failed (results.json has failures)"
-                pw_exit=1
-              fi
-            else
-              echo "::warning::No results.json found after timeout"
-              pw_exit=1
+          if [ "$pw_exit" -ne 0 ] && [ -f "$RESULTS_FILE" ]; then
+            all_ok=$(node -e "
+              const r = require('./$RESULTS_FILE');
+              const ok = (r.suites || []).every(function check(s) {
+                return (s.specs || []).every(sp =>
+                  (sp.tests || []).every(t =>
+                    (t.results || []).at(-1)?.status === 'passed'
+                  )
+                ) && (s.suites || []).every(check);
+              });
+              process.stdout.write(ok ? '1' : '0');
+            " 2>/dev/null || echo "0")
+            if [ "$all_ok" = "1" ]; then
+              echo "::notice::All tests passed; process exit was non-zero due to teardown — marking as success"
+              pw_exit=0
             fi
           fi
+
           echo "exit_code=$pw_exit" >> "$GITHUB_OUTPUT"
           exit 0
 
