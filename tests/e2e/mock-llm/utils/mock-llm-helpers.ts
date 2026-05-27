@@ -152,6 +152,7 @@ export async function waitForSuccessfulBashObservation(
   conversationId: string,
   timeout = 30_000,
 ) {
+  let lastEventSummary = "";
   await expect
     .poll(
       async () => {
@@ -162,11 +163,19 @@ export async function waitForSuccessfulBashObservation(
             params: { limit: "100", sort_order: "TIMESTAMP_DESC" },
           },
         );
-        if (!resp.ok()) return false;
+        if (!resp.ok()) {
+          lastEventSummary = `events API returned ${resp.status()}`;
+          return false;
+        }
         const body = (await resp.json()) as { items?: unknown[] };
-        return body.items?.some(isSuccessfulBashObservation) ?? false;
+        const items = body.items ?? [];
+        // Build a diagnostic summary for CI debugging
+        lastEventSummary = `${items.length} events: ${items
+          .map((e: any) => e.action?.kind || e.observation?.kind || "unknown")
+          .join(", ")}`;
+        return items.some(isSuccessfulBashObservation);
       },
-      { timeout },
+      { timeout, message: () => `No successful bash observation found. Last poll: ${lastEventSummary}` },
     )
     .toBe(true);
 }

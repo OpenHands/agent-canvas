@@ -84,11 +84,17 @@ export default defineConfig({
       stderr: "pipe",
     },
     // 2. Agent-server + Vite frontend via dev:minimal
+    //
+    // `exec` replaces the shell with npm so Playwright's SIGTERM reaches
+    // the process tree directly — without it, the shell dies but npm's
+    // children (uvx, agent-server, vite) survive as orphans and the
+    // teardown hangs until the job timeout kills everything.
     {
       command:
         // Clean state dir to avoid stale profile/conversation data between runs
         "node -e \"const fs=require('node:fs'); for (const p of ['.tmp/mock-llm-state','node_modules/.vite']) fs.rmSync(p,{recursive:true,force:true});\" && " +
         [
+          "exec env",
           "OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state",
           envAssignment("SESSION_API_KEY", sessionApiKey),
           envAssignment("OH_SESSION_API_KEYS_0", sessionApiKey),

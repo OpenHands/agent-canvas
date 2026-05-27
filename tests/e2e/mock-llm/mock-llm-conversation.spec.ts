@@ -182,6 +182,22 @@ test.describe("mock-LLM agent-server conversation", () => {
     page,
     request,
   }) => {
+    // Verify the mock LLM profile is active before creating a conversation.
+    // Steps 1+2 configure it via the UI; this API check ensures persistence.
+    await test.step("verify mock-llm profile is active via API", async () => {
+      const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+        headers: { "X-Session-API-Key": SESSION_API_KEY },
+      });
+      expect(settingsResp.ok(), `GET /api/settings returned ${settingsResp.status()}`).toBe(true);
+      const settings = await settingsResp.json();
+      const baseUrl = settings?.llm_base_url ?? settings?.llm?.base_url ?? "";
+      expect(
+        baseUrl,
+        `Active LLM base_url should point at mock server (${MOCK_LLM_BASE_URL}), got: ${baseUrl}. ` +
+        `Full settings.llm: ${JSON.stringify(settings?.llm ?? settings?.llm_base_url ?? "<missing>")}`,
+      ).toContain("127.0.0.1");
+    });
+
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
