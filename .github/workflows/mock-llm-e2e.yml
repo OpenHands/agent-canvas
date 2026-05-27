@@ -86,8 +86,16 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
-          npm run test:e2e:mock-llm
+          # Wrap in `timeout` so if Playwright's webServer teardown hangs
+          # (child processes ignoring SIGTERM), we SIGKILL after 8 min + 30s.
+          timeout --signal=TERM --kill-after=30 8m npm run test:e2e:mock-llm
           exit_code=$?
+          # timeout returns 124 on SIGTERM, 137 on SIGKILL — treat both as
+          # test failure so the report step still runs.
+          if [ "$exit_code" -ge 124 ]; then
+            echo "::warning::Playwright process was killed by timeout (exit $exit_code)"
+            exit_code=1
+          fi
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           exit 0
 

@@ -185,17 +185,19 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Verify the mock LLM profile is active before creating a conversation.
     // Steps 1+2 configure it via the UI; this API check ensures persistence.
     await test.step("verify mock-llm profile is active via API", async () => {
-      const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+      const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
         headers: { "X-Session-API-Key": SESSION_API_KEY },
       });
-      expect(settingsResp.ok(), `GET /api/settings returned ${settingsResp.status()}`).toBe(true);
-      const settings = await settingsResp.json();
-      const baseUrl = settings?.llm_base_url ?? settings?.llm?.base_url ?? "";
+      expect(profilesResp.ok(), `GET /api/profiles returned ${profilesResp.status()}`).toBe(true);
+      const profiles = await profilesResp.json();
+      const activeProfile = profiles?.active_profile;
+      const profileNames = profiles?.profiles ? Object.keys(profiles.profiles) : [];
       expect(
-        baseUrl,
-        `Active LLM base_url should point at mock server (${MOCK_LLM_BASE_URL}), got: ${baseUrl}. ` +
-        `Full settings.llm: ${JSON.stringify(settings?.llm ?? settings?.llm_base_url ?? "<missing>")}`,
-      ).toContain("127.0.0.1");
+        activeProfile,
+        `Expected active_profile="${PROFILE_NAME}" but got "${activeProfile}". ` +
+        `Available profiles: [${profileNames.join(", ")}]. ` +
+        `Full response: ${JSON.stringify(profiles).slice(0, 500)}`,
+      ).toBe(PROFILE_NAME);
     });
 
     await routeSessionApiKey(page);
