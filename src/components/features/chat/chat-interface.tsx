@@ -336,6 +336,10 @@ export function ChatInterface() {
       fileUrls: uploadedFiles,
       timestamp,
     });
+    // Submitting a new prompt should always pull the chat back to the
+    // latest message even if the user had scrolled up. This also re-arms
+    // autoScroll so the streamed agent reply auto-follows.
+    scrollDomToBottom();
     setMessageToSend("");
 
     try {

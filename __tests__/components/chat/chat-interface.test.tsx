@@ -699,6 +699,107 @@ describe("ChatInterface - Pending message queue", () => {
   });
 });
 
+describe("ChatInterface - Auto-scroll on submit (issue #817)", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    mockSend.mockReset();
+    mockSend.mockResolvedValue({ queued: false });
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useErrorMessageStore.setState({ errorMessage: null });
+    (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {},
+    });
+    (
+      useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue({ skipped_files: [], uploaded_files: [] }),
+      isLoading: false,
+    });
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+    });
+  });
+
+  afterEach(() => {
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+  });
+
+  it("scrolls to bottom when a new prompt is submitted while the user is scrolled up", async () => {
+    // Arrange: render and grab the chat scroll container.
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const scrollContainer = document.querySelector(
+      ".custom-scrollbar-always",
+    ) as HTMLElement | null;
+    expect(scrollContainer).not.toBeNull();
+
+    // Let the mount-time auto-scroll rAF (which re-arms autoScroll=true)
+    // run and settle BEFORE the scroll-up sim. Otherwise that rAF would
+    // fire later and undo the autoScroll=false precondition for the bug.
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+    // Capture every scrollTop write so we can detect the rAF inside
+    // scrollDomToBottom landing `dom.scrollTop = dom.scrollHeight`.
+    const scrollWrites: number[] = [];
+    let scrollTopRead = 200;
+    Object.defineProperty(scrollContainer!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopRead,
+      set: (value: number) => {
+        scrollWrites.push(value);
+      },
+    });
+    Object.defineProperty(scrollContainer!, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 10000,
+    });
+    Object.defineProperty(scrollContainer!, "clientHeight", {
+      configurable: true,
+      writable: true,
+      value: 800,
+    });
+
+    // Simulate the user scrolling up: first event seeds prev=200, the
+    // second event at scrollTop=50 is detected as scrolling up and flips
+    // the hook's `autoScroll` to false (the precondition for the bug).
+    fireEvent.scroll(scrollContainer!);
+    scrollTopRead = 50;
+    fireEvent.scroll(scrollContainer!);
+    scrollWrites.length = 0;
+
+    // Act: submit a new prompt (same path InteractiveChatBox uses).
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "hello" });
+    });
+
+    // Assert: scrollDomToBottom landed scrollHeight onto scrollTop even
+    // though autoScroll was off. Without the fix the auto-scroll effect
+    // would skip the call and `scrollWrites` would stay empty.
+    await waitFor(() => {
+      expect(scrollWrites).toContain(10000);
+    });
+  });
+});
+
 describe("ChatInterface - Status Indicator", () => {
   it("should render ChatStatusIndicator when agent is not awaiting user input / conversation is NOT ready", () => {
     vi.mocked(useAgentState).mockReturnValue({
