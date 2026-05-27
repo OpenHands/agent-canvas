@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
@@ -292,6 +292,30 @@ Full skill body.`,
       within(card).getByTestId(`skill-toggle-${skill.name}`),
     ).toHaveAttribute("aria-checked", "false");
     expect(screen.queryByTestId("skill-detail-modal")).not.toBeInTheDocument();
+  });
+
+  it("auto-saves disabled skills after hydrating an empty disabled_skills list", async () => {
+    const user = userEvent.setup();
+    const skill = buildSkill({ name: "hydration-test" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ disabled_skills: [] }),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId(`skill-card-${skill.name}`);
+
+    await user.click(screen.getByTestId(`skill-toggle-${skill.name}`));
+
+    await waitFor(() => {
+      expect(saveSpy).toHaveBeenCalledWith({
+        disabled_skills: [skill.name],
+      });
+    });
   });
 
   it("shows an empty-state message when no skills match the current filters", async () => {
