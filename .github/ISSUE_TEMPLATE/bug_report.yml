@@ -36,8 +36,8 @@ body:
     id: version
     attributes:
       label: Agent Canvas Version
-      description: Which version are you running? Check with `agent-canvas --version` (npm/source) or `docker inspect ghcr.io/openhands/agent-canvas:latest` (Docker).
-      placeholder: "e.g. v1.0.0-alpha.6, main"
+      description: "npm: `agent-canvas --version` · Docker: `docker inspect --format '{{index .Config.Labels \"org.opencontainers.image.version\"}}' ghcr.io/openhands/agent-canvas`"
+      placeholder: "e.g. 1.0.0-alpha.6"
     validations:
       required: true
 
