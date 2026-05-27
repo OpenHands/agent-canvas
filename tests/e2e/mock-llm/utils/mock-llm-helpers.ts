@@ -170,10 +170,23 @@ export async function waitForSuccessfulBashObservation(
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
 
-        // Dump full structure of first 3 events so we can see the real format
-        lastDiag = `${items.length} events`;
-        for (let i = 0; i < Math.min(items.length, 3); i++) {
-          lastDiag += `\nevent[${i}]: ${JSON.stringify(items[i], null, 2).slice(0, 800)}`;
+        // Summary of ALL events, full dump of first event with observation
+        const eventSummaries = items.map((e: any, i: number) => {
+          const kind = e.kind || e.action?.kind || e.observation?.kind || "no-kind";
+          const key = e.key || "";
+          return `[${i}] ${kind}${key ? ` key=${key}` : ""}`;
+        });
+        lastDiag = `${items.length} events:\n${eventSummaries.join("\n")}`;
+        // Full dump of first event with an observation field
+        const obsEvent = items.find((e: any) => e.observation);
+        if (obsEvent) {
+          lastDiag += `\nFirst obs event: ${JSON.stringify(obsEvent, null, 2).slice(0, 1200)}`;
+        } else {
+          // No nested observation? Dump first non-stats event
+          const nonStats = items.find((e: any) => e.key !== "stats" && e.key !== "execution_status");
+          if (nonStats) {
+            lastDiag += `\nFirst non-stats event: ${JSON.stringify(nonStats, null, 2).slice(0, 1200)}`;
+          }
         }
 
         return items.some(isSuccessfulBashObservation);
