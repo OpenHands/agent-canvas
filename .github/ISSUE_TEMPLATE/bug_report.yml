@@ -68,18 +68,6 @@ body:
       required: true
 
   - type: textarea
-    id: environment
-    attributes:
-      label: Environment
-      description: Any additional environment details.
-      placeholder: |
-        - OS: [e.g. macOS 15, Ubuntu 24.04]
-        - Browser: [e.g. Chrome 126, Safari 18]
-        - Node.js version: [e.g. 22.x]
-    validations:
-      required: false
-
-  - type: textarea
     id: logs
     attributes:
       label: Relevant Logs / Screenshots
