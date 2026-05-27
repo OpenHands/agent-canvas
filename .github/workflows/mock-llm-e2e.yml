@@ -101,15 +101,38 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
-          # Wrap in `timeout` so if Playwright's webServer teardown hangs
-          # (child processes ignoring SIGTERM), we SIGKILL after 8 min + 30s.
-          timeout --signal=TERM --kill-after=30 8m npm run test:e2e:mock-llm
-          exit_code=$?
+          # Run Playwright in a background job so our shell survives if we
+          # have to kill it (the webServer teardown can hang indefinitely).
+          npm run test:e2e:mock-llm &
+          PW_PID=$!
 
-          if [ "$exit_code" -ge 124 ]; then
-            echo "::warning::Playwright process was killed by timeout (exit $exit_code)"
-            # Teardown hang does NOT mean tests failed. Check results.json:
-            # if every spec passed, treat the run as successful.
+          # Wait up to 8 minutes for Playwright to finish.
+          # `wait` with `timeout` isn't portable; poll instead.
+          deadline=$((SECONDS + 480))
+          while kill -0 "$PW_PID" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+            sleep 2
+          done
+
+          if kill -0 "$PW_PID" 2>/dev/null; then
+            echo "::warning::Playwright still running after 8 min — sending SIGTERM"
+            kill -- -"$PW_PID" 2>/dev/null || kill "$PW_PID" 2>/dev/null
+            sleep 10
+            if kill -0 "$PW_PID" 2>/dev/null; then
+              echo "::warning::SIGTERM ignored — sending SIGKILL"
+              kill -9 -- -"$PW_PID" 2>/dev/null || kill -9 "$PW_PID" 2>/dev/null
+            fi
+            wait "$PW_PID" 2>/dev/null
+            pw_exit=124
+          else
+            wait "$PW_PID"
+            pw_exit=$?
+          fi
+
+          echo "Playwright exited with code $pw_exit"
+
+          # If timeout (124) or SIGKILL (137), check results.json to
+          # distinguish "tests passed but teardown hung" from real failures.
+          if [ "$pw_exit" -ge 124 ]; then
             if [ -f "test-results-mock-llm/results.json" ]; then
               all_ok=$(node -e "
                 const r = require('./test-results-mock-llm/results.json');
@@ -124,15 +147,17 @@ jobs:
               " 2>/dev/null || echo "0")
               if [ "$all_ok" = "1" ]; then
                 echo "::notice::All tests passed; timeout was during teardown — marking as success"
-                exit_code=0
+                pw_exit=0
               else
-                exit_code=1
+                echo "::warning::Tests failed (results.json has failures)"
+                pw_exit=1
               fi
             else
-              exit_code=1
+              echo "::warning::No results.json found after timeout"
+              pw_exit=1
             fi
           fi
-          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$pw_exit" >> "$GITHUB_OUTPUT"
           exit 0
 
       - name: Upload test artifacts
