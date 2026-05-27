@@ -288,7 +288,7 @@ Full skill body.`,
     );
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(true);
 
     renderSkillsSettingsScreen();
     await screen.findByTestId(`skill-card-${skill.name}`);
@@ -312,7 +312,7 @@ Full skill body.`,
     );
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(true);
 
     renderSkillsSettingsScreen();
     await screen.findByTestId(`skill-card-${skill.name}`);
