@@ -159,4 +159,20 @@ describe("ChatInputActions", () => {
 
     expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
   });
+
+  it("hides the Change Agent button on the home page on a cloud backend", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+      { navigation: { conversationId: null } },
+    );
+
+    expect(
+      screen.queryByTestId("change-agent-button-stub"),
+    ).not.toBeInTheDocument();
+  });
 });
