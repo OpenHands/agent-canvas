@@ -36,7 +36,7 @@ body:
     id: version
     attributes:
       label: Agent Canvas Version
-      description: "npm: `agent-canvas --version` · Docker: `docker inspect --format '{{index .Config.Labels \"org.opencontainers.image.version\"}}' ghcr.io/openhands/agent-canvas`"
+      description: "npm: `agent-canvas --version` · Docker: the image tag you pulled (e.g. `ghcr.io/openhands/agent-canvas:latest`)"
       placeholder: "e.g. 1.0.0-alpha.6"
     validations:
       required: true
