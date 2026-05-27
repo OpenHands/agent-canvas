@@ -117,17 +117,12 @@ describe("useLocalGitInfo", () => {
   it("probes git metadata via the bash runner on a local backend when conversation metadata is incomplete", async () => {
     // Arrange
     useActiveBackendMock.mockReturnValue(makeBackend("local"));
-    runCommandMock
-      .mockResolvedValueOnce({
-        exit_code: 0,
-        stdout: "git@github.com:acme/widgets.git\n",
-        stderr: "",
-      })
-      .mockResolvedValueOnce({
-        exit_code: 0,
-        stdout: "main\n",
-        stderr: "",
-      });
+    // The consolidated script returns remote URL and branch on separate lines.
+    runCommandMock.mockResolvedValueOnce({
+      exit_code: 0,
+      stdout: "git@github.com:acme/widgets.git\nmain",
+      stderr: "",
+    });
 
     // Act
     const { result } = renderHook(() => useLocalGitInfo(), {
@@ -141,8 +136,10 @@ describe("useLocalGitInfo", () => {
       conversationWithoutRepo.session_api_key,
       true,
     );
+    // All git probing is now done in a single bash round-trip.
+    expect(runCommandMock).toHaveBeenCalledTimes(1);
     expect(runCommandMock).toHaveBeenCalledWith(
-      "git remote get-url origin",
+      expect.stringContaining("git remote get-url origin"),
       "/workspace/project",
       10,
     );
