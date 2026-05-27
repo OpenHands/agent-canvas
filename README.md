@@ -48,6 +48,10 @@ docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
 ```
 
 ```sh
+export PROJECTS_PATH=~/projects  # directory containing your project folders
+```
+
+```sh
 docker run -it --rm \
   -p 8000:8000 \
   -v ~/.openhands:/home/openhands/.openhands \
@@ -55,8 +59,7 @@ docker run -it --rm \
   ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
 ```
 
-Set `PROJECTS_PATH` to the directory containing your project folders (e.g. `~/projects`).
-The agent will be able to access any project under that path.
+The agent will be able to access any project under `PROJECTS_PATH`.
 
 ### Option 2: NPM
 
@@ -64,6 +67,10 @@ The agent will be able to access any project under that path.
 
 ```sh
 npm install -g @openhands/agent-canvas
+```
+
+```sh
+export PROJECTS_PATH=~/projects  # directory containing your project folders
 ```
 
 ```sh
