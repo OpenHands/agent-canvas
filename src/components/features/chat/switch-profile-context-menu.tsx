@@ -63,9 +63,9 @@ export function SwitchProfileContextMenu({
       testId="switch-profile-context-menu"
       position="top"
       alignment="left"
-      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto"
+      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto pt-0"
     >
-      <div className="px-2 pt-1 pb-0.5">
+      <div className="px-2 pb-0.5">
         <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
           {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
         </Typography.Text>

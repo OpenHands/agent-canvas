@@ -42,7 +42,7 @@ export function ChangeAgentContextMenu({
       testId="change-agent-context-menu"
       position="top"
       alignment="left"
-      className="min-h-fit mb-2 min-w-[195px] max-w-[195px] gap-0"
+      className="min-h-fit mb-2 min-w-[195px] max-w-[195px]"
     >
       <ContextMenuListItem testId="code-option" onClick={handleCodeClick}>
         <ContextMenuIconTextWithDescription

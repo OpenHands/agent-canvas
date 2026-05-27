@@ -23,6 +23,7 @@ import {
   dropdownMenuRowClassName,
   dropdownMenuRowIconClassName,
   dropdownInstantColorClassName,
+  dropdownMenuListClassName,
 } from "#/utils/dropdown-classes";
 import type {
   ConversationSortField,
@@ -268,7 +269,10 @@ export function ConversationPanelFilterMenu({
           tabIndex={-1}
           data-testid="older-conversations-filter-menu"
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg"
+          className={cn(
+            "absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg",
+            dropdownMenuListClassName,
+          )}
         >
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$ORGANIZE)}</MenuHeading>
           <MenuRow

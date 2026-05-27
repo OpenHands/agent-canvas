@@ -2,7 +2,10 @@ import React from "react";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
 import { DropdownOption } from "./types";
-import { dropdownInstantColorClassName } from "#/utils/dropdown-classes";
+import {
+  dropdownInstantColorClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 
 interface DropdownMenuProps {
   isOpen: boolean;
@@ -42,7 +45,9 @@ export function DropdownMenu({
         !isOpen && "hidden",
       )}
     >
-      <ul {...getMenuProps({ className: "p-0" })}>
+      <ul
+        {...getMenuProps({ className: cn("p-0", dropdownMenuListClassName) })}
+      >
         {isOpen && filteredOptions.length === 0 && (
           <li className="px-2 py-2 text-sm text-[var(--oh-muted)] italic">
             {emptyMessage}

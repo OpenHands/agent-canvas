@@ -14,7 +14,10 @@ import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import { dropdownMenuRowClassName } from "#/utils/dropdown-classes";
+import {
+  dropdownMenuRowClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import RepoIcon from "#/icons/repo.svg?react";
 
@@ -204,7 +207,12 @@ export function LocalNewConversationMenu({
           )}
           style={fixedStyle}
         >
-          <ul className="flex max-h-[40vh] flex-col overflow-y-auto sm:max-h-[280px]">
+          <ul
+            className={cn(
+              "max-h-[40vh] overflow-y-auto sm:max-h-[280px]",
+              dropdownMenuListClassName,
+            )}
+          >
             <li>
               <button
                 type="button"
@@ -236,7 +244,7 @@ export function LocalNewConversationMenu({
           </ul>
 
           <div
-            className="flex flex-col"
+            className={cn("flex flex-col", dropdownMenuListClassName)}
             data-testid="new-conversation-menu-footer"
           >
             <Divider

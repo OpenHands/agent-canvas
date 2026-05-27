@@ -6,6 +6,7 @@ import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
 import {
   dropdownFilterTriggerClassName,
+  dropdownMenuListClassName,
   dropdownMenuRowClassName,
 } from "#/utils/dropdown-classes";
 
@@ -71,6 +72,7 @@ export function EnumFilterDropdown<T extends string>({
           className={cn(
             "absolute right-0 top-full z-50 mt-1 min-w-full w-max",
             "max-h-60 overflow-auto rounded-[6px] bg-tertiary p-1 context-menu-box-shadow",
+            dropdownMenuListClassName,
           )}
         >
           {options.map((option) => {

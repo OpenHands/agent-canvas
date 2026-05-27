@@ -3,7 +3,10 @@ import { useCombobox } from "downshift";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "#/utils/utils";
-import { dropdownFooterActionClassName } from "#/utils/dropdown-classes";
+import {
+  dropdownFooterActionClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
 import { LocalWorkspace } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
@@ -129,7 +132,7 @@ export function WorkspaceDropdown({
 
   const stickyFooterItem = useMemo(
     () => (
-      <div className="flex flex-col">
+      <div className={dropdownMenuListClassName}>
         <button
           type="button"
           data-testid="add-workspaces-button"

@@ -314,7 +314,7 @@ export function ChatInputActions({
             >
               <ContextMenu
                 testId="overflow-agent-submenu"
-                className="overflow-visible min-w-[195px] gap-0"
+                className="overflow-visible min-w-[195px]"
               >
                 <ContextMenuListItem
                   testId="overflow-agent-code"
@@ -380,7 +380,7 @@ export function ChatInputActions({
           >
             <ContextMenu
               testId="overflow-model-submenu"
-              className="overflow-visible min-w-[220px] max-w-[320px] gap-0"
+              className="overflow-visible min-w-[220px] max-w-[320px]"
             >
               <li className="text-sm">
                 <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">

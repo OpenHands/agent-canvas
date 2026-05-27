@@ -14,6 +14,7 @@ import { cn } from "#/utils/utils";
 import {
   dropdownMenuRowClassName,
   dropdownInstantColorClassName,
+  dropdownMenuListClassName,
 } from "#/utils/dropdown-classes";
 import { GitRepository } from "#/types/git";
 import { Provider } from "#/types/settings";
@@ -301,7 +302,12 @@ export function CloudNewConversationMenu({
 
           <Divider inset="menu" />
 
-          <ul className="flex max-h-[40vh] flex-col overflow-y-auto custom-scrollbar-always sm:max-h-[280px]">
+          <ul
+            className={cn(
+              "max-h-[40vh] overflow-y-auto custom-scrollbar-always sm:max-h-[280px]",
+              dropdownMenuListClassName,
+            )}
+          >
             {isListLoading && repositories.length === 0 && (
               <li
                 className="px-2 py-2 text-sm text-[var(--oh-muted)] italic"

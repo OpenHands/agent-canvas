@@ -4,6 +4,15 @@ import { formControlShellClassName } from "#/utils/form-control-classes";
 /** Snap hover colors instantly — no transition-colors delay on menus/dropdowns. */
 export const dropdownInstantColorClassName = "transition-none";
 
+/** 2px vertical gap between rows in a dropdown/context menu list. */
+export const dropdownMenuListGapClassName = "gap-0.5";
+
+/** Flex column shell for a dropdown menu item list. */
+export const dropdownMenuListClassName = cn(
+  "flex flex-col",
+  dropdownMenuListGapClassName,
+);
+
 /** Combobox/select trigger shell with instant hover colors. */
 export const dropdownTriggerShellClassName = cn(
   "bg-tertiary border border-[var(--oh-border-input)] rounded p-2",
