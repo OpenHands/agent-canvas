@@ -253,13 +253,13 @@ test.describe("mock-LLM agent-server conversation", () => {
     // ── Verify: the bash output token appears in the chat UI ──
 
     await test.step("verify bash output appears in chat", async () => {
-      await waitForNonUserMessageText(page, BASH_TOKEN, 60_000);
+      await waitForNonUserMessageText(page, BASH_TOKEN, 30_000);
     });
 
     // ── Verify: the agent's final reply token appears in the UI ──
 
     await test.step("verify agent reply token appears in chat", async () => {
-      await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
+      await waitForNonUserMessageText(page, REPLY_TOKEN, 30_000);
     });
 
     // ── Verify: no error banners are visible ──

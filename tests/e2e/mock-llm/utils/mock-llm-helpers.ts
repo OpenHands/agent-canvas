@@ -116,7 +116,7 @@ export function getConversationIdFromURL(page: Page): string {
 export async function waitForNonUserMessageText(
   page: Page,
   text: string,
-  timeout = 60_000,
+  timeout = 30_000,
 ) {
   await expect
     .poll(
@@ -150,7 +150,7 @@ export async function waitForNonUserMessageText(
 export async function waitForSuccessfulBashObservation(
   request: APIRequestContext,
   conversationId: string,
-  timeout = 60_000,
+  timeout = 30_000,
 ) {
   await expect
     .poll(
