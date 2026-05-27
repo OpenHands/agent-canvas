@@ -11,16 +11,22 @@
  * but serves pre-built static assets instead of the Vite dev server.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_JSON = join(__dirname, "..", "package.json");
 // Build output is in build/ (not build/client/) - see react-router.config.ts unpackClientDirectory
 const BUILD_DIR = join(__dirname, "..", "build");
 
-// Check for help flag first
+// Check for version/help flags first
 const args = process.argv.slice(2);
+if (args.includes("-v") || args.includes("--version")) {
+  const { version } = JSON.parse(readFileSync(PKG_JSON, "utf-8"));
+  console.log(version);
+  process.exit(0);
+}
 if (args.includes("-h") || args.includes("--help")) {
   console.log(`
 @openhands/agent-canvas - Run the Agent Canvas UI with agent-server
@@ -33,6 +39,7 @@ USAGE:
 
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
+  -v, --version         Show version number
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:

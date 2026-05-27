@@ -68,9 +68,11 @@ ARG AUTOMATION_VERSION
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 
+ARG AGENT_CANVAS_VERSION=dev
 LABEL org.opencontainers.image.title="agent-canvas"
 LABEL org.opencontainers.image.description="All-in-one agent-canvas: Agent Server + Automation + Frontend"
 LABEL org.opencontainers.image.source="https://github.com/OpenHands/agent-canvas"
+LABEL org.opencontainers.image.version="${AGENT_CANVAS_VERSION}"
 LABEL org.opencontainers.image.revision="${OPENHANDS_BUILD_GIT_SHA}"
 
 ENV AGENT_CANVAS_BUILD_GIT_SHA=${OPENHANDS_BUILD_GIT_SHA}
