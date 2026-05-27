@@ -353,6 +353,11 @@ export function ChatInputActions({
                 "opacity-100 visible pointer-events-auto",
             )}
           >
+            {/* overflow-y-auto (not overflow-visible) so a long ACP model list
+                scrolls within the menu instead of overflowing the viewport.
+                Safe because this menu has no floating children (tooltips /
+                nested popovers) that would be clipped — only a flat model list
+                + Settings link. Revisit if floating children are added here. */}
             <ContextMenu
               testId="overflow-model-submenu"
               className="min-w-[220px] max-w-[320px] max-h-[60vh] overflow-y-auto gap-0"
