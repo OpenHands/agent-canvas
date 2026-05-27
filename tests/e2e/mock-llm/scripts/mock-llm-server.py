@@ -74,6 +74,10 @@ def build_trajectory() -> list[Message | Exception]:
 class MockLLMHandler(BaseHTTPRequestHandler):
     test_llm: TestLLM  # set by serve()
 
+    def do_GET(self):
+        """Health check — Playwright's webServer probes GET / to detect readiness."""
+        self._send_json(200, {"status": "ok", "server": "mock-llm"})
+
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
