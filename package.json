@@ -111,7 +111,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
-    "@eslint/js": "9.39.4",
+    "@eslint/js": "10.0.1",
     "@mswjs/socket.io-binding": "0.2.0",
     "@playwright/test": "1.59.1",
     "@react-router/dev": "7.14.2",
