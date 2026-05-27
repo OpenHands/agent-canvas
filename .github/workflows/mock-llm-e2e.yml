@@ -74,8 +74,20 @@ jobs:
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
           kill $SERVER_PID
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run mock-LLM E2E tests
         id: run_tests
@@ -116,9 +128,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          node tests/e2e/live/scripts/upsert-pr-comment.mjs \
-            --issue-number "${{ github.event.pull_request.number }}" \
-            --marker "<!-- mock-llm-e2e-report -->" \
+          gh pr comment "${{ github.event.pull_request.number }}" \
             --body-file "$MOCK_LLM_REPORT_PATH"
 
       - name: Fail job when tests fail

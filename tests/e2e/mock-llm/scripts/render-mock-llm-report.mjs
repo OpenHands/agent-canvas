@@ -14,7 +14,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-const COMMENT_MARKER = "<!-- mock-llm-e2e-report -->";
+// Each CI run posts a fresh comment (no upsert), so no dedup marker needed.
 
 // ── CLI args ───────────────────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
   const skipped = tests.filter((t) => t.status === "skipped").length;
   const total = tests.length;
 
-  const lines = [COMMENT_MARKER, ""];
+  const lines = [];
 
   // Header
   lines.push(`## ${icon} Mock-LLM E2E Tests`);
