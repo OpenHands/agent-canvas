@@ -186,44 +186,21 @@ test.describe("mock-LLM agent-server conversation", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
-    // Start a new conversation — try the home page launcher first, fall
-    // back to the sidebar "New Conversation" button.
-    const launchButton =
-      page.getByTestId("launch-new-conversation-button").or(
-        page.getByTestId("home-chat-launcher"),
-      ).or(
-        page.getByRole("button", { name: /New Conversation/i }),
-      );
-    await launchButton.first().click({ timeout: 15_000 });
+    // Wait for the home page chat launcher to appear
+    await waitForTestId(page, "home-chat-launcher");
 
-    // If a workspace popover appears, pick "No workspace"
-    try {
-      const noWorkspace = page.getByTestId("launch-no-workspace");
-      await noWorkspace.click({ timeout: 5_000 });
-    } catch {
-      // No popover — the conversation may have been created directly
-    }
-
-    // Wait for the conversation page to load
-    await waitForPath(page, /\/conversations\/.+/, 30_000);
-    const conversationId = getConversationIdFromURL(page);
-    conversationIds.add(conversationId);
-
-    // Wait for the chat interface to be ready
-    await waitForTestId(page, "chat-interface");
-    await waitForTestId(page, "interactive-chat-box");
-
-    // Type a message in the chat input.
-    // IMPORTANT: Do NOT include BASH_TOKEN or REPLY_TOKEN in the user message.
-    // The mock LLM ignores the prompt entirely (TestLLM pops scripted responses
-    // from a deque), so the prompt text is irrelevant. Keeping the tokens out
-    // of the user bubble lets us assert they appear *only* in agent output.
-    const chatInput = page.getByTestId("chat-input");
-    await chatInput.click();
-
+    // Type a message into the home-page chat input, then submit.
+    // This creates the conversation AND sends the first user message in
+    // one step — matching how real users interact with the home page.
+    // IMPORTANT: Do NOT include BASH_TOKEN or REPLY_TOKEN in the user
+    // message. The mock LLM ignores the prompt entirely (TestLLM pops
+    // scripted responses from a deque), so the prompt text is irrelevant.
+    // Keeping the tokens out of the user bubble lets us assert they appear
+    // *only* in agent output.
     const userMessage = "Please run a quick terminal command and then reply.";
 
-    // Use page.evaluate to set contenteditable text reliably
+    // Set contenteditable text via evaluate (contentEditable divs don't
+    // respond reliably to Playwright's .fill() or .type()).
     await page.evaluate(
       ({ testId, text }) => {
         const el = document.querySelector(`[data-testid="${testId}"]`);
@@ -241,8 +218,13 @@ test.describe("mock-LLM agent-server conversation", () => {
       { testId: "chat-input", text: userMessage },
     );
 
-    // Click the submit button
+    // Click the submit button — this triggers conversation creation
     await page.getByTestId("submit-button").click();
+
+    // Wait for navigation to the new conversation page
+    await waitForPath(page, /\/conversations\/.+/, 30_000);
+    const conversationId = getConversationIdFromURL(page);
+    conversationIds.add(conversationId);
 
     // ── Verify: bash observation succeeded via the events API ──
 

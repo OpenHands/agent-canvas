@@ -21,7 +21,7 @@ jobs:
       (github.event_name == 'pull_request' &&
        contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-report.md
