@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import McpService from "#/api/mcp-service/mcp-service.api";
 import {
   consumePendingTaskDraft,
   getConversationState,
@@ -115,6 +116,11 @@ describe("recommended automations", () => {
     setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({ mcpServers: {} }),
+    });
+    // Pre-flight connectivity test must pass so save mutations are reached.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
     });
   });
 
