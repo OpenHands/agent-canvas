@@ -37,15 +37,6 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: agent-server-version
-    attributes:
-      label: Agent Server Version (if known)
-      description: "The `openhands-agent-server` version shown in the UI footer or `/server_info`."
-      placeholder: "e.g. 1.23.1"
-    validations:
-      required: false
-
   - type: textarea
     id: description
     attributes:
