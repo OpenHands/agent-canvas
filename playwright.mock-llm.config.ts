@@ -28,6 +28,11 @@ const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}/`;
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const MOCK_LLM_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
 
+// Python binary for the mock server — defaults to "python3" but CI can
+// point this at a venv (e.g. ".mock-llm-venv/bin/python3") to avoid
+// PEP 668 "externally managed" errors on Ubuntu 24.04+.
+const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
+
 // Export for the test helpers
 process.env.MOCK_LLM_BACKEND_URL = BACKEND_URL;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
@@ -70,7 +75,7 @@ export default defineConfig({
   webServer: [
     // 1. Mock LLM server (Python)
     {
-      command: `python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port ${MOCK_LLM_PORT}`,
+      command: `${MOCK_LLM_PYTHON} tests/e2e/mock-llm/scripts/mock-llm-server.py --port ${MOCK_LLM_PORT}`,
       url: MOCK_LLM_URL,
       timeout: 30_000,
       reuseExistingServer: !process.env.CI,

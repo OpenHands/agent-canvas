@@ -51,11 +51,13 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install openhands-sdk (for mock LLM server)
-        run: uv pip install --system openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+        run: |
+          uv venv .mock-llm-venv
+          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
 
       - name: Verify mock LLM server starts
         run: |
-          python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port 9998 &
+          .mock-llm-venv/bin/python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port 9998 &
           sleep 3
           curl -sf http://127.0.0.1:9998/v1/chat/completions \
             -H "Content-Type: application/json" \
@@ -67,6 +69,8 @@ jobs:
 
       - name: Run mock-LLM E2E tests
         id: run_tests
+        env:
+          MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
           npm run test:e2e:mock-llm
