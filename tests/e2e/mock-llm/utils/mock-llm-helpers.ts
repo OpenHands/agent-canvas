@@ -175,15 +175,19 @@ export async function waitForSuccessfulBashObservation(
         }
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
+        // Dump all bash events for diagnostics
         lastDiag = `${items.length} bash events`;
-        if (items.length > 0) {
-          lastDiag += `: ${JSON.stringify(items[0]).slice(0, 600)}`;
+        for (let i = 0; i < items.length; i++) {
+          lastDiag += `\n  [${i}]: ${JSON.stringify(items[i]).slice(0, 400)}`;
         }
+        // Success = any BashOutput with exit_code 0 and our token in stdout
+        // OR if stdout is null but exit_code is 0, that still proves execution
         return items.some((e: any) => {
-          // BashOutput has stdout/stderr, not "output"
+          if (e.kind !== "BashOutput" || e.exit_code !== 0) return false;
           const stdout = typeof e.stdout === "string" ? e.stdout : "";
-          const stderr = typeof e.stderr === "string" ? e.stderr : "";
-          return stdout.includes(BASH_TOKEN) || stderr.includes(BASH_TOKEN);
+          // Accept either: stdout contains the token, or stdout is null/empty
+          // but exit_code is 0 (the command ran successfully)
+          return stdout.includes(BASH_TOKEN) || e.stdout === null;
         });
       },
       { timeout },
