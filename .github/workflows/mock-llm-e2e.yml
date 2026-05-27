@@ -39,17 +39,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install Playwright system deps
-        run: npx playwright install-deps chromium
-
-      - name: Install Playwright Chromium browser
-        run: npx playwright install chromium
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Install uv
         run: |
