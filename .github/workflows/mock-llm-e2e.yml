@@ -105,11 +105,32 @@ jobs:
           # (child processes ignoring SIGTERM), we SIGKILL after 8 min + 30s.
           timeout --signal=TERM --kill-after=30 8m npm run test:e2e:mock-llm
           exit_code=$?
-          # timeout returns 124 on SIGTERM, 137 on SIGKILL — treat both as
-          # test failure so the report step still runs.
+
           if [ "$exit_code" -ge 124 ]; then
             echo "::warning::Playwright process was killed by timeout (exit $exit_code)"
-            exit_code=1
+            # Teardown hang does NOT mean tests failed. Check results.json:
+            # if every spec passed, treat the run as successful.
+            if [ -f "test-results-mock-llm/results.json" ]; then
+              all_ok=$(node -e "
+                const r = require('./test-results-mock-llm/results.json');
+                const ok = (r.suites || []).every(function check(s) {
+                  return (s.specs || []).every(sp =>
+                    (sp.tests || []).every(t =>
+                      (t.results || []).at(-1)?.status === 'passed'
+                    )
+                  ) && (s.suites || []).every(check);
+                });
+                process.stdout.write(ok ? '1' : '0');
+              " 2>/dev/null || echo "0")
+              if [ "$all_ok" = "1" ]; then
+                echo "::notice::All tests passed; timeout was during teardown — marking as success"
+                exit_code=0
+              else
+                exit_code=1
+              fi
+            else
+              exit_code=1
+            fi
           fi
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           exit 0
