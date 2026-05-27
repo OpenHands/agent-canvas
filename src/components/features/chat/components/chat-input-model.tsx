@@ -95,10 +95,17 @@ export function ChatInputModel() {
     llmModel = conversation?.llm_model ?? settings?.llm_model;
   }
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
 
-  const popoverRef = useClickOutsideElement<HTMLUListElement>(() => {
-    setIsPopoverOpen(false);
-  });
+  // Pass the trigger as the ignore-ref: a click on the chip toggles the popover
+  // rather than the document click-outside handler treating it as an "outside"
+  // click and closing the popover in the same interaction. Without this the
+  // chip opened then instantly re-closed the popover — it looked like clicking
+  // did nothing.
+  const popoverRef = useClickOutsideElement<HTMLUListElement>(
+    () => setIsPopoverOpen(false),
+    triggerRef,
+  );
 
   if (!llmModel) {
     return null;
@@ -140,6 +147,7 @@ export function ChatInputModel() {
   return (
     <div className="relative min-w-0">
       <button
+        ref={triggerRef}
         type="button"
         className={cn(
           "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none",
