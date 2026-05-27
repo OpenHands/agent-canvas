@@ -1,17 +1,25 @@
+import { useTranslation } from "react-i18next";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { useSwitchAcpModel } from "#/hooks/mutation/use-switch-acp-model";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
+import CheckIcon from "#/icons/checkmark.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenu } from "#/ui/context-menu";
+import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
 import { Divider } from "#/ui/divider";
+import { Typography } from "#/ui/typography";
 import {
   getAcpProvider,
   labelForAcpModel,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import React from "react";
 
@@ -32,10 +40,18 @@ function truncateModelLabel(
 }
 
 export function ChatInputModel() {
+  const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
   // Home page has no active conversation; fall back to the user's default
   // model so the switcher renders consistently across both surfaces.
   const { data: settings } = useSettings();
+  const { backend } = useActiveBackend();
+  // Live model switching mirrors the native LLM-profile switcher: local
+  // agent-server backends only. On cloud the popover stays display + a
+  // Settings link, with no selectable rows (see SwitchProfileButton /
+  // AgentServerConversationService.switchProfile's same cloud guard).
+  const isCloud = backend.kind === "cloud";
+  const { conversationId } = useOptionalConversationId();
   const {
     isActiveAcpConversation,
     isHomeAcp,
@@ -43,6 +59,7 @@ export function ChatInputModel() {
     destinationPath,
     destinationLabel,
   } = useAcpModelContext();
+  const switchAcpModel = useSwitchAcpModel();
   // ACP conversations do not use the OpenHands LLM profile. Resolve the model
   // label through the shared helper so the displayed value matches what the
   // conversation-creation path will actually send to the agent-server (the
@@ -59,7 +76,10 @@ export function ChatInputModel() {
         ? settings.agent_settings.acp_server
         : null
       : null;
-  const acpProvider = isHomeAcp ? getAcpProvider(acpServerKey) : undefined;
+  // Resolve the provider for both ACP surfaces so the picker can list the
+  // provider's ``available_models``. (The home case also needs it for the
+  // default-model fallback below.)
+  const acpProvider = isAcpContext ? getAcpProvider(acpServerKey) : undefined;
   let llmModel: string | null | undefined;
   if (isActiveAcpConversation) {
     llmModel = conversation?.llm_model;
@@ -94,6 +114,29 @@ export function ChatInputModel() {
     isAcpContext ? ACP_MODEL_LABEL_MAX_CHARS : MODEL_LABEL_MAX_CHARS,
   );
 
+  // The inline picker is only offered for ACP contexts on a local backend
+  // where the provider exposes a known model list. Everything else (native
+  // OpenHands LLM-profile surface, cloud, custom/unknown ACP providers) keeps
+  // today's display-only popover + Settings link.
+  const availableModels = acpProvider?.available_models ?? [];
+  const showAcpPicker = isAcpContext && !isCloud && availableModels.length > 0;
+
+  const handleSelectAcpModel = (modelId: string) => {
+    // No-op when re-selecting the already-effective model — mirrors the
+    // native picker, which skips the switch when the profile is unchanged.
+    if (modelId !== llmModel) {
+      switchAcpModel.mutate({
+        // Live switch for a running ACP conversation; otherwise (home / no
+        // session) the hook persists the choice as the agent-settings default.
+        conversationId: isActiveAcpConversation
+          ? (conversationId ?? null)
+          : null,
+        model: modelId,
+      });
+    }
+    setIsPopoverOpen(false);
+  };
+
   return (
     <div className="relative min-w-0">
       <button
@@ -123,13 +166,56 @@ export function ChatInputModel() {
           position="top"
           alignment="left"
           spacing="none"
-          className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
+          className="z-[60] mb-2 min-w-[200px] max-w-[320px] max-h-[60vh] overflow-y-auto"
         >
-          <li className="text-sm">
-            <div className="p-2 leading-5 text-white break-all">
-              {displayModel}
-            </div>
-          </li>
+          {showAcpPicker ? (
+            <>
+              <div className="px-2 pt-1 pb-0.5">
+                <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+                  {t(I18nKey.MODEL$AVAILABLE_MODELS)}
+                </Typography.Text>
+              </div>
+              {availableModels.map((option) => {
+                const isSelected = option.id === llmModel;
+                return (
+                  <ContextMenuListItem
+                    key={option.id}
+                    testId={`chat-input-acp-model-option-${option.id}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleSelectAcpModel(option.id);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2",
+                      isSelected && "bg-[var(--oh-interactive-hover)]",
+                    )}
+                  >
+                    <span
+                      className="flex-1 truncate text-sm leading-5"
+                      title={option.label}
+                    >
+                      {option.label}
+                    </span>
+                    {isSelected && (
+                      <CheckIcon
+                        width={14}
+                        height={14}
+                        className="shrink-0"
+                        aria-hidden
+                      />
+                    )}
+                  </ContextMenuListItem>
+                );
+              })}
+            </>
+          ) : (
+            <li className="text-sm">
+              <div className="p-2 leading-5 text-white break-all">
+                {displayModel}
+              </div>
+            </li>
+          )}
           <Divider />
           <li className="text-sm">
             <NavigationLink
