@@ -170,17 +170,10 @@ export async function waitForSuccessfulBashObservation(
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
 
-        // Build diagnostic: event kinds + first observation's raw structure
-        const kinds = items.map(
-          (e: any) => e.action?.kind || e.observation?.kind || "unknown",
-        );
-        const firstObs = items.find(
-          (e: any) => e.observation,
-        ) as Record<string, unknown> | undefined;
-        lastDiag = `${items.length} events [${kinds.join(", ")}]`;
-        if (firstObs) {
-          // Dump the observation structure for debugging format mismatches
-          lastDiag += `\nFirst observation: ${JSON.stringify((firstObs as any).observation, null, 2).slice(0, 1000)}`;
+        // Dump full structure of first 3 events so we can see the real format
+        lastDiag = `${items.length} events`;
+        for (let i = 0; i < Math.min(items.length, 3); i++) {
+          lastDiag += `\nevent[${i}]: ${JSON.stringify(items[i], null, 2).slice(0, 800)}`;
         }
 
         return items.some(isSuccessfulBashObservation);
