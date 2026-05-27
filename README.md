@@ -44,7 +44,7 @@ code review and dependency updates, then have your personal agents running on yo
 ### Option 1: Docker
 
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:latest
+docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
 ```
 
 ```sh
@@ -52,7 +52,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v ~/.openhands:/home/openhands/.openhands \
   -v ${PROJECTS_PATH}:/projects \
-  ghcr.io/openhands/agent-canvas:latest
+  ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
 ```
 
 Set `PROJECTS_PATH` to the directory containing your project folders (e.g. `~/projects`).
