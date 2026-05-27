@@ -58,11 +58,21 @@ jobs:
       - name: Verify mock LLM server starts
         run: |
           .mock-llm-venv/bin/python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port 9998 &
-          sleep 3
+          SERVER_PID=$!
+          # Retry up to 30 seconds — openhands-sdk's litellm import is slow
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9998/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d '{"model":"test","messages":[]}' > /dev/null 2>&1; then
+              echo "Mock LLM server responded on attempt $i"
+              break
+            fi
+            sleep 1
+          done
           curl -sf http://127.0.0.1:9998/v1/chat/completions \
             -H "Content-Type: application/json" \
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
-          kill %1
+          kill $SERVER_PID
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
