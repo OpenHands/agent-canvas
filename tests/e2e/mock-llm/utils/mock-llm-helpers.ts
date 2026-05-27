@@ -152,7 +152,7 @@ export async function waitForSuccessfulBashObservation(
   conversationId: string,
   timeout = 30_000,
 ) {
-  let lastEventSummary = "";
+  let lastDiag = "no polls yet";
   await expect
     .poll(
       async () => {
@@ -164,20 +164,37 @@ export async function waitForSuccessfulBashObservation(
           },
         );
         if (!resp.ok()) {
-          lastEventSummary = `events API returned ${resp.status()}`;
+          lastDiag = `events API returned ${resp.status()}`;
           return false;
         }
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
-        // Build a diagnostic summary for CI debugging
-        lastEventSummary = `${items.length} events: ${items
-          .map((e: any) => e.action?.kind || e.observation?.kind || "unknown")
-          .join(", ")}`;
+
+        // Build diagnostic: event kinds + first observation's raw structure
+        const kinds = items.map(
+          (e: any) => e.action?.kind || e.observation?.kind || "unknown",
+        );
+        const firstObs = items.find(
+          (e: any) => e.observation,
+        ) as Record<string, unknown> | undefined;
+        lastDiag = `${items.length} events [${kinds.join(", ")}]`;
+        if (firstObs) {
+          // Dump the observation structure for debugging format mismatches
+          lastDiag += `\nFirst observation: ${JSON.stringify((firstObs as any).observation, null, 2).slice(0, 1000)}`;
+        }
+
         return items.some(isSuccessfulBashObservation);
       },
-      { timeout, message: () => `No successful bash observation found. Last poll: ${lastEventSummary}` },
+      { timeout },
     )
-    .toBe(true);
+    .toBe(true)
+    // Playwright prints this on assertion failure:
+    .catch((err) => {
+      throw new Error(
+        `No successful bash observation after ${timeout}ms.\n${lastDiag}`,
+        { cause: err },
+      );
+    });
 }
 
 function isSuccessfulBashObservation(event: unknown): boolean {
