@@ -59,7 +59,9 @@ export const useSwitchAcpModel = () => {
         });
       }
     },
-    // Caller surfaces errors via toast; keep parity with useSwitchLlmProfile.
-    meta: { disableToast: true },
+    // No meta.disableToast: unlike useSwitchLlmProfile (wrapped by
+    // useSwitchLlmProfileAndLog, which re-surfaces errors), this hook is called
+    // directly, so we let the global mutation error toast report a failed
+    // switch / settings write rather than swallowing it.
   });
 };
