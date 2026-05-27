@@ -146,10 +146,68 @@ export async function waitForNonUserMessageText(
     .toBe(true);
 }
 
-/** Poll the events API for a successful bash observation containing BASH_TOKEN. */
+/**
+ * Poll the bash events API for a BashOutput containing BASH_TOKEN.
+ *
+ * The agent-server keeps tool executions in a separate bash event stream
+ * (`/api/bash/bash_events/search`), not the conversation events API.
+ * Conversation events only contain high-level MessageEvents.
+ */
 export async function waitForSuccessfulBashObservation(
   request: APIRequestContext,
+  _conversationId: string,
+  timeout = 30_000,
+) {
+  let lastDiag = "no polls yet";
+  await expect
+    .poll(
+      async () => {
+        const resp = await request.get(
+          `${BACKEND_URL}/api/bash/bash_events/search`,
+          {
+            headers: { "X-Session-API-Key": SESSION_API_KEY },
+            params: { limit: "50", kind__eq: "BashOutput" },
+          },
+        );
+        if (!resp.ok()) {
+          lastDiag = `bash events API returned ${resp.status()}`;
+          return false;
+        }
+        const body = (await resp.json()) as { items?: unknown[] };
+        const items = body.items ?? [];
+        lastDiag = `${items.length} bash events`;
+        if (items.length > 0) {
+          lastDiag += `: ${JSON.stringify(items[0]).slice(0, 600)}`;
+        }
+        return items.some((e: any) => {
+          // BashOutput has stdout/stderr, not "output"
+          const stdout = typeof e.stdout === "string" ? e.stdout : "";
+          const stderr = typeof e.stderr === "string" ? e.stderr : "";
+          return stdout.includes(BASH_TOKEN) || stderr.includes(BASH_TOKEN);
+        });
+      },
+      { timeout },
+    )
+    .toBe(true)
+    .catch((err) => {
+      throw new Error(
+        `No bash output containing "${BASH_TOKEN}" after ${timeout}ms.\n${lastDiag}`,
+        { cause: err },
+      );
+    });
+}
+
+/**
+ * Poll the conversation events API for a MessageEvent containing the given token.
+ *
+ * The agent-server emits tool calls and text replies as MessageEvents with
+ * `llm_message.content[].text`. This checks that the agent's response text
+ * includes the expected token.
+ */
+export async function waitForAgentMessageContaining(
+  request: APIRequestContext,
   conversationId: string,
+  token: string,
   timeout = 30_000,
 ) {
   let lastDiag = "no polls yet";
@@ -169,58 +227,25 @@ export async function waitForSuccessfulBashObservation(
         }
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
-
-        // Summary of ALL events, full dump of first event with observation
-        const eventSummaries = items.map((e: any, i: number) => {
-          const kind = e.kind || e.action?.kind || e.observation?.kind || "no-kind";
-          const key = e.key || "";
-          return `[${i}] ${kind}${key ? ` key=${key}` : ""}`;
+        lastDiag = `${items.length} events, looking for "${token}" in agent MessageEvents`;
+        return items.some((e: any) => {
+          if (e.kind !== "MessageEvent" || e.source !== "agent") return false;
+          const content = e.llm_message?.content;
+          if (!Array.isArray(content)) return false;
+          return content.some(
+            (c: any) => typeof c.text === "string" && c.text.includes(token),
+          );
         });
-        lastDiag = `${items.length} events:\n${eventSummaries.join("\n")}`;
-        // Full dump of first event with an observation field
-        const obsEvent = items.find((e: any) => e.observation);
-        if (obsEvent) {
-          lastDiag += `\nFirst obs event: ${JSON.stringify(obsEvent, null, 2).slice(0, 1200)}`;
-        } else {
-          // No nested observation? Dump first non-stats event
-          const nonStats = items.find((e: any) => e.key !== "stats" && e.key !== "execution_status");
-          if (nonStats) {
-            lastDiag += `\nFirst non-stats event: ${JSON.stringify(nonStats, null, 2).slice(0, 1200)}`;
-          }
-        }
-
-        return items.some(isSuccessfulBashObservation);
       },
       { timeout },
     )
     .toBe(true)
-    // Playwright prints this on assertion failure:
     .catch((err) => {
       throw new Error(
-        `No successful bash observation after ${timeout}ms.\n${lastDiag}`,
+        `No agent MessageEvent containing "${token}" after ${timeout}ms.\n${lastDiag}`,
         { cause: err },
       );
     });
-}
-
-function isSuccessfulBashObservation(event: unknown): boolean {
-  if (!event || typeof event !== "object") return false;
-  const obs = (event as { observation?: Record<string, unknown> }).observation;
-  if (!obs) return false;
-  const kind = obs.kind;
-  if (kind !== "ExecuteBashObservation" && kind !== "TerminalObservation")
-    return false;
-  const command = typeof obs.command === "string" ? obs.command : "";
-  const content = (obs.content as Array<{ text?: string }>) ?? [];
-  const output = content.map((c) => c.text ?? "").join("\n");
-  return (
-    command.includes(BASH_TOKEN) &&
-    output.includes(BASH_TOKEN) &&
-    obs.exit_code === 0 &&
-    !obs.error &&
-    !obs.is_error &&
-    !obs.timeout
-  );
 }
 
 /** Delete a conversation via the API. */

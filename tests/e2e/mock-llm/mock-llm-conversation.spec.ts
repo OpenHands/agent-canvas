@@ -19,6 +19,7 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BASH_TOKEN,
   REPLY_TOKEN,
+  waitForAgentMessageContaining,
   MOCK_LLM_BASE_URL,
   BACKEND_URL,
   SESSION_API_KEY,
@@ -244,21 +245,23 @@ test.describe("mock-LLM agent-server conversation", () => {
     const conversationId = getConversationIdFromURL(page);
     conversationIds.add(conversationId);
 
-    // ── Verify: bash observation succeeded via the events API ──
+    // ── Verify: bash tool was executed (via bash events API) ──
 
-    await test.step("verify bash tool execution via events API", async () => {
+    await test.step("verify bash tool execution via bash events API", async () => {
       await waitForSuccessfulBashObservation(request, conversationId);
     });
 
-    // ── Verify: the bash output token appears in the chat UI ──
+    // ── Verify: agent reply contains REPLY_TOKEN (via conversation events API) ──
 
-    await test.step("verify bash output appears in chat", async () => {
-      await waitForNonUserMessageText(page, BASH_TOKEN, 30_000);
+    await test.step("verify agent reply via conversation events API", async () => {
+      await waitForAgentMessageContaining(
+        request, conversationId, REPLY_TOKEN, 30_000,
+      );
     });
 
-    // ── Verify: the agent's final reply token appears in the UI ──
+    // ── Verify: the agent's final reply token appears in the chat UI ──
 
-    await test.step("verify agent reply token appears in chat", async () => {
+    await test.step("verify agent reply token appears in chat UI", async () => {
       await waitForNonUserMessageText(page, REPLY_TOKEN, 30_000);
     });
 
