@@ -103,32 +103,41 @@ jobs:
           set +e
           PW_LOG="test-results-mock-llm/pw-output.log"
           mkdir -p test-results-mock-llm
+          touch "$PW_LOG"
 
-          # Run Playwright in background, capturing output. Our shell
-          # survives even if we have to kill Playwright (webServer
-          # teardown can hang indefinitely on the agent-server process).
-          npm run test:e2e:mock-llm > >(tee "$PW_LOG") 2>&1 &
+          # Run Playwright in background, writing output to a log file.
+          # Our shell survives even if we have to kill Playwright (the
+          # webServer teardown can hang indefinitely on agent-server).
+          npm run test:e2e:mock-llm > "$PW_LOG" 2>&1 &
           PW_PID=$!
 
-          # Phase 1: Wait up to 5 min for the test summary to appear in
-          # output (Playwright's line reporter prints "N passed" in
-          # real-time, before webServer teardown).
+          # Tail the log in background so CI still shows real-time output.
+          tail -f "$PW_LOG" &
+          TAIL_PID=$!
+
+          # Phase 1: Wait up to 5 min for the test summary to appear.
+          # Playwright's line reporter prints "N passed" in real-time,
+          # before webServer teardown starts.
           test_deadline=$((SECONDS + 300))
+          tests_done=false
           while [ "$SECONDS" -lt "$test_deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break  # Playwright exited naturally
             fi
             if grep -qE "[0-9]+ passed" "$PW_LOG" 2>/dev/null; then
-              echo "Test summary appeared in output — tests finished"
+              tests_done=true
+              echo "--- Test summary detected in output ---"
               break
             fi
             sleep 2
           done
 
-          # Phase 2: If Playwright is still running (teardown hang), give
-          # it 15s of grace then force-kill.
+          # Phase 2: If Playwright is still running (teardown hang),
+          # give it 15s grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
-            echo "Playwright still running after tests finished — waiting 15s for clean exit"
+            if [ "$tests_done" = "true" ]; then
+              echo "Tests finished but webServer teardown is hanging — killing in 15s"
+            fi
             sleep 15
             if kill -0 "$PW_PID" 2>/dev/null; then
               echo "::warning::Killing lingering Playwright process tree"
@@ -143,16 +152,22 @@ jobs:
             pw_exit=$?
           fi
 
+          # Stop the tail follower.
+          kill "$TAIL_PID" 2>/dev/null
+          wait "$TAIL_PID" 2>/dev/null
+
           echo "Playwright exited with code $pw_exit"
 
           # When killed during teardown, the exit code is non-zero but
           # tests may have passed. Parse the line reporter summary.
           if [ "$pw_exit" -ne 0 ] && [ -f "$PW_LOG" ]; then
-            # Playwright's line reporter prints: "  N passed (Xs)"
-            # and "  N failed" when there are failures.
+            echo "Checking PW_LOG for pass/fail..."
+            grep -E "passed|failed|timed out" "$PW_LOG" || echo "(no match)"
             if grep -qE "[0-9]+ passed" "$PW_LOG" && ! grep -qE "[0-9]+ failed|[0-9]+ timed out" "$PW_LOG"; then
               echo "::notice::All tests passed per Playwright output; non-zero exit was teardown-related"
               pw_exit=0
+            else
+              echo "Tests had failures per Playwright output"
             fi
           fi
 
