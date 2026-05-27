@@ -180,10 +180,12 @@ wait "$WAIT_PID1" "$WAIT_PID2"
 # ── 4. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
 
+# EFFECTIVE_SESSION_KEY is set above from ~/.openhands/agent-canvas/session-api-key.txt (or $SESSION_API_KEY)
 node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
   --host 0.0.0.0 \
   --dir /opt/agent-canvas/frontend \
+  --session-api-key "$EFFECTIVE_SESSION_KEY" \
   --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
   --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
