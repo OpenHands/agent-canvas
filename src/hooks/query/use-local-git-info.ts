@@ -41,7 +41,7 @@ const GIT_INFO_COMMAND = [
   "b=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)",
   'if [ -z "$r$b" ]; then',
   "n=$(find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | cut -c3- | sed 's|/.git$||' | sort -u)",
-  'c=$(printf \'%s\\n\' "$n" | grep -c \'[^[:space:]]\')',
+  "c=$(printf '%s\\n' \"$n\" | grep -c '[^[:space:]]')",
   'if [ "$c" = "1" ] && [ -n "$n" ]; then',
   'r=$(git -C "$n" remote get-url origin 2>/dev/null)',
   'b=$(git -C "$n" rev-parse --abbrev-ref HEAD 2>/dev/null)',
