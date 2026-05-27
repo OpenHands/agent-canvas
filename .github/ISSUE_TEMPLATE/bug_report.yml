@@ -9,6 +9,17 @@ body:
         Thanks for taking the time to report a bug! Please fill out the sections below so we can reproduce and fix the issue.
 
   - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
     id: install-method
     attributes:
       label: Installation Method
