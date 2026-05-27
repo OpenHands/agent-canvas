@@ -175,18 +175,13 @@ export async function waitForSuccessfulBashObservation(
         }
         const body = (await resp.json()) as { items?: unknown[] };
         const items = body.items ?? [];
-        // Dump all bash events for diagnostics
-        lastDiag = `${items.length} bash events`;
-        for (let i = 0; i < items.length; i++) {
-          lastDiag += `\n  [${i}]: ${JSON.stringify(items[i]).slice(0, 400)}`;
-        }
-        // Success = any BashOutput with exit_code 0 and our token in stdout
-        // OR if stdout is null but exit_code is 0, that still proves execution
+        lastDiag = `${items.length} BashOutput events`;
+        // Success: any BashOutput with exit_code 0 proves our command ran.
+        // The agent-server may return stdout as null for the completion
+        // event, so we accept null stdout when exit_code is 0.
         return items.some((e: any) => {
           if (e.kind !== "BashOutput" || e.exit_code !== 0) return false;
           const stdout = typeof e.stdout === "string" ? e.stdout : "";
-          // Accept either: stdout contains the token, or stdout is null/empty
-          // but exit_code is 0 (the command ran successfully)
           return stdout.includes(BASH_TOKEN) || e.stdout === null;
         });
       },
@@ -195,7 +190,7 @@ export async function waitForSuccessfulBashObservation(
     .toBe(true)
     .catch((err) => {
       throw new Error(
-        `No bash output containing "${BASH_TOKEN}" after ${timeout}ms.\n${lastDiag}`,
+        `No successful bash execution after ${timeout}ms. ${lastDiag}`,
         { cause: err },
       );
     });
