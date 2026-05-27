@@ -55,13 +55,15 @@ function SkillsSettingsScreen() {
   );
   const [showAddSkillModal, setShowAddSkillModal] = React.useState(false);
 
-  // Sync local state with server settings when data first arrives
+  // Sync local state with settings once, when data first arrives.
   React.useEffect(() => {
-    if (settings?.disabled_skills) {
-      setDisabledSet(new Set(settings.disabled_skills));
-      setHasHydratedInitialSettings(true);
-    }
-  }, [settings?.disabled_skills]);
+    if (!settings || hasHydratedInitialSettings) return;
+    const disabledSkills = Array.isArray(settings.disabled_skills)
+      ? settings.disabled_skills
+      : [];
+    setDisabledSet(new Set(disabledSkills));
+    setHasHydratedInitialSettings(true);
+  }, [settings, hasHydratedInitialSettings]);
 
   const handleToggle = (skillName: string, enabled: boolean) => {
     setDisabledSet((prev) => {

@@ -6,6 +6,10 @@ import {
   readStoredAppPreferences,
   writeStoredAppPreferences,
 } from "../app-preferences-store";
+import {
+  readStoredSkillsPreferences,
+  writeStoredSkillsPreferences,
+} from "../skills-preferences-store";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -136,10 +140,12 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   // analytics consent) live in localStorage in local mode. In cloud mode the
   // server response carries them and overrides the local cache.
   const storedAppPrefs = readStoredAppPreferences();
+  const storedSkillsPrefs = readStoredSkillsPreferences();
 
   const merged = {
     ...deepClone(DEFAULT_SETTINGS),
     ...storedAppPrefs,
+    ...storedSkillsPrefs,
     ...settings,
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
@@ -313,6 +319,19 @@ class SettingsService {
   static async saveSettings(
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
+    const isCloud = getActiveBackend().backend.kind === "cloud";
+
+    // Skills enable/disable is represented as a list of disabled skill names.
+    // Cloud backends persist this server-side. The local agent-server rejects
+    // unknown top-level fields on PATCH /api/settings, so persist this
+    // preference in localStorage for local mode.
+    if (!isCloud) {
+      const disabledSkills = settings.disabled_skills;
+      if (Array.isArray(disabledSkills)) {
+        writeStoredSkillsPreferences({ disabled_skills: disabledSkills });
+      }
+    }
+
     // Split app-level user-preference fields (language, git identity, sound
     // notifications, analytics consent) off before building the diff payload.
     // The local agent-server's PATCH /api/settings has no schema for these
@@ -352,8 +371,6 @@ class SettingsService {
     if (Array.isArray(disabledSkills)) {
       payload.disabled_skills = disabledSkills;
     }
-
-    const isCloud = getActiveBackend().backend.kind === "cloud";
 
     // The backend applies ``agent_settings_diff`` by deep-merging it into the
     // existing ``agent_settings`` dict (see SDK

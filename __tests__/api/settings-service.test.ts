@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { APP_PREFERENCES_STORAGE_KEY } from "#/api/app-preferences-store";
+import { SKILLS_PREFERENCES_STORAGE_KEY } from "#/api/skills-preferences-store";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -140,10 +141,8 @@ describe("SettingsService", () => {
   });
 
   it("skips PATCH for a skills-only save against a local backend", async () => {
-    // Arrange: skills are a cloud-only feature. The local agent-server's
-    // PATCH /api/settings rejects payloads without agent/conversation diffs
-    // (the MSW handler returns 400 in that case), so a successful no-op here
-    // also confirms disabled_skills is not leaked to the local backend.
+    // Arrange: local backends persist disabled skills in localStorage since
+    // PATCH /api/settings rejects unknown top-level fields and requires a diff.
     const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
 
     // Act
@@ -151,10 +150,14 @@ describe("SettingsService", () => {
       disabled_skills: ["SSH Microagent"],
     });
 
-    // Assert: returns true and never fires the PATCH (no fetch invalidation
-    // either, because the cache wasn't cleared).
+    // Assert: returns true and never fires the PATCH.
     expect(result).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(SKILLS_PREFERENCES_STORAGE_KEY) ?? "{}",
+      ),
+    ).toEqual({ disabled_skills: ["SSH Microagent"] });
 
     fetchSpy.mockRestore();
   });
