@@ -32,19 +32,12 @@ body:
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: version
     attributes:
       label: Agent Canvas Version
-      description: Which version are you running? Check with `agent-canvas --version` or `docker inspect`.
-      options:
-        - v1.0.0-alpha.6 (latest)
-        - v1.0.0-alpha.5
-        - v1.0.0-alpha.4
-        - v1.0.0-alpha.3
-        - v1.0.0-alpha.2
-        - main (built from source)
-        - Other / not sure
+      description: Which version are you running? Check with `agent-canvas --version` (npm/source) or `docker inspect ghcr.io/openhands/agent-canvas:latest` (Docker).
+      placeholder: "e.g. v1.0.0-alpha.6, main"
     validations:
       required: true
 
@@ -71,6 +64,14 @@ body:
       required: true
 
   - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
     id: expected
     attributes:
       label: Expected Behavior
@@ -81,9 +82,17 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Relevant Logs / Screenshots
-      description: Paste any error messages, console output, or screenshots that help explain the issue.
+      label: Relevant Logs
+      description: Paste any error messages or console output. Content is auto-wrapped in a code block.
       render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag and drop or paste any screenshots that help explain the issue.
     validations:
       required: false
 
