@@ -438,7 +438,9 @@ export function MCPServerForm({
         <p
           data-testid="mcp-test-message"
           className={
-            testMessage.ok ? "text-sm text-green-500" : "text-sm text-red-500"
+            testMessage.ok
+              ? "text-sm text-green-500 whitespace-pre-wrap"
+              : "text-sm text-red-500 whitespace-pre-wrap"
           }
         >
           {testMessage.text}

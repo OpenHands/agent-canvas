@@ -46,37 +46,21 @@ describe("McpService.testServer", () => {
     expect(result).toEqual({ ok: true, tools: ["search", "fetch"] });
   });
 
-  it("decodes HTML-entity-encoded characters in the error field", async () => {
-    // Python's html.escape encodes apostrophes as &#39; and slashes as &#x2F;
+  it("passes failure responses through unchanged (no server-side escaping)", async () => {
+    // The backend returns plain text; HTML-escaping of {{-error}} is handled
+    // by the i18next no-escape prefix in the translation string, not here.
     mockTestServer.mockResolvedValue({
       ok: false,
-      error:
-        "HTTPStatusError: Client error &#39;401 Unauthorized&#39; for url &#x2F;mcp",
+      error: "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
       error_kind: "unknown",
     });
 
     const result = await McpService.testServer(SERVER);
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       ok: false,
-      error:
-        "HTTPStatusError: Client error '401 Unauthorized' for url /mcp",
+      error: "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
       error_kind: "unknown",
-    });
-  });
-
-  it("decodes numeric and hex HTML entities", async () => {
-    mockTestServer.mockResolvedValue({
-      ok: false,
-      error: "Error: &lt;timeout&gt; after 30&#x73;",
-      error_kind: "timeout",
-    });
-
-    const result = await McpService.testServer(SERVER);
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: "Error: <timeout> after 30s",
     });
   });
 

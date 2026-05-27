@@ -13734,7 +13734,7 @@
     "en": "Could not reach the server. Check the URL and server type."
   },
   "MCP$TEST_ERROR_UNKNOWN": {
-    "en": "Connection failed: {{error}}"
+    "en": "Connection failed: {{-error}}"
   },
   "MCP$EDIT_SERVER_ARIA": {
     "en": "Edit {{name}}",

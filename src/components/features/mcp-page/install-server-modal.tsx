@@ -331,7 +331,7 @@ export function InstallServerModal({
         {globalError && (
           <p
             data-testid="mcp-install-modal-error"
-            className="text-sm text-red-500"
+            className="text-sm text-red-500 whitespace-pre-wrap"
           >
             {globalError}
           </p>
