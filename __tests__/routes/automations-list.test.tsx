@@ -246,6 +246,53 @@ describe("AutomationsList — Run now toasts", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
+  it("does not dispatch when Run now is clicked on a disabled automation (grid view)", async () => {
+    // Arrange — single automation that is turned off.
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    const button = await screen.findByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act — userEvent honors the disabled attribute, so the click is suppressed.
+    await user.click(button);
+
+    // Assert — the off-state gate prevents the dispatch API from firing.
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when Run now is clicked on a disabled automation (list view)", async () => {
+    // Arrange — pre-seed the stored view mode so the page mounts in list view,
+    // then return a single disabled automation.
+    window.localStorage.setItem("openhands-automations-view", "list");
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByTestId(
+      `automation-list-row-${disabledAutomation.id}`,
+    );
+    const button = screen.getByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act
+    await user.click(button);
+
+    // Assert
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
   it("shows an error toast when the dispatch API rejects", async () => {
     // Arrange — service rejects with a plain Error so the fallback branch fires.
     vi.mocked(AutomationService.dispatchAutomation).mockRejectedValue(
