@@ -13718,6 +13718,24 @@
     "uk": "Сервер MCP видалено.",
     "ca": "Servidor MCP eliminat."
   },
+  "MCP$TEST_BUTTON": {
+    "en": "Test connection"
+  },
+  "MCP$VERIFYING": {
+    "en": "Verifying…"
+  },
+  "MCP$TEST_SUCCESS": {
+    "en": "Connected — {{count}} tool(s) available"
+  },
+  "MCP$TEST_ERROR_TIMEOUT": {
+    "en": "Connection timed out. Check the URL and try again."
+  },
+  "MCP$TEST_ERROR_CONNECTION": {
+    "en": "Could not reach the server. Check the URL and server type."
+  },
+  "MCP$TEST_ERROR_UNKNOWN": {
+    "en": "Connection failed: {{-error}}"
+  },
   "MCP$EDIT_SERVER_ARIA": {
     "en": "Edit {{name}}",
     "ja": "{{name}} を編集",

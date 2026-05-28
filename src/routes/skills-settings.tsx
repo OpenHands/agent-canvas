@@ -57,11 +57,10 @@ function SkillsSettingsScreen() {
 
   // Sync local state with server settings when data first arrives
   React.useEffect(() => {
-    if (settings?.disabled_skills) {
-      setDisabledSet(new Set(settings.disabled_skills));
-      setHasHydratedInitialSettings(true);
-    }
-  }, [settings?.disabled_skills]);
+    if (settingsLoading || !settings) return;
+    setDisabledSet(new Set(settings.disabled_skills ?? []));
+    setHasHydratedInitialSettings(true);
+  }, [settingsLoading, settings?.disabled_skills]);
 
   const handleToggle = (skillName: string, enabled: boolean) => {
     setDisabledSet((prev) => {
