@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import type { MCPTestFailure } from "@openhands/typescript-client";
@@ -58,6 +58,7 @@ export function InstallServerModal({
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
   const { mutate: testMcpServer, isPending: isTesting } = useTestMcpServer();
+  const instanceId = useId();
 
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
@@ -134,7 +135,7 @@ export function InstallServerModal({
       return;
     }
     const payload: MCPServerConfig = {
-      id: `${template.kind}-${Date.now()}`,
+      id: `${template.kind}-${instanceId}`,
       type: template.kind,
       url: template.url,
       ...(apiKey && { api_key: apiKey }),
@@ -143,7 +144,7 @@ export function InstallServerModal({
   };
 
   const handleStdioSubmit = () => {
-    if (!template || template.kind !== "stdio") return;
+    if (template?.kind !== "stdio") return;
     const stdio = template;
     const errors: Record<string, string | null> = {};
 
@@ -179,7 +180,7 @@ export function InstallServerModal({
     }
 
     const payload: MCPServerConfig = {
-      id: `stdio-${Date.now()}`,
+      id: `stdio-${instanceId}`,
       type: "stdio",
       name: stdio.serverName,
       command: stdio.command,

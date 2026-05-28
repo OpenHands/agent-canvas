@@ -49,8 +49,9 @@ export function getDefaultTemplate(
   entry: MarketplaceEntry,
 ): MarketplaceTemplate | undefined {
   const option =
-    entry.connectionOptions.find((o) => o.id === entry.defaultConnectionOptionId) ??
-    entry.connectionOptions[0];
+    entry.connectionOptions.find(
+      (o) => o.id === entry.defaultConnectionOptionId,
+    ) ?? entry.connectionOptions[0];
   return option?.transport;
 }
 

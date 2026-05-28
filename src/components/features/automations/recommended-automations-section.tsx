@@ -184,7 +184,9 @@ export function RecommendedAutomationsSection({
             const requiredEntries = getRequiredEntries(automation);
             const missingCount = requiredEntries.filter((entry) => {
               const template = getDefaultTemplate(entry);
-              return !template || !findInstalledMatch(template, installedServers);
+              return (
+                !template || !findInstalledMatch(template, installedServers)
+              );
             }).length;
 
             return (
