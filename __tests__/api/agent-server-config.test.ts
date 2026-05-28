@@ -90,19 +90,19 @@ describe("agent server config", () => {
     expect(getAgentServerSessionApiKey()).toBe("saved-session-key");
   });
 
-  it("does not load public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset", () => {
+  it("loads public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
 
-    expect(shouldLoadPublicSkills()).toBe(false);
+    expect(shouldLoadPublicSkills()).toBe(true);
   });
 
-  it("loads public skills only when VITE_LOAD_PUBLIC_SKILLS is explicitly 'true'", () => {
+  it("loads public skills when VITE_LOAD_PUBLIC_SKILLS is explicitly 'true'", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "true");
 
     expect(shouldLoadPublicSkills()).toBe(true);
   });
 
-  it("does not load public skills for any non-'true' value of VITE_LOAD_PUBLIC_SKILLS", () => {
+  it("does not load public skills only when VITE_LOAD_PUBLIC_SKILLS is explicitly 'false'", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
 
     expect(shouldLoadPublicSkills()).toBe(false);
