@@ -45,11 +45,19 @@ vi.mock("#/contexts/active-backend-context", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function wrapper({ children }: { children: React.ReactNode }) {
+// Build a wrapper whose QueryClient is created once and stays stable for the
+// lifetime of the test. Creating the client inside the component body would
+// re-instantiate it on every wrapper re-render (e.g. a `rerender` call),
+// discarding the cache and tripping TanStack Query dev-mode warnings.
+function makeWrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  };
 }
 
 beforeEach(() => {
@@ -83,7 +91,7 @@ describe("useBashCommandLogs — gates the conversation lookup on `enabled`", ()
           bashCommandId: "cmd-1",
           enabled: false,
         }),
-      { wrapper },
+      { wrapper: makeWrapper() },
     );
 
     // Assert: no /api/conversations request is issued on page load.
@@ -99,7 +107,7 @@ describe("useBashCommandLogs — gates the conversation lookup on `enabled`", ()
           bashCommandId: "cmd-1",
           enabled: true,
         }),
-      { wrapper },
+      { wrapper: makeWrapper() },
     );
 
     // Assert: one lookup fires for that conversation id (functionality preserved).
