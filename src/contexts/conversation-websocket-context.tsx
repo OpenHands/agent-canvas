@@ -133,7 +133,8 @@ export function ConversationWebSocketProvider({
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
-  const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
+  const { setErrorMessage, removeErrorMessage, clearConnectionError } =
+    useErrorMessageStore();
   const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
     (state) => state.consumeMatchingPendingMessage,
   );
@@ -169,8 +170,10 @@ export function ConversationWebSocketProvider({
     path?.toUpperCase().endsWith("PLAN.MD") ?? false;
 
   const handleNonErrorEvent = useCallback(() => {
-    removeErrorMessage();
-  }, [removeErrorMessage]);
+    // A normal event means connectivity recovered: clear a transient connection
+    // error, but keep sticky conversation errors (e.g. a wrong API key).
+    clearConnectionError();
+  }, [clearConnectionError]);
 
   // Helper function to update metrics from stats event
   const updateMetricsFromStats = useCallback(
@@ -426,7 +429,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Track credit limit reached if AgentErrorEvent has budget-related error
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -438,7 +442,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -608,7 +611,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Handle AgentErrorEvent specifically
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -620,7 +624,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -761,7 +764,7 @@ export function ConversationWebSocketProvider({
       onOpen: () => {
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
       },
       onClose: () => {
         setMainConnectionState("CLOSED");
@@ -770,7 +773,7 @@ export function ConversationWebSocketProvider({
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
-          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handleMainMessage,
@@ -778,7 +781,7 @@ export function ConversationWebSocketProvider({
   }, [
     handleMainMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     initialAfterTimestamp,
   ]);
@@ -802,7 +805,7 @@ export function ConversationWebSocketProvider({
       onOpen: async () => {
         setPlanningConnectionState("OPEN");
         hasConnectedRefPlanning.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
 
         // Fetch expected event count for history loading detection
         if (
@@ -834,7 +837,7 @@ export function ConversationWebSocketProvider({
         setPlanningConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefPlanning.current) {
-          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handlePlanningMessage,
@@ -842,7 +845,7 @@ export function ConversationWebSocketProvider({
   }, [
     handlePlanningMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     subConversations,
   ]);

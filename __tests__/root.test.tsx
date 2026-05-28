@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import App from "#/root";
+import App, { links } from "#/root";
 import { server } from "#/mocks/node";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -140,5 +140,19 @@ describe("App root agent-server availability guard", () => {
     expect(
       screen.queryByTestId("agent-server-onboarding-screen"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("App root document links", () => {
+  it("declares the SVG favicon used by the browser tab", () => {
+    // Act
+    const documentLinks = links();
+
+    // Assert
+    expect(documentLinks).toContainEqual({
+      rel: "icon",
+      type: "image/svg+xml",
+      href: "/favicon.svg",
+    });
   });
 });

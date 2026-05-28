@@ -74,6 +74,10 @@ export function ChatInputActions({
     ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
       conversation?.llm_model)
     : conversation?.llm_model;
+  // Shown on cloud backends. On the home page it renders disabled with an
+  // explanatory tooltip (ChangeAgentButton handles that), since agent mode can
+  // only be switched once a conversation has begun.
+  const showChangeAgentButton = isCloud;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -111,7 +115,7 @@ export function ChatInputActions({
       !rightEl ||
       !addEl ||
       !modelEl ||
-      (isCloud && !codeEl) ||
+      (showChangeAgentButton && !codeEl) ||
       typeof ResizeObserver === "undefined"
     ) {
       return;
@@ -149,7 +153,7 @@ export function ChatInputActions({
     syncWidths();
 
     return () => observer.disconnect();
-  }, [isCloud]);
+  }, [showChangeAgentButton]);
 
   const handlePauseAgent = () => {
     if (!conversationId) return;
@@ -176,7 +180,7 @@ export function ChatInputActions({
         showModelInline: false,
       };
 
-      if (isCloud && remaining >= codeWidth) {
+      if (showChangeAgentButton && remaining >= codeWidth) {
         next.showCodeInline = true;
         remaining -= codeWidth + INLINE_GAP;
       }
@@ -187,7 +191,7 @@ export function ChatInputActions({
 
       return next;
     },
-    [isCloud, codeWidth, modelWidth],
+    [showChangeAgentButton, codeWidth, modelWidth],
   );
 
   const leftBaseWidth =
@@ -195,20 +199,24 @@ export function ChatInputActions({
 
   const fitWithoutOverflow = fitOptionalItems(leftBaseWidth);
   const allOptionalFit =
-    (!isCloud || fitWithoutOverflow.showCodeInline) &&
+    (!showChangeAgentButton || fitWithoutOverflow.showCodeInline) &&
     fitWithoutOverflow.showModelInline;
 
   const fitWithOverflow = allOptionalFit
     ? fitWithoutOverflow
     : fitOptionalItems(leftBaseWidth - OVERFLOW_BUTTON_WIDTH - INLINE_GAP);
 
-  const showCodeInline = !isCloud ? false : fitWithOverflow.showCodeInline;
+  const showCodeInline = !showChangeAgentButton
+    ? false
+    : fitWithOverflow.showCodeInline;
   const showModelInline = fitWithOverflow.showModelInline;
   const showAddFileInline = true;
   const showAgentStatusInline = actionsRowWidth >= 360;
 
   const hasOverflowItems =
-    !showAddFileInline || (isCloud && !showCodeInline) || !showModelInline;
+    !showAddFileInline ||
+    (showChangeAgentButton && !showCodeInline) ||
+    !showModelInline;
 
   React.useEffect(() => {
     if (!hasOverflowItems) {
@@ -269,7 +277,7 @@ export function ChatInputActions({
       alignment="left"
       className="!static !top-auto !bottom-auto !left-auto !right-auto !mt-0 overflow-visible min-w-[200px]"
     >
-      {isCloud && !showCodeInline && (
+      {showChangeAgentButton && !showCodeInline && (
         <div className="relative group/overflow-agent">
           <ContextMenuListItem
             testId="overflow-agent-button"
@@ -417,7 +425,7 @@ export function ChatInputActions({
               handleFileIconClick={onAddFileClick}
             />
           </div>
-          {isCloud && (
+          {showChangeAgentButton && (
             <div ref={codeRef} className={cn(!showCodeInline && "hidden")}>
               <ChangeAgentButton />
             </div>

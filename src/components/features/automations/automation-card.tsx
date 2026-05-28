@@ -97,7 +97,7 @@ export function AutomationCard({
               type="button"
               data-testid={`automation-run-now-${automation.id}`}
               aria-busy={isRunPending}
-              disabled={isRunPending}
+              disabled={isRunPending || !automation.enabled}
               onClick={(event) => {
                 event.stopPropagation();
                 onRunNow(automation.id);

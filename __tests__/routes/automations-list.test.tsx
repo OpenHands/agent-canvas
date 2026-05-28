@@ -71,12 +71,14 @@ const listResponse: AutomationsResponse = {
   total: 1,
 };
 
-function renderList() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function renderList(queryClient?: QueryClient) {
+  const client =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ActiveBackendProvider>
         <MemoryRouter initialEntries={["/automations"]}>
           <AutomationsList />
@@ -246,6 +248,53 @@ describe("AutomationsList — Run now toasts", () => {
     expect(displayErrorToast).not.toHaveBeenCalled();
   });
 
+  it("does not dispatch when Run now is clicked on a disabled automation (grid view)", async () => {
+    // Arrange — single automation that is turned off.
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    const button = await screen.findByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act — userEvent honors the disabled attribute, so the click is suppressed.
+    await user.click(button);
+
+    // Assert — the off-state gate prevents the dispatch API from firing.
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when Run now is clicked on a disabled automation (list view)", async () => {
+    // Arrange — pre-seed the stored view mode so the page mounts in list view,
+    // then return a single disabled automation.
+    window.localStorage.setItem("openhands-automations-view", "list");
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByTestId(
+      `automation-list-row-${disabledAutomation.id}`,
+    );
+    const button = screen.getByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act
+    await user.click(button);
+
+    // Assert
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
   it("shows an error toast when the dispatch API rejects", async () => {
     // Arrange — service rejects with a plain Error so the fallback branch fires.
     vi.mocked(AutomationService.dispatchAutomation).mockRejectedValue(
@@ -265,5 +314,42 @@ describe("AutomationsList — Run now toasts", () => {
       expect(displayErrorToast).toHaveBeenCalledWith("dispatch failed");
     });
     expect(displaySuccessToast).not.toHaveBeenCalled();
+  });
+});
+
+describe("AutomationsList — list freshness on remount", () => {
+  it("surfaces automations created since the last visit without a manual refresh", async () => {
+    // Arrange — share a QueryClient across two mounts to simulate the user
+    // navigating away from /automations and back. Between the two mounts an
+    // agent has created a new automation, so the service starts returning
+    // it on the next call. Previously, the cached list was treated as fresh
+    // for 5 minutes and the second mount would have re-rendered the stale
+    // list without refetching.
+    const newAutomation: Automation = {
+      ...automation,
+      id: "auto-2",
+      name: "Hello World",
+    };
+    vi.mocked(AutomationService.getAutomations)
+      .mockReset()
+      .mockResolvedValueOnce(listResponse)
+      .mockResolvedValueOnce({
+        automations: [automation, newAutomation],
+        total: 2,
+      });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    // Act — first mount lands on the original list, then unmount and remount
+    // against the same QueryClient (the cache the bug used to serve stale).
+    const first = renderList(queryClient);
+    await screen.findByText(automation.name);
+    first.unmount();
+    renderList(queryClient);
+
+    // Assert — the remount refetched and surfaced the newly created
+    // automation, which is the user-observable behavior the bug blocked.
+    await screen.findByText(newAutomation.name);
   });
 });

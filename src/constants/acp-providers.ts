@@ -1,3 +1,4 @@
+import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
 export type ACPProviderIcon =
@@ -67,21 +68,13 @@ export function resolveEffectiveAcpModel(inputs: {
 }
 
 /**
- * Built-in ACP (Agent Client Protocol) provider registry.
- *
- * **Source of truth:** ``openhands.sdk.settings.acp_providers.ACP_PROVIDERS``
- * in https://github.com/OpenHands/software-agent-sdk. This file is a
- * hand-kept TypeScript mirror — keep keys + commands in sync with the
- * Python source. The {@link OnboardingAgentId} and the
- * ``ACPAgentSettings.acp_server`` discriminator
- * (``"claude-code" | "codex" | "gemini-cli" | "custom"``) come from the
- * same Python module.
- *
- * Drift risk is tracked in agent-canvas#587. The richer SDK record
- * (api-key env var, session mode, set-session-model protocol, etc.)
- * is intentionally not mirrored here — canvas only renders this
- * registry in the Settings → Agent and onboarding UIs, so it only
- * needs the fields below.
+ * Shape of a built-in ACP (Agent Client Protocol) provider as Canvas consumes
+ * it. The data fields (display name, launch command, model picker + default)
+ * are sourced at module load from ``@openhands/typescript-client``'s ACP
+ * registry — the generated mirror of the Python source of truth
+ * ``openhands.sdk.settings.acp_providers``. This config only adds the
+ * Canvas-specific UI fields ({@link ACPProviderConfig.icon} +
+ * {@link ACPProviderConfig.description_key}); see {@link ACP_PROVIDER_UI}.
  */
 export interface ACPProviderConfig {
   /** Stable registry key, also stored on conversations as ``tags.acpserver``. */
@@ -101,9 +94,9 @@ export interface ACPProviderConfig {
    */
   default_command: string[];
   /**
-   * Canvas-local suggested ACP model IDs. These mirror the current runtime
-   * picker values for the built-in harnesses, but are not authoritative access
-   * checks; users can still enter a custom override in Settings -> Agent.
+   * Suggested ACP model IDs for the provider's picker, sourced from the
+   * typescript-client registry. Not authoritative access checks; users can
+   * still enter a custom override in Settings -> Agent.
    */
   available_models?: ACPModelOption[];
   /** Model ID preselected for built-in providers so Canvas never saves blank. */
@@ -130,123 +123,51 @@ export interface ACPModelOption {
   label: string;
 }
 
-// Canonical model IDs the Claude Code CLI binary's model registry recognises
-// (verified by string-scanning v2.1.146 of the bundled ``claude`` native
-// binary). ``[1m]`` is the SDK-documented 1M-context suffix; we use the
-// version-agnostic alias so the option auto-tracks the newest 1M-capable
-// model. ``opusplan`` routes planning to Opus and execution to Sonnet.
-// Availability for any of these ultimately depends on the user's Anthropic
-// plan tier — surfacing them here matches what the CLI *accepts*, not what
-// every account can actually invoke.
-const CLAUDE_MODELS: ACPModelOption[] = [
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
-  { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
-  // The 1M-context entries use the version-agnostic ``[1m]`` aliases, so the
-  // label must stay version-less too — pinning a number here (e.g. "4.6")
-  // would lie the moment the alias resolves to a newer model.
-  { id: "opus[1m]", label: "Claude Opus (1M)" },
-  { id: "claude-opus-4-5", label: "Claude Opus 4.5" },
-  { id: "claude-opus-4-1-20250805", label: "Claude Opus 4.1" },
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "sonnet[1m]", label: "Claude Sonnet (1M)" },
-  { id: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
-  { id: "opusplan", label: "Opus (plan) + Sonnet (execute)" },
-];
-
-// Model IDs accepted by the ``@zed-industries/codex-acp`` wrapper, mirroring
-// the Codex CLI's own ``/model`` picker. Format is ``<base-model>/<effort>``
-// where the trailing tier (``low``/``medium``/``high``/``xhigh``) hints the
-// reasoning effort for that turn. Sourced from the Codex CLI's documented
-// runtime options as of 2026-05-22 — see ``acp_model`` registry tracker
-// in agent-canvas#740 for the long-term plan.
-const CODEX_MODELS: ACPModelOption[] = [
-  { id: "gpt-5.5/low", label: "GPT-5.5 (low)" },
-  { id: "gpt-5.5/medium", label: "GPT-5.5 (medium)" },
-  { id: "gpt-5.5/high", label: "GPT-5.5 (high)" },
-  { id: "gpt-5.5/xhigh", label: "GPT-5.5 (xhigh)" },
-  { id: "gpt-5.4/low", label: "GPT-5.4 (low)" },
-  { id: "gpt-5.4/medium", label: "GPT-5.4 (medium)" },
-  { id: "gpt-5.4/high", label: "GPT-5.4 (high)" },
-  { id: "gpt-5.4/xhigh", label: "GPT-5.4 (xhigh)" },
-  { id: "gpt-5.4-mini/low", label: "GPT-5.4 Mini (low)" },
-  { id: "gpt-5.4-mini/medium", label: "GPT-5.4 Mini (medium)" },
-  { id: "gpt-5.4-mini/high", label: "GPT-5.4 Mini (high)" },
-  { id: "gpt-5.4-mini/xhigh", label: "GPT-5.4 Mini (xhigh)" },
-  { id: "gpt-5.3-codex/low", label: "GPT-5.3 Codex (low)" },
-  { id: "gpt-5.3-codex/medium", label: "GPT-5.3 Codex (medium)" },
-  { id: "gpt-5.3-codex/high", label: "GPT-5.3 Codex (high)" },
-  { id: "gpt-5.3-codex/xhigh", label: "GPT-5.3 Codex (xhigh)" },
-  { id: "gpt-5.2/low", label: "GPT-5.2 (low)" },
-  { id: "gpt-5.2/medium", label: "GPT-5.2 (medium)" },
-  { id: "gpt-5.2/high", label: "GPT-5.2 (high)" },
-  { id: "gpt-5.2/xhigh", label: "GPT-5.2 (xhigh)" },
-];
-
-// Model IDs accepted by ``@google/gemini-cli --acp``. The ``auto-gemini-*``
-// entries delegate version selection to the CLI's router; the explicit
-// ``gemini-3.1-*`` / ``gemini-2.5-*`` entries pin to a specific snapshot.
-// Sourced from the Gemini CLI's documented model list as of 2026-05-22 —
-// see agent-canvas#740 for the long-term plan to move this registry
-// upstream.
-const GEMINI_MODELS: ACPModelOption[] = [
-  { id: "auto-gemini-3", label: "Auto (Gemini 3)" },
-  { id: "auto-gemini-2.5", label: "Auto (Gemini 2.5)" },
-  { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (preview)" },
-  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash (preview)" },
-  {
-    id: "gemini-3.1-flash-lite-preview",
-    label: "Gemini 3.1 Flash Lite (preview)",
-  },
-  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-];
-
-// Each entry's ``default_command`` is the published-package npx
-// invocation that speaks the ACP JSON-RPC protocol on stdio. Verified
-// against the upstream npm registry on the date noted below — if a
-// package is renamed/unpublished, the agent-server spawn fails fast
-// with ``ENOENT`` and the user can switch to the "Custom" preset.
-export const ACP_PROVIDERS: ACPProviderConfig[] = [
-  {
-    key: "claude-code",
-    display_name: "Claude Code",
-    // https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp
-    // Verified 2026-05-19. Official Anthropic-maintained ACP wrapper
-    // around the Claude Code CLI.
-    default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-    available_models: CLAUDE_MODELS,
-    default_model: "claude-opus-4-7",
-    description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
+// Canvas-only UI metadata per built-in provider, keyed by the ACP registry
+// key. Everything else — display name, launch command, model picker list and
+// default — comes from the typescript-client registry below. Adding a model
+// or a provider happens upstream in the SDK; Canvas only owns the brand icon
+// and the onboarding-tile description here. A provider with no entry here is
+// intentionally not surfaced in the UI.
+const ACP_PROVIDER_UI: Record<
+  string,
+  { icon: ACPProviderIcon; description_key: I18nKey }
+> = {
+  "claude-code": {
     icon: "claude-code",
+    description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
   },
-  {
-    key: "codex",
-    display_name: "Codex",
-    // https://www.npmjs.com/package/@zed-industries/codex-acp
-    // Verified 2026-05-19. Zed-maintained ACP wrapper around the
-    // OpenAI Codex CLI — NOT ``@openai/codex acp`` (no ``acp``
-    // subcommand on that package).
-    default_command: ["npx", "-y", "@zed-industries/codex-acp"],
-    available_models: CODEX_MODELS,
-    default_model: "gpt-5.5/medium",
-    description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
+  codex: {
     icon: "codex",
+    description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
   },
-  {
-    key: "gemini-cli",
-    display_name: "Gemini CLI",
-    // https://www.npmjs.com/package/@google/gemini-cli
-    // Verified 2026-05-19. Official Google CLI; ``--acp`` switches it
-    // into ACP server mode on stdio.
-    default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
-    available_models: GEMINI_MODELS,
-    default_model: "gemini-2.5-pro",
-    description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
+  "gemini-cli": {
     icon: "gemini",
+    description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
   },
-];
+};
+
+// Built-in ACP providers Canvas surfaces, built by enriching each upstream
+// registry record (``@openhands/typescript-client`` → Python SDK) with the
+// Canvas UI metadata above. Model lists + defaults are no longer hand-kept
+// here (closes agent-canvas#740) — they track the SDK via the pinned client.
+export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
+  ACP_PROVIDER_UI,
+).map(([key, ui]) => {
+  const info = getClientAcpProvider(key);
+  return {
+    key,
+    display_name: info?.display_name ?? key,
+    default_command: info ? [...info.default_command] : [],
+    available_models: info?.available_models?.map((model) => ({
+      id: model.id,
+      label: model.label,
+    })),
+    default_model: info?.default_model ?? undefined,
+    description_key: ui.description_key,
+    icon: ui.icon,
+  };
+});
 
 export const ACP_CUSTOM_PRESET_KEY = "custom";
 

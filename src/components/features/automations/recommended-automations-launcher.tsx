@@ -208,6 +208,10 @@ export function RecommendedAutomationsLauncher({
 
   const installEntry = installQueue[0] ?? null;
 
+  // Recommended automations are a local-backend-only feature; cloud
+  // automations are managed elsewhere.
+  if (activeBackend.backend.kind === "cloud") return null;
+
   return (
     <>
       <RecommendedAutomationsSection
