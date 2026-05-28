@@ -316,7 +316,26 @@ export function ConversationTabs({
                   ),
                 )}
             </div>
-            <div ref={menuRef} className="relative shrink-0">
+            <div ref={menuRef} className="relative shrink-0 flex items-center gap-1.5">
+              {variant === "compact" && isTabActive("planner") && (
+                <button
+                  type="button"
+                  onClick={handleBuildPlanClick}
+                  disabled={isBuildDisabled}
+                  className={cn(
+                    "flex h-5 min-w-17 shrink-0 items-center justify-center rounded bg-white px-2 transition-opacity",
+                    isBuildDisabled
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:opacity-90",
+                  )}
+                  data-testid="planner-tab-build-button"
+                >
+                  <Typography.Text className="text-[11px] font-normal leading-5 text-black">
+                    {/* eslint-disable-next-line i18next/no-literal-string */}
+                    {t(I18nKey.COMMON$BUILD)} ⌘↩
+                  </Typography.Text>
+                </button>
+              )}
               <EllipsisButton
                 ref={anchorRef}
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -334,7 +353,7 @@ export function ConversationTabs({
           </div>
         </div>
       </div>
-      {isTabActive("planner") && (
+      {variant !== "compact" && isTabActive("planner") && (
         <div
           className={cn(
             "flex h-10 min-h-10 shrink-0 items-center border-t border-[var(--oh-border)] pl-[10px] pr-1",
