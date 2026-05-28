@@ -75,7 +75,6 @@ export function CustomServerEditor({
       };
     }
     return { ok: false, text: makeTestErrorMessage(testResult) };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testResult, t]);
 
   // Shared error handler so both add and update surface backend errors

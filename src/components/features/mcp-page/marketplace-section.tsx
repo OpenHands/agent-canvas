@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import {
   getMarketplaceEntriesByPopularity,
   isMarketplaceEntryAvailable,
@@ -32,7 +32,7 @@ export function MarketplaceSection({
   const { t } = useTranslation("openhands");
 
   const visibleEntries = getMarketplaceEntriesByPopularity(
-    MCP_MARKETPLACE,
+    INTEGRATION_MARKETPLACE,
   ).filter(
     (entry) =>
       isMarketplaceEntryAvailable(entry, backendKind) &&

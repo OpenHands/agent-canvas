@@ -134,7 +134,7 @@ export function ConversationName() {
   return (
     <>
       <div
-        className="flex items-center gap-2 h-[22px] text-base font-normal text-left pl-0 lg:pl-1"
+        className="flex items-center gap-2 h-[22px] text-base font-normal text-left pl-0 lg:pl-1 min-w-0"
         data-testid="conversation-name"
       >
         {titleMode === "edit" ? (
@@ -150,7 +150,7 @@ export function ConversationName() {
           />
         ) : (
           <div
-            className="text-white leading-5 w-fit max-w-fit truncate"
+            className="text-white leading-5 truncate"
             data-testid="conversation-name-title"
             onDoubleClick={handleDoubleClick}
             title={conversation.title || ""}
@@ -160,7 +160,10 @@ export function ConversationName() {
         )}
 
         {titleMode !== "edit" && (
-          <div ref={ellipsisAnchorRef} className="relative flex items-center">
+          <div
+            ref={ellipsisAnchorRef}
+            className="relative flex items-center shrink-0"
+          >
             <EllipsisButton onClick={handleEllipsisClick} />
             {contextMenuOpen && (
               <ConversationNameContextMenu

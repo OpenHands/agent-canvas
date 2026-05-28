@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
-import type { McpCatalogEntry } from "@openhands/extensions/mcps";
-import { MCP_FALLBACK_LOGO, MCP_LOGOS } from "@openhands/extensions/mcps/logos";
+import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations";
+import {
+  INTEGRATION_FALLBACK_LOGO,
+  INTEGRATION_LOGOS,
+} from "@openhands/extensions/integrations/logos";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<
-  McpCatalogEntry,
+  IntegrationCatalogEntry,
   "id" | "name" | "iconBg" | "iconColor"
 >;
 
@@ -48,8 +51,8 @@ export function McpLogoBadge({
       }}
     >
       {entry
-        ? (MCP_LOGOS[entry.id] ?? fallback ?? MCP_FALLBACK_LOGO)
-        : (fallback ?? MCP_FALLBACK_LOGO)}
+        ? (INTEGRATION_LOGOS[entry.id] ?? fallback ?? INTEGRATION_FALLBACK_LOGO)
+        : (fallback ?? INTEGRATION_FALLBACK_LOGO)}
     </span>
   );
 }
