@@ -58,15 +58,13 @@ describe("ConversationTabsContextMenu", () => {
   it("should render all default tabs when open", () => {
     render(<ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />);
 
-    const expectedTabs = [
-      "COMMON$PLANNER",
-      "COMMON$FILES",
-      "COMMON$TERMINAL",
-      "COMMON$BROWSER",
-    ];
+    const expectedTabs = ["COMMON$FILES", "COMMON$TERMINAL", "COMMON$BROWSER"];
     for (const tab of expectedTabs) {
       expect(screen.getByText(tab)).toBeInTheDocument();
     }
+
+    // Planner is cloud-only; on the default (local) backend it is hidden.
+    expect(screen.queryByText("COMMON$PLANNER")).not.toBeInTheDocument();
   });
 
   it("should show the Code entry when the active backend is cloud", () => {
@@ -85,6 +83,24 @@ describe("ConversationTabsContextMenu", () => {
     );
 
     expect(screen.getByText("COMMON$CODE")).toBeInTheDocument();
+  });
+
+  it("should show the Planner entry when the active backend is cloud", () => {
+    seedActiveBackend({
+      id: "cloud-test",
+      name: "Cloud Test",
+      host: "https://app.example.com",
+      apiKey: "secret",
+      kind: "cloud",
+    });
+
+    render(
+      <ActiveBackendProvider>
+        <ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />
+      </ActiveBackendProvider>,
+    );
+
+    expect(screen.getByText("COMMON$PLANNER")).toBeInTheDocument();
   });
 
   it("should open a tab from the label button without changing pin state", async () => {
@@ -130,13 +146,13 @@ describe("ConversationTabsContextMenu", () => {
 
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(true);
-    expect(storeState.selectedTab).toBe("planner");
+    expect(storeState.selectedTab).toBe("terminal");
 
     const storedState = JSON.parse(
       localStorage.getItem(`conversation-state-${CONVERSATION_ID}`)!,
     );
     expect(storedState.unpinnedTabs).toContain("files");
-    expect(storedState.selectedTab).toBe("planner");
+    expect(storedState.selectedTab).toBe("terminal");
   });
 
   it("should not close the right panel when unpinning a non-active tab", async () => {
