@@ -200,8 +200,8 @@ export function isAuthRequired(): boolean {
   return (
     import.meta.env.VITE_AUTH_REQUIRED === "true" ||
     (typeof window !== "undefined" &&
-      (window as Record<string, unknown>).__AGENT_CANVAS_AUTH_REQUIRED__ ===
-        true)
+      (window as unknown as Record<string, unknown>)
+        .__AGENT_CANVAS_AUTH_REQUIRED__ === true)
   );
 }
 
