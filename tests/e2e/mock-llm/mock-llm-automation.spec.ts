@@ -179,15 +179,8 @@ test.describe("mock-LLM automation lifecycle", () => {
   test("step 1: setup LLM profile and register automation trajectory", async ({
     request,
   }) => {
-    test.setTimeout(120_000); // allow extra time for automation backend startup
     // Ensure the mock LLM profile is configured
     await ensureMockLLMProfile(request);
-
-    // Wait for the automation backend to be ready — it starts via uvx and
-    // may take several seconds after the ingress health check passes.
-    await test.step("wait for automation backend", async () => {
-      await listAutomations(request, 30); // up to 60s of retries
-    });
 
     // Build the terminal commands the mock LLM will return.
     // The curl commands hit the REAL automation backend through the ingress.

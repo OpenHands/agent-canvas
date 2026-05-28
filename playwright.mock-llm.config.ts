@@ -129,8 +129,13 @@ export default defineConfig({
           // the shutdown handler (npm swallows it).
           "node --env-file-if-exists=.env bin/agent-canvas.mjs",
         ].join(" "),
-      url: INGRESS_URL,
-      timeout: 180_000, // allow extra time for build + agent-server + automation startup
+      // Probe the automation endpoint through the ingress to ensure the
+      // FULL stack (agent-server + automation backend + ingress) is up
+      // before tests start. The automation backend starts last via uvx
+      // and can take 30-60s — checking only the ingress root or
+      // /server_info would let tests begin before it's ready.
+      url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
+      timeout: 180_000,
       reuseExistingServer: !process.env.CI,
     },
   ],
