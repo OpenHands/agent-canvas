@@ -1,8 +1,8 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
-  McpCatalogEntry as MarketplaceEntry,
-  MarketplaceTemplate,
-} from "@openhands/extensions/mcps";
+  IntegrationCatalogEntry as MarketplaceEntry,
+  IntegrationTransport as MarketplaceTemplate,
+} from "@openhands/extensions/integrations";
 
 const tryUrl = (raw: string): URL | null => {
   try {
@@ -37,6 +37,21 @@ export function urlsMatch(a: unknown, b: unknown): boolean {
     left.host === right.host &&
     left.pathname.replace(/\/+$/, "") === right.pathname.replace(/\/+$/, "")
   );
+}
+
+/**
+ * Get the default transport template from an integration catalog entry.
+ * Integrations may have multiple connection options; we use the default
+ * one (or the first if no default is specified). Only MCP-backed options
+ * have a `transport` field.
+ */
+export function getDefaultTemplate(
+  entry: MarketplaceEntry,
+): MarketplaceTemplate | undefined {
+  const option =
+    entry.connectionOptions.find((o) => o.id === entry.defaultConnectionOptionId) ??
+    entry.connectionOptions[0];
+  return option?.transport;
 }
 
 /**
@@ -79,8 +94,9 @@ export function isMarketplaceEntryAvailable(
   entry: MarketplaceEntry,
   backendKind: "local" | "cloud",
 ): boolean {
-  if (!entry.availability || entry.availability === "all") return true;
-  return entry.availability === backendKind;
+  if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
+    return true;
+  return entry.runtimeAvailability === backendKind;
 }
 
 function normalize(query: string): string {
@@ -170,7 +186,8 @@ export function findCatalogEntryForServer(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry | undefined {
   return catalog.find((entry) => {
-    const tpl = entry.template;
+    const tpl = getDefaultTemplate(entry);
+    if (!tpl) return false;
     if (tpl.kind === "stdio")
       return server.type === "stdio" && server.name === tpl.serverName;
     // Reuse the same loose URL match as `findInstalledMatch` so a

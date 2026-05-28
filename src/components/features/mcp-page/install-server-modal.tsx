@@ -7,13 +7,14 @@ import { ModalCloseButton } from "#/components/shared/modals/modal-close-button"
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
-import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { getDefaultTemplate } from "#/utils/mcp-marketplace-utils";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -28,14 +29,16 @@ interface FieldState {
 
 function makeInitialState(entry: MarketplaceEntry): FieldState {
   const values: Record<string, string> = {};
-  if (entry.template.kind === "stdio") {
-    for (const field of entry.template.envFields ?? []) {
+  const template = getDefaultTemplate(entry);
+  if (!template) return { values, errors: {} };
+  if (template.kind === "stdio") {
+    for (const field of template.envFields ?? []) {
       values[field.key] = "";
     }
-    for (const field of entry.template.argFields ?? []) {
+    for (const field of template.argFields ?? []) {
       values[field.key] = "";
     }
-  } else if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+  } else if (template.kind === "shttp" || template.kind === "sse") {
     values.api_key = "";
   }
   return { values, errors: {} };
@@ -109,6 +112,8 @@ export function InstallServerModal({
     });
   };
 
+  const template = getDefaultTemplate(entry);
+
   // ------------------------------------------------------------------
   // Per-template submit handlers. Each is small and self-contained:
   // validate user input, build the payload, then hand off to
@@ -117,11 +122,11 @@ export function InstallServerModal({
   const handleHttpServerSubmit = () => {
     // TS narrows this branch to shttp|sse; the equality guard is a
     // runtime/defensive belt to make the helper safe in isolation.
-    if (entry.template.kind !== "shttp" && entry.template.kind !== "sse") {
+    if (!template || (template.kind !== "shttp" && template.kind !== "sse")) {
       return;
     }
     const apiKey = state.values.api_key?.trim() ?? "";
-    if (!entry.template.apiKeyOptional && !apiKey) {
+    if (!template.apiKeyOptional && !apiKey) {
       setState((prev) => ({
         ...prev,
         errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
@@ -129,17 +134,17 @@ export function InstallServerModal({
       return;
     }
     const payload: MCPServerConfig = {
-      id: `${entry.template.kind}-${Date.now()}`,
-      type: entry.template.kind,
-      url: entry.template.url,
+      id: `${template.kind}-${Date.now()}`,
+      type: template.kind,
+      url: template.url,
       ...(apiKey && { api_key: apiKey }),
     };
     submitServer(payload);
   };
 
   const handleStdioSubmit = () => {
-    if (entry.template.kind !== "stdio") return;
-    const stdio = entry.template;
+    if (!template || template.kind !== "stdio") return;
+    const stdio = template;
     const errors: Record<string, string | null> = {};
 
     for (const field of stdio.envFields ?? []) {
@@ -187,15 +192,16 @@ export function InstallServerModal({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setGlobalError(null);
-    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
+    if (template?.kind === "shttp" || template?.kind === "sse") {
       return handleHttpServerSubmit();
     }
     return handleStdioSubmit();
   };
 
   const renderFields = () => {
-    if (entry.template.kind === "shttp" || entry.template.kind === "sse") {
-      const apiKeyOptional = entry.template.apiKeyOptional ?? false;
+    if (!template) return null;
+    if (template.kind === "shttp" || template.kind === "sse") {
+      const apiKeyOptional = template.apiKeyOptional ?? false;
       return (
         <>
           <SettingsInput
@@ -203,7 +209,7 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={entry.template.url}
+            value={template.url}
             onChange={() => {}}
             isDisabled
             className="w-full"
@@ -229,7 +235,7 @@ export function InstallServerModal({
       );
     }
 
-    const stdio = entry.template;
+    const stdio = template;
     return (
       <>
         <SettingsInput
