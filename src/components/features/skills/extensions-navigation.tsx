@@ -7,7 +7,13 @@ import { cn } from "#/utils/utils";
 import SkillsIcon from "#/icons/skills.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
+import {
+  SIDEBAR_ROW_INTERACTIVE_CLASS,
+  sidebarNavRowClassName,
+} from "#/components/features/sidebar/sidebar-layout";
 import { I18nKey } from "#/i18n/declaration";
+import { useSidebarStore } from "#/stores/sidebar-store";
+import { useBreakpoint } from "#/hooks/use-breakpoint";
 
 interface ExtensionNavItem {
   to: string;
@@ -68,6 +74,13 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
 export function ExtensionsNavigation() {
   const { t } = useTranslation("openhands");
   const { data: settings } = useSettings();
+  const sidebarCollapsed = useSidebarStore((state) => state.collapsed);
+  // At iPad portrait widths (md to <lg) an expanded primary Sidebar (300px)
+  // plus this nav (260px) leaves the main content unreadable. Hide ourselves
+  // until the user collapses the Sidebar or the viewport reaches `lg`.
+  const belowLg = useBreakpoint(1023);
+  const belowMd = useBreakpoint(767);
+  const hideForExpandedSidebar = !sidebarCollapsed && belowLg && !belowMd;
   const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
   const acpServerKey =
     typeof settings?.agent_settings?.acp_server === "string"
@@ -78,10 +91,12 @@ export function ExtensionsNavigation() {
       "ACP Agent")
     : undefined;
 
+  if (hideForExpandedSidebar) return null;
+
   return (
     <aside
       data-testid="extensions-navbar-desktop"
-      className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start md:pl-8"
+      className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start"
     >
       <span className="px-2 text-sm font-normal text-white">
         {t(I18nKey.NAV$EXTENSIONS)}
@@ -119,7 +134,10 @@ export function ExtensionsNavigation() {
                 <span
                   aria-disabled="true"
                   data-testid={`sidebar-extensions-${item.to}`}
-                  className="flex items-center gap-2 rounded-md text-sm leading-5 truncate px-2 py-2 w-full text-[var(--oh-muted)] opacity-50 cursor-not-allowed"
+                  className={cn(
+                    sidebarNavRowClassName(),
+                    "truncate text-[var(--oh-muted)] opacity-50 cursor-not-allowed",
+                  )}
                 >
                   {baseRow}
                   {label}
@@ -137,10 +155,11 @@ export function ExtensionsNavigation() {
               data-testid={`sidebar-extensions-${item.to}`}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2 rounded-md transition-colors text-sm leading-5 truncate px-2 py-2 w-full",
+                  sidebarNavRowClassName(),
+                  "truncate",
                   isActive
-                    ? "bg-tertiary text-white font-medium"
-                    : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+                    ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
+                    : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
                 )
               }
             >

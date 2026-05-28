@@ -488,6 +488,8 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
+const MOCK_AGENT_SERVER_VERSION = "1.24.0";
+
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
 // (e.g., http://127.0.0.1:8000/api/...) since the code uses absolute URLs
@@ -498,7 +500,7 @@ export const SETTINGS_HANDLERS = [
     HttpResponse.json({
       uptime: 0,
       idle_time: 0,
-      version: "1.18.1",
+      version: MOCK_AGENT_SERVER_VERSION,
       usable_tools: [
         "terminal",
         "file_editor",

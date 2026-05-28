@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
+import AutomationService from "#/api/automation-service/automation-service.api";
 import { ToggleSwitch } from "#/components/features/automations/toggle-switch";
 import { KebabMenu } from "#/components/features/automations/kebab-menu";
 import PowerIcon from "#/icons/power.svg?react";
+import DownloadIcon from "#/icons/download.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
 import { useHasPermission } from "#/hooks/use-has-permission";
@@ -18,6 +20,8 @@ interface DetailHeaderProps {
    */
   onEdit?: () => void;
   onDelete: () => void;
+  onRunNow?: () => void;
+  isRunningNow?: boolean;
 }
 
 export function DetailHeader({
@@ -25,6 +29,8 @@ export function DetailHeader({
   onToggle,
   onEdit,
   onDelete,
+  onRunNow,
+  isRunningNow = false,
 }: DetailHeaderProps) {
   const { t } = useTranslation("openhands");
   const canManage = useHasPermission("manage_automations");
@@ -47,10 +53,16 @@ export function DetailHeader({
       onClick: onToggle,
     },
     {
+      label: t(I18nKey.AUTOMATIONS$DOWNLOAD_TARBALL),
+      icon: <DownloadIcon className="size-4" />,
+      onClick: () => {
+        AutomationService.downloadTarball(automation.id, automation.name);
+      },
+    },
+    {
       label: t(I18nKey.AUTOMATIONS$DELETE),
       icon: <TrashIcon className="size-4" />,
       onClick: onDelete,
-      variant: "danger" as const,
     },
   ];
 
@@ -58,12 +70,22 @@ export function DetailHeader({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-content">
+          <h1 className="text-xl font-medium text-content">
             {automation.name}
           </h1>
           <ActiveStatusBadge active={automation.enabled} />
         </div>
         <div className="flex items-center gap-2">
+          {canManage && onRunNow && (
+            <button
+              type="button"
+              className="rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isRunningNow || !automation.enabled}
+              onClick={onRunNow}
+            >
+              {isRunningNow ? "Starting…" : "Run now"}
+            </button>
+          )}
           {canManage && (
             <ToggleSwitch
               enabled={automation.enabled}

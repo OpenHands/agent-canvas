@@ -24,7 +24,7 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
 
   return (
     <div className="rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)]">
-      <div className="flex items-center gap-2 border-b border-[var(--oh-border)] px-5 pb-3 pt-4">
+      <div className="flex items-center gap-2 border-b border-[var(--oh-border)] px-5 py-3">
         <span className="size-4 text-muted">
           <ActivityIcon className="size-4" />
         </span>

@@ -133,8 +133,7 @@ export function ConversationCard({
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
   const shouldRenderFooter =
     showRepositoryMetadata ||
-    (!!llmModel && showLlmProfiles) ||
-    agentKind === "acp";
+    (showLlmProfiles && (agentKind === "acp" || !!llmModel));
 
   return (
     <div
@@ -209,7 +208,7 @@ export function ConversationCard({
           showRepositoryMetadata={showRepositoryMetadata}
           showTimestamp={false}
           llmModel={llmModel}
-          showLlmModel={showLlmProfiles}
+          showAgentChip={showLlmProfiles}
           agentKind={agentKind}
           acpServer={acpServer}
         />

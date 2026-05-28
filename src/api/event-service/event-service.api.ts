@@ -1,5 +1,4 @@
 import { ConversationClient } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -164,9 +163,7 @@ class EventService {
     }
 
     const page = await new RemoteEventsList(
-      new HttpClient(
-        getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
-      ),
+      getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
       conversationId,
     ).search({
       limit,

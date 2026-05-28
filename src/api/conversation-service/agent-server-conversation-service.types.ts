@@ -127,8 +127,8 @@ export interface AppConversation {
    * driven Agent, ``"acp"`` for an ACPAgent that delegates to an external
    * ACP CLI subprocess. Consumers can use this to gate UI affordances that
    * only make sense for one kind (e.g. the LLM-profile switcher in the chat
-   * header is a no-op for ACP conversations because model selection lives
-   * on the subprocess via ``acp_model``, not on ``llm_model``).
+   * header is a no-op for ACP conversations even though ``llm_model`` may
+   * carry the ACP subprocess model for display).
    */
   agent_kind?: "openhands" | "acp" | null;
   /**

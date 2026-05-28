@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
-import { I18nKey } from "#/i18n/declaration";
 import { useConversationHooks } from "#/hooks/query/use-conversation-hooks";
 import { AgentState } from "#/types/agent-state";
-import { Typography } from "#/ui/typography";
 import { HooksModalHeader } from "./hooks-modal-header";
 import { HooksLoadingState } from "./hooks-loading-state";
 import { HooksEmptyState } from "./hooks-empty-state";
 import { HookEventItem } from "./hook-event-item";
+import { RuntimeWaitingState } from "./runtime-waiting-state";
 import { useAgentState } from "#/hooks/use-agent-state";
 
 interface HooksModalProps {
@@ -17,7 +15,6 @@ interface HooksModalProps {
 }
 
 export function HooksModal({ onClose }: HooksModalProps) {
-  const { t } = useTranslation("openhands");
   const { curAgentState } = useAgentState();
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>(
     {},
@@ -44,42 +41,26 @@ export function HooksModal({ onClose }: HooksModalProps) {
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalBody
-        width="medium"
-        className="max-h-[80vh] flex flex-col items-start"
+        width="lg"
+        className="relative max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
         testID="hooks-modal"
       >
         <HooksModalHeader
-          isAgentReady={isAgentReady}
           isLoading={isLoading}
           isRefetching={isRefetching}
           onRefresh={refetch}
+          onClose={onClose}
         />
 
-        {isAgentReady && (
-          <Typography.Text className="text-sm text-[var(--oh-muted)]">
-            {t(I18nKey.HOOKS_MODAL$WARNING)}
-          </Typography.Text>
-        )}
-
-        <div className="w-full h-[60vh] overflow-auto rounded-md custom-scrollbar-always">
-          {!isAgentReady && (
-            <div className="w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light">
-              <Typography.Text>
-                {t(I18nKey.DIFF_VIEWER$WAITING_FOR_RUNTIME)}
-              </Typography.Text>
-            </div>
-          )}
-
-          {isLoading && <HooksLoadingState />}
-
-          {!isLoading &&
-            isAgentReady &&
-            (isError || !hooks || hooks.length === 0) && (
-              <HooksEmptyState isError={isError} />
-            )}
-
-          {!isLoading && isAgentReady && hooks && hooks.length > 0 && (
-            <div className="p-2 space-y-3">
+        <div className="w-full h-[60vh] overflow-auto rounded-md border border-[var(--oh-border)] bg-surface-raised custom-scrollbar-always">
+          {!isAgentReady ? (
+            <RuntimeWaitingState testId="hooks-runtime-waiting" />
+          ) : isLoading ? (
+            <HooksLoadingState />
+          ) : isError || !hooks || hooks.length === 0 ? (
+            <HooksEmptyState isError={isError} />
+          ) : (
+            <div className="divide-y divide-[var(--oh-border)]">
               {hooks.map((hookEvent) => {
                 const isExpanded =
                   expandedEvents[hookEvent.event_type] || false;

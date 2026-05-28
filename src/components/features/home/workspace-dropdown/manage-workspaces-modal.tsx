@@ -1,7 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
@@ -71,13 +76,16 @@ export function ManageWorkspacesModal({
           data-testid="manage-workspaces-modal"
           className={cn(
             "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-xl",
-            "w-[560px] max-w-[90vw] max-h-[70vh]",
+            modalWidthClassName("lg"),
+            MODAL_MAX_WIDTH_VIEWPORT,
+            "max-h-[70vh]",
           )}
         >
           <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
-            <span className="text-sm font-semibold text-white">
-              {t(I18nKey.HOME$MANAGE_WORKSPACES)}
-            </span>
+            <BaseModalTitle
+              className="text-sm font-medium text-white"
+              title={t(I18nKey.HOME$MANAGE_WORKSPACES)}
+            />
           </div>
 
           <div

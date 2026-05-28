@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 /**
  * Shared control for icon-only buttons in mobile top bars (global nav, chat
@@ -7,7 +8,8 @@ import { cn } from "#/utils/utils";
  */
 export const mobileTopBarIconButtonClassName = cn(
   "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1",
-  "text-[var(--oh-muted)] transition-colors",
+  "text-[var(--oh-muted)]",
+  formControlTransitionClassName,
   "hover:bg-white/10 hover:text-white",
 );
 

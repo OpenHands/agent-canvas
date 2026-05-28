@@ -99,7 +99,7 @@ export function Pagination({
             className={cn(
               "min-w-[32px] h-8 px-2 text-sm rounded-md transition-colors cursor-pointer",
               currentPage === page
-                ? "bg-surface-button text-white font-medium"
+                ? "bg-surface-button text-white font-normal"
                 : "text-tertiary-alt hover:bg-surface-outline",
             )}
             aria-current={currentPage === page ? "page" : undefined}

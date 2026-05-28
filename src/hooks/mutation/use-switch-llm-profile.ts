@@ -5,6 +5,7 @@ import {
   LLM_PROFILES_QUERY_KEYS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchLlmProfileVars {
   /**
@@ -34,9 +35,7 @@ export const useSwitchLlmProfile = () => {
         queryKey: LLM_PROFILES_QUERY_KEYS.all,
       });
       if (conversationId) {
-        queryClient.invalidateQueries({
-          queryKey: ["user", "conversation", conversationId],
-        });
+        invalidateConversationQueries(queryClient, conversationId);
       } else {
         // Home-page activate path (same server endpoint as
         // useActivateLlmProfile): clear the SettingsService cache so the next

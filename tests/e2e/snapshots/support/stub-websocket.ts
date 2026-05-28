@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 /**
  * Stubs the browser's native `WebSocket` so conversation-page snapshot
  * tests don't trigger real connection attempts (which fail in CI with
- * "Failed to connect to server" toasts because no agent-server is
+ * "Unable to connect to server" toasts because no agent-server is
  * running at the Vite proxy target).
  *
  * Must be called **before** `page.goto()` — it uses `page.addInitScript`

@@ -21,12 +21,14 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import { useSidebarCollapsed } from "#/components/features/sidebar/sidebar-collapse-context";
 import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
+import { cn } from "#/utils/utils";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 
 const VALUE_SEPARATOR = "::";
 
@@ -118,6 +120,12 @@ interface BackendSelectorProps {
   onOpenAddBackend?: () => void;
   /** Same as onOpenAddBackend but for the Manage Backends modal. */
   onOpenManageBackends?: () => void;
+  /**
+   * Whether the surrounding sidebar rail is in its collapsed variant. Passed
+   * down from `SidebarRailBody` so the mobile drawer (which always renders
+   * the expanded rail) can override the persisted desktop value.
+   */
+  sidebarCollapsed?: boolean;
 }
 
 export function BackendSelector({
@@ -127,6 +135,7 @@ export function BackendSelector({
   onSelectOption,
   onOpenAddBackend,
   onOpenManageBackends,
+  sidebarCollapsed = false,
 }: BackendSelectorProps = {}) {
   const { t } = useTranslation("openhands");
   const { backends, active, setActive } = useActiveBackendContext();
@@ -167,7 +176,6 @@ export function BackendSelector({
   const activeOption = options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
-  const sidebarCollapsed = useSidebarCollapsed();
   const isRightPanelShown = useConversationStore(
     (state) => state.isRightPanelShown,
   );
@@ -274,6 +282,7 @@ export function BackendSelector({
         setTimeout(resolve, ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS);
       });
 
+      // @spec BM-002 — Switching backends keeps the user on the same page
       if (conversationMatch) navigate("/conversations");
       else if (automationDetailMatch) navigate("/automations");
 
@@ -319,8 +328,7 @@ export function BackendSelector({
             placeholder={active.backend.name}
             loading={someCloudLoading}
             options={options}
-            italicPlaceholder={false}
-            className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)]"
+            className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)] focus-within:border-transparent focus-within:ring-0"
           />
         </div>
         {!hideTrigger ? (
@@ -329,20 +337,25 @@ export function BackendSelector({
             placement={settingsTooltipPlacement}
             offset={10}
           >
-            <button
-              type="button"
+            <NavigationLink
+              to="/settings"
               data-testid="backend-selector-settings-link"
               data-active={isSettingsActive}
               aria-label={settingsLabel}
-              onClick={() => navigate("/settings")}
               className={
                 isSettingsActive
-                  ? "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-medium transition-colors cursor-pointer"
-                  : "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors cursor-pointer"
+                  ? cn(
+                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-normal cursor-pointer",
+                      formControlTransitionClassName,
+                    )
+                  : cn(
+                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] cursor-pointer",
+                      formControlTransitionClassName,
+                    )
               }
             >
               <Settings width={16} height={16} />
-            </button>
+            </NavigationLink>
           </StyledTooltip>
         ) : null}
       </div>

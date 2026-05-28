@@ -168,7 +168,7 @@ describe("ChooseAgentStep", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: null,
+      acp_model: "claude-opus-4-7",
     });
   });
 
@@ -191,6 +191,9 @@ describe("ChooseAgentStep", () => {
     expect(
       (call.agent_settings_diff as Record<string, unknown>).acp_server,
     ).toBe(expected);
+    expect(
+      (call.agent_settings_diff as Record<string, unknown>).acp_model,
+    ).toBe(ACP_PROVIDERS.find(({ key }) => key === expected)?.default_model);
   });
 
   it("rebuilds the diff cleanly when the user flips between ACP providers", async () => {

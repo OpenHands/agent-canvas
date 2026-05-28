@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { startStaticServer } from "../../scripts/static-server.mjs";
+import {
+  parseArgs,
+  startStaticServer,
+} from "../../scripts/static-server.mjs";
 
 describe("static-server.mjs", () => {
   const servers: Server[] = [];
@@ -41,6 +44,155 @@ describe("static-server.mjs", () => {
 
     return `http://127.0.0.1:${address.port}`;
   }
+
+  describe("parseArgs", () => {
+    it("defaults sessionApiKey to null", () => {
+      const config = parseArgs([]);
+      expect(config.sessionApiKey).toBeNull();
+    });
+
+    it("parses --session-api-key", () => {
+      const config = parseArgs(["--session-api-key", "my-test-key"]);
+      expect(config.sessionApiKey).toBe("my-test-key");
+    });
+
+    it("treats empty string as null for session key", () => {
+      const config = parseArgs(["--session-api-key", ""]);
+      expect(config.sessionApiKey).toBeNull();
+    });
+  });
+
+  describe("session key injection", () => {
+    async function startServerWithKey(dir: string, sessionApiKey: string) {
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir,
+        routes: {},
+        sessionApiKey,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    it("injects session key script into index.html", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "test-session-key");
+      const response = await fetch(`${origin}/`);
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("openhands-agent-server-config");
+      expect(body).toContain("test-session-key");
+      expect(body).toContain("sessionApiKey");
+    });
+
+    it("injects session key into SPA fallback index.html", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "fallback-key");
+      const response = await fetch(`${origin}/some/deep/route`);
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("fallback-key");
+    });
+
+    it("does not inject into non-html asset responses", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      mkdirSync(path.join(buildDir, "assets"));
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+      writeFileSync(
+        path.join(buildDir, "assets", "app.js"),
+        "console.log('app');",
+      );
+
+      const origin = await startServerWithKey(buildDir, "should-not-inject");
+      const response = await fetch(`${origin}/assets/app.js`);
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).not.toContain("should-not-inject");
+    });
+
+    it("sets Cache-Control: no-cache for injected index.html", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "cache-test-key");
+      const response = await fetch(`${origin}/`);
+
+      expect(response.headers.get("cache-control")).toBe("no-cache");
+    });
+
+    it("does not inject when sessionApiKey is null", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {},
+        sessionApiKey: null,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("No port");
+      const origin = `http://127.0.0.1:${(address as { port: number }).port}`;
+
+      const response = await fetch(`${origin}/`);
+      const body = await response.text();
+      expect(body).not.toContain("openhands-agent-server-config");
+    });
+
+    it("injects session key into HTML without </head> tag (falls back to </body>)", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><body>no-head</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "no-head-key");
+      const response = await fetch(`${origin}/`);
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("no-head-key");
+      expect(body).toContain("openhands-agent-server-config");
+      // Script should appear before </body>, not at the very front of the document
+      expect(body.indexOf("no-head-key")).toBeLessThan(body.indexOf("</body>"));
+      expect(body.indexOf("no-head-key")).toBeGreaterThan(0);
+    });
+  });
 
   it("serves nested build assets on all platforms", async () => {
     const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));

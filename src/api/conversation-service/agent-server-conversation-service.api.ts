@@ -1,13 +1,16 @@
-import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationSortOrder,
+  type LLMConfig,
+} from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
   ProfilesClient,
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
+import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
@@ -37,10 +40,7 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import {
-  getAgentServerClientOptions,
-  getAgentServerHttpClientOptions,
-} from "../agent-server-client-options";
+import { getAgentServerClientOptions } from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -66,6 +66,10 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
+const INVALID_PROFILE_CONFIG_MESSAGE =
+  "Unable to switch LLM profiles because the selected agent server returned " +
+  "profile data this UI does not understand. Check the backend URL/session " +
+  "key and update the agent server if needed.";
 
 function invalidConversationResponse(): Error {
   return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
@@ -73,6 +77,10 @@ function invalidConversationResponse(): Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLLMConfig(value: unknown): value is LLMConfig {
+  return isRecord(value) && typeof value.model === "string";
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -129,11 +137,17 @@ function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
     ? { model: stringOrNull(value.llm.model) }
     : null;
   // ``kind`` is the SDK's pydantic discriminator (``"Agent"`` vs ``"ACPAgent"``);
-  // ``toAppConversation`` reads it to derive ``agent_kind`` and to gate the
-  // ACP-server chip + ``llm_model`` null-out. Preserving it here makes the
-  // wire path agree with the unit-test path that builds ``DirectConversationInfo``
+  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_model`` is
+  // the Canvas-configured model on the ACPAgent — preserved so the conversation
+  // adapter and the conversation chip can fall back to it when the SDK runtime
+  // model fields aren't populated. Preserving these here makes the wire path
+  // agree with the unit-test path that builds ``DirectConversationInfo``
   // directly (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
-  return { kind: stringOrNull(value.kind), llm };
+  return {
+    kind: stringOrNull(value.kind),
+    acp_model: stringOrNull(value.acp_model),
+    llm,
+  };
 }
 
 function normalizeWorkspace(
@@ -214,6 +228,12 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
     tags: normalizeTags(item.tags),
+    // SDK-runtime ACP model fields (populated when the agent-server supports
+    // ``ConversationInfo.current_model_*``). Consumed by the conversation
+    // adapter to drive the per-card chip's model text. Older agent-servers
+    // omit these — adapter handles ``undefined`` / ``null`` gracefully.
+    current_model_id: stringOrNull(item.current_model_id),
+    current_model_name: stringOrNull(item.current_model_name),
   };
 }
 
@@ -281,14 +301,45 @@ class AgentServerConversationService {
   static async sendMessage(
     conversationId: string,
     message: SendMessageRequest,
+    runtime?: ConversationRuntimeContext | null,
   ): Promise<SendMessageResponse> {
-    await new ConversationClient(getAgentServerClientOptions()).sendEvent(
-      conversationId,
-      message,
-      {
-        run: true,
-      },
-    );
+    const active = getActiveBackend().backend;
+    let conversationUrl = runtime?.conversationUrl ?? null;
+    let sessionApiKey = runtime?.sessionApiKey ?? null;
+
+    if (active.kind === "cloud") {
+      if (!conversationUrl || !sessionApiKey) {
+        const [conversation] = await batchGetCloudConversations([
+          conversationId,
+        ]);
+        conversationUrl = conversation?.conversation_url?.trim() ?? null;
+        sessionApiKey = conversation?.session_api_key?.trim() ?? null;
+      }
+
+      if (!conversationUrl || !sessionApiKey) {
+        throw new Error(
+          "Conversation sandbox is still starting. Wait for it to finish, then try again.",
+        );
+      }
+
+      await callCloudProxy({
+        backend: active,
+        method: "POST",
+        hostOverride: buildHttpBaseUrl(conversationUrl),
+        path: `/api/conversations/${conversationId}/events`,
+        body: { ...message, run: true },
+        authMode: "session-api-key",
+        sessionApiKey,
+      });
+
+      return message;
+    }
+
+    await new ConversationClient(
+      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+    ).sendEvent(conversationId, message, {
+      run: true,
+    });
 
     return message;
   }
@@ -648,10 +699,40 @@ class AgentServerConversationService {
     const profile = await profilesClient.getProfile(profileName, {
       exposeSecrets: "encrypted",
     });
+    if (!isLLMConfig(profile.config)) {
+      throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
+    }
 
-    await new HttpClient(getAgentServerHttpClientOptions()).post(
-      `/api/conversations/${conversationId}/switch_llm`,
-      { llm: profile.config },
+    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+      conversationId,
+      profile.config,
+    );
+  }
+
+  /**
+   * Switches the model of a running ACP conversation in place (POST
+   * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_llm).
+   * The agent-server calls the ACP wrapper's ``session/set_model`` on the live
+   * session, preserving context. Mirrors {@link switchProfile}'s
+   * local-backend-only guard and per-conversation ConversationClient call.
+   *
+   * Only valid once an ACP session exists (after the first message); the
+   * agent-server returns 409 before then — the home/no-session default is
+   * persisted via Settings instead (see ``use-switch-acp-model``).
+   */
+  static async switchAcpModel(
+    conversationId: string,
+    model: string,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "ACP model switching is only supported for local agent-server backends.",
+      );
+    }
+
+    await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(
+      conversationId,
+      model,
     );
   }
 }

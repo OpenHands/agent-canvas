@@ -5,12 +5,18 @@ import {
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
 
-// Mock react-hot-toast
-vi.mock("react-hot-toast", () => ({
-  default: {
+const { toastMock } = vi.hoisted(() => ({
+  toastMock: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
-  },
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  }),
+}));
+
+// Mock react-hot-toast
+vi.mock("react-hot-toast", () => ({
+  default: toastMock,
 }));
 
 describe("custom-toast-handlers", () => {
@@ -29,6 +35,7 @@ describe("custom-toast-handlers", () => {
           duration: 5000, // Should use minimum duration of 5000ms
           position: "top-right",
           style: expect.objectContaining({
+            borderRadius: "var(--oh-radius)",
             maxWidth: "400px",
             wordBreak: "break-word",
           }),
@@ -47,6 +54,7 @@ describe("custom-toast-handlers", () => {
           duration: expect.any(Number),
           position: "top-right",
           style: expect.objectContaining({
+            borderRadius: "var(--oh-radius)",
             maxWidth: "400px",
             wordBreak: "break-word",
           }),
@@ -67,44 +75,48 @@ describe("custom-toast-handlers", () => {
   });
 
   describe("displayErrorToast", () => {
-    it("should call toast.error with calculated duration for short message", () => {
+    it("should call toast with calculated duration for short message", () => {
       const shortMessage = "Error occurred";
       displayErrorToast(shortMessage);
 
-      expect(toast.error).toHaveBeenCalledWith(
+      expect(toastMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           duration: 4000, // Should use minimum duration of 4000ms for errors
           position: "top-right",
+          icon: null,
           style: expect.objectContaining({
+            borderRadius: "var(--oh-radius)",
             maxWidth: "400px",
             wordBreak: "break-word",
+            color: "var(--oh-muted)",
           }),
         }),
       );
     });
 
-    it("should call toast.error with longer duration for long error message", () => {
+    it("should call toast with longer duration for long error message", () => {
       const longMessage =
         "A very long error message that should take more time to read and understand what went wrong with the operation.";
       displayErrorToast(longMessage);
 
-      expect(toast.error).toHaveBeenCalledWith(
+      expect(toastMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
           duration: expect.any(Number),
           position: "top-right",
+          icon: null,
           style: expect.objectContaining({
+            borderRadius: "var(--oh-radius)",
             maxWidth: "400px",
             wordBreak: "break-word",
+            color: "var(--oh-muted)",
           }),
         }),
       );
 
       // Get the actual duration that was passed
-      const callArgs = (
-        toast.error as unknown as { mock: { calls: unknown[][] } }
-      ).mock.calls[0][1] as { duration: number };
+      const callArgs = toastMock.mock.calls[0][1] as { duration: number };
       const actualDuration = callArgs.duration;
 
       // For a long message, duration should be more than the minimum 4000ms

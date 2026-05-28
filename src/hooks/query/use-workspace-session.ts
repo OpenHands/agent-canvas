@@ -1,6 +1,7 @@
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { useQuery } from "@tanstack/react-query";
 
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -24,6 +25,14 @@ export interface WorkspaceSession {
  * navigations — which it cannot do when the only credential is a custom
  * request header.
  *
+ * Local-only. The cookie flow is useless on cloud: the POST would be a
+ * server-side hop through `callCloudProxy` (so the `Set-Cookie` never
+ * reaches the browser jar), and the runtime sandbox is cross-origin with
+ * the GUI (so `fetch(staticUrl, { credentials: "include" })` couldn't
+ * attach the cookie anyway). On cloud, `useWorkspaceFileContent` fetches
+ * bytes through `callCloudProxy` directly and renders binary kinds as
+ * `data:` URIs, so this hook stays disabled and returns `data: null`.
+ *
  * We treat the call as cache-once-per-conversation: the cookie lives in
  * the browser jar, so re-issuing the POST on every component remount is
  * wasted work. `staleTime: Infinity` keeps the cached `baseUrl` in place
@@ -46,8 +55,9 @@ export function useWorkspaceSession(): {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
+  const isLocal = getActiveBackend().backend.kind === "local";
 
-  const enabled = runtimeIsReady && !!conversationId;
+  const enabled = runtimeIsReady && !!conversationId && isLocal;
 
   const query = useQuery<WorkspaceSession>({
     queryKey: [

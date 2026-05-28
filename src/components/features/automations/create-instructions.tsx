@@ -1,22 +1,96 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, type ReactNode } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import TerminalIcon from "#/icons/terminal.svg?react";
-import SparkleIcon from "#/icons/sparkle.svg?react";
 import ChevronDownIcon from "#/icons/chevron-down.svg?react";
+import MessageSquareShareIcon from "#/icons/message-square-share.svg?react";
 import { cn } from "#/utils/utils";
-import { NavigationLink } from "#/components/shared/navigation-link";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import { useLaunchSkillInChat } from "#/hooks/use-launch-skill-in-chat";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
-const NEW_CONVERSATION_URL = "/";
-const PLUGIN_COMMAND = "/openhands-automation create";
-const PLUGIN_INSTALL_URL =
-  "https://github.com/OpenHands/extensions#quick-start";
+
+function InlineExampleWrap({ children }: { children?: ReactNode }) {
+  return <span className="whitespace-nowrap">{children}</span>;
+}
+
+function InlineCodeChip({ children }: { children?: ReactNode }) {
+  return (
+    <code
+      data-testid="automations-create-instructions-example"
+      className={cn(
+        "mx-0.5 inline-block rounded-sm border border-[var(--oh-border-subtle)]",
+        "bg-[var(--oh-surface-raised)] px-1.5 py-0.5 align-baseline font-mono text-[11px] text-white",
+      )}
+    >
+      {children}
+    </code>
+  );
+}
+
+function InlinePunctuation({ children }: { children?: ReactNode }) {
+  return <>{children}</>;
+}
+
+const CREATE_INSTRUCTIONS_INLINE_COMPONENTS = {
+  example: <InlineExampleWrap />,
+  cmd: <InlineCodeChip />,
+  punct: <InlinePunctuation />,
+};
 
 interface CreateInstructionsProps {
   /** If true, the instructions are collapsible and start collapsed */
   collapsible?: boolean;
+}
+
+interface CreateInstructionsContentProps {
+  onLaunch?: () => void;
+}
+
+export function CreateInstructionsContent({
+  onLaunch,
+}: CreateInstructionsContentProps = {}) {
+  const { t } = useTranslation("openhands");
+  const launchInChat = useLaunchSkillInChat();
+
+  const handleCreateAutomation = () => {
+    launchInChat(t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT), onLaunch);
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <p className="text-sm leading-relaxed text-tertiary-light">
+        <Trans
+          ns="openhands"
+          i18nKey={I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC}
+          components={CREATE_INSTRUCTIONS_INLINE_COMPONENTS}
+        />{" "}
+        {t(I18nKey.AUTOMATIONS$CREATE_INSTRUCTIONS_GUIDANCE)}
+      </p>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <a
+          href={DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-muted underline transition-colors hover:text-foreground"
+        >
+          {t(I18nKey.AUTOMATIONS$EMPTY_LEARN_MORE)}
+        </a>
+        <BrandButton
+          type="button"
+          variant="primary"
+          testId="automations-create-automation"
+          onClick={handleCreateAutomation}
+          startContent={
+            <MessageSquareShareIcon className="size-4" aria-hidden />
+          }
+        >
+          {t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_BUTTON)}
+        </BrandButton>
+      </div>
+    </div>
+  );
 }
 
 export function CreateInstructions({
@@ -25,68 +99,6 @@ export function CreateInstructions({
   const { t } = useTranslation("openhands");
   const [isExpanded, setIsExpanded] = useState(!collapsible);
 
-  const content = (
-    <>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {/* Option 1: Claude Code / Codex */}
-        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
-          <div className="flex items-center gap-2">
-            <TerminalIcon className="size-5 text-muted" />
-            <span className="text-sm font-medium text-content">
-              {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_TITLE)}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            <a
-              href={PLUGIN_INSTALL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground transition-colors"
-            >
-              {t(I18nKey.AUTOMATIONS$EMPTY_INSTALL_PLUGIN)}
-            </a>{" "}
-            {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_PLUGIN_DESC)}
-          </p>
-          <code className="mt-2 block rounded bg-surface-raised px-3 py-2 font-mono text-xs text-content">
-            {PLUGIN_COMMAND}
-          </code>
-        </div>
-
-        {/* Option 2: OpenHands Cloud conversation */}
-        <div className="rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] p-4">
-          <div className="flex items-center gap-2">
-            <SparkleIcon className="size-5 text-muted" />
-            <span className="text-sm font-medium text-content">
-              {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_TITLE)}
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-muted">
-            {t(I18nKey.AUTOMATIONS$EMPTY_OPTION_CONVERSATION_DESC)}
-          </p>
-          <NavigationLink
-            to={NEW_CONVERSATION_URL}
-            className="mt-2 inline-flex items-center gap-1 rounded-md bg-surface-raised px-3 py-2 text-xs font-medium text-content hover:bg-surface-raised transition-colors"
-          >
-            {t(I18nKey.AUTOMATIONS$EMPTY_START_CONVERSATION)}
-            <span aria-hidden="true">→</span>
-          </NavigationLink>
-        </div>
-      </div>
-
-      {/* Documentation link */}
-      <p className="mt-4 text-center text-sm text-muted">
-        <a
-          href={DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-foreground transition-colors"
-        >
-          {t(I18nKey.AUTOMATIONS$EMPTY_LEARN_MORE)}
-        </a>
-      </p>
-    </>
-  );
-
   if (collapsible) {
     return (
       <div className="w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)]">
@@ -94,9 +106,9 @@ export function CreateInstructions({
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           aria-expanded={isExpanded}
-          className="flex w-full items-center justify-between p-4 text-left hover:bg-surface-raised transition-colors rounded-lg"
+          className="flex w-full items-center justify-between rounded-lg p-4 text-left transition-colors hover:bg-surface-raised"
         >
-          <span className="text-sm font-medium text-content">
+          <span className="text-sm font-normal text-content">
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </span>
           <ChevronDownIcon
@@ -106,7 +118,11 @@ export function CreateInstructions({
             )}
           />
         </button>
-        {isExpanded && <div className="px-4 pb-4">{content}</div>}
+        {isExpanded ? (
+          <div className="px-4 pb-4">
+            <CreateInstructionsContent />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -116,7 +132,9 @@ export function CreateInstructions({
       <h3 className="text-center text-sm font-medium text-content">
         {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
       </h3>
-      {content}
+      <div className="mt-4">
+        <CreateInstructionsContent />
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export function HomeHeaderTitle() {
 
   return (
     <div className="flex min-h-[80px] w-full items-center justify-center py-2">
-      <Typography.H1 className="w-full text-center font-semibold leading-normal">
+      <Typography.H1 className="w-full text-center leading-normal">
         {t("HOME$LETS_START_BUILDING")}
       </Typography.H1>
     </div>
