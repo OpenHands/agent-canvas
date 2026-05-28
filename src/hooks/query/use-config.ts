@@ -15,8 +15,6 @@ export const useConfig = (options?: UseConfigOptions) =>
     queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
     queryFn: OptionService.getConfig,
     retry: (failureCount, error) =>
-      // Don't retry when the server is unreachable or when auth is required
-      // (public mode 401) — both are terminal states that need user action.
       !isAgentServerUnavailableError(error) &&
       !isAgentServerAuthError(error) &&
       failureCount < 3,

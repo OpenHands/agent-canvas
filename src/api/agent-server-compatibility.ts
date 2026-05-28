@@ -40,13 +40,16 @@ export const isAgentServerUnavailableError = (
     error.name === "AgentServerUnavailableError");
 
 /**
- * Returns true when the agent-server probe failed with HTTP 401,
- * meaning the server is reachable but requires an API key that the
- * frontend doesn't have (or has a stale one). Used in public mode
- * to gate the `ApiKeyEntryScreen`.
+ * Returns true when the agent-server probe failed with HTTP 401.
+ * In public mode this means the stored key is stale (server restarted
+ * with a different `LOCAL_BACKEND_API_KEY`). Only meaningful when
+ * `VITE_AUTH_REQUIRED` is set — a 401 in local mode is a
+ * misconfiguration, not a key-rotation event.
  */
 export const isAgentServerAuthError = (error: unknown): boolean =>
-  isSdkHttpError(error) && (error as Error & { status: number }).status === 401;
+  import.meta.env.VITE_AUTH_REQUIRED === "true" &&
+  isSdkHttpError(error) &&
+  (error as Error & { status: number }).status === 401;
 
 export function clearCachedAgentServerInfo() {
   cachedAgentServerInfo = null;

@@ -123,6 +123,8 @@ export default function App() {
   // required and missing — it would just 401 and waste time.
   const config = useConfig({ enabled: !authMissing });
 
+  // No key at all → instant auth screen (no network).
+  // Stale key → /server_info 401 → auth screen (public mode only).
   if (authMissing || isAgentServerAuthError(config.error)) {
     return (
       <main className="min-h-screen bg-base">
