@@ -192,6 +192,16 @@ test.describe("mock-LLM automation lifecycle", () => {
         // best-effort cleanup
       }
     }
+
+    // Always reset the mock LLM to its default trajectory so subsequent
+    // test suites (e.g. the conversation test) start fresh. This runs in
+    // afterEach instead of a cleanup test to avoid being skipped when a
+    // preceding serial test fails.
+    try {
+      await resetMockLLM(request);
+    } catch {
+      // best-effort — the mock server may have already shut down
+    }
   });
 
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
@@ -387,12 +397,11 @@ test.describe("mock-LLM automation lifecycle", () => {
     await test.step("automation card visible", async () => {
       await waitForTestId(page, "automations-add-automation", 15_000);
 
-      // Check that the automation name appears on the page
-      const pageText = await page.textContent("body");
-      expect(
-        pageText?.includes(AUTOMATION_NAME),
-        `Expected "${AUTOMATION_NAME}" to appear on the automations page`,
-      ).toBe(true);
+      // Wait for the automation name to appear on the page (the list
+      // may take a moment to load from the automation backend).
+      await expect(page.getByText(AUTOMATION_NAME)).toBeVisible({
+        timeout: 15_000,
+      });
     });
 
     await test.step("verify run exists via API", async () => {
@@ -410,9 +419,4 @@ test.describe("mock-LLM automation lifecycle", () => {
     });
   });
 
-  // ── Cleanup: reset mock LLM for other test suites ──────────────────
-
-  test("cleanup: reset mock LLM", async ({ request }) => {
-    await resetMockLLM(request);
-  });
 });
