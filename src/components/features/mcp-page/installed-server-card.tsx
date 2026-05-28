@@ -5,7 +5,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { CirclePlusCheckToggle } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
-import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
+import { INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE } from "@openhands/extensions/integrations";
 import { findCatalogEntryForServer } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 import {
@@ -52,7 +52,7 @@ export function InstalledServerCard({
   onDelete,
 }: InstalledServerCardProps) {
   const { t } = useTranslation("openhands");
-  const catalog = findCatalogEntryForServer(server, MCP_MARKETPLACE);
+  const catalog = findCatalogEntryForServer(server, INTEGRATION_MARKETPLACE);
 
   const title = catalog?.name ?? getServerTitle(server);
   const detailLine = getServerDetailLine(server);
