@@ -76,9 +76,25 @@ export default function ApiKeyEntryScreen() {
 
       // Hard reload so every service layer re-reads the key.
       window.location.reload();
-    } catch {
+    } catch (err: unknown) {
       setConnectionStatus("error");
-      setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
+
+      // Distinguish auth errors (401) from everything else so a
+      // correct key + broken server doesn't say "invalid key".
+      const is401 =
+        err instanceof Error &&
+        "status" in err &&
+        (err as Error & { status: number }).status === 401;
+
+      if (is401) {
+        setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
+      } else {
+        const detail =
+          err instanceof Error ? err.message : String(err);
+        setErrorMessage(
+          `${t(I18nKey.AUTH$CONNECTION_FAILED)}${detail ? `: ${detail}` : ""}`,
+        );
+      }
       setIsValidating(false);
     }
   };

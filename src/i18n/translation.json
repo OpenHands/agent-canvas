@@ -662,6 +662,23 @@
     "uk": "Недійсний ключ API. Перевірте ключ і спробуйте ще раз.",
     "ca": "Clau d'API no vàlida. Comproveu la clau i torneu-ho a provar."
   },
+  "AUTH$CONNECTION_FAILED": {
+    "en": "Connection failed",
+    "ja": "接続に失敗しました",
+    "zh-CN": "连接失败",
+    "zh-TW": "連線失敗",
+    "ko-KR": "연결 실패",
+    "no": "Tilkobling mislyktes",
+    "it": "Connessione fallita",
+    "pt": "Falha na conexão",
+    "es": "Error de conexión",
+    "ar": "فشل الاتصال",
+    "fr": "Échec de la connexion",
+    "tr": "Bağlantı başarısız",
+    "de": "Verbindung fehlgeschlagen",
+    "uk": "Помилка з'єднання",
+    "ca": "Error de connexió"
+  },
   "SECURITY$LOW_RISK": {
     "en": "Risk: Low",
     "ja": "リスク: 低",

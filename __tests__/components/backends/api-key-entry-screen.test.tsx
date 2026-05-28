@@ -195,8 +195,8 @@ describe("ApiKeyEntryScreen", () => {
     expect(reloadMock).toHaveBeenCalled();
   });
 
-  // @spec — Invalid key: shows error indicator, does NOT persist or reload
-  it("shows an error when the key is rejected and does not persist", async () => {
+  // @spec — 401 shows "Invalid API key", does NOT persist or reload
+  it("shows 'Invalid API key' when the key is rejected with 401", async () => {
     getSettingsMock.mockRejectedValueOnce(
       Object.assign(new Error("Unauthorized"), {
         name: "HttpError",
@@ -210,12 +210,15 @@ describe("ApiKeyEntryScreen", () => {
     await fillRequiredFields(user, { apiKey: "wrong-key" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
-    // Error status appears
+    // Error status appears with "Invalid" text
     await waitFor(() => {
       expect(screen.getByTestId("api-key-entry-status")).toBeInTheDocument();
     });
     expect(screen.getByTestId("api-key-entry-status")).toHaveClass(
       "text-red-400",
+    );
+    expect(screen.getByTestId("api-key-entry-status").textContent).toContain(
+      "AUTH$INVALID_KEY",
     );
 
     // Key NOT persisted
@@ -224,6 +227,40 @@ describe("ApiKeyEntryScreen", () => {
     ).toBeNull();
 
     // Page NOT reloaded
+    expect(reloadMock).not.toHaveBeenCalled();
+  });
+
+  // @spec — Non-401 errors show the actual error message, not "Invalid key"
+  it("shows 'Connection failed' with detail for non-auth errors (e.g. 500)", async () => {
+    getSettingsMock.mockRejectedValueOnce(
+      Object.assign(new Error("HTTP 500: Internal Server Error"), {
+        name: "HttpError",
+        status: 500,
+      }),
+    );
+
+    renderScreen();
+    const user = userEvent.setup();
+
+    await fillRequiredFields(user, { apiKey: "correct-key" });
+    await user.click(screen.getByTestId("api-key-entry-submit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("api-key-entry-status")).toBeInTheDocument();
+    });
+
+    const statusText =
+      screen.getByTestId("api-key-entry-status").textContent ?? "";
+    // Shows "Connection failed" prefix, NOT "Invalid API key"
+    expect(statusText).toContain("AUTH$CONNECTION_FAILED");
+    expect(statusText).toContain("500");
+    expect(statusText).not.toContain("AUTH$INVALID_KEY");
+
+    // Key NOT persisted
+    expect(
+      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY),
+    ).toBeNull();
+
     expect(reloadMock).not.toHaveBeenCalled();
   });
 
