@@ -82,6 +82,14 @@ async function setupMocks(page: Page) {
     await route.fallback();
   });
 
+  await page.route("**/api/mcp/test", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, tools: ["mock_tool"] }),
+    });
+  });
+
   await page.route("**/api/conversations/search**", async (route) => {
     await route.fulfill({
       status: 200,
