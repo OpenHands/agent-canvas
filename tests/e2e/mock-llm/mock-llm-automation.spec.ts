@@ -185,6 +185,19 @@ test.describe("mock-LLM automation lifecycle", () => {
     }
   });
 
+  // Safety net: delete any leftover automations even if step 3 fails
+  // before its own cleanup sub-step runs.
+  test.afterAll(async ({ request }) => {
+    for (const id of Array.from(automationIds)) {
+      try {
+        await deleteAutomation(request, id);
+      } catch {
+        // best-effort
+      }
+    }
+    automationIds.clear();
+  });
+
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
 
   test("step 1: setup LLM profile and register automation trajectory", async ({
@@ -232,10 +245,20 @@ test.describe("mock-LLM automation lifecycle", () => {
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
 
-    // The agent-server makes an internal "condenser" or "skill-analysis"
-    // LLM call that consumes one response before the agent's main loop
-    // starts. Prepend a throwaway text response that gets eaten by that
-    // internal call; the agent's first real turn then gets the create cmd.
+    // ⚠️  Padding response (index 0):
+    // When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
+    // the agent-server's skill-activation pipeline makes one internal LLM
+    // call to decide which skills to inject before the agent loop starts.
+    // Our user message mentions "automation", which matches the
+    // openhands-automation skill, triggering this internal call.
+    // The conversation test does NOT need padding because its prompt
+    // ("run this bash command") does not match any skill trigger.
+    //
+    // If the padding ever becomes misaligned (e.g. the agent-server stops
+    // making this call or starts making two), step 2's
+    // waitForNonUserMessageText(AUTOMATION_REPLY_TOKEN) will time out
+    // quickly, making the failure obvious. See AGENTS.md → "Padding
+    // response for internal LLM call" for more context.
     //
     // After the main conversation finishes (responses 0-3), the dispatched
     // automation run spawns a NEW conversation on the same agent-server.
@@ -244,7 +267,7 @@ test.describe("mock-LLM automation lifecycle", () => {
     // script fires its completion callback, and the run reaches COMPLETED.
     await registerTrajectory(request, "automation-lifecycle", [
       // ── Main conversation (responses 0-3) ──
-      { text: "" }, // 0: consumed by internal pre-agent LLM call
+      { text: "" }, // 0: consumed by skill-activation LLM call (see above)
       {
         // 1: create the automation via curl
         tool_call: {

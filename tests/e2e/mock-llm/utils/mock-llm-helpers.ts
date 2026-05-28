@@ -270,11 +270,16 @@ export async function deleteConversation(
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Ensure the mock LLM profile is configured and active via the settings API.
+ * Ensure the mock LLM profile is created, active, and configured to point
+ * at the mock LLM server.
  *
  * This bypasses the UI-driven profile creation (steps 1+2 in the conversation
  * test) and directly PATCHes the agent-server settings. Useful for tests that
  * run independently of the conversation test ordering.
+ *
+ * The PATCH includes `active_profile` to guarantee the named profile is
+ * activated — without it, the LLM settings would apply to whatever profile
+ * happens to be active, and the early-return check would keep failing.
  */
 export async function ensureMockLLMProfile(
   request: APIRequestContext,
@@ -289,17 +294,18 @@ export async function ensureMockLLMProfile(
   if (profilesResp.ok()) {
     const profiles = await profilesResp.json();
     if (profiles?.active_profile === profileName) {
-      return; // Already configured
+      return; // Already configured and active
     }
   }
 
-  // Create/update the profile via settings API
+  // Create/activate the named profile and configure its LLM settings
   const settingsResp = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "Content-Type": "application/json",
     },
     data: {
+      active_profile: profileName,
       agent_settings_diff: {
         llm: {
           model,

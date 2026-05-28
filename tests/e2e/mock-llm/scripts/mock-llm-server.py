@@ -127,6 +127,12 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # ── Reject unknown paths with a clear 404 ──
+        COMPLETION_PATHS = ("/v1/chat/completions", "/chat/completions", "/completions", "")
+        if path not in COMPLETION_PATHS:
+            self._send_error(404, "not_found", f"Unknown path: {path}")
+            return
+
         # ── Normal chat completion ──
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
