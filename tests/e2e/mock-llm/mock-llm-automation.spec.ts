@@ -413,9 +413,9 @@ test.describe("mock-LLM automation lifecycle", () => {
     });
 
     await test.step("verify run shows COMPLETED with conversation link", async () => {
-      // The activity log should show a COMPLETED badge
-      const completedBadge = page.getByText("Completed");
-      await expect(completedBadge).toBeVisible({ timeout: 15_000 });
+      // The activity log should show a COMPLETED badge (translated as "Successful")
+      const completedIcon = page.getByTestId("run-status-icon-completed");
+      await expect(completedIcon).toBeVisible({ timeout: 15_000 });
 
       // If we have a conversation ID from step 2, verify the run row
       // is a clickable link to that conversation
