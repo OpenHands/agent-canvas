@@ -420,13 +420,15 @@ test.describe("mock-LLM automation lifecycle", () => {
       // If we have a conversation ID from step 2, verify the run row
       // is a clickable link to that conversation
       if (runConversationId) {
-        const runLink = page.locator(
+        const runLinks = page.locator(
           `a[href="/conversations/${runConversationId}"]`,
         );
-        await expect(runLink).toBeVisible({ timeout: 10_000 });
+        // There may be multiple matching links (e.g. header + activity row);
+        // assert at least one exists and click the first.
+        await expect(runLinks.first()).toBeVisible({ timeout: 10_000 });
 
         // Click the run link and verify it navigates to the conversation page
-        await runLink.click();
+        await runLinks.first().click();
         await waitForPath(page, /\/conversations\/.+/, 10_000);
         expect(page.url()).toContain(runConversationId);
       }
