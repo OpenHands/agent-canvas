@@ -592,7 +592,9 @@ function buildConfiguredOpenHandsAgentSettings(
   const llm = toRecord(agentSettings.llm);
 
   llm.model =
-    typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
 
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {
