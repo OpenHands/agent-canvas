@@ -192,16 +192,14 @@ test.describe("mock-LLM automation lifecycle", () => {
     // Turn 2: Extract the automation ID and dispatch a run.
     // Turn 3: Text reply with a verification token.
 
-    // Auth: use X-Session-API-Key (matching the frontend's automation service)
-    // with $OPENHANDS_AUTOMATION_API_KEY (injected into the agent-server env by
-    // dev-with-automation.mjs → buildAgentServerAutomationEnv). Also fall back
-    // to $OH_SESSION_API_KEYS_0 in case the automation env isn't set.
-    const authHeader = `-H "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY"`;
+    // Auth: hardcode the session API key directly in the curl commands.
+    // The agent-server terminal may not inherit all parent env vars (the SDK
+    // sandboxes the execution environment), so $OPENHANDS_AUTOMATION_API_KEY
+    // may not be available. Using the key directly is safe in a test context.
+    const authHeader = `-H 'X-Session-API-Key: ${SESSION_API_KEY}'`;
 
-    // Use -v for verbose output so failures are diagnosable from the
-    // conversation event stream. Write response body to file for inspection.
     const createCmd = [
-      `curl -v -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
+      `curl -s -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
       `-H 'Content-Type: application/json'`,
       authHeader,
       `-d '${JSON.stringify({
@@ -217,7 +215,7 @@ test.describe("mock-LLM automation lifecycle", () => {
 
     const dispatchCmd = [
       `AID=$(python3 -c "import json; print(json.load(open('/tmp/auto_result.json'))['id'])")`,
-      `&& curl -v -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
+      `&& curl -s -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
       authHeader,
       `-H 'Content-Type: application/json'`,
       `-w '\\nHTTP_CODE:%{http_code}\\n'`,
