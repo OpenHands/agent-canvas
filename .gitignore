@@ -15,6 +15,7 @@ __pycache__
 /test-results/
 /test-results-live/
 /test-results-mock-llm/
+/.mock-llm-markers/
 /playwright-report/
 /playwright-report-live/
 /playwright-report-mock-llm/

@@ -101,9 +101,10 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
         run: |
           set +e
-          DONE_MARKER="test-results-mock-llm/.tests-done"
-          PASS_MARKER="test-results-mock-llm/.all-passed"
-          rm -f "$DONE_MARKER" "$PASS_MARKER"
+          MARKER_DIR=".mock-llm-markers"
+          DONE_MARKER="$MARKER_DIR/.tests-done"
+          PASS_MARKER="$MARKER_DIR/.all-passed"
+          rm -rf "$MARKER_DIR"
 
           # Run Playwright in background so our shell survives if we have
           # to kill it (the webServer teardown can hang indefinitely).
