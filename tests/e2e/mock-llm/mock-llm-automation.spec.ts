@@ -309,24 +309,18 @@ test.describe("mock-LLM automation lifecycle", () => {
         { headers: { "X-Session-API-Key": SESSION_API_KEY } },
       );
       if (eventsResp.ok()) {
-        const events = await eventsResp.json();
-        const items = events.items ?? events;
+        const body = await eventsResp.json();
+        // The events API returns { items: [...] } — dump each event raw
+        const items = body.items ?? body;
+        console.log(`[diag] Total events: ${items.length}`);
         for (const ev of items) {
-          const content =
-            ev.observation?.content ??
-            ev.content ??
-            ev.args?.content ??
-            "";
-          const cmd = ev.args?.command ?? "";
-          if (cmd || content) {
-            console.log(
-              `[event] action=${ev.action ?? "?"} obs=${ev.observation ?? "?"} cmd=${cmd.slice(0, 120)} content=${String(content).slice(0, 300)}`,
-            );
-          }
+          // Dump the full event JSON (truncated for CI log readability)
+          const raw = JSON.stringify(ev);
+          console.log(`[diag-event] ${raw.slice(0, 500)}`);
         }
       } else {
         console.log(
-          `[events] fetch failed: ${eventsResp.status()} ${await eventsResp.text()}`,
+          `[diag] events fetch failed: ${eventsResp.status()} ${await eventsResp.text()}`,
         );
       }
     });
