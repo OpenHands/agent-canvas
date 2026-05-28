@@ -20,11 +20,33 @@ const PKG_JSON = join(__dirname, "..", "package.json");
 // Build output is in build/ (not build/client/) - see react-router.config.ts unpackClientDirectory
 const BUILD_DIR = join(__dirname, "..", "build");
 
-// Check for version/help flags first
+const DEFAULTS_JSON = join(__dirname, "..", "config", "defaults.json");
+
+// Check for version/help/info flags first
 const args = process.argv.slice(2);
 if (args.includes("-v") || args.includes("--version")) {
   const { version } = JSON.parse(readFileSync(PKG_JSON, "utf-8"));
   console.log(version);
+  process.exit(0);
+}
+if (args.includes("--info")) {
+  const { version } = JSON.parse(readFileSync(PKG_JSON, "utf-8"));
+  const defaults = JSON.parse(readFileSync(DEFAULTS_JSON, "utf-8"));
+  console.log(`@openhands/agent-canvas ${version}
+
+Default stack versions:
+  agent-server:    ${defaults.versions.agentServer}
+  automation:      ${defaults.versions.automation}
+  automation-sdk:  ${defaults.versions.automationSdk}
+
+Default ports:
+  ingress:         ${defaults.ports.proxy}
+  agent-server:    ${defaults.ports.agentServer}
+  automation:      ${defaults.ports.automation}
+
+Override versions via environment variables:
+  OH_AGENT_SERVER_VERSION, OH_AGENT_SERVER_GIT_REF, OH_AGENT_SERVER_LOCAL_PATH
+  OH_AUTOMATION_VERSION, OH_AUTOMATION_GIT_REF`);
   process.exit(0);
 }
 if (args.includes("-h") || args.includes("--help")) {
@@ -40,6 +62,7 @@ USAGE:
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
   -v, --version         Show version number
+  --info                Show version and default stack configuration
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:
@@ -57,6 +80,9 @@ EXAMPLES:
 
   # Use a specific port
   npx @openhands/agent-canvas --port 3000
+
+  # Show default stack versions and ports
+  npx @openhands/agent-canvas --info
 
   # Use local SDK checkout for development
   OH_AGENT_SERVER_LOCAL_PATH=/path/to/sdk npx @openhands/agent-canvas

@@ -4,12 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Cpu } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { ChangeAgentButton } from "../change-agent-button";
-import { ChatInputModel } from "./chat-input-model";
+import { ChatInputModel, ChatInputModelMenuContent } from "./chat-input-model";
 import { SwitchProfileButton } from "../switch-profile-button";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
-import { NavigationLink } from "#/components/shared/navigation-link";
-import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CarretRightFillIcon from "#/icons/carret-right-fill.svg?react";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import ThreeDotsVerticalIcon from "#/icons/three-dots-vertical.svg?react";
@@ -19,9 +17,7 @@ import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useAcpModelContext } from "#/hooks/use-acp-model-context";
-import { labelForAcpModel } from "#/constants/acp-providers";
+import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -31,7 +27,6 @@ import { I18nKey } from "#/i18n/declaration";
 import { ToolsContextMenuIconText } from "../../controls/tools-context-menu-icon-text";
 import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { ContextMenu } from "#/ui/context-menu";
-import { Divider } from "#/ui/divider";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
 import { formControlTransitionClassName } from "#/utils/form-control-classes";
@@ -58,25 +53,9 @@ export function ChatInputActions({
   const pauseConversationMutation = usePauseConversation();
   const resumeConversationMutation = useResumeConversation();
   const { conversationId } = useOptionalConversationId();
-  const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
-  // Shared with ChatInputModel: routes the model affordance to ChatInputModel
-  // (which knows how to show the ACP model) instead of SwitchProfileButton for
-  // ACP conversations — and for the home screen when Settings → Agent already
-  // selects an ACP agent, since the next conversation will inherit it.
-  const { isAcpContext, destinationPath, destinationLabel } =
-    useAcpModelContext();
-  // Mirror ChatInputModel: ACP conversations show the provider's human label
-  // (e.g. "Claude Opus 4.7") in the overflow model submenu, not the raw
-  // ``acp_model`` id. OpenHands keeps the raw model string.
-  const overflowModelLabel = isAcpContext
-    ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
-      conversation?.llm_model)
-    : conversation?.llm_model;
-  // Shown on cloud backends. On the home page it renders disabled with an
-  // explanatory tooltip (ChangeAgentButton handles that), since agent mode can
-  // only be switched once a conversation has begun.
+  const modelState = useChatInputModelState();
   const showChangeAgentButton = isCloud;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
@@ -374,37 +353,28 @@ export function ChatInputActions({
                 "opacity-100 visible pointer-events-auto",
             )}
           >
+            {/* overflow-y-auto (not overflow-visible) so a long ACP model list
+                scrolls within the menu instead of overflowing the viewport.
+                Safe because this menu has no floating children (tooltips /
+                nested popovers) that would be clipped — only a flat model list
+                + Settings link. Revisit if floating children are added here. */}
             <ContextMenu
               testId="overflow-model-submenu"
-              className="overflow-visible min-w-[220px] max-w-[320px] gap-0"
+              className="min-w-[220px] max-w-[320px] max-h-[60vh] overflow-y-auto gap-0"
             >
-              <li className="text-sm">
-                <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">
-                  {overflowModelLabel}
-                </div>
-              </li>
-              <Divider inset="menu" />
-              <li className="text-sm">
-                <NavigationLink
-                  to={destinationPath}
-                  onClick={closeOverflowMenus}
-                  className={cn(
-                    "group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
-                    formControlTransitionClassName,
-                  )}
-                >
-                  <SettingsGearIcon
-                    width={16}
-                    height={16}
-                    className={cn(
-                      "shrink-0 text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)]",
-                      formControlTransitionClassName,
-                    )}
-                    aria-hidden
-                  />
-                  <span>{destinationLabel}</span>
-                </NavigationLink>
-              </li>
+              <ChatInputModelMenuContent
+                model={modelState}
+                onClose={closeOverflowMenus}
+                dividerInset="menu"
+                settingsLinkClassName={cn(
+                  "group",
+                  formControlTransitionClassName,
+                )}
+                settingsIconClassName={cn(
+                  "text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)]",
+                  formControlTransitionClassName,
+                )}
+              />
             </ContextMenu>
           </div>
         </div>
@@ -431,7 +401,7 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud || isAcpContext ? (
+            {isCloud || modelState.isAcpContext ? (
               <ChatInputModel />
             ) : (
               <SwitchProfileButton />

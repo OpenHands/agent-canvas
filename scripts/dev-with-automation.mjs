@@ -330,7 +330,9 @@ async function buildConfig(args, env = process.env) {
 
   // Session API key — shared by both agent-server and automation backend.
   // Both validate it via the `X-Session-API-Key` header.
-  const stateDir = join(homedir(), ".openhands", "agent-canvas");
+  const stateDir =
+    env.OH_CANVAS_SAFE_STATE_DIR ||
+    join(homedir(), ".openhands", "agent-canvas");
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
     OH_CANVAS_SAFE_STATE_DIR: stateDir,
@@ -583,6 +585,9 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
+        // Force UTF-8 for all Python file I/O (same reason as agent-server;
+        // see buildAgentServerEnv in dev-safe.mjs).
+        PYTHONUTF8: "1",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //

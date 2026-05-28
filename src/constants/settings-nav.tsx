@@ -45,6 +45,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/verification",
     text: "SETTINGS$NAV_VERIFICATION",
     subtitle: "SETTINGS$PAGE_VERIFICATION_SUBLINE",
+    disabledByAcp: true,
   },
   {
     icon: <AppWindow className="size-4" strokeWidth={2} aria-hidden />,

@@ -702,6 +702,33 @@ class AgentServerConversationService {
       profile.config,
     );
   }
+
+  /**
+   * Switches the model of a running ACP conversation in place (POST
+   * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_llm).
+   * The agent-server calls the ACP wrapper's ``session/set_model`` on the live
+   * session, preserving context. Mirrors {@link switchProfile}'s
+   * local-backend-only guard and per-conversation ConversationClient call.
+   *
+   * Only valid once an ACP session exists (after the first message); the
+   * agent-server returns 409 before then — the home/no-session default is
+   * persisted via Settings instead (see ``use-switch-acp-model``).
+   */
+  static async switchAcpModel(
+    conversationId: string,
+    model: string,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "ACP model switching is only supported for local agent-server backends.",
+      );
+    }
+
+    await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(
+      conversationId,
+      model,
+    );
+  }
 }
 
 export default AgentServerConversationService;
