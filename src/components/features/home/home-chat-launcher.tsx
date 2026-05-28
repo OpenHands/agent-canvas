@@ -6,6 +6,7 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { HOME_PROMPT_DRAFT_KEY } from "#/hooks/chat/use-draft-persistence";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
 import { setPendingTaskAttachments } from "#/stores/pending-task-attachments-store";
@@ -99,6 +100,11 @@ export function HomeChatLauncher() {
     createConversation(variables, {
       onSuccess: async (data) => {
         toast.dismiss(toastId);
+        try {
+          sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+        } catch {
+          // sessionStorage not available
+        }
         const targetConversationId = data.conversation_id;
         const isTaskConversation = targetConversationId.startsWith("task-");
 

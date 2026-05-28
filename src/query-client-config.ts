@@ -4,6 +4,7 @@ import i18n from "#/i18n";
 import { I18nKey } from "./i18n/declaration";
 import { retrieveAxiosErrorMessage } from "./utils/retrieve-axios-error-message";
 import { displayErrorToast } from "./utils/custom-toast-handlers";
+import { recordBackendSuccess } from "#/api/backend-registry/health-store";
 
 const handle401Error = (error: AxiosError, client: QueryClient) => {
   if (error?.response?.status === 401 || error?.status === 401) {
@@ -16,6 +17,13 @@ const shownErrors = new Set<string>();
 export const createAgentServerQueryClient = () => {
   const client = new QueryClient({
     queryCache: new QueryCache({
+      onSuccess: (_data, query) => {
+        const backendId =
+          query.meta?.backendId ?? query.options.meta?.backendId;
+        if (typeof backendId === "string") {
+          recordBackendSuccess(backendId);
+        }
+      },
       onError: (error, query) => {
         const isAuthQuery =
           query.queryKey[0] === "user" && query.queryKey[1] === "authenticated";

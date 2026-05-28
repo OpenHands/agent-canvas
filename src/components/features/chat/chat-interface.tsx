@@ -336,6 +336,10 @@ export function ChatInterface() {
       fileUrls: uploadedFiles,
       timestamp,
     });
+    // Submitting a new prompt should always pull the chat back to the
+    // latest message even if the user had scrolled up. This also re-arms
+    // autoScroll so the streamed agent reply auto-follows.
+    scrollDomToBottom();
     setMessageToSend("");
 
     try {
@@ -455,12 +459,13 @@ export function ChatInterface() {
 
         <div
           ref={scrollRef}
+          data-testid="chat-scroll-container"
           onScroll={(e) => {
             onChatBodyScroll(e.currentTarget);
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
+          className="custom-scrollbar-always flex min-h-0 grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
@@ -515,7 +520,7 @@ export function ChatInterface() {
           <PendingUserMessages />
         </div>
 
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex shrink-0 flex-col gap-[6px]">
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner

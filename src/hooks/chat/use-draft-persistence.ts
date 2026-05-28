@@ -18,12 +18,19 @@ const isTaskId = (id: string): boolean => id.startsWith("task-");
 const DRAFT_SAVE_DEBOUNCE_MS = 500;
 
 /**
- * Hook for persisting draft messages to localStorage.
+ * sessionStorage key used to persist the home-page prompt draft.
+ * Cleared on successful conversation creation; survives navigation within the session.
+ */
+export const HOME_PROMPT_DRAFT_KEY = "oh:home-prompt-draft";
+
+/**
+ * Hook for persisting draft messages.
  * Handles debounced saving on input, restoration on mount, and clearing on confirmed delivery.
  *
- * `conversationId` may be undefined when the chat input renders on the home
- * page (no conversation exists yet). In that case the hook short-circuits:
- * no localStorage reads/writes happen and the returned callbacks are no-ops.
+ * When `conversationId` is defined, the draft is persisted to localStorage
+ * under the conversation's key. When `conversationId` is undefined (home page),
+ * the draft is persisted to sessionStorage under `HOME_PROMPT_DRAFT_KEY` so it
+ * survives navigation within the session but is discarded on tab close.
  */
 export const useDraftPersistence = (
   conversationId: string | null | undefined,
@@ -43,6 +50,11 @@ export const useDraftPersistence = (
   const currentConversationIdRef = useRef(conversationId);
   // Track if this is the first mount to handle initial cleanup
   const isFirstMountRef = useRef(true);
+  // Tracks the latest home-page text so the unmount flush can use it safely.
+  // chatInputRef.current is null by the time async useEffect cleanup runs in
+  // React 18 (refs are cleared during the synchronous commit phase, before
+  // passive effects fire), so we can't read from the DOM there.
+  const lastHomeTextRef = useRef<string>("");
 
   // IMPORTANT: This effect must run FIRST when conversation changes.
   // It handles three concerns:
@@ -107,17 +119,39 @@ export const useDraftPersistence = (
     setIsRestored(false);
   }, [conversationId, chatInputRef]);
 
-  // Restore draft from localStorage - reads directly to avoid state sync timing issues
+  // Restore draft on mount - uses sessionStorage for the home page (no conversationId)
+  // and localStorage for active conversations.
   useEffect(() => {
-    if (!conversationId) {
-      return;
-    }
     if (hasRestoredRef.current) {
       return;
     }
 
     const element = chatInputRef.current;
     if (!element) {
+      return;
+    }
+
+    if (!conversationId) {
+      // Home page: restore from sessionStorage
+      try {
+        const draft = sessionStorage.getItem(HOME_PROMPT_DRAFT_KEY);
+        if (draft && getTextContent(element).trim() === "") {
+          element.textContent = draft;
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          range.collapse(false);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          // Seed lastHomeTextRef so an unmount flush without any typing still
+          // preserves the restored text rather than clearing sessionStorage.
+          lastHomeTextRef.current = draft;
+        }
+      } catch {
+        // sessionStorage not available
+      }
+      hasRestoredRef.current = true;
+      setIsRestored(true);
       return;
     }
 
@@ -137,12 +171,29 @@ export const useDraftPersistence = (
 
   // Debounced save function - called from onInput handler
   const saveDraft = useCallback(() => {
-    if (!conversationId) {
-      return;
-    }
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
+    }
+
+    if (!conversationId) {
+      // Home page: write to sessionStorage synchronously so there is no
+      // debounce window in which navigation can discard the latest text.
+      const element = chatInputRef.current;
+      if (element) {
+        const text = getTextContent(element).trim();
+        lastHomeTextRef.current = text;
+        try {
+          if (text) {
+            sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+          } else {
+            sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+          }
+        } catch {
+          // sessionStorage not available
+        }
+      }
+      return;
     }
 
     // Capture the conversationId at the time of input
@@ -170,22 +221,52 @@ export const useDraftPersistence = (
 
   // Clear draft - called after message delivery is confirmed
   const clearDraft = useCallback(() => {
-    if (!conversationId) {
-      return;
-    }
     // Cancel any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
+    if (!conversationId) {
+      // Home page: clear sessionStorage
+      try {
+        sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+      } catch {
+        // sessionStorage not available
+      }
+      return;
+    }
     setDraftMessage(null);
   }, [conversationId, setDraftMessage]);
 
-  // Cleanup timeout on unmount
+  // Cleanup on unmount: cancel any pending debounce timer and, for the home
+  // page, flush the last-tracked text to sessionStorage. We read from
+  // lastHomeTextRef rather than chatInputRef because React clears ref.current
+  // during the synchronous commit phase — before async useEffect cleanups run
+  // — so the DOM ref is null by the time this function executes.
+  //
+  // We only write text back if the key already exists in sessionStorage.
+  // saveDraft writes synchronously on every keystroke, so the key is present
+  // whenever there is unsaved text. If the key is absent it was intentionally
+  // removed — most importantly by HomeChatLauncher.onSuccess after a
+  // successful conversation start — and we must not restore it here.
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+      }
+      if (!currentConversationIdRef.current) {
+        const text = lastHomeTextRef.current;
+        try {
+          if (text) {
+            if (sessionStorage.getItem(HOME_PROMPT_DRAFT_KEY) !== null) {
+              sessionStorage.setItem(HOME_PROMPT_DRAFT_KEY, text);
+            }
+          } else {
+            sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
+          }
+        } catch {
+          // sessionStorage not available
+        }
       }
     },
     [],
