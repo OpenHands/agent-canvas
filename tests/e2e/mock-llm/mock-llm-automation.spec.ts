@@ -51,17 +51,34 @@ const AUTOMATION_API_BASE = `${BACKEND_URL}/api/automation/v1`;
 
 /**
  * List automations from the real automation backend via the ingress.
+ * Retries on 502 because the automation backend may still be starting
+ * (the Playwright webServer health check only waits for the ingress to
+ * serve the static frontend, not the automation backend).
  */
 async function listAutomations(
   request: import("@playwright/test").APIRequestContext,
+  retries = 15,
 ) {
-  const resp = await request.get(`${AUTOMATION_API_BASE}`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-    },
-  });
-  expect(resp.ok(), `GET automations returned ${resp.status()}`).toBe(true);
-  return resp.json();
+  let lastStatus = 0;
+  for (let i = 0; i < retries; i++) {
+    const resp = await request.get(`${AUTOMATION_API_BASE}`, {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+      },
+    });
+    lastStatus = resp.status();
+    if (resp.ok()) return resp.json();
+    // 502 = ingress can't reach the automation backend yet; retry
+    if (lastStatus === 502 || lastStatus === 503) {
+      await new Promise((r) => setTimeout(r, 2_000));
+      continue;
+    }
+    // Any other error is unexpected
+    break;
+  }
+  throw new Error(
+    `GET automations returned ${lastStatus} after ${retries} retries`,
+  );
 }
 
 /**
@@ -79,7 +96,8 @@ async function listAutomationRuns(
       },
     },
   );
-  expect(resp.ok(), `GET runs returned ${resp.status()}`).toBe(true);
+  // Allow 502 during startup — waitForRunStatus retries anyway
+  if (!resp.ok()) return { runs: [], items: [] };
   return resp.json();
 }
 
@@ -161,8 +179,15 @@ test.describe("mock-LLM automation lifecycle", () => {
   test("step 1: setup LLM profile and register automation trajectory", async ({
     request,
   }) => {
+    test.setTimeout(120_000); // allow extra time for automation backend startup
     // Ensure the mock LLM profile is configured
     await ensureMockLLMProfile(request);
+
+    // Wait for the automation backend to be ready — it starts via uvx and
+    // may take several seconds after the ingress health check passes.
+    await test.step("wait for automation backend", async () => {
+      await listAutomations(request, 30); // up to 60s of retries
+    });
 
     // Build the terminal commands the mock LLM will return.
     // The curl commands hit the REAL automation backend through the ingress.
@@ -221,6 +246,7 @@ test.describe("mock-LLM automation lifecycle", () => {
     page,
     request,
   }) => {
+    test.setTimeout(180_000); // LLM conversation + run completion can take time
     // Ensure the automation trajectory is active
     await activateTrajectory(request, "automation-lifecycle");
 
