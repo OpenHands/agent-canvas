@@ -99,7 +99,7 @@ export function ExtensionsNavigation() {
       className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start"
     >
       <span className="px-2 text-sm font-normal text-white">
-        {t(I18nKey.NAV$EXTENSIONS)}
+        {t(I18nKey.NAV$CUSTOMIZE)}
       </span>
       <div className="flex flex-col gap-0.5 pt-0.5">
         {EXTENSIONS_NAV_ITEMS.map((item) => {

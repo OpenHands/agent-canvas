@@ -12,10 +12,8 @@ export const modalTitleSmClassName = cn(
 
 /** Large modal title used by form-style dialogs. */
 export const modalTitleLgClassName = cn(
-  "text-lg font-semibold text-[var(--oh-modal-title-foreground)]",
-);
-
-/** Large modal title with medium weight (automation editors). */
-export const modalTitleLgMediumClassName = cn(
   "text-lg font-medium text-[var(--oh-modal-title-foreground)]",
 );
+
+/** Alias of {@link modalTitleLgClassName} for historical call sites. */
+export const modalTitleLgMediumClassName = modalTitleLgClassName;
