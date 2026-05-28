@@ -7,14 +7,18 @@ node_modules/
 build/
 logs/
 /.tmp/live-e2e-state/
+/.tmp/mock-llm-state/
 dist/
 __pycache__
 
 
 /test-results/
 /test-results-live/
+/test-results-mock-llm/
+/.mock-llm-markers/
 /playwright-report/
 /playwright-report-live/
+/playwright-report-mock-llm/
 /blob-report/
 /playwright/.cache/
 # Snapshot baselines are stored as GitHub Actions artifacts — not in git.
