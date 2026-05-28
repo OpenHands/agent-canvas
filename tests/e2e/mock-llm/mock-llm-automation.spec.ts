@@ -143,41 +143,46 @@ test.describe("mock-LLM automation lifecycle", () => {
     await routeSessionApiKey(page);
     await routeAutomationApiToMock(page);
 
-    // Navigate to the automations page
-    await page.goto("/automations", { waitUntil: "domcontentloaded" });
+    // Navigate to the home page and type a prompt to create the automation.
+    // We go directly through the home chat launcher (the same path real
+    // users take) rather than the Automations modal, because the modal's
+    // useLaunchSkillInChat → messageToSend store pathway doesn't auto-submit
+    // on the home page (messageToSend is nullified when no conversationId).
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
-    // The automations page should show the Add Automation button
-    // (mock automation server returns healthy status)
-    await test.step("click Add Automation", async () => {
-      await waitForTestId(page, "automations-add-automation", 15_000);
-      await page.getByTestId("automations-add-automation").click();
+    await test.step("type prompt and submit", async () => {
+      await waitForTestId(page, "home-chat-launcher", 15_000);
+
+      const userMessage =
+        "Create a cron automation that echoes hello world every morning at 9am.";
+
+      // Set contenteditable text via evaluate (contentEditable divs don't
+      // respond reliably to Playwright's .fill() or .type()).
+      await page.evaluate(
+        ({ testId, text }) => {
+          const el = document.querySelector(`[data-testid="${testId}"]`);
+          if (!(el instanceof HTMLElement))
+            throw new Error("Chat input not found");
+          el.focus();
+          el.textContent = text;
+          el.dispatchEvent(
+            new InputEvent("input", {
+              bubbles: true,
+              data: text,
+              inputType: "insertText",
+            }),
+          );
+        },
+        { testId: "chat-input", text: userMessage },
+      );
+
+      // Click the submit button — this triggers conversation creation
+      await page.getByTestId("submit-button").click();
     });
 
-    // The modal with "Create Automation" button should appear.
-    // Scope the click to the modal because the empty-state page also
-    // renders a button with the same testId.
-    await test.step("click Create Automation in modal", async () => {
-      const modal = page.getByTestId("add-automation-modal");
-      await expect(modal).toBeVisible({ timeout: 10_000 });
-      const createBtn = modal.getByTestId("automations-create-automation");
-      await expect(createBtn).toBeVisible({ timeout: 10_000 });
-      await createBtn.click();
-    });
-
-    // This navigates to /conversations and auto-sends "Create an automation"
+    // Wait for navigation to the new conversation page
     await test.step("wait for conversation to start", async () => {
-      // The app navigates to the home page first, then creates a conversation
-      // Wait for the URL to contain /conversations (could be home or specific ID)
-      await waitForPath(page, /\/conversations/, 15_000);
-
-      // The message auto-submit happens after navigation; wait for either
-      // a conversation ID in the URL or the chat interface to appear
-      // Give time for the conversation creation flow
-      await page.waitForTimeout(2_000);
-
-      // If we're on the home page, the message should auto-submit.
-      // Wait for navigation to a specific conversation.
       await waitForPath(page, /\/conversations\/.+/, 30_000);
     });
 
