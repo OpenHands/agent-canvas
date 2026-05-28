@@ -1,22 +1,27 @@
 /**
- * Mock-LLM E2E test: Create a cron automation and dispatch a run.
+ * Mock-LLM E2E test: Create a cron automation, dispatch a run, and verify
+ * the run completes with a conversation link.
  *
  * Exercises the full automation lifecycle end-to-end:
  *
  *   1. Setup: configure mock LLM profile and register a scripted trajectory
  *      whose terminal tool calls hit the REAL automation backend (running
- *      inside the bin/agent-canvas.mjs stack)
+ *      inside the bin/agent-canvas.mjs stack). The trajectory includes extra
+ *      responses for the automation run's spawned conversation so it can
+ *      finish and report COMPLETED.
  *   2. Conversation: type a prompt in the home chat launcher → mock LLM
  *      returns curl commands that create a cron automation and dispatch a run
- *      via the real automation API (through the ingress)
- *   3. Verification: confirm the automation exists on the /automations page
- *      and the dispatched run reached a terminal status
+ *      via the real automation API (through the ingress). Verify the run
+ *      reaches COMPLETED status and has a conversation_id.
+ *   3. UI verification: navigate to the /automations list page, click through
+ *      to the automation detail page, verify the run shows COMPLETED with a
+ *      clickable conversation link, and click through to verify the link
+ *      navigates to the correct conversation page.
  *
  * No mock automation server is used — the real automation backend started by
  * bin/agent-canvas.mjs handles all /api/automation/* requests. The agent's
- * terminal commands authenticate with X-Session-API-Key header using
- * $OPENHANDS_AUTOMATION_API_KEY (the session API key, injected into the
- * agent-server environment by dev-with-automation.mjs).
+ * terminal commands authenticate with X-Session-API-Key header using the
+ * stack's session API key.
  */
 
 import { test, expect } from "@playwright/test";
@@ -127,25 +132,6 @@ async function waitForRunStatus(
 }
 
 /**
- * Poll until at least one run exists for the automation.
- * Returns the first run found regardless of status.
- */
-async function waitForAnyRun(
-  request: import("@playwright/test").APIRequestContext,
-  automationId: string,
-  timeoutMs = 30_000,
-) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const data = await listAutomationRuns(request, automationId);
-    const runs = data.runs ?? data.items ?? [];
-    if (runs.length > 0) return runs[0];
-    await new Promise((r) => setTimeout(r, 1_000));
-  }
-  throw new Error(`No runs found for automation ${automationId} after ${timeoutMs}ms`);
-}
-
-/**
  * Delete an automation (best-effort cleanup).
  */
 async function deleteAutomation(
@@ -167,6 +153,8 @@ test.describe.configure({ mode: "serial" });
 test.describe("mock-LLM automation lifecycle", () => {
   const conversationIds = new Set<string>();
   const automationIds = new Set<string>();
+  /** conversation_id from the completed automation run (set in step 2, verified in step 3) */
+  let runConversationId: string | null = null;
 
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
@@ -244,25 +232,42 @@ test.describe("mock-LLM automation lifecycle", () => {
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
 
-    // The agent-server makes an initial "condenser" or "skill-analysis"
+    // The agent-server makes an internal "condenser" or "skill-analysis"
     // LLM call that consumes one response before the agent's main loop
     // starts. Prepend a throwaway text response that gets eaten by that
     // internal call; the agent's first real turn then gets the create cmd.
+    //
+    // After the main conversation finishes (responses 0-3), the dispatched
+    // automation run spawns a NEW conversation on the same agent-server.
+    // That conversation also calls the mock LLM. We append extra text
+    // responses (4-6) so the run's conversation can finish normally, the
+    // script fires its completion callback, and the run reaches COMPLETED.
     await registerTrajectory(request, "automation-lifecycle", [
-      { text: "" }, // consumed by internal pre-agent LLM call
+      // ── Main conversation (responses 0-3) ──
+      { text: "" }, // 0: consumed by internal pre-agent LLM call
       {
+        // 1: create the automation via curl
         tool_call: {
           name: "terminal",
           arguments: { command: createCmd },
         },
       },
       {
+        // 2: dispatch a run via curl
         tool_call: {
           name: "terminal",
           arguments: { command: dispatchCmd },
         },
       },
-      { text: AUTOMATION_REPLY_TOKEN },
+      { text: AUTOMATION_REPLY_TOKEN }, // 3: finish main conversation
+
+      // ── Automation run's conversation (responses 4+) ──
+      // The run starts a fresh conversation with the automation prompt.
+      // Provide enough responses for any internal LLM calls + the agent's
+      // turn so the conversation finishes and the completion callback fires.
+      { text: "" }, // 4: possible internal/condenser call
+      { text: "Done. Hello world echoed successfully." }, // 5: agent reply
+      { text: "" }, // 6: safety buffer for any follow-up internal call
     ]);
 
     // Activate it so the mock LLM uses this trajectory for the next conversation
@@ -347,9 +352,9 @@ test.describe("mock-LLM automation lifecycle", () => {
       expect(created.enabled).toBe(true);
     });
 
-    // ── Verify: run was dispatched ──
+    // ── Verify: run completed successfully with a conversation link ──
 
-    await test.step("verify run dispatched", async () => {
+    await test.step("verify run completed with conversation link", async () => {
       const data = await listAutomations(request);
       const automations = data.automations ?? data.items ?? [];
       const automation = automations.find(
@@ -358,15 +363,18 @@ test.describe("mock-LLM automation lifecycle", () => {
       expect(automation, "Automation should exist for run check").toBeTruthy();
       automationIds.add(automation.id);
 
-      // Verify the run was dispatched. The run may not reach COMPLETED
-      // because the automation's conversation needs LLM responses (which
-      // would exhaust the mock). Just verify a run exists.
-      const run = await waitForAnyRun(request, automation.id, 30_000);
-      expect(run.status).toBeTruthy();
-      expect(
-        ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
-        `Unexpected run status: ${run.status}`,
-      ).toContain(run.status);
+      // Wait for the run to reach COMPLETED. The trajectory includes extra
+      // responses (indices 4-6) for the automation run's spawned conversation
+      // so it can finish and fire the completion callback.
+      const run = await waitForRunStatus(
+        request,
+        automation.id,
+        "COMPLETED",
+        90_000,
+      );
+      expect(run.conversation_id).toBeTruthy();
+      // Store the conversation ID for the click-through verification in step 3
+      runConversationId = run.conversation_id;
     });
 
     // ── Verify: no error banners ──
@@ -377,17 +385,18 @@ test.describe("mock-LLM automation lifecycle", () => {
     });
   });
 
-  // ── Step 3: Navigate back to automations and verify UI shows it ──────
+  // ── Step 3: Verify automation on list page, click through to detail, verify run link ─
 
-  test("step 3: verify automation appears on the automations page", async ({
+  test("step 3: verify automation and run on the automations page", async ({
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     await routeSessionApiKey(page);
     await page.goto("/automations", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
-    await test.step("automation card visible", async () => {
+    await test.step("automation card visible on list page", async () => {
       await waitForTestId(page, "automations-add-automation", 15_000);
 
       // Wait for the automation name to appear on the page (the list
@@ -397,18 +406,30 @@ test.describe("mock-LLM automation lifecycle", () => {
       });
     });
 
-    await test.step("verify run exists via API", async () => {
-      const data = await listAutomations(request);
-      const automations = data.automations ?? data.items ?? [];
-      const automation = automations.find(
-        (a: { name: string }) => a.name === AUTOMATION_NAME,
-      );
-      expect(automation).toBeTruthy();
-      automationIds.add(automation.id);
+    await test.step("click through to automation detail page", async () => {
+      // The automation name is a link — clicking it navigates to /automations/:id
+      await page.getByText(AUTOMATION_NAME).click();
+      await waitForPath(page, /\/automations\/.+/, 10_000);
+    });
 
-      // Verify a run exists (may not reach COMPLETED in mock LLM mode)
-      const run = await waitForAnyRun(request, automation.id, 15_000);
-      expect(run).toBeTruthy();
+    await test.step("verify run shows COMPLETED with conversation link", async () => {
+      // The activity log should show a COMPLETED badge
+      const completedBadge = page.getByText("Completed");
+      await expect(completedBadge).toBeVisible({ timeout: 15_000 });
+
+      // If we have a conversation ID from step 2, verify the run row
+      // is a clickable link to that conversation
+      if (runConversationId) {
+        const runLink = page.locator(
+          `a[href="/conversations/${runConversationId}"]`,
+        );
+        await expect(runLink).toBeVisible({ timeout: 10_000 });
+
+        // Click the run link and verify it navigates to the conversation page
+        await runLink.click();
+        await waitForPath(page, /\/conversations\/.+/, 10_000);
+        expect(page.url()).toContain(runConversationId);
+      }
     });
 
     // Clean up automations at the end of the last test
