@@ -48,9 +48,17 @@ const needsSorting = (events: OHEvent[], newEvent: OHEvent): boolean => {
 };
 
 export interface EventState {
+  /**
+   * The conversation ID whose events are currently held in the store.
+   * Survives component unmount (Zustand is module-level) so conversation.tsx
+   * can compare on remount and skip a redundant clearEvents when the user
+   * navigates away to Settings and back to the same conversation.
+   */
+  activeConversationId: string | null;
   events: OHEvent[];
   eventIds: Set<string | number>;
   uiEvents: OHEvent[];
+  setActiveConversationId: (id: string | null) => void;
   addEvent: (event: OHEvent) => void;
   /**
    * Bulk-insert events. Used for the initial REST history load and for
@@ -105,12 +113,28 @@ const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
 };
 
 export const useEventStore = create<EventState>()((set) => ({
+  activeConversationId: null,
   events: [],
   eventIds: new Set(),
   uiEvents: [],
+  setActiveConversationId: (id) =>
+    set((state) => {
+      console.log(
+        "[OH-DEBUG][event-store] setActiveConversationId: %s → %s",
+        state.activeConversationId,
+        id,
+      );
+      return { activeConversationId: id };
+    }),
   addEvent: (event: OHEvent) => set((state) => applyAddEvent(state, event)),
   addEvents: (incoming: OHEvent[]) =>
     set((state) => {
+      console.log(
+        "[OH-DEBUG][event-store] addEvents: +%d events (activeConv=%s, storeSize=%d)",
+        incoming.length,
+        state.activeConversationId,
+        state.events.length,
+      );
       if (incoming.length === 0) return state;
 
       const eventIds = new Set(state.eventIds);
@@ -144,11 +168,24 @@ export const useEventStore = create<EventState>()((set) => ({
       });
     }),
   clearEvents: () =>
-    set(() => ({
-      events: [],
-      eventIds: new Set(),
-      uiEvents: [],
-    })),
+    set((state) => {
+      console.log(
+        "[OH-DEBUG][event-store] clearEvents: wiping %d events (wasActiveConv=%s)",
+        state.events.length,
+        state.activeConversationId,
+      );
+      // activeConversationId is intentionally NOT reset here.
+      // It must survive clearEvents so that the next mount of conversation.tsx
+      // can compare the incoming convId against the last active one and detect
+      // a same-conversation remount (e.g. Settings → back). Resetting to null
+      // here caused every mount to see storeActiveId=null, making
+      // isSameConversation always false and defeating the whole guard.
+      return {
+        events: [],
+        eventIds: new Set(),
+        uiEvents: [],
+      };
+    }),
 }));
 
 // In dev builds, expose the store on `window` so that fixture/preview

@@ -30,6 +30,7 @@ import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper"
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
 import { useEventStore } from "#/stores/use-event-store";
+import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 
 function AppContent() {
@@ -37,6 +38,9 @@ function AppContent() {
   const { conversationId } = useConversationId();
   const panelViewMatch = useMatch("/conversations/:conversationId/panel");
   const clearEvents = useEventStore((state) => state.clearEvents);
+  const clearPendingMessages = useOptimisticUserMessageStore(
+    (state) => state.clearPendingMessages,
+  );
 
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
@@ -71,12 +75,49 @@ function AppContent() {
   );
 
   React.useEffect(() => {
+    // Read directly from the store (not via a hook subscription) so this value
+    // doesn't need to be a dep and can't cause the effect to loop.
+    // The store survives component unmount (Zustand is module-level), so on
+    // remount the store still holds the id that was active when we left.
+    const { activeConversationId, setActiveConversationId } =
+      useEventStore.getState();
+
+    const isSameConversation = activeConversationId === conversationId;
+    console.log(
+      "[OH-DEBUG][conversation] mount effect — convId=%s storeActiveId=%s isSameConversation=%s",
+      conversationId,
+      activeConversationId,
+      isSameConversation,
+    );
+
+    // Mark this conversation as the currently active one before any early return
+    // so subsequent effects always see an up-to-date value.
+    setActiveConversationId(conversationId);
+
+    if (isSameConversation) {
+      // Returning to the same conversation (e.g. navigated to Settings and back).
+      // The event store already holds the correct history — clearing it would
+      // wipe messages that the REST cache seeded and that the WebSocket won't
+      // re-deliver because it uses resend_mode=since.
+      console.log(
+        "[OH-DEBUG][conversation] SKIP reset — same conversation remount, events preserved",
+      );
+      return;
+    }
+
+    // Genuine conversation switch: tear down stale state from the previous one.
+    console.log(
+      "[OH-DEBUG][conversation] RESET — switching from %s to %s",
+      activeConversationId,
+      conversationId,
+    );
     clearTerminal();
     resetConversationState();
     resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
     clearEvents();
+    clearPendingMessages();
   }, [
     conversationId,
     clearTerminal,
@@ -85,6 +126,7 @@ function AppContent() {
     setCurrentAgentState,
     removeErrorMessage,
     clearEvents,
+    clearPendingMessages,
   ]);
 
   React.useEffect(() => {

@@ -129,6 +129,14 @@ export function ConversationWebSocketProvider({
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
 
+  // Track which conversationId each socket was opened for.
+  // useWebSocket routes all onMessage calls through optionsRef.current, which
+  // always points to the latest handler. Without this guard, a stale socket
+  // from ConvA that fires after a switch to ConvB would call ConvB's handler
+  // and inject ConvA's events into ConvB's event store.
+  const mainSocketConvIdRef = React.useRef<string | null>(null);
+  const planningSocketConvIdRef = React.useRef<string | null>(null);
+
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
@@ -219,12 +227,48 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
+  // Subscribe to activeConversationId so this effect re-runs after the
+  // parent's useEffect stamps the new conversation. Without this subscription,
+  // if the REST seed fires before the parent clears/stamps (stale cache race),
+  // the seed is skipped and never retried — leaving the chat permanently empty.
+  const activeConversationId = useEventStore(
+    (state) => state.activeConversationId,
+  );
+
   useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
+
+    console.log(
+      "[OH-DEBUG][ws] REST seed: seeding %d events for conv=%s (storeActiveConv=%s)",
+      preloadedHistory.events.length,
+      conversationId,
+      activeConversationId,
+    );
+
+    // Guard against stale React Query cache: when the user switches conversations
+    // quickly, the incoming conv's cached preloadedHistory fires this layout
+    // effect before the parent's useEffect has cleared the previous conv's events
+    // and stamped the new active conv. If the store is already active for a
+    // *different* conversation, seeding here would mix two convs' events in the
+    // same store. We skip here and re-run once activeConversationId updates
+    // (because it is in the deps array below). Null means very first page load
+    // — allow through.
+    if (
+      activeConversationId !== null &&
+      activeConversationId !== conversationId
+    ) {
+      console.log(
+        "[OH-DEBUG][ws] REST seed SKIPPED — storeActive=%s differs from conv=%s (stale cache)",
+        activeConversationId,
+        conversationId,
+      );
+      return;
+    }
+
     addEvents(preloadedHistory.events);
-  }, [preloadedHistory, addEvents]);
+  }, [preloadedHistory, activeConversationId, conversationId, addEvents]);
 
   /**
    * Timestamp of the latest event we already have from REST. Used as
@@ -392,6 +436,19 @@ export function ConversationWebSocketProvider({
   // Separate message handlers for each connection
   const handleMainMessage = useCallback(
     (messageEvent: MessageEvent) => {
+      // Guard against stale sockets: useWebSocket always calls the latest
+      // onMessage handler via optionsRef, so a socket opened for ConvA can
+      // fire this callback after we've switched to ConvB. Reject any message
+      // whose socket was opened for a different conversation.
+      if (mainSocketConvIdRef.current !== conversationId) {
+        console.log(
+          "[OH-DEBUG][ws:main] STALE REJECT — socket opened for conv=%s but current conv=%s",
+          mainSocketConvIdRef.current,
+          conversationId,
+        );
+        return;
+      }
+
       try {
         const event = JSON.parse(messageEvent.data);
 
@@ -566,6 +623,16 @@ export function ConversationWebSocketProvider({
 
   const handlePlanningMessage = useCallback(
     (messageEvent: MessageEvent) => {
+      // Same stale-socket guard as handleMainMessage.
+      if (planningSocketConvIdRef.current !== conversationId) {
+        console.log(
+          "[OH-DEBUG][ws:planning] STALE REJECT — socket opened for conv=%s but current conv=%s",
+          planningSocketConvIdRef.current,
+          conversationId,
+        );
+        return;
+      }
+
       try {
         const event = JSON.parse(messageEvent.data);
 
@@ -762,6 +829,11 @@ export function ConversationWebSocketProvider({
       queryParams,
       reconnect: { enabled: true },
       onOpen: () => {
+        mainSocketConvIdRef.current = conversationId ?? null; // Stamp which conv this socket serves
+        console.log(
+          "[OH-DEBUG][ws:main] onOpen — socket stamped for conv=%s",
+          conversationId,
+        );
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
         clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
@@ -779,6 +851,7 @@ export function ConversationWebSocketProvider({
       onMessage: handleMainMessage,
     };
   }, [
+    conversationId,
     handleMainMessage,
     setErrorMessage,
     clearConnectionError,
@@ -803,6 +876,11 @@ export function ConversationWebSocketProvider({
       queryParams,
       reconnect: { enabled: true },
       onOpen: async () => {
+        planningSocketConvIdRef.current = conversationId ?? null; // Stamp which conv this socket serves
+        console.log(
+          "[OH-DEBUG][ws:planning] onOpen — socket stamped for conv=%s",
+          conversationId,
+        );
         setPlanningConnectionState("OPEN");
         hasConnectedRefPlanning.current = true; // Mark that we've successfully connected
         clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
@@ -843,6 +921,7 @@ export function ConversationWebSocketProvider({
       onMessage: handlePlanningMessage,
     };
   }, [
+    conversationId,
     handlePlanningMessage,
     setErrorMessage,
     clearConnectionError,

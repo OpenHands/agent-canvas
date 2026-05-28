@@ -55,6 +55,10 @@ export const useDraftPersistence = (
   // React 18 (refs are cleared during the synchronous commit phase, before
   // passive effects fire), so we can't read from the DOM there.
   const lastHomeTextRef = useRef<string>("");
+  // Same pattern for conversation routes: updated synchronously on every
+  // saveDraft call so the unmount flush captures the very latest text even
+  // when the 500 ms debounce hasn't fired yet (e.g. rapid navigate-away).
+  const lastConvTextRef = useRef<string>("");
 
   // IMPORTANT: This effect must run FIRST when conversation changes.
   // It handles three concerns:
@@ -159,6 +163,12 @@ export const useDraftPersistence = (
     // The hook's state may not have synced yet after conversationId change
     const { draftMessage } = getConversationState(conversationId);
 
+    console.log(
+      "[OH-DEBUG][draft] restore: conv=%s draftMessage=%s",
+      conversationId,
+      draftMessage ? `"${draftMessage.slice(0, 40)}…"` : "null",
+    );
+
     // Only restore if there's a saved draft and the input is empty
     if (draftMessage && getTextContent(element).trim() === "") {
       element.textContent = draftMessage;
@@ -199,6 +209,13 @@ export const useDraftPersistence = (
     // Capture the conversationId at the time of input
     const capturedConversationId = conversationId;
 
+    // Track latest text synchronously (mirrors lastHomeTextRef) so the unmount
+    // flush can use it even if the debounce timer hasn't fired yet.
+    const elementNow = chatInputRef.current;
+    if (elementNow) {
+      lastConvTextRef.current = getTextContent(elementNow).trim();
+    }
+
     saveTimeoutRef.current = setTimeout(() => {
       // Verify we're still on the same conversation before saving
       // This prevents saving draft to wrong conversation if user switched quickly
@@ -238,17 +255,19 @@ export const useDraftPersistence = (
     setDraftMessage(null);
   }, [conversationId, setDraftMessage]);
 
-  // Cleanup on unmount: cancel any pending debounce timer and, for the home
-  // page, flush the last-tracked text to sessionStorage. We read from
-  // lastHomeTextRef rather than chatInputRef because React clears ref.current
-  // during the synchronous commit phase — before async useEffect cleanups run
-  // — so the DOM ref is null by the time this function executes.
+  // Cleanup on unmount: cancel any pending debounce timer and flush the
+  // latest draft text. We read from refs rather than chatInputRef because
+  // React clears ref.current during the synchronous commit phase — before
+  // async useEffect cleanups run — so the DOM ref is null by then.
   //
-  // We only write text back if the key already exists in sessionStorage.
-  // saveDraft writes synchronously on every keystroke, so the key is present
-  // whenever there is unsaved text. If the key is absent it was intentionally
-  // removed — most importantly by HomeChatLauncher.onSuccess after a
-  // successful conversation start — and we must not restore it here.
+  // Home page: only write back if the sessionStorage key already exists.
+  //   saveDraft writes synchronously on every keystroke, so the key is present
+  //   whenever there is unsaved text. If absent it was intentionally removed
+  //   (e.g. by HomeChatLauncher.onSuccess) and we must not restore it.
+  //
+  // Conversation route: always flush lastConvTextRef to localStorage so a
+  //   draft in progress is never lost when the user navigates to Settings or
+  //   another conversation before the 500 ms debounce fires.
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) {
@@ -267,6 +286,18 @@ export const useDraftPersistence = (
         } catch {
           // sessionStorage not available
         }
+      } else if (!isTaskId(currentConversationIdRef.current)) {
+        // Flush the last-tracked text synchronously to localStorage so
+        // in-progress drafts survive navigation before the debounce fires.
+        const text = lastConvTextRef.current;
+        console.log(
+          "[OH-DEBUG][draft] unmount flush: conv=%s text=%s",
+          currentConversationIdRef.current,
+          text ? `"${text.slice(0, 40)}…"` : "(empty)",
+        );
+        setConversationState(currentConversationIdRef.current, {
+          draftMessage: text || null,
+        });
       }
     },
     [],
