@@ -198,8 +198,10 @@ test.describe("mock-LLM automation lifecycle", () => {
     // to $OH_SESSION_API_KEYS_0 in case the automation env isn't set.
     const authHeader = `-H "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY"`;
 
+    // Use -v for verbose output so failures are diagnosable from the
+    // conversation event stream. Write response body to file for inspection.
     const createCmd = [
-      `curl -sf -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
+      `curl -v -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
       `-H 'Content-Type: application/json'`,
       authHeader,
       `-d '${JSON.stringify({
@@ -208,15 +210,17 @@ test.describe("mock-LLM automation lifecycle", () => {
         trigger: { type: "cron", schedule: CRON_SCHEDULE, timezone: "UTC" },
       })}'`,
       `-o /tmp/auto_result.json`,
+      `-w '\\nHTTP_CODE:%{http_code}\\n'`,
       `&& cat /tmp/auto_result.json`,
       `&& printf '${AUTOMATION_CREATE_TOKEN}\\n'`,
     ].join(" ");
 
     const dispatchCmd = [
       `AID=$(python3 -c "import json; print(json.load(open('/tmp/auto_result.json'))['id'])")`,
-      `&& curl -sf -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
+      `&& curl -v -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
       authHeader,
       `-H 'Content-Type: application/json'`,
+      `-w '\\nHTTP_CODE:%{http_code}\\n'`,
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
 
