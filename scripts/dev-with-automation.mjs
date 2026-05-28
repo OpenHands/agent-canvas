@@ -577,6 +577,12 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    // Override the session key with the one chosen during config resolution.
+    // In public mode this is LOCAL_BACKEND_API_KEY; in local mode it's the
+    // persisted random key. Without this override, buildSafeDevConfig()
+    // generates its own random key that doesn't match config.sessionApiKey,
+    // so the agent-server rejects the key users are told to paste.
+    OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
   spawnService(
