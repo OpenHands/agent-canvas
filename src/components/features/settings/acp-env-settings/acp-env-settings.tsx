@@ -2,7 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import { AxiosError } from "axios";
-import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
+import { useAcpEnvVars } from "#/hooks/query/use-acp-env-vars";
+import { useUpsertAcpEnvVar } from "#/hooks/mutation/use-upsert-acp-env-var";
+import { useDeleteAcpEnvVar } from "#/hooks/mutation/use-delete-acp-env-var";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { Typography } from "#/ui/typography";
@@ -18,27 +20,34 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 const ENV_VAR_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 
 interface AcpEnvSettingsProps {
-  envKeys: string[];
+  /** Only fetch + render when the active agent is ACP. Skipping the
+   * query keeps the settings page quiet on the OpenHands branch (where
+   * `/agent-env` would return an empty list anyway). */
+  enabled: boolean;
 }
 
-export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
+export function AcpEnvSettings({ enabled }: AcpEnvSettingsProps) {
   const { t } = useTranslation("openhands");
-  const { mutate: saveSettings, isPending } = useSaveSettings();
+  const { data: envVars = [] } = useAcpEnvVars(enabled);
+  const { mutate: upsertEnvVar, isPending: isUpserting } = useUpsertAcpEnvVar();
+  const { mutate: deleteEnvVar, isPending: isDeleting } = useDeleteAcpEnvVar();
+  const isPending = isUpserting || isDeleting;
+
   const [name, setName] = React.useState("");
   const [value, setValue] = React.useState("");
   const [addError, setAddError] = React.useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<string | null>(null);
 
   const sortedKeys = React.useMemo(
-    () => [...envKeys].sort((a, b) => a.localeCompare(b)),
-    [envKeys],
+    () => envVars.map((v) => v.name).sort((a, b) => a.localeCompare(b)),
+    [envVars],
   );
 
   const validateNewName = (trimmed: string): string | null => {
     if (!ENV_VAR_NAME_PATTERN.test(trimmed)) {
       return t(I18nKey.SETTINGS$AGENT_ENV_NAME_INVALID);
     }
-    if (envKeys.includes(trimmed)) {
+    if (sortedKeys.includes(trimmed)) {
       return t(I18nKey.SETTINGS$AGENT_ENV_NAME_DUPLICATE);
     }
     return null;
@@ -53,8 +62,8 @@ export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
       return;
     }
     setAddError(null);
-    saveSettings(
-      { agent_settings_diff: { acp_env: { [trimmed]: value } } },
+    upsertEnvVar(
+      { name: trimmed, value },
       {
         onError: (err) => {
           const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -72,19 +81,16 @@ export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
   const handleConfirmDelete = () => {
     if (!pendingDelete) return;
     const key = pendingDelete;
-    saveSettings(
-      { agent_settings_diff: { acp_env: { [key]: null } } },
-      {
-        onError: (err) => {
-          const message = retrieveAxiosErrorMessage(err as AxiosError);
-          displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
-        },
-        onSuccess: () => {
-          displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
-        },
-        onSettled: () => setPendingDelete(null),
+    deleteEnvVar(key, {
+      onError: (err) => {
+        const message = retrieveAxiosErrorMessage(err as AxiosError);
+        displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
       },
-    );
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
+      },
+      onSettled: () => setPendingDelete(null),
+    });
   };
 
   return (

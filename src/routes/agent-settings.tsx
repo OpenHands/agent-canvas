@@ -46,14 +46,6 @@ function toStringArray(value: unknown): string[] {
     : [];
 }
 
-function extractAcpEnvKeys(value: unknown): string[] {
-  // ``settings.agent_settings.acp_env`` is redacted by the server when no
-  // expose-secrets header is set, so we only ever surface the *names* in
-  // the editor — never the (masked) values.
-  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return Object.keys(value as Record<string, unknown>);
-}
-
 function detectPreset(
   commandText: string,
   providers: ACPProviderConfig[],
@@ -200,10 +192,6 @@ function AgentSettingsScreen() {
   const commandPlaceholder =
     formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
-
-  const existingEnvKeys = isAcp
-    ? extractAcpEnvKeys(settings?.agent_settings?.acp_env)
-    : [];
 
   // Dirty tracking: for OpenHands path, also check sub-agents toggle.
   // ACP env-var add/delete commit through their own PATCHes inside
@@ -486,7 +474,7 @@ function AgentSettingsScreen() {
             </Typography.Text>
           </div>
 
-          <AcpEnvSettings envKeys={existingEnvKeys} />
+          <AcpEnvSettings enabled={isAcp} />
         </>
       )}
 

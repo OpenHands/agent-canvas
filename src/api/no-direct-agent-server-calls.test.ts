@@ -7,6 +7,11 @@ const EXCLUDED_SEGMENTS = new Set(["mocks", "routeTree.gen.ts"]);
 const ALLOWED_AD_HOC_HTTP_FILES = new Set([
   "api/automation-service/automation-service.api.ts",
   "api/cloud/proxy.ts",
+  // ``acp-env-service`` instantiates ``HttpClient`` directly because the new
+  // ``/api/settings/agent-env`` CRUD endpoints (software-agent-sdk#3420) are
+  // not yet typed methods on ``SettingsClient``. Swap to the typed accessor
+  // once a typescript-client release ships them.
+  "api/acp-env-service.ts",
 ]);
 
 function collectSourceFiles(dir: string): string[] {
@@ -50,7 +55,10 @@ describe("agent-server API access", () => {
         fileViolations.push("imports the low-level SDK HttpClient directly");
       }
 
-      if (/\bnew\s+HttpClient\s*\(/.test(source)) {
+      if (
+        /\bnew\s+HttpClient\s*\(/.test(source) &&
+        !ALLOWED_AD_HOC_HTTP_FILES.has(relPath)
+      ) {
         fileViolations.push("constructs HttpClient directly");
       }
 
