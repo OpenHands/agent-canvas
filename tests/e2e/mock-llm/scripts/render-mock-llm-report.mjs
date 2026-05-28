@@ -221,10 +221,32 @@ const resultsPath = args.results || "test-results-mock-llm/results.json";
 const outputPath = args.output || "mock-llm-report.md";
 
 const data = loadResults(resultsPath);
-const tests = data ? collectTests(data.suites) : [];
+let tests = data ? collectTests(data.suites) : [];
 
-if (!data) {
-  console.warn(`Warning: no results file at ${resultsPath}`);
+// When Playwright is killed during webServer teardown, the JSON reporter
+// never flushes results.json. Fall back to the marker files written by
+// DoneMarkerReporter (onTestEnd) which fire before teardown.
+if (!data || tests.length === 0) {
+  const markerDir = args.marker_dir || ".mock-llm-markers";
+  const donePath = `${markerDir}/.tests-done`;
+  if (existsSync(donePath)) {
+    const markerStatus = readFileSync(donePath, "utf8").trim();
+    console.log(`No results.json; using marker file (status: ${markerStatus})`);
+    tests = [
+      {
+        title: "mock-LLM agent-server conversation",
+        status: markerStatus === "passed" ? "passed" : "failed",
+        durationMs: 0,
+        retryCount: 0,
+        error:
+          markerStatus !== "passed"
+            ? "Test failed (details in workflow logs — results.json unavailable due to webServer teardown hang)"
+            : "",
+      },
+    ];
+  } else {
+    console.warn(`Warning: no results file at ${resultsPath} and no marker files`);
+  }
 }
 
 const report = renderReport({
