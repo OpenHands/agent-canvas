@@ -11,30 +11,31 @@ triggers:
 
 # Release Process for @openhands/agent-canvas
 
-You are guiding a release of the `@openhands/agent-canvas` package. Follow these steps in order. Ask the user for any information you cannot determine automatically.
+You are guiding a release of the `@openhands/agent-canvas` package. Follow these steps **in order**. Do NOT skip ahead — each step has a checkpoint where you must wait for the user.
 
-## Prerequisites
+## Step 1: Check Current Version and Ask the User
 
-Before starting, confirm:
-- You are on the `main` branch with a clean working tree.
-- You have push access to the repository and can create PRs via `gh`.
-- CI is green on `main` (check recent workflow runs).
+**IMPORTANT: You MUST complete this step and get explicit user confirmation before doing anything else.**
 
-## Step 1: Determine the New Version
-
-Ask the user what version to release if not already specified.
-
-The current version is in `package.json` under the `"version"` field. Check it:
+First, read the current version from `package.json`:
 
 ```bash
 node -p "require('./package.json').version"
 ```
 
-**Version format**: This project uses semver with optional pre-release suffixes.
-- Pre-release: `1.0.0-alpha.8`, `1.0.0-beta.1`, `1.0.0-rc.1`
-- Stable: `1.0.0`, `1.1.0`, `2.0.0`
+Then present the result to the user and suggest the next logical version. Use these rules to form your suggestion:
+- If the current version is a pre-release like `1.0.0-alpha.7`, suggest `1.0.0-alpha.8` (bump the last numeric segment).
+- If the current version is stable like `1.2.3`, suggest `1.2.4` (patch bump) but mention they can also do `1.3.0` (minor) or `2.0.0` (major).
 
-Typically, bump the last numeric segment of the current version (e.g., `1.0.0-alpha.7` → `1.0.0-alpha.8`).
+**Version format**: This project uses semver with optional pre-release suffixes.
+- Pre-release examples: `1.0.0-alpha.8`, `1.0.0-beta.1`, `1.0.0-rc.1`
+- Stable examples: `1.0.0`, `1.1.0`, `2.0.0`
+
+**STOP HERE.** Tell the user the current version, your suggested next version, and ask:
+
+> The current version is `<current>`. I'd suggest bumping to `<suggested>`. What version would you like to release?
+
+**Do not proceed to Step 2 until the user confirms a version.**
 
 ## Step 2: Create the Release PR
 
