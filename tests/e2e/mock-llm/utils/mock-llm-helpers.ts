@@ -270,42 +270,46 @@ export async function deleteConversation(
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Ensure the mock LLM profile is created, active, and configured to point
- * at the mock LLM server.
+ * Ensure the currently-active LLM profile is configured to point at the mock
+ * LLM server.
  *
  * This bypasses the UI-driven profile creation (steps 1+2 in the conversation
- * test) and directly PATCHes the agent-server settings. Useful for tests that
- * run independently of the conversation test ordering.
+ * test) and directly PATCHes the agent-server settings on whatever profile is
+ * currently active. Useful for tests that need to run independently of the
+ * conversation test's UI-based profile setup.
  *
- * The PATCH includes `active_profile` to guarantee the named profile is
- * activated — without it, the LLM settings would apply to whatever profile
- * happens to be active, and the early-return check would keep failing.
+ * Note: this does NOT create or switch profiles — it only configures the
+ * current profile's LLM settings. Profile creation/activation is handled
+ * by the conversation test's UI flow or by the agent-server's default
+ * profile behavior.
  */
 export async function ensureMockLLMProfile(
   request: APIRequestContext,
-  profileName = "mock-llm-e2e",
   model = "openai/mock-test-model",
 ) {
-  // Check if the profile is already active
-  const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
-    headers: { "X-Session-API-Key": SESSION_API_KEY },
+  // Check if the current profile already has the mock LLM settings
+  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "X-Expose-Secrets": "encrypted",
+    },
   });
 
-  if (profilesResp.ok()) {
-    const profiles = await profilesResp.json();
-    if (profiles?.active_profile === profileName) {
-      return; // Already configured and active
+  if (settingsResp.ok()) {
+    const settings = await settingsResp.json();
+    const llm = settings?.agent_settings?.llm;
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_BASE_URL) {
+      return; // Already configured
     }
   }
 
-  // Create/activate the named profile and configure its LLM settings
-  const settingsResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+  // Configure the active profile's LLM settings
+  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "Content-Type": "application/json",
     },
     data: {
-      active_profile: profileName,
       agent_settings_diff: {
         llm: {
           model,
@@ -316,8 +320,8 @@ export async function ensureMockLLMProfile(
     },
   });
   expect(
-    settingsResp.ok(),
-    `PATCH /api/settings failed: ${settingsResp.status()}`,
+    patchResp.ok(),
+    `PATCH /api/settings failed: ${patchResp.status()}`,
   ).toBe(true);
 }
 
