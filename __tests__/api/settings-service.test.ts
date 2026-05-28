@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 
-import SettingsService from "#/api/settings-service/settings-service.api";
+import SettingsService, {
+  DISABLED_SKILLS_STORAGE_KEY,
+} from "#/api/settings-service/settings-service.api";
 import { APP_PREFERENCES_STORAGE_KEY } from "#/api/app-preferences-store";
 import {
   __resetActiveStoreForTests,
@@ -139,24 +141,35 @@ describe("SettingsService", () => {
     fetchSpy.mockRestore();
   });
 
-  it("skips PATCH for a skills-only save against a local backend", async () => {
-    // Arrange: skills are a cloud-only feature. The local agent-server's
-    // PATCH /api/settings rejects payloads without agent/conversation diffs
-    // (the MSW handler returns 400 in that case), so a successful no-op here
-    // also confirms disabled_skills is not leaked to the local backend.
+  it("persists disabled_skills to localStorage and skips PATCH on a local backend", async () => {
+    // The local agent-server has no endpoint for disabled_skills, so we store
+    // them in localStorage instead and never send them in the PATCH body.
     const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
 
-    // Act
     const result = await SettingsService.saveSettings({
       disabled_skills: ["SSH Microagent"],
     });
 
-    // Assert: returns true and never fires the PATCH (no fetch invalidation
-    // either, because the cache wasn't cleared).
     expect(result).toBe(true);
+    // The PATCH must not be called — disabled_skills is not a server field.
     expect(fetchSpy).not.toHaveBeenCalled();
+    // The value must be written to localStorage so getSettings can read it back.
+    const raw = window.localStorage.getItem(DISABLED_SKILLS_STORAGE_KEY);
+    expect(raw && JSON.parse(raw)).toEqual(["SSH Microagent"]);
 
     fetchSpy.mockRestore();
+  });
+
+  it("surfaces stored disabled_skills in getSettings on a local backend", async () => {
+    // Pre-seed localStorage as if a previous save had persisted them.
+    window.localStorage.setItem(
+      DISABLED_SKILLS_STORAGE_KEY,
+      JSON.stringify(["SSH Microagent"]),
+    );
+
+    const settings = await SettingsService.getSettings();
+
+    expect(settings.disabled_skills).toEqual(["SSH Microagent"]);
   });
 
   it("persists app-level preferences to localStorage when saving on a local backend", async () => {

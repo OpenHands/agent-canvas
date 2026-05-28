@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
+import type { MCPTestFailure } from "@openhands/typescript-client";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -10,6 +11,7 @@ import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
+import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
@@ -52,13 +54,14 @@ export function InstallServerModal({
 }: InstallServerModalProps) {
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
+  const { mutate: testMcpServer, isPending: isTesting } = useTestMcpServer();
 
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
   );
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
-  const isPending = isAdding;
+  const isPending = isTesting || isAdding;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -68,12 +71,36 @@ export function InstallServerModal({
     setGlobalError(null);
   };
 
+  const makeTestErrorMessage = (failure: MCPTestFailure): string => {
+    switch (failure.error_kind) {
+      case "timeout":
+        return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
+      case "connection":
+        return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
+      default:
+        return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
+    }
+  };
+
   const submitServer = (payload: MCPServerConfig) => {
-    addMcpServer(payload, {
-      onSuccess: () => {
-        displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
-        onSuccess?.(entry);
-        onClose();
+    testMcpServer(payload, {
+      onSuccess: (result) => {
+        if (!result.ok) {
+          setGlobalError(makeTestErrorMessage(result));
+          // Modal stays open — do NOT call onClose.
+          return;
+        }
+        addMcpServer(payload, {
+          onSuccess: () => {
+            displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+            onSuccess?.(entry);
+            onClose();
+          },
+          onError: (err: unknown) => {
+            const message = retrieveAxiosErrorMessage(err as AxiosError);
+            setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+          },
+        });
       },
       onError: (err: unknown) => {
         const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -304,7 +331,7 @@ export function InstallServerModal({
         {globalError && (
           <p
             data-testid="mcp-install-modal-error"
-            className="text-sm text-red-500"
+            className="text-sm text-red-500 whitespace-pre-wrap"
           >
             {globalError}
           </p>
@@ -325,9 +352,11 @@ export function InstallServerModal({
             isDisabled={isPending}
             testId="mcp-install-submit"
           >
-            {isPending
-              ? t(I18nKey.SETTINGS$SAVING)
-              : t(I18nKey.MCP$INSTALL_BUTTON)}
+            {isTesting
+              ? t(I18nKey.MCP$VERIFYING)
+              : isAdding
+                ? t(I18nKey.SETTINGS$SAVING)
+                : t(I18nKey.MCP$INSTALL_BUTTON)}
           </BrandButton>
         </div>
       </form>

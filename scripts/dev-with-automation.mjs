@@ -583,6 +583,9 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
+        // Force UTF-8 for all Python file I/O (same reason as agent-server;
+        // see buildAgentServerEnv in dev-safe.mjs).
+        PYTHONUTF8: "1",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //

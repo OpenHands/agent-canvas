@@ -1,5 +1,6 @@
 import {
   Links,
+  LinksFunction,
   Meta,
   MetaFunction,
   Outlet,
@@ -93,6 +94,10 @@ function MissingAgentServerScreen() {
     </main>
   );
 }
+
+export const links: LinksFunction = () => [
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+];
 
 export const meta: MetaFunction = () => [
   { title: "OpenHands" },
