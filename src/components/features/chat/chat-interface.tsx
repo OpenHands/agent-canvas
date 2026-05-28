@@ -459,6 +459,7 @@ export function ChatInterface() {
 
         <div
           ref={scrollRef}
+          data-testid="chat-scroll-container"
           onScroll={(e) => {
             onChatBodyScroll(e.currentTarget);
             maybeLoadOlder(e.currentTarget);

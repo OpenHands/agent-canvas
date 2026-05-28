@@ -388,7 +388,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -434,7 +434,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -518,7 +518,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -577,7 +577,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
 
     // The scroll container exists (so the user can scroll up to load older).
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -745,7 +745,7 @@ describe("ChatInterface - Auto-scroll on submit (issue #817)", () => {
     );
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
