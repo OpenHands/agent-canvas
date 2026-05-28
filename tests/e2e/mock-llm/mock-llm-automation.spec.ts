@@ -301,6 +301,36 @@ test.describe("mock-LLM automation lifecycle", () => {
       await waitForNonUserMessageText(page, AUTOMATION_REPLY_TOKEN, 60_000);
     });
 
+    // ── Diagnostic: dump conversation events to see terminal output ──
+
+    await test.step("dump conversation events for diagnostics", async () => {
+      const eventsResp = await request.get(
+        `${BACKEND_URL}/api/conversations/${conversationId}/events/search?limit=50`,
+        { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+      );
+      if (eventsResp.ok()) {
+        const events = await eventsResp.json();
+        const items = events.items ?? events;
+        for (const ev of items) {
+          const content =
+            ev.observation?.content ??
+            ev.content ??
+            ev.args?.content ??
+            "";
+          const cmd = ev.args?.command ?? "";
+          if (cmd || content) {
+            console.log(
+              `[event] action=${ev.action ?? "?"} obs=${ev.observation ?? "?"} cmd=${cmd.slice(0, 120)} content=${String(content).slice(0, 300)}`,
+            );
+          }
+        }
+      } else {
+        console.log(
+          `[events] fetch failed: ${eventsResp.status()} ${await eventsResp.text()}`,
+        );
+      }
+    });
+
     // ── Verify: automation was created in the real automation backend ──
 
     await test.step("verify automation was created", async () => {
