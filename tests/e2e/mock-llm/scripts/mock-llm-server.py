@@ -253,6 +253,11 @@ def _parse_trajectory_turns(raw_turns: list[dict]) -> list[Message | Exception]:
                     content=[TextContent(text=turn["text"])],
                 )
             )
+        else:
+            print(
+                f"[mock-llm] WARNING: turn {i} has neither 'tool_call' nor 'text': {turn!r}",
+                file=sys.stderr,
+            )
     return messages
 
 

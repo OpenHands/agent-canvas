@@ -57,9 +57,9 @@ const AUTOMATION_API_BASE = `${BACKEND_URL}/api/automation/v1`;
 
 /**
  * List automations from the real automation backend via the ingress.
- * Retries on 502 because the automation backend may still be starting
- * (the Playwright webServer health check only waits for the ingress to
- * serve the static frontend, not the automation backend).
+ * Retries on 502/503 as a belt-and-suspenders safety net — even though the
+ * Playwright webServer health check now probes /api/automation/v1, a brief
+ * race between backend startup and the first test request is still possible.
  */
 async function listAutomations(
   request: import("@playwright/test").APIRequestContext,
@@ -102,8 +102,15 @@ async function listAutomationRuns(
       },
     },
   );
-  // Allow 502 during startup — waitForRunStatus retries anyway
-  if (!resp.ok()) return { runs: [], items: [] };
+  if (!resp.ok()) {
+    const status = resp.status();
+    // 502/503 = backend still starting — return empty so the caller retries
+    if (status === 502 || status === 503) return { runs: [], items: [] };
+    // Any other error is unexpected — surface it immediately
+    throw new Error(
+      `GET automation runs returned ${status} for ${automationId}`,
+    );
+  }
   return resp.json();
 }
 
