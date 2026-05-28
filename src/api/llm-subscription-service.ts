@@ -122,23 +122,8 @@ function normalizeDeviceChallenge(
 class LLMSubscriptionService {
   static async getOpenAIModels(): Promise<string[]> {
     return withLlmClient(async (client) => {
-      // Merge the dedicated subscription endpoint with LiteLLM's `chatgpt/`
-      // provider, which tracks models accessible via ChatGPT subscription.
-      const [subResult, chatgptResult] = await Promise.allSettled([
-        client.getOpenAISubscriptionModels(),
-        client.getModels("chatgpt"),
-      ]);
-
-      const sub =
-        subResult.status === "fulfilled" ? (subResult.value ?? []) : [];
-      const chatgpt =
-        chatgptResult.status === "fulfilled"
-          ? (chatgptResult.value ?? []).map((m: string) =>
-              m.replace(/^chatgpt\//, ""),
-            )
-          : [];
-
-      return [...new Set([...sub, ...chatgpt])];
+      const models = await client.getModels("chatgpt");
+      return (models ?? []).map((m: string) => m.replace(/^chatgpt\//, ""));
     });
   }
 

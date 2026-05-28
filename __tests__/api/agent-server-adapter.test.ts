@@ -14,7 +14,6 @@ import {
 } from "#/api/conversation-metadata-store";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import {
-  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
   LLM_AUTH_TYPE_SUBSCRIPTION,
   OPENAI_SUBSCRIPTION_VENDOR,
 } from "#/constants/llm-subscription";
@@ -156,7 +155,7 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  it("falls back to the default subscription model for invalid subscription models", () => {
+  it("passes the stored model through unchanged for subscription auth", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -171,9 +170,7 @@ describe("buildStartConversationRequest", () => {
       },
     }) as { agent_settings: { llm: Record<string, unknown> } };
 
-    expect(payload.agent_settings.llm.model).toBe(
-      DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
-    );
+    expect(payload.agent_settings.llm.model).toBe("openai/gpt-4o");
   });
 
   it("forwards the switch-LLM setting to SDK agent settings", () => {

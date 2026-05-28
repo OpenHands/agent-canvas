@@ -25,13 +25,11 @@ import {
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import {
-  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
   LLM_AUTH_TYPE_API_KEY,
   LLM_AUTH_TYPE_KEY,
   LLM_AUTH_TYPE_SUBSCRIPTION,
   LLM_SUBSCRIPTION_VENDOR_KEY,
   OPENAI_SUBSCRIPTION_VENDOR,
-  isOpenAISubscriptionModel,
   resolveLlmAuthType,
 } from "#/constants/llm-subscription";
 import { useOpenAISubscriptionModels } from "#/hooks/query/use-llm-subscription-models";
@@ -178,9 +176,9 @@ export function LlmSettingsScreen({
       const showOpenHandsApiKeyHelp = modelValue.startsWith("openhands/");
       const authType = resolveLlmAuthType(values[LLM_AUTH_TYPE_KEY]);
       const isSubscriptionAuth = authType === LLM_AUTH_TYPE_SUBSCRIPTION;
-      const subscriptionModelValue = isOpenAISubscriptionModel(modelValue)
+      const subscriptionModelValue = subscriptionModels?.includes(modelValue)
         ? modelValue
-        : DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
+        : (subscriptionModels?.[0] ?? "");
 
       const apiKeyValue =
         typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
@@ -226,10 +224,10 @@ export function LlmSettingsScreen({
 
         if (nextAuthType === LLM_AUTH_TYPE_SUBSCRIPTION) {
           onChange(LLM_SUBSCRIPTION_VENDOR_KEY, OPENAI_SUBSCRIPTION_VENDOR);
-          if (!isOpenAISubscriptionModel(modelValue)) {
-            onChange("llm.model", DEFAULT_OPENAI_SUBSCRIPTION_MODEL);
+          if (!subscriptionModels?.includes(modelValue)) {
+            onChange("llm.model", subscriptionModels?.[0] ?? "");
           }
-        } else if (isOpenAISubscriptionModel(modelValue)) {
+        } else if (subscriptionModels?.includes(modelValue)) {
           onChange("llm.model", defaultModel);
         }
       };
@@ -277,7 +275,7 @@ export function LlmSettingsScreen({
             onSelectionChange={(selectedKey) => {
               onChange(
                 "llm.model",
-                String(selectedKey ?? DEFAULT_OPENAI_SUBSCRIPTION_MODEL),
+                String(selectedKey ?? subscriptionModels?.[0] ?? ""),
               );
             }}
           />
@@ -393,9 +391,9 @@ export function LlmSettingsScreen({
           typeof llm.model === "string"
             ? llm.model
             : String(context.values["llm.model"] ?? "");
-        llm.model = isOpenAISubscriptionModel(model)
+        llm.model = subscriptionModels?.includes(model)
           ? model
-          : DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
+          : (subscriptionModels?.[0] ?? "");
         delete llm.api_key;
         delete llm.base_url;
       } else {

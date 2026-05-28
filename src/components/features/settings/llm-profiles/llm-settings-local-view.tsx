@@ -21,13 +21,11 @@ import {
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
 import { SettingsFormValues } from "#/utils/sdk-settings-schema";
 import {
-  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
   LLM_AUTH_TYPE_API_KEY,
   LLM_AUTH_TYPE_KEY,
   LLM_AUTH_TYPE_SUBSCRIPTION,
   LLM_SUBSCRIPTION_VENDOR_KEY,
   OPENAI_SUBSCRIPTION_VENDOR,
-  isOpenAISubscriptionModel,
   resolveLlmAuthType,
 } from "#/constants/llm-subscription";
 import { ArrowLeft } from "lucide-react";
@@ -202,9 +200,6 @@ export function LlmSettingsLocalView() {
       if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
         llmConfig.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
         llmConfig.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
-        if (!isOpenAISubscriptionModel(model)) {
-          llmConfig.model = DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
-        }
       } else {
         llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
         if (apiKey) {

@@ -15,25 +15,9 @@ export const OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH =
 export const OPENAI_SUBSCRIPTION_LOGOUT_PATH =
   "/api/llm/subscription/openai/logout";
 
-export const OPENAI_SUBSCRIPTION_MODELS = [
-  "gpt-5.5",
-  "gpt-5.4-pro",
-  "gpt-5.4",
-  "gpt-5.3-codex",
-  "gpt-5.2-codex",
-  "gpt-5.2",
-  "gpt-5.1-codex-max",
-  "gpt-5.1-codex-mini",
-] as const;
-
 export type LlmAuthType =
   | typeof LLM_AUTH_TYPE_API_KEY
   | typeof LLM_AUTH_TYPE_SUBSCRIPTION;
-export type OpenAISubscriptionModel =
-  (typeof OPENAI_SUBSCRIPTION_MODELS)[number];
-
-export const DEFAULT_OPENAI_SUBSCRIPTION_MODEL: OpenAISubscriptionModel =
-  OPENAI_SUBSCRIPTION_MODELS[0];
 
 export const LLM_AUTH_TYPE_CHOICES: SettingsChoice[] = [
   { label: "API key", value: LLM_AUTH_TYPE_API_KEY },
@@ -80,12 +64,6 @@ export function resolveLlmAuthType(value: unknown): LlmAuthType {
   return value === LLM_AUTH_TYPE_SUBSCRIPTION
     ? LLM_AUTH_TYPE_SUBSCRIPTION
     : LLM_AUTH_TYPE_API_KEY;
-}
-
-export function isOpenAISubscriptionModel(
-  value: string,
-): value is OpenAISubscriptionModel {
-  return OPENAI_SUBSCRIPTION_MODELS.includes(value as OpenAISubscriptionModel);
 }
 
 export function isSubscriptionLlmConfig(

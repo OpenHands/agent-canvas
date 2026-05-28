@@ -21,10 +21,8 @@ import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
 import LLMSubscriptionService from "./llm-subscription-service";
 import {
-  DEFAULT_OPENAI_SUBSCRIPTION_MODEL,
   LLM_AUTH_TYPE_SUBSCRIPTION,
   OPENAI_SUBSCRIPTION_VENDOR,
-  isOpenAISubscriptionModel,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
 
@@ -590,9 +588,6 @@ function buildConfiguredOpenHandsAgentSettings(
   if (isSubscriptionLlmConfig(llm)) {
     llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
     llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
-    if (!isOpenAISubscriptionModel(String(llm.model))) {
-      llm.model = DEFAULT_OPENAI_SUBSCRIPTION_MODEL;
-    }
     delete llm.api_key;
     delete llm.base_url;
   } else {
