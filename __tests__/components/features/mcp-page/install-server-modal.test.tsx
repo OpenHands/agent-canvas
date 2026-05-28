@@ -246,14 +246,23 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-test-fail",
+      kind: "mcp",
       name: "Failing Server",
       description: "Always fails the connection test.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
 
     renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
@@ -291,14 +300,23 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-test-pass",
+      kind: "mcp",
       name: "Passing Server",
       description: "Always passes the connection test.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
 
     renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
@@ -325,14 +343,23 @@ describe("InstallServerModal", () => {
 
     const entry: MarketplaceEntry = {
       id: "synthetic-pending",
+      kind: "mcp",
       name: "Pending Server",
       description: "Connection test never resolves.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
 
     renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
