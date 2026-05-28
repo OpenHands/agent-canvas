@@ -37,11 +37,15 @@ const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
   return -1;
 };
 
+// Join text blocks WITHOUT a separator: streaming deltas concatenate content
+// tokens directly with no separator between LLM content blocks, so using "\n"
+// here would cause startsWith/findTextSegmentsInOrder to miss when reconciling
+// a multi-block MessageEvent against the already-rendered streaming delta.
 const getAgentMessageText = (event: MessageEvent): string =>
   event.llm_message.content
     .filter((content) => content.type === "text")
     .map((content) => content.text)
-    .join("\n");
+    .join("");
 
 const getFinalAgentText = (event: OpenHandsEvent): string | null => {
   if (isActionEvent(event) && event.action.kind === "FinishAction") {
@@ -92,6 +96,12 @@ const finalizeStreamingDeltasInPlace = (
   }
 
   const finalText = getFinalAgentText(finalEvent);
+  // Only the regular `content` field participates in reconciliation.
+  // Reasoning-only deltas (those that carry only `reasoning_content`) produce
+  // an empty streamingSegments list, causing the function to return null so
+  // the finalEvent is appended normally.  This is intentional: reasoning
+  // content renders in its own collapsed bubble and never overlaps with the
+  // assistant's regular message text in `FinishAction.message`.
   const streamingSegments = currentTurnStreamingDeltaIndexes
     .map((index) => uiEvents[index])
     .filter(isStreamingDeltaEvent)
@@ -128,6 +138,10 @@ const finalizeStreamingDeltasInPlace = (
     );
   }
 
+  // Intentionally return nextUiEvents WITHOUT appending finalEvent.
+  // The last streaming delta (possibly extended with unstreamedSuffix above)
+  // becomes the canonical final rendered bubble for this turn.  Appending
+  // finalEvent here would display the assistant message twice.
   return nextUiEvents;
 };
 
