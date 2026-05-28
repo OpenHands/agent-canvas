@@ -22,6 +22,7 @@ import {
   WORKSPACE_HANDLERS,
   resetWorkspaceMockData,
 } from "./workspace-handlers";
+import { MCP_HANDLERS } from "./mcp-handlers";
 
 export const handlers = [
   ...FILE_SERVICE_HANDLERS,
@@ -35,6 +36,7 @@ export const handlers = [
   ...ANALYTICS_HANDLERS,
   ...AUTOMATION_HANDLERS,
   ...WORKSPACE_HANDLERS,
+  ...MCP_HANDLERS,
 ];
 
 export {
