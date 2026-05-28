@@ -38,20 +38,25 @@ Notably, you can run the backend in _multiple different environments_, and switc
 them from the same Agent Canvas frontend. E.g. you can share an Agent Server with your team for agents doing
 code review and dependency updates, then have your personal agents running on your laptop.
 
+### Option 1: Without a Sandbox
+
 > [!WARNING]
 > This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
-### Option 1: Docker
+**Prerequisites**: Node.js 22.12.x or later, `uv`
+
+```sh
+npm install -g @openhands/agent-canvas
+agent-canvas
+```
+
+### Option 2: With a Docker Sandbox
 
 ```sh
 docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
-```
 
-```sh
 export PROJECTS_PATH=~/projects  # directory containing your project folders
-```
 
-```sh
 docker run -it --rm \
   -p 8000:8000 \
   -v ~/.openhands:/home/openhands/.openhands \
@@ -61,21 +66,7 @@ docker run -it --rm \
 
 The agent will be able to access any project under `PROJECTS_PATH`.
 
-### Option 2: NPM
 
-**Prerequisites**: Node.js 22.12.x or later, `uv`
-
-```sh
-npm install -g @openhands/agent-canvas
-```
-
-```sh
-export PROJECTS_PATH=~/projects  # directory containing your project folders
-```
-
-```sh
-agent-canvas
-```
 
 ### Option 3: From Source
 
