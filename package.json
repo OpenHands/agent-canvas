@@ -174,7 +174,8 @@
     "bin",
     "build",
     "config",
-    "scripts"
+    "scripts",
+    "tools"
   ],
   "exports": {
     ".": {

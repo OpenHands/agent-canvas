@@ -144,19 +144,25 @@ you are running inside of — NOT the automation backend.
 
 ## Mock-LLM E2E Test Framework
 
-- Mock-LLM tests live under `tests/e2e/mock-llm/` and are run via `npx playwright test --config=playwright.mock-llm.config.ts`. They exercise the complete stack (browser → real agent-server → mock LLM server) without real LLM credentials.
+- Mock-LLM tests live under `tests/e2e/mock-llm/` and exercise the complete stack — from the browser through the real agent-server to a scripted mock LLM server — without any real LLM credentials. Run locally with `npm run test:e2e:mock-llm`.
+- **Production-fidelity launch**: The Playwright config (`playwright.mock-llm.config.ts`) starts the full `agent-canvas` stack via `bin/agent-canvas.mjs` — the same binary that `npx @openhands/agent-canvas` executes when users install the npm package. This means mock-LLM tests exercise the actual production path: pre-built static frontend + static-server.mjs + agent-server via uvx + automation backend via uvx + ingress proxy, all behind a single port.
+- A pre-built `build/` directory is required. The Playwright webServer command runs `npm run build:app` when `build/index.html` is absent, but CI should run the build step explicitly for caching (`npm run build:app` in `.github/workflows/mock-llm-e2e.yml`).
+- **Single ingress URL**: Tests use one URL for both the browser (`baseURL`) and backend API assertions (`BACKEND_URL`). The ingress proxy routes `/api/*` to the agent-server, `/api/automation/*` to the automation backend, and `/*` to the static frontend. Default ingress port for tests is `18300` (override via `MOCK_LLM_INGRESS_PORT` env var).
+- **State isolation**: `OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state` isolates test state from the user's real `~/.openhands/agent-canvas/` directory. The directory is cleaned before each test run.
+- **Session API key**: A random key is generated per test run and passed to the stack via `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY`. The static server injects it into `index.html` at serve time so the frontend authenticates automatically.
 - **Mock LLM server** (`tests/e2e/mock-llm/scripts/mock-llm-server.py`): Python HTTP server using openhands-sdk's `TestLLM` to return scripted tool-call + text trajectories. Supports admin API endpoints for dynamic trajectory management:
   - `POST /admin/reset` — reset to the default trajectory (terminal printf + text reply)
   - `POST /admin/trajectory/register` — register a named trajectory (JSON body: `{name, turns}` where each turn is `{tool_call: {name, arguments}}` or `{text: "..."}`)
   - `POST /admin/trajectory/activate` — activate a previously registered trajectory
 - **Mock Automation server** (`tests/e2e/mock-llm/scripts/mock-automation-server.py`): Lightweight Python HTTP server that implements the automation API in memory. Handles `GET /api/automation/health`, `POST /api/automation/v1/preset/prompt`, `GET /api/automation/v1`, `POST /api/automation/v1/{id}/dispatch`, `GET /api/automation/v1/{id}/runs`. Runs auto-complete after ~0.5s. Supports `POST /admin/reset` to clear all state.
-- **Playwright config** (`playwright.mock-llm.config.ts`): Starts three webServers — mock LLM (port 9999), mock automation (port 18299), and the real agent-server + Vite frontend (via `dev-safe.mjs`). All ports are configurable via env vars.
 - **Routing automation API calls**: Browser requests to `/api/automation/*` are intercepted by Playwright's `page.route()` via `routeAutomationApiToMock()` and forwarded to the mock automation server. Terminal `curl` commands from the agent hit the mock server directly at `http://127.0.0.1:18299`.
 - **Test helpers** (`tests/e2e/mock-llm/utils/mock-llm-helpers.ts`): Exports `registerTrajectory()`, `activateTrajectory()`, `resetMockLLM()`, `resetMockAutomation()`, `routeAutomationApiToMock()`, `ensureMockLLMProfile()`, `listMockAutomations()`, `waitForRunStatus()`, etc.
 - **Test specs**:
   - `mock-llm-conversation.spec.ts` — Creates LLM profile via UI, runs a conversation with a terminal tool call, verifies bash execution and agent reply.
   - `mock-llm-automation.spec.ts` — Self-contained automation lifecycle: registers a trajectory where the LLM creates a cron automation and dispatches a run via terminal `curl` commands to the mock automation server. Verifies the automation was created and the run completed.
 - Tests run serially (`workers: 1`, `mode: "serial"` per describe block). Files are discovered alphabetically so automation tests run before conversation tests; each spec is self-contained (automation test configures its own LLM profile via the settings API).
+- CI workflow: `.github/workflows/mock-llm-e2e.yml` runs on PRs with the `e2e-tests` label or on manual dispatch. It builds the frontend, starts the mock LLM server, runs the tests, and posts a PR comment with results.
+- The custom `DoneMarkerReporter` writes `.mock-llm-markers/.tests-done` after all tests complete (before webServer teardown) so the CI wrapper can detect completion and kill the lingering teardown process.
 
 ## Additional Notes
 

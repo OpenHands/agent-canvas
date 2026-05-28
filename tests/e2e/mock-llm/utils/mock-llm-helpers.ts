@@ -17,11 +17,13 @@ export const REPLY_TOKEN = "MOCK_LLM_E2E_REPLY_OK";
 export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
+// The agent-canvas binary exposes a single ingress port; API calls are proxied
+// through it, so BACKEND_URL = ingress URL (no separate backend port).
 export const MOCK_LLM_PORT =
   process.env.MOCK_LLM_PORT ?? "9999";
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
 export const BACKEND_URL =
-  process.env.MOCK_LLM_BACKEND_URL ?? "http://127.0.0.1:18200";
+  process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
 export const SESSION_API_KEY = (() => {
   const key =
     process.env.MOCK_LLM_SESSION_API_KEY ??
