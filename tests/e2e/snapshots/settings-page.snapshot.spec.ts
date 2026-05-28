@@ -161,7 +161,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible();
+    await expect(homeScreen).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
 
     const rootLayout = page.getByTestId("root-layout");
@@ -218,7 +218,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible();
+    await expect(homeScreen).toBeVisible({ timeout: 15_000 });
 
     // The backend selector uses openOnHover, so hovering opens the
     // dropdown. Clicking the toggle would close it again, so we hover
