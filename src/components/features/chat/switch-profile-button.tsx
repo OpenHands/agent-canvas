@@ -34,9 +34,8 @@ export function SwitchProfileButton() {
   // controlled by ``acp_model`` (set in Settings → Agent), not by the LLM
   // profile picker. Surfacing the switcher here would let the user "change
   // the model" while the running subprocess silently keeps its own — a
-  // confusing no-op. Hide the button instead. ``toAppConversation`` also
-  // nulls ``llm_model`` on this boundary so any other consumer that reads
-  // the model directly sees "no model" rather than a misleading value.
+  // confusing no-op. Hide the button even when ``llm_model`` carries an ACP
+  // display model for chips/headers.
   //
   // On the home screen ``conversation`` is undefined; fall back to
   // ``settings.agent_settings.agent_kind`` so the picker also hides when

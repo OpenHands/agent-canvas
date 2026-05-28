@@ -5167,22 +5167,39 @@
     "uk": "Model",
     "ca": "Model"
   },
+  "SETTINGS$AGENT_CUSTOM_MODEL": {
+    "en": "Custom model",
+    "ja": "カスタムモデル",
+    "zh-CN": "自定义模型",
+    "zh-TW": "自訂模型",
+    "ko-KR": "사용자 정의 모델",
+    "no": "Egendefinert modell",
+    "it": "Modello personalizzato",
+    "pt": "Modelo personalizado",
+    "es": "Modelo personalizado",
+    "ar": "نموذج مخصص",
+    "fr": "Modèle personnalisé",
+    "tr": "Özel model",
+    "de": "Benutzerdefiniertes Modell",
+    "uk": "Користувацька модель",
+    "ca": "Model personalitzat"
+  },
   "SETTINGS$AGENT_MODEL_HINT": {
-    "en": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "ja": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "zh-CN": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "zh-TW": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "ko-KR": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "no": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "it": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "pt": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "es": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "ar": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "fr": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "tr": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "de": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "uk": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default.",
-    "ca": "Optional model override forwarded to the ACP subprocess. Leave blank to use the provider's default."
+    "en": "Choose a suggested ACP model or enter a custom model override. Built-in providers save a concrete model instead of leaving the model blank.",
+    "ja": "推奨される ACP モデルを選択するか、カスタムモデルの上書きを入力してください。組み込みプロバイダーはモデルを空白のままにせず、具体的なモデルを保存します。",
+    "zh-CN": "选择一个建议的 ACP 模型，或输入自定义模型覆盖。内置提供商会保存一个具体的模型，而不是将模型留空。",
+    "zh-TW": "選擇一個建議的 ACP 模型，或輸入自訂模型覆寫。內建供應商會儲存具體的模型，而不是將模型留空。",
+    "ko-KR": "추천 ACP 모델을 선택하거나 사용자 정의 모델 재정의를 입력하세요. 기본 제공 공급자는 모델을 비워두지 않고 구체적인 모델을 저장합니다.",
+    "no": "Velg en foreslått ACP-modell eller skriv inn en egendefinert modelloverstyring. Innebygde leverandører lagrer en konkret modell i stedet for å la modellen være tom.",
+    "it": "Scegli un modello ACP suggerito o inserisci una sostituzione personalizzata. I provider integrati salvano un modello concreto invece di lasciarlo vuoto.",
+    "pt": "Escolha um modelo ACP sugerido ou insira uma substituição de modelo personalizada. Os provedores integrados salvam um modelo concreto em vez de deixá-lo em branco.",
+    "es": "Elige un modelo ACP sugerido o introduce una sustitución de modelo personalizada. Los proveedores integrados guardan un modelo concreto en lugar de dejarlo en blanco.",
+    "ar": "اختر نموذج ACP مقترحًا أو أدخل تجاوزًا لنموذج مخصص. تقوم المزودات المدمجة بحفظ نموذج محدد بدلًا من ترك النموذج فارغًا.",
+    "fr": "Choisissez un modèle ACP suggéré ou saisissez un remplacement de modèle personnalisé. Les fournisseurs intégrés enregistrent un modèle concret plutôt que de laisser le champ vide.",
+    "tr": "Önerilen bir ACP modelini seçin veya özel bir model geçersiz kılma değeri girin. Yerleşik sağlayıcılar, modeli boş bırakmak yerine somut bir model kaydeder.",
+    "de": "Wähle ein vorgeschlagenes ACP-Modell aus oder gib eine benutzerdefinierte Modellüberschreibung ein. Integrierte Anbieter speichern ein konkretes Modell, anstatt das Modellfeld leer zu lassen.",
+    "uk": "Виберіть рекомендовану модель ACP або введіть користувацьке перевизначення моделі. Вбудовані постачальники зберігають конкретну модель замість того, щоб залишати поле порожнім.",
+    "ca": "Tria un model ACP suggerit o introdueix una substitució de model personalitzada. Els proveïdors integrats desen un model concret en lloc de deixar-lo en blanc."
   },
   "SETTINGS$AGENT_DISABLED_TOOLTIP": {
     "en": "Disabled while {{agentName}} is the active agent",
@@ -12443,6 +12460,40 @@
     "uk": "Не вдалося оновити автоматизацію",
     "ca": "No s'ha pogut actualitzar l'automatització"
   },
+  "AUTOMATIONS$RUN_NOW_SUCCESS": {
+    "en": "Automation dispatched",
+    "ja": "オートメーションを実行しました",
+    "zh-CN": "自动化已触发",
+    "zh-TW": "自動化已觸發",
+    "ko-KR": "자동화가 실행되었습니다",
+    "no": "Automatisering startet",
+    "it": "Automazione avviata",
+    "pt": "Automação disparada",
+    "es": "Automatización ejecutada",
+    "ar": "تم تشغيل الأتمتة",
+    "fr": "Automatisation lancée",
+    "tr": "Otomasyon başlatıldı",
+    "de": "Automatisierung gestartet",
+    "uk": "Автоматизацію запущено",
+    "ca": "S'ha executat l'automatització"
+  },
+  "AUTOMATIONS$RUN_NOW_ERROR": {
+    "en": "Could not dispatch automation",
+    "ja": "オートメーションを実行できませんでした",
+    "zh-CN": "无法触发自动化",
+    "zh-TW": "無法觸發自動化",
+    "ko-KR": "자동화를 실행할 수 없습니다",
+    "no": "Kunne ikke starte automatiseringen",
+    "it": "Impossibile avviare l'automazione",
+    "pt": "Não foi possível disparar a automação",
+    "es": "No se pudo ejecutar la automatización",
+    "ar": "تعذر تشغيل الأتمتة",
+    "fr": "Impossible de lancer l'automatisation",
+    "tr": "Otomasyon başlatılamadı",
+    "de": "Automatisierung konnte nicht gestartet werden",
+    "uk": "Не вдалося запустити автоматизацію",
+    "ca": "No s'ha pogut executar l'automatització"
+  },
   "AUTOMATIONS$NAME_REQUIRED": {
     "en": "Name is required",
     "ja": "名前は必須です",
@@ -13666,6 +13717,24 @@
     "de": "MCP-Server entfernt.",
     "uk": "Сервер MCP видалено.",
     "ca": "Servidor MCP eliminat."
+  },
+  "MCP$TEST_BUTTON": {
+    "en": "Test connection"
+  },
+  "MCP$VERIFYING": {
+    "en": "Verifying…"
+  },
+  "MCP$TEST_SUCCESS": {
+    "en": "Connected — {{count}} tool(s) available"
+  },
+  "MCP$TEST_ERROR_TIMEOUT": {
+    "en": "Connection timed out. Check the URL and try again."
+  },
+  "MCP$TEST_ERROR_CONNECTION": {
+    "en": "Could not reach the server. Check the URL and server type."
+  },
+  "MCP$TEST_ERROR_UNKNOWN": {
+    "en": "Connection failed: {{-error}}"
   },
   "MCP$EDIT_SERVER_ARIA": {
     "en": "Edit {{name}}",
@@ -15861,21 +15930,21 @@
     "uk": "Метадані"
   },
   "CONVERSATION_PANEL$LLM_MODEL": {
-    "en": "LLM model",
-    "ja": "LLMモデル",
-    "zh-CN": "大语言模型",
-    "zh-TW": "LLM 模型",
-    "ko-KR": "LLM 모델",
-    "no": "LLM-modell",
-    "ar": "نموذج LLM",
-    "de": "LLM-Modell",
-    "fr": "Modèle LLM",
-    "it": "Modello LLM",
-    "pt": "Modelo LLM",
-    "es": "Modelo LLM",
-    "ca": "Model LLM",
-    "tr": "LLM modeli",
-    "uk": "Модель LLM"
+    "en": "Agent / model",
+    "ja": "エージェント / モデル",
+    "zh-CN": "代理 / 模型",
+    "zh-TW": "代理 / 模型",
+    "ko-KR": "에이전트 / 모델",
+    "no": "Agent / modell",
+    "ar": "الوكيل / النموذج",
+    "de": "Agent / Modell",
+    "fr": "Agent / modèle",
+    "it": "Agente / modello",
+    "pt": "Agente / modelo",
+    "es": "Agente / modelo",
+    "ca": "Agent / model",
+    "tr": "Aracı / model",
+    "uk": "Агент / модель"
   },
   "CONVERSATION_PANEL$REPO_BRANCH": {
     "en": "Repo and branch",

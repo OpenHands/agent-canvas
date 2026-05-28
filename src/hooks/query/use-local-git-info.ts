@@ -3,6 +3,7 @@ import { useRef } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
@@ -29,19 +30,38 @@ type RunCommand = (
   timeout: number,
 ) => Promise<CommandResult>;
 
-async function probeGitInfoAtDir(
+// Single shell script that replaces the former probeGitInfoAtDir +
+// probeNestedRepoInDir pair.  It runs as one bash WebSocket round-trip:
+//   1. Read the origin remote URL and current branch at the workspace root.
+//   2. If neither is set, search for exactly one nested git repo up to 4
+//      levels deep and repeat the probe there.
+// Output: two lines — <remote-url>\n<branch> — either may be empty.
+const GIT_INFO_COMMAND = [
+  "r=$(git remote get-url origin 2>/dev/null)",
+  "b=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)",
+  'if [ -z "$r$b" ]; then',
+  "n=$(find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | cut -c3- | sed 's|/.git$||' | sort -u)",
+  "c=$(printf '%s\\n' \"$n\" | grep -c '[^[:space:]]')",
+  'if [ "$c" = "1" ] && [ -n "$n" ]; then',
+  'r=$(git -C "$n" remote get-url origin 2>/dev/null)',
+  'b=$(git -C "$n" rev-parse --abbrev-ref HEAD 2>/dev/null)',
+  "fi",
+  "fi",
+  'printf \'%s\\n%s\' "$r" "$b"',
+].join("\n");
+
+async function probeGitInfo(
   run: RunCommand,
   directory: string,
 ): Promise<LocalGitInfo> {
-  const [remoteResult, branchResult] = await Promise.all([
-    run("git remote get-url origin", directory, 10),
-    run("git rev-parse --abbrev-ref HEAD", directory, 10),
-  ]);
+  const result = await run(GIT_INFO_COMMAND, directory, 10);
+  if (result.exit_code !== 0) return EMPTY_LOCAL_GIT_INFO;
 
-  const remoteUrl =
-    remoteResult.exit_code === 0 ? remoteResult.stdout.trim() : "";
-  const rawBranch =
-    branchResult.exit_code === 0 ? branchResult.stdout.trim() : "";
+  const nl = result.stdout.indexOf("\n");
+  const remoteUrl = (
+    nl >= 0 ? result.stdout.slice(0, nl) : result.stdout
+  ).trim();
+  const rawBranch = (nl >= 0 ? result.stdout.slice(nl + 1) : "").trim();
   const branch = rawBranch && rawBranch !== "HEAD" ? rawBranch : null;
 
   if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
@@ -55,53 +75,30 @@ async function probeGitInfoAtDir(
   };
 }
 
-async function probeNestedRepoInDir(
-  run: RunCommand,
-  directory: string,
-): Promise<LocalGitInfo> {
-  const nestedReposResult = await run(
-    "find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | sed 's#^\\./##' | sed 's#/.git$##'",
-    directory,
-    10,
-  );
-
-  if (nestedReposResult.exit_code !== 0) return EMPTY_LOCAL_GIT_INFO;
-
-  const nestedRepos = Array.from(
-    new Set(
-      nestedReposResult.stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean),
-    ),
-  );
-
-  if (nestedRepos.length !== 1) return EMPTY_LOCAL_GIT_INFO;
-
-  const nestedDir = `${directory}/${nestedRepos[0]}`.replace(/\/+/g, "/");
-  return probeGitInfoAtDir(run, nestedDir);
-}
-
 /**
- * Probe git metadata directly from the workspace checkout via the agent
- * server's bash-events WebSocket (`git remote get-url origin`,
- * `git rev-parse --abbrev-ref HEAD`).
+ * Probe git metadata for a **local** backend's workspace checkout by
+ * shelling out via the agent server using a single consolidated bash
+ * script (see `GIT_INFO_COMMAND`).
  *
- * We intentionally keep this probe enabled until the active conversation has
- * a complete repo tuple (`selected_repository`, `git_provider`,
- * `selected_branch`) so the control bar can recover from partial metadata
- * hydration after connect/clone flows.
+ * Local-only by design. On cloud backends the conversation metadata
+ * (`selected_repository`, `git_provider`, `selected_branch`) is the
+ * source of truth, and probing via `/api/bash/execute_bash_command`
+ * would (a) leak the user's local `getAgentServerWorkingDir()` path to
+ * the cloud runtime when `workspace.working_dir` is missing, and
+ * (b) hit a bash endpoint we don't want the frontend driving on cloud.
  *
- * Commands are executed over a persistent WebSocket connection
- * (`/sockets/bash-events`) rather than individual REST calls, which avoids
- * the per-request HTTP overhead of the previous polling approach.
+ * On local, we keep the probe enabled until the active conversation
+ * has a complete repo tuple so the control bar can recover from
+ * partial metadata hydration after connect/clone flows.
  *
- * Returns `null` fields when the working dir is not a git checkout — callers
- * should treat that the same as "no repo detected".
+ * Returns `null` fields when the working dir is not a git checkout —
+ * callers should treat that the same as "no repo detected".
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const { backend } = useActiveBackend();
+  const isLocalBackend = backend.kind === "local";
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -113,6 +110,7 @@ export const useLocalGitInfo = () => {
   const hasConversationBranch = !!conversation?.selected_branch;
 
   const queryEnabled =
+    isLocalBackend &&
     runtimeIsReady &&
     !!conversationId &&
     (!hasConversationRepo ||
@@ -148,15 +146,7 @@ export const useLocalGitInfo = () => {
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
         runCommandRef.current(command, cwd, timeout);
-      const directInfo = await probeGitInfoAtDir(run, workingDir);
-      if (directInfo.repository || directInfo.branch) return directInfo;
-
-      // Common local flow: user starts in a non-git parent workspace and
-      // clones a single repository into a child directory.
-      const nestedInfo = await probeNestedRepoInDir(run, workingDir);
-      if (nestedInfo.repository || nestedInfo.branch) return nestedInfo;
-
-      return EMPTY_LOCAL_GIT_INFO;
+      return probeGitInfo(run, workingDir);
     },
     enabled: queryEnabled,
     retry: false,

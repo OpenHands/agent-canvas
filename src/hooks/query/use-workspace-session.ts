@@ -2,8 +2,6 @@ import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-w
 import { useQuery } from "@tanstack/react-query";
 
 import { getActiveBackend } from "#/api/backend-registry/active-store";
-import { callCloudProxy } from "#/api/cloud/proxy";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -27,6 +25,14 @@ export interface WorkspaceSession {
  * navigations — which it cannot do when the only credential is a custom
  * request header.
  *
+ * Local-only. The cookie flow is useless on cloud: the POST would be a
+ * server-side hop through `callCloudProxy` (so the `Set-Cookie` never
+ * reaches the browser jar), and the runtime sandbox is cross-origin with
+ * the GUI (so `fetch(staticUrl, { credentials: "include" })` couldn't
+ * attach the cookie anyway). On cloud, `useWorkspaceFileContent` fetches
+ * bytes through `callCloudProxy` directly and renders binary kinds as
+ * `data:` URIs, so this hook stays disabled and returns `data: null`.
+ *
  * We treat the call as cache-once-per-conversation: the cookie lives in
  * the browser jar, so re-issuing the POST on every component remount is
  * wasted work. `staleTime: Infinity` keeps the cached `baseUrl` in place
@@ -49,8 +55,9 @@ export function useWorkspaceSession(): {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
+  const isLocal = getActiveBackend().backend.kind === "local";
 
-  const enabled = runtimeIsReady && !!conversationId;
+  const enabled = runtimeIsReady && !!conversationId && isLocal;
 
   const query = useQuery<WorkspaceSession>({
     queryKey: [
@@ -60,24 +67,6 @@ export function useWorkspaceSession(): {
       sessionApiKey,
     ],
     queryFn: async () => {
-      const active = getActiveBackend().backend;
-
-      if (active.kind === "cloud" && conversationUrl) {
-        // Cloud conversations: route through callCloudProxy to avoid CORS
-        // restrictions on direct browser → runtime sandbox calls.
-        const response = await callCloudProxy<{ base_url: string }>({
-          backend: active,
-          method: "POST",
-          hostOverride: buildHttpBaseUrl(conversationUrl),
-          path: "/api/auth/workspace-session",
-          body: { conversation_id: conversationId },
-          authMode: "session-api-key",
-          sessionApiKey,
-        });
-        return { baseUrl: response.base_url };
-      }
-
-      // Local conversations: use the SDK client directly.
       const workspace = new RemoteWorkspace(
         getAgentServerClientOptions({
           conversationUrl,

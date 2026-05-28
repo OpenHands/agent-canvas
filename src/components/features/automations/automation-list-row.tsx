@@ -108,7 +108,7 @@ export function AutomationListRow({
                 data-testid={`automation-run-now-${automation.id}`}
                 aria-label={t(I18nKey.AUTOMATIONS$RUN_NOW)}
                 aria-busy={isRunPending}
-                disabled={isRunPending}
+                disabled={isRunPending || !automation.enabled}
                 onClick={(event) => {
                   event.stopPropagation();
                   onRunNow(automation.id);

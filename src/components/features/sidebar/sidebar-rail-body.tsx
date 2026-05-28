@@ -8,6 +8,7 @@ import {
   Settings,
 } from "lucide-react";
 import { OpenHandsLogoButton } from "#/components/shared/buttons/openhands-logo-button";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { SidebarCollapsedIconSlot } from "./sidebar-collapsed-icon-slot";
 import { SidebarNavLink } from "./sidebar-nav-link";
 import { I18nKey } from "#/i18n/declaration";
@@ -44,7 +45,6 @@ export interface SidebarRailBodyProps {
   showCollapsedExpandButton: boolean;
   isExtensionsActive: boolean;
   currentPath: string;
-  navigate: (path: string) => void;
   activeBackendHealth: { isConnected: boolean | null } | undefined;
   collapsedBackendPopoverOpen: boolean;
   setCollapsedBackendPopoverOpen: (open: boolean) => void;
@@ -68,7 +68,6 @@ export function SidebarRailBody({
   showCollapsedExpandButton,
   isExtensionsActive,
   currentPath,
-  navigate,
   activeBackendHealth,
   collapsedBackendPopoverOpen,
   setCollapsedBackendPopoverOpen,
@@ -224,11 +223,10 @@ export function SidebarRailBody({
             content={t(I18nKey.SIDEBAR$SETTINGS)}
             placement="right"
           >
-            <button
-              type="button"
+            <NavigationLink
+              to="/settings"
               data-testid="collapsed-settings-link"
               aria-label={t(I18nKey.SIDEBAR$SETTINGS)}
-              onClick={() => navigate("/settings")}
               className={sidebarNavRowClassName({ collapsed: true })}
             >
               <SidebarCollapsedIconSlot
@@ -239,7 +237,7 @@ export function SidebarRailBody({
               <span className={sidebarNavLabelClassName(true)}>
                 {t(I18nKey.SIDEBAR$SETTINGS)}
               </span>
-            </button>
+            </NavigationLink>
           </StyledTooltip>
           <div
             className="relative"
