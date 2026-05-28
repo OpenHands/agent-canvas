@@ -49,12 +49,8 @@ export function buildFrontend(config, args = {}) {
       // to Vite.
       VITE_WORKING_DIR:
         config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-      // Bake the automation backend API key so the static frontend can talk
-      // to /api/automation through the ingress.
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Bake the same session key the agent-server accepts. Without this,
-      // a fresh browser session seeds the Local backend with an empty key and
-      // all authenticated agent-server calls fail with 401.
+      // Bake the session API key — used by the frontend for both agent-server
+      // and automation auth via the `X-Session-API-Key` header.
       VITE_SESSION_API_KEY: config.sessionApiKey,
       // Bake a description of the runtime services in this dev stack so the
       // frontend can populate the agent's <RUNTIME_SERVICES> system-prompt

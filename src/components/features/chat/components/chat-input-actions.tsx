@@ -20,6 +20,8 @@ import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import { labelForAcpModel } from "#/constants/acp-providers";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
@@ -59,9 +61,23 @@ export function ChatInputActions({
   const { data: conversation } = useActiveConversation();
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
-  const llmDestinationLabel = t(
-    isCloud ? I18nKey.SETTINGS$LLM_SETTINGS : I18nKey.SETTINGS$LLM_PROFILES,
-  );
+  // Shared with ChatInputModel: routes the model affordance to ChatInputModel
+  // (which knows how to show the ACP model) instead of SwitchProfileButton for
+  // ACP conversations — and for the home screen when Settings → Agent already
+  // selects an ACP agent, since the next conversation will inherit it.
+  const { isAcpContext, destinationPath, destinationLabel } =
+    useAcpModelContext();
+  // Mirror ChatInputModel: ACP conversations show the provider's human label
+  // (e.g. "Claude Opus 4.7") in the overflow model submenu, not the raw
+  // ``acp_model`` id. OpenHands keeps the raw model string.
+  const overflowModelLabel = isAcpContext
+    ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
+      conversation?.llm_model)
+    : conversation?.llm_model;
+  // Shown on cloud backends. On the home page it renders disabled with an
+  // explanatory tooltip (ChangeAgentButton handles that), since agent mode can
+  // only be switched once a conversation has begun.
+  const showChangeAgentButton = isCloud;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();
@@ -99,7 +115,7 @@ export function ChatInputActions({
       !rightEl ||
       !addEl ||
       !modelEl ||
-      (isCloud && !codeEl) ||
+      (showChangeAgentButton && !codeEl) ||
       typeof ResizeObserver === "undefined"
     ) {
       return;
@@ -137,7 +153,7 @@ export function ChatInputActions({
     syncWidths();
 
     return () => observer.disconnect();
-  }, [isCloud]);
+  }, [showChangeAgentButton]);
 
   const handlePauseAgent = () => {
     if (!conversationId) return;
@@ -164,7 +180,7 @@ export function ChatInputActions({
         showModelInline: false,
       };
 
-      if (isCloud && remaining >= codeWidth) {
+      if (showChangeAgentButton && remaining >= codeWidth) {
         next.showCodeInline = true;
         remaining -= codeWidth + INLINE_GAP;
       }
@@ -175,7 +191,7 @@ export function ChatInputActions({
 
       return next;
     },
-    [isCloud, codeWidth, modelWidth],
+    [showChangeAgentButton, codeWidth, modelWidth],
   );
 
   const leftBaseWidth =
@@ -183,20 +199,24 @@ export function ChatInputActions({
 
   const fitWithoutOverflow = fitOptionalItems(leftBaseWidth);
   const allOptionalFit =
-    (!isCloud || fitWithoutOverflow.showCodeInline) &&
+    (!showChangeAgentButton || fitWithoutOverflow.showCodeInline) &&
     fitWithoutOverflow.showModelInline;
 
   const fitWithOverflow = allOptionalFit
     ? fitWithoutOverflow
     : fitOptionalItems(leftBaseWidth - OVERFLOW_BUTTON_WIDTH - INLINE_GAP);
 
-  const showCodeInline = !isCloud ? false : fitWithOverflow.showCodeInline;
+  const showCodeInline = !showChangeAgentButton
+    ? false
+    : fitWithOverflow.showCodeInline;
   const showModelInline = fitWithOverflow.showModelInline;
   const showAddFileInline = true;
   const showAgentStatusInline = actionsRowWidth >= 360;
 
   const hasOverflowItems =
-    !showAddFileInline || (isCloud && !showCodeInline) || !showModelInline;
+    !showAddFileInline ||
+    (showChangeAgentButton && !showCodeInline) ||
+    !showModelInline;
 
   React.useEffect(() => {
     if (!hasOverflowItems) {
@@ -257,7 +277,7 @@ export function ChatInputActions({
       alignment="left"
       className="!static !top-auto !bottom-auto !left-auto !right-auto !mt-0 overflow-visible min-w-[200px]"
     >
-      {isCloud && !showCodeInline && (
+      {showChangeAgentButton && !showCodeInline && (
         <div className="relative group/overflow-agent">
           <ContextMenuListItem
             testId="overflow-agent-button"
@@ -360,13 +380,13 @@ export function ChatInputActions({
             >
               <li className="text-sm">
                 <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">
-                  {conversation?.llm_model}
+                  {overflowModelLabel}
                 </div>
               </li>
               <Divider inset="menu" />
               <li className="text-sm">
                 <NavigationLink
-                  to="/settings"
+                  to={destinationPath}
                   onClick={closeOverflowMenus}
                   className={cn(
                     "group flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
@@ -382,7 +402,7 @@ export function ChatInputActions({
                     )}
                     aria-hidden
                   />
-                  <span>{llmDestinationLabel}</span>
+                  <span>{destinationLabel}</span>
                 </NavigationLink>
               </li>
             </ContextMenu>
@@ -405,13 +425,17 @@ export function ChatInputActions({
               handleFileIconClick={onAddFileClick}
             />
           </div>
-          {isCloud && (
+          {showChangeAgentButton && (
             <div ref={codeRef} className={cn(!showCodeInline && "hidden")}>
               <ChangeAgentButton />
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud ? <ChatInputModel /> : <SwitchProfileButton />}
+            {isCloud || isAcpContext ? (
+              <ChatInputModel />
+            ) : (
+              <SwitchProfileButton />
+            )}
           </div>
 
           {hasOverflowItems && (

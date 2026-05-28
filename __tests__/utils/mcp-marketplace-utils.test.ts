@@ -97,6 +97,37 @@ describe("getInstallableMcpConnectionOption", () => {
     expect(option?.auth.strategy).toBe("api_key");
     expect(option?.transport.kind).toBe("stdio");
   });
+
+  it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
+    const oauthOnlyEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "oauth-only",
+        defaultConnectionOptionId: "oauth",
+        connectionOptions: [
+          {
+            id: "oauth",
+            provider: "mcp",
+            auth: { strategy: "oauth2" },
+            transport: { kind: "shttp", url: "https://example.com/mcp" },
+          } as Parameters<typeof getInstallableMcpConnectionOption>[0]["connectionOptions"][number],
+        ],
+      };
+    const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
+    expect(option).toBeUndefined();
+  });
+
+  it("returns undefined when the entry has no MCP connection options", () => {
+    const noOptionsEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "no-mcp",
+        defaultConnectionOptionId: undefined,
+        connectionOptions: [],
+      };
+    const option = getInstallableMcpConnectionOption(noOptionsEntry);
+    expect(option).toBeUndefined();
+  });
 });
 
 describe("isMarketplaceEntryAvailable", () => {

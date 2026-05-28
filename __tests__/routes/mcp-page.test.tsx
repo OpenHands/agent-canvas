@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MCPPage from "#/routes/mcp";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import McpService from "#/api/mcp-service/mcp-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -42,6 +43,11 @@ function renderPage() {
 describe("MCPPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Pre-flight connectivity test must pass so save mutations are reached.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+    });
   });
 
   it("renders the empty installed state and the marketplace", async () => {

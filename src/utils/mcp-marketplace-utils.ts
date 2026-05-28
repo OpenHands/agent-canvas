@@ -50,7 +50,7 @@ export function getInstallableMcpConnectionOption(
   if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
     return defaultOption;
   }
-  return options.find(isLocallyInstallableMcpOption) ?? defaultOption;
+  return options.find(isLocallyInstallableMcpOption);
 }
 
 export function getDefaultMcpTransport(

@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.7",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -23,8 +23,8 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "github:OpenHands/extensions#c4d8d9727405d26fe9013f7ac4ca477cb61a37f6",
-    "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v1.23.0",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#b8c1869ec9dea4467bb27d5754dc695d14e27889",
+    "@openhands/typescript-client": "1.23.3",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tailwindcss/vite": "4.2.4",
@@ -172,6 +172,7 @@
     "dist",
     "bin",
     "build",
+    "config",
     "scripts"
   ],
   "exports": {
