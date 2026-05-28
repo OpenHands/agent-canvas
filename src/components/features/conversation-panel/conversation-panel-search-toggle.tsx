@@ -32,12 +32,80 @@ export function ConversationPanelSearchButton({
       )}
       aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_ARIA)}
       aria-expanded={isOpen}
-      aria-controls="conversation-panel-search-field"
+      aria-controls="conversation-panel-search-modal"
       data-testid="conversation-panel-search-toggle"
       onClick={onToggle}
     >
       <Search className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
     </button>
+  );
+}
+
+interface ConversationPanelSearchInputProps {
+  query: string;
+  onQueryChange: (query: string) => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  shouldFocusOnMount?: boolean;
+  inputClassName?: string;
+}
+
+export function ConversationPanelSearchInput({
+  query,
+  onQueryChange,
+  onKeyDown,
+  shouldFocusOnMount = false,
+  inputClassName,
+}: ConversationPanelSearchInputProps) {
+  const { t } = useTranslation("openhands");
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!shouldFocusOnMount) {
+      return undefined;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [shouldFocusOnMount]);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        id="conversation-panel-search-field"
+        type="text"
+        role="searchbox"
+        inputMode="search"
+        autoComplete="off"
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={t(I18nKey.CONVERSATION_PANEL$SEARCH_PLACEHOLDER)}
+        data-testid="conversation-panel-search-input"
+        className={cn(
+          "h-9 w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface-deep)]",
+          "px-3 pr-9 text-sm text-white placeholder:text-[var(--oh-text-dim)]",
+          "outline-none transition-colors",
+          "focus:border-[var(--oh-border-subtle)] focus:ring-1 focus:ring-[var(--oh-border-subtle)]",
+          inputClassName,
+        )}
+      />
+      {query ? (
+        <button
+          type="button"
+          className={cn(
+            "absolute right-1 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md",
+            "text-[var(--oh-muted)] hover:bg-[var(--oh-surface-raised)] hover:text-white",
+          )}
+          aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_CLEAR_ARIA)}
+          data-testid="conversation-panel-search-clear"
+          onClick={() => onQueryChange("")}
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -50,52 +118,13 @@ export function ConversationPanelSearchField({
   query,
   onQueryChange,
 }: ConversationPanelSearchFieldProps) {
-  const { t } = useTranslation("openhands");
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
   return (
     <div className="px-4 pb-2" data-testid="conversation-panel-search-panel">
-      <div className="relative">
-        <input
-          ref={inputRef}
-          id="conversation-panel-search-field"
-          type="text"
-          role="searchbox"
-          inputMode="search"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={t(I18nKey.CONVERSATION_PANEL$SEARCH_PLACEHOLDER)}
-          data-testid="conversation-panel-search-input"
-          className={cn(
-            "h-9 w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface-deep)]",
-            "px-3 pr-9 text-sm text-white placeholder:text-[var(--oh-text-dim)]",
-            "outline-none transition-colors",
-            "focus:border-[var(--oh-border-subtle)] focus:ring-1 focus:ring-[var(--oh-border-subtle)]",
-          )}
-        />
-        {query ? (
-          <button
-            type="button"
-            className={cn(
-              "absolute right-1 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md",
-              "text-[var(--oh-muted)] hover:bg-[var(--oh-surface-raised)] hover:text-white",
-            )}
-            aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_CLEAR_ARIA)}
-            data-testid="conversation-panel-search-clear"
-            onClick={() => onQueryChange("")}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        ) : null}
-      </div>
+      <ConversationPanelSearchInput
+        query={query}
+        onQueryChange={onQueryChange}
+        shouldFocusOnMount
+      />
     </div>
   );
 }

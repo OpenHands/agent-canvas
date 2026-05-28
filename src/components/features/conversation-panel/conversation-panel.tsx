@@ -31,11 +31,8 @@ import { useConversationPanelPreferencesStore } from "#/stores/conversation-pane
 import { cn } from "#/utils/utils";
 import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
-import {
-  ConversationPanelSearchButton,
-  ConversationPanelSearchField,
-} from "./conversation-panel-search-toggle";
-import { filterConversationsByQuery } from "./filter-conversations-by-query";
+import { ConversationPanelSearchButton } from "./conversation-panel-search-toggle";
+import { ConversationPanelSearchModal } from "./conversation-panel-search-modal";
 import {
   groupConversations,
   getGroupConversationPreview,
@@ -139,8 +136,7 @@ export function ConversationPanel({
     (state) => state.setThreadScope,
   );
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
-  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isSearchModalOpen, setIsSearchModalOpen] = React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
   const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
     setFilterMenuOpen(false);
@@ -237,22 +233,20 @@ export function ConversationPanel({
   }, [recentScoped, olderScoped, showOlderConversations, conversationSort]);
 
   const handleSearchToggle = React.useCallback(() => {
-    setIsSearchOpen((prev) => {
-      if (prev) {
-        setSearchQuery("");
-      }
-      return !prev;
-    });
+    setIsSearchModalOpen((prev) => !prev);
   }, []);
 
-  const isSearchActive = isSearchOpen;
+  const handleSearchModalClose = React.useCallback(() => {
+    setIsSearchModalOpen(false);
+  }, []);
 
-  const searchFilteredConversations = React.useMemo(() => {
-    if (!isSearchActive) {
-      return sortedVisibleConversations;
-    }
-    return filterConversationsByQuery(sortedVisibleConversations, searchQuery);
-  }, [isSearchActive, searchQuery, sortedVisibleConversations]);
+  const handleSearchResultSelect = React.useCallback(
+    (conversationId: string) => {
+      navigate(`/conversations/${conversationId}`);
+      onClose?.();
+    },
+    [navigate, onClose],
+  );
 
   const groupLabels = React.useMemo(
     () => ({
@@ -311,11 +305,9 @@ export function ConversationPanel({
   }, [conversationGroups]);
 
   const listIsEffectivelyEmpty =
-    isSearchActive && searchQuery.trim()
-      ? searchFilteredConversations.length === 0
-      : organizeMode === "grouped" && !compact
-        ? visibleGroupedCount === 0
-        : visibleFlatCount === 0;
+    organizeMode === "grouped" && !compact
+      ? visibleGroupedCount === 0
+      : visibleFlatCount === 0;
 
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
@@ -332,11 +324,7 @@ export function ConversationPanel({
   // Do not show when the visible list is empty (e.g. filters hide every
   // loaded conversation) — that state already shows "No conversations found".
   const showLoadMore =
-    !!hasNextPage &&
-    !olderHidden &&
-    !compact &&
-    !listIsEffectivelyEmpty &&
-    !isSearchActive;
+    !!hasNextPage && !olderHidden && !compact && !listIsEffectivelyEmpty;
 
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversationFlow = useIsCreatingConversation();
@@ -508,7 +496,6 @@ export function ConversationPanel({
             showLlmProfiles={showLlmProfiles}
             agentKind={conversation.agent_kind}
             acpServer={conversation.acp_server}
-            searchQuery={searchQuery}
           />
         </NavigationLink>
       );
@@ -523,7 +510,6 @@ export function ConversationPanel({
       openContextMenuId,
       showRepoBranchMetadata,
       showLlmProfiles,
-      searchQuery,
     ],
   );
 
@@ -540,16 +526,7 @@ export function ConversationPanel({
     !isLoading &&
     !compact &&
     listIsEffectivelyEmpty &&
-    !startTasks?.length &&
-    !(isSearchActive && searchQuery.trim());
-
-  const showSearchNoResults =
-    isFetched &&
-    !isLoading &&
-    !compact &&
-    isSearchActive &&
-    searchQuery.trim().length > 0 &&
-    searchFilteredConversations.length === 0;
+    !startTasks?.length;
 
   const showConversationHeader = !compact;
 
@@ -577,7 +554,7 @@ export function ConversationPanel({
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-0.5">
               <ConversationPanelSearchButton
-                isOpen={isSearchOpen}
+                isOpen={isSearchModalOpen}
                 onToggle={handleSearchToggle}
               />
               <ConversationPanelNewThreadPicker
@@ -605,12 +582,6 @@ export function ConversationPanel({
               />
             </div>
           </div>
-          {isSearchOpen ? (
-            <ConversationPanelSearchField
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-            />
-          ) : null}
         </div>
       )}
 
@@ -638,26 +609,6 @@ export function ConversationPanel({
           </div>
         )}
 
-        {!compact && showSearchNoResults && (
-          <div
-            data-testid="conversation-panel-search-no-results"
-            className="px-4 py-6 text-center"
-          >
-            <p className="text-xs text-[var(--oh-muted)]">
-              {t(I18nKey.CONVERSATION_PANEL$SEARCH_NO_RESULTS)}
-            </p>
-          </div>
-        )}
-
-        {!compact && isSearchOpen && !showInitialSkeleton && (
-          <div
-            data-testid="conversation-panel-search-section-label"
-            className="px-4 pb-1 pt-2 text-xs text-[var(--oh-text-dim)]"
-          >
-            {t(I18nKey.COMMON$MOST_RECENT)}
-          </div>
-        )}
-
         {/* Render in-progress start tasks first (skipped in compact mode —
             their rich card layout doesn't fit in the icon rail). */}
         {!compact &&
@@ -679,7 +630,6 @@ export function ConversationPanel({
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "grouped" &&
-        !isSearchActive &&
         conversationGroups &&
         conversationGroups.length > 0 ? (
           <nav
@@ -773,9 +723,9 @@ export function ConversationPanel({
 
         {!showInitialSkeleton &&
         !compact &&
-        (organizeMode === "chronological" || isSearchActive) ? (
+        organizeMode === "chronological" ? (
           <div className="space-y-0.5">
-            {searchFilteredConversations.map(renderConversationCard)}
+            {sortedVisibleConversations.map(renderConversationCard)}
           </div>
         ) : null}
 
@@ -847,6 +797,15 @@ export function ConversationPanel({
           }}
           onClose={() => setConfirmExitConversationModalVisible(false)}
           onCancel={() => setConfirmExitConversationModalVisible(false)}
+        />
+      )}
+
+      {!compact && (
+        <ConversationPanelSearchModal
+          isOpen={isSearchModalOpen}
+          onClose={handleSearchModalClose}
+          conversations={sortedVisibleConversations}
+          onSelectConversation={handleSearchResultSelect}
         />
       )}
     </div>
