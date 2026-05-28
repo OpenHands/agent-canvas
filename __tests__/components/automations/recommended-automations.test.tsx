@@ -3,10 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import McpService from "#/api/mcp-service/mcp-service.api";
-import {
-  consumePendingTaskDraft,
-  getConversationState,
-} from "#/utils/conversation-local-storage";
+import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -376,34 +373,15 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
   });
 
-  it("stores cloud start-task drafts until the real conversation is ready", () => {
+  it("hides the recommended automations section on cloud backends", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    mockUseSettings.mockReturnValue({
-      data: settingsWithGithubMcp(),
-    });
 
     renderLauncher({ withBackendProvider: true });
 
-    fireEvent.click(
-      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
-    );
-
-    const [, options] = mockCreateConversationMutate.mock.calls[0];
-    options.onSuccess({
-      conversation_id: "task-cloud-start-task",
-      task_id: "cloud-start-task",
-    });
-
     expect(
-      getConversationState("task-cloud-start-task").draftMessage,
-    ).toBeNull();
-    const pendingDraft = consumePendingTaskDraft("cloud-start-task");
-    expect(pendingDraft).toContain(
-      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
-    );
-    expect(pendingDraft).not.toContain("https://staging.all-hands.dev//api");
-    expect(pendingDraft).toContain("$OPENHANDS_API_KEY");
+      screen.queryByTestId("recommended-automations-section"),
+    ).not.toBeInTheDocument();
   });
 
   it("launches the recommendation after the missing MCP is installed", async () => {
