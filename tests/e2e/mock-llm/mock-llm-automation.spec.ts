@@ -173,9 +173,12 @@ test.describe("mock-LLM automation lifecycle", () => {
   });
 
   test.afterEach(async ({ page, request }) => {
+    // Collect conversation IDs from the URL for cleanup
     const match = page.url().match(/\/conversations\/([^/?#]+)/);
     if (match?.[1]) conversationIds.add(decodeURIComponent(match[1]));
 
+    // Clean up conversations but NOT automations — step 3 needs the
+    // automation created in step 2 to verify it appears on the page.
     for (const id of Array.from(conversationIds)) {
       try {
         await deleteConversation(request, id);
@@ -184,19 +187,9 @@ test.describe("mock-LLM automation lifecycle", () => {
         // best-effort cleanup
       }
     }
-    for (const id of Array.from(automationIds)) {
-      try {
-        await deleteAutomation(request, id);
-        automationIds.delete(id);
-      } catch {
-        // best-effort cleanup
-      }
-    }
 
     // Always reset the mock LLM to its default trajectory so subsequent
-    // test suites (e.g. the conversation test) start fresh. This runs in
-    // afterEach instead of a cleanup test to avoid being skipped when a
-    // preceding serial test fails.
+    // test suites (e.g. the conversation test) start fresh.
     try {
       await resetMockLLM(request);
     } catch {
@@ -416,6 +409,18 @@ test.describe("mock-LLM automation lifecycle", () => {
       // Verify a run exists (may not reach COMPLETED in mock LLM mode)
       const run = await waitForAnyRun(request, automation.id, 15_000);
       expect(run).toBeTruthy();
+    });
+
+    // Clean up automations at the end of the last test
+    await test.step("cleanup automations", async () => {
+      for (const id of Array.from(automationIds)) {
+        try {
+          await deleteAutomation(request, id);
+          automationIds.delete(id);
+        } catch {
+          // best-effort
+        }
+      }
     });
   });
 
