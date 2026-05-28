@@ -84,12 +84,16 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
     },
-    // 2. Agent-server + Vite frontend via dev:minimal
+    // 2. Agent-server + Vite frontend via dev-safe.mjs
     //
-    // `exec` replaces the shell with npm so Playwright's SIGTERM reaches
-    // the process tree directly — without it, the shell dies but npm's
-    // children (uvx, agent-server, vite) survive as orphans and the
-    // teardown hangs until the job timeout kills everything.
+    // `exec` replaces the shell so Playwright's tracked PID IS the node
+    // process. SIGTERM goes directly to dev-safe.mjs's signal handler,
+    // which kills children via process groups and exits cleanly.
+    //
+    // Previously this used `exec ... npm run dev:minimal`, but npm does
+    // NOT forward SIGTERM to its child processes — the node process and
+    // its spawned agent-server/vite survived as orphans, causing the
+    // webServer teardown to hang indefinitely.
     {
       command:
         // Clean state dir to avoid stale profile/conversation data between runs
@@ -104,7 +108,9 @@ export default defineConfig({
           "VITE_DO_NOT_TRACK=1",
           "VITE_ENABLE_BROWSER_TOOLS=false",
           envAssignment("VITE_FRONTEND_PORT", FRONTEND_PORT),
-          "npm run dev:minimal",
+          // Bypass npm — exec directly into node so SIGTERM reaches
+          // dev-safe.mjs's shutdown handler (npm swallows it).
+          "node --env-file-if-exists=.env scripts/dev-safe.mjs",
         ].join(" "),
       url: FRONTEND_URL,
       timeout: 120_000,

@@ -224,14 +224,32 @@ const data = loadResults(resultsPath);
 let tests = data ? collectTests(data.suites) : [];
 
 // When Playwright is killed during webServer teardown, the JSON reporter
-// never flushes results.json. Fall back to the marker files written by
-// DoneMarkerReporter (onTestEnd) which fire before teardown.
+// never flushes results.json. Fall back to .results.json written by
+// DoneMarkerReporter (onTestEnd) which fires before teardown.
 if (!data || tests.length === 0) {
   const markerDir = args.marker_dir || ".mock-llm-markers";
+  const markerResultsPath = `${markerDir}/.results.json`;
   const donePath = `${markerDir}/.tests-done`;
-  if (existsSync(donePath)) {
+
+  if (existsSync(markerResultsPath)) {
+    // Rich results from DoneMarkerReporter — has per-test timing & errors
+    const markerData = JSON.parse(readFileSync(markerResultsPath, "utf8"));
+    tests = (markerData.tests ?? []).map((t) => ({
+      title: t.title,
+      status: t.status,
+      durationMs: t.durationMs ?? 0,
+      retryCount: 0,
+      error: t.error ?? "",
+    }));
+    console.log(
+      `No results.json; using marker results (${tests.length} tests, ${markerData.status})`,
+    );
+  } else if (existsSync(donePath)) {
+    // Minimal fallback — just pass/fail status, no timing
     const markerStatus = readFileSync(donePath, "utf8").trim();
-    console.log(`No results.json; using marker file (status: ${markerStatus})`);
+    console.log(
+      `No results.json; using done marker (status: ${markerStatus})`,
+    );
     tests = [
       {
         title: "mock-LLM agent-server conversation",
@@ -240,12 +258,14 @@ if (!data || tests.length === 0) {
         retryCount: 0,
         error:
           markerStatus !== "passed"
-            ? "Test failed (details in workflow logs — results.json unavailable due to webServer teardown hang)"
+            ? "Test failed (details in workflow logs)"
             : "",
       },
     ];
   } else {
-    console.warn(`Warning: no results file at ${resultsPath} and no marker files`);
+    console.warn(
+      `Warning: no results file at ${resultsPath} and no marker files`,
+    );
   }
 }
 
