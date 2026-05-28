@@ -35,6 +35,7 @@ interface ConversationCardProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  searchQuery?: string;
 }
 
 export function ConversationCard({
@@ -59,6 +60,7 @@ export function ConversationCard({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  searchQuery = "",
 }: ConversationCardProps) {
   const posthog = usePostHog();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
@@ -155,6 +157,7 @@ export function ConversationCard({
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
+            searchQuery={searchQuery}
           />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
