@@ -222,7 +222,12 @@ test.describe("mock-LLM automation lifecycle", () => {
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
 
+    // The agent-server makes an initial "condenser" or "skill-analysis"
+    // LLM call that consumes one response before the agent's main loop
+    // starts. Prepend a throwaway text response that gets eaten by that
+    // internal call; the agent's first real turn then gets the create cmd.
     await registerTrajectory(request, "automation-lifecycle", [
+      { text: "" }, // consumed by internal pre-agent LLM call
       {
         tool_call: {
           name: "terminal",
