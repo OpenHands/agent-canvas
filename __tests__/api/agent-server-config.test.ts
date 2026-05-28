@@ -7,6 +7,7 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  isAuthRequiredAndMissing,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
@@ -106,5 +107,40 @@ describe("agent server config", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
 
     expect(shouldLoadPublicSkills()).toBe(false);
+  });
+});
+
+describe("isAuthRequiredAndMissing", () => {
+  it("returns false when VITE_AUTH_REQUIRED is not set", () => {
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns true when VITE_AUTH_REQUIRED is true and no key is configured", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+
+    expect(isAuthRequiredAndMissing()).toBe(true);
+  });
+
+  it("returns false when VITE_AUTH_REQUIRED is true but a key exists in localStorage", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "stored-key",
+    });
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false when VITE_AUTH_REQUIRED is true but VITE_SESSION_API_KEY is baked in", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    vi.stubEnv("VITE_SESSION_API_KEY", "baked-key");
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false for non-'true' values of VITE_AUTH_REQUIRED", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "false");
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
   });
 });
