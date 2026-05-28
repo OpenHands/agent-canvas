@@ -30,7 +30,7 @@ import {
   type ACPProviderConfig,
 } from "#/constants/acp-providers";
 import { parseCommand, formatCommand } from "#/utils/acp-command";
-import { AcpEnvEditor } from "#/components/features/settings/acp-env-editor";
+import { AcpEnvSettings } from "#/components/features/settings/acp-env-settings";
 
 export const handle = { hideTitle: true };
 
@@ -122,11 +122,6 @@ function AgentSettingsScreen() {
   const [acpModel, setAcpModel] = useState("");
   const [isCustomAcpModel, setIsCustomAcpModel] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  // Staged ``acp_env`` adds/replacements. Server-side ``acp_env`` is
-  // redacted on GET, so the editor never round-trips existing values —
-  // pendingEnv only carries the names+plaintext values the user *typed
-  // this session*. Deep-merge on save preserves untouched server keys.
-  const [pendingEnv, setPendingEnv] = useState<Record<string, string>>({});
 
   const lastInitializedSettingsRef = useRef<unknown>(null);
   const loadedAcpServerRef = useRef<string | null>(null);
@@ -177,11 +172,6 @@ function AgentSettingsScreen() {
       loadedCommandTextRef.current = "";
       setIsCustomAcpModel(false);
     }
-    // Always reset staged env-var edits when settings reload — both
-    // branches: on the OpenHands branch the editor isn't rendered, and
-    // on the ACP branch any prior staged edits were either persisted
-    // (and now appear as existing keys) or abandoned by the reload.
-    setPendingEnv({});
     setIsDirty(false);
   }, [settings]);
 
@@ -214,14 +204,13 @@ function AgentSettingsScreen() {
   const existingEnvKeys = isAcp
     ? extractAcpEnvKeys(settings?.agent_settings?.acp_env)
     : [];
-  const hasPendingEnv = Object.keys(pendingEnv).length > 0;
 
-  // Dirty tracking: for OpenHands path, also check sub-agents toggle;
-  // for ACP, staged env-var edits also count.
+  // Dirty tracking: for OpenHands path, also check sub-agents toggle.
+  // ACP env-var add/delete commit through their own PATCHes inside
+  // ``AcpEnvSettings`` and do not feed into this page's Save button.
   const isOpenHandsDirty =
     !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
-  const effectiveIsDirty =
-    isDirty || isOpenHandsDirty || (isAcp && hasPendingEnv);
+  const effectiveIsDirty = isDirty || isOpenHandsDirty;
 
   const handleSave = () => {
     if (isAcp) {
@@ -250,13 +239,6 @@ function AgentSettingsScreen() {
 
       if (!agentSettingsDiff) return;
 
-      // Merge staged env-var edits into the diff. ``PersistedSettings.update``
-      // deep-merges the ``acp_env`` subtree, so untouched server keys survive
-      // and adds/replacements land in one PATCH.
-      if (hasPendingEnv) {
-        agentSettingsDiff.acp_env = pendingEnv;
-      }
-
       saveSettings(
         { agent_settings_diff: agentSettingsDiff },
         {
@@ -267,7 +249,6 @@ function AgentSettingsScreen() {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
             setIsDirty(false);
-            setPendingEnv({});
           },
         },
       );
@@ -505,11 +486,7 @@ function AgentSettingsScreen() {
             </Typography.Text>
           </div>
 
-          <AcpEnvEditor
-            existingKeys={existingEnvKeys}
-            pendingUpdates={pendingEnv}
-            onChange={setPendingEnv}
-          />
+          <AcpEnvSettings envKeys={existingEnvKeys} />
         </>
       )}
 
