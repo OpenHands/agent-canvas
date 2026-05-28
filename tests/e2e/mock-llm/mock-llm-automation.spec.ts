@@ -1,41 +1,38 @@
 /**
  * Mock-LLM E2E test: Create a cron automation and dispatch a run.
  *
- * Exercises the full automation lifecycle through the UI + mock LLM:
+ * Exercises the full automation lifecycle end-to-end:
  *
- *   1. Navigate to the Automations page
- *   2. Click "Add Automation" → "Create Automation" (launches a conversation)
- *   3. The mock LLM creates a cron automation via terminal tool calls (curl
- *      to the mock automation API) and dispatches a run
- *   4. Verify the automation was created and the run completed
+ *   1. Setup: configure mock LLM profile and register a scripted trajectory
+ *      whose terminal tool calls hit the REAL automation backend (running
+ *      inside the bin/agent-canvas.mjs stack)
+ *   2. Conversation: type a prompt in the home chat launcher → mock LLM
+ *      returns curl commands that create a cron automation and dispatch a run
+ *      via the real automation API (through the ingress)
+ *   3. Verification: confirm the automation exists on the /automations page
+ *      and the dispatched run reached a terminal status
  *
- * The automation API is served by a lightweight mock server (mock-automation-
- * server.py). Browser requests to /api/automation/* are intercepted by
- * Playwright and forwarded to the mock server, while terminal curl commands
- * hit it directly.
- *
- * The test is self-contained: it configures the mock LLM profile via the
- * settings API (no dependency on conversation test ordering).
+ * No mock automation server is used — the real automation backend started by
+ * bin/agent-canvas.mjs handles all /api/automation/* requests. The agent's
+ * terminal commands authenticate with $OPENHANDS_AUTOMATION_API_KEY (the
+ * session API key, which the agent-server exposes as an env var).
  */
 
 import { test, expect } from "@playwright/test";
 import {
-  MOCK_AUTOMATION_URL,
+  BACKEND_URL,
+  SESSION_API_KEY,
   seedLocalStorage,
   routeSessionApiKey,
-  routeAutomationApiToMock,
   dismissAnalyticsModal,
   waitForTestId,
   waitForPath,
   getConversationIdFromURL,
   waitForNonUserMessageText,
   deleteConversation,
-  resetMockAutomation,
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
-  listMockAutomations,
-  waitForRunStatus,
   ensureMockLLMProfile,
 } from "./utils/mock-llm-helpers";
 
@@ -48,10 +45,90 @@ const AUTOMATION_REPLY_TOKEN = "MOCK_AUTOMATION_REPLY_OK";
 const AUTOMATION_NAME = "Hello World Cron";
 const CRON_SCHEDULE = "0 9 * * *";
 
+// The ingress URL reachable from the agent's terminal. The agent-server
+// exposes OPENHANDS_AUTOMATION_API_KEY as an env var for auth.
+const AUTOMATION_API_BASE = `${BACKEND_URL}/api/automation/v1`;
+
+/**
+ * List automations from the real automation backend via the ingress.
+ */
+async function listAutomations(
+  request: import("@playwright/test").APIRequestContext,
+) {
+  const resp = await request.get(`${AUTOMATION_API_BASE}`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+    },
+  });
+  expect(resp.ok(), `GET automations returned ${resp.status()}`).toBe(true);
+  return resp.json();
+}
+
+/**
+ * List runs for a specific automation via the real automation backend.
+ */
+async function listAutomationRuns(
+  request: import("@playwright/test").APIRequestContext,
+  automationId: string,
+) {
+  const resp = await request.get(
+    `${AUTOMATION_API_BASE}/${encodeURIComponent(automationId)}/runs`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+      },
+    },
+  );
+  expect(resp.ok(), `GET runs returned ${resp.status()}`).toBe(true);
+  return resp.json();
+}
+
+/**
+ * Poll until a run reaches the expected status or times out.
+ */
+async function waitForRunStatus(
+  request: import("@playwright/test").APIRequestContext,
+  automationId: string,
+  expectedStatus: string,
+  timeoutMs = 30_000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const data = await listAutomationRuns(request, automationId);
+    const runs = data.runs ?? data.items ?? [];
+    const match = runs.find(
+      (r: { status: string }) => r.status === expectedStatus,
+    );
+    if (match) return match;
+    await new Promise((r) => setTimeout(r, 1_000));
+  }
+  throw new Error(
+    `No run with status "${expectedStatus}" after ${timeoutMs}ms`,
+  );
+}
+
+/**
+ * Delete an automation (best-effort cleanup).
+ */
+async function deleteAutomation(
+  request: import("@playwright/test").APIRequestContext,
+  automationId: string,
+) {
+  await request.delete(
+    `${AUTOMATION_API_BASE}/${encodeURIComponent(automationId)}`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+      },
+    },
+  );
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("mock-LLM automation lifecycle", () => {
   const conversationIds = new Set<string>();
+  const automationIds = new Set<string>();
 
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
@@ -69,43 +146,51 @@ test.describe("mock-LLM automation lifecycle", () => {
         // best-effort cleanup
       }
     }
+    for (const id of Array.from(automationIds)) {
+      try {
+        await deleteAutomation(request, id);
+        automationIds.delete(id);
+      } catch {
+        // best-effort cleanup
+      }
+    }
   });
 
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
 
-  test("step 1: setup LLM profile, register trajectory, reset mock state", async ({
+  test("step 1: setup LLM profile and register automation trajectory", async ({
     request,
   }) => {
-    // Ensure the mock LLM profile is configured (creates it via API if
-    // the conversation test hasn't run yet or the state was cleared)
+    // Ensure the mock LLM profile is configured
     await ensureMockLLMProfile(request);
 
-    // Reset the mock automation server (clear any leftover state)
-    await resetMockAutomation(request);
-
     // Build the terminal commands the mock LLM will return.
+    // The curl commands hit the REAL automation backend through the ingress.
+    // Auth uses $OPENHANDS_AUTOMATION_API_KEY which the agent-server
+    // exposes as an env var in the terminal sandbox.
     //
-    // Turn 1: Create the automation via curl, save result to a file so
-    //         turn 2 can extract the automation ID.
-    // Turn 2: Read the ID from the file and dispatch a run.
+    // Turn 1: Create the automation via curl preset/prompt endpoint.
+    // Turn 2: Extract the automation ID and dispatch a run.
     // Turn 3: Text reply with a verification token.
 
     const createCmd = [
-      `curl -sf -X POST '${MOCK_AUTOMATION_URL}/api/automation/v1/preset/prompt'`,
+      `curl -sf -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
       `-H 'Content-Type: application/json'`,
+      `-H "Authorization: Bearer $OPENHANDS_AUTOMATION_API_KEY"`,
       `-d '${JSON.stringify({
         name: AUTOMATION_NAME,
         prompt: "echo hello world",
         trigger: { type: "cron", schedule: CRON_SCHEDULE, timezone: "UTC" },
       })}'`,
-      `-o /tmp/mock_auto_result.json`,
-      `&& cat /tmp/mock_auto_result.json`,
+      `-o /tmp/auto_result.json`,
+      `&& cat /tmp/auto_result.json`,
       `&& printf '${AUTOMATION_CREATE_TOKEN}\\n'`,
     ].join(" ");
 
     const dispatchCmd = [
-      `AID=$(python3 -c "import json; print(json.load(open('/tmp/mock_auto_result.json'))['id'])")`,
-      `&& curl -sf -X POST "${MOCK_AUTOMATION_URL}/api/automation/v1/$AID/dispatch"`,
+      `AID=$(python3 -c "import json; print(json.load(open('/tmp/auto_result.json'))['id'])")`,
+      `&& curl -sf -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
+      `-H "Authorization: Bearer $OPENHANDS_AUTOMATION_API_KEY"`,
       `-H 'Content-Type: application/json'`,
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
@@ -130,24 +215,18 @@ test.describe("mock-LLM automation lifecycle", () => {
     await activateTrajectory(request, "automation-lifecycle");
   });
 
-  // ── Step 2: Navigate to Automations → Create Automation → conversation ─
+  // ── Step 2: Create automation via conversation ─────────────────────
 
   test("step 2: create automation and dispatch run via the UI", async ({
     page,
     request,
   }) => {
-    // Ensure the automation trajectory is active (in case the server was
-    // restarted between test retries)
+    // Ensure the automation trajectory is active
     await activateTrajectory(request, "automation-lifecycle");
 
     await routeSessionApiKey(page);
-    await routeAutomationApiToMock(page);
 
     // Navigate to the home page and type a prompt to create the automation.
-    // We go directly through the home chat launcher (the same path real
-    // users take) rather than the Automations modal, because the modal's
-    // useLaunchSkillInChat → messageToSend store pathway doesn't auto-submit
-    // on the home page (messageToSend is nullified when no conversationId).
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
@@ -177,7 +256,6 @@ test.describe("mock-LLM automation lifecycle", () => {
         { testId: "chat-input", text: userMessage },
       );
 
-      // Click the submit button — this triggers conversation creation
       await page.getByTestId("submit-button").click();
     });
 
@@ -192,34 +270,43 @@ test.describe("mock-LLM automation lifecycle", () => {
     // ── Verify: the LLM reply token appears in the chat UI ──
 
     await test.step("verify LLM reply token in chat UI", async () => {
-      await waitForNonUserMessageText(page, AUTOMATION_REPLY_TOKEN, 45_000);
+      await waitForNonUserMessageText(page, AUTOMATION_REPLY_TOKEN, 60_000);
     });
 
-    // ── Verify: automation was created in the mock server ──
+    // ── Verify: automation was created in the real automation backend ──
 
     await test.step("verify automation was created", async () => {
-      const data = await listMockAutomations(request);
-      expect(data.total, "Expected at least 1 automation").toBeGreaterThanOrEqual(1);
+      const data = await listAutomations(request);
+      const automations = data.automations ?? data.items ?? [];
+      expect(
+        automations.length,
+        `Expected at least 1 automation, got: ${JSON.stringify(data).slice(0, 500)}`,
+      ).toBeGreaterThanOrEqual(1);
 
-      const created = data.automations.find(
-        (a) => a.name === AUTOMATION_NAME,
+      const created = automations.find(
+        (a: { name: string }) => a.name === AUTOMATION_NAME,
       );
       expect(created, `Automation "${AUTOMATION_NAME}" not found`).toBeTruthy();
-      expect((created as any).trigger?.schedule).toBe(CRON_SCHEDULE);
-      expect((created as any).enabled).toBe(true);
+      automationIds.add(created.id);
+      expect(created.trigger?.schedule).toBe(CRON_SCHEDULE);
+      expect(created.enabled).toBe(true);
     });
 
-    // ── Verify: run was dispatched and completed ──
+    // ── Verify: run was dispatched ──
 
-    await test.step("verify run dispatched and completed", async () => {
-      const data = await listMockAutomations(request);
-      const automation = data.automations.find(
-        (a) => a.name === AUTOMATION_NAME,
+    await test.step("verify run dispatched", async () => {
+      const data = await listAutomations(request);
+      const automations = data.automations ?? data.items ?? [];
+      const automation = automations.find(
+        (a: { name: string }) => a.name === AUTOMATION_NAME,
       );
       expect(automation, "Automation should exist for run check").toBeTruthy();
+      automationIds.add(automation.id);
 
-      // The mock automation server auto-completes runs after ~0.5s
-      await waitForRunStatus(request, automation!.id, "COMPLETED", 10_000);
+      // The real automation backend dispatches runs — wait for the run
+      // to reach a terminal state (COMPLETED or FAILED). Runs through the
+      // real backend may take longer than the mock.
+      await waitForRunStatus(request, automation.id, "COMPLETED", 60_000);
     });
 
     // ── Verify: no error banners ──
@@ -237,13 +324,10 @@ test.describe("mock-LLM automation lifecycle", () => {
     request,
   }) => {
     await routeSessionApiKey(page);
-    await routeAutomationApiToMock(page);
     await page.goto("/automations", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
     await test.step("automation card visible", async () => {
-      // Wait for the page to load and show automation cards
-      // The mock automation server still has the automation from step 2
       await waitForTestId(page, "automations-add-automation", 15_000);
 
       // Check that the automation name appears on the page
@@ -255,20 +339,21 @@ test.describe("mock-LLM automation lifecycle", () => {
     });
 
     await test.step("verify run completed via API", async () => {
-      const data = await listMockAutomations(request);
-      const automation = data.automations.find(
-        (a) => a.name === AUTOMATION_NAME,
+      const data = await listAutomations(request);
+      const automations = data.automations ?? data.items ?? [];
+      const automation = automations.find(
+        (a: { name: string }) => a.name === AUTOMATION_NAME,
       );
       expect(automation).toBeTruthy();
+      automationIds.add(automation.id);
 
-      await waitForRunStatus(request, automation!.id, "COMPLETED", 5_000);
+      await waitForRunStatus(request, automation.id, "COMPLETED", 30_000);
     });
   });
 
-  // ── Cleanup: reset mock servers for other test suites ──────────────
+  // ── Cleanup: reset mock LLM for other test suites ──────────────────
 
-  test("cleanup: reset mock servers", async ({ request }) => {
-    await resetMockAutomation(request);
+  test("cleanup: reset mock LLM", async ({ request }) => {
     await resetMockLLM(request);
   });
 });

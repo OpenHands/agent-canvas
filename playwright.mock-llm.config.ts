@@ -1,10 +1,9 @@
 /**
  * Playwright config for mock-LLM E2E tests.
  *
- * Starts three processes:
+ * Starts two processes:
  *   1. Mock LLM server (Python, using openhands-sdk TestLLM)
- *   2. Mock Automation API server (Python, in-memory automation endpoints)
- *   3. Full agent-canvas stack via bin/agent-canvas.mjs (agent-server +
+ *   2. Full agent-canvas stack via bin/agent-canvas.mjs (agent-server +
  *      automation backend + static frontend + ingress proxy), matching the
  *      production npm-published binary.
  *
@@ -21,7 +20,6 @@ import { randomBytes } from "node:crypto";
 
 // ── Port allocation (separate from live E2E / dev to avoid collisions) ─
 const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
-const MOCK_AUTOMATION_PORT = process.env.MOCK_AUTOMATION_PORT ?? "18299";
 
 // The agent-canvas binary exposes a single ingress port that routes:
 //   /api/automation/* → automation backend
@@ -43,7 +41,6 @@ const STATE_DIR = ".tmp/mock-llm-state";
 // ── URLs ───────────────────────────────────────────────────────────────
 const INGRESS_URL = `http://localhost:${INGRESS_PORT}/`;
 const MOCK_LLM_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
-const MOCK_AUTOMATION_URL = `http://127.0.0.1:${MOCK_AUTOMATION_PORT}`;
 
 // Python binary for the mock server — defaults to "python3" but CI can
 // point this at a venv (e.g. ".mock-llm-venv/bin/python3") to avoid
@@ -54,7 +51,6 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 // calls are proxied to the agent-server, so no direct backend port needed).
 process.env.MOCK_LLM_BACKEND_URL = `http://localhost:${INGRESS_PORT}`;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
-process.env.MOCK_AUTOMATION_PORT = MOCK_AUTOMATION_PORT;
 process.env.VITE_SESSION_API_KEY = sessionApiKey;
 
 function shellQuote(value: string) {
@@ -103,16 +99,7 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
     },
-    // 2. Mock Automation API server (Python)
-    {
-      command: `${MOCK_LLM_PYTHON} tests/e2e/mock-llm/scripts/mock-automation-server.py --port ${MOCK_AUTOMATION_PORT}`,
-      url: MOCK_AUTOMATION_URL,
-      timeout: 30_000,
-      reuseExistingServer: !process.env.CI,
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-    // 3. Full agent-canvas stack via bin/agent-canvas.mjs
+    // 2. Full agent-canvas stack via bin/agent-canvas.mjs
     //
     // This mirrors the production `npx @openhands/agent-canvas` path:
     //   - Pre-built static frontend served via static-server.mjs
