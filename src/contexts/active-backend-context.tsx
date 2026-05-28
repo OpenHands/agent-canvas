@@ -73,11 +73,13 @@ export function ActiveBackendProvider({
     [],
   );
 
+  // @spec BM-001 — Auto-switch to newly connected backend
   const addBackend = React.useCallback(
     (backend: Omit<Backend, "id">): Backend => {
       const next: Backend = { ...backend, id: generateId() };
       const list = [...getRegisteredBackends(), next];
       setRegisteredBackends(list);
+      setActiveSelection({ backendId: next.id });
       return next;
     },
     [],

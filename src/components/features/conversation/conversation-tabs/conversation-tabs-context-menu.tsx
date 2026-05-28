@@ -1,3 +1,4 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "#/ui/context-menu";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -24,13 +25,18 @@ import { cn } from "#/utils/utils";
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  ignoreOutsideClickRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function ConversationTabsContextMenu({
   isOpen,
   onClose,
+  ignoreOutsideClickRef,
 }: ConversationTabsContextMenuProps) {
-  const ref = useClickOutsideElement<HTMLUListElement>(onClose);
+  const ref = useClickOutsideElement<HTMLUListElement>(
+    onClose,
+    ignoreOutsideClickRef,
+  );
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const {
@@ -67,7 +73,8 @@ export function ConversationTabsContextMenu({
   }
 
   const visibleTabConfig = tabConfig.filter(
-    ({ tab }) => tab !== "vscode" || backend.kind === "cloud",
+    ({ tab }) =>
+      (tab !== "vscode" && tab !== "planner") || backend.kind === "cloud",
   );
 
   if (!isOpen) return null;

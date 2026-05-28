@@ -319,14 +319,16 @@ describe("buildAgentServerCommand", () => {
     // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "openhands-agent-server==1.22.1",
+      "openhands-agent-server==1.24.0",
       "--with",
-      "openhands-tools==1.22.1",
+      "openhands-sdk==1.24.0",
       "--with",
-      "openhands-workspace==1.22.1",
+      "openhands-tools==1.24.0",
+      "--with",
+      "openhands-workspace==1.24.0",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("PyPI (1.22.1, default)");
+    expect(cmd.source).toBe("PyPI (1.24.0, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -338,6 +340,8 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.args).toEqual([
       "--from",
       "openhands-agent-server==1.18.0",
+      "--with",
+      "openhands-sdk==1.18.0",
       "--with",
       "openhands-tools==1.18.0",
       "--with",
@@ -561,7 +565,7 @@ describe("buildSafeDevConfig", () => {
     expect(readFileSync(keyPath, "utf8").trim()).toBe(config.sessionApiKey);
   });
 
-  it("reuses the same key across config builds, simulating dev:docker / dev:dangerously-dockerless restarts", () => {
+  it("reuses the same key across config builds, simulating restarts", () => {
     const keyPath = tempKeyPath();
 
     const first = buildSafeDevConfig("/workspace/project/agent-canvas", {
@@ -651,24 +655,45 @@ describe("getOrCreatePersistedSessionApiKey", () => {
 });
 
 describe("buildNpmScriptCommand", () => {
-  it("reuses npm's own CLI path when available", () => {
+  it("runs npm through cmd.exe on Windows even when npm_execpath is set", () => {
+    // npm_execpath points to a path with spaces like
+    // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js".
+    // spawnService uses shell:true on Windows, so passing that path as an
+    // argument causes cmd.exe to split on the space and fail with
+    // "'C:\Program' is not recognized as an internal or external command".
+    // The win32 branch must fire BEFORE the npm_execpath branch.
     const command = buildNpmScriptCommand(
       "dev:frontend",
       "win32",
       {
-        npm_execpath: "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        npm_node_execpath: "C:\\nodejs\\node.exe",
+        ComSpec: "C:\\Windows\\System32\\cmd.exe",
+        npm_execpath:
+          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        npm_node_execpath: "C:\\Program Files\\nodejs\\node.exe",
       },
-      "C:\\fallback\\node.exe",
+      "C:\\Program Files\\nodejs\\node.exe",
     );
 
     expect(command).toEqual({
-      command: "C:\\nodejs\\node.exe",
-      args: [
-        "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        "run",
-        "dev:frontend",
-      ],
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
+    });
+  });
+
+  it("reuses npm's own CLI path when available on POSIX", () => {
+    const command = buildNpmScriptCommand(
+      "dev:frontend",
+      "linux",
+      {
+        npm_execpath: "/usr/lib/node_modules/npm/bin/npm-cli.js",
+        npm_node_execpath: "/usr/bin/node",
+      },
+      "/fallback/node",
+    );
+
+    expect(command).toEqual({
+      command: "/usr/bin/node",
+      args: ["/usr/lib/node_modules/npm/bin/npm-cli.js", "run", "dev:frontend"],
     });
   });
 
@@ -810,10 +835,10 @@ describe("buildRuntimeServicesInfo", () => {
     });
   });
 
-  it("uses host.docker.internal as the agent host alias in docker mode", () => {
+  it("supports a custom agent host alias for remote setups", () => {
     const info = buildRuntimeServicesInfo({
-      mode: "dev:docker",
-      agentHostAlias: "host.docker.internal",
+      mode: "custom",
+      agentHostAlias: "custom-host",
       agentServerPort: 8000,
       ingressPort: 8000,
       frontendPort: 3001,
@@ -824,19 +849,19 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.agent_server?.url_from_agent).toBe(
       "http://localhost:8000",
     );
-    // Host-side services use the docker alias.
+    // Host-side services use the custom alias.
     expect(info.services.ingress?.url_from_agent).toBe(
-      "http://host.docker.internal:8000",
+      "http://custom-host:8000",
     );
     expect(info.services.frontend?.url_from_agent).toBe(
-      "http://host.docker.internal:3001",
+      "http://custom-host:3001",
     );
     // Static-mode description, not "Vite dev server".
     expect(info.services.frontend?.kind).toBe("static");
     expect(info.services.frontend?.description).toMatch(/Static-file server/i);
     expect(info.services.frontend?.description).not.toMatch(/Vite/i);
     expect(info.services.automation?.url_from_agent).toBe(
-      "http://host.docker.internal:18001",
+      "http://custom-host:18001",
     );
   });
 

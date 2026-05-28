@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-import { LLM_PROFILES_QUERY_KEYS } from "#/hooks/query/query-keys";
+import SettingsService from "#/api/settings-service/settings-service.api";
+import {
+  LLM_PROFILES_QUERY_KEYS,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
+import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchLlmProfileVars {
   /**
@@ -30,8 +35,15 @@ export const useSwitchLlmProfile = () => {
         queryKey: LLM_PROFILES_QUERY_KEYS.all,
       });
       if (conversationId) {
+        invalidateConversationQueries(queryClient, conversationId);
+      } else {
+        // Home-page activate path (same server endpoint as
+        // useActivateLlmProfile): clear the SettingsService cache so the next
+        // conversation-start reads the newly activated profile's LLM config
+        // instead of the stale encrypted settings.
+        SettingsService.invalidateCache();
         queryClient.invalidateQueries({
-          queryKey: ["user", "conversation", conversationId],
+          queryKey: SETTINGS_QUERY_KEYS.personal(),
         });
       }
     },

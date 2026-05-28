@@ -4,8 +4,20 @@ export const AGENT_SERVER_UI_DEFAULT_THEME = "dark" as const;
 
 export type AgentServerUITheme = "dark" | "light" | "default";
 
+/** Brand tokens controlled by color themes — not inlined on AgentServerUIRoot. */
+export const AGENT_SERVER_UI_THEMEABLE_BRAND_VARIABLES = [
+  "--oh-color-primary",
+  "--oh-accent",
+  "--oh-warning",
+] as const;
+
+export type AgentServerUIThemeableBrandVariable =
+  (typeof AGENT_SERVER_UI_THEMEABLE_BRAND_VARIABLES)[number];
+
 export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
-  "--oh-color-primary": "#c9b974",
+  // Brand/button colors (--oh-color-primary, --oh-accent, --oh-warning) live in
+  // tailwind.css and are overridden at runtime by applyColorTheme(); keep them
+  // out of inline defaults so theme tokens are not blocked by element.style.
   "--oh-color-logo": "#cfb755",
   "--oh-color-base": "var(--cool-grey-950)",
   "--oh-color-base-secondary": "var(--cool-grey-925)",
@@ -33,14 +45,14 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
   "--oh-interactive-hover-low": "var(--cool-grey-900)",
   "--oh-interactive-active": "var(--cool-grey-800)",
   "--oh-interactive-selected": "var(--cool-grey-600)",
-  "--oh-scrollbar": "rgba(208, 217, 250, 0.3)",
+  "--oh-scrollbar": "color-mix(in srgb, var(--cool-grey-400) 30%, transparent)",
+  "--oh-scrollbar-hover":
+    "color-mix(in srgb, var(--cool-grey-400) 50%, transparent)",
   "--oh-default": "var(--cool-grey-800)",
   "--oh-default-foreground": "var(--cool-grey-100)",
-  "--oh-accent": "#c9b974",
   "--oh-accent-foreground": "var(--cool-grey-950)",
   "--oh-success": "#a5e75e",
   "--oh-success-foreground": "var(--cool-grey-950)",
-  "--oh-warning": "#c9b974",
   "--oh-warning-foreground": "var(--cool-grey-950)",
   "--oh-danger": "#e76a5e",
   "--oh-danger-foreground": "var(--cool-grey-50)",
@@ -53,9 +65,11 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
   "--oh-border-subtle": "var(--cool-grey-800)",
   "--oh-separator": "rgba(113, 120, 136, 0.5)",
   "--oh-focus": "#ffffff",
+  "--oh-status-success": "#1FBD53",
+  "--oh-status-error": "#FF684E",
   "--oh-link": "var(--cool-grey-100)",
-  "--oh-radius": "5px",
-  "--oh-field-radius": "5px",
+  "--oh-radius": "8px",
+  "--oh-field-radius": "8px",
   "--oh-surface-shadow": "none",
   "--oh-overlay-shadow": "none",
   "--oh-field-shadow": "none",
@@ -73,7 +87,8 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
 } as const;
 
 export type AgentServerUICssVariableName =
-  keyof typeof AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES;
+  | keyof typeof AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES
+  | AgentServerUIThemeableBrandVariable;
 
 export type AgentServerUIStyleOverrides = Partial<
   Record<AgentServerUICssVariableName, string>

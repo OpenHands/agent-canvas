@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -15,12 +15,18 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 export function ChangeAgentButton() {
   const [contextMenuOpen, setContextMenuOpen] = useState<boolean>(false);
 
   const { conversationMode, setConversationMode, subConversationTaskId } =
     useConversationStore();
+
+  const { conversationId } = useOptionalConversationId();
+
+  const isHomePage = !conversationId;
 
   const webSocketStatus = useUnifiedWebSocketStatus();
 
@@ -80,7 +86,10 @@ export function ChangeAgentButton() {
   }, [isAgentRunning, contextMenuOpen, isWebSocketConnected]);
 
   const isButtonDisabled =
-    isAgentRunning || isCreatingConversation || !isWebSocketConnected;
+    isHomePage ||
+    isAgentRunning ||
+    isCreatingConversation ||
+    !isWebSocketConnected;
 
   // Handle Shift + Tab keyboard shortcut to cycle through modes
   useEffect(() => {
@@ -144,9 +153,8 @@ export function ChangeAgentButton() {
     }
     return <LessonPlanIcon width={18} height={18} color="currentColor" />;
   }, [isExecutionAgent]);
-  const caretColor = "currentColor";
 
-  return (
+  const button = (
     <div className="relative">
       <button
         type="button"
@@ -176,7 +184,7 @@ export function ChangeAgentButton() {
             {buttonLabel}
           </Typography.Text>
         </div>
-        <ChevronDownSmallIcon width={18} height={18} color={caretColor} />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <ChangeAgentContextMenu
@@ -187,4 +195,17 @@ export function ChangeAgentButton() {
       )}
     </div>
   );
+
+  if (isHomePage) {
+    return (
+      <StyledTooltip
+        content={t(I18nKey.CHANGE_AGENT$SWITCH_AFTER_CONVERSATION)}
+        placement="top"
+      >
+        {button}
+      </StyledTooltip>
+    );
+  }
+
+  return button;
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 
 interface ModalBackdropProps {
   children: React.ReactNode;
@@ -28,7 +29,14 @@ export function ModalBackdrop({
     if (e.target === e.currentTarget) onClose?.(); // only close if the click was on the backdrop
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  // Portal to document.body so the modal's `position: fixed` resolves
+  // against the viewport. Otherwise a transformed ancestor (e.g. the
+  // onboarding slide rail) would become the containing block and the
+  // modal would render trapped inside it instead of overlapping its
+  // parent modal.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -40,6 +48,7 @@ export function ModalBackdrop({
         className="fixed inset-0 bg-black opacity-60"
       />
       <div className="relative">{children}</div>
-    </div>
+    </div>,
+    document.body,
   );
 }

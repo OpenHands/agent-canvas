@@ -127,10 +127,23 @@ export interface AppConversation {
    * driven Agent, ``"acp"`` for an ACPAgent that delegates to an external
    * ACP CLI subprocess. Consumers can use this to gate UI affordances that
    * only make sense for one kind (e.g. the LLM-profile switcher in the chat
-   * header is a no-op for ACP conversations because model selection lives
-   * on the subprocess via ``acp_model``, not on ``llm_model``).
+   * header is a no-op for ACP conversations even though ``llm_model`` may
+   * carry the ACP subprocess model for display).
    */
   agent_kind?: "openhands" | "acp" | null;
+  /**
+   * For ACP conversations, the registry key of the ACP CLI server the
+   * conversation was launched against (e.g. ``"claude-code"``, ``"codex"``,
+   * ``"gemini-cli"``). Populated from ``info.tags.acpserver`` — see
+   * ``ACP_SERVER_TAG_KEY`` in ``agent-server-adapter.ts`` for the wire
+   * format and the rationale behind the snake_case-incompatible
+   * ``acpserver`` form. ``null`` for OpenHands conversations and for ACP
+   * conversations whose tag wasn't stamped (e.g. created via an older
+   * client or via the raw API). Consumers resolve the display name via
+   * ``getAcpProviderDisplayName(acp_server)`` and fall back to a generic
+   * "ACP" chip when the key is unknown or null.
+   */
+  acp_server?: string | null;
   llm_model: string | null;
   metrics: MetricsSnapshot | null;
   created_at: string;

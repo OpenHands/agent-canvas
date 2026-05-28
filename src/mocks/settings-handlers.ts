@@ -63,6 +63,27 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
   model_name: "AgentSettings",
   sections: [
     {
+      key: "general",
+      label: "General",
+      fields: [
+        {
+          key: "enable_sub_agents",
+          label: "Enable sub-agents",
+          description:
+            "Allow the agent to delegate work to specialized built-in sub-agents.",
+          section: "general",
+          section_label: "General",
+          value_type: "boolean",
+          default: false,
+          choices: [],
+          depends_on: [],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
+      ],
+    },
+    {
       key: "llm",
       label: "LLM",
       fields: [
@@ -297,6 +318,7 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
       enable_default_condenser: true,
       condenser_max_size: null,
     },
+    enable_sub_agents: false,
   },
   conversation_settings_schema: MOCK_CONVERSATION_SETTINGS_SCHEMA,
   conversation_settings: {
@@ -466,6 +488,8 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
+const MOCK_AGENT_SERVER_VERSION = "1.24.0";
+
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
 // (e.g., http://127.0.0.1:8000/api/...) since the code uses absolute URLs
@@ -476,7 +500,7 @@ export const SETTINGS_HANDLERS = [
     HttpResponse.json({
       uptime: 0,
       idle_time: 0,
-      version: "1.18.1",
+      version: MOCK_AGENT_SERVER_VERSION,
       usable_tools: [
         "terminal",
         "file_editor",
@@ -511,7 +535,7 @@ export const SETTINGS_HANDLERS = [
         "claude-sonnet-4-5-20250929",
       ],
       verified_providers: MOCK_VERIFIED_PROVIDERS,
-      default_model: "openhands/claude-opus-4-5-20251101",
+      default_model: "openhands/minimax-m2.7",
     }),
   ),
 

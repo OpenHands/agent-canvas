@@ -51,14 +51,32 @@ jobs:
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Get Playwright version
+        id: pw_version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}
+
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
 
       # ── MAIN BRANCH: generate fresh baselines and store as artifact ──────
 
@@ -68,7 +86,7 @@ jobs:
 
       - name: Upload baseline snapshots artifact
         if: github.ref == 'refs/heads/main' || github.event.inputs.force_update == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: snapshot-baselines
           path: tests/e2e/__snapshots__/
@@ -97,16 +115,22 @@ jobs:
           echo "main HEAD SHA: $MAIN_SHA"
 
           # Find the snapshot-tests.yml run triggered by exactly this commit.
-          RUN_ID=$(gh api \
+          if ! RUN_ID=$(gh api \
             "/repos/${{ github.repository }}/actions/workflows/snapshot-tests.yml/runs?branch=main&per_page=20" \
-            --jq "[.workflow_runs[] | select(.head_sha == \"$MAIN_SHA\")] | .[0].id // empty")
+            --jq "[.workflow_runs[] | select(.head_sha == \"$MAIN_SHA\")] | .[0].id // empty"); then
+            echo "::warning::Could not query main snapshot workflow runs; proceeding with latest available artifact."
+            exit 0
+          fi
 
           if [ -z "$RUN_ID" ]; then
             echo "No snapshot-tests run found for main SHA $MAIN_SHA — proceeding."
             exit 0
           fi
 
-          STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status')
+          if ! STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status'); then
+            echo "::warning::Could not query main snapshot workflow run status; proceeding with latest available artifact."
+            exit 0
+          fi
           echo "Run $RUN_ID status: $STATUS"
           if [ "$STATUS" = "completed" ]; then
             echo "Already completed — proceeding."
@@ -116,7 +140,10 @@ jobs:
           echo "Waiting for run $RUN_ID to complete (max 10 min)..."
           for i in $(seq 1 60); do
             sleep 10
-            STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status')
+            if ! STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status'); then
+              echo "::warning::Could not query main snapshot workflow run status; proceeding with latest available artifact."
+              exit 0
+            fi
             echo "  [$((i * 10))s] status: $STATUS"
             if [ "$STATUS" = "completed" ]; then
               echo "Main baseline workflow completed."
@@ -152,7 +179,7 @@ jobs:
 
       - name: Download main-branch baselines
         if: github.event_name == 'pull_request' && steps.find-run.outputs.has_baselines == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         id: download-baselines
         with:
@@ -214,7 +241,7 @@ jobs:
 
       - name: Upload test results artifact
         if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: snapshot-test-results
           path: |

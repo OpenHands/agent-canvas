@@ -23,8 +23,13 @@ import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { Typography } from "#/ui/typography";
+import { mobileTopBarIconClassName } from "#/utils/mobile-top-bar-icon-button-classes";
 
-export function ConversationTabs() {
+export function ConversationTabs({
+  variant = "default",
+}: {
+  variant?: "default" | "compact";
+}) {
   const { conversationId } = useConversationId();
   const { setSelectedTab, planContent } = useConversationStore();
 
@@ -139,9 +144,11 @@ export function ConversationTabs() {
 
   // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
   // user has that tab selected — then it appears while active so the bar
-  // matches the open panel. Hide VS Code on local backends (cloud-only URL).
+  // matches the open panel. Hide VS Code and Planner on local backends —
+  // both are cloud-only (the planning agent isn't supported locally).
   const visibleTabs = tabs.filter((tab) => {
     if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
+    if (tab.tabValue === "planner" && backend.kind !== "cloud") return false;
     if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
     return selectedTab === tab.tabValue;
   });
@@ -156,6 +163,7 @@ export function ConversationTabs() {
   const tabsRowInnerRef = useRef<HTMLDivElement>(null);
   const measureRowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [inlineTabCount, setInlineTabCount] = useState(visibleTabs.length);
 
   useLayoutEffect(() => {
@@ -227,7 +235,14 @@ export function ConversationTabs() {
 
   return (
     <>
-      <div className="relative min-h-10 w-full min-w-0 p-1">
+      <div
+        className={cn(
+          "relative w-full min-w-0",
+          variant === "compact"
+            ? "flex h-full min-h-0 items-center py-0 pl-0 pr-1"
+            : "min-h-10 p-1",
+        )}
+      >
         <div
           ref={measureRowRef}
           aria-hidden
@@ -266,7 +281,7 @@ export function ConversationTabs() {
         </div>
         <div
           ref={tabsRowInnerRef}
-          className="flex w-full min-w-0 flex-nowrap justify-start"
+          className="flex w-full min-w-0 flex-nowrap items-center justify-start"
         >
           <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5">
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
@@ -305,12 +320,17 @@ export function ConversationTabs() {
             </div>
             <div ref={menuRef} className="relative shrink-0">
               <EllipsisButton
+                ref={anchorRef}
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+                iconClassName={
+                  variant === "compact" ? mobileTopBarIconClassName : undefined
+                }
               />
               <ConversationTabsContextMenu
                 isOpen={isMenuOpen}
                 onClose={() => setIsMenuOpen(false)}
+                ignoreOutsideClickRef={anchorRef}
               />
             </div>
           </div>
@@ -334,7 +354,7 @@ export function ConversationTabs() {
             )}
             data-testid="planner-tab-build-button"
           >
-            <Typography.Text className="text-[11px] font-medium leading-5 text-black">
+            <Typography.Text className="text-[11px] font-normal leading-5 text-black">
               {/* eslint-disable-next-line i18next/no-literal-string */}
               {t(I18nKey.COMMON$BUILD)} ⌘↩
             </Typography.Text>

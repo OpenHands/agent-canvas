@@ -22,10 +22,19 @@ import {
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 
-const DEFAULT_BACKEND_PORT = 18000;
+// ── Centralized config (single source of truth for versions, ports, etc.) ───
+const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
+const SHARED_DEFAULTS = JSON.parse(
+  readFileSync(
+    path.join(__dev_safe_dirname, "..", "config", "defaults.json"),
+    "utf-8",
+  ),
+);
+
+const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
-const DEFAULT_AGENT_SERVER_PACKAGE = "openhands-agent-server";
+const DEFAULT_AGENT_SERVER_PACKAGE = SHARED_DEFAULTS.packages.agentServer;
 const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
 const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-agent-server",
@@ -33,12 +42,8 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-// Default secret key for local development (DO NOT use in production)
-// This is kept static because it's used for encrypting/decrypting persisted settings
-const DEFAULT_SECRET_KEY = "openhands-dev-secret-key-change-in-prod";
-// Default agent-server version (released PyPI version)
-// Set OH_AGENT_SERVER_GIT_REF to use a git branch/SHA instead
-const DEFAULT_AGENT_SERVER_VERSION = "1.22.1";
+const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
+const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
 /**
@@ -50,8 +55,7 @@ export function generateRandomApiKey() {
 }
 
 // Where the auto-generated default session API key is persisted so it stays
-// stable across `npm run dev` / `npm run dev:dangerously-dockerless` /
-// `npm run dev:docker` restarts. Keeping the key stable means the value
+// stable across `npm run dev` restarts. Keeping the key stable means the value
 // baked into the frontend (VITE_SESSION_API_KEY) and the persisted
 // backend-registry entry (`openhands-backends` localStorage) stay in sync
 // without users needing to set anything in `.env`.
@@ -333,7 +337,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.22.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.24.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -392,6 +396,8 @@ export function buildAgentServerCommand(env = process.env) {
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${version}`,
       "--with",
+      `openhands-sdk==${version}`,
+      "--with",
       `openhands-tools==${version}`,
       "--with",
       `openhands-workspace==${version}`,
@@ -404,6 +410,8 @@ export function buildAgentServerCommand(env = process.env) {
     uvxArgs.push(
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${DEFAULT_AGENT_SERVER_VERSION}`,
+      "--with",
+      `openhands-sdk==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
       `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
@@ -598,6 +606,17 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Force Python to use UTF-8 for all file I/O and streams.
+    //
+    // On Windows, Python defaults to the system ANSI codepage (e.g. cp1252).
+    // The agent-server writes conversation metadata JSON that can contain
+    // emoji (e.g. ✅ U+2705) which cp1252 cannot encode, producing:
+    //   UnicodeEncodeError: 'charmap' codec can't encode character '\u2705'
+    // Setting PYTHONUTF8=1 enables Python's UTF-8 mode (PEP 540) for the
+    // entire agent-server process, matching the behaviour on Linux/macOS
+    // where the locale is already UTF-8.
+    // This is a no-op on Linux/macOS where the locale is already UTF-8.
+    PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
@@ -631,10 +650,8 @@ export function buildAgentServerEnv(config) {
  * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
  * without having to probe.
  *
- * URLs are written from the *agent's* point of view. In dev-safe /
- * dev-with-automation the agent-server runs on the host, so the host
- * alias is "localhost". In dev-docker the agent-server runs inside a
- * container and reaches host services via "host.docker.internal".
+ * URLs are written from the *agent's* point of view. The agent-server
+ * runs on the host, so the host alias is "localhost".
  *
  * @param {object} options
  * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
@@ -747,17 +764,24 @@ export function buildNpmScriptCommand(
   env = process.env,
   nodeExecPath = process.execPath,
 ) {
-  if (env.npm_execpath) {
-    return {
-      command: env.npm_node_execpath || nodeExecPath,
-      args: [env.npm_execpath, "run", scriptName],
-    };
-  }
-
+  // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
+  // npm_execpath points to a path like
+  // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
+  // spaces. When that path is passed as an argument with shell:true in
+  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
+  // as a command, producing "not recognized as an internal or external command".
+  // Using "npm" via cmd.exe avoids the problem entirely.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
     };
   }
 

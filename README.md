@@ -35,8 +35,6 @@ If you have questions or feedback, please open a GitHub issue or join the [#proj
 
 ## Quickstart
 
-### Direct Install
-
 You can install OpenHands to run agents on any machine: on your laptop, on a dedicated computer like a Mac Mini,
 or on a server in the cloud.
 
@@ -49,53 +47,58 @@ them from the same Agent Canvas frontend. E.g. you can share an Agent Server wit
 code review and dependency updates, then have your personal agents running on your laptop.
 
 > [!WARNING]
-> This runs the agent-server directly on the machine you're installing on--the agent will have full access to your filesystem!
+> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
-**Prerequisites**:
+### Option 1: Docker
 
-- Node.js 22.12.x or later
-- `npm`
-- `uv` (for running the agent server via `uvx`)
+```sh
+docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
+```
+
+```sh
+export PROJECTS_PATH=~/projects  # directory containing your project folders
+```
+
+```sh
+docker run -it --rm \
+  -p 8000:8000 \
+  -v ~/.openhands:/home/openhands/.openhands \
+  -v ${PROJECTS_PATH}:/projects \
+  ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
+```
+
+The agent will be able to access any project under `PROJECTS_PATH`.
+
+### Option 2: NPM
+
+**Prerequisites**: Node.js 22.12.x or later, `uv`
+
+```sh
+npm install -g @openhands/agent-canvas
+```
+
+```sh
+export PROJECTS_PATH=~/projects  # directory containing your project folders
+```
+
+```sh
+agent-canvas
+```
+
+### Option 3: From Source
+
+**Prerequisites**: Node.js 22.12.x or later, `npm`, `uv` (for running the agent server via `uvx`)
 
 ```sh
 git clone https://github.com/OpenHands/agent-canvas.git
 cd agent-canvas
 npm install
-npm run dev:dangerously-dockerless
+npm run dev
 ```
+
+---
 
 Access the UI at [http://localhost:8000](http://localhost:8000). You can add additional backends directly from the UI.
-
-### With Docker Sandbox
-
-If you're running on your laptop, you likely want to sandbox OpenHands to limit the agent's access to your system.
-
-Watch the video on how to run this on [Mac](https://www.youtube.com/watch?v=BenkkQmmFCg) or [Windows](https://www.youtube.com/watch?v=WAxf_RRIrB8).
-
-**Prerequisites**:
-
-- Node.js 22.12.x or later
-- `npm`
-- Docker
-
-Set `$PROJECTS_PATH` to the directory on your machine where your projects live (e.g. `/path/to/your/projects`). The agent server will mount this directory so the agent can read and edit your code.
-
-```sh
-export PROJECTS_PATH=/path/to/your/projects
-git clone https://github.com/OpenHands/agent-canvas.git
-cd agent-canvas
-npm install
-npm run dev:docker
-```
-
-Windows PowerShell workaround: if `npm run dev:docker` starts the backend but `http://localhost:8000` shows **Bad Gateway** and the logs include a Vite error like `'C:\\Program' is not recognized`, start the same stack directly with Node instead. Replace the path below with your projects folder, and do not include any prompt characters or a trailing `>` in the value.
-
-```powershell
-$env:PROJECTS_PATH = "/path/to/your/projects"
-node --env-file-if-exists=.env .\scripts\dev-docker.mjs
-```
-
-Access the UI at [http://localhost:8000](http://localhost:8000).
 
 # Architecture
 
@@ -104,10 +107,8 @@ Agent Canvas is powered by the [OpenHands Agent Server](https://github.com/OpenH
 You can run an Agent Server anywhere:
 
 - Directly on your laptop (be careful!)
-- Inside a Docker container
 - On a dedicated machine like a Mac Mini
 - On a virtual machine in the cloud
-- Inside a Kubernetes Pod
 - Inside OpenHands Cloud (our commercial offering)
 
 The Agent Server is often paired with an [Automation Server](https://github.com/OpenHands/automation), which lets you set up agents that run on a schedule or in response to events.

@@ -12,6 +12,8 @@ const packageJson = JSON.parse(
   types: string;
   exports: Record<string, unknown>;
   scripts: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 
 describe("package library metadata", () => {
@@ -49,18 +51,41 @@ describe("package library metadata", () => {
     });
   });
 
-  it("uses static frontend launchers for user-facing dev commands", () => {
-    expect(packageJson.scripts.dev).toBe("npm run dev:docker");
-    expect(packageJson.scripts["dev:dangerously-dockerless"]).toBe(
-      "node --env-file-if-exists=.env scripts/dev-static.mjs",
-    );
-    expect(packageJson.scripts["dev:static"]).toBeUndefined();
-    expect(packageJson.scripts["dev:docker"]).toContain(
-      "scripts/dev-docker.mjs",
-    );
-    expect(packageJson.scripts["dev:docker:dynamic"]).toContain("--dynamic");
-    expect(packageJson.scripts["dev:dangerously-dockerless:dynamic"]).toBe(
+  // Git dependencies break `npm install -g` because npm clones the repo and
+  // runs the prepare script without devDependencies. All packages should be
+  // referenced from a registry; only @openhands/extensions is allowed as a git
+  // dep until it is published to npm.
+  it("does not use git dependencies (except @openhands/extensions)", () => {
+    const GIT_DEP_PATTERN = /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
+    const ALLOWED_GIT_DEPS = new Set(["@openhands/extensions"]);
+
+    const allDeps = {
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies,
+    };
+
+    const violations = Object.entries(allDeps)
+      .filter(
+        ([name, version]) =>
+          GIT_DEP_PATTERN.test(version) && !ALLOWED_GIT_DEPS.has(name),
+      )
+      .map(([name, version]) => `${name}: ${version}`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("uses local dev commands without Docker", () => {
+    expect(packageJson.scripts.dev).toBe(
       "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
     );
+    expect(packageJson.scripts["dev:static"]).toBe(
+      "node --env-file-if-exists=.env scripts/dev-static.mjs",
+    );
+    expect(packageJson.scripts["dev:minimal"]).toBe(
+      "node --env-file-if-exists=.env scripts/dev-safe.mjs",
+    );
+    expect(packageJson.scripts["dev:docker"]).toBeUndefined();
+    expect(packageJson.scripts["dev:docker:dynamic"]).toBeUndefined();
+    expect(packageJson.scripts["dev:dangerously-dockerless"]).toBeUndefined();
   });
 });

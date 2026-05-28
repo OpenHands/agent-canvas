@@ -17,7 +17,7 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
   // navigates to via `/settings/app`).
   useSettingsNavItems: () =>
     OSS_NAV_ITEMS.filter((item) =>
-      ["/settings", "/settings/app"].includes(item.to),
+      ["/settings/llm", "/settings/app"].includes(item.to),
     ).map((item) => ({ type: "item", item })),
 }));
 
@@ -36,10 +36,8 @@ describe("settings route", () => {
   });
 
   it("prefers /settings/agent when LLM settings are hidden", () => {
-    // /settings/agent is the ACP landing page and is always available.
-    // When ``hide_llm_settings`` flips on, the user is steered there
-    // rather than to ``/settings/app`` (which is a far less useful
-    // landing for first-time setup).
+    // /settings/agent is the unconditional first fallback — always
+    // available and the single place to switch agent kinds.
     expect(
       getFirstAvailablePath({
         hide_llm_settings: true,
@@ -48,9 +46,10 @@ describe("settings route", () => {
     ).toBe("/settings/agent");
   });
 
-  it("still prefers /settings/agent even when LLM settings are visible", () => {
-    // The Agent page is the single place to switch kinds, so it wins
-    // the fallback unconditionally.
+  it("prefers /settings/agent when LLM settings are visible", () => {
+    // /settings/agent wins unconditionally, so OpenHands users land
+    // there too and reach LLM via the left nav instead of bouncing
+    // through /settings/llm (which is disabled for ACP users).
     expect(
       getFirstAvailablePath({
         hide_llm_settings: false,
@@ -75,7 +74,7 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
-      request: new Request("http://localhost/settings"),
+      request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
     } as never)) as Response;
@@ -160,7 +159,7 @@ describe("settings route", () => {
     });
 
     const response = (await clientLoader({
-      request: new Request("http://localhost/settings"),
+      request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
     } as never)) as Response;

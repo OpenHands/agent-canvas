@@ -2,63 +2,64 @@
 /**
  * CLI entry point for @openhands/agent-canvas
  *
- * Runs the full Agent Canvas stack using Docker for the agent-server:
- * - Agent-server runs in Docker container
+ * Runs the full Agent Canvas stack locally:
+ * - Agent-server via uvx
  * - Automation backend via uvx
- * - Pre-built static frontend (not Vite dev server)
+ * - Pre-built static frontend
  *
  * This is the production equivalent of `npm run dev` - it runs the full stack
  * but serves pre-built static assets instead of the Vite dev server.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_JSON = join(__dirname, "..", "package.json");
 // Build output is in build/ (not build/client/) - see react-router.config.ts unpackClientDirectory
 const BUILD_DIR = join(__dirname, "..", "build");
 
-// Check for help flag first
+// Check for version/help flags first
 const args = process.argv.slice(2);
+if (args.includes("-v") || args.includes("--version")) {
+  const { version } = JSON.parse(readFileSync(PKG_JSON, "utf-8"));
+  console.log(version);
+  process.exit(0);
+}
 if (args.includes("-h") || args.includes("--help")) {
   console.log(`
-@openhands/agent-canvas - Run the Agent Canvas UI with agent-server (Docker)
+@openhands/agent-canvas - Run the Agent Canvas UI with agent-server
 
-Runs the full stack with agent-server in Docker, automation backend via uvx,
+Runs the full stack with agent-server and automation backend via uvx,
 and serves pre-built static frontend assets.
 
 USAGE:
   npx @openhands/agent-canvas [options]
 
-REQUIRED:
-  PROJECTS_PATH         Path to your projects directory (mounted into container)
-
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
+  -v, --version         Show version number
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:
-  PROJECTS_PATH                Required: path to your projects directory
   OH_SECRET_KEY                Secret key for encrypting settings
-  OH_AGENT_SERVER_GIT_REF      Git ref for agent-server Docker image tag
+  OH_AGENT_SERVER_GIT_REF      Git ref for agent-server
   OH_AGENT_SERVER_LOCAL_PATH   Path to local SDK checkout (for development)
-  OH_MOUNT_HOST_HOME           Set to "1" to mount entire home directory
+  OH_AGENT_SERVER_VERSION      Specific PyPI version for agent-server
 
 Note: LLM settings are configured through the web UI settings page,
 not environment variables.
 
 EXAMPLES:
-  # Start full stack (requires PROJECTS_PATH)
-  PROJECTS_PATH=/path/to/projects npx @openhands/agent-canvas
+  # Start full stack
+  npx @openhands/agent-canvas
 
   # Use a specific port
-  PROJECTS_PATH=/path/to/projects npx @openhands/agent-canvas --port 3000
+  npx @openhands/agent-canvas --port 3000
 
   # Use local SDK checkout for development
-  PROJECTS_PATH=/path/to/projects OH_AGENT_SERVER_LOCAL_PATH=/path/to/sdk npx @openhands/agent-canvas
-
-For more options, see: node scripts/dev-docker.mjs --help
+  OH_AGENT_SERVER_LOCAL_PATH=/path/to/sdk npx @openhands/agent-canvas
 `);
   process.exit(0);
 }
@@ -77,12 +78,9 @@ this is a packaging error. If running from source:
   process.exit(1);
 }
 
-// Import dev-docker's dependencies and run with static mode
-let main, checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR;
+let main;
 try {
   ({ main } = await import("../scripts/dev-with-automation.mjs"));
-  ({ checkDockerPrereqs, startAgentServerDocker, CONTAINER_WORKSPACES_DIR } =
-    await import("../scripts/dev-docker.mjs"));
 } catch (err) {
   console.error("Failed to load required scripts. Try reinstalling:");
   console.error("  npm install -g @openhands/agent-canvas@latest");
@@ -92,14 +90,8 @@ try {
 
 main({
   bannerTitle: "Agent Canvas",
-  extraPrereqs: checkDockerPrereqs,
-  startAgentServer: startAgentServerDocker,
-  viteWorkingDir: CONTAINER_WORKSPACES_DIR,
   staticMode: true,
   staticDir: BUILD_DIR,
-  // Agent-server runs in a Docker container; host services are reached
-  // via "host.docker.internal" from the agent's POV.
-  agentHostAlias: "host.docker.internal",
   mode: "agent-canvas",
 }).catch((err) => {
   console.error(`Fatal error: ${err.message}`);

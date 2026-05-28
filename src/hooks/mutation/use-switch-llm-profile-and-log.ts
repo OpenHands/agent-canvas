@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
 import { useSwitchLlmProfile } from "#/hooks/mutation/use-switch-llm-profile";
-import { useModelStore } from "#/stores/model-store";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -14,7 +14,6 @@ import { I18nKey } from "#/i18n/declaration";
  */
 export function useSwitchLlmProfileAndLog() {
   const { mutate, isPending } = useSwitchLlmProfile();
-  const recordSwitch = useModelStore((s) => s.recordSwitch);
   const { t } = useTranslation();
 
   const switchAndLog = useCallback(
@@ -28,7 +27,11 @@ export function useSwitchLlmProfileAndLog() {
             // The inline "Switched to" message is scoped to a conversation;
             // skip it when activating from the home page (no convo yet).
             if (conversationId) {
-              recordSwitch(conversationId, anchorEventId, profileName);
+              recordModelSwitchMessage(
+                conversationId,
+                profileName,
+                anchorEventId,
+              );
             }
           },
           onError: (err: unknown) => {
@@ -42,7 +45,7 @@ export function useSwitchLlmProfileAndLog() {
         },
       );
     },
-    [mutate, recordSwitch, t],
+    [mutate, t],
   );
 
   return { switchAndLog, isPending };

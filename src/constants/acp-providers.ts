@@ -1,21 +1,80 @@
+import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
+export type ACPProviderIcon =
+  | "claude-code"
+  | "codex"
+  | "gemini"
+  | "cli-generic";
+
+export const ACP_PROVIDER_FALLBACK_ICON: ACPProviderIcon = "cli-generic";
+
+// SDK placeholder strings the ACP wrapper returns before the user has
+// chosen a real model — surfacing either would lie about what's running.
+export const ACP_DEFAULT_PLACEHOLDERS = new Set([
+  "default",
+  "default (recommended)",
+]);
+
+// Sentinel ``agent.llm.model`` returned by older SDKs for ACP conversations
+// in lieu of a real model. Suppressed at every consumer that resolves a
+// display string.
+export const ACP_MANAGED_SENTINEL = "acp-managed";
+
 /**
- * Built-in ACP (Agent Client Protocol) provider registry.
+ * Filter for "real" ACP model strings — non-empty, not the SDK's "default"
+ * placeholder, not the legacy ``acp-managed`` sentinel. Returns the trimmed
+ * value on success, ``null`` otherwise.
+ */
+function realAcpModel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (ACP_DEFAULT_PLACEHOLDERS.has(trimmed.toLowerCase())) return null;
+  if (trimmed === ACP_MANAGED_SENTINEL) return null;
+  return trimmed;
+}
+
+/**
+ * Single source of truth for resolving the model string to surface for an
+ * ACP conversation/settings context. Consumed by the conversation adapter
+ * (chip text), the conversation-creation path (concrete ``acp_model``
+ * payload), the Settings → Agent form (initial value), and the chat-input
+ * model label.
  *
- * **Source of truth:** ``openhands.sdk.settings.acp_providers.ACP_PROVIDERS``
- * in https://github.com/OpenHands/software-agent-sdk. This file is a
- * hand-kept TypeScript mirror — keep keys + commands in sync with the
- * Python source. The {@link OnboardingAgentId} and the
- * ``ACPAgentSettings.acp_server`` discriminator
- * (``"claude-code" | "codex" | "gemini-cli" | "custom"``) come from the
- * same Python module.
- *
- * Drift risk is tracked in agent-canvas#587. The richer SDK record
- * (api-key env var, session mode, set-session-model protocol, etc.)
- * is intentionally not mirrored here — canvas only renders this
- * registry in the Settings → Agent and onboarding UIs, so it only
- * needs the fields below.
+ * Precedence: SDK runtime fields → user-configured ``acp_model`` →
+ * legacy ``agent.llm.model`` → provider default (when ``providerDefault``
+ * is passed). Pass ``providerDefault`` only on surfaces that should
+ * silently substitute the registry default; omit it for the conversation
+ * chip, which must distinguish "no concrete model" from "default".
+ */
+export function resolveEffectiveAcpModel(inputs: {
+  runtimeName?: string | null;
+  runtimeId?: string | null;
+  configured?: string | null;
+  sdkLlm?: string | null;
+  providerDefault?: string | null;
+}): string | null {
+  for (const candidate of [
+    inputs.runtimeName,
+    inputs.runtimeId,
+    inputs.configured,
+    inputs.sdkLlm,
+  ]) {
+    const value = realAcpModel(candidate);
+    if (value) return value;
+  }
+  return inputs.providerDefault ?? null;
+}
+
+/**
+ * Shape of a built-in ACP (Agent Client Protocol) provider as Canvas consumes
+ * it. The data fields (display name, launch command, model picker + default)
+ * are sourced at module load from ``@openhands/typescript-client``'s ACP
+ * registry — the generated mirror of the Python source of truth
+ * ``openhands.sdk.settings.acp_providers``. This config only adds the
+ * Canvas-specific UI fields ({@link ACPProviderConfig.icon} +
+ * {@link ACPProviderConfig.description_key}); see {@link ACP_PROVIDER_UI}.
  */
 export interface ACPProviderConfig {
   /** Stable registry key, also stored on conversations as ``tags.acpserver``. */
@@ -35,51 +94,156 @@ export interface ACPProviderConfig {
    */
   default_command: string[];
   /**
+   * Suggested ACP model IDs for the provider's picker, sourced from the
+   * typescript-client registry. Not authoritative access checks; users can
+   * still enter a custom override in Settings -> Agent.
+   */
+  available_models?: ACPModelOption[];
+  /** Model ID preselected for built-in providers so Canvas never saves blank. */
+  default_model?: string;
+  /**
    * i18n key for the one-line provider description rendered under the
    * onboarding tile. Stored on the registry so adding a new ACP
    * provider only requires editing this file (not the onboarding tile
    * list separately).
    */
   description_key: I18nKey;
+  /**
+   * Serializable icon key used by UI surfaces that render provider
+   * choices. Kept as a string so the SDK mirror check can continue to
+   * parse this registry without importing React components.
+   */
+  icon?: ACPProviderIcon;
 }
 
-// Each entry's ``default_command`` is the published-package npx
-// invocation that speaks the ACP JSON-RPC protocol on stdio. Verified
-// against the upstream npm registry on the date noted below — if a
-// package is renamed/unpublished, the agent-server spawn fails fast
-// with ``ENOENT`` and the user can switch to the "Custom" preset.
-export const ACP_PROVIDERS: ACPProviderConfig[] = [
-  {
-    key: "claude-code",
-    display_name: "Claude Code",
-    // https://www.npmjs.com/package/@agentclientprotocol/claude-agent-acp
-    // Verified 2026-05-19. Official Anthropic-maintained ACP wrapper
-    // around the Claude Code CLI.
-    default_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+export interface ACPModelOption {
+  /** Exact model ID sent as ``acp_model``. */
+  id: string;
+  /** Human-readable label shown in Settings -> Agent. */
+  label: string;
+}
+
+// Canvas-only UI metadata per built-in provider, keyed by the ACP registry
+// key. Everything else — display name, launch command, model picker list and
+// default — comes from the typescript-client registry below. Adding a model
+// or a provider happens upstream in the SDK; Canvas only owns the brand icon
+// and the onboarding-tile description here. A provider with no entry here is
+// intentionally not surfaced in the UI.
+const ACP_PROVIDER_UI: Record<
+  string,
+  { icon: ACPProviderIcon; description_key: I18nKey }
+> = {
+  "claude-code": {
+    icon: "claude-code",
     description_key: I18nKey.ONBOARDING$AGENT_CLAUDE_CODE_DESCRIPTION,
   },
-  {
-    key: "codex",
-    display_name: "Codex",
-    // https://www.npmjs.com/package/@zed-industries/codex-acp
-    // Verified 2026-05-19. Zed-maintained ACP wrapper around the
-    // OpenAI Codex CLI — NOT ``@openai/codex acp`` (no ``acp``
-    // subcommand on that package).
-    default_command: ["npx", "-y", "@zed-industries/codex-acp"],
+  codex: {
+    icon: "codex",
     description_key: I18nKey.ONBOARDING$AGENT_CODEX_DESCRIPTION,
   },
-  {
-    key: "gemini-cli",
-    display_name: "Gemini CLI",
-    // https://www.npmjs.com/package/@google/gemini-cli
-    // Verified 2026-05-19. Official Google CLI; ``--acp`` switches it
-    // into ACP server mode on stdio.
-    default_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
+  "gemini-cli": {
+    icon: "gemini",
     description_key: I18nKey.ONBOARDING$AGENT_GEMINI_CLI_DESCRIPTION,
   },
-];
+};
+
+// Built-in ACP providers Canvas surfaces, built by enriching each upstream
+// registry record (``@openhands/typescript-client`` → Python SDK) with the
+// Canvas UI metadata above. Model lists + defaults are no longer hand-kept
+// here (closes agent-canvas#740) — they track the SDK via the pinned client.
+export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
+  ACP_PROVIDER_UI,
+).map(([key, ui]) => {
+  const info = getClientAcpProvider(key);
+  return {
+    key,
+    display_name: info?.display_name ?? key,
+    default_command: info ? [...info.default_command] : [],
+    available_models: info?.available_models?.map((model) => ({
+      id: model.id,
+      label: model.label,
+    })),
+    default_model: info?.default_model ?? undefined,
+    description_key: ui.description_key,
+    icon: ui.icon,
+  };
+});
 
 export const ACP_CUSTOM_PRESET_KEY = "custom";
+
+/**
+ * Look up a built-in ACP provider config by its registry key.
+ *
+ * Returns ``undefined`` for an empty / null key, for the ``"custom"`` preset
+ * (which has no registry entry), and for any forward-compatible key Canvas's
+ * registry doesn't know about yet. Centralizes the ``ACP_PROVIDERS.find(...)``
+ * lookup shared by the resolvers below and by the adapter / settings surfaces
+ * so the key-comparison shape lives in one place.
+ */
+export function getAcpProvider(
+  key: string | null | undefined,
+): ACPProviderConfig | undefined {
+  if (!key) return undefined;
+  return ACP_PROVIDERS.find((provider) => provider.key === key);
+}
+
+/**
+ * Resolve an ACP provider registry key (the value stored under
+ * ``tags.acpserver`` on a conversation) to a human display name for the
+ * sidebar chip.
+ *
+ * Returns ``null`` for an empty / null key and for keys not in
+ * {@link ACP_PROVIDERS} — most notably ``"custom"`` (the user-supplied
+ * command preset has no canonical brand name) and any forward-compatible
+ * value Canvas's registry doesn't know about yet. Callers should fall
+ * back to a generic ``"ACP"`` label in that case so the chip still
+ * communicates "this is an ACP conversation".
+ *
+ * Kept separate from {@link buildAcpAgentSettingsDiff}'s lookup so the
+ * conversation-card render path can resolve display names without
+ * importing the settings-payload builder.
+ */
+export function getAcpProviderDisplayName(
+  key: string | null | undefined,
+): string | null {
+  const found = getAcpProvider(key);
+  return found ? found.display_name : null;
+}
+
+/**
+ * Resolve an ACP provider registry key to the icon discriminator the
+ * conversation chip should render alongside the model text.
+ *
+ * Falls back to {@link ACP_PROVIDER_FALLBACK_ICON} for ``"custom"``,
+ * unknown keys, or a missing key — the chip then shows a neutral
+ * terminal glyph that still communicates "this is an ACP conversation"
+ * without claiming a brand identity we don't know.
+ */
+export function resolveAcpProviderIcon(
+  key: string | null | undefined,
+): ACPProviderIcon {
+  return getAcpProvider(key)?.icon ?? ACP_PROVIDER_FALLBACK_ICON;
+}
+
+/**
+ * Resolve a raw ``acp_model`` ID to the human-readable label the provider's
+ * picker shows for it (e.g. ``"claude-opus-4-7"`` → ``"Claude Opus 4.7"``).
+ *
+ * Falls back to the raw ID when the provider is unknown or the ID isn't one
+ * of its registered {@link ACPModelOption}s — so a user's custom override
+ * still renders something meaningful rather than nothing. Returns ``null``
+ * only when there is no model to show, letting the conversation chip decide
+ * to display the provider name instead.
+ */
+export function labelForAcpModel(
+  serverKey: string | null | undefined,
+  modelId: string | null | undefined,
+): string | null {
+  if (!modelId) return null;
+  const provider = getAcpProvider(serverKey);
+  const match = provider?.available_models?.find((m) => m.id === modelId);
+  return match?.label ?? modelId;
+}
 
 /**
  * Build the ``agent_settings_diff`` payload PATCH /api/settings expects
@@ -121,12 +285,15 @@ export function buildAcpAgentSettingsDiff(
   }
 
   const isCustom = providerKey === ACP_CUSTOM_PRESET_KEY;
-  const provider = isCustom
-    ? undefined
-    : ACP_PROVIDERS.find(({ key }) => key === providerKey);
+  const provider = isCustom ? undefined : getAcpProvider(providerKey);
   if (!isCustom && !provider && !options.allowUnknownServer) {
     return null;
   }
+
+  const model =
+    options.model === undefined
+      ? (provider?.default_model ?? null)
+      : options.model;
 
   // ``acp_args: []`` resets any API-set ``acp_args`` that would
   // otherwise survive and concatenate to ``acp_command`` at spawn time
@@ -139,6 +306,6 @@ export function buildAcpAgentSettingsDiff(
     acp_server: providerKey,
     acp_command: options.command ?? [],
     acp_args: [],
-    acp_model: options.model ?? null,
+    acp_model: model ?? null,
   };
 }

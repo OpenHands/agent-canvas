@@ -315,6 +315,15 @@ describe("ConversationTabs localStorage behavior", () => {
 
     it("shows an unpinned tab in the bar while it is selected", () => {
       mockConversationId = REAL_CONVERSATION_ID;
+      // Planner is cloud-only, so a cloud backend is required to exercise
+      // the unpinned-while-selected logic against the planner tab.
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
       seedConversationState(REAL_CONVERSATION_ID, {
         selectedTab: "planner",
         unpinnedTabs: ["planner"],
@@ -336,6 +345,15 @@ describe("ConversationTabs localStorage behavior", () => {
 
     it("hides an unpinned tab from the bar once another tab is selected", () => {
       mockConversationId = REAL_CONVERSATION_ID;
+      // Cloud backend so the planner tab would be eligible — it stays
+      // hidden here because it is unpinned and not the selected tab.
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
       seedConversationState(REAL_CONVERSATION_ID, {
         selectedTab: "files",
         unpinnedTabs: ["planner"],
@@ -474,6 +492,78 @@ describe("ConversationTabs localStorage behavior", () => {
 
       // Assert
       expect(screen.getByTestId("conversation-tab-vscode")).toBeInTheDocument();
+    });
+  });
+
+  describe("planner tab visibility by backend kind", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("should hide the planner tab when the active backend is local", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "local-test",
+        name: "Local Test",
+        host: "http://localhost:8000",
+        apiKey: "",
+        kind: "local",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.queryByTestId("conversation-tab-planner"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should show the planner tab when the active backend is cloud", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.getByTestId("conversation-tab-planner"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("ellipsis context menu", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("opens the context menu when the ellipsis button is clicked", async () => {
+      const user = userEvent.setup();
+
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      expect(
+        screen.queryByTestId("conversation-tabs-menu-open-files"),
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId("ellipsis-button"));
+
+      expect(
+        screen.getByTestId("conversation-tabs-menu-open-files"),
+      ).toBeInTheDocument();
     });
   });
 

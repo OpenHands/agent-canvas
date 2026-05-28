@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.7",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -23,7 +23,8 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#v0.6.0",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#39711065f53166c52608462f60a4c8507253ce56",
+    "@openhands/typescript-client": "1.24.0",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tailwindcss/vite": "4.2.4",
@@ -67,14 +68,9 @@
     "zustand": "5.0.12"
   },
   "scripts": {
-    "dev": "npm run dev:docker",
-    "dev:dangerously-dockerless": "node --env-file-if-exists=.env scripts/dev-static.mjs",
-    "dev:dangerously-dockerless:dynamic": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
-    "dev:safe": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
+    "dev": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
+    "dev:static": "node --env-file-if-exists=.env scripts/dev-static.mjs",
     "dev:extra-backend": "node --env-file-if-exists=.env scripts/dev-extra-backend.mjs",
-    "dev:automation": "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",
-    "dev:docker": "node --env-file-if-exists=.env scripts/dev-docker.mjs",
-    "dev:docker:dynamic": "node --env-file-if-exists=.env scripts/dev-docker.mjs --dynamic",
     "dev:minimal": "node --env-file-if-exists=.env scripts/dev-safe.mjs",
     "dev:frontend": "npm run make-i18n && cross-env VITE_MOCK_API=false react-router dev",
     "dev:mock": "npm run make-i18n && cross-env VITE_MOCK_API=true react-router dev",
@@ -84,6 +80,7 @@
     "test": "npm run make-i18n && vitest run",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:live": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-live-e2e.mjs",
+    "test:e2e:mock-llm": "playwright test --config=playwright.mock-llm.config.ts",
     "test:e2e:snapshots": "playwright test tests/e2e/snapshots --project=chromium --retries=0",
     "test:e2e:snapshots:update": "playwright test tests/e2e/snapshots --project=chromium --update-snapshots",
     "test:coverage": "npm run make-i18n && vitest run --coverage",
@@ -98,7 +95,8 @@
     "typecheck:staged": "react-router typegen && npx tsc --noEmit --skipLibCheck",
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
-    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json"
+    "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
+    "build:docker": "node scripts/docker-build.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
@@ -175,6 +173,7 @@
     "dist",
     "bin",
     "build",
+    "config",
     "scripts"
   ],
   "exports": {

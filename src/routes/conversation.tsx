@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation, useMatch } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import { useConversationId } from "#/hooks/use-conversation-id";
@@ -21,7 +21,10 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
-import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
+import {
+  ConversationMain,
+  ConversationMobilePanelPage,
+} from "#/components/features/conversation/conversation-main/conversation-main";
 
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
@@ -32,6 +35,7 @@ import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
+  const panelViewMatch = useMatch("/conversations/:conversationId/panel");
   const clearEvents = useEventStore((state) => state.clearEvents);
 
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
@@ -176,8 +180,14 @@ function AppContent() {
 
   const content = (
     <EventHandler>
-      <div data-testid="app-route" className="flex flex-col h-full">
-        <ConversationMain />
+      <div data-testid="app-route" className="flex h-full flex-col">
+        {panelViewMatch ? (
+          <ConversationMobilePanelPage
+            onNavigateBack={() => navigate(`/conversations/${conversationId}`)}
+          />
+        ) : (
+          <ConversationMain />
+        )}
       </div>
     </EventHandler>
   );
