@@ -42,10 +42,9 @@ import {
   ensureMockLLMProfile,
 } from "./utils/mock-llm-helpers";
 
-// ── Tokens that the test verifies in agent output ──────────────────────
-
-const AUTOMATION_CREATE_TOKEN = "MOCK_AUTOMATION_CREATED_OK";
-const AUTOMATION_DISPATCH_TOKEN = "MOCK_AUTOMATION_DISPATCHED_OK";
+// Token the test asserts on in the agent's text reply (step 2).
+// The terminal printf breadcrumbs below are NOT asserted — they exist
+// purely for log readability when debugging failures.
 const AUTOMATION_REPLY_TOKEN = "MOCK_AUTOMATION_REPLY_OK";
 
 const AUTOMATION_NAME = "Hello World Cron";
@@ -240,7 +239,7 @@ test.describe("mock-LLM automation lifecycle", () => {
       `-o /tmp/auto_result.json`,
       `-w '\\nHTTP_CODE:%{http_code}\\n'`,
       `&& cat /tmp/auto_result.json`,
-      `&& printf '${AUTOMATION_CREATE_TOKEN}\\n'`,
+      `&& printf 'AUTOMATION_CREATED\\n'`,
     ].join(" ");
 
     const dispatchCmd = [
@@ -249,7 +248,7 @@ test.describe("mock-LLM automation lifecycle", () => {
       authHeader,
       `-H 'Content-Type: application/json'`,
       `-w '\\nHTTP_CODE:%{http_code}\\n'`,
-      `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
+      `&& printf 'AUTOMATION_DISPATCHED\\n'`,
     ].join(" ");
 
     // ⚠️  Padding response (index 0):

@@ -13,6 +13,7 @@ text reply. Extend TRAJECTORY to test richer scenarios (multi-turn, errors, etc)
 import json
 import os
 import sys
+import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -76,7 +77,7 @@ class MockLLMHandler(BaseHTTPRequestHandler):
     # Named trajectories that tests can register via the admin API and then
     # activate with POST /admin/trajectory/activate.
     _named_trajectories: dict[str, list[Message | Exception]] = {}
-    _lock = __import__("threading").Lock()
+    _lock = threading.Lock()
 
     def do_GET(self):
         """Health check — Playwright's webServer probes GET / to detect readiness."""
@@ -89,9 +90,10 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         if path == "/admin/reset":
             with self._lock:
                 MockLLMHandler.test_llm = TestLLM.from_messages(build_trajectory())
+                remaining = MockLLMHandler.test_llm.remaining_responses
             self._send_json(200, {
                 "status": "reset",
-                "remaining": MockLLMHandler.test_llm.remaining_responses,
+                "remaining": remaining,
             })
             return
 
@@ -120,10 +122,11 @@ class MockLLMHandler(BaseHTTPRequestHandler):
                 return
             with self._lock:
                 MockLLMHandler.test_llm = TestLLM.from_messages(list(msgs))
+                remaining = MockLLMHandler.test_llm.remaining_responses
             self._send_json(200, {
                 "status": "activated",
                 "name": name,
-                "remaining": MockLLMHandler.test_llm.remaining_responses,
+                "remaining": remaining,
             })
             return
 
@@ -209,9 +212,13 @@ class MockLLMHandler(BaseHTTPRequestHandler):
 
     def _read_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
-        if length:
+        if not length:
+            return {}
+        try:
             return json.loads(self.rfile.read(length))
-        return {}
+        except json.JSONDecodeError as exc:
+            self._send_error(400, "invalid_json", str(exc))
+            return {}
 
     def log_message(self, format, *args):
         print(f"[mock-llm] {args[0]}", file=sys.stderr, flush=True)
