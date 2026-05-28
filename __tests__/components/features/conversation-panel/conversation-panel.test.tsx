@@ -1721,27 +1721,29 @@ describe("ConversationPanel", () => {
   });
 
   describe("conversation search", () => {
-    it("reveals search field and most recent section when toggled", async () => {
+    it("opens a search modal with most recent section when toggled", async () => {
       const user = userEvent.setup();
       renderConversationPanel();
 
       await screen.findAllByTestId("conversation-card");
 
       expect(
-        screen.queryByTestId("conversation-panel-search-panel"),
+        screen.queryByTestId("conversation-panel-search-modal"),
       ).not.toBeInTheDocument();
 
       await user.click(screen.getByTestId("conversation-panel-search-toggle"));
 
       expect(
-        screen.getByTestId("conversation-panel-search-panel"),
+        screen.getByTestId("conversation-panel-search-modal"),
       ).toBeInTheDocument();
       expect(
-        screen.getByTestId("conversation-panel-search-section-label"),
+        within(screen.getByTestId("conversation-panel-search-modal")).getByTestId(
+          "conversation-panel-search-section-label",
+        ),
       ).toHaveTextContent("COMMON$MOST_RECENT");
     });
 
-    it("filters conversations by any part of the conversation string", async () => {
+    it("filters conversations by any part of the conversation string in the modal", async () => {
       const user = userEvent.setup();
       vi.spyOn(
         AgentServerConversationService,
@@ -1773,15 +1775,19 @@ describe("ConversationPanel", () => {
         "figma",
       );
 
+      const modal = screen.getByTestId("conversation-panel-search-modal");
       await waitFor(() => {
-        expect(screen.getAllByTestId("conversation-card")).toHaveLength(1);
+        expect(
+          within(modal).getAllByTestId("conversation-panel-search-result"),
+        ).toHaveLength(1);
       });
-      expect(screen.getByTestId("conversation-card-title")).toHaveTextContent(
-        "Enable Figma design export",
-      );
+      expect(
+        within(modal).getByTestId("conversation-panel-search-result"),
+      ).toHaveAttribute("data-conversation-id", "2");
+      expect(screen.getAllByTestId("conversation-card")).toHaveLength(3);
     });
 
-    it("shows a no-results message when nothing matches", async () => {
+    it("shows a no-results message in the modal when nothing matches", async () => {
       const user = userEvent.setup();
       renderConversationPanel();
       await screen.findAllByTestId("conversation-card");
@@ -1792,12 +1798,15 @@ describe("ConversationPanel", () => {
         "zzzz-not-found",
       );
 
+      const modal = screen.getByTestId("conversation-panel-search-modal");
       await waitFor(() => {
         expect(
-          screen.getByTestId("conversation-panel-search-no-results"),
+          within(modal).getByTestId("conversation-panel-search-no-results"),
         ).toBeInTheDocument();
       });
-      expect(screen.queryAllByTestId("conversation-card")).toHaveLength(0);
+      expect(
+        within(modal).queryAllByTestId("conversation-panel-search-result"),
+      ).toHaveLength(0);
     });
   });
 });
