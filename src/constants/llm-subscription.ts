@@ -16,6 +16,9 @@ export const OPENAI_SUBSCRIPTION_LOGOUT_PATH =
   "/api/llm/subscription/openai/logout";
 
 export const OPENAI_SUBSCRIPTION_MODELS = [
+  "gpt-5.5",
+  "gpt-5.4-pro",
+  "gpt-5.4",
   "gpt-5.3-codex",
   "gpt-5.2-codex",
   "gpt-5.2",
