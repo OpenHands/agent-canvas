@@ -31,7 +31,6 @@ export default function ApiKeyEntryScreen() {
   const host = window.location.origin;
   // Always start with an empty key so stale credentials don't bleed
   // through from a previous session / server restart.
-  const [name, setName] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
   const [isValidating, setIsValidating] = React.useState(false);
   const [connectionStatus, setConnectionStatus] = React.useState<
@@ -39,8 +38,7 @@ export default function ApiKeyEntryScreen() {
   >("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const canSubmit =
-    name.trim().length > 0 && apiKey.trim().length > 0 && !isValidating;
+  const canSubmit = apiKey.trim().length > 0 && !isValidating;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -63,8 +61,10 @@ export default function ApiKeyEntryScreen() {
       setConnectionStatus("success");
 
       // Persist the validated key in both storage layers.
+      // Auto-generate the name from the hostname so users don't have to
+      // invent one — in public mode there's only one server.
       updateBackend(active.backend.id, {
-        name: name.trim(),
+        name: window.location.hostname,
         host,
         apiKey: trimmedKey,
         kind: "local",
@@ -128,22 +128,6 @@ export default function ApiKeyEntryScreen() {
           >
             <div className="flex flex-col gap-1">
               <SettingsInput
-                testId="api-key-entry-name"
-                name="api-key-entry-name"
-                type="text"
-                label={t(I18nKey.BACKEND$NAME_LABEL)}
-                value={name}
-                onChange={setName}
-                placeholder="e.g. My Server"
-                className="w-full"
-              />
-              <p className="text-xs text-[var(--oh-muted)]">
-                {t(I18nKey.BACKEND$NAME_HELPER)}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <SettingsInput
                 testId="api-key-entry-host"
                 name="api-key-entry-host"
                 type="text"
@@ -172,7 +156,7 @@ export default function ApiKeyEntryScreen() {
             {connectionStatus !== "idle" && (
               <div className="flex items-center gap-3 text-sm">
                 <BackendStatusDot
-                  isConnected={connectionStatus === "success" ? true : false}
+                  isConnected={connectionStatus === "success"}
                 />
                 <span
                   data-testid="api-key-entry-status"

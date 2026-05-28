@@ -52,19 +52,12 @@ function renderScreen() {
   );
 }
 
-/** Fill name + api key — the two required fields. */
-async function fillRequiredFields(
+/** Fill the api key — the only required field. */
+async function fillApiKey(
   user: ReturnType<typeof userEvent.setup>,
-  overrides?: { name?: string; apiKey?: string },
+  apiKey = "some-key",
 ) {
-  await user.type(
-    screen.getByTestId("api-key-entry-name"),
-    overrides?.name ?? "My Server",
-  );
-  await user.type(
-    screen.getByTestId("api-key-entry-api-key"),
-    overrides?.apiKey ?? "some-key",
-  );
+  await user.type(screen.getByTestId("api-key-entry-api-key"), apiKey);
 }
 
 // ── Setup / teardown ─────────────────────────────────────────────────
@@ -82,6 +75,7 @@ beforeEach(() => {
     value: {
       ...ORIGINAL_LOCATION,
       origin: "http://localhost:8000",
+      hostname: "localhost",
       reload: reloadMock,
     },
   });
@@ -101,14 +95,12 @@ afterEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("ApiKeyEntryScreen", () => {
-  // @spec — UI matches add-backend modal layout (single-column)
-  it("renders the same fields as the add-backend modal: name, host (disabled), api key, connect", () => {
+  // @spec — UI: host (disabled) + api key + connect — name auto-generated
+  it("renders host (disabled), api key, and connect button (no name field)", () => {
     renderScreen();
 
-    // Name field — editable, starts empty
-    const nameInput = screen.getByTestId("api-key-entry-name");
-    expect(nameInput).toBeInTheDocument();
-    expect(nameInput).toHaveValue("");
+    // No name field — name is auto-generated from hostname
+    expect(screen.queryByTestId("api-key-entry-name")).not.toBeInTheDocument();
 
     // Host field — pre-filled from window.location.origin, disabled
     const hostInput = screen.getByTestId("api-key-entry-host");
@@ -150,20 +142,16 @@ describe("ApiKeyEntryScreen", () => {
     expect(screen.getByTestId("api-key-entry-api-key")).toHaveValue("");
   });
 
-  // @spec — Connect button requires both name and api key
-  it("disables Connect when name or api key is empty", async () => {
+  // @spec — Connect button requires api key
+  it("disables Connect when api key is empty", async () => {
     renderScreen();
     const user = userEvent.setup();
     const submit = screen.getByTestId("api-key-entry-submit");
 
-    // Both empty
+    // Empty key
     expect(submit).toBeDisabled();
 
-    // Only name filled
-    await user.type(screen.getByTestId("api-key-entry-name"), "Server");
-    expect(submit).toBeDisabled();
-
-    // Name + key filled
+    // Key filled → enabled
     await user.type(screen.getByTestId("api-key-entry-api-key"), "key");
     expect(submit).not.toBeDisabled();
   });
@@ -175,10 +163,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillRequiredFields(user, {
-      name: "Prod Server",
-      apiKey: "correct-key",
-    });
+    await fillApiKey(user, "correct-key");
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {
@@ -207,7 +192,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillRequiredFields(user, { apiKey: "wrong-key" });
+    await fillApiKey(user, "wrong-key");
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     // Error status appears with "Invalid" text
@@ -242,7 +227,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillRequiredFields(user, { apiKey: "correct-key" });
+    await fillApiKey(user, "correct-key");
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {
@@ -280,7 +265,7 @@ describe("ApiKeyEntryScreen", () => {
     const apiKeyInput = screen.getByTestId("api-key-entry-api-key");
 
     // First attempt — wrong key
-    await fillRequiredFields(user, { apiKey: "wrong-key" });
+    await fillApiKey(user, "wrong-key");
     await user.click(screen.getByTestId("api-key-entry-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("api-key-entry-status")).toHaveClass(
@@ -321,7 +306,7 @@ describe("ApiKeyEntryScreen", () => {
     expect(apiKeyInput).toHaveValue("");
 
     // Enter fresh key
-    await fillRequiredFields(user, { apiKey: "fresh-key-BBBB" });
+    await fillApiKey(user, "fresh-key-BBBB");
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {

@@ -244,15 +244,6 @@ export interface BackendFormProps {
   }) => React.ReactNode;
   /** Used to disambiguate test ids across the same screen. */
   testIdRoot?: string;
-  /** Hide the "Name" field and auto-generate a name from the host. */
-  hideName?: boolean;
-  /** Make the "Host" field read-only (disabled). */
-  hostReadOnly?: boolean;
-  /**
-   * Called with the submitted payload before `onSubmitted`, so callers
-   * can perform side-effects (e.g. persist a session key and reload).
-   */
-  onSubmitPayload?: (payload: BackendFormSubmitPayload) => void;
 }
 
 /**
@@ -271,9 +262,6 @@ export function BackendForm({
   onSubmitted,
   renderActions,
   testIdRoot: explicitTestIdRoot,
-  hideName,
-  hostReadOnly,
-  onSubmitPayload,
 }: BackendFormProps) {
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
@@ -292,12 +280,8 @@ export function BackendForm({
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
-  // When name is hidden, use the backend name or host as a fallback so
-  // the "name required" validation still passes.
-  const effectiveName = hideName ? (backend?.name || host || "Server") : name;
-
   const canSubmit =
-    effectiveName.trim().length > 0 &&
+    name.trim().length > 0 &&
     isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
 
@@ -317,13 +301,13 @@ export function BackendForm({
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
       // (e.g. user pressed Enter before filling required fields).
-      if (!hideName) setNameTouched(true);
+      setNameTouched(true);
       setHostTouched(true);
       return;
     }
 
     const payload: BackendFormSubmitPayload = {
-      name: effectiveName.trim(),
+      name: name.trim(),
       host: normalizeHost(host),
       apiKey: apiKey.trim(),
       kind,
@@ -335,7 +319,6 @@ export function BackendForm({
       addBackend(payload);
     }
 
-    onSubmitPayload?.(payload);
     onSubmitted();
   };
 
@@ -345,21 +328,19 @@ export function BackendForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4"
     >
-      {!hideName && (
-        <SettingsInput
-          testId={`${testIdRoot}-name`}
-          name={`${testIdRoot}-name`}
-          type="text"
-          label={t(I18nKey.BACKEND$NAME_LABEL)}
-          value={name}
-          onChange={setName}
-          onBlur={() => setNameTouched(true)}
-          placeholder="Production"
-          className="w-full"
-          showRequiredTag
-          error={nameError}
-        />
-      )}
+      <SettingsInput
+        testId={`${testIdRoot}-name`}
+        name={`${testIdRoot}-name`}
+        type="text"
+        label={t(I18nKey.BACKEND$NAME_LABEL)}
+        value={name}
+        onChange={setName}
+        onBlur={() => setNameTouched(true)}
+        placeholder="Production"
+        className="w-full"
+        showRequiredTag
+        error={nameError}
+      />
 
       <SettingsInput
         testId={`${testIdRoot}-host`}
@@ -367,13 +348,12 @@ export function BackendForm({
         type="text"
         label={t(I18nKey.BACKEND$HOST_LABEL)}
         value={host}
-        onChange={hostReadOnly ? undefined : setHost}
+        onChange={setHost}
         onBlur={() => setHostTouched(true)}
         placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
         className="w-full"
-        showRequiredTag={!hostReadOnly}
+        showRequiredTag
         error={hostError}
-        isDisabled={hostReadOnly}
       />
 
       <SettingsInput
