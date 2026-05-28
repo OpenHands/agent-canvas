@@ -127,10 +127,13 @@ jobs:
             sleep 2
           done
 
-          # If Playwright is still running (teardown hang), give it 10s
-          # grace then force-kill.
+          # If Playwright is still running (teardown hang), give it 5s
+          # grace then force-kill. The hang is expected: Playwright's
+          # webServer teardown waits for the multi-process agent-server
+          # tree (node → uvx → Python → uvicorn workers) to fully exit,
+          # which takes longer than our marker-based detection.
           if kill -0 "$PW_PID" 2>/dev/null; then
-            sleep 10
+            sleep 5
             if kill -0 "$PW_PID" 2>/dev/null; then
               echo "::warning::Killing lingering Playwright process (teardown hung)"
               kill "$PW_PID" 2>/dev/null
