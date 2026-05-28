@@ -50,8 +50,16 @@ function extractAcpEnvKeys(value: unknown): string[] {
   // ``settings.agent_settings.acp_env`` is redacted by the server when no
   // expose-secrets header is set, so we only ever surface the *names* in
   // the editor — never the (masked) values.
+  //
+  // Empty-string entries are filtered out: ``AcpEnvSettings`` writes a
+  // soft-delete sentinel of ``""`` for the Delete action (see the comment
+  // there), so an empty value means "user removed this from the UI".
+  // Server-side they live on until a real delete primitive lands
+  // (software-agent-sdk#3420).
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return Object.keys(value as Record<string, unknown>);
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => typeof v === "string" && v.length > 0)
+    .map(([k]) => k);
 }
 
 function detectPreset(

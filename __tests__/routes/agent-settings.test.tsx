@@ -752,7 +752,7 @@ describe("AgentSettingsScreen", () => {
     });
   });
 
-  it("deletes an acp_env entry by sending null on confirmation", async () => {
+  it("deletes an acp_env entry by writing an empty-string soft-delete", async () => {
     const user = userEvent.setup();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
@@ -784,9 +784,44 @@ describe("AgentSettingsScreen", () => {
     const call = save.mock.calls[0]?.[0] as {
       agent_settings_diff?: Record<string, unknown>;
     };
+    // Empty string, not null — the running v1.24.0 agent-server validates
+    // ``acp_env`` as ``dict[str, str]`` and would 422 on null. The empty
+    // string is treated as "unset" by every credential CLI we spawn against
+    // (Claude Code, codex-acp, gemini-cli) and is filtered out of the
+    // displayed list below, so it reads as a real delete in the UI.
     expect(call.agent_settings_diff).toEqual({
-      acp_env: { DROP_ME: null },
+      acp_env: { DROP_ME: "" },
     });
+  });
+
+  it("filters soft-deleted (empty-string) acp_env entries out of the list", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+          acp_env: {
+            // Live entry: server-redacted to "**********".
+            ANTHROPIC_API_KEY: "**********",
+            // Soft-deleted: was wiped via the empty-string delete; the
+            // editor must not show it as a configured variable.
+            ZOMBIE_KEY: "",
+          },
+        },
+      }),
+    );
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("acp-env-settings");
+    expect(
+      screen.getByTestId("acp-env-row-ANTHROPIC_API_KEY"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("acp-env-row-ZOMBIE_KEY"),
+    ).not.toBeInTheDocument();
   });
 
   it("page Save button stays gated on command/model edits, not env-vars", async () => {

@@ -115,7 +115,7 @@ describe("AcpEnvSettings", () => {
     );
   });
 
-  it("delete sends acp_env: { name: null } after confirmation", async () => {
+  it("delete sends acp_env: { name: \"\" } (soft-delete) after confirmation", async () => {
     const user = userEvent.setup();
     const save = vi.spyOn(SettingsService, "saveSettings");
     renderWithClient(<AcpEnvSettings envKeys={["DROP_ME"]} />);
@@ -130,7 +130,7 @@ describe("AcpEnvSettings", () => {
       agent_settings_diff?: Record<string, unknown>;
     };
     expect(call.agent_settings_diff).toEqual({
-      acp_env: { DROP_ME: null },
+      acp_env: { DROP_ME: "" },
     });
   });
 

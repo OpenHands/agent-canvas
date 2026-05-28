@@ -72,8 +72,21 @@ export function AcpEnvSettings({ envKeys }: AcpEnvSettingsProps) {
   const handleConfirmDelete = () => {
     if (!pendingDelete) return;
     const key = pendingDelete;
+    // Soft-delete: write an empty string. The generic ``PATCH /api/settings``
+    // deep-merge has no "unset" primitive for inner dict-value entries —
+    // sending ``null`` would fail validation against ``acp_env: dict[str, str]``
+    // (which is why the running v1.24.0 agent-server 422s). Empty string
+    // passes validation and is treated as "not set" by every credential CLI
+    // we ship against today (Claude Code, codex-acp, gemini-cli), and the
+    // display path below filters empty-string entries out of the list so
+    // they look gone in the UI.
+    //
+    // The trade-off: ``settings.json`` accumulates zombie empty entries
+    // until a real delete primitive lands. Swap to dedicated CRUD via
+    // ``/api/settings/agent-env`` (software-agent-sdk#3420) once the
+    // backend ships them.
     saveSettings(
-      { agent_settings_diff: { acp_env: { [key]: null } } },
+      { agent_settings_diff: { acp_env: { [key]: "" } } },
       {
         onError: (err) => {
           const message = retrieveAxiosErrorMessage(err as AxiosError);
