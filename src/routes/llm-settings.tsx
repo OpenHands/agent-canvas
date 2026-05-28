@@ -137,9 +137,26 @@ export function LlmSettingsScreen({
   const { data: schema } = useAgentSettingsSchema(
     settings?.agent_settings_schema,
   );
-  const { data: subscriptionModels } = useOpenAISubscriptionModels();
+  const persistedLlmSettings = settings?.agent_settings?.llm as
+    | Record<string, unknown>
+    | undefined;
+  const initialAuthType = resolveLlmAuthType(
+    initialValueOverrides?.[LLM_AUTH_TYPE_KEY] ??
+      persistedLlmSettings?.auth_type,
+  );
+  const [enableSubscriptionModels, setEnableSubscriptionModels] =
+    React.useState(initialAuthType === LLM_AUTH_TYPE_SUBSCRIPTION);
+  const { data: subscriptionModels } = useOpenAISubscriptionModels({
+    enabled: enableSubscriptionModels,
+  });
   const lastApiKeyModelRef = React.useRef<string | null>(null);
   const lastSubscriptionModelRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (initialAuthType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+      setEnableSubscriptionModels(true);
+    }
+  }, [initialAuthType]);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -225,6 +242,7 @@ export function LlmSettingsScreen({
         onChange(LLM_AUTH_TYPE_KEY, nextAuthType);
 
         if (nextAuthType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+          setEnableSubscriptionModels(true);
           if (modelValue && !subscriptionModels?.includes(modelValue)) {
             lastApiKeyModelRef.current = modelValue;
           }
@@ -232,9 +250,12 @@ export function LlmSettingsScreen({
             lastSubscriptionModelRef.current &&
             subscriptionModels?.includes(lastSubscriptionModelRef.current)
               ? lastSubscriptionModelRef.current
-              : (subscriptionModels?.[0] ?? "");
+              : subscriptionModels?.[0];
           onChange(LLM_SUBSCRIPTION_VENDOR_KEY, OPENAI_SUBSCRIPTION_VENDOR);
-          if (!subscriptionModels?.includes(modelValue)) {
+          if (
+            !subscriptionModels?.includes(modelValue) &&
+            restoredSubscriptionModel
+          ) {
             onChange("llm.model", restoredSubscriptionModel);
           }
           return;
@@ -405,9 +426,16 @@ export function LlmSettingsScreen({
           typeof llm.model === "string"
             ? llm.model
             : String(context.values["llm.model"] ?? "");
+        const fallbackSubscriptionModel = subscriptionModels?.[0];
+        if (
+          !subscriptionModels?.includes(model) &&
+          !fallbackSubscriptionModel
+        ) {
+          throw new Error("Subscription models are not loaded yet.");
+        }
         llm.model = subscriptionModels?.includes(model)
           ? model
-          : (subscriptionModels?.[0] ?? "");
+          : fallbackSubscriptionModel;
         delete llm.api_key;
         delete llm.base_url;
       } else {

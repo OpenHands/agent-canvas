@@ -841,6 +841,11 @@ export function buildStartConversationRequest(
 export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =
   "Connect your ChatGPT subscription before starting a conversation with this LLM profile.";
 
+/**
+ * Throws if a ChatGPT subscription LLM profile is not connected.
+ * Called before conversation creation so subscription-backed profiles fail
+ * fast instead of starting an agent run that cannot authenticate.
+ */
 export async function assertSubscriptionAuthReady(
   agentSettings: Record<string, unknown>,
 ): Promise<void> {

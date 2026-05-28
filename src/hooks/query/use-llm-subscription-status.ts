@@ -11,7 +11,6 @@ export function useOpenAISubscriptionStatus({
     enabled,
     retry: false,
     refetchOnWindowFocus: false,
-    staleTime: 1000 * 30,
     meta: {
       disableToast: true,
     },
