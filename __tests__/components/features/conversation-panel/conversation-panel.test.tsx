@@ -1989,5 +1989,25 @@ describe("ConversationPanel", () => {
         within(modal).queryAllByTestId("conversation-panel-search-result"),
       ).toHaveLength(0);
     });
+
+    it("opens the search modal with the primary modifier shortcut", async () => {
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      renderConversationPanel();
+      await screen.findAllByTestId("conversation-card");
+
+      expect(
+        screen.queryByTestId("conversation-panel-search-modal"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.keyDown(document, {
+        key: "k",
+        metaKey: true,
+        ctrlKey: false,
+      });
+
+      expect(
+        screen.getByTestId("conversation-panel-search-modal"),
+      ).toBeInTheDocument();
+    });
   });
 });

@@ -49,32 +49,64 @@ describe("ConversationPanelSearchModal", () => {
   });
 
   it("filters results and selects a conversation", async () => {
-    const user = userEvent.setup();
-    const onSelectConversation = vi.fn();
-    const conversations = [
-      createMockConversation({ id: "1", title: "Alpha task" }),
-      createMockConversation({ id: "2", title: "Beta figma export" }),
-    ];
+      const user = userEvent.setup();
+      const onSelectConversation = vi.fn();
+      const conversations = [
+        createMockConversation({ id: "1", title: "Alpha task" }),
+        createMockConversation({ id: "2", title: "Beta figma export" }),
+      ];
 
+      render(
+        <I18nextProvider i18n={i18n}>
+          <ConversationPanelSearchModal
+            isOpen
+            onClose={vi.fn()}
+            conversations={conversations}
+            onSelectConversation={onSelectConversation}
+          />
+        </I18nextProvider>,
+      );
+
+      const modal = screen.getByTestId("conversation-panel-search-modal");
+      expect(
+        screen.getByTestId("conversation-panel-search-section-label"),
+      ).toBeInTheDocument();
+
+      await user.type(
+        screen.getByTestId("conversation-panel-search-input"),
+        "figma",
+      );
+
+      expect(
+        screen.queryByTestId("conversation-panel-search-section-label"),
+      ).not.toBeInTheDocument();
+      expect(
+        within(modal).getAllByTestId("conversation-panel-search-result"),
+      ).toHaveLength(1);
+
+      await user.click(within(modal).getByTestId("conversation-panel-search-result"));
+      expect(onSelectConversation).toHaveBeenCalledWith("2");
+    });
+
+  it("renders a timestamp on the far right of each result", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <ConversationPanelSearchModal
           isOpen
           onClose={vi.fn()}
-          conversations={conversations}
-          onSelectConversation={onSelectConversation}
+          conversations={[
+            createMockConversation({
+              id: "1",
+              updated_at: "2026-01-01T00:00:00.000Z",
+            }),
+          ]}
+          onSelectConversation={vi.fn()}
         />
       </I18nextProvider>,
     );
 
-    const modal = screen.getByTestId("conversation-panel-search-modal");
-    await user.type(screen.getByTestId("conversation-panel-search-input"), "figma");
-
     expect(
-      within(modal).getAllByTestId("conversation-panel-search-result"),
-    ).toHaveLength(1);
-
-    await user.click(within(modal).getByTestId("conversation-panel-search-result"));
-    expect(onSelectConversation).toHaveBeenCalledWith("2");
+      screen.getByTestId("conversation-panel-search-result-timestamp"),
+    ).toBeInTheDocument();
   });
 });
