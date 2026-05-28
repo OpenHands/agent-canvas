@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 import type { LLMSubscriptionDeviceChallenge } from "#/api/llm-subscription-service";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipboard-button";
 import {
   useLogoutOpenAISubscription,
   usePollOpenAISubscriptionLogin,
@@ -35,6 +36,14 @@ export function OpenAISubscriptionAuthCard({
   const logout = useLogoutOpenAISubscription();
   const [challenge, setChallenge] =
     React.useState<LLMSubscriptionDeviceChallenge | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopyCode = () => {
+    if (!challenge) return;
+    navigator.clipboard.writeText(challenge.userCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const isBusy =
     startLogin.isPending || pollLogin.isPending || logout.isPending;
@@ -127,11 +136,17 @@ export function OpenAISubscriptionAuthCard({
           className="flex flex-col gap-2 rounded-lg border border-[var(--oh-border-subtle)] p-3 text-sm"
         >
           <span>{t(I18nKey.SETTINGS$SUBSCRIPTION_DEVICE_INSTRUCTIONS)}</span>
-          <code className="select-all rounded bg-black/20 px-2 py-1 font-mono text-base">
-            {t(I18nKey.SETTINGS$SUBSCRIPTION_USER_CODE, {
-              code: challenge.userCode,
-            })}
-          </code>
+          <div className="flex items-center gap-2 rounded-lg bg-[var(--oh-surface-primary)] px-3 py-2 font-mono text-base">
+            <span className="flex-1 select-all text-[var(--oh-text-primary)]">
+              {challenge.userCode}
+            </span>
+            <CopyToClipboardButton
+              isHidden={false}
+              isDisabled={false}
+              onClick={handleCopyCode}
+              mode={copied ? "copied" : "copy"}
+            />
+          </div>
           <a
             href={
               challenge.verificationUriComplete ?? challenge.verificationUri

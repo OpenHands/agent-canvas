@@ -30,11 +30,11 @@ import {
   LLM_AUTH_TYPE_KEY,
   LLM_AUTH_TYPE_SUBSCRIPTION,
   LLM_SUBSCRIPTION_VENDOR_KEY,
-  OPENAI_SUBSCRIPTION_MODELS,
   OPENAI_SUBSCRIPTION_VENDOR,
   isOpenAISubscriptionModel,
   resolveLlmAuthType,
 } from "#/constants/llm-subscription";
+import { useOpenAISubscriptionModels } from "#/hooks/query/use-llm-subscription-models";
 
 const LLM_EXCLUDED_KEYS = new Set([
   "llm.model",
@@ -139,6 +139,7 @@ export function LlmSettingsScreen({
   const { data: schema } = useAgentSettingsSchema(
     settings?.agent_settings_schema,
   );
+  const { data: subscriptionModels } = useOpenAISubscriptionModels();
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -265,7 +266,7 @@ export function LlmSettingsScreen({
             testId="llm-subscription-model-input"
             name="llm.subscription_model"
             label={t(I18nKey.SETTINGS$SUBSCRIPTION_MODEL)}
-            items={OPENAI_SUBSCRIPTION_MODELS.map((model) => ({
+            items={(subscriptionModels ?? []).map((model) => ({
               key: model,
               label: model,
             }))}

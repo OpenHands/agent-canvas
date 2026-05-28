@@ -23,6 +23,7 @@ export const LLM_PROFILES_QUERY_KEYS = {
 export const LLM_SUBSCRIPTION_QUERY_KEYS = {
   all: ["llm-subscription"] as const,
   openaiStatus: ["llm-subscription", "openai", "status"] as const,
+  openaiModels: ["llm-subscription", "openai", "models"] as const,
 } as const;
 
 export const LOCAL_WORKSPACES_QUERY_KEYS = {
