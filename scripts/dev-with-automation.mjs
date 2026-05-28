@@ -330,7 +330,9 @@ async function buildConfig(args, env = process.env) {
 
   // Session API key — shared by both agent-server and automation backend.
   // Both validate it via the `X-Session-API-Key` header.
-  const stateDir = join(homedir(), ".openhands", "agent-canvas");
+  const stateDir =
+    env.OH_CANVAS_SAFE_STATE_DIR ||
+    join(homedir(), ".openhands", "agent-canvas");
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
     OH_CANVAS_SAFE_STATE_DIR: stateDir,
