@@ -316,7 +316,10 @@ export function ConversationTabs({
                   ),
                 )}
             </div>
-            <div ref={menuRef} className="relative shrink-0 flex items-center gap-1.5">
+            <div
+              ref={menuRef}
+              className="relative shrink-0 flex items-center gap-1.5"
+            >
               {variant === "compact" && isTabActive("planner") && (
                 <button
                   type="button"
