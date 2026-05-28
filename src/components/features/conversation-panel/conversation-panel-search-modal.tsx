@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { cn } from "#/utils/utils";
+import { formatTimeDelta } from "#/utils/format-time-delta";
 import { filterConversationsByQuery } from "./filter-conversations-by-query";
 import { HighlightSearchMatch } from "./highlight-search-match";
 import { ConversationPanelSearchInput } from "./conversation-panel-search-toggle";
@@ -115,6 +120,8 @@ export function ConversationPanelSearchModal({
     return null;
   }
 
+  const showMostRecentLabel = !query.trim();
+
   return (
     <ModalBackdrop
       onClose={handleClose}
@@ -123,25 +130,20 @@ export function ConversationPanelSearchModal({
       <div
         data-testid="conversation-panel-search-modal"
         className={cn(
-          "fixed left-1/2 top-[max(10vh,4rem)] z-10 w-[min(560px,calc(100vw-2rem))] -translate-x-1/2",
           "flex max-h-[min(420px,60vh)] flex-col overflow-hidden rounded-xl",
-          "border border-[var(--oh-border)] bg-[var(--oh-surface-deep)] shadow-xl",
+          "border border-[var(--oh-border)] bg-base-secondary shadow-xl",
+          modalWidthClassName("md"),
+          MODAL_MAX_WIDTH_VIEWPORT,
         )}
       >
-        <div className="border-b border-[var(--oh-border)] p-3">
+        <div className="border-b border-[var(--oh-border)] p-1">
           <ConversationPanelSearchInput
             query={query}
             onQueryChange={setQuery}
             onKeyDown={handleInputKeyDown}
             shouldFocusOnMount
+            variant="plain"
           />
-        </div>
-
-        <div
-          data-testid="conversation-panel-search-section-label"
-          className="px-4 pb-1 pt-3 text-xs text-[var(--oh-text-dim)]"
-        >
-          {t(I18nKey.COMMON$MOST_RECENT)}
         </div>
 
         <div
@@ -149,6 +151,15 @@ export function ConversationPanelSearchModal({
           aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_ARIA)}
           className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar-always"
         >
+          {showMostRecentLabel ? (
+            <div
+              data-testid="conversation-panel-search-section-label"
+              className="px-2 pb-1 pt-3 text-xs text-[var(--oh-text-dim)]"
+            >
+              {t(I18nKey.COMMON$MOST_RECENT)}
+            </div>
+          ) : null}
+
           {query.trim() && filteredConversations.length === 0 ? (
             <p
               data-testid="conversation-panel-search-no-results"
@@ -160,6 +171,8 @@ export function ConversationPanelSearchModal({
             filteredConversations.map((conversation, index) => {
               const title = conversation.title?.trim() || conversation.id;
               const contextLabel = getConversationContextLabel(conversation);
+              const timestamp =
+                conversation.updated_at ?? conversation.created_at;
               const isSelected = index === selectedIndex;
 
               return (
@@ -188,6 +201,15 @@ export function ConversationPanelSearchModal({
                     <span className="shrink-0 truncate text-xs text-[var(--oh-text-dim)]">
                       {contextLabel}
                     </span>
+                  ) : null}
+                  {timestamp ? (
+                    <time
+                      dateTime={timestamp}
+                      data-testid="conversation-panel-search-result-timestamp"
+                      className="ml-auto shrink-0 text-xs text-[var(--oh-muted)] whitespace-nowrap"
+                    >
+                      {formatTimeDelta(timestamp)}
+                    </time>
                   ) : null}
                 </button>
               );

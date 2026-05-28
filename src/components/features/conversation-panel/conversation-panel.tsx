@@ -33,6 +33,11 @@ import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
 import { ConversationPanelSearchButton } from "./conversation-panel-search-toggle";
 import { ConversationPanelSearchModal } from "./conversation-panel-search-modal";
+import { CONVERSATION_PANEL_SEARCH_HOTKEY } from "./conversation-panel-search-constants";
+import {
+  isTypingTarget,
+  matchesPrimaryModifierShortcut,
+} from "#/utils/keyboard-shortcut";
 import {
   groupConversations,
   getGroupConversationPreview,
@@ -236,6 +241,10 @@ export function ConversationPanel({
     setIsSearchModalOpen((prev) => !prev);
   }, []);
 
+  const handleSearchOpen = React.useCallback(() => {
+    setIsSearchModalOpen(true);
+  }, []);
+
   const handleSearchModalClose = React.useCallback(() => {
     setIsSearchModalOpen(false);
   }, []);
@@ -247,6 +256,31 @@ export function ConversationPanel({
     },
     [navigate, onClose],
   );
+
+  React.useEffect(() => {
+    if (compact) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !matchesPrimaryModifierShortcut(event, CONVERSATION_PANEL_SEARCH_HOTKEY)
+      ) {
+        return;
+      }
+
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleSearchOpen();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [compact, handleSearchOpen]);
 
   const groupLabels = React.useMemo(
     () => ({

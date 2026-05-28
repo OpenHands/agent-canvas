@@ -2,7 +2,10 @@ import React from "react";
 import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { formatPrimaryModifierShortcut } from "#/utils/keyboard-shortcut";
 import { cn } from "#/utils/utils";
+import { CONVERSATION_PANEL_SEARCH_HOTKEY } from "./conversation-panel-search-constants";
 
 export const conversationPanelSearchIconButtonClassName = cn(
   "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
@@ -21,23 +24,36 @@ export function ConversationPanelSearchButton({
   onToggle,
 }: ConversationPanelSearchButtonProps) {
   const { t } = useTranslation("openhands");
+  const searchShortcut = formatPrimaryModifierShortcut(
+    CONVERSATION_PANEL_SEARCH_HOTKEY,
+  );
 
   return (
-    <button
-      type="button"
-      className={cn(
-        conversationPanelSearchIconButtonClassName,
-        isOpen &&
-          "bg-[var(--oh-surface-raised)] text-white hover:bg-[var(--oh-interactive-hover)]",
-      )}
-      aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_ARIA)}
-      aria-expanded={isOpen}
-      aria-controls="conversation-panel-search-modal"
-      data-testid="conversation-panel-search-toggle"
-      onClick={onToggle}
+    <StyledTooltip
+      content={
+        <span className="inline-flex items-center gap-1.5">
+          <span>{t(I18nKey.CONVERSATION_PANEL$SEARCH_TOOLTIP)}</span>
+          <span className="text-gray-500">{searchShortcut}</span>
+        </span>
+      }
+      placement="bottom"
     >
-      <Search className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
-    </button>
+      <button
+        type="button"
+        className={cn(
+          conversationPanelSearchIconButtonClassName,
+          isOpen &&
+            "bg-[var(--oh-surface-raised)] text-white hover:bg-[var(--oh-interactive-hover)]",
+        )}
+        aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_ARIA)}
+        aria-expanded={isOpen}
+        aria-controls="conversation-panel-search-modal"
+        data-testid="conversation-panel-search-toggle"
+        onClick={onToggle}
+      >
+        <Search className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2} />
+      </button>
+    </StyledTooltip>
   );
 }
 
@@ -47,6 +63,7 @@ interface ConversationPanelSearchInputProps {
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   shouldFocusOnMount?: boolean;
   inputClassName?: string;
+  variant?: "default" | "plain";
 }
 
 export function ConversationPanelSearchInput({
@@ -55,6 +72,7 @@ export function ConversationPanelSearchInput({
   onKeyDown,
   shouldFocusOnMount = false,
   inputClassName,
+  variant = "default",
 }: ConversationPanelSearchInputProps) {
   const { t } = useTranslation("openhands");
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -84,10 +102,9 @@ export function ConversationPanelSearchInput({
         placeholder={t(I18nKey.CONVERSATION_PANEL$SEARCH_PLACEHOLDER)}
         data-testid="conversation-panel-search-input"
         className={cn(
-          "h-9 w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface-deep)]",
-          "px-3 pr-9 text-sm text-white placeholder:text-[var(--oh-text-dim)]",
-          "outline-none transition-colors",
-          "focus:border-[var(--oh-border-subtle)] focus:ring-1 focus:ring-[var(--oh-border-subtle)]",
+          variant === "plain"
+            ? "h-10 w-full border-0 bg-transparent px-4 pr-9 text-sm text-white placeholder:text-[var(--oh-text-dim)] outline-none focus:ring-0"
+            : "h-9 w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface-deep)] px-3 pr-9 text-sm text-white placeholder:text-[var(--oh-text-dim)] outline-none transition-colors focus:border-[var(--oh-border-subtle)] focus:ring-1 focus:ring-[var(--oh-border-subtle)]",
           inputClassName,
         )}
       />
