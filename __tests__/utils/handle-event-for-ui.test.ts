@@ -437,6 +437,29 @@ describe("handleEventForUI", () => {
         mockFinishActionEvent,
       ]);
     });
+
+    it("appends final message normally when all deltas are reasoning-only", () => {
+      // When every streaming delta carries only reasoning_content (no content),
+      // streamingSegments is empty → finalizeStreamingDeltasInPlace returns null
+      // → finalEvent is appended after the delta as a regular message bubble.
+      const reasoningDelta: StreamingDeltaEvent = {
+        id: "delta-reasoning",
+        kind: "StreamingDeltaEvent",
+        timestamp: Date.now().toString(),
+        source: "agent",
+        content: null,
+        reasoning_content: "thinking...",
+      };
+      const result = handleEventForUI(mockAgentMessageEvent, [
+        mockMessageEvent,
+        reasoningDelta,
+      ]);
+      expect(result).toEqual([
+        mockMessageEvent,
+        reasoningDelta,
+        mockAgentMessageEvent,
+      ]);
+    });
   });
 
   it("should NOT add ThinkObservation even when ThinkAction is not found", () => {

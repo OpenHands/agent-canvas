@@ -131,6 +131,9 @@ const finalizeStreamingDeltasInPlace = (
       currentTurnStreamingDeltaIndexes.length - 1
     ];
   const lastDelta = nextUiEvents[lastDeltaIndex];
+  // Type narrowing: lastDeltaIndex is guaranteed to point at a StreamingDeltaEvent
+  // (it came from currentTurnStreamingDeltaIndexes, which filtered for them), but
+  // TypeScript cannot infer that from the array access, so the guard is required.
   if (unstreamedSuffix && isStreamingDeltaEvent(lastDelta)) {
     nextUiEvents[lastDeltaIndex] = appendContentToStreamingDeltaEvent(
       lastDelta,
