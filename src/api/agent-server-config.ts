@@ -187,3 +187,16 @@ export function getAgentServerHeaders(): Record<string, string> {
 export function shouldLoadPublicSkills(): boolean {
   return import.meta.env.VITE_LOAD_PUBLIC_SKILLS === "true";
 }
+
+/**
+ * Returns true when the server was started in public mode
+ * (`VITE_AUTH_REQUIRED=true`) and the user has not yet pasted an API key
+ * (nothing in localStorage, nothing baked in via `VITE_SESSION_API_KEY`).
+ *
+ * Used by `root.tsx` to gate the app behind {@link ApiKeyEntryScreen}
+ * before any network request is attempted.
+ */
+export function isAuthRequiredAndMissing(): boolean {
+  if (import.meta.env.VITE_AUTH_REQUIRED !== "true") return false;
+  return !getConfiguredSessionApiKey();
+}

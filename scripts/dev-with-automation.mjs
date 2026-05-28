@@ -799,9 +799,12 @@ function startVite(config) {
   };
 
   // In local mode, bake the session key into the frontend so the user
-  // never has to paste it. In public mode, omit it — the frontend will
-  // detect a 401 from /server_info and show the API key entry screen.
-  if (!config.isPublic) {
+  // never has to paste it. In public mode, omit the key and set
+  // VITE_AUTH_REQUIRED so the frontend shows the API key entry screen
+  // immediately (no network round-trip needed).
+  if (config.isPublic) {
+    viteEnv.VITE_AUTH_REQUIRED = "true";
+  } else {
     viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
   }
 

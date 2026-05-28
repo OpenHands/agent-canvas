@@ -15,6 +15,7 @@ import {
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
+import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -113,19 +114,16 @@ export const meta: MetaFunction = () => [
 ];
 
 export default function App() {
-  const config = useConfig();
+  // Flag-based gate: in public mode (VITE_AUTH_REQUIRED=true) with no
+  // session key yet, show the auth screen immediately — no network
+  // round-trip needed.
+  const authMissing = isAuthRequiredAndMissing();
 
-  if (config.isPending || config.isLoading) {
-    return <AgentServerBootstrapLoading />;
-  }
+  // Skip the /server_info probe entirely when we already know auth is
+  // required and missing — it would just 401 and waste time.
+  const config = useConfig({ enabled: !authMissing });
 
-  if (isAgentServerUnavailableError(config.error)) {
-    return <MissingAgentServerScreen />;
-  }
-
-  // Server is reachable but requires authentication (public mode).
-  // Show the API key entry screen so the user can paste the key.
-  if (isAgentServerAuthError(config.error)) {
+  if (authMissing || isAgentServerAuthError(config.error)) {
     return (
       <main className="min-h-screen bg-base">
         <React.Suspense fallback={<AgentServerBootstrapLoading />}>
@@ -133,6 +131,14 @@ export default function App() {
         </React.Suspense>
       </main>
     );
+  }
+
+  if (config.isPending || config.isLoading) {
+    return <AgentServerBootstrapLoading />;
+  }
+
+  if (isAgentServerUnavailableError(config.error)) {
+    return <MissingAgentServerScreen />;
   }
 
   return <Outlet />;
