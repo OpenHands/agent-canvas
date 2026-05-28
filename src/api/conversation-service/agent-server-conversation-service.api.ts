@@ -383,11 +383,6 @@ class AgentServerConversationService {
     const conversationId = uuidv4();
     const workingDir =
       workingDirOverride ?? buildConversationWorkingDir(conversationId);
-    // Project skills (.agents/skills/) live at the workspace ROOT, not in the
-    // per-conversation worktree subdir that `workingDir` points at by default.
-    // When the user explicitly attached a workspace, that override IS the root;
-    // otherwise fall back to the configured default workspace dir.
-    const skillsProjectDir = workingDirOverride ?? getAgentServerWorkingDir();
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({
@@ -397,7 +392,6 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
-      skillsProjectDir,
     });
 
     const data = await new ConversationClient(

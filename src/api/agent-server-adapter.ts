@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import {
-  ACP_PROVIDERS,
+  getAcpProvider,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
@@ -508,15 +508,87 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
     ...toRecord(agentSettings.agent_context),
     load_public_skills: shouldLoadPublicSkills(),
     load_user_skills: true,
+    load_project_skills: true,
     ...(runtimeServicesSuffix
       ? { system_message_suffix: runtimeServicesSuffix }
       : {}),
   };
 }
 
+function isAcpAgent(settings: Settings): boolean {
+  const agentSettings = toRecord(settings.agent_settings);
+  return agentSettings.agent_kind === "acp";
+}
+
+function getAcpServerTag(settings: Settings): string | undefined {
+  const agentSettings = toRecord(settings.agent_settings);
+  const value = agentSettings.acp_server;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function resolveAcpCommand(agentSettings: SettingsRecord): unknown {
+  const cmd = agentSettings.acp_command;
+  const isEmpty = Array.isArray(cmd) && cmd.length === 0;
+  const noCommand = cmd === undefined;
+  if (!isEmpty && !noCommand) {
+    return cmd;
+  }
+
+  const serverKey =
+    typeof agentSettings.acp_server === "string"
+      ? agentSettings.acp_server
+      : undefined;
+  const provider = getAcpProvider(serverKey);
+  return provider ? [...provider.default_command] : cmd;
+}
+
+function buildConfiguredAcpAgentSettings(
+  settings: Settings,
+): AgentSettingsPayload {
+  const agentSettings = toRecord(settings.agent_settings);
+  const payload: AgentSettingsPayload = {
+    agent_kind: "acp",
+    agent_context: buildAgentContext(agentSettings),
+  };
+
+  for (const key of ACP_SETTINGS_KEYS) {
+    // ``acp_model`` is resolved separately below so a saved ``null`` still
+    // falls back to the provider's default rather than being dropped.
+    if (key === "acp_model") continue;
+    const value =
+      key === "acp_command"
+        ? resolveAcpCommand(agentSettings)
+        : agentSettings[key];
+    if (value !== undefined && value !== null) {
+      payload[key] = value;
+    }
+  }
+
+  // Saved settings may carry ``acp_model: null`` (existing users predating
+  // the default-model registry, or saved fields the agent-server stripped).
+  // Fall back to the provider's ``default_model`` so the conversation starts
+  // with whatever the Settings → Agent UI shows — without that, the form's
+  // displayed default would silently not take effect at runtime until the
+  // user re-saved the page.
+  const serverKey =
+    typeof agentSettings.acp_server === "string"
+      ? agentSettings.acp_server
+      : undefined;
+  const provider = getAcpProvider(serverKey);
+  const effectiveModel = resolveEffectiveAcpModel({
+    configured: agentSettings.acp_model as string | null | undefined,
+    providerDefault: provider?.default_model,
+  });
+  if (effectiveModel) {
+    payload.acp_model = effectiveModel;
+  }
+
+  return payload;
+}
+
 function buildConfiguredOpenHandsAgentSettings(
   settings: Settings,
-): Record<string, unknown> {
+): AgentSettingsPayload {
   const agentSettings = toRecord(settings.agent_settings);
   const llm = toRecord(agentSettings.llm);
 
@@ -557,130 +629,10 @@ function buildConfiguredOpenHandsAgentSettings(
 
 function buildConfiguredAgentSettings(
   settings: Settings,
-): Record<string, unknown> {
+): AgentSettingsPayload {
   return isAcpAgent(settings)
     ? buildConfiguredAcpAgentSettings(settings)
     : buildConfiguredOpenHandsAgentSettings(settings);
-}
-
-function buildConfiguredAcpAgentSettings(settings: Settings): SettingsRecord {
-  const agentSettings = toRecord(settings.agent_settings);
-
-  // Only forward fields the ACPAgent model knows about. Everything else
-  // (``llm``, ``condenser``, ``mcp_config``, ``agent``, ``schema_version``,
-  // ``tools``, ``agent_kind``) is irrelevant on this path; the agent-server
-  // would either ignore it or reject it as a pydantic extra. ``acp_server``
-  // is a UI bookkeeping field — it does not belong in the agent payload
-  // either, but we surface it on the conversation tags instead (see
-  // ``buildStartConversationRequest``).
-  const payload: SettingsRecord = {};
-  for (const key of ACP_SETTINGS_KEYS) {
-    if (agentSettings[key] !== undefined && agentSettings[key] !== null) {
-      payload[key] = agentSettings[key];
-    }
-  }
-
-  // The Settings → Agent page (and onboarding) stores ``acp_command: []``
-  // for the "default preset" path, expecting the registry to resolve it.
-  // The agent-server's ACPAgent model takes only an explicit ``acp_command``
-  // though — empty list means ``subprocess(command[0], ...)`` raises
-  // ``IndexError: list index out of range`` at spawn time, the agent loop
-  // dies silently, and the conversation hangs in ``idle``. Resolve the
-  // command from ``ACP_PROVIDERS`` here so the agent-server sees a real
-  // command for every built-in preset, while leaving ``acp_server: custom``
-  // (and any unknown key) untouched — those genuinely require the user's
-  // ``acp_command`` entry.
-  const cmd = payload.acp_command;
-  const isEmpty = Array.isArray(cmd) && cmd.length === 0;
-  const noCommand = cmd === undefined;
-  if (isEmpty || noCommand) {
-    const serverKey =
-      typeof agentSettings.acp_server === "string"
-        ? agentSettings.acp_server
-        : undefined;
-    const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
-    if (provider) {
-      payload.acp_command = [...provider.default_command];
-    }
-  }
-
-  return payload;
-}
-
-function createAgentFromSettings(
-  agentSettings: SettingsRecord,
-  options: { acp?: boolean; projectSkills?: Record<string, unknown>[] } = {},
-) {
-  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
-  // ``load_public_skills``, ``load_user_skills``, and
-  // ``system_message_suffix`` are all marked ``acp_compatible: true`` in
-  // the SDK's AgentContext model — they're rendered into the system
-  // prompt the ACP CLI receives via ``ACPAgent._render_suffix``, so
-  // building the same agent_context here means a Claude-Code / Codex
-  // user gets the same skill catalog and runtime-services awareness an
-  // OpenHands-driven conversation does. Leaving it off (the previous
-  // ACP branch returned ``{kind:"ACPAgent",...agentSettings}`` with no
-  // ``agent_context``) silently dropped both, matching neither the
-  // SDK contract nor OpenHands' own behaviour.
-  //
-  // The ``acp_compatible`` markers live on the SDK fields themselves
-  // in ``openhands-sdk/openhands/sdk/context/agent_context.py``:
-  //   - ``system_message_suffix``  (Field, json_schema_extra at L66)
-  //   - ``load_user_skills``       (Field, json_schema_extra at L80)
-  //   - ``load_public_skills``     (Field, json_schema_extra at L89)
-  // ``AgentContext.validate_acp_compatibility`` rejects any field not
-  // tagged that way at ``ACPAgent`` init time. If a future SDK bump
-  // demotes one of these (drops the marker), the ACP conversation start
-  // will 422 here — at which point the right move is to drop the
-  // demoted field from this dict, not to wrap a workaround.
-  //
-  // ``secrets`` is filled in later by the secret bridge in
-  // ``buildStartConversationRequest`` (when ``customSecrets`` is set);
-  // we don't seed it here so non-secret start paths don't end up with
-  // an empty ``secrets: {}`` map.
-  const agentContext: Record<string, unknown> = {
-    load_public_skills: true,
-    load_user_skills: true,
-    // Project skills (``.agents/skills/`` in the workspace) are not
-    // auto-loaded by the AgentContext (it only auto-loads user/public
-    // skills, and agent-server 1.23.0 has no wire field to request project
-    // skills for a conversation). They are pre-loaded by the caller and
-    // injected here as explicit ``skills`` so repo skills reach the agent.
-    // ``skills`` is marked ``acp_compatible: true`` in the SDK, so this is
-    // valid on both the Agent and ACPAgent paths. ``_load_auto_skills``
-    // dedupes auto-loaded user/public skills against these by name.
-    ...(options.projectSkills?.length ? { skills: options.projectSkills } : {}),
-    // When the dev launcher provided ``VITE_RUNTIME_SERVICES_INFO``,
-    // append a <RUNTIME_SERVICES> block to the system prompt so the
-    // agent knows which services exist in this dev stack (e.g.
-    // automation backend URL, ingress URL) instead of having to probe.
-    ...(runtimeServicesSuffix
-      ? { system_message_suffix: runtimeServicesSuffix }
-      : {}),
-  };
-  if (options.acp) {
-    return {
-      kind: "ACPAgent",
-      ...agentSettings,
-      agent_context: agentContext,
-    };
-  }
-  return {
-    kind: "Agent",
-    ...agentSettings,
-    agent_context: agentContext,
-  };
-}
-
-function isAcpAgent(settings: Settings): boolean {
-  const agentSettings = toRecord(settings.agent_settings);
-  return agentSettings.agent_kind === "acp";
-}
-
-function getAcpServerTag(settings: Settings): string | undefined {
-  const agentSettings = toRecord(settings.agent_settings);
-  const value = agentSettings.acp_server;
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function buildConfiguredConversationSettings(options: {
@@ -728,8 +680,7 @@ interface LookupSecret {
 }
 
 type StartConversationPayload = Record<string, unknown> & {
-  agent: Record<string, unknown>;
-  agent_settings?: AgentSettingsPayload;
+  agent_settings: AgentSettingsPayload;
   workspace: LocalWorkspacePayload;
   confirmation_policy: SettingsRecord;
   security_analyzer?: SettingsRecord;
@@ -756,28 +707,17 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
-  /**
-   * Project skills (from ``.agents/skills/`` in the workspace) to seed the
-   * agent context with, as SDK ``Skill`` wire objects. Pre-loaded by the
-   * caller because the fetch is async and this builder is synchronous; see
-   * ``buildStartConversationRequestWithEncryptedSettings``.
-   */
-  projectSkills?: Record<string, unknown>[];
 }
 
 export function buildStartConversationRequest(
   options: StartConversationOptions,
-): Record<string, unknown> {
+): StartConversationPayload {
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
 
   const acpMode = isAcpAgent(sourceAgentSettings);
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
-  const agent = createAgentFromSettings(agentSettings, {
-    acp: acpMode,
-    projectSkills: options.projectSkills,
-  });
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
     : undefined;
@@ -797,7 +737,7 @@ export function buildStartConversationRequest(
   );
 
   const payload: StartConversationPayload = {
-    agent,
+    agent_settings: agentSettings,
     workspace: conversationSettings.workspace,
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
@@ -873,8 +813,8 @@ export function buildStartConversationRequest(
     payload.secrets = secrets;
 
     if (acpMode) {
-      payload.agent.agent_context = {
-        ...((payload.agent.agent_context as Record<string, unknown>) ?? {}),
+      payload.agent_settings.agent_context = {
+        ...payload.agent_settings.agent_context,
         secrets,
       };
     }
@@ -890,25 +830,12 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
-  /**
-   * Workspace root to load project skills (`.agents/skills/`) from. This is
-   * the workspace root, NOT `workingDir` — the latter is the per-conversation
-   * worktree subdir (`<workspace>/<conversationId>`), which has no
-   * `.agents/skills/` and may not exist yet at request-build time. Defaults to
-   * the configured workspace dir inside `getProjectSkills`.
-   */
-  skillsProjectDir?: string;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
-  const { default: SkillsService } = await import("./skills-service");
 
-  // Fetch settings, custom secrets, and project skills in parallel.
-  // Project skills are loaded here (an async call) so the synchronous
-  // buildStartConversationRequest can inject them into the agent context.
-  const [settingsResult, customSecrets, projectSkills] = await Promise.all([
+  const [settingsResult, customSecrets] = await Promise.all([
     SettingsService.getSettingsForConversation(),
     SecretsService.getSecrets(),
-    SkillsService.getProjectSkills(options.skillsProjectDir),
   ]);
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
@@ -920,7 +847,6 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
-    projectSkills,
   });
 }
 
