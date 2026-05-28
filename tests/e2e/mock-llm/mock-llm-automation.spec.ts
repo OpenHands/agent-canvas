@@ -154,11 +154,15 @@ test.describe("mock-LLM automation lifecycle", () => {
       await page.getByTestId("automations-add-automation").click();
     });
 
-    // The modal with "Create Automation" button should appear
+    // The modal with "Create Automation" button should appear.
+    // Scope the click to the modal because the empty-state page also
+    // renders a button with the same testId.
     await test.step("click Create Automation in modal", async () => {
-      await waitForTestId(page, "add-automation-modal", 10_000);
-      await waitForTestId(page, "automations-create-automation", 10_000);
-      await page.getByTestId("automations-create-automation").click();
+      const modal = page.getByTestId("add-automation-modal");
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      const createBtn = modal.getByTestId("automations-create-automation");
+      await expect(createBtn).toBeVisible({ timeout: 10_000 });
+      await createBtn.click();
     });
 
     // This navigates to /conversations and auto-sends "Create an automation"
