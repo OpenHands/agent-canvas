@@ -142,6 +142,22 @@ you are running inside of — NOT the automation backend.
 - The live reporting scripts live beside the live tests under `tests/e2e/live/scripts/`: `run-live-e2e.mjs`, `extract-live-e2e-media.mjs`, `render-live-e2e-report.mjs`, and `upsert-pr-comment.mjs`. Keep report/comment/local-runner logic there rather than in top-level `scripts/`, because these scripts are part of the live E2E framework.
 - When changing any part of this framework — live workflow triggers, artifact publishing, `.pr` cleanup, live Playwright config, live test file layout, helper locations, local runner behavior, or report/comment scripts — update this `AGENTS.md` section in the same PR so future agents have the current operating model.
 
+## Mock-LLM E2E Test Framework
+
+- Mock-LLM tests live under `tests/e2e/mock-llm/` and are run via `npx playwright test --config=playwright.mock-llm.config.ts`. They exercise the complete stack (browser → real agent-server → mock LLM server) without real LLM credentials.
+- **Mock LLM server** (`tests/e2e/mock-llm/scripts/mock-llm-server.py`): Python HTTP server using openhands-sdk's `TestLLM` to return scripted tool-call + text trajectories. Supports admin API endpoints for dynamic trajectory management:
+  - `POST /admin/reset` — reset to the default trajectory (terminal printf + text reply)
+  - `POST /admin/trajectory/register` — register a named trajectory (JSON body: `{name, turns}` where each turn is `{tool_call: {name, arguments}}` or `{text: "..."}`)
+  - `POST /admin/trajectory/activate` — activate a previously registered trajectory
+- **Mock Automation server** (`tests/e2e/mock-llm/scripts/mock-automation-server.py`): Lightweight Python HTTP server that implements the automation API in memory. Handles `GET /api/automation/health`, `POST /api/automation/v1/preset/prompt`, `GET /api/automation/v1`, `POST /api/automation/v1/{id}/dispatch`, `GET /api/automation/v1/{id}/runs`. Runs auto-complete after ~0.5s. Supports `POST /admin/reset` to clear all state.
+- **Playwright config** (`playwright.mock-llm.config.ts`): Starts three webServers — mock LLM (port 9999), mock automation (port 18299), and the real agent-server + Vite frontend (via `dev-safe.mjs`). All ports are configurable via env vars.
+- **Routing automation API calls**: Browser requests to `/api/automation/*` are intercepted by Playwright's `page.route()` via `routeAutomationApiToMock()` and forwarded to the mock automation server. Terminal `curl` commands from the agent hit the mock server directly at `http://127.0.0.1:18299`.
+- **Test helpers** (`tests/e2e/mock-llm/utils/mock-llm-helpers.ts`): Exports `registerTrajectory()`, `activateTrajectory()`, `resetMockLLM()`, `resetMockAutomation()`, `routeAutomationApiToMock()`, `ensureMockLLMProfile()`, `listMockAutomations()`, `waitForRunStatus()`, etc.
+- **Test specs**:
+  - `mock-llm-conversation.spec.ts` — Creates LLM profile via UI, runs a conversation with a terminal tool call, verifies bash execution and agent reply.
+  - `mock-llm-automation.spec.ts` — Self-contained automation lifecycle: registers a trajectory where the LLM creates a cron automation and dispatches a run via terminal `curl` commands to the mock automation server. Verifies the automation was created and the run completed.
+- Tests run serially (`workers: 1`, `mode: "serial"` per describe block). Files are discovered alphabetically so automation tests run before conversation tests; each spec is self-contained (automation test configures its own LLM profile via the settings API).
+
 ## Additional Notes
 
 - **Published binary auth fix**: When users install the npm package globally (`npm install -g @openhands/agent-canvas`) and run `agent-canvas`, the pre-built static frontend has a `VITE_SESSION_API_KEY` baked in at publish time that differs from the user's persisted runtime key (`~/.openhands/agent-canvas/session-api-key.txt`). The fix is to inject the runtime session key into `index.html` responses at serve time (not build time). `scripts/static-server.mjs` accepts a `--session-api-key <key>` flag and injects a tiny inline `<script>` before `</head>` that seeds the key into `localStorage['openhands-agent-server-config'].sessionApiKey` — only if no key is already stored (preserving user-set overrides). `scripts/dev-with-automation.mjs` and `scripts/dev-static.mjs` both pass `--session-api-key ${config.sessionApiKey}` when starting the static server.

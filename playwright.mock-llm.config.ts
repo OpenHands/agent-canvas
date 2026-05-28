@@ -16,6 +16,7 @@ import { randomBytes } from "node:crypto";
 const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
 const BACKEND_PORT = process.env.MOCK_LLM_BACKEND_PORT ?? "18200";
 const FRONTEND_PORT = process.env.MOCK_LLM_FRONTEND_PORT ?? "3102";
+const MOCK_AUTOMATION_PORT = process.env.MOCK_AUTOMATION_PORT ?? "18299";
 
 // ── Session API key ────────────────────────────────────────────────────
 const sessionApiKey =
@@ -27,6 +28,7 @@ process.env.MOCK_LLM_SESSION_API_KEY = sessionApiKey;
 const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}/`;
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const MOCK_LLM_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
+const MOCK_AUTOMATION_URL = `http://127.0.0.1:${MOCK_AUTOMATION_PORT}`;
 
 // Python binary for the mock server — defaults to "python3" but CI can
 // point this at a venv (e.g. ".mock-llm-venv/bin/python3") to avoid
@@ -36,6 +38,7 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 // Export for the test helpers
 process.env.MOCK_LLM_BACKEND_URL = BACKEND_URL;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
+process.env.MOCK_AUTOMATION_PORT = MOCK_AUTOMATION_PORT;
 process.env.VITE_SESSION_API_KEY = sessionApiKey;
 
 function shellQuote(value: string) {
@@ -84,7 +87,16 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
     },
-    // 2. Agent-server + Vite frontend via dev-safe.mjs
+    // 2. Mock Automation API server (Python)
+    {
+      command: `${MOCK_LLM_PYTHON} tests/e2e/mock-llm/scripts/mock-automation-server.py --port ${MOCK_AUTOMATION_PORT}`,
+      url: MOCK_AUTOMATION_URL,
+      timeout: 30_000,
+      reuseExistingServer: !process.env.CI,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+    // 3. Agent-server + Vite frontend via dev-safe.mjs
     //
     // `exec` replaces the shell so Playwright's tracked PID IS the node
     // process. SIGTERM goes directly to dev-safe.mjs's signal handler,

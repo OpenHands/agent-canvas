@@ -262,3 +262,220 @@ export async function deleteConversation(
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// LLM profile setup via API (for tests that can't depend on UI setup)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Ensure the mock LLM profile is configured and active via the settings API.
+ *
+ * This bypasses the UI-driven profile creation (steps 1+2 in the conversation
+ * test) and directly PATCHes the agent-server settings. Useful for tests that
+ * run independently of the conversation test ordering.
+ */
+export async function ensureMockLLMProfile(
+  request: APIRequestContext,
+  profileName = "mock-llm-e2e",
+  model = "openai/mock-test-model",
+) {
+  // Check if the profile is already active
+  const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
+    headers: { "X-Session-API-Key": SESSION_API_KEY },
+  });
+
+  if (profilesResp.ok()) {
+    const profiles = await profilesResp.json();
+    if (profiles?.active_profile === profileName) {
+      return; // Already configured
+    }
+  }
+
+  // Create/update the profile via settings API
+  const settingsResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        llm: {
+          model,
+          api_key: "mock-api-key-for-testing",
+          base_url: MOCK_LLM_BASE_URL,
+        },
+      },
+    },
+  });
+  expect(
+    settingsResp.ok(),
+    `PATCH /api/settings failed: ${settingsResp.status()}`,
+  ).toBe(true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Mock Automation helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+export const MOCK_AUTOMATION_PORT =
+  process.env.MOCK_AUTOMATION_PORT ?? "18299";
+export const MOCK_AUTOMATION_URL = `http://127.0.0.1:${MOCK_AUTOMATION_PORT}`;
+
+/**
+ * Proxy browser requests to /api/automation/* to the mock automation server.
+ *
+ * The Vite dev server proxies all /api/* to the agent-server, which doesn't
+ * handle /api/automation routes. This route interceptor catches them in the
+ * browser and forwards to the mock automation server.
+ */
+export async function routeAutomationApiToMock(page: Page) {
+  await page.route("**/api/automation/**", async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    const mockUrl = `${MOCK_AUTOMATION_URL}${url.pathname}${url.search}`;
+
+    try {
+      const fetchOpts: RequestInit = {
+        method: req.method(),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      };
+      if (["POST", "PATCH", "PUT"].includes(req.method())) {
+        const body = req.postData();
+        if (body) fetchOpts.body = body;
+      }
+
+      const response = await fetch(mockUrl, fetchOpts);
+      const responseBody = await response.text();
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+
+      await route.fulfill({
+        status: response.status,
+        headers,
+        body: responseBody,
+      });
+    } catch (err) {
+      // If the mock server is unreachable, fail gracefully
+      await route.fulfill({
+        status: 502,
+        body: JSON.stringify({ error: `Mock automation proxy error: ${err}` }),
+      });
+    }
+  });
+}
+
+/**
+ * Reset the mock automation server state (clear all automations and runs).
+ */
+export async function resetMockAutomation(
+  request: APIRequestContext,
+) {
+  const resp = await request.post(`${MOCK_AUTOMATION_URL}/admin/reset`);
+  expect(resp.ok(), `Reset mock automation: ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Register a named trajectory on the mock LLM server.
+ * Each turn is: { tool_call: { name, arguments } } or { text: "..." }
+ */
+export async function registerTrajectory(
+  request: APIRequestContext,
+  name: string,
+  turns: Array<
+    | { tool_call: { name: string; arguments: Record<string, unknown> | string } }
+    | { text: string }
+  >,
+) {
+  const resp = await request.post(
+    `${MOCK_LLM_BASE_URL}/admin/trajectory/register`,
+    {
+      data: { name, turns },
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Activate a previously registered named trajectory on the mock LLM server.
+ */
+export async function activateTrajectory(
+  request: APIRequestContext,
+  name: string,
+) {
+  const resp = await request.post(
+    `${MOCK_LLM_BASE_URL}/admin/trajectory/activate`,
+    {
+      data: { name },
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Reset the mock LLM server to its default trajectory.
+ */
+export async function resetMockLLM(request: APIRequestContext) {
+  const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
+  expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
+}
+
+/**
+ * List automations from the mock automation server via its direct API.
+ */
+export async function listMockAutomations(
+  request: APIRequestContext,
+): Promise<{ automations: Array<{ id: string; name: string; [k: string]: unknown }>; total: number }> {
+  const resp = await request.get(`${MOCK_AUTOMATION_URL}/api/automation/v1`);
+  expect(resp.ok(), `List automations: ${resp.status()}`).toBe(true);
+  return resp.json();
+}
+
+/**
+ * List runs for an automation from the mock automation server.
+ */
+export async function listMockAutomationRuns(
+  request: APIRequestContext,
+  automationId: string,
+): Promise<{ runs: Array<{ id: string; status: string; [k: string]: unknown }>; total: number }> {
+  const resp = await request.get(
+    `${MOCK_AUTOMATION_URL}/api/automation/v1/${encodeURIComponent(automationId)}/runs`,
+  );
+  expect(resp.ok(), `List runs: ${resp.status()}`).toBe(true);
+  return resp.json();
+}
+
+/**
+ * Poll mock automation runs until at least one has the expected status.
+ */
+export async function waitForRunStatus(
+  request: APIRequestContext,
+  automationId: string,
+  expectedStatus: string,
+  timeout = 15_000,
+) {
+  let lastDiag = "no polls yet";
+  await expect
+    .poll(
+      async () => {
+        const data = await listMockAutomationRuns(request, automationId);
+        const statuses = data.runs.map((r) => r.status);
+        lastDiag = `${data.runs.length} runs, statuses: [${statuses.join(", ")}]`;
+        return data.runs.some((r) => r.status === expectedStatus);
+      },
+      { timeout },
+    )
+    .toBe(true)
+    .catch((err) => {
+      throw new Error(
+        `No run reached status "${expectedStatus}" after ${timeout}ms. ${lastDiag}`,
+        { cause: err },
+      );
+    });
+}
