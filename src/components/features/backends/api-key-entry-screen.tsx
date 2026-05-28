@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { I18nKey } from "#/i18n/declaration";
 import { saveAgentServerConfig } from "#/api/agent-server-config";
+import { isSdkHttpError } from "#/api/agent-server-compatibility";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
@@ -82,9 +83,8 @@ export default function ApiKeyEntryScreen() {
       // Distinguish auth errors (401) from everything else so a
       // correct key + broken server doesn't say "invalid key".
       const is401 =
-        err instanceof Error &&
-        "status" in err &&
-        (err as Error & { status: number }).status === 401;
+        isSdkHttpError(err) &&
+        (err as { status: number }).status === 401;
 
       if (is401) {
         setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));

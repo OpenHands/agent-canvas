@@ -189,14 +189,31 @@ export function shouldLoadPublicSkills(): boolean {
 }
 
 /**
- * Returns true when the server was started in public mode
- * (`VITE_AUTH_REQUIRED=true`) and the user has not yet pasted an API key
- * (nothing in localStorage, nothing baked in via `VITE_SESSION_API_KEY`).
+ * Whether the deployment requires an API key from the user (public mode).
+ *
+ * Checks both the Vite build-time env var (`VITE_AUTH_REQUIRED`) and the
+ * runtime flag injected by static-server.mjs (`window.__AGENT_CANVAS_AUTH_REQUIRED__`).
+ * The runtime flag is needed for pre-built static binaries where
+ * `VITE_AUTH_REQUIRED` was not set at build time.
+ */
+export function isAuthRequired(): boolean {
+  return (
+    import.meta.env.VITE_AUTH_REQUIRED === "true" ||
+    (typeof window !== "undefined" &&
+      (window as Record<string, unknown>).__AGENT_CANVAS_AUTH_REQUIRED__ ===
+        true)
+  );
+}
+
+/**
+ * Returns true when the server was started in public mode and the user
+ * has not yet pasted an API key (nothing in localStorage, nothing baked
+ * in via `VITE_SESSION_API_KEY`).
  *
  * Used by `root.tsx` to gate the app behind {@link ApiKeyEntryScreen}
  * before any network request is attempted.
  */
 export function isAuthRequiredAndMissing(): boolean {
-  if (import.meta.env.VITE_AUTH_REQUIRED !== "true") return false;
+  if (!isAuthRequired()) return false;
   return !getConfiguredSessionApiKey();
 }

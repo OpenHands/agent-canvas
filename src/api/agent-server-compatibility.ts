@@ -4,6 +4,7 @@ import {
 } from "@openhands/typescript-client/clients";
 import type { ServerInfo as BaseServerInfo } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { isAuthRequired } from "#/api/agent-server-config";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 
 const AGENT_SERVER_INFO_TIMEOUT_MS = 5000;
@@ -66,7 +67,7 @@ export function isAgentServerToolAvailable(toolName: string) {
   return availableTools.includes(toolName);
 }
 
-function isSdkHttpError(error: unknown) {
+export function isSdkHttpError(error: unknown) {
   return (
     error instanceof Error &&
     error.name === "HttpError" &&
@@ -106,7 +107,7 @@ export async function loadAgentServerInfo() {
   // In public mode, validate the key against a protected endpoint so a
   // server restart with a new LOCAL_BACKEND_API_KEY surfaces immediately
   // instead of letting the app load and fail on every subsequent call.
-  if (import.meta.env.VITE_AUTH_REQUIRED === "true") {
+  if (isAuthRequired()) {
     try {
       await new SettingsClient(clientOptions).getSettings();
     } catch (error) {
@@ -115,6 +116,11 @@ export async function loadAgentServerInfo() {
       }
       // Non-HTTP errors (network, timeout) are fine — the server is up,
       // the key just wasn't validated. Let the app proceed.
+      // NOTE: If the connection drops between the /server_info and
+      // getSettings() probes, the app loads with an unvalidated key and
+      // subsequent 401s won't trigger the auth screen (they come from
+      // React Query hooks, not this bootstrap path). Acceptable for now
+      // since the window is narrow and a page refresh recovers.
     }
   }
 

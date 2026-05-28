@@ -1128,10 +1128,12 @@ function startStaticFrontend(config, staticDir) {
       String(config.vitePort),
       // In local mode, inject the runtime session key so the pre-built
       // frontend can authenticate without VITE_SESSION_API_KEY in the bundle.
-      // In public mode, omit it — users must paste the key in the browser.
+      // In public mode, omit the key and set --auth-required so the
+      // pre-built frontend shows the API key entry screen.
       ...(!config.isPublic && config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),
+      ...(config.isPublic ? ["--auth-required"] : []),
       // Proxy routes to backends (same as ingress but for direct access to vitePort)
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
