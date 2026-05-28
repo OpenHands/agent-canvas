@@ -69,7 +69,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   timeout: 60_000,
-  globalTimeout: process.env.CI ? 600_000 : 0, // 10 min hard cap in CI
+  globalTimeout: process.env.CI ? 900_000 : 0, // 15 min hard cap in CI (5 min webServer + tests)
   reporter: [
     ["line"],
     ["json", { outputFile: "test-results-mock-llm/results.json" }],
@@ -114,10 +114,12 @@ export default defineConfig({
       command:
         // Clean state dir to avoid stale profile/conversation data between runs
         `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true});" && ` +
+        // Ensure output dir exists for the startup log
+        "mkdir -p test-results-mock-llm && " +
         // Build frontend if not already built (CI should pre-build for caching)
         '[ -f build/index.html ] || npm run build:app && ' +
         [
-          "exec env",
+          "env",
           envAssignment("OH_CANVAS_SAFE_STATE_DIR", STATE_DIR),
           envAssignment("PORT", INGRESS_PORT),
           envAssignment("SESSION_API_KEY", sessionApiKey),
@@ -125,9 +127,10 @@ export default defineConfig({
           envAssignment("VITE_SESSION_API_KEY", sessionApiKey),
           "VITE_DO_NOT_TRACK=1",
           "VITE_ENABLE_BROWSER_TOOLS=false",
-          // Bypass npm — exec directly into node so SIGTERM reaches
-          // the shutdown handler (npm swallows it).
-          "node --env-file-if-exists=.env bin/agent-canvas.mjs",
+          // Tee output to a log file so CI artifacts capture the full
+          // startup sequence (Playwright's [WebServer] ANSI rendering
+          // only shows the latest line).
+          "node --env-file-if-exists=.env bin/agent-canvas.mjs 2>&1 | tee test-results-mock-llm/agent-canvas-startup.log",
         ].join(" "),
       // Probe the automation endpoint through the ingress to ensure the
       // FULL stack (agent-server + automation backend + ingress) is up
@@ -135,7 +138,7 @@ export default defineConfig({
       // and can take 30-60s — checking only the ingress root or
       // /server_info would let tests begin before it's ready.
       url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
-      timeout: 180_000,
+      timeout: 300_000, // 5 min for first-time installs in CI
       reuseExistingServer: !process.env.CI,
     },
   ],
