@@ -42,6 +42,18 @@ async function setupMocks(page: Page) {
       body: JSON.stringify({ results: [] }),
     });
   });
+
+  // Mock the MCP connectivity test endpoint. MSW does not have a handler for
+  // POST /api/mcp/test, so requests fall through to the Vite proxy → port 8000
+  // which is not running in CI. Intercept here and return a successful result
+  // so the install modal can proceed to save and close.
+  await page.route("**/api/mcp/test**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, tools: [] }),
+    });
+  });
 }
 
 test.describe("MCP Page Visual Snapshots", () => {
