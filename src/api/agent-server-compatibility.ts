@@ -1,4 +1,7 @@
-import { ServerClient } from "@openhands/typescript-client/clients";
+import {
+  ServerClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import type { ServerInfo as BaseServerInfo } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
@@ -78,15 +81,16 @@ export async function loadAgentServerInfo() {
   // backend when that backend is cloud, because cloud hosts don't
   // expose /api/server_info and would fail with a CORS error besides.
   const local = getEffectiveLocalBackend();
+  const clientOptions = getAgentServerClientOptions({
+    host: local.host,
+    sessionApiKey: local.apiKey || null,
+    timeout: AGENT_SERVER_INFO_TIMEOUT_MS,
+  });
   let serverInfo: AgentServerInfo;
 
   try {
     serverInfo = (await new ServerClient(
-      getAgentServerClientOptions({
-        host: local.host,
-        sessionApiKey: local.apiKey || null,
-        timeout: AGENT_SERVER_INFO_TIMEOUT_MS,
-      }),
+      clientOptions,
     ).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
@@ -96,6 +100,22 @@ export async function loadAgentServerInfo() {
 
     const details = error instanceof Error ? error.message : null;
     throw new AgentServerUnavailableError(details);
+  }
+
+  // /server_info is unprotected, so a stale session key still gets 200.
+  // In public mode, validate the key against a protected endpoint so a
+  // server restart with a new LOCAL_BACKEND_API_KEY surfaces immediately
+  // instead of letting the app load and fail on every subsequent call.
+  if (import.meta.env.VITE_AUTH_REQUIRED === "true") {
+    try {
+      await new SettingsClient(clientOptions).getSettings();
+    } catch (error) {
+      if (isSdkHttpError(error)) {
+        throw error;
+      }
+      // Non-HTTP errors (network, timeout) are fine — the server is up,
+      // the key just wasn't validated. Let the app proceed.
+    }
   }
 
   cachedAgentServerInfo = serverInfo;
