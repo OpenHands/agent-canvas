@@ -56,6 +56,8 @@ describe("package library metadata", () => {
   // referenced from a registry. @openhands/extensions is allowed until it is
   // published to npm; @openhands/typescript-client is temporarily allowed while
   // this stacked PR waits for the subscription client branch to merge/release.
+  // TODO(#917): remove @openhands/typescript-client exemption once
+  // OpenHands/typescript-client#178 merges and publishes to npm.
   it("does not use git dependencies except approved stack pins", () => {
     const GIT_DEP_PATTERN =
       /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
