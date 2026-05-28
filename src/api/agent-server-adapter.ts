@@ -9,6 +9,8 @@ import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import {
   getAgentServerWorkingDir,
+  shouldLoadOrgSkills,
+  shouldLoadProjectSkills,
   shouldLoadPublicSkills,
 } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
@@ -508,6 +510,8 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
     ...toRecord(agentSettings.agent_context),
     load_public_skills: shouldLoadPublicSkills(),
     load_user_skills: true,
+    load_project_skills: shouldLoadProjectSkills(),
+    load_org_skills: shouldLoadOrgSkills(),
     ...(runtimeServicesSuffix
       ? { system_message_suffix: runtimeServicesSuffix }
       : {}),
