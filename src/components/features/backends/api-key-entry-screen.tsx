@@ -2,6 +2,12 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { saveAgentServerConfig } from "#/api/agent-server-config";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  BackendForm,
+  type BackendFormSubmitPayload,
+} from "./backend-form-modal";
 
 /**
  * Full-screen prompt shown when the server is in public mode and no
@@ -9,70 +15,77 @@ import { saveAgentServerConfig } from "#/api/agent-server-config";
  * `/backends.json`). The user pastes the `LOCAL_BACKEND_API_KEY` that
  * was set when the server was started with `--public`.
  *
- * On submit the key is persisted to localStorage (via
- * {@link saveAgentServerConfig}) and the page is reloaded so every
- * downstream consumer (backend registry, query clients, WebSocket)
- * picks up the new credential.
+ * Reuses the standard {@link BackendForm} with the host pre-filled
+ * from the current origin and the name field hidden, so the user only
+ * needs to paste an API key. On submit the key is persisted to
+ * localStorage (via {@link saveAgentServerConfig}) and the page is
+ * reloaded so every downstream consumer picks up the new credential.
  */
 export function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
-  const [apiKey, setApiKey] = React.useState("");
+  const { active } = useActiveBackendContext();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Build a backend object with the current origin as host so the
+  // form's host field is pre-filled and read-only.
+  const backend = React.useMemo(
+    () => ({ ...active.backend, host: window.location.origin }),
+    [active.backend],
+  );
 
-    const trimmed = apiKey.trim();
-    if (!trimmed) return;
+  const handlePayload = React.useCallback(
+    (payload: BackendFormSubmitPayload) => {
+      // Persist the key in the agent-server-config localStorage slot
+      // so the auth gate (`isAuthRequiredAndMissing`) clears on reload.
+      saveAgentServerConfig({
+        baseUrl: payload.host,
+        sessionApiKey: payload.apiKey,
+      });
 
-    // Persist the key in the same localStorage slot the backend-form /
-    // settings page uses, so the normal config resolution picks it up.
-    saveAgentServerConfig({
-      baseUrl: window.location.origin,
-      sessionApiKey: trimmed,
-    });
+      // Hard reload so every service layer re-reads the key.
+      window.location.reload();
+    },
+    [],
+  );
 
-    // Hard reload so every service layer re-reads the key.
-    window.location.reload();
-  };
+  // noop — the reload in handlePayload takes over before this fires.
+  const noop = React.useCallback(() => {}, []);
 
   return (
     <main
       data-testid="api-key-entry-screen"
       className="flex min-h-screen items-center justify-center bg-base px-6"
     >
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-6 rounded-2xl border border-white/10 bg-base/80 p-8 shadow-2xl"
-      >
-        <div className="space-y-2 text-center">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--oh-border)] bg-base-secondary p-8 shadow-2xl">
+        <div className="mb-6 space-y-2 text-center">
           <h1 className="text-2xl font-bold text-white">
             {t(I18nKey.AUTH$API_KEY_REQUIRED_TITLE)}
           </h1>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-[var(--oh-muted)]">
             {t(I18nKey.AUTH$API_KEY_REQUIRED_DESCRIPTION)}
           </p>
         </div>
 
-        <input
-          data-testid="api-key-input"
-          type="password"
-          autoComplete="off"
-          ref={(el) => el?.focus()}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={t(I18nKey.AUTH$API_KEY_PLACEHOLDER)}
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-neutral-500 outline-none focus:border-white/30"
+        <BackendForm
+          mode="edit"
+          backend={backend}
+          onSubmitted={noop}
+          onSubmitPayload={handlePayload}
+          hideName
+          hostReadOnly
+          testIdRoot="api-key-entry"
+          renderActions={({ canSubmit, testIdRoot }) => (
+            <BrandButton
+              type="submit"
+              variant="primary"
+              isDisabled={!canSubmit}
+              testId={`${testIdRoot}-submit`}
+              className="w-full mt-2"
+            >
+              {t(I18nKey.AUTH$CONNECT)}
+            </BrandButton>
+          )}
         />
-
-        <button
-          data-testid="api-key-submit"
-          type="submit"
-          disabled={!apiKey.trim()}
-          className="w-full rounded-lg bg-white px-4 py-3 font-medium text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {t(I18nKey.AUTH$CONNECT)}
-        </button>
-      </form>
+      </div>
     </main>
   );
 }
