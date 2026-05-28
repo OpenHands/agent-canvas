@@ -34,6 +34,11 @@ import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-threa
 import { ConversationGroupFolderList } from "./conversation-group-folder-list";
 import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
 import {
+  ConversationPanelSearchButton,
+  ConversationPanelSearchField,
+} from "./conversation-panel-search-toggle";
+import { filterConversationsByQuery } from "./filter-conversations-by-query";
+import {
   applyGroupFolderOrder,
   filterOutPinnedConversations,
   groupConversations,
@@ -153,6 +158,8 @@ export function ConversationPanel({
     (state) => state.setGroupFolderOrder,
   );
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [isListScrolled, setIsListScrolled] = React.useState(false);
   const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
     setFilterMenuOpen(false);
@@ -306,6 +313,24 @@ export function ConversationPanel({
     return sortConversationsByField(visible, conversationSort);
   }, [recentScoped, olderScoped, showOlderConversations, conversationSort]);
 
+  const handleSearchToggle = React.useCallback(() => {
+    setIsSearchOpen((prev) => {
+      if (prev) {
+        setSearchQuery("");
+      }
+      return !prev;
+    });
+  }, []);
+
+  const isSearchActive = isSearchOpen;
+
+  const searchFilteredConversations = React.useMemo(() => {
+    if (!isSearchActive) {
+      return sortedVisibleConversations;
+    }
+    return filterConversationsByQuery(sortedVisibleConversations, searchQuery);
+  }, [isSearchActive, searchQuery, sortedVisibleConversations]);
+
   const groupLabels = React.useMemo(
     () => ({
       emptyWorkspace: t(I18nKey.CONVERSATION_PANEL$NO_WORKSPACE),
@@ -378,9 +403,11 @@ export function ConversationPanel({
   }, [orderedConversationGroups]);
 
   const listIsEffectivelyEmpty =
-    organizeMode === "grouped" && !compact
-      ? visibleGroupedCount === 0
-      : visibleFlatCount === 0;
+    isSearchActive && searchQuery.trim()
+      ? searchFilteredConversations.length === 0
+      : organizeMode === "grouped" && !compact
+        ? visibleGroupedCount === 0
+        : visibleFlatCount === 0;
 
   // Number of conversations actually rendered in the list right now, in the
   // current organize mode. "Load more" succeeds only when this number grows.
@@ -464,7 +491,11 @@ export function ConversationPanel({
   // Do not show when the visible list is empty (e.g. filters hide every
   // loaded conversation) — that state already shows "No conversations found".
   const showLoadMore =
-    !!hasNextPage && !olderHidden && !compact && !listIsEffectivelyEmpty;
+    !!hasNextPage &&
+    !olderHidden &&
+    !compact &&
+    !listIsEffectivelyEmpty &&
+    !isSearchActive;
 
   const { mutate: createConversation } = useCreateConversation();
   const isCreatingConversationFlow = useIsCreatingConversation();
@@ -679,6 +710,7 @@ export function ConversationPanel({
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
               alwaysShowPinIcon={isPinned && !options?.inPinnedSection}
+              searchQuery={searchQuery}
             />
           </NavigationLink>
         </Tooltip>
@@ -698,6 +730,7 @@ export function ConversationPanel({
       showLlmProfiles,
       showHoverMetadata,
       togglePin,
+      searchQuery,
     ],
   );
 
@@ -710,14 +743,26 @@ export function ConversationPanel({
   // refetch, causing the skeleton/empty-state to flicker when the list is empty.
   const showInitialSkeleton = isLoading || !isFetched;
   const showPinnedSection =
-    !compact && !showInitialSkeleton && pinnedConversations.length > 0;
+    !compact &&
+    !showInitialSkeleton &&
+    pinnedConversations.length > 0 &&
+    !isSearchActive;
   const showEmptyState =
     isFetched &&
     !isLoading &&
     !compact &&
     listIsEffectivelyEmpty &&
     !showPinnedSection &&
-    !startTasks?.length;
+    !startTasks?.length &&
+    !(isSearchActive && searchQuery.trim());
+
+  const showSearchNoResults =
+    isFetched &&
+    !isLoading &&
+    !compact &&
+    isSearchActive &&
+    searchQuery.trim().length > 0 &&
+    searchFilteredConversations.length === 0;
 
   const showConversationHeader = !compact;
 
@@ -744,6 +789,10 @@ export function ConversationPanel({
               {t(I18nKey.SIDEBAR$CONVERSATIONS)}
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-0.5">
+              <ConversationPanelSearchButton
+                isOpen={isSearchOpen}
+                onToggle={handleSearchToggle}
+              />
               <ConversationPanelNewThreadPicker
                 backendKind={activeBackend.kind}
               />
@@ -771,6 +820,12 @@ export function ConversationPanel({
               />
             </div>
           </div>
+          {isSearchOpen ? (
+            <ConversationPanelSearchField
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+            />
+          ) : null}
         </div>
       )}
 
@@ -813,6 +868,26 @@ export function ConversationPanel({
           />
         ) : null}
 
+        {!compact && showSearchNoResults && (
+          <div
+            data-testid="conversation-panel-search-no-results"
+            className="px-4 py-6 text-center"
+          >
+            <p className="text-xs text-[var(--oh-muted)]">
+              {t(I18nKey.CONVERSATION_PANEL$SEARCH_NO_RESULTS)}
+            </p>
+          </div>
+        )}
+
+        {!compact && isSearchOpen && !showInitialSkeleton && (
+          <div
+            data-testid="conversation-panel-search-section-label"
+            className="px-4 pb-1 pt-2 text-xs text-[var(--oh-text-dim)]"
+          >
+            {t(I18nKey.COMMON$MOST_RECENT)}
+          </div>
+        )}
+
         {/* Render in-progress start tasks first (skipped in compact mode —
             their rich card layout doesn't fit in the icon rail). */}
         {!compact &&
@@ -836,6 +911,7 @@ export function ConversationPanel({
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "grouped" &&
+        !isSearchActive &&
         orderedConversationGroups &&
         orderedConversationGroups.length > 0 ? (
           <ConversationGroupFolderList
@@ -858,9 +934,9 @@ export function ConversationPanel({
 
         {!showInitialSkeleton &&
         !compact &&
-        organizeMode === "chronological" ? (
+        (organizeMode === "chronological" || isSearchActive) ? (
           <div className="space-y-0.5">
-            {sortedVisibleConversations.map((conversation) =>
+            {searchFilteredConversations.map((conversation) =>
               renderConversationCard(conversation),
             )}
           </div>

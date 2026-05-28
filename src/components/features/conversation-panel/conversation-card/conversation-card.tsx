@@ -42,6 +42,7 @@ interface ConversationCardProps {
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
   alwaysShowPinIcon?: boolean;
+  searchQuery?: string;
 }
 
 export function ConversationCard({
@@ -69,6 +70,7 @@ export function ConversationCard({
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
+  searchQuery = "",
 }: ConversationCardProps) {
   const { t } = useTranslation("openhands");
   const { trackDownloadVsCodeButtonClicked } = useTracking();
@@ -201,6 +203,7 @@ export function ConversationCard({
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
+            searchQuery={searchQuery}
           />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
