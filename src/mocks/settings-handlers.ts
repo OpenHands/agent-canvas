@@ -7,7 +7,9 @@ import {
   OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
   OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
   OPENAI_SUBSCRIPTION_LOGOUT_PATH,
+  OPENAI_SUBSCRIPTION_MODELS_PATH,
   OPENAI_SUBSCRIPTION_STATUS_PATH,
+  OPENAI_SUBSCRIPTION_VENDOR,
 } from "#/constants/llm-subscription";
 
 /** Simple recursive merge — objects merge, scalars overwrite. */
@@ -457,6 +459,8 @@ const MOCK_MODELS = [
   "sambanova/Meta-Llama-3.1-8B-Instruct",
 ];
 
+const MOCK_OPENAI_SUBSCRIPTION_MODELS = ["gpt-5.2", "gpt-5.3-codex"];
+
 const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-sonnet-4-5-20250929",
@@ -497,7 +501,7 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
-const MOCK_AGENT_SERVER_VERSION = "1.23.0";
+const MOCK_AGENT_SERVER_VERSION = "1.24.0";
 
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
@@ -533,6 +537,13 @@ export const SETTINGS_HANDLERS = [
 
   http.get("*/api/llm/providers", async () =>
     HttpResponse.json({ providers: MOCK_MODEL_PROVIDERS }),
+  ),
+
+  http.get(`*${OPENAI_SUBSCRIPTION_MODELS_PATH}`, async () =>
+    HttpResponse.json({
+      vendor: OPENAI_SUBSCRIPTION_VENDOR,
+      models: MOCK_OPENAI_SUBSCRIPTION_MODELS,
+    }),
   ),
 
   http.get(`*${OPENAI_SUBSCRIPTION_STATUS_PATH}`, async () =>

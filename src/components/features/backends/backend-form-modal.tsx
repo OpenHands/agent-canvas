@@ -1,7 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { ServerClient } from "@openhands/typescript-client/clients";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
@@ -9,7 +8,7 @@ import {
   MODAL_MAX_WIDTH_VIEWPORT,
   modalWidthClassName,
 } from "#/components/shared/modals/modal-body";
-import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -21,9 +20,6 @@ import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 export type BackendFormMode = "add" | "edit";
 
@@ -606,23 +602,17 @@ export function BackendFormModal({
         <div
           data-testid="add-backend-modal"
           className={cn(
-            "rounded-xl border border-[var(--oh-border)] bg-base-secondary",
+            "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
             modalWidthClassName("xl"),
             MODAL_MAX_WIDTH_VIEWPORT,
           )}
         >
+          <ModalCloseButton onClose={onClose} testId="add-backend-close" />
           {/* Header */}
-          <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-2">
-            <BaseModalTitle title={t(I18nKey.BACKEND$ADD_TITLE)} />
-            <button
-              type="button"
-              onClick={onClose}
-              className={cn(ICON_BUTTON_CLASS, "shrink-0")}
-              data-testid="add-backend-close"
-              aria-label={t(I18nKey.BUTTON$CLOSE)}
-            >
-              <X size={20} aria-hidden />
-            </button>
+          <div className="px-6 pt-6 pb-2 pr-12">
+            <h2 className="text-lg font-semibold">
+              {t(I18nKey.BACKEND$ADD_TITLE)}
+            </h2>
           </div>
 
           {/* Two-column body */}
@@ -662,22 +652,14 @@ export function BackendFormModal({
       <div
         data-testid={`${testIdRoot}-modal`}
         className={cn(
-          "bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]",
+          "relative bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]",
           modalWidthClassName("md"),
         )}
       >
-        <div className="flex items-start justify-between gap-4">
-          <BaseModalTitle title={t(I18nKey.BACKEND$EDIT_TITLE)} />
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
-            data-testid={`${testIdRoot}-close`}
-            aria-label={t(I18nKey.BUTTON$CLOSE)}
-          >
-            <X size={20} aria-hidden />
-          </button>
-        </div>
+        <ModalCloseButton onClose={onClose} testId={`${testIdRoot}-close`} />
+        <h2 className="pr-6 text-lg font-semibold">
+          {t(I18nKey.BACKEND$EDIT_TITLE)}
+        </h2>
         <BackendForm
           mode="edit"
           backend={backend}

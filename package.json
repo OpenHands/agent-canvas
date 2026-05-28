@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.7",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#7b33f64ffccf95f7ccd2ec640aeae84ab1cc2c75",
+    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#39711065f53166c52608462f60a4c8507253ce56",
     "@openhands/typescript-client": "git+https://github.com/OpenHands/typescript-client.git#add-llm-subscription-client",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
@@ -80,6 +80,7 @@
     "test": "npm run make-i18n && vitest run",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:e2e:live": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-live-e2e.mjs",
+    "test:e2e:mock-llm": "playwright test --config=playwright.mock-llm.config.ts",
     "test:e2e:snapshots": "playwright test tests/e2e/snapshots --project=chromium --retries=0",
     "test:e2e:snapshots:update": "playwright test tests/e2e/snapshots --project=chromium --update-snapshots",
     "test:coverage": "npm run make-i18n && vitest run --coverage",
@@ -172,7 +173,9 @@
     "dist",
     "bin",
     "build",
-    "scripts"
+    "config",
+    "scripts",
+    "tools"
   ],
   "exports": {
     ".": {

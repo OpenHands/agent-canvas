@@ -8,6 +8,7 @@ import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import ProfilesService, {
   ProfileInfo,
+  type SaveProfileRequest,
 } from "#/api/profiles-service/profiles-service.api";
 import {
   displayErrorToast,
@@ -37,6 +38,81 @@ type ViewMode = "list" | "create" | "edit";
 interface EditingProfile {
   profile: ProfileInfo;
   initialValues: SettingsFormValues;
+}
+
+interface BuildProfileLlmConfigOptions {
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  authType: string;
+  viewMode: ViewMode;
+  editingProfile: EditingProfile | null;
+}
+
+function readStringValue(values: SettingsFormValues, key: string) {
+  const value = values[key];
+  return typeof value === "string" ? value : "";
+}
+
+function buildProfileLlmConfig({
+  model,
+  apiKey,
+  baseUrl,
+  authType,
+  viewMode,
+  editingProfile,
+}: BuildProfileLlmConfigOptions): SaveProfileRequest["llm"] {
+  if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+    return {
+      model,
+      auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+      subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+    } as SaveProfileRequest["llm"];
+  }
+
+  const llmConfig: Record<string, unknown> = {
+    model,
+    auth_type: LLM_AUTH_TYPE_API_KEY,
+  };
+  const existingApiKey = editingProfile?.initialValues["llm.api_key"];
+  const preservedApiKey = viewMode === "edit" ? existingApiKey : null;
+
+  if (apiKey) {
+    llmConfig.api_key = apiKey;
+  } else if (preservedApiKey) {
+    llmConfig.api_key = preservedApiKey;
+  }
+
+  if (baseUrl) {
+    llmConfig.base_url = baseUrl;
+  }
+
+  return llmConfig as SaveProfileRequest["llm"];
+}
+
+async function renameProfileIfNeeded(
+  originalName: string | undefined,
+  trimmedName: string,
+  viewMode: ViewMode,
+) {
+  const isRename =
+    viewMode === "edit" &&
+    Boolean(originalName) &&
+    originalName !== trimmedName;
+  if (isRename && originalName) {
+    await ProfilesService.renameProfile(originalName, trimmedName);
+  }
+  return isRename;
+}
+
+async function reactivateProfileIfNeeded(
+  profileName: string,
+  isRename: boolean,
+  wasActive: boolean,
+) {
+  if (isRename && wasActive) {
+    await ProfilesService.activateProfile(profileName);
+  }
 }
 
 /**
@@ -169,12 +245,9 @@ export function LlmSettingsLocalView() {
     if (!saveControl || !isNameValid) return;
 
     const values = saveControl.values;
-    const model =
-      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
-    const apiKey =
-      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
-    const baseUrl =
-      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+    const model = readStringValue(values, "llm.model");
+    const apiKey = readStringValue(values, "llm.api_key");
+    const baseUrl = readStringValue(values, "llm.base_url");
     const authType = resolveLlmAuthType(values[LLM_AUTH_TYPE_KEY]);
 
     if (!model) {
@@ -184,55 +257,33 @@ export function LlmSettingsLocalView() {
 
     const trimmedName = profileName.trim();
     const originalName = editingProfile?.profile.name;
-    const isRename =
-      viewMode === "edit" && originalName && originalName !== trimmedName;
     const wasActive = profilesData?.active_profile === originalName;
 
     setIsSaving(true);
     try {
-      // If editing and name changed, rename the profile first
-      if (isRename) {
-        await ProfilesService.renameProfile(originalName, trimmedName);
-      }
-
-      const llmConfig: Record<string, unknown> = { model };
-
-      if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
-        llmConfig.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
-        llmConfig.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
-      } else {
-        llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
-        if (apiKey) {
-          llmConfig.api_key = apiKey;
-        } else if (
-          viewMode === "edit" &&
-          editingProfile?.initialValues["llm.api_key"]
-        ) {
-          llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
-        }
-
-        if (baseUrl) {
-          llmConfig.base_url = baseUrl;
-        }
-      }
+      const renamed = await renameProfileIfNeeded(
+        originalName,
+        trimmedName,
+        viewMode,
+      );
+      const llmConfig = buildProfileLlmConfig({
+        model,
+        apiKey,
+        baseUrl,
+        authType,
+        viewMode,
+        editingProfile,
+      });
 
       await saveProfile.mutateAsync({
         name: trimmedName,
         request: {
-          llm: llmConfig as {
-            model: string;
-            api_key?: string;
-            base_url?: string;
-          },
+          llm: llmConfig,
           include_secrets: true,
         },
       });
 
-      // If the renamed profile was the active profile, re-activate it
-      // (the rename operation doesn't automatically update active_profile)
-      if (isRename && wasActive) {
-        await ProfilesService.activateProfile(trimmedName);
-      }
+      await reactivateProfileIfNeeded(trimmedName, renamed, wasActive);
 
       displaySuccessToast(
         viewMode === "create"

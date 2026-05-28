@@ -1,115 +1,95 @@
-import { LLMMetadataClient } from "@openhands/typescript-client/clients";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it } from "vitest";
 import LLMSubscriptionService from "#/api/llm-subscription-service";
-const {
-  mockGetStatus,
-  mockStartDeviceLogin,
-  mockPollDeviceLogin,
-  mockLogout,
-  mockClose,
-} = vi.hoisted(() => ({
-  mockGetStatus: vi.fn(),
-  mockStartDeviceLogin: vi.fn(),
-  mockPollDeviceLogin: vi.fn(),
-  mockLogout: vi.fn(),
-  mockClose: vi.fn(),
-}));
-
-vi.mock("@openhands/typescript-client/clients", async () => {
-  const actual = await vi.importActual<
-    typeof import("@openhands/typescript-client/clients")
-  >("@openhands/typescript-client/clients");
-  return {
-    ...actual,
-    LLMMetadataClient: vi.fn(function LLMMetadataClientMock() {
-      return {
-        getOpenAISubscriptionStatus: mockGetStatus,
-        startOpenAISubscriptionDeviceLogin: mockStartDeviceLogin,
-        pollOpenAISubscriptionDeviceLogin: mockPollDeviceLogin,
-        logoutOpenAISubscription: mockLogout,
-        close: mockClose,
-      };
-    }),
-  };
-});
-
-vi.mock("#/api/agent-server-client-options", () => ({
-  getAgentServerClientOptions: vi.fn(() => ({
-    host: "http://localhost:18000",
-    apiKey: "session-key",
-    workingDir: "/workspace/project",
-  })),
-}));
+import {
+  OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
+  OPENAI_SUBSCRIPTION_STATUS_PATH,
+} from "#/constants/llm-subscription";
+import { server } from "#/mocks/node";
+import { resetTestHandlersMockSettings } from "#/mocks/settings-handlers";
 
 describe("LLMSubscriptionService", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetTestHandlersMockSettings();
   });
 
-  it("normalizes OpenAI subscription status", async () => {
-    mockGetStatus.mockResolvedValue({
-      authenticated: true,
-      email: "user@example.com",
-      expires_at: 123,
-    });
+  it("fetches OpenAI subscription models from the agent-server endpoint", async () => {
+    await expect(LLMSubscriptionService.getOpenAIModels()).resolves.toEqual([
+      "gpt-5.2",
+      "gpt-5.3-codex",
+    ]);
+  });
 
+  it("normalizes OpenAI subscription status from MSW handlers", async () => {
     await expect(LLMSubscriptionService.getOpenAIStatus()).resolves.toEqual({
       vendor: "openai",
-      connected: true,
-      accountEmail: "user@example.com",
-      expiresAt: 123,
+      connected: false,
+      accountEmail: null,
+      expiresAt: null,
     });
-
-    expect(LLMMetadataClient).toHaveBeenCalledWith({
-      host: "http://localhost:18000",
-      apiKey: "session-key",
-      workingDir: "/workspace/project",
-    });
-    expect(mockGetStatus).toHaveBeenCalled();
-    expect(mockClose).toHaveBeenCalled();
   });
 
   it("normalizes device login challenge responses", async () => {
-    mockStartDeviceLogin.mockResolvedValue({
-      device_code: "device-123",
-      user_code: "ABCD-EFGH",
-      verification_uri: "https://auth.openai.com/activate",
-      verification_uri_complete: "https://auth.openai.com/activate?code=ABCD",
-      expires_in: 900,
-      interval: 5,
-    });
-
     await expect(
       LLMSubscriptionService.startOpenAIDeviceLogin(),
     ).resolves.toEqual({
-      deviceCode: "device-123",
-      userCode: "ABCD-EFGH",
+      deviceCode: "mock-device-code",
+      userCode: "MOCK-CODE",
       verificationUri: "https://auth.openai.com/activate",
-      verificationUriComplete: "https://auth.openai.com/activate?code=ABCD",
+      verificationUriComplete:
+        "https://auth.openai.com/activate?user_code=MOCK-CODE",
       expiresAt: 900,
-      intervalSeconds: 5,
+      intervalSeconds: 1,
     });
-
-    expect(mockStartDeviceLogin).toHaveBeenCalled();
   });
 
   it("posts the device code when polling login", async () => {
-    mockPollDeviceLogin.mockResolvedValue({ connected: true });
-
     await expect(
-      LLMSubscriptionService.pollOpenAIDeviceLogin("device-123"),
+      LLMSubscriptionService.pollOpenAIDeviceLogin("mock-device-code"),
     ).resolves.toMatchObject({ connected: true });
 
-    expect(mockPollDeviceLogin).toHaveBeenCalledWith("device-123");
+    await expect(
+      LLMSubscriptionService.getOpenAIStatus(),
+    ).resolves.toMatchObject({
+      connected: true,
+      accountEmail: "mock-chatgpt@example.com",
+    });
   });
 
   it("calls the logout endpoint", async () => {
-    mockLogout.mockResolvedValue({ connected: false });
+    await LLMSubscriptionService.pollOpenAIDeviceLogin("mock-device-code");
 
     await expect(LLMSubscriptionService.logoutOpenAI()).resolves.toMatchObject({
       connected: false,
     });
+    await expect(
+      LLMSubscriptionService.getOpenAIStatus(),
+    ).resolves.toMatchObject({ connected: false });
+  });
 
-    expect(mockLogout).toHaveBeenCalled();
+  it("rejects incomplete device challenges with blank required fields", async () => {
+    server.use(
+      http.post(`*${OPENAI_SUBSCRIPTION_DEVICE_START_PATH}`, () =>
+        HttpResponse.json({
+          device_code: "   ",
+          user_code: "MOCK-CODE",
+          verification_uri: "https://auth.openai.com/activate",
+        }),
+      ),
+    );
+
+    await expect(
+      LLMSubscriptionService.startOpenAIDeviceLogin(),
+    ).rejects.toThrow("Subscription device login response is incomplete");
+  });
+
+  it("surfaces agent-server errors", async () => {
+    server.use(
+      http.get(`*${OPENAI_SUBSCRIPTION_STATUS_PATH}`, () =>
+        HttpResponse.json({ detail: "unauthorized" }, { status: 401 }),
+      ),
+    );
+
+    await expect(LLMSubscriptionService.getOpenAIStatus()).rejects.toThrow();
   });
 });

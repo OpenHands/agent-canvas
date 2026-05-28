@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNavigation } from "#/context/navigation-context";
@@ -7,6 +7,14 @@ import {
   consumePendingTaskDraft,
   setConversationState,
 } from "#/utils/conversation-local-storage";
+import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { flushPendingTaskAttachments } from "#/utils/flush-pending-task-attachments";
+import {
+  clearPendingTaskMessageLink,
+  consumeScheduledPendingTaskMessageReassign,
+  linkPendingTaskMessages,
+  schedulePendingTaskMessageReassign,
+} from "#/utils/pending-task-message-link";
 
 /**
  * Hook that polls V1 conversation start tasks and navigates when ready.
@@ -56,21 +64,69 @@ export const useTaskPolling = () => {
     retry: false,
   });
 
+  const handledReadyTaskIdRef = useRef<string | null>(null);
+
+  // Reassign optimistic pending messages before paint on the real conversation
+  // route. Doing this in the ready handler before navigate leaves a frame where
+  // the URL still points at `task-{uuid}` but pending is keyed to the real id.
+  useLayoutEffect(() => {
+    if (!conversationId) {
+      return;
+    }
+
+    const pendingReassign =
+      consumeScheduledPendingTaskMessageReassign(conversationId);
+    if (!pendingReassign) {
+      return;
+    }
+
+    useOptimisticUserMessageStore
+      .getState()
+      .reassignPendingMessages(
+        pendingReassign.fromConversationId,
+        pendingReassign.toConversationId,
+      );
+    clearPendingTaskMessageLink(pendingReassign.toConversationId);
+  }, [conversationId]);
+
   // Navigate to conversation ID when task is ready
   useEffect(() => {
     const task = taskQuery.data;
-    if (task?.status === "READY" && task.app_conversation_id) {
+    if (
+      !taskId ||
+      task?.status !== "READY" ||
+      !task.app_conversation_id ||
+      handledReadyTaskIdRef.current === taskId
+    ) {
+      return;
+    }
+
+    handledReadyTaskIdRef.current = taskId;
+
+    void (async () => {
+      await flushPendingTaskAttachments(taskId, task.app_conversation_id!);
+
+      const taskConversationId = `task-${taskId}`;
+      linkPendingTaskMessages(task.app_conversation_id!, taskConversationId);
+      schedulePendingTaskMessageReassign(
+        taskConversationId,
+        task.app_conversation_id!,
+      );
+
       const pendingDraft = consumePendingTaskDraft(taskId);
       if (pendingDraft) {
-        setConversationState(task.app_conversation_id, {
+        setConversationState(task.app_conversation_id!, {
           draftMessage: pendingDraft,
         });
       }
 
-      // Replace the URL with the actual conversation ID
       navigate(`/conversations/${task.app_conversation_id}`, { replace: true });
-    }
+    })();
   }, [taskQuery.data, navigate, taskId]);
+
+  useEffect(() => {
+    handledReadyTaskIdRef.current = null;
+  }, [taskId]);
 
   return {
     isTask,

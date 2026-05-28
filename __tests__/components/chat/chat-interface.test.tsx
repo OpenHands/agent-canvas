@@ -31,6 +31,7 @@ import type { MessageEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
+import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { AgentState } from "#/types/agent-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { act } from "@testing-library/react";
@@ -66,6 +67,10 @@ vi.mock("#/hooks/use-conversation-name-context-menu", () => ({
 
 vi.mock("#/hooks/use-load-older-events", () => ({
   useLoadOlderEvents: vi.fn(),
+}));
+
+vi.mock("#/hooks/query/use-task-polling", () => ({
+  useTaskPolling: vi.fn(),
 }));
 
 vi.mock("#/hooks/use-agent-state", () => ({
@@ -107,6 +112,21 @@ beforeEach(() => {
   vi.mocked(useOptionalConversationId).mockReturnValue({
     conversationId: "test-conversation-id",
   });
+  vi.mocked(useTaskPolling).mockReturnValue({
+    isTask: false,
+    taskId: null,
+    conversationId: "test-conversation-id",
+    task: undefined,
+    taskStatus: undefined,
+    taskDetail: undefined,
+    taskError: null,
+    isLoadingTask: false,
+    repositoryInfo: {
+      selectedRepository: undefined,
+      selectedBranch: undefined,
+      gitProvider: undefined,
+    },
+  });
   // Default: pagination disabled (hasMore=false) so unrelated tests don't
   // accidentally trigger loadOlder via the on-mount auto-trigger effect.
   // Tests that exercise pagination override this.
@@ -127,6 +147,22 @@ describe("ChatInterface - Chat Suggestions", () => {
         queries: {
           retry: false,
         },
+      },
+    });
+
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: false,
+      taskId: null,
+      conversationId: "test-conversation-id",
+      task: undefined,
+      taskStatus: undefined,
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
       },
     });
 
@@ -185,6 +221,58 @@ describe("ChatInterface - Chat Suggestions", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     // Check if ChatSuggestions is not rendered with optimistic user message
+    expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
+  });
+
+  test("should hide chat suggestions while a cloud start task is provisioning", () => {
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: true,
+      taskId: "abc",
+      conversationId: null,
+      task: undefined,
+      taskStatus: "WORKING",
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
+      },
+    });
+
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
+
+    expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
+  });
+
+  test("should hide chat suggestions on a task route even when the task is READY", () => {
+    vi.mocked(useTaskPolling).mockReturnValue({
+      isTask: true,
+      taskId: "abc",
+      conversationId: null,
+      task: undefined,
+      taskStatus: "READY",
+      taskDetail: undefined,
+      taskError: null,
+      isLoadingTask: false,
+      repositoryInfo: {
+        selectedRepository: undefined,
+        selectedBranch: undefined,
+        gitProvider: undefined,
+      },
+    });
+
+    renderWithQueryClient(
+      <ChatInterface />,
+      queryClient,
+      "/task-abc",
+    );
+
     expect(screen.queryByTestId("chat-suggestions")).not.toBeInTheDocument();
   });
 });
@@ -300,7 +388,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -346,7 +434,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -430,7 +518,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
     renderWithQueryClient(<ChatInterface />, queryClient);
 
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -489,7 +577,7 @@ describe("ChatInterface - Scroll-up loads older events", () => {
 
     // The scroll container exists (so the user can scroll up to load older).
     const scrollContainer = document.querySelector(
-      ".custom-scrollbar-always",
+      "[data-testid='chat-scroll-container']",
     ) as HTMLElement | null;
     expect(scrollContainer).not.toBeNull();
 
@@ -608,6 +696,107 @@ describe("ChatInterface - Pending message queue", () => {
     const messages = screen.getAllByTestId("user-message");
     expect(messages[0]).toHaveTextContent("first");
     expect(messages[1]).toHaveTextContent("second");
+  });
+});
+
+describe("ChatInterface - Auto-scroll on submit (issue #817)", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    mockSend.mockReset();
+    mockSend.mockResolvedValue({ queued: false });
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useErrorMessageStore.setState({ errorMessage: null });
+    (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {},
+    });
+    (
+      useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue({ skipped_files: [], uploaded_files: [] }),
+      isLoading: false,
+    });
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+    });
+  });
+
+  afterEach(() => {
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+  });
+
+  it("scrolls to bottom when a new prompt is submitted while the user is scrolled up", async () => {
+    // Arrange: render and grab the chat scroll container.
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const scrollContainer = document.querySelector(
+      "[data-testid='chat-scroll-container']",
+    ) as HTMLElement | null;
+    expect(scrollContainer).not.toBeNull();
+
+    // Let the mount-time auto-scroll rAF (which re-arms autoScroll=true)
+    // run and settle BEFORE the scroll-up sim. Otherwise that rAF would
+    // fire later and undo the autoScroll=false precondition for the bug.
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+    // Capture every scrollTop write so we can detect the rAF inside
+    // scrollDomToBottom landing `dom.scrollTop = dom.scrollHeight`.
+    const scrollWrites: number[] = [];
+    let scrollTopRead = 200;
+    Object.defineProperty(scrollContainer!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopRead,
+      set: (value: number) => {
+        scrollWrites.push(value);
+      },
+    });
+    Object.defineProperty(scrollContainer!, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 10000,
+    });
+    Object.defineProperty(scrollContainer!, "clientHeight", {
+      configurable: true,
+      writable: true,
+      value: 800,
+    });
+
+    // Simulate the user scrolling up: first event seeds prev=200, the
+    // second event at scrollTop=50 is detected as scrolling up and flips
+    // the hook's `autoScroll` to false (the precondition for the bug).
+    fireEvent.scroll(scrollContainer!);
+    scrollTopRead = 50;
+    fireEvent.scroll(scrollContainer!);
+    scrollWrites.length = 0;
+
+    // Act: submit a new prompt (same path InteractiveChatBox uses).
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "hello" });
+    });
+
+    // Assert: scrollDomToBottom landed scrollHeight onto scrollTop even
+    // though autoScroll was off. Without the fix the auto-scroll effect
+    // would skip the call and `scrollWrites` would stay empty.
+    await waitFor(() => {
+      expect(scrollWrites).toContain(10000);
+    });
   });
 });
 

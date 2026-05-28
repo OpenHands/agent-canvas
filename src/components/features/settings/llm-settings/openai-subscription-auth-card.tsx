@@ -37,6 +37,7 @@ export function OpenAISubscriptionAuthCard({
   const [challenge, setChallenge] =
     React.useState<LLMSubscriptionDeviceChallenge | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [isPendingLogin, setIsPendingLogin] = React.useState(false);
 
   const handleCopyCode = () => {
     if (!challenge) return;
@@ -53,6 +54,7 @@ export function OpenAISubscriptionAuthCard({
     try {
       const nextChallenge = await startLogin.mutateAsync();
       setChallenge(nextChallenge);
+      setIsPendingLogin(false);
       openVerificationUrl(nextChallenge);
     } catch {
       displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECT_ERROR));
@@ -65,9 +67,10 @@ export function OpenAISubscriptionAuthCard({
       const nextStatus = await pollLogin.mutateAsync(challenge.deviceCode);
       if (nextStatus.connected) {
         setChallenge(null);
+        setIsPendingLogin(false);
         displaySuccessToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECTED_TOAST));
       } else {
-        displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_PENDING_TOAST));
+        setIsPendingLogin(true);
       }
     } catch {
       displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECT_ERROR));
@@ -78,10 +81,16 @@ export function OpenAISubscriptionAuthCard({
     try {
       await logout.mutateAsync();
       setChallenge(null);
+      setIsPendingLogin(false);
       displaySuccessToast(t(I18nKey.SETTINGS$SUBSCRIPTION_DISCONNECTED_TOAST));
     } catch {
       displayErrorToast(t(I18nKey.ERROR$GENERIC));
     }
+  };
+
+  const handleCancelLogin = () => {
+    setChallenge(null);
+    setIsPendingLogin(false);
   };
 
   return (
@@ -158,6 +167,11 @@ export function OpenAISubscriptionAuthCard({
             {t(I18nKey.SETTINGS$SUBSCRIPTION_OPEN_LOGIN)}
             <ExternalLink size={14} aria-hidden />
           </a>
+          {isPendingLogin ? (
+            <span className="text-warning">
+              {t(I18nKey.SETTINGS$SUBSCRIPTION_PENDING_TOAST)}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -185,15 +199,26 @@ export function OpenAISubscriptionAuthCard({
         )}
 
         {challenge ? (
-          <BrandButton
-            testId="subscription-poll"
-            type="button"
-            variant="secondary"
-            isDisabled={isDisabled || isBusy}
-            onClick={handlePollLogin}
-          >
-            {t(I18nKey.SETTINGS$SUBSCRIPTION_FINISH_SIGN_IN)}
-          </BrandButton>
+          <>
+            <BrandButton
+              testId="subscription-poll"
+              type="button"
+              variant="secondary"
+              isDisabled={isDisabled || isBusy}
+              onClick={handlePollLogin}
+            >
+              {t(I18nKey.SETTINGS$SUBSCRIPTION_FINISH_SIGN_IN)}
+            </BrandButton>
+            <BrandButton
+              testId="subscription-cancel"
+              type="button"
+              variant="tertiary"
+              isDisabled={isDisabled || isBusy}
+              onClick={handleCancelLogin}
+            >
+              {t(I18nKey.BUTTON$CANCEL)}
+            </BrandButton>
+          </>
         ) : null}
       </div>
     </section>

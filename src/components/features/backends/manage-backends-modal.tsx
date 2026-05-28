@@ -1,19 +1,19 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { ServerClient } from "@openhands/typescript-client/clients";
 import { type Backend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
-import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import {
   MODAL_MAX_WIDTH_VIEWPORT,
   modalWidthClassName,
 } from "#/components/shared/modals/modal-body";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
   useBackendsHealth,
@@ -23,9 +23,6 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendStatusDot } from "./backend-status-dot";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
 
 const ROW_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
@@ -152,26 +149,20 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
         <div
           data-testid="manage-backends-modal"
           className={cn(
-            "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border)] rounded-xl",
+            "relative flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border)] rounded-xl",
             modalWidthClassName("lg"),
             MODAL_MAX_WIDTH_VIEWPORT,
             "max-h-[70vh]",
           )}
         >
-          <div className="flex items-start justify-between gap-4 p-5">
-            <BaseModalTitle
-              title={t(I18nKey.BACKEND$MANAGE_TITLE)}
-              className="text-white"
-            />
-            <button
-              type="button"
-              onClick={onClose}
-              className={ICON_BUTTON_CLASS}
-              aria-label={t(I18nKey.BUTTON$CLOSE)}
-              data-testid="close-manage-backends-modal"
-            >
-              <X size={20} aria-hidden />
-            </button>
+          <ModalCloseButton
+            onClose={onClose}
+            testId="close-manage-backends-modal"
+          />
+          <div className="p-5 pr-12">
+            <h2 className="text-lg font-semibold">
+              {t(I18nKey.BACKEND$MANAGE_TITLE)}
+            </h2>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col px-5">

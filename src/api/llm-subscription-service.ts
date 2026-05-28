@@ -27,8 +27,8 @@ const readString = (
 ): string | null => {
   for (const key of keys) {
     const candidate = value[key];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
     }
   }
   return null;
@@ -122,8 +122,7 @@ function normalizeDeviceChallenge(
 class LLMSubscriptionService {
   static async getOpenAIModels(): Promise<string[]> {
     return withLlmClient(async (client) => {
-      const models = await client.getModels("chatgpt");
-      return (models ?? []).map((m: string) => m.replace(/^chatgpt\//, ""));
+      return client.getOpenAISubscriptionModels();
     });
   }
 

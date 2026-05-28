@@ -18,21 +18,21 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
-  findInstalledMatch,
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
   InstalledServersSection,
-  MarketplaceSearch,
+  McpToolbar,
   MarketplaceSection,
   InstallServerModal,
   CustomServerEditor,
+  type McpSectionFilter,
 } from "#/components/features/mcp-page";
 
 // ACP guard: the ACP sub-agent owns its own MCP server configuration —
@@ -61,12 +61,11 @@ export default function MCPPage() {
   const [serverToDelete, setServerToDelete] =
     React.useState<MCPServerConfig | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [sectionFilter, setSectionFilter] =
+    React.useState<McpSectionFilter>("all");
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
-
-  const isInstalled = (entry: MarketplaceEntry) =>
-    !!findInstalledMatch(entry.template, allServers);
 
   // Filter installed servers by the search query. We pair each server
   // with its catalog entry (if any) so the search can match friendly
@@ -75,12 +74,12 @@ export default function MCPPage() {
   const filteredInstalledServers = allServers.filter((server) =>
     installedServerMatchesQuery(
       server,
-      findCatalogEntryForServer(server, MCP_MARKETPLACE),
+      findCatalogEntryForServer(server, INTEGRATION_MARKETPLACE),
       searchQuery,
     ),
   );
 
-  const handleMarketplaceClick = (entry: MarketplaceEntry) => {
+  const handleMarketplaceInstall = (entry: MarketplaceEntry) => {
     setInstallEntry(entry);
   };
 
@@ -156,27 +155,36 @@ export default function MCPPage() {
             </div>
           </div>
 
-          <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-base font-medium text-foreground">
-              {t(I18nKey.MCP$INSTALLED_TITLE)}
-            </h2>
-            <InstalledServersSection
-              servers={filteredInstalledServers}
-              hasAnyInstalled={allServers.length > 0}
-              query={searchQuery}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-            />
-          </section>
-
-          <MarketplaceSection
-            isInstalled={isInstalled}
-            backendKind={backendKind}
-            onSelect={handleMarketplaceClick}
-            query={searchQuery}
+          <McpToolbar
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            sectionFilter={sectionFilter}
+            onSectionFilterChange={setSectionFilter}
           />
+
+          {sectionFilter !== "library" ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold text-foreground">
+                {t(I18nKey.MCP$INSTALLED_TITLE)}
+              </h2>
+              <InstalledServersSection
+                servers={filteredInstalledServers}
+                hasAnyInstalled={allServers.length > 0}
+                query={searchQuery}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+              />
+            </section>
+          ) : null}
+
+          {sectionFilter !== "installed" ? (
+            <MarketplaceSection
+              backendKind={backendKind}
+              onSelect={handleMarketplaceInstall}
+              onAdd={handleMarketplaceInstall}
+              query={searchQuery}
+            />
+          ) : null}
         </div>
 
         {installEntry && (

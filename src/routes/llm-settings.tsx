@@ -138,6 +138,8 @@ export function LlmSettingsScreen({
     settings?.agent_settings_schema,
   );
   const { data: subscriptionModels } = useOpenAISubscriptionModels();
+  const lastApiKeyModelRef = React.useRef<string | null>(null);
+  const lastSubscriptionModelRef = React.useRef<string | null>(null);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??
@@ -223,12 +225,24 @@ export function LlmSettingsScreen({
         onChange(LLM_AUTH_TYPE_KEY, nextAuthType);
 
         if (nextAuthType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+          if (modelValue && !subscriptionModels?.includes(modelValue)) {
+            lastApiKeyModelRef.current = modelValue;
+          }
+          const restoredSubscriptionModel =
+            lastSubscriptionModelRef.current &&
+            subscriptionModels?.includes(lastSubscriptionModelRef.current)
+              ? lastSubscriptionModelRef.current
+              : (subscriptionModels?.[0] ?? "");
           onChange(LLM_SUBSCRIPTION_VENDOR_KEY, OPENAI_SUBSCRIPTION_VENDOR);
           if (!subscriptionModels?.includes(modelValue)) {
-            onChange("llm.model", subscriptionModels?.[0] ?? "");
+            onChange("llm.model", restoredSubscriptionModel);
           }
-        } else if (subscriptionModels?.includes(modelValue)) {
-          onChange("llm.model", defaultModel);
+          return;
+        }
+
+        if (modelValue && subscriptionModels?.includes(modelValue)) {
+          lastSubscriptionModelRef.current = modelValue;
+          onChange("llm.model", lastApiKeyModelRef.current ?? defaultModel);
         }
       };
 
@@ -368,7 +382,7 @@ export function LlmSettingsScreen({
         </div>
       );
     },
-    [defaultModel, embedded, settings?.llm_api_key_set, t],
+    [defaultModel, embedded, settings?.llm_api_key_set, subscriptionModels, t],
   );
 
   const buildPayload = React.useCallback(
@@ -409,7 +423,7 @@ export function LlmSettingsScreen({
       agentSettings.llm = llm;
       return { agent_settings_diff: agentSettings };
     },
-    [schema],
+    [schema, subscriptionModels],
   );
 
   return (

@@ -14,19 +14,24 @@ import {
   useAutomations,
   useDispatchAutomation,
 } from "#/hooks/query/use-automations";
-import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
+import {
+  useAutomationDetail,
+  useAutomationRuns,
+} from "#/hooks/query/use-automation-detail";
 import type { Backend } from "#/api/backend-registry/types";
 import { AutomationRunStatus } from "#/types/automation";
 import type {
   Automation,
   AutomationRun,
   AutomationsResponse,
+  AutomationRunsResponse,
 } from "#/types/automation";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
     getAutomations: vi.fn(),
     getAutomation: vi.fn(),
+    getAutomationRuns: vi.fn(),
     dispatchAutomation: vi.fn(),
   },
 }));
@@ -92,6 +97,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   vi.mocked(AutomationService.getAutomations).mockReset();
   vi.mocked(AutomationService.getAutomation).mockReset();
+  vi.mocked(AutomationService.getAutomationRuns).mockReset();
   vi.mocked(AutomationService.dispatchAutomation).mockReset();
   vi.mocked(AutomationService.dispatchAutomation).mockResolvedValue(
     automationRun,
@@ -154,4 +160,73 @@ describe("automation hooks — backend switch", () => {
 
     expect(AutomationService.dispatchAutomation).toHaveBeenCalledWith("auto-1");
   });
+});
+
+describe("useAutomationRuns — polling", () => {
+  const pendingRun: AutomationRun = {
+    id: "run-pending",
+    status: AutomationRunStatus.PENDING,
+    conversation_id: null,
+    bash_command_id: null,
+    error_detail: null,
+    started_at: "2026-01-02T00:00:00Z",
+    completed_at: null,
+  };
+  const completedRun: AutomationRun = {
+    id: "run-pending",
+    status: AutomationRunStatus.COMPLETED,
+    conversation_id: "conv-1",
+    bash_command_id: "cmd-1",
+    error_detail: null,
+    started_at: "2026-01-02T00:00:00Z",
+    completed_at: "2026-01-02T00:00:30Z",
+  };
+
+  it(
+    "re-fetches while a run is non-terminal, and stops once all runs are terminal",
+    async () => {
+      // Arrange: first fetch returns a PENDING run (polling should engage);
+      // subsequent fetches return a COMPLETED run (polling should then stop).
+      const pendingResponse: AutomationRunsResponse = {
+        runs: [pendingRun],
+        total: 1,
+      };
+      const completedResponse: AutomationRunsResponse = {
+        runs: [completedRun],
+        total: 1,
+      };
+      vi.mocked(AutomationService.getAutomationRuns)
+        .mockResolvedValueOnce(pendingResponse)
+        .mockResolvedValue(completedResponse);
+
+      // Act
+      renderHook(
+        () => useAutomationRuns({ id: "auto-1", limit: 20, offset: 0 }),
+        { wrapper: makeWrapper() },
+      );
+
+      // Assert: the initial fetch fires once.
+      await waitFor(() => {
+        expect(AutomationService.getAutomationRuns).toHaveBeenCalledTimes(1);
+      });
+
+      // The cached data still contains a PENDING run, so refetchInterval
+      // engages and a second fetch arrives within the poll window.
+      await waitFor(
+        () => {
+          expect(AutomationService.getAutomationRuns).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 5000 },
+      );
+
+      // The second fetch returned a COMPLETED run, so polling should stop.
+      // Give the would-be next poll window plenty of slack and assert no
+      // further calls happen.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 4000);
+      });
+      expect(AutomationService.getAutomationRuns).toHaveBeenCalledTimes(2);
+    },
+    15000,
+  );
 });

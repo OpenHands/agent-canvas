@@ -30,6 +30,18 @@ vi.mock("#/hooks/use-runtime-is-ready", () => ({
   useRuntimeIsReady: () => useRuntimeIsReadyMock(),
 }));
 
+const getActiveBackendMock = vi.fn();
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getActiveBackend: () => getActiveBackendMock(),
+}));
+
+const downloadFileMock = vi.fn();
+vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
+  default: {
+    downloadFile: (...args: unknown[]) => downloadFileMock(...args),
+  },
+}));
+
 const fetchMock = vi.fn();
 
 function makeWrapper() {
@@ -58,6 +70,8 @@ describe("useWorkspaceFileContent", () => {
     useWorkspaceSessionMock.mockReset();
     useActiveConversationMock.mockReset();
     useRuntimeIsReadyMock.mockReset();
+    getActiveBackendMock.mockReset();
+    downloadFileMock.mockReset();
     useRuntimeIsReadyMock.mockReturnValue(true);
     useActiveConversationMock.mockReturnValue({
       data: {
@@ -71,6 +85,10 @@ describe("useWorkspaceFileContent", () => {
       isLoading: false,
       isError: false,
       error: null,
+    });
+    getActiveBackendMock.mockReturnValue({
+      backend: { id: "local-1", kind: "local", host: "http://localhost:8000" },
+      orgId: null,
     });
     useWorkspaceMutationCounter.setState({ count: 0 });
   });
@@ -244,5 +262,71 @@ describe("useWorkspaceFileContent", () => {
         message: "Failed to read missing.txt: 404",
       }),
     );
+  });
+
+  describe("cloud backend", () => {
+    beforeEach(() => {
+      getActiveBackendMock.mockReturnValue({
+        backend: {
+          id: "cloud-1",
+          kind: "cloud",
+          host: "https://app.all-hands.dev",
+        },
+        orgId: "org-1",
+      });
+      // useWorkspaceSession self-disables on cloud — its data is null.
+      useWorkspaceSessionMock.mockReturnValue({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+    });
+
+    it("fetches text via downloadFile and exposes a data: URI staticUrl", async () => {
+      downloadFileMock.mockResolvedValue(arrayBufferFromString("# Hello"));
+
+      const { result } = renderHook(
+        () => useWorkspaceFileContent("docs/readme.md"),
+        { wrapper: makeWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(downloadFileMock).toHaveBeenCalledWith(
+        "https://agent.example.com/api/conversations/conv-1",
+        "session-key",
+        "docs/readme.md",
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current.data).toEqual({
+        path: "docs/readme.md",
+        kind: "text",
+        text: "# Hello",
+        staticUrl: `data:text/markdown;charset=utf-8;base64,${btoa("# Hello")}`,
+        mimeType: "text/markdown",
+      });
+    });
+
+    it("renders images via base64 data URI bytes from downloadFile", async () => {
+      const imageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer;
+      downloadFileMock.mockResolvedValue(imageBytes);
+
+      const { result } = renderHook(
+        () => useWorkspaceFileContent("assets/logo.png"),
+        { wrapper: makeWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current.data).toEqual({
+        path: "assets/logo.png",
+        kind: "image",
+        text: null,
+        staticUrl: `data:image/png;base64,${btoa("\x89PNG")}`,
+        mimeType: "image/png",
+      });
+    });
   });
 });

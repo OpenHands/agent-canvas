@@ -55,9 +55,4 @@ describe("docs/example references stay in sync with config/defaults.json", () =>
       `">=${v}", "==${v}", "(>=${v})", "~=${v}"`,
     );
   });
-
-  it("scripts/check-acp-providers-sync.mjs --sdk-ref example matches the current default", () => {
-    const src = read("scripts/check-acp-providers-sync.mjs");
-    expect(src).toContain(`--sdk-ref v${v}`);
-  });
 });

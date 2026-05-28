@@ -6,6 +6,8 @@ export const LLM_AUTH_TYPE_API_KEY = "api_key";
 export const LLM_AUTH_TYPE_SUBSCRIPTION = "subscription";
 export const OPENAI_SUBSCRIPTION_VENDOR = "openai";
 
+export const OPENAI_SUBSCRIPTION_MODELS_PATH =
+  "/api/llm/subscription/openai/models";
 export const OPENAI_SUBSCRIPTION_STATUS_PATH =
   "/api/llm/subscription/openai/status";
 export const OPENAI_SUBSCRIPTION_DEVICE_START_PATH =

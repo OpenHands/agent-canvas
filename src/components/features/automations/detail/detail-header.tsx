@@ -63,7 +63,6 @@ export function DetailHeader({
       label: t(I18nKey.AUTOMATIONS$DELETE),
       icon: <TrashIcon className="size-4" />,
       onClick: onDelete,
-      variant: "danger" as const,
     },
   ];
 
@@ -81,7 +80,7 @@ export function DetailHeader({
             <button
               type="button"
               className="rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isRunningNow}
+              disabled={isRunningNow || !automation.enabled}
               onClick={onRunNow}
             >
               {isRunningNow ? "Starting…" : "Run now"}
