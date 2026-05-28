@@ -18,6 +18,7 @@ import {
   AUTOMATION_HANDLERS,
   resetAutomationMockData,
 } from "./automation-handlers";
+import { MCP_HANDLERS } from "./mcp-handlers";
 
 export const handlers = [
   ...FILE_SERVICE_HANDLERS,
@@ -30,6 +31,7 @@ export const handlers = [
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
   ...AUTOMATION_HANDLERS,
+  ...MCP_HANDLERS,
 ];
 
 export {
