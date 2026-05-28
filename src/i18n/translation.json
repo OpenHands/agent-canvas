@@ -23306,6 +23306,23 @@
     "uk": "Окресліть цілі, структуруйте завдання та сплануйте наступні кроки.",
     "ca": "Defineix objectius, estructura tasques i planifica els propers passos."
   },
+  "CHANGE_AGENT$SWITCH_AFTER_CONVERSATION": {
+    "en": "Agent mode can be switched after a conversation begins",
+    "ja": "会話が始まると、エージェントモードを切り替えられます",
+    "zh-CN": "对话开始后即可切换智能体模式",
+    "zh-TW": "對話開始後即可切換代理模式",
+    "ko-KR": "대화가 시작된 후에 에이전트 모드를 전환할 수 있습니다",
+    "no": "Agentmodus kan byttes etter at en samtale har startet",
+    "it": "La modalità agente può essere cambiata dopo l'inizio di una conversazione",
+    "pt": "O modo do agente pode ser alterado após o início de uma conversa",
+    "es": "El modo de agente se puede cambiar después de que comience una conversación",
+    "ar": "يمكن تبديل وضع الوكيل بعد بدء المحادثة",
+    "fr": "Le mode agent peut être changé une fois la conversation commencée",
+    "tr": "Aracı modu, bir konuşma başladıktan sonra değiştirilebilir",
+    "de": "Der Agentenmodus kann gewechselt werden, nachdem ein Gespräch begonnen hat",
+    "uk": "Режим агента можна змінити після початку розмови",
+    "ca": "El mode d'agent es pot canviar després que comenci una conversa"
+  },
   "PLANNING_AGENTT$PLANNING_AGENT_INITIALIZED": {
     "en": "Planning agent initialized",
     "ja": "プランニングエージェントが初期化されました",
