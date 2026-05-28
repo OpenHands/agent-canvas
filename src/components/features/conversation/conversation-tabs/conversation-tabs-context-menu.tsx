@@ -73,7 +73,8 @@ export function ConversationTabsContextMenu({
   }
 
   const visibleTabConfig = tabConfig.filter(
-    ({ tab }) => tab !== "vscode" || backend.kind === "cloud",
+    ({ tab }) =>
+      (tab !== "vscode" && tab !== "planner") || backend.kind === "cloud",
   );
 
   if (!isOpen) return null;

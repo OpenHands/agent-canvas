@@ -74,10 +74,10 @@ export function ChatInputActions({
     ? (labelForAcpModel(conversation?.acp_server, conversation?.llm_model) ??
       conversation?.llm_model)
     : conversation?.llm_model;
-  // The change-agent button can never be enabled on the home page (no
-  // conversation → no WebSocket → permanently disabled), so hide it there
-  // entirely. It is still shown inside a conversation on cloud backends.
-  const showChangeAgentButton = isCloud && Boolean(conversationId);
+  // Shown on cloud backends. On the home page it renders disabled with an
+  // explanatory tooltip (ChangeAgentButton handles that), since agent mode can
+  // only be switched once a conversation has begun.
+  const showChangeAgentButton = isCloud;
   const webSocketStatus = useUnifiedWebSocketStatus();
   const { curAgentState } = useAgentState();
   const { conversationMode, setConversationMode } = useConversationStore();

@@ -606,6 +606,17 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Force Python to use UTF-8 for all file I/O and streams.
+    //
+    // On Windows, Python defaults to the system ANSI codepage (e.g. cp1252).
+    // The agent-server writes conversation metadata JSON that can contain
+    // emoji (e.g. ✅ U+2705) which cp1252 cannot encode, producing:
+    //   UnicodeEncodeError: 'charmap' codec can't encode character '\u2705'
+    // Setting PYTHONUTF8=1 enables Python's UTF-8 mode (PEP 540) for the
+    // entire agent-server process, matching the behaviour on Linux/macOS
+    // where the locale is already UTF-8.
+    // This is a no-op on Linux/macOS where the locale is already UTF-8.
+    PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
@@ -753,17 +764,24 @@ export function buildNpmScriptCommand(
   env = process.env,
   nodeExecPath = process.execPath,
 ) {
-  if (env.npm_execpath) {
-    return {
-      command: env.npm_node_execpath || nodeExecPath,
-      args: [env.npm_execpath, "run", scriptName],
-    };
-  }
-
+  // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
+  // npm_execpath points to a path like
+  // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
+  // spaces. When that path is passed as an argument with shell:true in
+  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
+  // as a command, producing "not recognized as an internal or external command".
+  // Using "npm" via cmd.exe avoids the problem entirely.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
     };
   }
 
