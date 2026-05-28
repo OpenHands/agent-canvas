@@ -11,7 +11,10 @@ import "./tailwind.css";
 import "./index.css";
 import React from "react";
 import { Toaster } from "react-hot-toast";
-import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import {
+  isAgentServerUnavailableError,
+  isAgentServerAuthError,
+} from "#/api/agent-server-compatibility";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -36,6 +39,11 @@ const ManageBackendsModal = React.lazy(() =>
   import("#/components/features/backends/manage-backends-modal").then((m) => ({
     default: m.ManageBackendsModal,
   })),
+);
+
+// Rendered when the backend returns 401 (public mode — user must paste key).
+const ApiKeyEntryScreen = React.lazy(
+  () => import("#/components/features/backends/api-key-entry-screen"),
 );
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -113,6 +121,18 @@ export default function App() {
 
   if (isAgentServerUnavailableError(config.error)) {
     return <MissingAgentServerScreen />;
+  }
+
+  // Server is reachable but requires authentication (public mode).
+  // Show the API key entry screen so the user can paste the key.
+  if (isAgentServerAuthError(config.error)) {
+    return (
+      <main className="min-h-screen bg-base">
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <ApiKeyEntryScreen />
+        </React.Suspense>
+      </main>
+    );
   }
 
   return <Outlet />;

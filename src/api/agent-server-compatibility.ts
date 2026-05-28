@@ -39,6 +39,15 @@ export const isAgentServerUnavailableError = (
     "name" in error &&
     error.name === "AgentServerUnavailableError");
 
+/**
+ * Returns true when the agent-server probe failed with HTTP 401,
+ * meaning the server is reachable but requires an API key that the
+ * frontend doesn't have (or has a stale one). Used in public mode
+ * to gate the `ApiKeyEntryScreen`.
+ */
+export const isAgentServerAuthError = (error: unknown): boolean =>
+  isSdkHttpError(error) && (error as Error & { status: number }).status === 401;
+
 export function clearCachedAgentServerInfo() {
   cachedAgentServerInfo = null;
 }

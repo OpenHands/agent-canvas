@@ -134,6 +134,7 @@ function parseArgs() {
     dynamic: false,
     staticDir: null,
     skipBuild: false,
+    public: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -163,6 +164,9 @@ function parseArgs() {
         break;
       case "--skip-build":
         config.skipBuild = true;
+        break;
+      case "--public":
+        config.public = true;
         break;
       case "-h":
       case "--help":
@@ -281,6 +285,19 @@ async function buildConfig(args, env = process.env) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
   }
 
+  const isPublic = args.public;
+
+  // In public mode, LOCAL_BACKEND_API_KEY is required and used as the
+  // session key. The key is NOT baked into the frontend — users must
+  // paste it in the browser.
+  if (isPublic && !env.LOCAL_BACKEND_API_KEY) {
+    logError(
+      "PUBLIC MODE requires LOCAL_BACKEND_API_KEY environment variable.\n" +
+        "  Example: LOCAL_BACKEND_API_KEY=my-secret npm run dev -- --public",
+    );
+    process.exit(1);
+  }
+
   // Preferred ports (from env or defaults)
   const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
   const preferredBackendPort = DEFAULT_BACKEND_PORT;
@@ -330,14 +347,31 @@ async function buildConfig(args, env = process.env) {
 
   // Session API key — shared by both agent-server and automation backend.
   // Both validate it via the `X-Session-API-Key` header.
+  // In public mode we use LOCAL_BACKEND_API_KEY as the session key.
   const stateDir = join(homedir(), ".openhands", "agent-canvas");
-  const safeConfig = buildSafeDevConfig(projectRoot, {
-    ...env,
-    OH_CANVAS_SAFE_STATE_DIR: stateDir,
-    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
-    OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
-  });
-  const sessionApiKey = safeConfig.sessionApiKey;
+
+  let sessionApiKey;
+  if (isPublic) {
+    sessionApiKey = env.LOCAL_BACKEND_API_KEY;
+    logService(
+      "auth",
+      "PUBLIC MODE — using LOCAL_BACKEND_API_KEY as session key",
+      c.yellow,
+    );
+    logService(
+      "auth",
+      "Session key will NOT be baked into the frontend; users must paste it",
+      c.dim,
+    );
+  } else {
+    const safeConfig = buildSafeDevConfig(projectRoot, {
+      ...env,
+      OH_CANVAS_SAFE_STATE_DIR: stateDir,
+      OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
+      OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
+    });
+    sessionApiKey = safeConfig.sessionApiKey;
+  }
 
   return {
     // Ingress port (main entry point)
@@ -357,6 +391,9 @@ async function buildConfig(args, env = process.env) {
 
     // Auth — single key for both backends
     sessionApiKey,
+
+    // Public mode — the session key should NOT be baked into the frontend
+    isPublic,
 
     verbose: args.verbose,
   };
@@ -749,22 +786,28 @@ function startVite(config) {
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
   const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
 
+  const viteEnv = {
+    // Point Vite at the ingress (so client-side fetches work)
+    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    VITE_WORKING_DIR:
+      config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    VITE_FRONTEND_PORT: config.vitePort.toString(),
+    // Inform the frontend (and downstream, the agent's system prompt) about
+    // which services are available in this dev stack.
+    VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
+  };
+
+  // In local mode, bake the session key into the frontend so the user
+  // never has to paste it. In public mode, omit it — the frontend will
+  // detect a 401 from /server_info and show the API key entry screen.
+  if (!config.isPublic) {
+    viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
+  }
+
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
-    env: {
-      // Point Vite at the ingress (so client-side fetches work)
-      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR:
-        config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-      VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key — used by the frontend for both agent-server and
-      // automation auth via the `X-Session-API-Key` header.
-      VITE_SESSION_API_KEY: config.sessionApiKey,
-      // Inform the frontend (and downstream, the agent's system prompt) about
-      // which services are available in this dev stack.
-      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
-    },
+    env: viteEnv,
     color: c.magenta,
   });
 }
@@ -928,9 +971,17 @@ async function main(options = {}) {
     // Human-readable label for the dev mode, surfaced in the agent's
     // <RUNTIME_SERVICES> system-prompt block.
     mode = "dev:automation",
+    // When true, enable public mode (require LOCAL_BACKEND_API_KEY,
+    // don't bake session key into frontend).
+    isPublic: isPublicOverride,
   } = options;
 
   const args = parseArgs();
+
+  // Allow options to override CLI args for public mode
+  if (isPublicOverride != null) {
+    args.public = isPublicOverride;
+  }
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
   const useStaticMode =
@@ -1064,10 +1115,10 @@ function startStaticFrontend(config, staticDir) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
-      // Inject the runtime session key so the pre-built frontend can
-      // authenticate to agent-server without VITE_SESSION_API_KEY being baked
-      // into the bundle at publish time.
-      ...(config.sessionApiKey
+      // In local mode, inject the runtime session key so the pre-built
+      // frontend can authenticate without VITE_SESSION_API_KEY in the bundle.
+      // In public mode, omit it — users must paste the key in the browser.
+      ...(!config.isPublic && config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),
       // Proxy routes to backends (same as ingress but for direct access to vitePort)

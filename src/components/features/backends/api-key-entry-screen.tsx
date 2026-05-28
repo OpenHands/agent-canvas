@@ -21,7 +21,8 @@ import {
  * localStorage (via {@link saveAgentServerConfig}) and the page is
  * reloaded so every downstream consumer picks up the new credential.
  */
-export function ApiKeyEntryScreen() {
+// eslint-disable-next-line import/no-default-export -- React.lazy requires a default export
+export default function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
   const { active } = useActiveBackendContext();
 
