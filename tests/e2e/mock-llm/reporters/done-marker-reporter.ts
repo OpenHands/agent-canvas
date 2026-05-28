@@ -15,24 +15,27 @@
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { FullResult, Reporter } from "@playwright/test/reporter";
 
-// Resolve relative to the project root (4 levels up from this file's dir)
-const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const MARKER_DIR = join(PROJECT_ROOT, ".mock-llm-markers");
+// Playwright runs from the project root (where the config file lives).
+const MARKER_DIR = join(process.cwd(), ".mock-llm-markers");
 
 class DoneMarkerReporter implements Reporter {
+  onBegin() {
+    console.log(`[DoneMarkerReporter] Active, markers → ${MARKER_DIR}`);
+  }
+
   onEnd(result: FullResult) {
+    console.log(`[DoneMarkerReporter] onEnd: ${result.status}`);
     try {
       mkdirSync(MARKER_DIR, { recursive: true });
       writeFileSync(join(MARKER_DIR, ".tests-done"), result.status);
       if (result.status === "passed") {
         writeFileSync(join(MARKER_DIR, ".all-passed"), "1");
       }
+      console.log(`[DoneMarkerReporter] Markers written to ${MARKER_DIR}`);
     } catch (err) {
-      // Don't crash Playwright if marker write fails
       console.error("[DoneMarkerReporter] Failed to write markers:", err);
     }
   }
