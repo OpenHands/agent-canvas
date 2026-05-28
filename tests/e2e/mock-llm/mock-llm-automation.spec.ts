@@ -14,8 +14,9 @@
  *
  * No mock automation server is used — the real automation backend started by
  * bin/agent-canvas.mjs handles all /api/automation/* requests. The agent's
- * terminal commands authenticate with $OPENHANDS_AUTOMATION_API_KEY (the
- * session API key, which the agent-server exposes as an env var).
+ * terminal commands authenticate with X-Session-API-Key header using
+ * $OPENHANDS_AUTOMATION_API_KEY (the session API key, injected into the
+ * agent-server environment by dev-with-automation.mjs).
  */
 
 import { test, expect } from "@playwright/test";
@@ -46,7 +47,7 @@ const AUTOMATION_NAME = "Hello World Cron";
 const CRON_SCHEDULE = "0 9 * * *";
 
 // The ingress URL reachable from the agent's terminal. The agent-server
-// exposes OPENHANDS_AUTOMATION_API_KEY as an env var for auth.
+// Auth via X-Session-API-Key header (matching frontend automation-service.api.ts).
 const AUTOMATION_API_BASE = `${BACKEND_URL}/api/automation/v1`;
 
 /**
@@ -191,10 +192,16 @@ test.describe("mock-LLM automation lifecycle", () => {
     // Turn 2: Extract the automation ID and dispatch a run.
     // Turn 3: Text reply with a verification token.
 
+    // Auth: use X-Session-API-Key (matching the frontend's automation service)
+    // with $OPENHANDS_AUTOMATION_API_KEY (injected into the agent-server env by
+    // dev-with-automation.mjs → buildAgentServerAutomationEnv). Also fall back
+    // to $OH_SESSION_API_KEYS_0 in case the automation env isn't set.
+    const authHeader = `-H "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY"`;
+
     const createCmd = [
       `curl -sf -X POST '${AUTOMATION_API_BASE}/preset/prompt'`,
       `-H 'Content-Type: application/json'`,
-      `-H "Authorization: Bearer $OPENHANDS_AUTOMATION_API_KEY"`,
+      authHeader,
       `-d '${JSON.stringify({
         name: AUTOMATION_NAME,
         prompt: "echo hello world",
@@ -208,7 +215,7 @@ test.describe("mock-LLM automation lifecycle", () => {
     const dispatchCmd = [
       `AID=$(python3 -c "import json; print(json.load(open('/tmp/auto_result.json'))['id'])")`,
       `&& curl -sf -X POST "${AUTOMATION_API_BASE}/$AID/dispatch"`,
-      `-H "Authorization: Bearer $OPENHANDS_AUTOMATION_API_KEY"`,
+      authHeader,
       `-H 'Content-Type: application/json'`,
       `&& printf '${AUTOMATION_DISPATCH_TOKEN}\\n'`,
     ].join(" ");
