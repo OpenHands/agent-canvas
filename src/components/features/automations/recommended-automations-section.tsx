@@ -19,7 +19,7 @@ import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-t
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   findInstalledMatch,
-  getDefaultTemplate,
+  getInstallableTemplate,
   getMarketplaceEntryById,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
@@ -99,7 +99,7 @@ function buildRecommendedAutomationPills(
   translate: TFunction,
 ): SkillCardPill[] {
   const pills: SkillCardPill[] = requiredEntries.map((entry) => {
-    const template = getDefaultTemplate(entry);
+    const template = getInstallableTemplate(entry);
     const installed = template
       ? !!findInstalledMatch(template, installedServers)
       : false;
@@ -183,7 +183,7 @@ export function RecommendedAutomationsSection({
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
             const missingCount = requiredEntries.filter((entry) => {
-              const template = getDefaultTemplate(entry);
+              const template = getInstallableTemplate(entry);
               return (
                 !template || !findInstalledMatch(template, installedServers)
               );

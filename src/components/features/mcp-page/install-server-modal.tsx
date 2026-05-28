@@ -14,7 +14,7 @@ import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-import { getDefaultTemplate } from "#/utils/mcp-marketplace-utils";
+import { getInstallableTemplate } from "#/utils/mcp-marketplace-utils";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -29,7 +29,7 @@ interface FieldState {
 
 function makeInitialState(entry: MarketplaceEntry): FieldState {
   const values: Record<string, string> = {};
-  const template = getDefaultTemplate(entry);
+  const template = getInstallableTemplate(entry);
   if (!template) return { values, errors: {} };
   if (template.kind === "stdio") {
     for (const field of template.envFields ?? []) {
@@ -113,7 +113,7 @@ export function InstallServerModal({
     });
   };
 
-  const template = getDefaultTemplate(entry);
+  const template = getInstallableTemplate(entry);
 
   // ------------------------------------------------------------------
   // Per-template submit handlers. Each is small and self-contained:

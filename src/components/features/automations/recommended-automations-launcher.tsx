@@ -18,7 +18,7 @@ import {
 } from "@openhands/extensions/integrations";
 import {
   findInstalledMatch,
-  getDefaultTemplate,
+  getInstallableTemplate,
   getMarketplaceEntryById,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
@@ -155,7 +155,7 @@ export function RecommendedAutomationsLauncher({
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
       getRequiredEntries(automation).filter((entry) => {
-        const template = getDefaultTemplate(entry);
+        const template = getInstallableTemplate(entry);
         return !template || !findInstalledMatch(template, installedMcpServers);
       }),
     [installedMcpServers],

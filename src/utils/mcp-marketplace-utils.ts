@@ -56,6 +56,28 @@ export function getDefaultTemplate(
 }
 
 /**
+ * Get the stdio (API key-based) transport template from an integration entry.
+ * Many integrations have multiple connection options (e.g., OAuth + stdio).
+ * Since OAuth isn't implemented in the UI yet, the install modal should use
+ * this function to get the stdio-based option that can be configured with
+ * API keys/tokens.
+ *
+ * Falls back to getDefaultTemplate if no stdio option exists.
+ */
+export function getInstallableTemplate(
+  entry: MarketplaceEntry,
+): MarketplaceTemplate | undefined {
+  // First, try to find a stdio option (API key-based, what we can actually install)
+  const stdioOption = entry.connectionOptions.find(
+    (o) => o.transport?.kind === "stdio",
+  );
+  if (stdioOption?.transport) return stdioOption.transport;
+
+  // Fall back to the default template (could be shttp/sse with api_key)
+  return getDefaultTemplate(entry);
+}
+
+/**
  * Decide whether a marketplace template is already represented by one
  * of the installed MCP servers. Used to render an "Installed" badge on
  * the marketplace tile. Returns the first matching server, or null.
@@ -181,26 +203,38 @@ export function installedServerMatchesQuery(
  * Look up the catalog entry that best matches an installed server.
  * Mirrors the lookup used in `installed-server-card.tsx` for
  * rendering the friendly icon.
+ *
+ * Since an entry may have multiple connection options (e.g., OAuth + stdio),
+ * we check ALL templates in the entry's connectionOptions, not just the default.
  */
 export function findCatalogEntryForServer(
   server: MCPServerConfig,
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry | undefined {
   return catalog.find((entry) => {
-    const tpl = getDefaultTemplate(entry);
-    if (!tpl) return false;
-    if (tpl.kind === "stdio")
-      return server.type === "stdio" && server.name === tpl.serverName;
-    // Reuse the same loose URL match as `findInstalledMatch` so a
-    // server whose URL was normalized by the backend (trailing slash
-    // stripped, query string dropped, etc.) still gets paired with
-    // its catalog tile — otherwise the installed-servers list would
-    // render the generic icon while the marketplace shows the
-    // entry as installed, which is confusing.
-    if (tpl.kind === "shttp")
-      return server.type === "shttp" && urlsMatch(server.url, tpl.url);
-    if (tpl.kind === "sse")
-      return server.type === "sse" && urlsMatch(server.url, tpl.url);
+    // Check all connection options, not just the default
+    for (const option of entry.connectionOptions) {
+      const tpl = option.transport;
+      if (!tpl) continue;
+      if (tpl.kind === "stdio") {
+        if (server.type === "stdio" && server.name === tpl.serverName)
+          return true;
+      }
+      // Reuse the same loose URL match as `findInstalledMatch` so a
+      // server whose URL was normalized by the backend (trailing slash
+      // stripped, query string dropped, etc.) still gets paired with
+      // its catalog tile — otherwise the installed-servers list would
+      // render the generic icon while the marketplace shows the
+      // entry as installed, which is confusing.
+      if (tpl.kind === "shttp") {
+        if (server.type === "shttp" && urlsMatch(server.url, tpl.url))
+          return true;
+      }
+      if (tpl.kind === "sse") {
+        if (server.type === "sse" && urlsMatch(server.url, tpl.url))
+          return true;
+      }
+    }
     return false;
   });
 }
