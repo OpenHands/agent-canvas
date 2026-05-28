@@ -50,7 +50,10 @@ jobs:
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Install dependencies
@@ -200,7 +203,10 @@ jobs:
         if: steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Create live E2E PR comment
@@ -230,9 +236,26 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install Playwright Chromium
+      - name: Get Playwright version
         if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        run: npx playwright install --with-deps chromium
+        id: pw_version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true' && steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run live Agent Server E2E
         id: live_test
