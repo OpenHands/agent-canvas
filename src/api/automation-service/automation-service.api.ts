@@ -9,7 +9,6 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
-import { getConfiguredSessionApiKey } from "../agent-server-config";
 import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
@@ -21,21 +20,24 @@ export interface AutomationHealthResponse {
 
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
-// Both backends use the same session API key and the same
-// `X-Session-API-Key` header for consistency.
+// Both backends use the same session API key and the same `X-Session-API-Key`
+// header for consistency.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
-  // Resolve the local backend host on every call so it tracks the
-  // currently-active local backend (and any host edits made via the
+  // Resolve the local backend on every call so it tracks the
+  // currently-active local backend (and any host/key edits made via the
   // manage-backends UI), rather than freezing whatever value the
   // agent-server-config produced at module load time.
+  // Using the backend registry (rather than the build-time VITE_SESSION_API_KEY
+  // env var) ensures the published npm package picks up the runtime-injected
+  // session key that scripts/static-server.mjs seeds into localStorage, fixing
+  // the 401 errors reported in issue #829.
+  const backend = getEffectiveLocalBackend();
   // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+  if (!config.baseURL) config.baseURL = backend.host;
 
-  // Use the runtime key resolution (localStorage → /backends.json → VITE env)
-  // so automation auth works in all auth modes (local, public, dev).
-  const apiKey = getConfiguredSessionApiKey();
+  const apiKey = backend.apiKey?.trim();
   if (apiKey) {
     config.headers.set("X-Session-API-Key", apiKey);
   }

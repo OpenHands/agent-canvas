@@ -1,5 +1,6 @@
 import {
   Links,
+  LinksFunction,
   Meta,
   MetaFunction,
   Outlet,
@@ -20,11 +21,6 @@ import {
   applyColorTheme,
   readPersistedColorTheme,
 } from "#/themes/color-themes";
-import {
-  isAuthRequired,
-  isAuthRequiredAndMissing,
-  validateStoredSessionKey,
-} from "#/api/agent-server-config";
 
 /** Applies the persisted color-theme palette to document.body on mount. */
 function ColorThemeApplier() {
@@ -39,13 +35,6 @@ function ColorThemeApplier() {
 const ManageBackendsModal = React.lazy(() =>
   import("#/components/features/backends/manage-backends-modal").then((m) => ({
     default: m.ManageBackendsModal,
-  })),
-);
-
-// Shown in public mode when no API key has been configured yet.
-const ApiKeyEntryScreen = React.lazy(() =>
-  import("#/components/features/backends/api-key-entry-screen").then((m) => ({
-    default: m.ApiKeyEntryScreen,
   })),
 );
 
@@ -106,61 +95,20 @@ function MissingAgentServerScreen() {
   );
 }
 
+export const links: LinksFunction = () => [
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+];
+
 export const meta: MetaFunction = () => [
   { title: "OpenHands" },
   { name: "description", content: "Let's Start Building!" },
 ];
 
-/**
- * When the launcher signals `authRequired` (public mode) and a session
- * key exists in localStorage, validate it against an authenticated
- * endpoint. Returns `"valid"` / `"invalid"` / `"pending"` / `"skip"`.
- * On 401 the stale key is automatically cleared from localStorage.
- */
-function useValidateStoredKey(): "valid" | "invalid" | "pending" | "skip" {
-  const shouldValidate = isAuthRequired() && !isAuthRequiredAndMissing();
-  const [status, setStatus] = React.useState<
-    "valid" | "invalid" | "pending" | "skip"
-  >(shouldValidate ? "pending" : "skip");
-
-  React.useEffect(() => {
-    if (!shouldValidate) {
-      setStatus("skip");
-      return;
-    }
-
-    validateStoredSessionKey().then((valid) => {
-      setStatus(valid ? "valid" : "invalid");
-    });
-  }, [shouldValidate]);
-
-  return status;
-}
-
 export default function App() {
   const config = useConfig();
-  const keyStatus = useValidateStoredKey();
 
   if (config.isPending || config.isLoading) {
     return <AgentServerBootstrapLoading />;
-  }
-
-  // Public mode auth gate: show the key-entry screen when the launcher
-  // signalled authRequired and either (a) no key exists at all, or
-  // (b) a stored key failed validation against the server (stale key
-  // from a previous local-mode session).
-  if (isAuthRequired()) {
-    if (keyStatus === "pending") {
-      return <AgentServerBootstrapLoading />;
-    }
-
-    if (isAuthRequiredAndMissing() || keyStatus === "invalid") {
-      return (
-        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
-          <ApiKeyEntryScreen />
-        </React.Suspense>
-      );
-    }
   }
 
   if (isAgentServerUnavailableError(config.error)) {

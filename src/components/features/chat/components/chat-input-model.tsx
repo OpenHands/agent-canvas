@@ -1,17 +1,19 @@
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useSettings } from "#/hooks/query/use-settings";
-import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import { useTranslation } from "react-i18next";
+import {
+  useChatInputModelState,
+  type ChatInputModelState,
+} from "#/hooks/use-chat-input-model-state";
+import { useSwitchAcpModel } from "#/hooks/mutation/use-switch-acp-model";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
+import CheckIcon from "#/icons/checkmark.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenu } from "#/ui/context-menu";
+import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
 import { Divider } from "#/ui/divider";
-import {
-  getAcpProvider,
-  labelForAcpModel,
-  resolveEffectiveAcpModel,
-} from "#/constants/acp-providers";
+import { Typography } from "#/ui/typography";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import React from "react";
 
@@ -31,78 +33,139 @@ function truncateModelLabel(
   return `${model.slice(0, maxChars)}…`;
 }
 
+interface ChatInputModelMenuContentProps {
+  model: ChatInputModelState;
+  onClose: () => void;
+  dividerInset?: "menu";
+  settingsLinkClassName?: string;
+  settingsIconClassName?: string;
+}
+
+export function ChatInputModelMenuContent({
+  model,
+  onClose,
+  dividerInset,
+  settingsLinkClassName,
+  settingsIconClassName,
+}: ChatInputModelMenuContentProps) {
+  const { t } = useTranslation("openhands");
+  const switchAcpModel = useSwitchAcpModel();
+  const hasModelRows = model.showAcpPicker || Boolean(model.displayModel);
+
+  const handleSelectAcpModel = (modelId: string) => {
+    if (modelId !== model.currentModelId) {
+      switchAcpModel.mutate({
+        conversationId: model.switchConversationId,
+        model: modelId,
+      });
+    }
+    onClose();
+  };
+
+  return (
+    <>
+      {model.showAcpPicker ? (
+        <>
+          {/* role="presentation" keeps this a valid <li> child of the
+              ContextMenu <ul> without exposing the section label as a
+              selectable menu item (the label text is still announced). */}
+          <li role="presentation" className="px-2 pt-1 pb-0.5">
+            <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+              {t(I18nKey.MODEL$AVAILABLE_MODELS)}
+            </Typography.Text>
+          </li>
+          {model.availableAcpModels.map((option) => {
+            const isSelected = option.id === model.currentModelId;
+            return (
+              <ContextMenuListItem
+                key={option.id}
+                testId={`chat-input-acp-model-option-${option.id}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleSelectAcpModel(option.id);
+                }}
+                className={cn(
+                  "flex items-center gap-2",
+                  isSelected && "bg-[var(--oh-interactive-hover)]",
+                )}
+              >
+                <span
+                  className="flex-1 truncate text-sm leading-5"
+                  title={option.label}
+                >
+                  {option.label}
+                </span>
+                {isSelected && (
+                  <CheckIcon
+                    width={14}
+                    height={14}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                )}
+              </ContextMenuListItem>
+            );
+          })}
+        </>
+      ) : model.displayModel ? (
+        <li className="text-sm">
+          <div className="p-2 leading-5 text-[var(--oh-foreground)] break-all">
+            {model.displayModel}
+          </div>
+        </li>
+      ) : null}
+      {hasModelRows && <Divider inset={dividerInset} />}
+      <li className="text-sm">
+        <NavigationLink
+          to={model.destinationPath}
+          onClick={onClose}
+          className={cn(
+            "flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)] transition-colors",
+            settingsLinkClassName,
+          )}
+        >
+          <SettingsGearIcon
+            width={16}
+            height={16}
+            className={cn("shrink-0", settingsIconClassName)}
+            aria-hidden
+          />
+          <span>{model.destinationLabel}</span>
+        </NavigationLink>
+      </li>
+    </>
+  );
+}
+
 export function ChatInputModel() {
-  const { data: conversation } = useActiveConversation();
-  // Home page has no active conversation; fall back to the user's default
-  // model so the switcher renders consistently across both surfaces.
-  const { data: settings } = useSettings();
-  const {
-    isActiveAcpConversation,
-    isHomeAcp,
-    isAcpContext,
-    destinationPath,
-    destinationLabel,
-  } = useAcpModelContext();
-  // ACP conversations do not use the OpenHands LLM profile. Resolve the model
-  // label through the shared helper so the displayed value matches what the
-  // conversation-creation path will actually send to the agent-server (the
-  // helper applies provider defaults + filters out the SDK ``"default"``
-  // placeholders + the ``"acp-managed"`` sentinel).
-  //
-  // The ACP server key whose registry owns the model label comes off the
-  // active conversation when there is one, else the saved agent settings the
-  // next home-page conversation will inherit.
-  const acpServerKey = isActiveAcpConversation
-    ? conversation?.acp_server
-    : isHomeAcp
-      ? typeof settings?.agent_settings?.acp_server === "string"
-        ? settings.agent_settings.acp_server
-        : null
-      : null;
-  const acpProvider = isHomeAcp ? getAcpProvider(acpServerKey) : undefined;
-  let llmModel: string | null | undefined;
-  if (isActiveAcpConversation) {
-    llmModel = conversation?.llm_model;
-  } else if (isHomeAcp) {
-    llmModel = resolveEffectiveAcpModel({
-      configured:
-        typeof settings?.agent_settings?.acp_model === "string"
-          ? settings.agent_settings.acp_model
-          : null,
-      providerDefault: acpProvider?.default_model,
-    });
-  } else {
-    llmModel = conversation?.llm_model ?? settings?.llm_model;
-  }
+  const model = useChatInputModelState();
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const popoverRef = useClickOutsideElement<HTMLUListElement>(
+    () => setIsPopoverOpen(false),
+    triggerRef,
+  );
 
-  const popoverRef = useClickOutsideElement<HTMLUListElement>(() => {
-    setIsPopoverOpen(false);
-  });
-
-  if (!llmModel) {
+  if (!model.displayModel) {
     return null;
   }
-  // For ACP, surface the provider's human label (matching the conversation
-  // list chip) instead of the raw ``acp_model`` id; falls back to the raw
-  // value for custom / unknown ids. OpenHands keeps the raw model string.
-  const displayModel = isAcpContext
-    ? (labelForAcpModel(acpServerKey, llmModel) ?? llmModel)
-    : llmModel;
+
   const truncatedModelLabel = truncateModelLabel(
-    displayModel,
-    isAcpContext ? ACP_MODEL_LABEL_MAX_CHARS : MODEL_LABEL_MAX_CHARS,
+    model.displayModel,
+    model.isAcpContext ? ACP_MODEL_LABEL_MAX_CHARS : MODEL_LABEL_MAX_CHARS,
   );
 
   return (
     <div className="relative min-w-0">
       <button
+        ref={triggerRef}
         type="button"
         className={cn(
           "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none",
           "hover:text-white hover:bg-white/10 cursor-pointer",
         )}
-        title={displayModel}
+        title={model.displayModel}
         data-testid="chat-input-llm-model"
         aria-expanded={isPopoverOpen}
         aria-haspopup="dialog"
@@ -123,29 +186,12 @@ export function ChatInputModel() {
           position="top"
           alignment="left"
           spacing="none"
-          className="z-[60] mb-2 min-w-[200px] max-w-[320px]"
+          className="z-[60] mb-2 min-w-[200px] max-w-[320px] max-h-[60vh] overflow-y-auto"
         >
-          <li className="text-sm">
-            <div className="p-2 leading-5 text-white break-all">
-              {displayModel}
-            </div>
-          </li>
-          <Divider />
-          <li className="text-sm">
-            <NavigationLink
-              to={destinationPath}
-              onClick={() => setIsPopoverOpen(false)}
-              className="flex h-[30px] items-center gap-2 rounded p-2 leading-5 text-white hover:bg-[var(--oh-interactive-hover)] transition-colors"
-            >
-              <SettingsGearIcon
-                width={16}
-                height={16}
-                className="shrink-0"
-                aria-hidden
-              />
-              <span>{destinationLabel}</span>
-            </NavigationLink>
-          </li>
+          <ChatInputModelMenuContent
+            model={model}
+            onClose={() => setIsPopoverOpen(false)}
+          />
         </ContextMenu>
       )}
     </div>

@@ -43,7 +43,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -134,7 +134,6 @@ function parseArgs() {
     dynamic: false,
     staticDir: null,
     skipBuild: false,
-    public: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -164,9 +163,6 @@ function parseArgs() {
         break;
       case "--skip-build":
         config.skipBuild = true;
-        break;
-      case "--public":
-        config.public = true;
         break;
       case "-h":
       case "--help":
@@ -587,6 +583,9 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
+        // Force UTF-8 for all Python file I/O (same reason as agent-server;
+        // see buildAgentServerEnv in dev-safe.mjs).
+        PYTHONUTF8: "1",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //
@@ -682,12 +681,7 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 function startIngress(config) {
-  const host = config.ingressHost ?? "0.0.0.0";
-  logService(
-    "ingress",
-    `Starting on ${host}:${config.ingressPort}...`,
-    c.yellow,
-  );
+  logService("ingress", `Starting on port ${config.ingressPort}...`, c.yellow);
 
   const ingressScript = join(projectRoot, "scripts", "ingress.mjs");
 
@@ -698,8 +692,6 @@ function startIngress(config) {
       ingressScript,
       "--port",
       config.ingressPort.toString(),
-      "--host",
-      host,
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route",
@@ -757,40 +749,22 @@ function startVite(config) {
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
   const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
 
-  const viteEnv = {
-    // Point Vite at the ingress (so client-side fetches work)
-    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-    VITE_WORKING_DIR:
-      config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-    VITE_FRONTEND_PORT: config.vitePort.toString(),
-    // Inform the frontend (and downstream, the agent's system prompt) about
-    // which services are available in this dev stack.
-    VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
-  };
-
-  // In local mode, bake the session key into Vite so it's available via
-  // import.meta.env.VITE_SESSION_API_KEY. In public mode, omit it — the
-  // user pastes the key in the UI and it must not leak in the JS bundle.
-  if (!config.publicMode) {
-    viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
-  }
-
-  // Write /backends.json into public/ so Vite serves it at runtime.
-  // Local mode: auto-auth key. Public mode: authRequired signal.
-  const viteBackendsJsonPath = join(config.canvasPath, "public", "backends.json");
-  const viteBackendsPayload = config.publicMode
-    ? { authRequired: true }
-    : { localBackendApiKey: config.sessionApiKey };
-  writeFileSync(
-    viteBackendsJsonPath,
-    JSON.stringify(viteBackendsPayload) + "\n",
-    { mode: 0o600 },
-  );
-
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
-    env: viteEnv,
+    env: {
+      // Point Vite at the ingress (so client-side fetches work)
+      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+      VITE_WORKING_DIR:
+        config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+      VITE_FRONTEND_PORT: config.vitePort.toString(),
+      // Session API key — used by the frontend for both agent-server and
+      // automation auth via the `X-Session-API-Key` header.
+      VITE_SESSION_API_KEY: config.sessionApiKey,
+      // Inform the frontend (and downstream, the agent's system prompt) about
+      // which services are available in this dev stack.
+      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
+    },
     color: c.magenta,
   });
 }
@@ -893,11 +867,6 @@ async function seedAutomationSecret(config, options = {}) {
 }
 
 function printBanner(config) {
-  const isPublic = config.publicMode;
-  const displayHost =
-    config.ingressHost === "0.0.0.0" ? "localhost" : config.ingressHost;
-  const modeStr = isPublic ? "public (0.0.0.0)" : "local (127.0.0.1)";
-
   console.log("");
   console.log(
     `${c.green}${c.bold}╔══════════════════════════════════════════════════════════════╗${c.reset}`,
@@ -912,32 +881,18 @@ function printBanner(config) {
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://${displayHost}:${config.ingressPort}/${c.reset}`.padEnd(
+    `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(
       75,
     ) + `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://${displayHost}:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(
+    `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(
       75,
     ) + `${c.green}${c.bold}║${c.reset}`,
-  );
-  console.log(
-    `${c.green}${c.bold}║${c.reset}  Auth mode:    ${modeStr}`.padEnd(75) +
-      `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
-  if (isPublic) {
-    console.log(
-      `${c.green}${c.bold}║${c.reset}  ${c.yellow}Users must paste LOCAL_BACKEND_API_KEY in the UI${c.reset}`.padEnd(
-        75,
-      ) + `${c.green}${c.bold}║${c.reset}`,
-    );
-    console.log(
-      `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
-    );
-  }
   console.log(
     `${c.green}${c.bold}╚══════════════════════════════════════════════════════════════╝${c.reset}`,
   );
@@ -973,30 +928,9 @@ async function main(options = {}) {
     // Human-readable label for the dev mode, surfaced in the agent's
     // <RUNTIME_SERVICES> system-prompt block.
     mode = "dev:automation",
-    // Public mode: listen on 0.0.0.0, require LOCAL_BACKEND_API_KEY,
-    // don't bundle key into frontend. When false (default), listen on
-    // 127.0.0.1 and write /backends.json so the frontend auto-authenticates.
-    publicMode: publicModeOverride,
   } = options;
 
   const args = parseArgs();
-
-  // Resolve public mode: CLI --public flag or caller override
-  const usePublicMode = publicModeOverride ?? args.public;
-
-  // In public mode, LOCAL_BACKEND_API_KEY must be set
-  if (usePublicMode && !process.env.LOCAL_BACKEND_API_KEY) {
-    logError(
-      `--public mode requires the LOCAL_BACKEND_API_KEY environment variable.\n` +
-        `\n` +
-        `  This key authenticates requests to the agent-server.\n` +
-        `  Set it to a strong secret, then paste it into the UI when prompted.\n` +
-        `\n` +
-        `  Example:\n` +
-        `    LOCAL_BACKEND_API_KEY=my-secret-key npx @openhands/agent-canvas --public`,
-    );
-    process.exit(1);
-  }
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
   const useStaticMode =
@@ -1049,37 +983,6 @@ async function main(options = {}) {
   config.mode = mode;
   config.agentHostAlias = agentHostAlias;
   config.frontendKind = useStaticMode ? "static" : "vite";
-
-  // ── Auth mode ──────────────────────────────────────────────────────────
-  //
-  // Local mode (default):
-  //   • Ingress binds to 127.0.0.1 — only reachable from localhost.
-  //   • A /backends.json is written to the static dir so the frontend
-  //     can auto-authenticate without the user pasting anything.
-  //
-  // Public mode (--public):
-  //   • Ingress binds to 0.0.0.0 — reachable from the network.
-  //   • LOCAL_BACKEND_API_KEY is used as the session key (already
-  //     validated above).
-  //   • No /backends.json — the frontend prompts the user for the key.
-  config.publicMode = usePublicMode;
-  config.ingressHost = usePublicMode ? "0.0.0.0" : "127.0.0.1";
-
-  // In public mode, override the session API key with LOCAL_BACKEND_API_KEY
-  if (usePublicMode) {
-    config.sessionApiKey = process.env.LOCAL_BACKEND_API_KEY;
-    logService(
-      "auth",
-      "Public mode: listening on 0.0.0.0, key NOT bundled into frontend",
-      c.yellow,
-    );
-  } else {
-    const keyMethod = useStaticMode
-      ? "key bundled via /backends.json"
-      : "key injected via VITE_SESSION_API_KEY";
-    logService("auth", `Local mode: listening on 127.0.0.1, ${keyMethod}`, c.dim);
-  }
-
   ensureDirectories(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
@@ -1094,26 +997,6 @@ async function main(options = {}) {
     logError(`Static directory not found: ${staticDir}`);
     logError(`Run 'npm run build' first to create the static files.`);
     process.exit(1);
-  }
-
-  // Write /backends.json into the static dir so the frontend knows
-  // which auth mode to use:
-  //   local  → { localBackendApiKey: "<key>" }  (auto-auth)
-  //   public → { authRequired: true }            (user pastes key)
-  if (useStaticMode) {
-    const backendsJsonPath = join(staticDir, "backends.json");
-    const backendsPayload = usePublicMode
-      ? { authRequired: true }
-      : { localBackendApiKey: config.sessionApiKey };
-    writeFileSync(
-      backendsJsonPath,
-      JSON.stringify(backendsPayload) + "\n",
-      { mode: 0o600 },
-    );
-    const label = usePublicMode
-      ? "authRequired signal"
-      : "session key for auto-auth";
-    logService("auth", `Wrote ${backendsJsonPath} (${label})`, c.dim);
   }
 
   // Start services phase
@@ -1181,6 +1064,12 @@ function startStaticFrontend(config, staticDir) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
+      // Inject the runtime session key so the pre-built frontend can
+      // authenticate to agent-server without VITE_SESSION_API_KEY being baked
+      // into the bundle at publish time.
+      ...(config.sessionApiKey
+        ? ["--session-api-key", config.sessionApiKey]
+        : []),
       // Proxy routes to backends (same as ingress but for direct access to vitePort)
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,

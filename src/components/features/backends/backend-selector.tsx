@@ -21,6 +21,7 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
@@ -336,12 +337,11 @@ export function BackendSelector({
             placement={settingsTooltipPlacement}
             offset={10}
           >
-            <button
-              type="button"
+            <NavigationLink
+              to="/settings"
               data-testid="backend-selector-settings-link"
               data-active={isSettingsActive}
               aria-label={settingsLabel}
-              onClick={() => navigate("/settings")}
               className={
                 isSettingsActive
                   ? cn(
@@ -355,7 +355,7 @@ export function BackendSelector({
               }
             >
               <Settings width={16} height={16} />
-            </button>
+            </NavigationLink>
           </StyledTooltip>
         ) : null}
       </div>

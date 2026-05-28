@@ -294,7 +294,7 @@ export function BackendForm({
 
   // When name is hidden, use the backend name or host as a fallback so
   // the "name required" validation still passes.
-  const effectiveName = hideName ? backend?.name || host || "Server" : name;
+  const effectiveName = hideName ? (backend?.name || host || "Server") : name;
 
   const canSubmit =
     effectiveName.trim().length > 0 &&

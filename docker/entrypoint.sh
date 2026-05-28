@@ -177,27 +177,15 @@ wait_for_port "$AUTOMATION_PORT" "Automation Server" 60 &
 WAIT_PID2=$!
 wait "$WAIT_PID1" "$WAIT_PID2"
 
-# ── 4. Write /backends.json for frontend auto-auth ──────────────────────────
-# The frontend fetches /backends.json on load to pick up the session API key.
-# In Docker the key is always auto-generated (or explicitly provided), so we
-# always write the file. Users who want "paste the key" behaviour should set
-# LOCAL_BACKEND_API_KEY and NOT write backends.json (future Docker --public
-# support).
-BACKENDS_JSON="/opt/agent-canvas/frontend/backends.json"
-SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
-if [ -n "$SESSION_KEY" ]; then
-  printf '{"localBackendApiKey":"%s"}\n' "$SESSION_KEY" > "$BACKENDS_JSON"
-  chmod 644 "$BACKENDS_JSON"
-  log "Wrote $BACKENDS_JSON for frontend auto-auth"
-fi
-
-# ── 5. Start static server (frontend + proxy) ────────────────────────────────
+# ── 4. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
 
+# EFFECTIVE_SESSION_KEY is set above from ~/.openhands/agent-canvas/session-api-key.txt (or $SESSION_API_KEY)
 node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
   --host 0.0.0.0 \
   --dir /opt/agent-canvas/frontend \
+  --session-api-key "$EFFECTIVE_SESSION_KEY" \
   --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
   --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \

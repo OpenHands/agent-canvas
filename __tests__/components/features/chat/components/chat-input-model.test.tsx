@@ -5,6 +5,8 @@ import { renderWithProviders } from "test-utils";
 
 const useActiveConversationMock = vi.fn();
 const useSettingsMock = vi.fn();
+const useActiveBackendMock = vi.fn();
+const switchAcpModelMutate = vi.fn();
 
 vi.mock("#/hooks/query/use-active-conversation", () => ({
   useActiveConversation: () => useActiveConversationMock(),
@@ -14,6 +16,20 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
+vi.mock("#/contexts/active-backend-context", async () => {
+  const actual = await vi.importActual<
+    typeof import("#/contexts/active-backend-context")
+  >("#/contexts/active-backend-context");
+  return {
+    ...actual,
+    useActiveBackend: () => useActiveBackendMock(),
+  };
+});
+
+vi.mock("#/hooks/mutation/use-switch-acp-model", () => ({
+  useSwitchAcpModel: () => ({ mutate: switchAcpModelMutate }),
+}));
+
 import { ChatInputModel } from "#/components/features/chat/components/chat-input-model";
 
 describe("ChatInputModel", () => {
@@ -21,6 +37,11 @@ describe("ChatInputModel", () => {
     useActiveConversationMock.mockReset();
     useSettingsMock.mockReset();
     useSettingsMock.mockReturnValue({ data: undefined });
+    useActiveBackendMock.mockReset();
+    // Default to a local backend (mirrors useActiveBackend's standalone
+    // fallback): live ACP model switching is local-only.
+    useActiveBackendMock.mockReturnValue({ backend: { kind: "local" } });
+    switchAcpModelMutate.mockReset();
   });
 
   it("renders the active conversation's llm_model when present", () => {
@@ -200,6 +221,109 @@ describe("ChatInputModel", () => {
     // acp-providers.ts.
     expect(model).toHaveAttribute("title", "Claude Opus 4.7");
     fireEvent.click(model);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+  });
+
+  it("renders the provider's available models as selectable rows for an ACP conversation", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    fireEvent.click(screen.getByTestId("chat-input-llm-model"));
+
+    // Every registered Claude Code model is offered as a row, and the running
+    // one (claude-sonnet-4-6) is marked selected.
+    const selectedRow = screen.getByTestId(
+      "chat-input-acp-model-option-claude-sonnet-4-6",
+    );
+    expect(selectedRow).toBeInTheDocument();
+    expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
+    expect(
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+    ).toBeInTheDocument();
+  });
+
+  it("live-switches the model when a row is selected in an active ACP conversation", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    fireEvent.click(screen.getByTestId("chat-input-llm-model"));
+    fireEvent.click(
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+    );
+
+    // Active conversation → live switch keyed by the conversation id from the
+    // navigation context (test-conversation-id), default-write NOT used.
+    expect(switchAcpModelMutate).toHaveBeenCalledWith({
+      conversationId: "test-conversation-id",
+      model: "claude-opus-4-7",
+    });
+    // Popover closes after a selection.
+    expect(
+      screen.queryByTestId("chat-input-llm-model-popover"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("persists the choice as the default (conversationId null) in the home ACP case", () => {
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
+        llm_model: "anthropic/claude-sonnet-4-20250514",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    fireEvent.click(screen.getByTestId("chat-input-llm-model"));
+    fireEvent.click(
+      screen.getByTestId("chat-input-acp-model-option-claude-sonnet-4-6"),
+    );
+
+    // Home / no session → null conversationId routes the hook to the
+    // settings-default write path.
+    expect(switchAcpModelMutate).toHaveBeenCalledWith({
+      conversationId: null,
+      model: "claude-sonnet-4-6",
+    });
+  });
+
+  it("does not offer selectable rows on a cloud backend (display + Settings link only)", () => {
+    useActiveBackendMock.mockReturnValue({ backend: { kind: "cloud" } });
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<ChatInputModel />);
+
+    fireEvent.click(screen.getByTestId("chat-input-llm-model"));
+
+    // No selectable model rows; the popover keeps the display value + Settings.
+    expect(
+      screen.queryByTestId("chat-input-acp-model-option-claude-sonnet-4-6"),
+    ).not.toBeInTheDocument();
+    const popover = screen.getByTestId("chat-input-llm-model-popover");
+    expect(popover).toHaveTextContent("Claude Sonnet 4.6");
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
 });
