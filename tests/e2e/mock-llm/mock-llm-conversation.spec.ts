@@ -16,7 +16,6 @@
  */
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { writeFileSync, mkdirSync } from "node:fs";
 import {
   BASH_TOKEN,
   REPLY_TOKEN,
@@ -274,10 +273,5 @@ test.describe("mock-LLM agent-server conversation", () => {
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
 
-    // Write a success marker so the CI wrapper can detect passed tests
-    // even if Playwright's webServer teardown hangs and the process is
-    // killed before results.json gets flushed.
-    mkdirSync("test-results-mock-llm", { recursive: true });
-    writeFileSync("test-results-mock-llm/.all-passed", "1");
   });
 });

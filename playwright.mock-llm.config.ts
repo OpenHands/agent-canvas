@@ -59,6 +59,7 @@ export default defineConfig({
     ["line"],
     ["json", { outputFile: "test-results-mock-llm/results.json" }],
     ["html", { outputFolder: "playwright-report-mock-llm", open: "never" }],
+    ["./tests/e2e/mock-llm/reporters/done-marker-reporter.ts"],
   ],
   outputDir: "test-results-mock-llm",
   use: {
