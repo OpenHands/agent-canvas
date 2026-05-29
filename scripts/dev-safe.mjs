@@ -220,6 +220,36 @@ function tryPort(port, host = "127.0.0.1") {
 }
 
 /**
+ * Assert that all listed ports are available, throwing a descriptive error if
+ * any are already in use.
+ *
+ * Intended as a pre-flight check before spawning services so that a concurrent
+ * agent-canvas instance is detected immediately rather than silently starting
+ * on a different port.
+ *
+ * @param {Array<{name: string, port: number}>} portConfigs - Named port list
+ * @param {string} [host]
+ */
+export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
+  const results = await Promise.all(
+    portConfigs.map(async ({ name, port }) => ({
+      name,
+      port,
+      free: await tryPort(port, host),
+    })),
+  );
+  const busy = results.filter(({ free }) => !free);
+  if (busy.length === 0) return;
+
+  const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
+  throw new Error(
+    `Cannot start: the following ports are already in use:\n\n${lines}\n\n` +
+      `Another agent-canvas instance may already be running.\n` +
+      `Stop it first, or override the port via environment variables (e.g. PORT=<other>).`,
+  );
+}
+
+/**
  * Find multiple free ports at once, each preferring its specified default.
  *
  * Allocates ports sequentially to avoid race conditions between checks.
@@ -500,26 +530,14 @@ export async function buildSafeDevConfigAsync(
     preferredBackendPort + 1,
   );
 
-  // Find available ports, preferring the defaults
-  const ports = await findFreePorts([
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "vscode", preferred: preferredVscodePort },
+  // Fail fast if any required port is already in use.
+  await assertPortsFree([
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "vscode", port: preferredVscodePort },
   ]);
 
-  // Log if we're using non-default ports
-  if (ports.backend !== preferredBackendPort) {
-    console.log(
-      `  ℹ Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-    );
-  }
-  if (ports.vscode !== preferredVscodePort) {
-    console.log(
-      `  ℹ Port ${preferredVscodePort} busy, using ${ports.vscode} for vscode`,
-    );
-  }
-
   return buildConfigFromPorts(
-    { backendPort: ports.backend, vscodePort: ports.vscode },
+    { backendPort: preferredBackendPort, vscodePort: preferredVscodePort },
     cwd,
     env,
   );

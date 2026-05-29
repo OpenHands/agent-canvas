@@ -51,13 +51,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
 
 import {
+  assertPortsFree,
   buildAgentServerCommand,
   buildSafeDevConfig,
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  findFreePorts,
   getOrCreatePersistedApiKey,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
@@ -297,52 +297,27 @@ async function buildConfig(args, env = process.env) {
     process.exit(1);
   }
 
-  // Preferred ports (from env or defaults)
+  // Preferred ports (from env or defaults).
+  // OH_CANVAS_SAFE_BACKEND_PORT / OH_CANVAS_SAFE_AUTOMATION_PORT /
+  // OH_CANVAS_SAFE_VITE_PORT allow tests (and advanced users) to redirect
+  // internal service ports without affecting the production default.
   const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const preferredBackendPort = DEFAULT_BACKEND_PORT;
-  const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
-  const preferredVitePort = 3001;
+  const preferredBackendPort =
+    parseInt(env.OH_CANVAS_SAFE_BACKEND_PORT, 10) || DEFAULT_BACKEND_PORT;
+  const preferredAutomationPort =
+    parseInt(env.OH_CANVAS_SAFE_AUTOMATION_PORT, 10) || DEFAULT_AUTOMATION_PORT;
+  const preferredVitePort = parseInt(env.OH_CANVAS_SAFE_VITE_PORT, 10) || 3001;
 
-  // Find available ports, preferring the defaults
-  logStep("ports", "Allocating ports...");
-  const ports = await findFreePorts([
-    { name: "ingress", preferred: preferredIngressPort },
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "automation", preferred: preferredAutomationPort },
-    { name: "vite", preferred: preferredVitePort },
+  // Fail fast if any preferred port is already in use.
+  logStep("ports", "Checking ports...");
+  await assertPortsFree([
+    { name: "ingress", port: preferredIngressPort },
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "automation", port: preferredAutomationPort },
+    { name: "vite", port: preferredVitePort },
   ]);
 
-  // Log any port changes
-  if (ports.ingress !== preferredIngressPort) {
-    logService(
-      "ports",
-      `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`,
-      c.yellow,
-    );
-  }
-  if (ports.backend !== preferredBackendPort) {
-    logService(
-      "ports",
-      `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-      c.yellow,
-    );
-  }
-  if (ports.automation !== preferredAutomationPort) {
-    logService(
-      "ports",
-      `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`,
-      c.yellow,
-    );
-  }
-  if (ports.vite !== preferredVitePort) {
-    logService(
-      "ports",
-      `Port ${preferredVitePort} busy, using ${ports.vite} for vite`,
-      c.yellow,
-    );
-  }
-
-  const vscodePort = ports.backend + 1000;
+  const vscodePort = preferredBackendPort + 1000;
 
   // API key — shared by both agent-server and automation backend.
   // Both validate it via the `X-Session-API-Key` header.
@@ -355,7 +330,7 @@ async function buildConfig(args, env = process.env) {
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
     OH_CANVAS_SAFE_STATE_DIR: stateDir,
-    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
+    OH_CANVAS_SAFE_BACKEND_PORT: preferredBackendPort.toString(),
     OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
   });
   const sessionApiKey = safeConfig.sessionApiKey;
@@ -375,12 +350,12 @@ async function buildConfig(args, env = process.env) {
 
   return {
     // Ingress port (main entry point)
-    ingressPort: ports.ingress,
+    ingressPort: preferredIngressPort,
 
     // Service ports (internal)
-    agentServerPort: ports.backend,
-    autoBackendPort: ports.automation,
-    vitePort: ports.vite,
+    agentServerPort: preferredBackendPort,
+    autoBackendPort: preferredAutomationPort,
+    vitePort: preferredVitePort,
     vscodePort,
 
     // Paths

@@ -257,3 +257,113 @@ export async function deleteConversation(
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// LLM profile setup via API (for tests that can't depend on UI setup)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Ensure the currently-active LLM profile is configured to point at the mock
+ * LLM server.
+ *
+ * This bypasses the UI-driven profile creation (steps 1+2 in the conversation
+ * test) and directly PATCHes the agent-server settings on whatever profile is
+ * currently active. Useful for tests that need to run independently of the
+ * conversation test's UI-based profile setup.
+ *
+ * Note: this does NOT create or switch profiles — it only configures the
+ * current profile's LLM settings. Profile creation/activation is handled
+ * by the conversation test's UI flow or by the agent-server's default
+ * profile behavior.
+ */
+export async function ensureMockLLMProfile(
+  request: APIRequestContext,
+  model = "openai/mock-test-model",
+) {
+  // Check if the current profile already has the mock LLM settings
+  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "X-Expose-Secrets": "encrypted",
+    },
+  });
+
+  if (settingsResp.ok()) {
+    const settings = await settingsResp.json();
+    const llm = settings?.agent_settings?.llm;
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_BASE_URL) {
+      return; // Already configured
+    }
+  }
+
+  // Configure the active profile's LLM settings
+  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        llm: {
+          model,
+          api_key: "mock-api-key-for-testing",
+          base_url: MOCK_LLM_BASE_URL,
+        },
+      },
+    },
+  });
+  expect(
+    patchResp.ok(),
+    `PATCH /api/settings failed: ${patchResp.status()}`,
+  ).toBe(true);
+}
+
+/**
+ * Register a named trajectory on the mock LLM server.
+ * Each turn is: { tool_call: { name, arguments } } or { text: "..." }
+ */
+export async function registerTrajectory(
+  request: APIRequestContext,
+  name: string,
+  turns: Array<
+    | { tool_call: { name: string; arguments: Record<string, unknown> | string } }
+    | { text: string }
+  >,
+) {
+  const resp = await request.post(
+    `${MOCK_LLM_BASE_URL}/admin/trajectory/register`,
+    {
+      data: { name, turns },
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Activate a previously registered named trajectory on the mock LLM server.
+ */
+export async function activateTrajectory(
+  request: APIRequestContext,
+  name: string,
+) {
+  const resp = await request.post(
+    `${MOCK_LLM_BASE_URL}/admin/trajectory/activate`,
+    {
+      data: { name },
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Reset the mock LLM server to its default trajectory.
+ */
+export async function resetMockLLM(request: APIRequestContext) {
+  const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
+  expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
+}
+
+// Mock automation helpers removed — the automation test now hits the real
+// automation backend running inside the bin/agent-canvas.mjs stack.
