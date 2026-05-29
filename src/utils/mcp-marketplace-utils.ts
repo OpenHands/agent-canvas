@@ -1,6 +1,7 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
   IntegrationCatalogEntry as MarketplaceEntry,
+  IntegrationConnectionOption,
   IntegrationTransport as MarketplaceTemplate,
 } from "@openhands/extensions/integrations";
 
@@ -55,25 +56,83 @@ export function getDefaultTemplate(
   return option?.transport;
 }
 
+export function isInstallableConnectionOption(
+  option: IntegrationConnectionOption,
+): boolean {
+  const transport = option.transport;
+  if (!transport) return false;
+  if (transport.kind === "stdio") return true;
+  if (transport.kind === "sse" || transport.kind === "shttp") {
+    return transport.apiKeyOptional === true || option.auth.strategy === "none";
+  }
+  return false;
+}
+
+export function getInstallableConnectionOptions(
+  entry: MarketplaceEntry,
+): IntegrationConnectionOption[] {
+  return entry.connectionOptions.filter(isInstallableConnectionOption);
+}
+
+export function resolveTransportUrl(
+  template: Extract<MarketplaceTemplate, { kind: "sse" | "shttp" }>,
+  values: Record<string, string>,
+): string {
+  let url = template.url;
+  for (const field of template.urlFields ?? []) {
+    const value = values[field.key]?.trim() ?? "";
+    url = url.replaceAll(`{${field.key}}`, encodeURIComponent(value));
+  }
+  return url;
+}
+
+function transportUrlPattern(templateUrl: string): {
+  prefix: string;
+  suffix: string;
+} | null {
+  const start = templateUrl.indexOf("{");
+  const end = templateUrl.indexOf("}", start + 1);
+  if (start < 0 || end < 0) return null;
+  return {
+    prefix: templateUrl.slice(0, start),
+    suffix: templateUrl.slice(end + 1),
+  };
+}
+
+export function transportUrlsMatch(
+  templateUrl: string,
+  installedUrl: unknown,
+): boolean {
+  const pattern = transportUrlPattern(templateUrl);
+  if (!pattern) return urlsMatch(templateUrl, installedUrl);
+  const installed = typeof installedUrl === "string" ? installedUrl.trim() : "";
+  if (!installed) return false;
+  return (
+    installed.startsWith(pattern.prefix) && installed.endsWith(pattern.suffix)
+  );
+}
+
 /**
- * Get the stdio (API key-based) transport template from an integration entry.
- * Many integrations have multiple connection options (e.g., OAuth + stdio).
- * Since OAuth isn't implemented in the UI yet, the install modal should use
- * this function to get the stdio-based option that can be configured with
- * API keys/tokens.
- *
- * Falls back to getDefaultTemplate if no stdio option exists.
+ * Pick the transport template the install modal can configure today:
+ * the catalog default when it is installable, otherwise the first stdio
+ * option, otherwise the default transport.
  */
 export function getInstallableTemplate(
   entry: MarketplaceEntry,
 ): MarketplaceTemplate | undefined {
-  // First, try to find a stdio option (API key-based, what we can actually install)
+  const defaultOption =
+    entry.connectionOptions.find(
+      (o) => o.id === entry.defaultConnectionOptionId,
+    ) ?? entry.connectionOptions[0];
+  if (defaultOption && isInstallableConnectionOption(defaultOption)) {
+    return defaultOption.transport;
+  }
+
   const stdioOption = entry.connectionOptions.find(
     (o) => o.transport?.kind === "stdio",
   );
   if (stdioOption?.transport) return stdioOption.transport;
 
-  // Fall back to the default template (could be shttp/sse with api_key)
   return getDefaultTemplate(entry);
 }
 
@@ -91,7 +150,8 @@ export function findInstalledMatch(
     if (!tplUrl) return null;
     return (
       servers.find(
-        (s) => s.type === "shttp" && !!s.url && urlsMatch(s.url, tplUrl),
+        (s) =>
+          s.type === "shttp" && !!s.url && transportUrlsMatch(tplUrl, s.url),
       ) ?? null
     );
   }
@@ -101,7 +161,7 @@ export function findInstalledMatch(
     if (!tplUrl) return null;
     return (
       servers.find(
-        (s) => s.type === "sse" && !!s.url && urlsMatch(s.url, tplUrl),
+        (s) => s.type === "sse" && !!s.url && transportUrlsMatch(tplUrl, s.url),
       ) ?? null
     );
   }
@@ -227,11 +287,11 @@ export function findCatalogEntryForServer(
       // render the generic icon while the marketplace shows the
       // entry as installed, which is confusing.
       if (tpl.kind === "shttp") {
-        if (server.type === "shttp" && urlsMatch(server.url, tpl.url))
+        if (server.type === "shttp" && transportUrlsMatch(tpl.url, server.url))
           return true;
       }
       if (tpl.kind === "sse") {
-        if (server.type === "sse" && urlsMatch(server.url, tpl.url))
+        if (server.type === "sse" && transportUrlsMatch(tpl.url, server.url))
           return true;
       }
     }

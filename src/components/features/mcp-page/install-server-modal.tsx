@@ -2,19 +2,27 @@ import React, { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import type { MCPTestFailure } from "@openhands/typescript-client";
+import type {
+  IntegrationConnectionOption,
+  IntegrationCatalogEntry as MarketplaceEntry,
+  IntegrationTransport as MarketplaceTemplate,
+} from "@openhands/extensions/integrations";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
-import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
-import { getInstallableTemplate } from "#/utils/mcp-marketplace-utils";
+import {
+  getInstallableConnectionOptions,
+  getInstallableTemplate,
+  resolveTransportUrl,
+} from "#/utils/mcp-marketplace-utils";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -27,9 +35,10 @@ interface FieldState {
   errors: Record<string, string | null>;
 }
 
-function makeInitialState(entry: MarketplaceEntry): FieldState {
+function makeInitialState(
+  template: MarketplaceTemplate | undefined,
+): FieldState {
   const values: Record<string, string> = {};
-  const template = getInstallableTemplate(entry);
   if (!template) return { values, errors: {} };
   if (template.kind === "stdio") {
     for (const field of template.envFields ?? []) {
@@ -40,8 +49,19 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
     }
   } else if (template.kind === "shttp" || template.kind === "sse") {
     values.api_key = "";
+    for (const field of template.urlFields ?? []) {
+      values[field.key] = "";
+    }
   }
   return { values, errors: {} };
+}
+
+function defaultInstallableOptionId(entry: MarketplaceEntry): string {
+  const options = getInstallableConnectionOptions(entry);
+  const preferred = options.find(
+    (o) => o.id === entry.defaultConnectionOptionId,
+  );
+  return preferred?.id ?? options[0]?.id ?? entry.defaultConnectionOptionId;
 }
 
 // The marketplace install modal is intentionally add-only: clicking
@@ -60,12 +80,27 @@ export function InstallServerModal({
   const { mutate: testMcpServer, isPending: isTesting } = useTestMcpServer();
   const instanceId = useId();
 
+  const installableOptions = getInstallableConnectionOptions(entry);
+  const [selectedOptionId, setSelectedOptionId] = React.useState(() =>
+    defaultInstallableOptionId(entry),
+  );
+  const selectedOption =
+    installableOptions.find((o) => o.id === selectedOptionId) ??
+    installableOptions[0];
+  const template = selectedOption?.transport ?? getInstallableTemplate(entry);
+
   const [state, setState] = React.useState<FieldState>(() =>
-    makeInitialState(entry),
+    makeInitialState(template),
   );
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
   const isPending = isTesting || isAdding;
+
+  const selectConnectionOption = (option: IntegrationConnectionOption) => {
+    setSelectedOptionId(option.id);
+    setState(makeInitialState(option.transport));
+    setGlobalError(null);
+  };
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -91,7 +126,6 @@ export function InstallServerModal({
       onSuccess: (result) => {
         if (!result.ok) {
           setGlobalError(makeTestErrorMessage(result));
-          // Modal stays open — do NOT call onClose.
           return;
         }
         addMcpServer(payload, {
@@ -113,31 +147,29 @@ export function InstallServerModal({
     });
   };
 
-  const template = getInstallableTemplate(entry);
-
-  // ------------------------------------------------------------------
-  // Per-template submit handlers. Each is small and self-contained:
-  // validate user input, build the payload, then hand off to
-  // submitServer.
-  // ------------------------------------------------------------------
   const handleHttpServerSubmit = () => {
-    // TS narrows this branch to shttp|sse; the equality guard is a
-    // runtime/defensive belt to make the helper safe in isolation.
     if (!template || (template.kind !== "shttp" && template.kind !== "sse")) {
       return;
     }
+    const errors: Record<string, string | null> = {};
+    for (const field of template.urlFields ?? []) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        errors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
     const apiKey = state.values.api_key?.trim() ?? "";
     if (!template.apiKeyOptional && !apiKey) {
-      setState((prev) => ({
-        ...prev,
-        errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
-      }));
+      errors.api_key = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setState((prev) => ({ ...prev, errors }));
       return;
     }
+
     const payload: MCPServerConfig = {
       id: `${template.kind}-${instanceId}`,
       type: template.kind,
-      url: template.url,
+      url: resolveTransportUrl(template, state.values),
       ...(apiKey && { api_key: apiKey }),
     };
     submitServer(payload);
@@ -172,7 +204,6 @@ export function InstallServerModal({
     for (const field of stdio.argFields ?? []) {
       const v = state.values[field.key]?.trim();
       if (v) {
-        // Filesystem-style multi-token input: split on whitespace.
         for (const token of v.split(/\s+/)) {
           if (token) extraArgs.push(token);
         }
@@ -184,7 +215,7 @@ export function InstallServerModal({
       type: "stdio",
       name: stdio.serverName,
       command: stdio.command,
-      args: [...stdio.args, ...extraArgs],
+      args: [...stdio.args, ...extraArgs, ...(stdio.suffixArgs ?? [])],
       ...(Object.keys(env).length > 0 && { env }),
     };
     submitServer(payload);
@@ -199,18 +230,51 @@ export function InstallServerModal({
     return handleStdioSubmit();
   };
 
+  const resolvedUrl =
+    template?.kind === "shttp" || template?.kind === "sse"
+      ? resolveTransportUrl(template, state.values)
+      : "";
+
+  const connectionHint =
+    selectedOption?.installHint ??
+    (installableOptions.length === 1 ? entry.installHint : undefined);
+
   const renderFields = () => {
     if (!template) return null;
     if (template.kind === "shttp" || template.kind === "sse") {
       const apiKeyOptional = template.apiKeyOptional ?? false;
       return (
         <>
+          {(template.urlFields ?? []).map((field) => (
+            <div key={field.key} className="flex flex-col gap-1">
+              <SettingsInput
+                testId={`mcp-install-field-${field.key}`}
+                name={field.key}
+                type={field.type === "password" ? "password" : "text"}
+                label={field.label}
+                value={state.values[field.key] ?? ""}
+                onChange={(v) => setValue(field.key, v)}
+                placeholder={field.placeholder}
+                required={field.required}
+                showOptionalTag={!field.required}
+                className="w-full"
+              />
+              {field.helperText && (
+                <p className="text-xs text-tertiary-alt">{field.helperText}</p>
+              )}
+              {state.errors[field.key] && (
+                <p className="text-xs text-red-500">
+                  {state.errors[field.key]}
+                </p>
+              )}
+            </div>
+          ))}
           <SettingsInput
             testId="mcp-install-field-url"
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={template.url}
+            value={resolvedUrl || template.url}
             onChange={() => {}}
             isDisabled
             className="w-full"
@@ -318,8 +382,32 @@ export function InstallServerModal({
           </div>
         </div>
 
-        {entry.installHint && (
-          <p className="text-xs text-tertiary-light">{entry.installHint}</p>
+        {installableOptions.length > 1 && (
+          <div
+            className="flex flex-col gap-2"
+            data-testid="mcp-install-connection-options"
+          >
+            {installableOptions.map((option) => (
+              <label
+                key={option.id}
+                className="flex cursor-pointer items-center gap-2 text-sm text-foreground"
+              >
+                <input
+                  type="radio"
+                  name={`${instanceId}-connection-option`}
+                  value={option.id}
+                  checked={selectedOptionId === option.id}
+                  onChange={() => selectConnectionOption(option)}
+                  data-testid={`mcp-install-connection-${option.id}`}
+                />
+                <span>{option.label ?? option.id}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {connectionHint && (
+          <p className="text-xs text-tertiary-light">{connectionHint}</p>
         )}
 
         {entry.docsUrl && (

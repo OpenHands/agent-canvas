@@ -32,7 +32,6 @@ describe("OpenHands extensions catalogs", () => {
       (entry: IntegrationCatalogEntry) => entry.id === "slack",
     );
     expect(slack).toBeDefined();
-    // Slack's default is now OAuth/shttp
     const defaultTemplate = slack ? getDefaultTemplate(slack) : undefined;
     expect(defaultTemplate?.kind).toBe("shttp");
 
@@ -57,6 +56,32 @@ describe("OpenHands extensions catalogs", () => {
     expect(catalogIds.has("tavily")).toBe(true);
     expect(catalogIds.has("linear")).toBe(true);
     expect(catalogIds.has("notion")).toBe(true);
+    expect(catalogIds.has("azure-devops")).toBe(true);
+  });
+
+  it("includes Azure DevOps with remote and PAT connection options", () => {
+    const azureDevOps = INTEGRATION_CATALOG.find(
+      (entry: IntegrationCatalogEntry) => entry.id === "azure-devops",
+    );
+    expect(azureDevOps).toBeDefined();
+    expect(INTEGRATION_LOGOS["azure-devops"]).toBeTruthy();
+    expect(azureDevOps?.defaultConnectionOptionId).toBe("remote");
+
+    const remote = azureDevOps?.connectionOptions.find((o) => o.id === "remote");
+    expect(remote?.transport?.kind).toBe("shttp");
+    if (remote?.transport?.kind === "shttp") {
+      expect(remote.transport.url).toBe(
+        "https://mcp.dev.azure.com/{organization}",
+      );
+      expect(remote.transport.urlFields?.[0]?.key).toBe("organization");
+    }
+
+    const pat = azureDevOps?.connectionOptions.find((o) => o.id === "pat");
+    expect(pat?.transport?.kind).toBe("stdio");
+    if (pat?.transport?.kind === "stdio") {
+      expect(pat.transport.args).toContain("@azure-devops/mcp");
+      expect(pat.transport.suffixArgs).toEqual(["--authentication", "pat"]);
+    }
   });
 
   it("loads recommended automations from @openhands/extensions", () => {
