@@ -30,6 +30,18 @@ afterEach(() => {
 });
 
 describe("agent server config", () => {
+  it("falls back to the browser origin when no explicit backend URL is configured", () => {
+    mockWindowLocation("https://canvas.example.dev/settings");
+
+    expect(getAgentServerBaseUrl()).toBe("https://canvas.example.dev");
+  });
+
+  it("uses the backend base URL when explicitly configured", () => {
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
+
+    expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
+  });
+
   it("uses the browser origin when a remote browser is pointed at localhost backend config", () => {
     mockWindowLocation("https://work-1.example.dev/settings");
     window.localStorage.setItem(

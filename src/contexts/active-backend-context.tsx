@@ -7,7 +7,11 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import { makeDefaultLocalBackend } from "#/api/backend-registry/default-backend";
+import {
+  DEFAULT_LOCAL_BACKEND_ID,
+  makeDefaultLocalBackend,
+} from "#/api/backend-registry/default-backend";
+import { saveAgentServerConfig } from "#/api/agent-server-config";
 import {
   dropBackendHealth,
   resetBackendHealth,
@@ -93,6 +97,18 @@ export function ActiveBackendProvider({
       );
       setRegisteredBackends(list);
 
+      const next = list.find((b) => b.id === id);
+      if (
+        id === DEFAULT_LOCAL_BACKEND_ID &&
+        next?.kind === "local" &&
+        (patch.host !== undefined || patch.apiKey !== undefined)
+      ) {
+        saveAgentServerConfig({
+          baseUrl: next.host,
+          sessionApiKey: next.apiKey,
+        });
+      }
+
       // Re-arm health polling when the user edits the fields that
       // actually drive the probe. Cosmetic edits (name) shouldn't
       // re-enable a backend that was disabled for being unreachable.
@@ -166,4 +182,17 @@ export function useActiveBackend(): ResolvedActiveBackend {
   const ctx = React.useContext(ActiveBackendContext);
   if (ctx) return ctx.active;
   return { backend: makeDefaultLocalBackend(), orgId: null };
+}
+
+export function useEffectiveLocalBackend(): Backend {
+  const ctx = React.useContext(ActiveBackendContext);
+  if (!ctx) return makeDefaultLocalBackend();
+
+  const active = ctx.active.backend;
+  if (active.kind === "local") return active;
+
+  return (
+    ctx.backends.find((backend) => backend.kind === "local") ??
+    makeDefaultLocalBackend()
+  );
 }

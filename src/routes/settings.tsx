@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Route } from "./+types/settings";
 import OptionService from "#/api/option-service/option-service.api";
 import { queryClient } from "#/query-client-config";
+import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { SettingsLayout } from "#/components/features/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
@@ -21,10 +22,12 @@ import { SettingsSectionHeaderProvider } from "#/contexts/settings-section-heade
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
   const url = new URL(request.url);
   const { pathname } = url;
+  const backend = getEffectiveLocalBackend();
 
   const config = await queryClient.fetchQuery<WebClientConfig>({
-    queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
+    queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG_BY_BACKEND(backend),
     queryFn: OptionService.getConfig,
+    meta: { disableToast: true },
     ...CONFIG_CACHE_OPTIONS,
   });
 

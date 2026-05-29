@@ -1,7 +1,16 @@
+import type React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  writeStoredActiveBackend,
+  writeStoredBackends,
+} from "#/api/backend-registry/storage";
+import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import i18n, { OPENHANDS_I18N_NAMESPACE } from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { SuggestedTask } from "#/utils/types";
 
@@ -11,7 +20,63 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
+const ORIGINAL_LOCATION = window.location;
+
+function mockWindowLocation(url: string) {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: new URL(url),
+  });
+}
+
+function queryClientWrapper({
+  includeActiveBackendProvider = false,
+}: {
+  includeActiveBackendProvider?: boolean;
+} = {}) {
+  const queryClient = new QueryClient();
+
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    const content = includeActiveBackendProvider ? (
+      <ActiveBackendProvider>{children}</ActiveBackendProvider>
+    ) : (
+      children
+    );
+
+    return (
+      <QueryClientProvider client={queryClient}>{content}</QueryClientProvider>
+    );
+  };
+}
+
 describe("useCreateConversation", () => {
+  beforeEach(() => {
+    mockWindowLocation("http://127.0.0.1:3001/");
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+    i18n.addResourceBundle(
+      "en",
+      OPENHANDS_I18N_NAMESPACE,
+      {
+        [I18nKey.ERROR$AGENT_SERVER_CORS]:
+          "Agent Canvas could not reach the agent server.\n\nFrontend origin: {{frontendOrigin}}\nBackend: {{backendOrigin}}\n\nRestart `agent-server` with `OH_ALLOW_CORS_ORIGINS='[\"{{frontendOrigin}}\"]'`.",
+      },
+      true,
+      true,
+    );
+    i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: ORIGINAL_LOCATION,
+    });
+    __resetActiveStoreForTests();
+  });
+
   it("passes suggested tasks to the V1 create conversation API", async () => {
     const createConversationSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
@@ -44,11 +109,7 @@ describe("useCreateConversation", () => {
       });
 
     const { result } = renderHook(() => useCreateConversation(), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={new QueryClient()}>
-          {children}
-        </QueryClientProvider>
-      ),
+      wrapper: queryClientWrapper(),
     });
 
     const suggestedTask: SuggestedTask = {
@@ -120,9 +181,7 @@ describe("useCreateConversation", () => {
 
     const { result } = renderHook(() => useCreateConversation(), {
       wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       ),
     });
 
@@ -136,5 +195,31 @@ describe("useCreateConversation", () => {
         queryKey: ["start-tasks"],
       });
     });
+  });
+
+  it("turns a cross-origin fetch failure into a readable CORS error", async () => {
+    const backend = {
+      id: "local-agent-server",
+      name: "Local agent server",
+      host: "http://127.0.0.1:8000",
+      apiKey: "",
+      kind: "local" as const,
+    };
+    writeStoredBackends([backend]);
+    writeStoredActiveBackend({ backendId: backend.id });
+    __resetActiveStoreForTests();
+
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(new Error("Request failed: Failed to fetch"));
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: queryClientWrapper({ includeActiveBackendProvider: true }),
+    });
+
+    await expect(result.current.mutateAsync({ query: "hello" })).rejects.toThrow(
+      "Agent Canvas could not reach the agent server.\n\nFrontend origin: http://127.0.0.1:3001\nBackend: http://127.0.0.1:8000\n\nRestart `agent-server` with `OH_ALLOW_CORS_ORIGINS='[\"http://127.0.0.1:3001\"]'`.",
+    );
   });
 });

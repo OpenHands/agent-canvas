@@ -1,15 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
+import { useEffectiveLocalBackend } from "#/contexts/active-backend-context";
 import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "./query-keys";
 
 interface UseConfigOptions {
   enabled?: boolean;
 }
 
-export const useConfig = (options?: UseConfigOptions) =>
-  useQuery({
-    queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
+export const useConfig = (options?: UseConfigOptions) => {
+  const backend = useEffectiveLocalBackend();
+
+  return useQuery({
+    queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG_BY_BACKEND(backend),
     queryFn: OptionService.getConfig,
     retry: (failureCount, error) =>
       !isAgentServerUnavailableError(error) && failureCount < 3,
@@ -17,3 +20,4 @@ export const useConfig = (options?: UseConfigOptions) =>
     ...CONFIG_CACHE_OPTIONS,
     enabled: options?.enabled,
   });
+};

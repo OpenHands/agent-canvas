@@ -122,6 +122,14 @@ export function getAgentServerFormDefaults(): AgentServerFormDefaults {
   };
 }
 
+export function hasConfiguredAgentServerDefaults(): boolean {
+  return Boolean(
+    getConfiguredBaseUrl() ||
+    import.meta.env.VITE_MOCK_API === "true" ||
+    !import.meta.env.DEV,
+  );
+}
+
 export function saveAgentServerConfig(config: AgentServerFormDefaults): void {
   const currentConfig = readStoredConfig();
 

@@ -95,6 +95,7 @@ async function openDropdown() {
 
 beforeEach(() => {
   window.localStorage.clear();
+  vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:3000");
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();
   vi.mocked(getCloudOrganizationMe).mockReset();
@@ -140,6 +141,7 @@ afterEach(async () => {
     });
   }
   window.localStorage.clear();
+  vi.unstubAllEnvs();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();
 });

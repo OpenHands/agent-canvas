@@ -169,9 +169,8 @@ export function HomeChatLauncher() {
 
         navigate(`/conversations/${targetConversationId}`);
       },
-      onError: (error) => {
+      onError: () => {
         toast.dismiss(toastId);
-        displayErrorToast(error instanceof Error ? error.message : null);
       },
     });
   };

@@ -1,5 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  writeStoredActiveBackend,
+  writeStoredBackends,
+} from "#/api/backend-registry/storage";
+import i18n, { OPENHANDS_I18N_NAMESPACE } from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import {
   AgentServerUnavailableError,
   clearCachedAgentServerInfo,
@@ -8,12 +15,45 @@ import {
 import OptionService from "#/api/option-service/option-service.api";
 import { server } from "#/mocks/node";
 
+const TEST_BACKEND = {
+  id: "test-local-backend",
+  name: "Test local backend",
+  host: "http://127.0.0.1:8000",
+  apiKey: "",
+  kind: "local" as const,
+};
+
 describe("OptionService", () => {
   beforeEach(() => {
     clearCachedAgentServerInfo();
+    window.localStorage.clear();
+    writeStoredBackends([TEST_BACKEND]);
+    writeStoredActiveBackend({ backendId: TEST_BACKEND.id });
+    __resetActiveStoreForTests();
+    i18n.addResourceBundle(
+      "en",
+      OPENHANDS_I18N_NAMESPACE,
+      {
+        [I18nKey.ERROR$AGENT_SERVER_CORS]:
+          "Restart `agent-server` with `OH_ALLOW_CORS_ORIGINS='[\"{{frontendOrigin}}\"]'`.",
+      },
+      true,
+      true,
+    );
+    i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
   });
 
   it("returns config in mock mode without a live backend", async () => {
+    vi.stubEnv("VITE_MOCK_API", "true");
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+
     const config = await OptionService.getConfig();
 
     expect(config.feature_flags.hide_llm_settings).toBe(false);
@@ -51,7 +91,37 @@ describe("OptionService", () => {
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
       message: expect.stringContaining("Agent server not found"),
-      details: expect.stringContaining("Request failed"),
+      details: expect.stringContaining("OH_ALLOW_CORS_ORIGINS"),
+      reason: "unreachable",
+    });
+  });
+
+  it("throws an unavailable error when the agent server rejects the session key", async () => {
+    server.use(
+      http.get("*/server_info", () => new HttpResponse(null, { status: 401 })),
+    );
+
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnavailableError.name,
+      message: expect.stringContaining("Agent server not found"),
+      reason: "unauthorized",
+      status: 401,
+    });
+  });
+
+  it("throws an unavailable error when protected API auth fails after server_info succeeds", async () => {
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.24.0" }),
+      ),
+      http.get("*/api/settings", () => new HttpResponse(null, { status: 401 })),
+    );
+
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnavailableError.name,
+      message: expect.stringContaining("Agent server not found"),
+      reason: "unauthorized",
+      status: 401,
     });
   });
 

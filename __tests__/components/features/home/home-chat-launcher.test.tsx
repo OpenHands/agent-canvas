@@ -1,12 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { HomeChatLauncher } from "#/components/features/home/home-chat-launcher";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
+import { createAgentServerQueryClient } from "#/query-client-config";
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
@@ -176,20 +177,17 @@ vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
 
 const renderLauncher = () =>
   render(<HomeChatLauncher />, {
-    wrapper: ({ children }) => (
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: {
-              queries: { retry: false },
-              mutations: { retry: false },
-            },
-          })
-        }
-      >
-        {children}
-      </QueryClientProvider>
-    ),
+    wrapper: ({ children }) => {
+      const client = createAgentServerQueryClient();
+      client.setDefaultOptions({
+        queries: { retry: false },
+        mutations: { retry: false },
+      });
+
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    },
   });
 
 function makeConversationResponse(
@@ -406,7 +404,10 @@ describe("HomeChatLauncher", () => {
     const user = userEvent.setup();
     await user.click(screen.getByTestId("stub-chat-submit"));
 
-    await waitFor(() => expect(mockDisplayErrorToast).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockDisplayErrorToast).toHaveBeenCalledWith("Network down"),
+    );
+    expect(mockDisplayErrorToast).toHaveBeenCalledTimes(1);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

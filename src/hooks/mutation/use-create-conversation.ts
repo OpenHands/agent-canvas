@@ -4,6 +4,8 @@ import { PluginSpec } from "#/api/conversation-service/agent-server-conversation
 import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { maybeCreateAgentServerCorsError } from "#/utils/agent-server-cors-error";
 
 interface CreateConversationVariables {
   query?: string;
@@ -30,6 +32,7 @@ interface CreateConversationResponse {
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
   const { trackConversationCreated } = useTracking();
+  const { backend } = useActiveBackend();
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -46,8 +49,11 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
-      const conversation =
-        await AgentServerConversationService.createConversation(
+      let conversation: Awaited<
+        ReturnType<typeof AgentServerConversationService.createConversation>
+      >;
+      try {
+        conversation = await AgentServerConversationService.createConversation(
           query,
           conversationInstructions,
           plugins,
@@ -62,6 +68,10 @@ export const useCreateConversation = () => {
           parentConversationId,
           agentType,
         );
+      } catch (error) {
+        const corsError = maybeCreateAgentServerCorsError(error, backend);
+        throw corsError ?? error;
+      }
 
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

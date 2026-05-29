@@ -84,9 +84,17 @@ Use this only if you intentionally started `agent-server` yourself or want the f
 npm run dev:frontend
 ```
 
-The frontend-only workflow expects the backend at `127.0.0.1:8000` by default.
+The frontend-only workflow does not preconfigure a backend. On first load, the
+app opens the backend manager so you can add one from the UI without restarting
+the frontend.
 
 If you start the backend with `SESSION_API_KEY` or `OH_SESSION_API_KEYS_0`, every `/api/*` route is authenticated with `X-Session-API-Key`. In that case the frontend must send the same key via `VITE_SESSION_API_KEY`.
+
+Set `VITE_BACKEND_BASE_URL` when you want the first default backend to be
+preconfigured. Set `VITE_BACKEND_HOST` when you also want the Vite dev server
+to proxy same-origin `/api`, `/server_info`, and `/sockets` requests to that
+backend. Backends added through the UI are stored in local browser storage and
+can be switched from the backend selector.
 
 ### Mock mode
 
@@ -145,7 +153,7 @@ You can create a `.env` file in the project directory with these variables based
 | Variable                    | Description                                                                        | Default Value          |
 | --------------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
 | `VITE_BACKEND_BASE_URL`     | Full base URL for the agent server used by direct browser requests                 | current browser origin |
-| `VITE_BACKEND_HOST`         | Backend host used by the Vite dev proxy                                            | `127.0.0.1:8000`       |
+| `VITE_BACKEND_HOST`         | Backend host used by the Vite dev proxy when set                                  | -                      |
 | `VITE_SESSION_API_KEY`      | Optional `X-Session-API-Key` header value for authenticated agent_server instances | -                      |
 | `VITE_WORKING_DIR`          | Workspace path sent when starting new conversations                                | `workspace/project`    |
 | `VITE_WORKER_URLS`          | Optional comma-separated worker/app URLs for the Browser tab                       | -                      |

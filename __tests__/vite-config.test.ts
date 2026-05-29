@@ -1,9 +1,39 @@
 // @vitest-environment node
 import viteConfig from "../vite.config";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+const MANAGED_ENV_KEYS = [
+  "BUILD_LIB",
+  "VITE_BACKEND_BASE_URL",
+  "VITE_BACKEND_HOST",
+  "VITE_USE_TLS",
+  "VITE_FRONTEND_PORT",
+  "VITE_INSECURE_SKIP_VERIFY",
+] as const;
+const originalEnv = new Map(
+  MANAGED_ENV_KEYS.map((key) => [key, process.env[key]]),
+);
+
+function restoreManagedEnv() {
+  for (const key of MANAGED_ENV_KEYS) {
+    const originalValue = originalEnv.get(key);
+
+    if (originalValue === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = originalValue;
+    }
+  }
+}
+
+beforeEach(() => {
+  for (const key of MANAGED_ENV_KEYS) {
+    delete process.env[key];
+  }
+});
 
 afterEach(() => {
-  delete process.env.BUILD_LIB;
+  restoreManagedEnv();
 });
 
 describe("vite optimizeDeps", () => {
@@ -63,6 +93,31 @@ describe("vite app build", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("vite backend defaults", () => {
+  it("does not synthesize backend config or proxy routes for the frontend-only dev server", async () => {
+    const config = await viteConfig({ mode: "development", command: "serve" });
+
+    expect(process.env.VITE_BACKEND_BASE_URL).toBeUndefined();
+    expect(config.server?.proxy).toBeUndefined();
+  });
+
+  it("uses VITE_BACKEND_HOST for the dev proxy target", async () => {
+    process.env.VITE_BACKEND_HOST = "127.0.0.1:19000";
+
+    const config = await viteConfig({ mode: "development", command: "serve" });
+    const proxy = config.server?.proxy as Record<string, { target?: string }>;
+
+    expect(proxy["/api"]?.target).toBe("http://127.0.0.1:19000/");
+    expect(process.env.VITE_BACKEND_BASE_URL).toBeUndefined();
+  });
+
+  it("does not inject a backend base URL for production builds", async () => {
+    await viteConfig({ mode: "production", command: "build" });
+
+    expect(process.env.VITE_BACKEND_BASE_URL).toBeUndefined();
   });
 });
 

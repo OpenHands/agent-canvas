@@ -1,4 +1,5 @@
 import { makeDefaultLocalBackend } from "./default-backend";
+import { hasConfiguredAgentServerDefaults } from "../agent-server-config";
 import {
   readStoredActiveBackend,
   readStoredBackends,
@@ -88,6 +89,13 @@ export function getEffectiveLocalBackend(): Backend {
   const active = snapshot.active.backend;
   if (active.kind === "local") return active;
   return pickLocalBackend(snapshot.backends);
+}
+
+export function hasEffectiveLocalBackend(): boolean {
+  return (
+    snapshot.backends.some((backend) => backend.kind === "local") ||
+    hasConfiguredAgentServerDefaults()
+  );
 }
 
 export function getRegisteredBackends(): Backend[] {

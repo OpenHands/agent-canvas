@@ -42,11 +42,11 @@ const appBuildConfig = {
 
 export default defineConfig(({ mode }) => {
   const {
-    VITE_BACKEND_HOST = "127.0.0.1:8000",
+    VITE_BACKEND_HOST: configuredBackendHost,
     VITE_USE_TLS = "false",
     VITE_FRONTEND_PORT = "3001",
     VITE_INSECURE_SKIP_VERIFY = "false",
-  } = loadEnv(mode, process.cwd());
+  } = { ...loadEnv(mode, process.cwd()), ...process.env };
 
   const isLibraryBuild = process.env.BUILD_LIB === "true";
   const USE_TLS = VITE_USE_TLS === "true";
@@ -54,8 +54,12 @@ export default defineConfig(({ mode }) => {
   const PROTOCOL = USE_TLS ? "https" : "http";
   const WS_PROTOCOL = USE_TLS ? "wss" : "ws";
 
-  const API_URL = `${PROTOCOL}://${VITE_BACKEND_HOST}/`;
-  const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
+  const API_URL = configuredBackendHost
+    ? `${PROTOCOL}://${configuredBackendHost}/`
+    : null;
+  const WS_URL = configuredBackendHost
+    ? `${WS_PROTOCOL}://${configuredBackendHost}/`
+    : null;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
 
   return {
@@ -280,54 +284,57 @@ export default defineConfig(({ mode }) => {
       strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
-      proxy: {
-        "/api": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/server_info": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/alive": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/health": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/ready": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/docs": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/redoc": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/openapi.json": {
-          target: API_URL,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-        "/sockets": {
-          target: WS_URL,
-          ws: true,
-          changeOrigin: true,
-          secure: !INSECURE_SKIP_VERIFY,
-        },
-      },
+      proxy:
+        API_URL && WS_URL
+          ? {
+              "/api": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/server_info": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/alive": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/health": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/ready": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/docs": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/redoc": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/openapi.json": {
+                target: API_URL,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+              "/sockets": {
+                target: WS_URL,
+                ws: true,
+                changeOrigin: true,
+                secure: !INSECURE_SKIP_VERIFY,
+              },
+            }
+          : undefined,
       watch: {
         ignored: ["**/node_modules/**", "**/.git/**"],
       },

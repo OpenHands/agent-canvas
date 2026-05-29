@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, vi, beforeEach, it } from "vitest";
+import { afterEach, describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { WorkspaceSelectionForm } from "../../../../src/components/features/home/workspace-selection-form";
@@ -92,11 +92,42 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     mockGetHome.mockReset();
     mockUseIsCreatingConversation.mockReturnValue(false);
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
-    // useResolvedWorkspaces always queries an implicit `/projects` parent in
-    // dev mode — return empty so it doesn't influence tests that don't care.
     mockSearchSubdirectories.mockResolvedValue({
       items: [],
       next_page_id: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("does not scan the implicit /projects parent in frontend-only dev", async () => {
+    renderForm();
+
+    await waitFor(() => {
+      expect(WorkspacesService.listWorkspaces).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockSearchSubdirectories).not.toHaveBeenCalledWith("/projects");
+  });
+
+  it("scans the implicit /projects parent when a launcher-managed agent server is advertised", async () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        services: {
+          agent_server: {
+            url_from_agent: "http://localhost:18000",
+          },
+        },
+      }),
+    );
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(mockSearchSubdirectories).toHaveBeenCalledWith("/projects");
     });
   });
 

@@ -5,9 +5,26 @@
 
 import { SettingsScope } from "#/types/settings";
 
+interface BackendQueryIdentity {
+  id: string;
+  kind: string;
+  host: string;
+  apiKey?: string | null;
+}
+
+const WEB_CLIENT_CONFIG_QUERY_KEY = ["web-client-config"] as const;
+
 export const QUERY_KEYS = {
   /** Web client configuration from the server */
-  WEB_CLIENT_CONFIG: ["web-client-config"] as const,
+  WEB_CLIENT_CONFIG: WEB_CLIENT_CONFIG_QUERY_KEY,
+  WEB_CLIENT_CONFIG_BY_BACKEND: (backend: BackendQueryIdentity) =>
+    [
+      ...WEB_CLIENT_CONFIG_QUERY_KEY,
+      backend.id,
+      backend.kind,
+      backend.host,
+      backend.apiKey ?? "",
+    ] as const,
 } as const;
 
 export const SETTINGS_QUERY_KEYS = {

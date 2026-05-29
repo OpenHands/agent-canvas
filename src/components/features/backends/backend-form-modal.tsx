@@ -149,6 +149,7 @@ function BackendStatusBadge({
     retry: false,
     staleTime: 60_000,
     enabled: backend.kind === "local" && !disabled,
+    meta: { disableToast: true },
   });
 
   let statusLabel: string;

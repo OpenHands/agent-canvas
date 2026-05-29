@@ -17,17 +17,30 @@ interface UseResolvedWorkspacesResult {
 }
 
 /**
- * Implicit workspace parents that are always considered when resolving
- * workspaces. `/projects` is a well-known directory that some agent-server
- * setups use as the projects root. We surface its immediate subdirectories
- * as workspaces automatically in dev mode.
+ * Implicit workspace parents that are considered when resolving workspaces in
+ * a launcher-managed dev stack. `/projects` is a well-known directory that
+ * some agent-server setups use as the projects root. We surface its immediate
+ * subdirectories as workspaces automatically when the launcher advertises that
+ * it started an agent server.
  *
- * This is a development convenience only. Production previews may point at
- * arbitrary remote agent servers that do not expose the file-browser endpoint;
- * probing `/projects` there creates noisy 404s before the user has added any
- * workspace parent explicitly.
+ * This is a development convenience only. Frontend-only dev may point at
+ * arbitrary user-selected agent servers that do not expose the file-browser
+ * endpoint; probing `/projects` there creates noisy 404s before the user has
+ * added any workspace parent explicitly.
  */
-const INCLUDE_IMPLICIT_WORKSPACE_PARENTS = import.meta.env.DEV;
+function shouldIncludeImplicitWorkspaceParents(): boolean {
+  if (!import.meta.env.DEV) return false;
+
+  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (!raw) return false;
+
+  try {
+    const parsed = JSON.parse(raw) as { services?: Record<string, unknown> };
+    return Boolean(parsed.services?.agent_server);
+  } catch {
+    return false;
+  }
+}
 
 const IMPLICIT_WORKSPACE_PARENTS: LocalWorkspaceParent[] = [
   { id: "implicit:/projects", name: "/projects", path: "/projects" },
@@ -62,7 +75,7 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     // Filter out implicit parents that conflict with user-added ones (by path)
     // so custom names/ids are preserved.
     const implicitParents =
-      INCLUDE_IMPLICIT_WORKSPACE_PARENTS && !workspacesUnsupported
+      shouldIncludeImplicitWorkspaceParents() && !workspacesUnsupported
         ? IMPLICIT_WORKSPACE_PARENTS
         : [];
     const extras = implicitParents.filter((p) => !seen.has(p.path));

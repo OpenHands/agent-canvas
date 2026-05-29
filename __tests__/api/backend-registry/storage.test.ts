@@ -9,6 +9,10 @@ import {
 } from "#/api/backend-registry/storage";
 import type { Backend } from "#/api/backend-registry/types";
 
+function stubBackendDefaults() {
+  vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
+}
+
 afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllEnvs();
@@ -43,7 +47,23 @@ describe("backend-registry storage", () => {
     expect(readStoredBackends()).toEqual([]);
   });
 
-  it("seeds the default Local backend when storage key is missing", () => {
+  it("does not seed a default Local backend when no backend defaults are configured", () => {
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
+
+    expect(readStoredBackends()).toEqual([]);
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
+  });
+
+  it("does not seed a default Local backend from a session key alone", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
+
+    expect(readStoredBackends()).toEqual([]);
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
+  });
+
+  it("seeds the default Local backend when storage key is missing and backend defaults are configured", () => {
+    stubBackendDefaults();
     expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBeNull();
 
     const result = readStoredBackends();
@@ -56,6 +76,7 @@ describe("backend-registry storage", () => {
   });
 
   it("re-seeds the default Local backend when storage holds an empty array", () => {
+    stubBackendDefaults();
     window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([]));
 
     const result = readStoredBackends();
@@ -65,6 +86,7 @@ describe("backend-registry storage", () => {
   });
 
   it("re-seeds the default Local backend when every stored entry is invalid", () => {
+    stubBackendDefaults();
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([{ kind: "cloud" }, "not-an-object"]),
@@ -74,6 +96,37 @@ describe("backend-registry storage", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ id: "default-local", kind: "local" });
+  });
+
+  it("removes a stale auto-seeded default Local backend when backend defaults are no longer configured", () => {
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: "http://127.0.0.1:8000",
+          apiKey: "",
+          kind: "local",
+        },
+      ]),
+    );
+
+    expect(readStoredBackends()).toEqual([]);
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).toBe("[]");
+  });
+
+  it("keeps a stored default Local backend with a session key when backend defaults are no longer configured", () => {
+    const backend = {
+      id: "default-local",
+      name: "Local",
+      host: "http://127.0.0.1:8000",
+      apiKey: "existing-session-key",
+      kind: "local",
+    };
+    window.localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
+
+    expect(readStoredBackends()).toEqual([backend]);
   });
 
   it("filters out backends with invalid shape", () => {
@@ -93,6 +146,7 @@ describe("backend-registry storage", () => {
   });
 
   it("fills a missing API key on the default Local backend from env defaults", () => {
+    stubBackendDefaults();
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
@@ -123,6 +177,7 @@ describe("backend-registry storage", () => {
 
 
   it("refreshes a stale API key on the default Local backend from env defaults", () => {
+    stubBackendDefaults();
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,

@@ -6,6 +6,7 @@ import {
 } from "@react-router/dev/routes";
 
 export default [
+  route("settings/backend", "routes/backend-settings.tsx"),
   layout("routes/root-layout.tsx", [
     index("routes/index-redirect.tsx"),
     route("conversations", "routes/home.tsx"),

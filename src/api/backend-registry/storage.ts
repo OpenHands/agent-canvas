@@ -1,8 +1,10 @@
 import { makeDefaultLocalBackend } from "./default-backend";
+import { hasConfiguredAgentServerDefaults } from "../agent-server-config";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
+const LEGACY_FRONTEND_ONLY_DEV_BACKEND_URL = "http://127.0.0.1:8000";
 
 function isValidKind(value: unknown): value is BackendKind {
   return value === "local" || value === "cloud";
@@ -29,27 +31,58 @@ function normalizeHostForComparison(host: string): string {
   }
 }
 
-function syncDefaultLocalBackendAuth(backend: Backend): Backend {
+function isCurrentBrowserOrigin(host: string): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    normalizeHostForComparison(host) ===
+    normalizeHostForComparison(window.location.origin)
+  );
+}
+
+function syncDefaultLocalBackendConfig(backend: Backend): Backend {
   const defaultBackend = makeDefaultLocalBackend();
 
-  if (
-    backend.id !== defaultBackend.id ||
-    backend.kind !== "local" ||
-    !defaultBackend.apiKey ||
-    normalizeHostForComparison(backend.host) !==
-      normalizeHostForComparison(defaultBackend.host)
-  ) {
+  if (backend.id !== defaultBackend.id || backend.kind !== "local") {
     return backend;
   }
 
-  if (backend.apiKey === defaultBackend.apiKey) {
+  const matchesDefaultHost =
+    normalizeHostForComparison(backend.host) ===
+    normalizeHostForComparison(defaultBackend.host);
+  const isLegacySameOriginSeed = isCurrentBrowserOrigin(backend.host);
+
+  if (!matchesDefaultHost && !isLegacySameOriginSeed) {
     return backend;
   }
 
   return {
     ...backend,
-    apiKey: defaultBackend.apiKey,
+    host: defaultBackend.host,
+    apiKey: defaultBackend.apiKey || backend.apiKey,
   };
+}
+
+function shouldSeedDefaultLocalBackend(): boolean {
+  return hasConfiguredAgentServerDefaults();
+}
+
+function isAutoSeededDefaultLocalBackend(backend: Backend): boolean {
+  const defaultBackend = makeDefaultLocalBackend();
+
+  if (
+    backend.id !== defaultBackend.id ||
+    backend.kind !== "local" ||
+    backend.name !== defaultBackend.name ||
+    backend.apiKey !== ""
+  ) {
+    return false;
+  }
+
+  const host = normalizeHostForComparison(backend.host);
+  return (
+    host === normalizeHostForComparison(defaultBackend.host) ||
+    host === LEGACY_FRONTEND_ONLY_DEV_BACKEND_URL
+  );
 }
 
 export function writeStoredBackends(backends: Backend[]): void {
@@ -66,11 +99,11 @@ export function readStoredBackends(): Backend[] {
   try {
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
 
-    // First install: the storage key has never been written. Seed the
-    // registry with one default local backend derived from the env /
-    // agent-server-config so the user has something to talk to out of
-    // the box.
+    // First install: only seed a default local backend when deployment
+    // config actually provided backend defaults. Frontend-only dev should
+    // start with an empty registry so no backend looks preconfigured.
     if (raw === null) {
+      if (!shouldSeedDefaultLocalBackend()) return [];
       const seeded = [makeDefaultLocalBackend()];
       writeStoredBackends(seeded);
       return seeded;
@@ -81,19 +114,23 @@ export function readStoredBackends(): Backend[] {
     const valid = parsed.filter(isValidBackend);
 
     // If the stored array is empty (or everything in it failed validation),
-    // re-seed with the default Local backend so the user always has a
-    // working entry pointing at VITE_SESSION_API_KEY. With the dev scripts
-    // persisting that key to ~/.openhands/agent-canvas/session-api-key.txt,
-    // re-seeding is safe — the seeded entry will keep working across
-    // restarts instead of going stale.
+    // re-seed only when deployment config provided backend defaults.
     if (valid.length === 0) {
+      if (!shouldSeedDefaultLocalBackend()) return [];
       const seeded = [makeDefaultLocalBackend()];
       writeStoredBackends(seeded);
       return seeded;
     }
 
-    const synced = valid.map(syncDefaultLocalBackendAuth);
-    if (synced.some((backend, index) => backend !== valid[index])) {
+    const configuredDefaults = shouldSeedDefaultLocalBackend();
+    const filtered = configuredDefaults
+      ? valid
+      : valid.filter((backend) => !isAutoSeededDefaultLocalBackend(backend));
+    const synced = filtered.map(syncDefaultLocalBackendConfig);
+    if (
+      synced.length !== valid.length ||
+      synced.some((backend, index) => backend !== valid[index])
+    ) {
       writeStoredBackends(synced);
     }
 

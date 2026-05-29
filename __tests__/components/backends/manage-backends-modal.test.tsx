@@ -15,6 +15,8 @@ import {
   ActiveBackendProvider,
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
+import { createAgentServerQueryClient } from "#/query-client-config";
+import * as ToastHandlers from "#/utils/custom-toast-handlers";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 
 const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.18.0" });
@@ -43,6 +45,14 @@ function renderWithProviders(ui: React.ReactElement) {
   );
 }
 
+function renderWithAgentQueryClient(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={createAgentServerQueryClient()}>
+      <ActiveBackendProvider>{ui}</ActiveBackendProvider>
+    </QueryClientProvider>,
+  );
+}
+
 function TestSeed({
   onMount,
   children,
@@ -60,11 +70,16 @@ function TestSeed({
 
 beforeEach(() => {
   window.localStorage.clear();
+  vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:3000");
+  getServerInfoMock.mockReset();
+  getServerInfoMock.mockResolvedValue({ version: "1.18.0" });
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   window.localStorage.clear();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
@@ -84,14 +99,30 @@ describe("ManageBackendsModal", () => {
     expect(dots.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("does not show a global toast when a backend version probe is unauthorized", async () => {
+    const toastSpy = vi.spyOn(ToastHandlers, "displayErrorToast");
+    getServerInfoMock.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), {
+        name: "HttpError",
+        status: 401,
+      }),
+    );
+
+    renderWithAgentQueryClient(<ManageBackendsModal onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(getServerInfoMock).toHaveBeenCalled();
+    });
+
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
   it("closes when the header close button is clicked", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     renderWithProviders(<ManageBackendsModal onClose={onClose} />);
 
-    await user.click(
-      await screen.findByTestId("close-manage-backends-modal"),
-    );
+    await user.click(await screen.findByTestId("close-manage-backends-modal"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -176,6 +207,36 @@ describe("ManageBackendsModal", () => {
     const row = screen.getByTestId("manage-backends-row-Acme Local");
     expect(row.textContent).toContain("http://localhost:9999");
     expect(backendId).not.toBe("");
+  });
+
+  it("syncs default local backend edits to the legacy agent-server config", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    await user.click(await screen.findByTestId("manage-backends-edit-Local"));
+
+    const hostInput = await screen.findByTestId("edit-backend-host");
+    await user.clear(hostInput);
+    await user.type(hostInput, "http://localhost:18100");
+
+    const keyInput = screen.getByTestId("edit-backend-api-key");
+    await user.clear(keyInput);
+    await user.type(keyInput, "new-session-key");
+
+    await user.click(screen.getByTestId("edit-backend-submit"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument();
+    });
+
+    expect(
+      window.localStorage.getItem("openhands-agent-server-config"),
+    ).toContain("http://localhost:18100");
+    expect(
+      window.localStorage.getItem("openhands-agent-server-config"),
+    ).toContain("new-session-key");
   });
 
   it("closes the edit form when the header close button is clicked", async () => {

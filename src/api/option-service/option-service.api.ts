@@ -1,5 +1,5 @@
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
-import { loadAgentServerInfo } from "../agent-server-compatibility";
+import { preflightAgentServerAccess } from "../agent-server-compatibility";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { ModelsResponse, WebClientConfig } from "./option.types";
 
@@ -28,7 +28,7 @@ class OptionService {
   }
 
   static async getConfig(): Promise<WebClientConfig> {
-    await loadAgentServerInfo();
+    await preflightAgentServerAccess();
 
     return {
       posthog_client_key: null,
