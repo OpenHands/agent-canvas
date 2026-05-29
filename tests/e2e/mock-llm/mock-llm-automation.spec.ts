@@ -181,18 +181,11 @@ test.describe("mock-LLM automation lifecycle", () => {
         // best-effort cleanup
       }
     }
-
-    // Always reset the mock LLM to its default trajectory so subsequent
-    // test suites (e.g. the conversation test) start fresh.
-    try {
-      await resetMockLLM(request);
-    } catch {
-      // best-effort — the mock server may have already shut down
-    }
   });
 
-  // Safety net: delete any leftover automations even if step 3 fails
-  // before its own cleanup sub-step runs.
+  // Safety net: delete any leftover automations and reset the mock LLM.
+  // Resetting here (instead of afterEach) preserves named trajectories
+  // registered in step 1 for activation in step 2.
   test.afterAll(async ({ request }) => {
     for (const id of Array.from(automationIds)) {
       try {
@@ -202,6 +195,13 @@ test.describe("mock-LLM automation lifecycle", () => {
       }
     }
     automationIds.clear();
+
+    // Reset mock LLM so subsequent test suites start fresh.
+    try {
+      await resetMockLLM(request);
+    } catch {
+      // best-effort — the mock server may have already shut down
+    }
   });
 
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
