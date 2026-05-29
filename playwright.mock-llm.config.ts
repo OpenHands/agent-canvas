@@ -51,7 +51,6 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 // calls are proxied to the agent-server, so no direct backend port needed).
 process.env.MOCK_LLM_BACKEND_URL = `http://localhost:${INGRESS_PORT}`;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
-process.env.VITE_SESSION_API_KEY = sessionApiKey;
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
@@ -115,14 +114,12 @@ export default defineConfig({
         // Clean state dir to avoid stale profile/conversation data between runs
         `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true});" && ` +
         // Build frontend if not already built (CI should pre-build for caching)
-        '[ -f build/index.html ] || npm run build:app && ' +
+        "[ -f build/index.html ] || npm run build:app && " +
         [
           "exec env",
           envAssignment("OH_CANVAS_SAFE_STATE_DIR", STATE_DIR),
           envAssignment("PORT", INGRESS_PORT),
-          envAssignment("SESSION_API_KEY", sessionApiKey),
-          envAssignment("OH_SESSION_API_KEYS_0", sessionApiKey),
-          envAssignment("VITE_SESSION_API_KEY", sessionApiKey),
+          envAssignment("LOCAL_BACKEND_API_KEY", sessionApiKey),
           "VITE_DO_NOT_TRACK=1",
           "VITE_ENABLE_BROWSER_TOOLS=false",
           // Bypass npm — exec directly into node so SIGTERM reaches

@@ -287,9 +287,8 @@ async function buildConfig(args, env = process.env) {
 
   const isPublic = args.public;
 
-  // In public mode, LOCAL_BACKEND_API_KEY is required and used as the
-  // session key. The key is NOT baked into the frontend — users must
-  // paste it in the browser.
+  // In public mode, LOCAL_BACKEND_API_KEY is required — without it the
+  // auth screen has nothing to validate against.
   if (isPublic && !env.LOCAL_BACKEND_API_KEY) {
     logError(
       "PUBLIC MODE requires LOCAL_BACKEND_API_KEY environment variable.\n" +
@@ -345,34 +344,33 @@ async function buildConfig(args, env = process.env) {
 
   const vscodePort = ports.backend + 1000;
 
-  // Session API key — shared by both agent-server and automation backend.
+  // API key — shared by both agent-server and automation backend.
   // Both validate it via the `X-Session-API-Key` header.
-  // In public mode we use LOCAL_BACKEND_API_KEY as the session key.
+  // LOCAL_BACKEND_API_KEY is the single user-facing env var: if set it's
+  // used directly; otherwise one is auto-generated and persisted.
   const stateDir =
     env.OH_CANVAS_SAFE_STATE_DIR ||
     join(homedir(), ".openhands", "agent-canvas");
 
-  let sessionApiKey;
+  const safeConfig = buildSafeDevConfig(projectRoot, {
+    ...env,
+    OH_CANVAS_SAFE_STATE_DIR: stateDir,
+    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
+    OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
+  });
+  const sessionApiKey = safeConfig.sessionApiKey;
+
   if (isPublic) {
-    sessionApiKey = env.LOCAL_BACKEND_API_KEY;
     logService(
       "auth",
-      "PUBLIC MODE — using LOCAL_BACKEND_API_KEY as session key",
+      "PUBLIC MODE — key will NOT be injected into the frontend",
       c.yellow,
     );
     logService(
       "auth",
-      "Session key will NOT be baked into the frontend; users must paste it",
+      "Users must paste the LOCAL_BACKEND_API_KEY in the browser",
       c.dim,
     );
-  } else {
-    const safeConfig = buildSafeDevConfig(projectRoot, {
-      ...env,
-      OH_CANVAS_SAFE_STATE_DIR: stateDir,
-      OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
-      OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
-    });
-    sessionApiKey = safeConfig.sessionApiKey;
   }
 
   return {
@@ -579,11 +577,8 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
-    // Override the session key with the one chosen during config resolution.
-    // In public mode this is LOCAL_BACKEND_API_KEY; in local mode it's the
-    // persisted random key. Without this override, buildSafeDevConfig()
-    // generates its own random key that doesn't match config.sessionApiKey,
-    // so the agent-server rejects the key users are told to paste.
+    // Ensure the agent-server uses the resolved key from config. This is
+    // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
@@ -1126,10 +1121,9 @@ function startStaticFrontend(config, staticDir) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
-      // In local mode, inject the runtime session key so the pre-built
-      // frontend can authenticate without VITE_SESSION_API_KEY in the bundle.
-      // In public mode, omit the key and set --auth-required so the
-      // pre-built frontend shows the API key entry screen.
+      // In local mode, inject the API key so the pre-built frontend can
+      // authenticate transparently. In public mode, pass --auth-required
+      // so the frontend shows the API key entry screen instead.
       ...(!config.isPublic && config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),

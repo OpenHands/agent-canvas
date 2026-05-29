@@ -121,6 +121,19 @@ export function parseArgs(argv = process.argv.slice(2)) {
     }
   }
 
+  // Guard: --session-api-key and --auth-required are semantically
+  // mutually exclusive. The first auto-injects the key (local mode);
+  // the second forces the user to paste it (public mode). Combining
+  // both is a misconfiguration.
+  if (config.sessionApiKey && config.authRequired) {
+    console.error(
+      "ERROR: --session-api-key and --auth-required are mutually exclusive.\n" +
+        "  Use --session-api-key for local mode (key auto-injected).\n" +
+        "  Use --auth-required for public mode (user pastes key).",
+    );
+    process.exit(1);
+  }
+
   return config;
 }
 
@@ -176,13 +189,13 @@ function makeConfigInjectionScript(sessionApiKey, authRequired) {
     const keyLiteral = JSON.stringify(sessionApiKey);
     parts.push(
       `try{` +
-      `var _k='openhands-agent-server-config',` +
-      `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
-      `if(!_c.sessionApiKey){` +
-      `_c.sessionApiKey=${keyLiteral};` +
-      `localStorage.setItem(_k,JSON.stringify(_c));` +
-      `}` +
-      `}catch(e){}`
+        `var _k='openhands-agent-server-config',` +
+        `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
+        `if(!_c.sessionApiKey){` +
+        `_c.sessionApiKey=${keyLiteral};` +
+        `localStorage.setItem(_k,JSON.stringify(_c));` +
+        `}` +
+        `}catch(e){}`,
     );
   }
 
@@ -199,7 +212,12 @@ function makeConfigInjectionScript(sessionApiKey, authRequired) {
  * Serve index.html with runtime config injected into <head>.
  * Returns true if the response was written, false if the file was not found.
  */
-async function serveInjectedIndexHtml(req, res, indexPath, { sessionApiKey, authRequired } = {}) {
+async function serveInjectedIndexHtml(
+  req,
+  res,
+  indexPath,
+  { sessionApiKey, authRequired } = {},
+) {
   let content;
   try {
     content = await readFile(indexPath, "utf8");
@@ -432,7 +450,8 @@ async function handleStatic(req, res, dirAbs, injectionOpts = {}) {
     filePath = resolve(filePath, "index.html");
   }
 
-  const needsInjection = injectionOpts.sessionApiKey || injectionOpts.authRequired;
+  const needsInjection =
+    injectionOpts.sessionApiKey || injectionOpts.authRequired;
 
   // Serve index.html with runtime config injection when configured.
   if (needsInjection && filePath.endsWith("index.html")) {

@@ -61,13 +61,12 @@ USAGE:
   npx @openhands/agent-canvas [options]
 
 AUTH MODES:
-  By default the server auto-generates a session key that is injected
-  into the frontend at startup — no login required.
+  By default the server auto-generates an API key that is injected into
+  the frontend at startup — no login required.
 
   --public    Enable public mode. Requires LOCAL_BACKEND_API_KEY env var.
-              The key is used as the session API key on the server side but
-              is NOT injected into the frontend. Users must paste it when
-              the UI loads.
+              The key protects the server but is NOT injected into the
+              frontend. Users must paste it when the UI loads.
 
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
@@ -77,7 +76,9 @@ OPTIONS:
   -h, --help            Show this help message
 
 ENVIRONMENT VARIABLES:
-  LOCAL_BACKEND_API_KEY        Required in --public mode; ignored otherwise
+  LOCAL_BACKEND_API_KEY        API key for the server. Required in --public
+                               mode; optional otherwise (auto-generated if
+                               omitted, persisted across restarts).
   OH_SECRET_KEY                Secret key for encrypting settings
   OH_AGENT_SERVER_GIT_REF      Git ref for agent-server
   OH_AGENT_SERVER_LOCAL_PATH   Path to local SDK checkout (for development)
@@ -87,8 +88,11 @@ Note: LLM settings are configured through the web UI settings page,
 not environment variables.
 
 EXAMPLES:
-  # Start full stack (local mode, auto-generated session key)
+  # Start full stack (local mode, auto-generated key)
   npx @openhands/agent-canvas
+
+  # Pin a specific key (local mode, key auto-injected into frontend)
+  LOCAL_BACKEND_API_KEY=my-key npx @openhands/agent-canvas
 
   # Public mode — users must enter the API key in the browser
   LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public
