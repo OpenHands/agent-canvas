@@ -59,22 +59,31 @@ npm version <version> --no-git-tag-version
 
 This updates both files without creating a git tag (the tag is created automatically on merge).
 
+### 2c. Update version references in README.md
+
+The `README.md` contains Docker image tags that reference a specific version (e.g., `ghcr.io/openhands/agent-canvas:<version>`). Update **all** version references in `README.md` to match the new release version:
+
+```bash
+# Find and replace the old version tag with the new one
+sed -i 's/ghcr.io\/openhands\/agent-canvas:[0-9]*\.[0-9]*\.[0-9]*[^ ]*/ghcr.io\/openhands\/agent-canvas:<version>/g' README.md
+```
+
 Verify the change:
 
 ```bash
 git diff --stat
-# Should show: package.json and package-lock.json changed
+# Should show: package.json, package-lock.json, and README.md changed
 ```
 
-### 2c. Commit and push
+### 2d. Commit and push
 
 ```bash
-git add package.json package-lock.json
+git add package.json package-lock.json README.md
 git commit -m "chore: bump version to <version>"
 git push -u origin rel-<version>
 ```
 
-### 2d. Create the PR
+### 2e. Create the PR
 
 Create the PR targeting `main` with the `e2e-tests` label:
 
@@ -87,6 +96,7 @@ This PR bumps the version to **<version>** for release.
 
 ### Release Checklist
 - [x] Version bumped in package.json and package-lock.json
+- [x] Version references updated in README.md
 - [ ] CI passes (lint, test, build)
 - [ ] Visual snapshot tests pass
 - [ ] Mock-LLM E2E tests pass (triggered by \`e2e-tests\` label)
