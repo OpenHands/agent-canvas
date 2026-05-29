@@ -23,6 +23,7 @@ import {
   AUTOMATION_CATALOG,
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
+import { useAutomationPreferencesStore } from "#/stores/automation-preferences-store";
 
 const { mockCreateConversationMutate, mockUseSettings } = vi.hoisted(() => ({
   mockCreateConversationMutate: vi.fn(),
@@ -37,6 +38,8 @@ vi.mock("react-i18next", () => ({
       return key;
     },
   }),
+  // Minimal stub: render the key so components using <Trans> don't crash.
+  Trans: ({ i18nKey }: { i18nKey?: string }) => i18nKey ?? null,
 }));
 
 vi.mock("#/hooks/mutation/use-create-conversation", () => ({
@@ -108,6 +111,11 @@ describe("recommended automations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    // The persisted preferences store is a module singleton — reset its
+    // in-memory state so a "don't show again" set in one test doesn't leak.
+    useAutomationPreferencesStore.setState({
+      hideResponderDeploymentChoice: false,
+    });
     __resetActiveStoreForTests();
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
@@ -292,10 +300,10 @@ describe("recommended automations", () => {
     );
     expect(plusBadge.tagName).toBe("SPAN");
     expect(plusBadge).toHaveAttribute("aria-hidden", "true");
-    expect(plusBadge.className).toContain("hover:bg-[var(--oh-interactive-hover)]");
-    expect(
-      plusBadge.querySelector('[role="switch"]'),
-    ).not.toBeInTheDocument();
+    expect(plusBadge.className).toContain(
+      "hover:bg-[var(--oh-interactive-hover)]",
+    );
+    expect(plusBadge.querySelector('[role="switch"]')).not.toBeInTheDocument();
   });
 
   it("selects a recommendation directly from its card", () => {
@@ -324,6 +332,8 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    // GitHub responders first prompt for a runtime choice.
+    fireEvent.click(screen.getByTestId("deployment-choice-local"));
 
     const modal = await screen.findByTestId("mcp-install-modal");
     expect(modal).toHaveAttribute("data-marketplace-id", "github");
@@ -343,6 +353,7 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    fireEvent.click(screen.getByTestId("deployment-choice-local"));
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
@@ -368,6 +379,8 @@ describe("recommended automations", () => {
       "recommended-automation-card-github-pr-reviewer",
     );
     fireEvent.click(card);
+    fireEvent.click(screen.getByTestId("deployment-choice-local"));
+    // Launch is now in flight; clicking the card again must not relaunch.
     fireEvent.click(card);
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
@@ -384,6 +397,80 @@ describe("recommended automations", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("prompts for a runtime choice before launching a GitHub/Slack responder", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    // The deployment-choice modal gates the launch — nothing happens yet.
+    expect(screen.getByTestId("deployment-choice-modal")).toBeInTheDocument();
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
+  });
+
+  it("persists 'Don't show this again' and skips the modal next time", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    const { unmount } = renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+    expect(screen.getByTestId("deployment-choice-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("deployment-choice-dont-show-again"));
+    expect(
+      useAutomationPreferencesStore.getState().hideResponderDeploymentChoice,
+    ).toBe(true);
+
+    fireEvent.click(screen.getByTestId("deployment-choice-local"));
+    expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
+
+    // A fresh launcher mount now bypasses the modal and launches directly.
+    unmount();
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-repo-monitor"),
+    );
+
+    expect(
+      screen.queryByTestId("deployment-choice-modal"),
+    ).not.toBeInTheDocument();
+    expect(mockCreateConversationMutate).toHaveBeenCalledTimes(2);
+  });
+
+  it("links the cloud option to OpenHands Cloud integrations and dismisses on click", () => {
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    const cloudLink = screen.getByTestId("deployment-choice-cloud");
+    expect(cloudLink).toHaveAttribute(
+      "href",
+      "https://app.all-hands.dev/settings/integrations",
+    );
+    expect(cloudLink).toHaveAttribute("target", "_blank");
+
+    fireEvent.click(cloudLink);
+
+    // Choosing cloud does not start a local conversation and closes the modal.
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("deployment-choice-modal"),
+    ).not.toBeInTheDocument();
+  });
+
   it("launches the recommendation after the missing MCP is installed", async () => {
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -394,6 +481,7 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    fireEvent.click(screen.getByTestId("deployment-choice-local"));
     await screen.findByTestId("mcp-install-modal");
 
     fireEvent.change(

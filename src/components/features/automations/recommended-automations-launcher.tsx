@@ -22,7 +22,10 @@ import {
   getMarketplaceEntryById,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
+import { isResponderAutomation } from "#/utils/automation-responder";
+import { useAutomationPreferencesStore } from "#/stores/automation-preferences-store";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
+import { DeploymentChoiceModal } from "./deployment-choice-modal";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
@@ -89,7 +92,12 @@ export function RecommendedAutomationsLauncher({
   const setMessageToSend = useConversationStore(
     (state) => state.setMessageToSend,
   );
+  const hideResponderDeploymentChoice = useAutomationPreferencesStore(
+    (state) => state.hideResponderDeploymentChoice,
+  );
   const [pendingAutomation, setPendingAutomation] =
+    useState<RecommendedAutomation | null>(null);
+  const [deploymentChoice, setDeploymentChoice] =
     useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
   const completedInstallRef = useRef(false);
@@ -161,24 +169,42 @@ export function RecommendedAutomationsLauncher({
     [installedMcpServers],
   );
 
+  // Local automation setup: install any missing MCP servers first, then launch.
+  const proceedWithLocalSetup = useCallback(
+    (automation: RecommendedAutomation) => {
+      const missingEntries = getMissingEntries(automation);
+      if (missingEntries.length === 0) {
+        launchAutomation(automation);
+        return;
+      }
+
+      setPendingAutomation(automation);
+      setInstallQueue(missingEntries);
+    },
+    [getMissingEntries, launchAutomation],
+  );
+
   const handleSelectAutomation = (automation: RecommendedAutomation) => {
     if (
       launchInFlightRef.current ||
       createConversation.isPending ||
       isCreatingConversation ||
-      installQueue.length > 0
+      installQueue.length > 0 ||
+      deploymentChoice
     ) {
       return;
     }
 
-    const missingEntries = getMissingEntries(automation);
-    if (missingEntries.length === 0) {
-      launchAutomation(automation);
+    // GitHub / Slack responders are event-driven: local polling stops when the
+    // laptop is off, so first let the user pick between local and OpenHands
+    // Cloud before they invest time configuring the automation (issue #868).
+    // Skipped once the user opts out via the modal's "Don't show this again".
+    if (isResponderAutomation(automation) && !hideResponderDeploymentChoice) {
+      setDeploymentChoice(automation);
       return;
     }
 
-    setPendingAutomation(automation);
-    setInstallQueue(missingEntries);
+    proceedWithLocalSetup(automation);
   };
 
   const cancelInstallFlow = () => {
@@ -222,6 +248,17 @@ export function RecommendedAutomationsLauncher({
         query={query}
         onSelect={handleSelectAutomation}
       />
+
+      {deploymentChoice && (
+        <DeploymentChoiceModal
+          onContinueLocal={() => {
+            const automation = deploymentChoice;
+            setDeploymentChoice(null);
+            proceedWithLocalSetup(automation);
+          }}
+          onClose={() => setDeploymentChoice(null)}
+        />
+      )}
 
       {installEntry && (
         <InstallServerModal
