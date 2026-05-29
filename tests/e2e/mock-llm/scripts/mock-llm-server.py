@@ -13,6 +13,7 @@ text reply. Extend TRAJECTORY to test richer scenarios (multi-turn, errors, etc)
 import json
 import os
 import sys
+import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -73,12 +74,78 @@ def build_trajectory() -> list[Message | Exception]:
 
 class MockLLMHandler(BaseHTTPRequestHandler):
     test_llm: TestLLM  # set by serve()
+    # Named trajectories that tests can register via the admin API and then
+    # activate with POST /admin/trajectory/activate.
+    _named_trajectories: dict[str, list[Message | Exception]] = {}
+    _lock = threading.Lock()
 
     def do_GET(self):
         """Health check — Playwright's webServer probes GET / to detect readiness."""
         self._send_json(200, {"status": "ok", "server": "mock-llm"})
 
     def do_POST(self):
+        path = self.path.rstrip("/")
+
+        # ── Admin API: reset trajectory to default ──
+        if path == "/admin/reset":
+            with self._lock:
+                MockLLMHandler.test_llm = TestLLM.from_messages(build_trajectory())
+                MockLLMHandler._named_trajectories.clear()
+                remaining = MockLLMHandler.test_llm.remaining_responses
+            self._send_json(200, {
+                "status": "reset",
+                "remaining": remaining,
+            })
+            return
+
+        # ── Admin API: register a named trajectory ──
+        if path == "/admin/trajectory/register":
+            body = self._read_body()
+            if body is None:
+                return  # error response already sent
+            name = body.get("name", "")
+            raw_turns = body.get("turns", [])
+            if not name or not raw_turns:
+                self._send_error(400, "bad_request", "need 'name' and 'turns'")
+                return
+            try:
+                messages = _parse_trajectory_turns(raw_turns)
+            except ValueError as exc:
+                self._send_error(400, "bad_request", str(exc))
+                return
+            with self._lock:
+                MockLLMHandler._named_trajectories[name] = messages
+            self._send_json(200, {"status": "registered", "name": name, "turns": len(messages)})
+            return
+
+        # ── Admin API: activate a named trajectory ──
+        if path == "/admin/trajectory/activate":
+            body = self._read_body()
+            if body is None:
+                return  # error response already sent
+            name = body.get("name", "")
+            with self._lock:
+                msgs = MockLLMHandler._named_trajectories.get(name)
+            if msgs is None:
+                self._send_error(404, "not_found", f"trajectory '{name}' not registered")
+                return
+            with self._lock:
+                MockLLMHandler.test_llm = TestLLM.from_messages(list(msgs))
+                remaining = MockLLMHandler.test_llm.remaining_responses
+            self._send_json(200, {
+                "status": "activated",
+                "name": name,
+                "remaining": remaining,
+            })
+            return
+
+        # ── Reject unknown paths with a clear 404 ──
+        COMPLETION_PATHS = ("/v1/chat/completions", "/chat/completions", "/completions", "")
+        if path not in COMPLETION_PATHS:
+            self._send_error(404, "not_found", f"Unknown path: {path}")
+            return
+
+        # ── Normal chat completion ──
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
 
@@ -152,8 +219,62 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             {"error": {"message": message, "type": error_type, "code": error_type}},
         )
 
+    def _read_body(self) -> dict | None:
+        """Read and parse JSON body. Returns None (after sending 400) on parse failure."""
+        length = int(self.headers.get("Content-Length", 0))
+        if not length:
+            return {}
+        try:
+            return json.loads(self.rfile.read(length))
+        except json.JSONDecodeError as exc:
+            self._send_error(400, "invalid_json", str(exc))
+            return None
+
     def log_message(self, format, *args):
         print(f"[mock-llm] {args[0]}", file=sys.stderr, flush=True)
+
+
+def _parse_trajectory_turns(raw_turns: list[dict]) -> list[Message | Exception]:
+    """Convert JSON turn descriptors into Message objects.
+
+    Each turn is a dict with either:
+      - {"tool_call": {"name": ..., "arguments": ...}}  → tool-call message
+      - {"text": "..."}  → text reply message
+    """
+    messages: list[Message | Exception] = []
+    for i, turn in enumerate(raw_turns):
+        if "tool_call" in turn:
+            tc = turn["tool_call"]
+            messages.append(
+                Message(
+                    role="assistant",
+                    content=[TextContent(text="")],
+                    tool_calls=[
+                        MessageToolCall(
+                            id=f"call_dyn_{i:03d}",
+                            name=tc["name"],
+                            arguments=(
+                                json.dumps(tc["arguments"])
+                                if isinstance(tc["arguments"], dict)
+                                else tc["arguments"]
+                            ),
+                            origin="completion",
+                        )
+                    ],
+                )
+            )
+        elif "text" in turn:
+            messages.append(
+                Message(
+                    role="assistant",
+                    content=[TextContent(text=turn["text"])],
+                )
+            )
+        else:
+            raise ValueError(
+                f"[mock-llm] turn {i} has neither 'tool_call' nor 'text': {turn!r}"
+            )
+    return messages
 
 
 def serve(port: int = 9999):
