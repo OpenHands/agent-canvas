@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v1.0.0-alpha.8)'
+        required: true
+        type: string
 
 concurrency:
   group: npm-publish-${{ github.ref }}
@@ -22,6 +28,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       # Trusted publishing requires Node 22.14.0+ and npm 11.5.1+
       # See: https://docs.npmjs.com/trusted-publishers/
@@ -63,7 +71,13 @@ jobs:
       - name: Validate package version matches release tag
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          # Resolve tag: prefer workflow_dispatch input, fall back to push-event GITHUB_REF
+          if [ -n "${{ inputs.tag }}" ]; then
+            RAW_TAG="${{ inputs.tag }}"
+          else
+            RAW_TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          TAG_VERSION="${RAW_TAG#v}"
           echo "Package version: $PACKAGE_VERSION"
           echo "Release tag version: $TAG_VERSION"
           if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
