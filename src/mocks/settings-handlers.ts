@@ -496,6 +496,13 @@ const MOCK_AGENT_SERVER_VERSION = "1.24.0";
 // when VITE_BACKEND_BASE_URL is configured.
 
 export const SETTINGS_HANDLERS = [
+  // Mock MCP server connectivity test — always reports success so snapshot
+  // tests that install/add MCP servers can complete the full flow without a
+  // real agent-server running on port 8000.
+  http.post("*/api/mcp/test", async () =>
+    HttpResponse.json({ ok: true }),
+  ),
+
   http.get("*/server_info", async () =>
     HttpResponse.json({
       uptime: 0,

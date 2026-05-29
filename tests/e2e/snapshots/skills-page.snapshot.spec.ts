@@ -99,7 +99,7 @@ async function seedSkills(page: Page, skills = MOCK_SKILLS) {
           setQueryData: (key: unknown[], data: unknown) => void;
         };
       }
-    ).__OH_QUERY_CLIENT__.setQueryData(["skills"], skillsData);
+    ).__OH_QUERY_CLIENT__.setQueryData(["skills", null], skillsData);
   }, skills);
   await page.waitForTimeout(200);
 }
