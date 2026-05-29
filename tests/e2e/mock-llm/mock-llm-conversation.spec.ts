@@ -258,7 +258,7 @@ test.describe("mock-LLM agent-server conversation", () => {
     // the routeSessionApiKey interceptor (Playwright routes are LIFO and only
     // one handler can call continue/fulfill per request).
     let capturedConversationPayload: Record<string, unknown> | null = null;
-    page.on("request", (req) => {
+    const captureConversationPayload = (req: import("@playwright/test").Request) => {
       if (
         req.method() === "POST" &&
         new URL(req.url()).pathname === "/api/conversations"
@@ -269,7 +269,8 @@ test.describe("mock-LLM agent-server conversation", () => {
           // non-JSON body — leave null
         }
       }
-    });
+    };
+    page.on("request", captureConversationPayload);
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -311,6 +312,7 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Wait for navigation to the new conversation page
     await waitForPath(page, /\/conversations\/.+/, 30_000);
+    page.off("request", captureConversationPayload);
     const conversationId = getConversationIdFromURL(page);
     conversationIds.add(conversationId);
     step3ConversationId = conversationId;
@@ -403,9 +405,6 @@ test.describe("mock-LLM agent-server conversation", () => {
       step3ConversationId,
       "step 3 must complete successfully and set step3ConversationId",
     ).toBeTruthy();
-
-    // Re-create the conversation ID tracking so afterEach can clean up
-    conversationIds.add(step3ConversationId!);
 
     await routeSessionApiKey(page);
 
