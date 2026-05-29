@@ -121,16 +121,24 @@ export async function loadAgentServerInfo() {
     try {
       await new SettingsClient(clientOptions).getSettings();
     } catch (error) {
-      if (isSdkHttpError(error)) {
-        throw error;
-      }
-      // Non-HTTP errors (network, timeout) are fine — the server is up,
-      // the key just wasn't validated. Let the app proceed.
+      // Only rethrow 401 — that means the stored key is invalid /
+      // rotated.  Other HTTP errors (403, 5xx) and non-HTTP errors
+      // (network, timeout) are swallowed: the server *is* up (we just
+      // reached /server_info), so let the app proceed with an
+      // unvalidated key rather than blocking the UI.
       // NOTE: If the connection drops between the /server_info and
       // getSettings() probes, the app loads with an unvalidated key and
       // subsequent 401s won't trigger the auth screen (they come from
       // React Query hooks, not this bootstrap path). Acceptable for now
       // since the window is narrow and a page refresh recovers.
+      if (isSdkHttpStatusError(error, 401)) {
+        throw error;
+      }
+
+      console.warn(
+        "[agent-server] getSettings() probe failed (non-401):",
+        error,
+      );
     }
   }
 

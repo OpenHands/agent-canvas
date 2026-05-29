@@ -4,6 +4,7 @@ import { SettingsClient } from "@openhands/typescript-client/clients";
 import { I18nKey } from "#/i18n/declaration";
 import { saveAgentServerConfig } from "#/api/agent-server-config";
 import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
+import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
@@ -52,11 +53,15 @@ export default function ApiKeyEntryScreen() {
 
     try {
       // Validate against a protected endpoint before persisting.
-      await new SettingsClient({
-        host,
-        apiKey: trimmedKey,
-        timeout: 5000,
-      }).getSettings();
+      // Use getAgentServerClientOptions so transport-level settings
+      // (e.g. VITE_INSECURE_SKIP_VERIFY) are honoured.
+      await new SettingsClient(
+        getAgentServerClientOptions({
+          host,
+          sessionApiKey: trimmedKey,
+          timeout: 5000,
+        }),
+      ).getSettings();
 
       setConnectionStatus("success");
 
