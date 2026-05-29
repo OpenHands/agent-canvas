@@ -12,7 +12,7 @@ on:
         type: string
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-publish-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -69,11 +69,15 @@ jobs:
         run: npm pack --dry-run
 
       - name: Validate package version matches release tag
+        env:
+          # Pass inputs.tag via env var to prevent script injection from
+          # GitHub Actions expression interpolation inside run blocks.
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           # Resolve tag: prefer workflow_dispatch input, fall back to push-event GITHUB_REF
-          if [ -n "${{ inputs.tag }}" ]; then
-            RAW_TAG="${{ inputs.tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            RAW_TAG="$INPUT_TAG"
           else
             RAW_TAG="${GITHUB_REF#refs/tags/}"
           fi

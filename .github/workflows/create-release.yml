@@ -44,7 +44,7 @@ jobs:
       - name: Check release does not already exist
         id: check
         env:
-          GH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           if gh release view "v${VERSION}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
@@ -58,7 +58,7 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         id: prev_tag
         env:
-          GH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PREV_TAG=$(gh release list --repo "${{ github.repository }}" \
             --exclude-drafts --limit 1 \
