@@ -32,6 +32,7 @@ import {
   waitForNonUserMessageText,
   waitForSuccessfulBashObservation,
   deleteConversation,
+  resetMockLLM,
 } from "./utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
@@ -183,6 +184,11 @@ test.describe("mock-LLM agent-server conversation", () => {
     page,
     request,
   }) => {
+    // Reset the mock LLM to its default trajectory. Other test suites
+    // (e.g. automation tests) may have activated a different trajectory
+    // that wasn't fully consumed due to earlier failures.
+    await resetMockLLM(request);
+
     // Verify the mock LLM profile is active before creating a conversation.
     // Steps 1+2 configure it via the UI; this API check ensures persistence.
     await test.step("verify mock-llm profile is active via API", async () => {
