@@ -38,6 +38,8 @@ export const WORKSPACES_HANDLERS = [
   http.get("*/api/workspaces", async () => HttpResponse.json(snapshot())),
 
   http.post("*/api/workspaces", async ({ request }) => {
+    // `workspaces` is the top-level key used by WorkspacesClient.addWorkspaces()
+    // in @openhands/typescript-client — aligns with the agent-server SDK contract.
     const body = (await request.json()) as { workspaces?: WorkspaceItem[] };
     for (const incoming of body.workspaces ?? []) {
       const existingIndex = workspaces.findIndex(
@@ -57,6 +59,8 @@ export const WORKSPACES_HANDLERS = [
     const path = url.searchParams.get("path");
     const before = workspaces.length;
     workspaces = workspaces.filter((w) => w.path !== path);
+    // WorkspacesService.removeWorkspace() discards the response body (returns
+    // void), so the shape here is mock-only and not coupled to the real contract.
     return HttpResponse.json({ deleted: workspaces.length !== before });
   }),
 
@@ -80,6 +84,9 @@ export const WORKSPACES_HANDLERS = [
     const path = url.searchParams.get("path");
     const before = workspaceParents.length;
     workspaceParents = workspaceParents.filter((p) => p.path !== path);
+    // WorkspacesService.removeWorkspaceParent() discards the response body
+    // (returns void), so the shape here is mock-only and not coupled to the
+    // real contract.
     return HttpResponse.json({ deleted: workspaceParents.length !== before });
   }),
 

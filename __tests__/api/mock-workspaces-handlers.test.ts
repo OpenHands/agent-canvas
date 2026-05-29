@@ -25,6 +25,18 @@ describe("mock workspaces handlers", () => {
     ]);
   });
 
+  it("upserts a workspace when path already exists", async () => {
+    await WorkspacesService.addWorkspaces([
+      { id: "w1", name: "Old", path: "/workspace/project" },
+    ]);
+    await WorkspacesService.addWorkspaces([
+      { id: "w2", name: "New", path: "/workspace/project" },
+    ]);
+    const response = await WorkspacesService.listWorkspaces();
+    expect(response.workspaces).toHaveLength(1);
+    expect(response.workspaces[0].name).toBe("New");
+  });
+
   it("removes a workspace by path", async () => {
     await WorkspacesService.addWorkspaces([
       { id: "w1", name: "Project", path: "/workspace/project" },
