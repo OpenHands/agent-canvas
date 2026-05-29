@@ -248,7 +248,28 @@ export function ConversationWebSocketProvider({
       return;
     }
     addEvents(preloadedHistory.events);
-  }, [preloadedHistory, addEvents]);
+
+    // The first user message of a cloud start-task conversation is persisted
+    // server-side and reaches us via this REST preload, not over the WebSocket
+    // (which subscribes with resend_mode='since' after the latest preloaded
+    // timestamp). Consume any matching optimistic "Sending…" bubble here too —
+    // mirroring the WS handler — so it doesn't linger as a duplicate of the echo.
+    if (conversationId) {
+      for (const event of preloadedHistory.events) {
+        if (isUserMessageEvent(event)) {
+          consumeMatchingPendingMessage(
+            conversationId,
+            extractMessageEventText(event),
+          );
+        }
+      }
+    }
+  }, [
+    preloadedHistory,
+    addEvents,
+    conversationId,
+    consumeMatchingPendingMessage,
+  ]);
 
   /**
    * Timestamp of the latest event we already have from REST. Used as

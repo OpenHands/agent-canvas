@@ -89,7 +89,10 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     // Act: switch to conversation B.
     rerender(
       <QueryClientProvider client={queryClient}>
-        <ConversationWebSocketProvider conversationId="conv-b" conversationUrl={null}>
+        <ConversationWebSocketProvider
+          conversationId="conv-b"
+          conversationUrl={null}
+        >
           <div />
         </ConversationWebSocketProvider>
       </QueryClientProvider>,
@@ -119,5 +122,36 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     // ...and the re-seed deduped against the existing user message rather than
     // appending a second copy — exactly two events, no double-insertion.
     expect(eventIds()).toHaveLength(2);
+  });
+
+  it("consumes the optimistic pending bubble when the echoed user message arrives via REST preload", async () => {
+    // Arrange: a cloud start-task conversation left a "Sending…" bubble whose
+    // content matches the first message the server has already persisted. With
+    // the WebSocket stubbed, the only path that delivers the echo is the REST
+    // history preload — the path that previously left this bubble orphaned.
+    useOptimisticUserMessageStore.setState({
+      pendingMessages: [
+        {
+          id: "pending-1",
+          conversationId: "conv-a",
+          text: "User message",
+          content: "User message",
+          status: "sending",
+          imageUrls: [],
+          fileUrls: [],
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+
+    // Act: open the conversation; preload returns the echoed user message.
+    renderProvider("conv-a");
+
+    // Assert: the preloaded echo cleared the bubble, so it isn't shown twice.
+    await waitFor(() =>
+      expect(useOptimisticUserMessageStore.getState().pendingMessages).toEqual(
+        [],
+      ),
+    );
   });
 });
