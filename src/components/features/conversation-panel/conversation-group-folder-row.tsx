@@ -1,10 +1,14 @@
-import { Folder, Plus } from "lucide-react";
-import type { DragEvent, ReactNode } from "react";
+import { motion } from "framer-motion";
+import { Folder, FolderOpen, Plus } from "lucide-react";
+import { useRef, type DragEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import type { ConversationGroupLaunch } from "./conversation-panel-list-helpers";
+import type {
+  ConversationGroupLaunch,
+  GroupFolderDropPosition,
+} from "./conversation-panel-list-helpers";
 import { getGroupConversationPreview } from "./conversation-panel-list-helpers";
 
 interface ConversationGroup {
@@ -19,7 +23,8 @@ interface ConversationGroupFolderRowProps {
   expanded: boolean;
   previewExpanded: boolean;
   isDragging: boolean;
-  isDropTarget: boolean;
+  dropIndicatorPosition: GroupFolderDropPosition | null;
+  animateLayout: boolean;
   isCreatingConversationFlow: boolean;
   activeConversationId?: string | null;
   onToggleExpanded: () => void;
@@ -38,7 +43,8 @@ export function ConversationGroupFolderRow({
   expanded,
   previewExpanded,
   isDragging,
-  isDropTarget,
+  dropIndicatorPosition,
+  animateLayout,
   isCreatingConversationFlow,
   activeConversationId,
   onToggleExpanded,
@@ -52,6 +58,7 @@ export function ConversationGroupFolderRow({
   renderConversationCard,
 }: ConversationGroupFolderRowProps) {
   const { t } = useTranslation("openhands");
+  const sectionRef = useRef<HTMLElement>(null);
   const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const groupTestIdSuffix = group.id.replace(/[^a-zA-Z0-9_-]/g, "-");
   const { visibleConversations, isPreviewTruncated, isShowingAll } =
@@ -61,17 +68,27 @@ export function ConversationGroupFolderRow({
     });
 
   return (
-    <section
+    <motion.section
+      ref={sectionRef}
+      layout={animateLayout ? "position" : false}
+      transition={{ type: "spring", stiffness: 600, damping: 45 }}
       aria-labelledby={headingId}
       data-testid={`thread-folder-${groupTestIdSuffix}`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className={cn(
-        isDropTarget && "rounded-md ring-1 ring-[var(--oh-border)]",
-        isDragging && "opacity-60",
-      )}
+      className={cn("relative rounded-md", isDragging && "opacity-60")}
     >
+      {dropIndicatorPosition ? (
+        <div
+          aria-hidden
+          data-testid={`thread-folder-drop-indicator-${groupTestIdSuffix}`}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-[var(--oh-accent)]",
+            dropIndicatorPosition === "before" ? "-top-0.5" : "-bottom-0.5",
+          )}
+        />
+      ) : null}
       <div
         className={cn(
           "flex h-8 w-full min-w-0 items-center gap-0.5 rounded-md pl-2 pr-1 text-sm font-normal",
@@ -101,6 +118,12 @@ export function ConversationGroupFolderRow({
             if (dataTransfer) {
               dataTransfer.effectAllowed = "move";
               dataTransfer.setData("text/plain", group.id);
+              if (
+                sectionRef.current &&
+                typeof dataTransfer.setDragImage === "function"
+              ) {
+                dataTransfer.setDragImage(sectionRef.current, 16, 16);
+              }
             }
             onDragStart();
           }}
@@ -109,11 +132,28 @@ export function ConversationGroupFolderRow({
             onDragEnd();
           }}
           className={cn(
-            "flex min-h-8 min-w-0 flex-1 cursor-grab items-center gap-2 rounded-md py-1 text-left text-inherit outline-none active:cursor-grabbing",
+            "group/folder flex min-h-8 min-w-0 flex-1 cursor-grab items-center gap-2 rounded-md py-1 text-left text-inherit outline-none active:cursor-grabbing",
             "focus-visible:ring-1 focus-visible:ring-[var(--oh-border)]",
           )}
         >
-          <Folder className="h-4 w-4 shrink-0" aria-hidden />
+          <Folder
+            className={cn(
+              "h-4 w-4 shrink-0",
+              expanded
+                ? "hidden group-hover/folder:block"
+                : "block group-hover/folder:hidden",
+            )}
+            aria-hidden
+          />
+          <FolderOpen
+            className={cn(
+              "h-4 w-4 shrink-0",
+              expanded
+                ? "block group-hover/folder:hidden"
+                : "hidden group-hover/folder:block",
+            )}
+            aria-hidden
+          />
           <span className="truncate">{group.label}</span>
         </button>
         <button
@@ -161,6 +201,6 @@ export function ConversationGroupFolderRow({
           ) : null}
         </div>
       ) : null}
-    </section>
+    </motion.section>
   );
 }

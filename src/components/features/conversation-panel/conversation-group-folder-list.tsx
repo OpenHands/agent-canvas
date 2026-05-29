@@ -1,4 +1,11 @@
-import { useCallback, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { I18nKey } from "#/i18n/declaration";
@@ -6,6 +13,7 @@ import { ConversationGroupFolderRow } from "./conversation-group-folder-row";
 import {
   moveGroupFolderOrder,
   type ConversationGroupLaunch,
+  type GroupFolderDropPosition,
 } from "./conversation-panel-list-helpers";
 
 interface ConversationGroup {
@@ -49,10 +57,53 @@ export function ConversationGroupFolderList({
   const [dropTargetGroupId, setDropTargetGroupId] = useState<string | null>(
     null,
   );
+  const [dropPosition, setDropPosition] =
+    useState<GroupFolderDropPosition | null>(null);
+  // Layout animation is only enabled around a drag-and-drop reorder so that
+  // expand/collapse clicks don't trigger sibling repositioning animations.
+  const [animateLayout, setAnimateLayout] = useState(false);
+  const animateLayoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(
+    () => () => {
+      if (animateLayoutTimeoutRef.current) {
+        clearTimeout(animateLayoutTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const stopAnimatingLayoutSoon = useCallback(() => {
+    if (animateLayoutTimeoutRef.current) {
+      clearTimeout(animateLayoutTimeoutRef.current);
+    }
+    animateLayoutTimeoutRef.current = setTimeout(() => {
+      setAnimateLayout(false);
+      animateLayoutTimeoutRef.current = null;
+    }, 300);
+  }, []);
+
+  const resetDragState = useCallback(() => {
+    setDraggedGroupId(null);
+    setDropTargetGroupId(null);
+    setDropPosition(null);
+  }, []);
+
+  const computeDropPosition = useCallback(
+    (event: DragEvent<HTMLElement>): GroupFolderDropPosition => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    },
+    [],
+  );
 
   const handleDrop = useCallback(
-    (targetGroupId: string) => {
+    (targetGroupId: string, position: GroupFolderDropPosition) => {
       if (!draggedGroupId || draggedGroupId === targetGroupId) {
+        resetDragState();
+        stopAnimatingLayoutSoon();
         return;
       }
 
@@ -62,12 +113,22 @@ export function ConversationGroupFolderList({
           groupIds,
           draggedGroupId,
           targetGroupId,
+          position,
         ),
       );
-      setDraggedGroupId(null);
-      setDropTargetGroupId(null);
+      resetDragState();
+      // Keep layout animation active across the reorder render, then disable
+      // it once the spring settles.
+      stopAnimatingLayoutSoon();
     },
-    [draggedGroupId, groupFolderOrder, groupIds, setGroupFolderOrder],
+    [
+      draggedGroupId,
+      groupFolderOrder,
+      groupIds,
+      resetDragState,
+      setGroupFolderOrder,
+      stopAnimatingLayoutSoon,
+    ],
   );
 
   return (
@@ -82,16 +143,22 @@ export function ConversationGroupFolderList({
           expanded={!collapsedGroupIds.has(group.id)}
           previewExpanded={expandedGroupPreviewIds.has(group.id)}
           isDragging={draggedGroupId === group.id}
-          isDropTarget={
+          dropIndicatorPosition={
             dropTargetGroupId === group.id && draggedGroupId !== group.id
+              ? dropPosition
+              : null
           }
+          animateLayout={animateLayout}
           isCreatingConversationFlow={isCreatingConversationFlow}
           activeConversationId={activeConversationId}
           onToggleExpanded={() => onToggleGroupCollapsed(group.id)}
-          onDragStart={() => setDraggedGroupId(group.id)}
+          onDragStart={() => {
+            setAnimateLayout(true);
+            setDraggedGroupId(group.id);
+          }}
           onDragEnd={() => {
-            setDraggedGroupId(null);
-            setDropTargetGroupId(null);
+            resetDragState();
+            stopAnimatingLayoutSoon();
           }}
           onDragOver={(event) => {
             event.preventDefault();
@@ -100,6 +167,7 @@ export function ConversationGroupFolderList({
               dataTransfer.dropEffect = "move";
             }
             setDropTargetGroupId(group.id);
+            setDropPosition(computeDropPosition(event));
           }}
           onDragLeave={() => {
             setDropTargetGroupId((current) =>
@@ -108,7 +176,7 @@ export function ConversationGroupFolderList({
           }}
           onDrop={(event) => {
             event.preventDefault();
-            handleDrop(group.id);
+            handleDrop(group.id, computeDropPosition(event));
           }}
           onTogglePreviewExpanded={() => onToggleGroupPreviewExpanded(group.id)}
           onLaunchFromGroup={() => onLaunchFromGroup(group.launch)}

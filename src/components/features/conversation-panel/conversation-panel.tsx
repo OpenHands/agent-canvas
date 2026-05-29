@@ -676,6 +676,7 @@ export function ConversationPanel({
               setExpandedPinnedPreview((current) => !current)
             }
             activeConversationId={currentConversationId}
+            showDivider={!compact && organizeMode === "chronological"}
             renderConversationCard={(conversation) =>
               renderConversationCard(conversation, { inPinnedSection: true })
             }

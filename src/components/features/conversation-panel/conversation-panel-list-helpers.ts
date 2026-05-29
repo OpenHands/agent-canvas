@@ -266,11 +266,14 @@ export function applyGroupFolderOrder<T extends { id: string }>(
   return ordered;
 }
 
+export type GroupFolderDropPosition = "before" | "after";
+
 export function moveGroupFolderOrder(
   order: readonly string[],
   groupIds: readonly string[],
   activeGroupId: string,
   targetGroupId: string,
+  position: GroupFolderDropPosition = "after",
 ): string[] {
   if (activeGroupId === targetGroupId) {
     return [...order];
@@ -288,6 +291,9 @@ export function moveGroupFolderOrder(
 
   const nextOrder = [...effectiveOrder];
   nextOrder.splice(fromIndex, 1);
-  nextOrder.splice(toIndex, 0, activeGroupId);
+  const adjustedTargetIndex = nextOrder.indexOf(targetGroupId);
+  const insertIndex =
+    position === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1;
+  nextOrder.splice(insertIndex, 0, activeGroupId);
   return nextOrder;
 }
