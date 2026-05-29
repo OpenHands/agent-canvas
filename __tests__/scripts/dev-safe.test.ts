@@ -15,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  assertPortsFree,
   buildSafeDevConfig,
   buildSafeDevConfigAsync,
   buildNpmScriptCommand,
@@ -192,7 +193,10 @@ describe("buildSafeDevConfigAsync", () => {
   }
 
   it("returns config with dynamically allocated ports", async () => {
+    // Use a high port so the assertPortsFree check passes even when a real
+    // dev stack is running on the default port (18000).
     const config = await buildSafeDevConfigAsync(repoRoot, {
+      OH_CANVAS_SAFE_BACKEND_PORT: "19800",
       OH_SESSION_API_KEY_PATH: tempKeyPath(),
     });
 
@@ -204,7 +208,7 @@ describe("buildSafeDevConfigAsync", () => {
     expect(config.backendPort).not.toBe(config.vscodePort);
   });
 
-  it("falls back when preferred ports are busy", async () => {
+  it("throws when preferred port is busy", async () => {
     // Block a specific high port we'll request
     const busyPort = 19600;
     const server = net.createServer();
@@ -216,16 +220,82 @@ describe("buildSafeDevConfigAsync", () => {
       server.on("error", reject);
     });
 
-    // Request the busy port via env var
-    const config = await buildSafeDevConfigAsync(repoRoot, {
-      OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
-      OH_SESSION_API_KEY_PATH: tempKeyPath(),
+    // Request the busy port via env var — should throw instead of falling back
+    await expect(
+      buildSafeDevConfigAsync(repoRoot, {
+        OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
+        OH_SESSION_API_KEY_PATH: tempKeyPath(),
+      }),
+    ).rejects.toThrow(/agent-server.*port 19600/i);
+  });
+});
+
+describe("assertPortsFree", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("resolves when all ports are free", async () => {
+    // High ports unlikely to be in use
+    await expect(
+      assertPortsFree([
+        { name: "svc-a", port: 19700 },
+        { name: "svc-b", port: 19701 },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when a single port is busy", async () => {
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get address"));
+        }
+      });
     });
 
-    // Backend port should NOT be busyPort since it's taken
-    expect(config.backendPort).not.toBe(busyPort);
-    expect(typeof config.backendPort).toBe("number");
-    expect(config.backendPort).toBeGreaterThan(0);
+    await expect(
+      assertPortsFree([{ name: "agent-server", port: busyPort }]),
+    ).rejects.toThrow(/agent-server.*port/i);
+  });
+
+  it("names all busy ports in the error message", async () => {
+    const [portA, portB] = await Promise.all(
+      [0, 0].map(
+        () =>
+          new Promise<number>((resolve, reject) => {
+            const server = net.createServer();
+            server.listen(0, "127.0.0.1", () => {
+              const addr = server.address();
+              if (addr && typeof addr === "object") {
+                servers.push(server);
+                resolve(addr.port);
+              } else {
+                server.close();
+                reject(new Error("Failed to get address"));
+              }
+            });
+          }),
+      ),
+    );
+
+    await expect(
+      assertPortsFree([
+        { name: "ingress", port: portA },
+        { name: "vite", port: portB },
+      ]),
+    ).rejects.toThrow(/ingress.*vite|vite.*ingress/is);
   });
 });
 
@@ -734,8 +804,13 @@ describe("dev-safe CLI startup", () => {
     const child = spawn(process.execPath, ["scripts/dev-safe.mjs"], {
       cwd: repoRoot,
       env: {
-        // Use empty PATH to ensure uvx is not found
+        // Use empty PATH to ensure uvx is not found.
         PATH: "",
+        // Redirect the agent-server port to a high free port so the
+        // assertPortsFree pre-flight check passes when a real dev stack is
+        // running on the default port (18000) — the test is about uvx, not
+        // port detection.
+        OH_CANVAS_SAFE_BACKEND_PORT: "19810",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

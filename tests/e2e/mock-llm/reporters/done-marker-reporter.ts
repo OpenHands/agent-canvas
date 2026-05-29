@@ -85,6 +85,11 @@ class DoneMarkerReporter implements Reporter {
   onEnd(_result: FullResult) {
     // Fallback: write markers here too in case onTestEnd didn't fire
     // (e.g., if Playwright exits before running any tests).
+    // If zero tests ran (webServer timeout, config error, etc.), treat
+    // that as a failure — "0 tests passed" is not a meaningful pass.
+    if (this.totalTests === 0 || this.completedTests === 0) {
+      this.allPassed = false;
+    }
     this.writeMarkers();
   }
 
