@@ -3,9 +3,15 @@ import { useTranslation } from "react-i18next";
 import { LlmProfilesManager } from "./llm-profiles-manager";
 import { ProfileNameInput } from "./profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import { useVerifyLlm } from "#/hooks/mutation/use-verify-llm";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { isEndpointMissing } from "#/api/llm-verify-service/llm-verify-service.types";
 import ProfilesService, {
   ProfileInfo,
 } from "#/api/profiles-service/profiles-service.api";
@@ -45,6 +51,7 @@ export function LlmSettingsLocalView() {
   const { t } = useTranslation("openhands");
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
+  const verifyLlm = useVerifyLlm();
   const { data: profilesData } = useLlmProfiles();
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -56,6 +63,9 @@ export function LlmSettingsLocalView() {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [verifyState, setVerifyState] = useState<LlmVerifyState>({
+    status: "idle",
+  });
 
   useEffect(() => {
     setHideSectionHeader(viewMode !== "list");
@@ -127,6 +137,7 @@ export function LlmSettingsLocalView() {
     setEditingProfile(null);
     setProfileName("");
     setSaveControl(null);
+    setVerifyState({ status: "idle" });
   }, []);
 
   const handleSaveControlChange = useCallback(
@@ -153,7 +164,11 @@ export function LlmSettingsLocalView() {
     [viewMode, profileName, existingNames],
   );
 
-  const handleSave = useCallback(async () => {
+  /**
+   * Persist the profile. Extracted from `handleSave` so the verify-then-save
+   * flow can call it after a successful (or user-overridden) verify probe.
+   */
+  const persistProfile = useCallback(async () => {
     if (!saveControl || !isNameValid) return;
 
     const values = saveControl.values;
@@ -250,6 +265,79 @@ export function LlmSettingsLocalView() {
     handleBackToList,
   ]);
 
+  /**
+   * Save without re-running verify. Wired to `<LlmConnectionStatus
+   * onSaveAnyway={...} />` so the user can override an indeterminate
+   * `timeout` / `unreachable` / `unknown_error` result.
+   */
+  const handleSaveAnyway = useCallback(async () => {
+    setVerifyState({ status: "idle" });
+    await persistProfile();
+  }, [persistProfile]);
+
+  /**
+   * Verify-then-save. The verify probe is fire-and-forget on the cache
+   * (it doesn't pollute any query) and the result drives a small state
+   * machine:
+   *   - success / rate_limited → save now
+   *   - auth_error / bad_request → block; user must fix
+   *   - timeout / unreachable / unknown_error → render "Save anyway"
+   *   - endpoint missing on older servers → silently fall back to save
+   *
+   * Unexpected transport-level failures (network drop, 5xx, malformed
+   * JSON) are folded into `unknown_error` so the user is never stuck.
+   */
+  const handleSave = useCallback(async () => {
+    if (!saveControl || !isNameValid) return;
+
+    const values = saveControl.values;
+    const model =
+      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
+    const apiKey =
+      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
+    const baseUrl =
+      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+
+    if (!model) {
+      displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
+      return;
+    }
+
+    setVerifyState({ status: "verifying" });
+
+    let result;
+    try {
+      result = await verifyLlm.mutateAsync({
+        model,
+        ...(apiKey ? { api_key: apiKey } : {}),
+        ...(baseUrl ? { base_url: baseUrl } : {}),
+      });
+    } catch {
+      setVerifyState({ status: "unknown_error" });
+      return;
+    }
+
+    if (isEndpointMissing(result)) {
+      setVerifyState({ status: "idle" });
+      await persistProfile();
+      return;
+    }
+
+    setVerifyState({
+      status: result.status,
+      message: result.message,
+      provider: result.provider,
+    });
+
+    if (result.status === "auth_error" || result.status === "bad_request") {
+      return;
+    }
+
+    if (result.status === "success" || result.status === "rate_limited") {
+      await persistProfile();
+    }
+  }, [saveControl, isNameValid, t, verifyLlm, persistProfile]);
+
   // List view: show profiles manager
   if (viewMode === "list") {
     return (
@@ -323,6 +411,11 @@ export function LlmSettingsLocalView() {
         onSaveControlChange={handleSaveControlChange}
       />
 
+      <LlmConnectionStatus
+        state={verifyState}
+        onSaveAnyway={handleSaveAnyway}
+      />
+
       {/* Action buttons */}
       <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
         <BrandButton
@@ -338,8 +431,10 @@ export function LlmSettingsLocalView() {
           type="button"
           variant="primary"
           onClick={handleSave}
-          isDisabled={!isNameValid || isSaving || !saveControl}
-          aria-busy={isSaving}
+          isDisabled={
+            !isNameValid || isSaving || verifyLlm.isPending || !saveControl
+          }
+          aria-busy={isSaving || verifyLlm.isPending}
         >
           {isSaving ? t(I18nKey.STATUS$SAVING) : t(I18nKey.BUTTON$SAVE)}
         </BrandButton>

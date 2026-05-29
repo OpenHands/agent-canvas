@@ -7,11 +7,13 @@ import { LlmSettingsLocalView } from "#/components/features/settings/llm-profile
 import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
+import * as useVerifyLlmHook from "#/hooks/mutation/use-verify-llm";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
 vi.mock("#/hooks/mutation/use-save-llm-profile");
+vi.mock("#/hooks/mutation/use-verify-llm");
 vi.mock("#/api/profiles-service/profiles-service.api");
 
 const mockProfiles = [
@@ -80,6 +82,7 @@ function createMockMutationReturn<T>(
 describe("LlmSettingsLocalView", () => {
   const mockActivateMutateAsync = vi.fn();
   const mockSaveMutateAsync = vi.fn();
+  const mockVerifyMutateAsync = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,6 +101,23 @@ describe("LlmSettingsLocalView", () => {
       createMockMutationReturn<
         ReturnType<typeof useSaveLlmProfileHook.useSaveLlmProfile>
       >(mockSaveMutateAsync),
+    );
+
+    // Default: verify succeeds so the existing save/rename/activate tests
+    // exercise the post-verify path without each having to opt in.
+    // Re-install the implementation each beforeEach because
+    // `vi.clearAllMocks()` is observed to wipe per-test `mockResolvedValueOnce`
+    // queues in this Vitest version, so we rebuild the mock from scratch.
+    mockVerifyMutateAsync.mockReset();
+    mockVerifyMutateAsync.mockResolvedValue({
+      status: "success",
+      message: null,
+      provider: null,
+    });
+    vi.mocked(useVerifyLlmHook.useVerifyLlm).mockReturnValue(
+      createMockMutationReturn<
+        ReturnType<typeof useVerifyLlmHook.useVerifyLlm>
+      >(mockVerifyMutateAsync),
     );
   });
 
@@ -522,6 +542,61 @@ describe("LlmSettingsLocalView", () => {
           "my-renamed-profile",
         );
       });
+    });
+
+    // @spec verify-flow — verify pre-flight runs before save
+    //
+    // Only the happy-path "verify-then-save" wiring is asserted here.
+    // Per-status banner rendering (success / auth_error / rate_limited /
+    // timeout / endpoint_missing / etc.) is exhaustively covered by the
+    // unit tests in
+    // `__tests__/components/features/settings/llm-settings/llm-connection-status.test.tsx`
+    // and the hook is covered by
+    // `__tests__/hooks/mutation/use-verify-llm.test.tsx`, so we don't
+    // duplicate that surface through the heavy edit-view render here.
+    it("runs verify before calling save on the happy path", async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openai/gpt-4",
+          api_key: "encrypted-key-123",
+          base_url: "",
+        },
+      });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
+      await user.click(menuTriggers[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+
+      // Touch the name input so the embedded form's
+      // `onSaveControlChange` has had a chance to propagate a saveControl
+      // with non-empty form values up to the wrapper, mirroring the
+      // rename test's pattern. Without this the Save click was observed
+      // to no-op intermittently in CI.
+      const nameInput = screen.getByTestId("profile-name-input");
+      await user.clear(nameInput);
+      await user.type(nameInput, "gpt-4-profile");
+
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      await waitFor(() => {
+        expect(mockVerifyMutateAsync).toHaveBeenCalledTimes(1);
+        expect(mockSaveMutateAsync).toHaveBeenCalledTimes(1);
+      });
+      expect(
+        mockVerifyMutateAsync.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockSaveMutateAsync.mock.invocationCallOrder[0]);
     });
 
     it("does not call rename when name is unchanged during edit", () => {

@@ -6,16 +6,23 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { HelpLink } from "#/ui/help-link";
 import { KeyStatusIcon } from "#/components/features/settings/key-status-icon";
+import { BrandButton } from "#/components/features/settings/brand-button";
 import {
   SdkSectionHeaderProps,
   SdkSectionPage,
   SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useVerifyLlm } from "#/hooks/mutation/use-verify-llm";
+import { isEndpointMissing } from "#/api/llm-verify-service/llm-verify-service.types";
 import {
   inferInitialView,
   type SettingsFormValues,
@@ -308,9 +315,109 @@ export function LlmSettingsScreen({
 }
 
 /**
+ * Cloud-backend wrapper around {@link LlmSettingsScreen} that performs a
+ * verify-then-save flow via the agent-server's `POST /api/llm/verify`
+ * endpoint. The local-backend equivalent lives in
+ * {@link LlmSettingsLocalView}; the onboarding wizard does the same thing
+ * in {@link SetupLlmStep}. The three callers intentionally do not share
+ * state (each has its own save downstream), but they all go through
+ * `<LlmConnectionStatus />` for a consistent verify banner.
+ */
+function LlmSettingsCloudView() {
+  const { t } = useTranslation("openhands");
+  const verifyLlm = useVerifyLlm();
+  const [saveControl, setSaveControl] =
+    React.useState<SdkSectionSaveControl | null>(null);
+  const [verifyState, setVerifyState] = React.useState<LlmVerifyState>({
+    status: "idle",
+  });
+
+  const handleSaveAnyway = React.useCallback(() => {
+    setVerifyState({ status: "idle" });
+    saveControl?.save();
+  }, [saveControl]);
+
+  const handleSave = React.useCallback(async () => {
+    if (!saveControl?.isDirty) return;
+
+    const values = saveControl.values;
+    const model =
+      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
+    const apiKey =
+      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
+    const baseUrl =
+      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+
+    setVerifyState({ status: "verifying" });
+
+    let result;
+    try {
+      result = await verifyLlm.mutateAsync({
+        model,
+        ...(apiKey ? { api_key: apiKey } : {}),
+        ...(baseUrl ? { base_url: baseUrl } : {}),
+      });
+    } catch {
+      setVerifyState({ status: "unknown_error" });
+      return;
+    }
+
+    if (isEndpointMissing(result)) {
+      // Older agent-server without the verify endpoint → skip verification.
+      setVerifyState({ status: "idle" });
+      saveControl.save();
+      return;
+    }
+
+    setVerifyState({
+      status: result.status,
+      message: result.message,
+      provider: result.provider,
+    });
+
+    if (result.status === "auth_error" || result.status === "bad_request") {
+      return;
+    }
+
+    if (result.status === "success" || result.status === "rate_limited") {
+      saveControl.save();
+    }
+  }, [saveControl, verifyLlm]);
+
+  const isSaving = saveControl?.isSaving ?? false;
+  const isDirty = saveControl?.isDirty ?? false;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <LlmSettingsScreen hideSaveButton onSaveControlChange={setSaveControl} />
+
+      <LlmConnectionStatus
+        state={verifyState}
+        onSaveAnyway={handleSaveAnyway}
+      />
+
+      <div className="flex justify-start pt-2">
+        <BrandButton
+          testId="save-button"
+          type="button"
+          variant="primary"
+          isDisabled={!isDirty || isSaving || verifyLlm.isPending}
+          onClick={handleSave}
+          aria-busy={isSaving || verifyLlm.isPending}
+        >
+          {isSaving
+            ? t(I18nKey.SETTINGS$SAVING)
+            : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+        </BrandButton>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Default export for the route renders different views based on backend type:
  * - Local backends: LlmSettingsLocalView with profile management
- * - Cloud backends: Standard LlmSettingsScreen (profiles are not supported)
+ * - Cloud backends: LlmSettingsCloudView (verify-then-save wrapper)
  *
  * The LlmSettingsScreen component is also exported for embedded use cases
  * (e.g., onboarding, profile editing forms).
@@ -323,9 +430,8 @@ export default function LlmSettingsRoute() {
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
 
-  // Cloud backends use the standard LLM settings form (no profiles support)
   if (isCloud) {
-    return <LlmSettingsScreen />;
+    return <LlmSettingsCloudView />;
   }
 
   // Local backends use the profile management view

@@ -7,6 +7,11 @@ const EXCLUDED_SEGMENTS = new Set(["mocks", "routeTree.gen.ts"]);
 const ALLOWED_AD_HOC_HTTP_FILES = new Set([
   "api/automation-service/automation-service.api.ts",
   "api/cloud/proxy.ts",
+  // TODO(typescript-client >= 1.24): remove this once the upstream
+  // `LLMMetadataClient.verifyLlmConfig` method ships and `llm-verify-service`
+  // is migrated to call through it. See the file-level TODO in
+  // `src/api/llm-verify-service/llm-verify-service.api.ts`.
+  "api/llm-verify-service/llm-verify-service.api.ts",
 ]);
 
 function collectSourceFiles(dir: string): string[] {

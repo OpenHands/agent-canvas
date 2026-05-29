@@ -1,12 +1,18 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
 import { I18nKey } from "#/i18n/declaration";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import { useVerifyLlm } from "#/hooks/mutation/use-verify-llm";
+import { isEndpointMissing } from "#/api/llm-verify-service/llm-verify-service.types";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 interface SetupLlmStepProps {
@@ -43,9 +49,13 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const isLocalBackend = backend.kind === "local";
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
+  const verifyLlm = useVerifyLlm();
   const [saveControl, setSaveControl] =
     React.useState<SdkSectionSaveControl | null>(null);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
+  const [verifyState, setVerifyState] = React.useState<LlmVerifyState>({
+    status: "idle",
+  });
 
   // On local backends the LLM profiles list is the user-facing source of
   // truth; without this step the form save only updates agent_settings and
@@ -91,15 +101,75 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
     }
   }, [persistAsProfile, onNext]);
 
-  const handleNext = () => {
+  /**
+   * Save without re-running verify. Used after the user dismisses a
+   * `timeout` / `unreachable` / `unknown_error` banner via "Save anyway".
+   */
+  const handleSaveAnyway = React.useCallback(() => {
+    setVerifyState({ status: "idle" });
     if (saveControl?.isDirty) {
       saveControl.save();
-      // `onSaveSuccess` (wired to `handleSaveSuccess` below) will advance
-      // once the mutation resolves successfully.
+    } else {
+      onNext();
+    }
+  }, [saveControl, onNext]);
+
+  const handleNext = React.useCallback(async () => {
+    // If the form is untouched, advance without saving or verifying.
+    if (!saveControl?.isDirty) {
+      onNext();
       return;
     }
-    onNext();
-  };
+
+    const values = saveControl.values;
+    const model =
+      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
+    const apiKey =
+      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
+    const baseUrl =
+      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+
+    setVerifyState({ status: "verifying" });
+
+    let result;
+    try {
+      result = await verifyLlm.mutateAsync({
+        model,
+        ...(apiKey ? { api_key: apiKey } : {}),
+        ...(baseUrl ? { base_url: baseUrl } : {}),
+      });
+    } catch {
+      // Unexpected transport-level failure (network, 5xx, malformed JSON).
+      // Treat as indeterminate so the user can still proceed.
+      setVerifyState({ status: "unknown_error" });
+      return;
+    }
+
+    // Old agent-server with no verify endpoint → skip verification.
+    if (isEndpointMissing(result)) {
+      setVerifyState({ status: "idle" });
+      saveControl.save();
+      return;
+    }
+
+    setVerifyState({
+      status: result.status,
+      message: result.message,
+      provider: result.provider,
+    });
+
+    // Block on auth / bad_request — the form save would just fail anyway.
+    if (result.status === "auth_error" || result.status === "bad_request") {
+      return;
+    }
+
+    // success and rate_limited both mean "credentials work" → save now.
+    // timeout / unreachable / unknown_error require an explicit
+    // "Save anyway" click; the banner renders that affordance.
+    if (result.status === "success" || result.status === "rate_limited") {
+      saveControl.save();
+    }
+  }, [saveControl, onNext, verifyLlm]);
 
   return (
     <div
@@ -128,6 +198,11 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         />
       </div>
 
+      <LlmConnectionStatus
+        state={verifyState}
+        onSaveAnyway={handleSaveAnyway}
+      />
+
       <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-llm-back"
@@ -141,7 +216,11 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           testId="onboarding-llm-next"
           type="button"
           variant="primary"
-          isDisabled={(saveControl?.isSaving ?? false) || isFinalizing}
+          isDisabled={
+            verifyLlm.isPending ||
+            (saveControl?.isSaving ?? false) ||
+            isFinalizing
+          }
           onClick={handleNext}
         >
           {t(I18nKey.ONBOARDING$NEXT)}
