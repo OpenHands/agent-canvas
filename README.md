@@ -53,7 +53,7 @@ agent-canvas
 ### Option 2: With a Docker Sandbox
 
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
+docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.8
 
 export PROJECTS_PATH=~/projects  # directory containing your project folders
 
@@ -61,7 +61,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v ~/.openhands:/home/openhands/.openhands \
   -v ${PROJECTS_PATH}:/projects \
-  ghcr.io/openhands/agent-canvas:1.0.0-alpha.6
+  ghcr.io/openhands/agent-canvas:1.0.0-alpha.8
 ```
 
 The agent will be able to access any project under `PROJECTS_PATH`.
