@@ -47,11 +47,13 @@ export const isAgentServerUnavailableError = (
  * Returns true when the agent-server probe failed with HTTP 401.
  * In public mode this means the stored key is stale (server restarted
  * with a different `LOCAL_BACKEND_API_KEY`). Only meaningful when
- * `VITE_AUTH_REQUIRED` is set — a 401 in local mode is a
- * misconfiguration, not a key-rotation event.
+ * auth is required — a 401 in local mode is a misconfiguration, not a
+ * key-rotation event. Uses {@link isAuthRequired} so both the build-time
+ * `VITE_AUTH_REQUIRED` flag and the runtime `window.__AGENT_CANVAS_AUTH_REQUIRED__`
+ * injection (used by pre-built static binaries) are honoured.
  */
 export const isAgentServerAuthError = (error: unknown): boolean =>
-  import.meta.env.VITE_AUTH_REQUIRED === "true" &&
+  isAuthRequired() &&
   isSdkHttpError(error) &&
   (error as Error & { status: number }).status === 401;
 

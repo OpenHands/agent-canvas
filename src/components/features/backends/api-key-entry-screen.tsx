@@ -62,10 +62,10 @@ export default function ApiKeyEntryScreen() {
       setConnectionStatus("success");
 
       // Persist the validated key in both storage layers.
-      // Auto-generate the name from the hostname so users don't have to
-      // invent one — in public mode there's only one server.
+      // Preserve any existing custom name the user gave this backend;
+      // fall back to hostname only for the initial entry.
       updateBackend(active.backend.id, {
-        name: window.location.hostname,
+        name: active.backend.name || window.location.hostname,
         host,
         apiKey: trimmedKey,
         kind: "local",
