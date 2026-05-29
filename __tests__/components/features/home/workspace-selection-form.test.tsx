@@ -92,8 +92,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     mockGetHome.mockReset();
     mockUseIsCreatingConversation.mockReturnValue(false);
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
-    // useResolvedWorkspaces always queries an implicit `/projects` parent in
-    // dev mode — return empty so it doesn't influence tests that don't care.
+
     mockSearchSubdirectories.mockResolvedValue({
       items: [],
       next_page_id: null,
@@ -166,7 +165,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
       .spyOn(WorkspacesService, "addWorkspaces")
       .mockResolvedValue({ workspaces: [], workspaceParents: [] });
     mockSearchSubdirectories.mockImplementation(async (path: string) => {
-      if (path === "/Users/me") {
+
         return {
           items: [{ name: "dev", path: "/Users/me/dev" }],
           next_page_id: null,
@@ -244,9 +243,7 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     await user.click(await screen.findByTestId("folder-browser-entry-dev"));
     await user.click(screen.getByTestId("folder-browser-add-all-subdirs"));
 
-    // Assert
-    await waitFor(() => expect(addParentsSpy).toHaveBeenCalledTimes(1));
-    expect(addParentsSpy).toHaveBeenCalledWith([
+main
       { id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" },
     ]);
   });

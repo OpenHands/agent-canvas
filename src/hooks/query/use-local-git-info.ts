@@ -1,9 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef } from "react";
 
-import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
-import { getAgentServerWorkingDir } from "#/api/agent-server-config";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
@@ -30,27 +26,7 @@ type RunCommand = (
   timeout: number,
 ) => Promise<CommandResult>;
 
-// Single shell script that replaces the former probeGitInfoAtDir +
-// probeNestedRepoInDir pair.  It runs as one bash WebSocket round-trip:
-//   1. Read the origin remote URL and current branch at the workspace root.
-//   2. If neither is set, search for exactly one nested git repo up to 4
-//      levels deep and repeat the probe there.
-// Output: two lines — <remote-url>\n<branch> — either may be empty.
-const GIT_INFO_COMMAND = [
-  "r=$(git remote get-url origin 2>/dev/null)",
-  "b=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)",
-  'if [ -z "$r$b" ]; then',
-  "n=$(find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | cut -c3- | sed 's|/.git$||' | sort -u)",
-  "c=$(printf '%s\\n' \"$n\" | grep -c '[^[:space:]]')",
-  'if [ "$c" = "1" ] && [ -n "$n" ]; then',
-  'r=$(git -C "$n" remote get-url origin 2>/dev/null)',
-  'b=$(git -C "$n" rev-parse --abbrev-ref HEAD 2>/dev/null)',
-  "fi",
-  "fi",
-  'printf \'%s\\n%s\' "$r" "$b"',
-].join("\n");
 
-async function probeGitInfo(
   run: RunCommand,
   directory: string,
 ): Promise<LocalGitInfo> {
@@ -87,12 +63,6 @@ async function probeGitInfo(
  * the cloud runtime when `workspace.working_dir` is missing, and
  * (b) hit a bash endpoint we don't want the frontend driving on cloud.
  *
- * On local, we keep the probe enabled until the active conversation
- * has a complete repo tuple so the control bar can recover from
- * partial metadata hydration after connect/clone flows.
- *
- * Returns `null` fields when the working dir is not a git checkout —
- * callers should treat that the same as "no repo detected".
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
@@ -105,9 +75,17 @@ export const useLocalGitInfo = () => {
   const sessionApiKey = conversation?.session_api_key;
   const workingDir =
     conversation?.workspace?.working_dir?.trim() || getAgentServerWorkingDir();
+  const attachedWorkspace =
+    conversationId != null
+      ? getStoredConversationMetadata(conversationId)?.selected_workspace?.trim()
+      : null;
   const hasConversationRepo = !!conversation?.selected_repository;
   const hasConversationProvider = !!conversation?.git_provider;
   const hasConversationBranch = !!conversation?.selected_branch;
+  const hasIncompleteRepoMetadata =
+    !hasConversationRepo ||
+    !hasConversationProvider ||
+    !hasConversationBranch;
 
   const queryEnabled =
     isLocalBackend &&
@@ -142,13 +120,11 @@ export const useLocalGitInfo = () => {
       conversationUrl,
       sessionApiKey,
       workingDir,
+      attachedWorkspace,
     ],
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
-        runCommandRef.current(command, cwd, timeout);
-      return probeGitInfo(run, workingDir);
-    },
-    enabled: queryEnabled,
+
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
     // changes (e.g. `git checkout`, adding a remote) without requiring a

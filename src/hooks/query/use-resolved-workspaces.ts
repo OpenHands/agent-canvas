@@ -61,10 +61,7 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     const seen = new Set(storedParents.map((p) => p.path));
     // Filter out implicit parents that conflict with user-added ones (by path)
     // so custom names/ids are preserved.
-    const implicitParents =
-      INCLUDE_IMPLICIT_WORKSPACE_PARENTS && !workspacesUnsupported
-        ? IMPLICIT_WORKSPACE_PARENTS
-        : [];
+
     const extras = implicitParents.filter((p) => !seen.has(p.path));
     return extras.length === 0 ? storedParents : [...storedParents, ...extras];
   }, [storedParents, workspacesUnsupported]);
