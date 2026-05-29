@@ -53,9 +53,7 @@ export const isAgentServerUnavailableError = (
  * injection (used by pre-built static binaries) are honoured.
  */
 export const isAgentServerAuthError = (error: unknown): boolean =>
-  isAuthRequired() &&
-  isSdkHttpError(error) &&
-  (error as Error & { status: number }).status === 401;
+  isAuthRequired() && isSdkHttpStatusError(error, 401);
 
 export function clearCachedAgentServerInfo() {
   cachedAgentServerInfo = null;
@@ -75,6 +73,16 @@ export function isSdkHttpError(error: unknown) {
     error.name === "HttpError" &&
     "status" in error &&
     typeof error.status === "number"
+  );
+}
+
+/**
+ * Narrows an SDK HTTP error to a specific status code.
+ * Use instead of manually casting `(err as { status: number }).status`.
+ */
+export function isSdkHttpStatusError(error: unknown, status: number): boolean {
+  return (
+    isSdkHttpError(error) && (error as { status: number }).status === status
   );
 }
 

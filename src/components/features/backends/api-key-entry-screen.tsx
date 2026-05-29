@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { I18nKey } from "#/i18n/declaration";
 import { saveAgentServerConfig } from "#/api/agent-server-config";
-import { isSdkHttpError } from "#/api/agent-server-compatibility";
+import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
@@ -81,10 +81,7 @@ export default function ApiKeyEntryScreen() {
 
       // Distinguish auth errors (401) from everything else so a
       // correct key + broken server doesn't say "invalid key".
-      const is401 =
-        isSdkHttpError(err) && (err as { status: number }).status === 401;
-
-      if (is401) {
+      if (isSdkHttpStatusError(err, 401)) {
         setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
       } else {
         const detail = err instanceof Error ? err.message : String(err);
@@ -97,11 +94,10 @@ export default function ApiKeyEntryScreen() {
   };
 
   return (
-    <main
+    <div
       data-testid="api-key-entry-screen"
       className="flex min-h-screen items-center justify-center bg-base px-6"
     >
-      {/* Same card chrome as BackendFormModal add-mode */}
       <div
         className={cn(
           "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
@@ -109,14 +105,15 @@ export default function ApiKeyEntryScreen() {
           MODAL_MAX_WIDTH_VIEWPORT,
         )}
       >
-        {/* Header — matches BackendFormModal */}
         <div className="px-6 pt-6 pb-2 pr-12">
           <h2 className="text-lg font-semibold">
-            {t(I18nKey.BACKEND$ADD_TITLE)}
+            {t(I18nKey.AUTH$API_KEY_REQUIRED_TITLE)}
           </h2>
+          <p className="mt-1 text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.AUTH$API_KEY_REQUIRED_DESCRIPTION)}
+          </p>
         </div>
 
-        {/* Single-column body — same fields as ManualConnectionColumn */}
         <div className="px-6 pb-6 pt-2">
           <form
             data-testid="api-key-entry-form"
@@ -179,11 +176,11 @@ export default function ApiKeyEntryScreen() {
             >
               {isValidating
                 ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
-                : t(I18nKey.BACKEND$CONNECT)}
+                : t(I18nKey.AUTH$CONNECT)}
             </BrandButton>
           </form>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

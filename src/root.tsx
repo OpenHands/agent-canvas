@@ -127,11 +127,9 @@ export default function App() {
   // Stale key → /server_info 401 → auth screen (public mode only).
   if (authMissing || isAgentServerAuthError(config.error)) {
     return (
-      <main className="min-h-screen bg-base">
-        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
-          <ApiKeyEntryScreen />
-        </React.Suspense>
-      </main>
+      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+        <ApiKeyEntryScreen />
+      </React.Suspense>
     );
   }
 
