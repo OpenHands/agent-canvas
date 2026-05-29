@@ -309,8 +309,11 @@ test.describe("mock-LLM automation lifecycle", () => {
     page,
     request,
   }) => {
-    test.setTimeout(180_000); // LLM conversation + run completion can take time
-    // Ensure the automation trajectory is active
+    // Budget: ~150 s for the two dominant waits (waitForNonUserMessageText 60 s
+    // + waitForRunStatus 90 s), plus ~30 s margin for navigation/page loads.
+    // If CI proves flaky, bump to 240_000.
+    test.setTimeout(180_000);
+    // Re-activate in case the mock-LLM server restarted between steps (belt-and-suspenders)
     await activateTrajectory(request, "automation-lifecycle");
 
     await routeSessionApiKey(page);
