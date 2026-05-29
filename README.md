@@ -60,6 +60,8 @@ agent-canvas
 
 ### Option 2: With a Docker Sandbox
 
+**Prerequisites**: Docker, plus a host directory containing the projects you want to mount into the container
+
 ```sh
 docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.8
 
@@ -74,9 +76,10 @@ docker run -it --rm \
 
 The agent will be able to access any project under `PROJECTS_PATH`.
 
-
-
 ### Option 3: From Source
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
 **Prerequisites**: Node.js 22.12.x or later, `npm`, `uv` (for running the agent server via `uvx`)
 
