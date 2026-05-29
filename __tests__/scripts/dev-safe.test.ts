@@ -319,16 +319,16 @@ describe("buildAgentServerCommand", () => {
     // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "openhands-agent-server==1.23.0",
+      "openhands-agent-server==1.24.0",
       "--with",
-      "openhands-sdk==1.23.0",
+      "openhands-sdk==1.24.0",
       "--with",
-      "openhands-tools==1.23.0",
+      "openhands-tools==1.24.0",
       "--with",
-      "openhands-workspace==1.23.0",
+      "openhands-workspace==1.24.0",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("PyPI (1.23.0, default)");
+    expect(cmd.source).toBe("PyPI (1.24.0, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -655,24 +655,45 @@ describe("getOrCreatePersistedSessionApiKey", () => {
 });
 
 describe("buildNpmScriptCommand", () => {
-  it("reuses npm's own CLI path when available", () => {
+  it("runs npm through cmd.exe on Windows even when npm_execpath is set", () => {
+    // npm_execpath points to a path with spaces like
+    // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js".
+    // spawnService uses shell:true on Windows, so passing that path as an
+    // argument causes cmd.exe to split on the space and fail with
+    // "'C:\Program' is not recognized as an internal or external command".
+    // The win32 branch must fire BEFORE the npm_execpath branch.
     const command = buildNpmScriptCommand(
       "dev:frontend",
       "win32",
       {
-        npm_execpath: "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        npm_node_execpath: "C:\\nodejs\\node.exe",
+        ComSpec: "C:\\Windows\\System32\\cmd.exe",
+        npm_execpath:
+          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        npm_node_execpath: "C:\\Program Files\\nodejs\\node.exe",
       },
-      "C:\\fallback\\node.exe",
+      "C:\\Program Files\\nodejs\\node.exe",
     );
 
     expect(command).toEqual({
-      command: "C:\\nodejs\\node.exe",
-      args: [
-        "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        "run",
-        "dev:frontend",
-      ],
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
+    });
+  });
+
+  it("reuses npm's own CLI path when available on POSIX", () => {
+    const command = buildNpmScriptCommand(
+      "dev:frontend",
+      "linux",
+      {
+        npm_execpath: "/usr/lib/node_modules/npm/bin/npm-cli.js",
+        npm_node_execpath: "/usr/bin/node",
+      },
+      "/fallback/node",
+    );
+
+    expect(command).toEqual({
+      command: "/usr/bin/node",
+      args: ["/usr/lib/node_modules/npm/bin/npm-cli.js", "run", "dev:frontend"],
     });
   });
 

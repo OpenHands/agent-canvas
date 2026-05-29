@@ -60,15 +60,15 @@ export function isSettingsPageHidden(
 export function getFirstAvailablePath(
   featureFlags: WebClientFeatureFlags | undefined,
 ): string | null {
-  // ``/settings/agent`` precedes ``/settings`` because it is the ACP
-  // landing page and is always available (no feature flag hides it).
-  // When ``hide_llm_settings`` is on, the user is steered there rather
-  // than to ``/settings/app`` (an unrelated section that used to win the
-  // fallback). For OpenHands-agent users this is also a sensible landing
-  // — the Agent page is the single place to switch kinds.
+  // ``/settings/agent`` always wins: it is the single place to switch
+  // agent kinds (OpenHands / ACP) and the only sub-page that is always
+  // available regardless of feature flags. Landing here keeps the
+  // routing simple — ACP users no longer have to bounce through
+  // ``/settings/llm`` (which is disabled for them), and OpenHands users
+  // are one nav-click away from the LLM page.
   const fallbackOrder = [
-    { path: "/settings/llm", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/agent", hidden: false },
+    { path: "/settings/llm", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
     { path: "/settings/app", hidden: false },
     { path: "/settings/secrets", hidden: false },

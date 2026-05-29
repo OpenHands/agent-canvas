@@ -30,8 +30,7 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
     ],
     queryFn: () => AutomationService.getAutomations(limit, offset),
     staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchInterval: enabled ? AUTOMATIONS_LIST_REFETCH_INTERVAL_MS : false,
+
     enabled,
   });
 }

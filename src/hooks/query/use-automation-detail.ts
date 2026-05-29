@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import AutomationService from "#/api/automation-service/automation-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import {
+  AutomationRunStatus,
+  type AutomationRunsResponse,
+} from "#/types/automation";
 
 export const AUTOMATION_DETAIL_QUERY_KEY = ["automation-detail"] as const;
 export const AUTOMATION_RUNS_QUERY_KEY = ["automation-runs"] as const;
@@ -52,9 +56,5 @@ export function useAutomationRuns(options: UseAutomationRunsOptions) {
       active.orgId,
     ],
     queryFn: () => AutomationService.getAutomationRuns(id, limit, offset),
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchInterval: isActive ? AUTOMATION_RUNS_REFETCH_INTERVAL_MS : false,
-    enabled: isActive,
   });
 }

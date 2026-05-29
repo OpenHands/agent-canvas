@@ -21,9 +21,9 @@ import {
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
@@ -74,7 +74,7 @@ export default function MCPPage() {
   const filteredInstalledServers = allServers.filter((server) =>
     installedServerMatchesQuery(
       server,
-      findCatalogEntryForServer(server, MCP_MARKETPLACE),
+      findCatalogEntryForServer(server, INTEGRATION_MARKETPLACE),
       searchQuery,
     ),
   );

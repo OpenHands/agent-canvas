@@ -38,7 +38,7 @@ const MOBILE_DRAWER_TRANSITION_MS = 250;
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
-  const { currentPath, navigate } = useNavigation();
+  const { currentPath } = useNavigation();
   const { data: config } = useConfig();
   const {
     data: settings,
@@ -194,7 +194,6 @@ export function Sidebar() {
     showCollapsedExpandButton,
     isExtensionsActive,
     currentPath,
-    navigate,
     activeBackendHealth,
     collapsedBackendPopoverOpen,
     setCollapsedBackendPopoverOpen,

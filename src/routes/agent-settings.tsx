@@ -366,10 +366,13 @@ function AgentSettingsScreen() {
                 setAcpModel(provider.default_model ?? "");
                 setIsCustomAcpModel(false);
               } else if (preset === ACP_CUSTOM_PRESET_KEY) {
-                // Switching to Custom must clear any built-in default the
-                // user just left — otherwise saving the custom command
-                // silently leaks e.g. ``claude-opus-4-7`` into
-                // ``acp_model`` for an unrelated wrapper.
+                // Clear command + model: the previous provider's default
+                // command would otherwise make detectPreset(commandText)
+                // re-match it on the next render and snap the dropdown back
+                // off "Custom". Clearing model also prevents leaking e.g.
+                // ``claude-opus-4-7`` into ``acp_model`` for an unrelated
+                // wrapper.
+                setCommandText("");
                 setAcpModel("");
                 setIsCustomAcpModel(true);
               }
