@@ -90,6 +90,7 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         if path == "/admin/reset":
             with self._lock:
                 MockLLMHandler.test_llm = TestLLM.from_messages(build_trajectory())
+                MockLLMHandler._named_trajectories.clear()
                 remaining = MockLLMHandler.test_llm.remaining_responses
             self._send_json(200, {
                 "status": "reset",
@@ -107,7 +108,11 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             if not name or not raw_turns:
                 self._send_error(400, "bad_request", "need 'name' and 'turns'")
                 return
-            messages = _parse_trajectory_turns(raw_turns)
+            try:
+                messages = _parse_trajectory_turns(raw_turns)
+            except ValueError as exc:
+                self._send_error(400, "bad_request", str(exc))
+                return
             with self._lock:
                 MockLLMHandler._named_trajectories[name] = messages
             self._send_json(200, {"status": "registered", "name": name, "turns": len(messages)})
@@ -266,9 +271,8 @@ def _parse_trajectory_turns(raw_turns: list[dict]) -> list[Message | Exception]:
                 )
             )
         else:
-            print(
-                f"[mock-llm] WARNING: turn {i} has neither 'tool_call' nor 'text': {turn!r}",
-                file=sys.stderr,
+            raise ValueError(
+                f"[mock-llm] turn {i} has neither 'tool_call' nor 'text': {turn!r}"
             )
     return messages
 
