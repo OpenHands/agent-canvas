@@ -7,6 +7,7 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  isAuthRequired,
   isAuthRequiredAndMissing,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
@@ -110,7 +111,42 @@ describe("agent server config", () => {
   });
 });
 
+describe("isAuthRequired", () => {
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_AUTH_REQUIRED__;
+  });
+
+  it("returns false when neither env var nor window flag is set", () => {
+    expect(isAuthRequired()).toBe(false);
+  });
+
+  it("returns true when VITE_AUTH_REQUIRED is 'true'", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    expect(isAuthRequired()).toBe(true);
+  });
+
+  it("returns true when window.__AGENT_CANVAS_AUTH_REQUIRED__ is set (static binary path)", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
+    expect(isAuthRequired()).toBe(true);
+  });
+
+  it("returns false when window flag is a non-true value", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = "true";
+    expect(isAuthRequired()).toBe(false);
+  });
+});
+
 describe("isAuthRequiredAndMissing", () => {
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_AUTH_REQUIRED__;
+  });
+
   it("returns false when VITE_AUTH_REQUIRED is not set", () => {
     expect(isAuthRequiredAndMissing()).toBe(false);
   });
@@ -121,8 +157,28 @@ describe("isAuthRequiredAndMissing", () => {
     expect(isAuthRequiredAndMissing()).toBe(true);
   });
 
+  it("returns true via window flag when no key is configured", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
+
+    expect(isAuthRequiredAndMissing()).toBe(true);
+  });
+
   it("returns false when VITE_AUTH_REQUIRED is true but a key exists in localStorage", () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "stored-key",
+    });
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false when window flag is set but a key exists in localStorage", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
     saveAgentServerConfig({
       baseUrl: "http://localhost:8000",
       sessionApiKey: "stored-key",
