@@ -29,14 +29,12 @@ import {
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
-import { useEventStore } from "#/stores/use-event-store";
 import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const panelViewMatch = useMatch("/conversations/:conversationId/panel");
-  const clearEvents = useEventStore((state) => state.clearEvents);
 
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
@@ -70,13 +68,16 @@ function AppContent() {
     (state) => state.removeErrorMessage,
   );
 
+  // Per-conversation UI/runtime resets. The event store is cleared separately,
+  // inside ConversationWebSocketProvider, so the clear is ordered *before* the
+  // preloaded-history re-seed (see the note there) — clearing it here would run
+  // too late and wipe the freshly seeded history on a conversation switch.
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
     resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
-    clearEvents();
   }, [
     conversationId,
     clearTerminal,
@@ -84,7 +85,6 @@ function AppContent() {
     resetConversationRuntimeState,
     setCurrentAgentState,
     removeErrorMessage,
-    clearEvents,
   ]);
 
   React.useEffect(() => {
