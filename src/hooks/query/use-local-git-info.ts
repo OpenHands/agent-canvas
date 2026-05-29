@@ -1,14 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileClient } from "@openhands/typescript-client/clients";
 
-import AgentServerRuntimeService, {
-  CommandResult,
-} from "#/api/runtime-service/agent-server-runtime-service";
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
-import { getAgentServerWorkingDir } from "#/api/agent-server-config";
-import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
 import { Provider } from "#/types/settings";
 import { parseGitRemoteUrl } from "#/utils/parse-git-remote-url";
 
@@ -33,34 +27,17 @@ type RunCommand = (
 ) => Promise<CommandResult>;
 
 
-async function directoryIsListableOnAgentServer(
-  conversationUrl: string | null | undefined,
-  sessionApiKey: string | null | undefined,
-  directory: string,
-): Promise<boolean> {
-  try {
-    await new FileClient(
-      getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-    ).searchSubdirectories(directory);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function probeGitInfoAtDir(
   run: RunCommand,
   directory: string,
 ): Promise<LocalGitInfo> {
-  const [remoteResult, branchResult] = await Promise.all([
-    run("git remote get-url origin", directory, 10),
-    run("git rev-parse --abbrev-ref HEAD", directory, 10),
-  ]);
+  const result = await run(GIT_INFO_COMMAND, directory, 10);
+  if (result.exit_code !== 0) return EMPTY_LOCAL_GIT_INFO;
 
-  const remoteUrl =
-    remoteResult.exit_code === 0 ? remoteResult.stdout.trim() : "";
-  const rawBranch =
-    branchResult.exit_code === 0 ? branchResult.stdout.trim() : "";
+  const nl = result.stdout.indexOf("\n");
+  const remoteUrl = (
+    nl >= 0 ? result.stdout.slice(0, nl) : result.stdout
+  ).trim();
+  const rawBranch = (nl >= 0 ? result.stdout.slice(nl + 1) : "").trim();
   const branch = rawBranch && rawBranch !== "HEAD" ? rawBranch : null;
 
   if (!remoteUrl && !branch) return EMPTY_LOCAL_GIT_INFO;
@@ -74,49 +51,24 @@ async function probeGitInfoAtDir(
   };
 }
 
-async function probeNestedRepoInDir(
-  run: RunCommand,
-  directory: string,
-): Promise<LocalGitInfo> {
-  const nestedReposResult = await run(
-    "find . -mindepth 2 -maxdepth 4 -name .git 2>/dev/null | sed 's#^\\./##' | sed 's#/.git$##'",
-    directory,
-    10,
-  );
-
-  if (nestedReposResult.exit_code !== 0) return EMPTY_LOCAL_GIT_INFO;
-
-  const nestedRepos = Array.from(
-    new Set(
-      nestedReposResult.stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean),
-    ),
-  );
-
-  if (nestedRepos.length !== 1) return EMPTY_LOCAL_GIT_INFO;
-
-  const nestedDir = `${directory}/${nestedRepos[0]}`.replace(/\/+/g, "/");
-  return probeGitInfoAtDir(run, nestedDir);
-}
-
 /**
- * Probe git metadata directly from the workspace checkout via the agent server
- * (`git remote get-url origin`, `git rev-parse --abbrev-ref HEAD`).
+ * Probe git metadata for a **local** backend's workspace checkout by
+ * shelling out via the agent server using a single consolidated bash
+ * script (see `GIT_INFO_COMMAND`).
  *
- * We intentionally keep this probe enabled until the active conversation has
- * a complete repo tuple (`selected_repository`, `git_provider`,
- * `selected_branch`) so the control bar can recover from partial metadata
- * hydration after connect/clone flows.
+ * Local-only by design. On cloud backends the conversation metadata
+ * (`selected_repository`, `git_provider`, `selected_branch`) is the
+ * source of truth, and probing via `/api/bash/execute_bash_command`
+ * would (a) leak the user's local `getAgentServerWorkingDir()` path to
+ * the cloud runtime when `workspace.working_dir` is missing, and
+ * (b) hit a bash endpoint we don't want the frontend driving on cloud.
  *
- * Before running git commands we verify each candidate directory exists on
- * the agent server (`search_subdirs`); missing defaults (e.g. `workspace/project`)
- * therefore do not trigger bash execution or server-side cwd errors.
  */
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
+  const { backend } = useActiveBackend();
+  const isLocalBackend = backend.kind === "local";
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -135,6 +87,32 @@ export const useLocalGitInfo = () => {
     !hasConversationProvider ||
     !hasConversationBranch;
 
+  const queryEnabled =
+    isLocalBackend &&
+    runtimeIsReady &&
+    !!conversationId &&
+    (!hasConversationRepo ||
+      !hasConversationProvider ||
+      !hasConversationBranch);
+
+  // Persistent WebSocket connection to the bash-events endpoint. The
+  // connection is opened when the query is enabled and closed on unmount or
+  // when the conversation changes.
+  const runCommand = useBashCommandRunner(
+    conversationUrl,
+    sessionApiKey,
+    queryEnabled,
+  );
+
+  // Keep a ref so queryFn can call the latest runner without capturing it
+  // as a queryKey dependency (runCommand is stable but the linter can't
+  // infer that).
+  const runCommandRef = useRef(runCommand);
+  runCommandRef.current = runCommand;
+
+  // runCommandRef is a ref (always stable); the linter cannot infer this so
+  // we disable the exhaustive-deps check here.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return useQuery<LocalGitInfo>({
     queryKey: [
       "local-git-info",
@@ -146,26 +124,13 @@ export const useLocalGitInfo = () => {
     ],
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
-        AgentServerRuntimeService.executeCommand(
-          conversationUrl,
-          sessionApiKey,
-          command,
-          cwd,
-          timeout,
-        );
 
-
-      return EMPTY_LOCAL_GIT_INFO;
-    },
-    enabled:
-      runtimeIsReady &&
-      !!conversationId &&
-      hasIncompleteRepoMetadata,
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
     // changes (e.g. `git checkout`, adding a remote) without requiring a
     // manual refresh when there is no `selected_repository` recorded on
-    // the conversation.
+    // the conversation. Commands now run over the persistent WebSocket
+    // connection rather than individual REST calls.
     staleTime: 10_000,
     refetchInterval: 10_000,
     gcTime: 1000 * 60 * 5,

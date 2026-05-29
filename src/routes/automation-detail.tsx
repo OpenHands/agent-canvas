@@ -1,10 +1,17 @@
 import { useRef, useState } from "react";
 import { useParams } from "react-router";
 import { isAxiosError } from "axios";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
+import {
+  displaySuccessToast,
+  displayErrorToast,
+} from "#/utils/custom-toast-handlers";
 import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
   useDeleteAutomation,
+  useDispatchAutomation,
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -24,6 +31,7 @@ import { DeleteConfirmationModal } from "#/components/features/automations/delet
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 
 export default function AutomationDetail() {
+  const { t } = useTranslation("openhands");
   const { automationId } = useParams();
   const { navigate } = useNavigation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -60,6 +68,7 @@ export default function AutomationDetail() {
 
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
+  const dispatchMutation = useDispatchAutomation();
 
   const is404 =
     isError && isAxiosError(error) && error.response?.status === 404;
@@ -131,6 +140,23 @@ export default function AutomationDetail() {
     });
   };
 
+  const handleRunNow = () => {
+    dispatchMutation.mutate(automation.id, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS));
+      },
+      onError: (error) => {
+        const message = isAxiosError(error)
+          ? (error.response?.data as { message?: string } | undefined)
+              ?.message ||
+            error.message ||
+            t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)
+          : (error as Error).message || t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR);
+        displayErrorToast(message);
+      },
+    });
+  };
+
   // Edit is a local-backend-only feature in MVP — cloud automations
   // are managed elsewhere and we don't yet surface them here.
   const canEdit = active.backend.kind === "local";
@@ -145,6 +171,8 @@ export default function AutomationDetail() {
             onToggle={handleToggle}
             onEdit={canEdit ? () => setShowEditModal(true) : undefined}
             onDelete={() => setShowDeleteModal(true)}
+            onRunNow={handleRunNow}
+            isRunningNow={dispatchMutation.isPending}
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
           <ConfigurationSection automation={automation} />

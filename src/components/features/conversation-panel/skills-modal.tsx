@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
-import { useSkills } from "#/hooks/query/use-skills";
+import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { AgentState } from "#/types/agent-state";
-import { Typography } from "#/ui/typography";
+import {
+  groupSkillsByScope,
+  SKILL_SCOPE_ORDER,
+  type SkillScope,
+} from "#/utils/skill-scope";
 import { SkillsModalHeader } from "./skills-modal-header";
+import { SkillsModalSection } from "./skills-modal-section";
+import { SkillsRuntimeWaitingState } from "./skills-runtime-waiting-state";
 import { SkillsLoadingState } from "./skills-loading-state";
 import { SkillsEmptyState } from "./skills-empty-state";
 import { SkillItem } from "./skill-item";
@@ -16,19 +23,33 @@ interface SkillsModalProps {
   onClose: () => void;
 }
 
+const SECTION_TITLE_KEY: Record<SkillScope, I18nKey> = {
+  project: I18nKey.SKILLS_MODAL$SECTION_PROJECT,
+  personal: I18nKey.SKILLS_MODAL$SECTION_USER,
+  public: I18nKey.SKILLS_MODAL$SECTION_PUBLIC,
+};
+
 export function SkillsModal({ onClose }: SkillsModalProps) {
   const { t } = useTranslation("openhands");
   const { curAgentState } = useAgentState();
+  const projectDir = getAgentServerWorkingDir();
   const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>(
     {},
   );
+  // Scope the catalog to this conversation's attached workspace so the listed
+  // skills match the project skills actually loaded into the conversation.
   const {
     data: skills,
     isLoading,
     isError,
     refetch,
     isRefetching,
-  } = useSkills();
+  } = useConversationSkills();
+
+  const groupedSkills = useMemo(
+    () => (skills ? groupSkillsByScope(skills, projectDir) : null),
+    [skills, projectDir],
+  );
 
   const toggleAgent = (agentName: string) => {
     setExpandedAgents((prev) => ({
@@ -44,55 +65,56 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalBody
-        width="medium"
-        className="max-h-[80vh] flex flex-col items-start"
+        width="lg"
+        className="relative max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
         testID="skills-modal"
       >
         <SkillsModalHeader
-          isAgentReady={isAgentReady}
           isLoading={isLoading}
           isRefetching={isRefetching}
           onRefresh={refetch}
+          onClose={onClose}
         />
 
-        {isAgentReady && (
-          <Typography.Text className="text-sm text-[var(--oh-muted)]">
-            {t(I18nKey.SKILLS_MODAL$WARNING)}
-          </Typography.Text>
-        )}
+        <div className="w-full h-[60vh] overflow-auto rounded-md border border-[var(--oh-border)] bg-surface-raised custom-scrollbar-always">
+          {!isAgentReady ? (
+            <SkillsRuntimeWaitingState />
+          ) : isLoading ? (
+            <SkillsLoadingState />
+          ) : isError || !skills || skills.length === 0 ? (
+            <SkillsEmptyState isError={isError} />
+          ) : (
+            groupedSkills && (
+              <div className="divide-y divide-[var(--oh-border)]">
+                {SKILL_SCOPE_ORDER.map((scope) => {
+                  const scopedSkills = groupedSkills[scope];
+                  if (scopedSkills.length === 0) {
+                    return null;
+                  }
 
-        <div className="w-full h-[60vh] overflow-auto rounded-md custom-scrollbar-always">
-          {!isAgentReady && (
-            <div className="w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light">
-              <Typography.Text>
-                {t(I18nKey.DIFF_VIEWER$WAITING_FOR_RUNTIME)}
-              </Typography.Text>
-            </div>
-          )}
+                  return (
+                    <SkillsModalSection
+                      key={scope}
+                      title={t(SECTION_TITLE_KEY[scope])}
+                      count={scopedSkills.length}
+                    >
+                      {scopedSkills.map((skill) => {
+                        const isExpanded = expandedAgents[skill.name] || false;
 
-          {isLoading && <SkillsLoadingState />}
-
-          {!isLoading &&
-            isAgentReady &&
-            (isError || !skills || skills.length === 0) && (
-              <SkillsEmptyState isError={isError} />
-            )}
-
-          {!isLoading && isAgentReady && skills && skills.length > 0 && (
-            <div className="p-2 space-y-3">
-              {skills.map((skill) => {
-                const isExpanded = expandedAgents[skill.name] || false;
-
-                return (
-                  <SkillItem
-                    key={skill.name}
-                    skill={skill}
-                    isExpanded={isExpanded}
-                    onToggle={toggleAgent}
-                  />
-                );
-              })}
-            </div>
+                        return (
+                          <SkillItem
+                            key={`${scope}-${skill.name}`}
+                            skill={skill}
+                            isExpanded={isExpanded}
+                            onToggle={toggleAgent}
+                          />
+                        );
+                      })}
+                    </SkillsModalSection>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
       </ModalBody>

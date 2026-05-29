@@ -2,6 +2,8 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
+import { cn } from "#/utils/utils";
 import {
   SdkSectionHeaderProps,
   SdkSectionPage,
@@ -63,7 +65,12 @@ function VerificationSettingsHeader({
           >
             {t(I18nKey.SETTINGS_FORM$ENABLE_CONFIRMATION_MODE_LABEL)}
           </SettingsSwitch>
-          <p className="text-tertiary-alt text-xs leading-5">
+          <p
+            className={cn(
+              formControlSwitchDescriptionClassName,
+              "text-tertiary-alt text-xs leading-5",
+            )}
+          >
             {t(I18nKey.SETTINGS$CONFIRMATION_MODE_TOOLTIP)}
           </p>
         </div>

@@ -51,6 +51,9 @@ export const getObservationResult = (
     case "MCPToolObservation":
       if (observation.is_error) return "error";
       return "success";
+    case "SwitchLLMObservation":
+      if (observation.is_error) return "error";
+      return "success";
     default:
       return "success";
   }

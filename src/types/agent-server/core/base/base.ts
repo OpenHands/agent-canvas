@@ -8,7 +8,8 @@ type EventType =
   | "StrReplaceEditor"
   | "TaskTracker"
   | "PlanningFileEditor"
-  | "InvokeSkill";
+  | "InvokeSkill"
+  | "SwitchLLM";
 
 type ActionOnlyType =
   | "BrowserNavigate"

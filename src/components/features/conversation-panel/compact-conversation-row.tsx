@@ -70,7 +70,7 @@ export function CompactConversationRow({
         workspaceWorkingDir={workspaceWorkingDir}
         showRepositoryMetadata={showRepositoryMetadata}
         llmModel={llmModel}
-        showLlmModel={showLlmProfiles}
+        showAgentChip={showLlmProfiles}
         agentKind={agentKind}
         acpServer={acpServer}
       />

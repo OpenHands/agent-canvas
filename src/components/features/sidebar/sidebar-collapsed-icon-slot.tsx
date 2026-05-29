@@ -12,7 +12,7 @@ interface SidebarCollapsedIconSlotProps {
   children: React.ReactNode;
 }
 
-/** Collapsed rail: 40×40 hover/active square aligned with the expanded icon column. */
+/** Collapsed rail: 36px-tall hover/active target aligned with the expanded icon column. */
 export function SidebarCollapsedIconSlot({
   active,
   className,

@@ -178,6 +178,32 @@ export const useWebSocket = <T = string>(
     }
   }, []);
 
+  const reconnect = React.useCallback(() => {
+    shouldReconnectRef.current = true;
+    attemptCountRef.current = 0;
+    setIsReconnecting(true);
+    setError(null);
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (wsRef.current) {
+      const ws = wsRef.current;
+      allowedToReconnectRef.current.delete(ws);
+      wsRef.current = null;
+      if (
+        ws.readyState === WebSocket.CONNECTING ||
+        ws.readyState === WebSocket.OPEN
+      ) {
+        ws.close();
+      }
+    }
+
+    connectWebSocket();
+  }, [connectWebSocket]);
+
   return {
     isConnected,
     lastMessage,
@@ -188,5 +214,6 @@ export const useWebSocket = <T = string>(
     isReconnecting,
     attemptCount: attemptCountRef.current,
     disconnect,
+    reconnect,
   };
 };

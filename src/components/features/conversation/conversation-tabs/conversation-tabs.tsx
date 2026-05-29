@@ -144,9 +144,11 @@ export function ConversationTabs({
 
   // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
   // user has that tab selected — then it appears while active so the bar
-  // matches the open panel. Hide VS Code on local backends (cloud-only URL).
+  // matches the open panel. Hide VS Code and Planner on local backends —
+  // both are cloud-only (the planning agent isn't supported locally).
   const visibleTabs = tabs.filter((tab) => {
     if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
+    if (tab.tabValue === "planner" && backend.kind !== "cloud") return false;
     if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
     return selectedTab === tab.tabValue;
   });
@@ -352,7 +354,7 @@ export function ConversationTabs({
             )}
             data-testid="planner-tab-build-button"
           >
-            <Typography.Text className="text-[11px] font-medium leading-5 text-black">
+            <Typography.Text className="text-[11px] font-normal leading-5 text-black">
               {/* eslint-disable-next-line i18next/no-literal-string */}
               {t(I18nKey.COMMON$BUILD)} ⌘↩
             </Typography.Text>

@@ -87,7 +87,7 @@ export default function SharedConversation() {
             <OpenHandsLogo width={46} height={30} />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold mb-2">
+            <h1 className="text-xl font-medium mb-2">
               {conversation?.title ||
                 t(I18nKey.CONVERSATION$SHARED_CONVERSATION)}
             </h1>

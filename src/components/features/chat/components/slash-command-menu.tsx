@@ -85,11 +85,11 @@ function SlashCommandMenuItem({
   ref,
 }: SlashCommandMenuItemProps) {
   const description = useMemo(() => {
-    if ("content" in item.skill && item.skill.content) {
-      return getSkillDescription(item.skill.content);
-    }
     if ("description" in item.skill && item.skill.description) {
       return stripMarkdown(item.skill.description);
+    }
+    if ("content" in item.skill && item.skill.content) {
+      return getSkillDescription(item.skill.content);
     }
     return null;
   }, [item.skill]);
@@ -110,7 +110,7 @@ function SlashCommandMenuItem({
         onSelect(item);
       }}
     >
-      <Text className="font-semibold">{item.command}</Text>
+      <Text className="font-normal">{item.command}</Text>
       {description && (
         <Text className="text-xs text-[var(--oh-muted)] mt-0.5 truncate block">
           {description}

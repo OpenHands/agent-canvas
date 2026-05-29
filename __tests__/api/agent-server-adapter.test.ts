@@ -58,7 +58,7 @@ beforeEach(() => {
 });
 
 describe("buildStartConversationRequest", () => {
-  it("uses nested settings as the source of truth and keeps SDK tool names", () => {
+  it("uses nested settings as the source of truth and lets the SDK create the agent", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -76,6 +76,7 @@ describe("buildStartConversationRequest", () => {
             enabled: true,
             max_size: 120,
           },
+          enable_switch_llm_tool: true,
         },
         conversation_settings: {
           ...DEFAULT_SETTINGS.conversation_settings,
@@ -84,32 +85,28 @@ describe("buildStartConversationRequest", () => {
       },
       query: "hello",
     }) as {
-      agent: Record<string, unknown> & {
+      agent?: unknown;
+      agent_settings: Record<string, unknown> & {
         llm: Record<string, unknown>;
         tools: Array<{ name: string; params: Record<string, unknown> }>;
-        include_default_tools: string[];
+        agent_context: Record<string, unknown>;
       };
       workspace: { working_dir: string };
       initial_message: { content: Array<{ text: string }> };
       max_iterations: number;
     };
 
-    expect(payload.agent.llm).toMatchObject({
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.llm).toMatchObject({
       model: "nested-model",
       api_key: "nested-key",
       base_url: "https://nested.example.com",
     });
-    expect(payload.agent.condenser).toEqual({
-      kind: "LLMSummarizingCondenser",
-      llm: {
-        model: "nested-model",
-        api_key: "nested-key",
-        base_url: "https://nested.example.com",
-        usage_id: "condenser",
-      },
+    expect(payload.agent_settings.condenser).toEqual({
+      enabled: true,
       max_size: 120,
     });
-    expect(payload.agent.tools).toEqual([
+    expect(payload.agent_settings.tools).toEqual([
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
@@ -117,15 +114,13 @@ describe("buildStartConversationRequest", () => {
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
-    expect(payload.agent.include_default_tools).toEqual([
-      "FinishTool",
-      "ThinkTool",
-    ]);
-    expect(payload.agent.agent_context).toEqual({
+    expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
-    expect(payload.agent.agent).toBeUndefined();
+    expect(payload.agent_settings.agent).toBe("CodeActAgent");
+    expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
     expect(payload.workspace.working_dir).toBe(
       "/workspace/project/agent-canvas",
     );
@@ -133,7 +128,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message.content[0]?.text).toBe("hello");
   });
 
-  it("adds the SDK switch-LLM built-in when the agent-server setting is enabled", () => {
+  it("forwards the switch-LLM setting to SDK agent settings", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -144,18 +139,16 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
-        include_default_tools: string[];
+      agent?: unknown;
+      agent_settings: {
         enable_switch_llm_tool?: boolean;
+        include_default_tools?: unknown;
       };
     };
 
-    expect(payload.agent.include_default_tools).toEqual([
-      "FinishTool",
-      "ThinkTool",
-      "SwitchLLMTool",
-    ]);
-    expect(payload.agent.enable_switch_llm_tool).toBeUndefined();
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
+    expect(payload.agent_settings.include_default_tools).toBeUndefined();
   });
 
   it("omits browser_tool_set and task_tool_set when the server does not advertise them", () => {
@@ -170,12 +163,12 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
+      agent_settings: {
         tools: Array<{ name: string; params: Record<string, unknown> }>;
       };
     };
 
-    expect(payload.agent.tools).toEqual([
+    expect(payload.agent_settings.tools).toEqual([
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
@@ -198,12 +191,12 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
+      agent_settings: {
         tools: Array<{ name: string; params: Record<string, unknown> }>;
       };
     };
 
-    expect(payload.agent.tools).toEqual([
+    expect(payload.agent_settings.tools).toEqual([
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
@@ -223,12 +216,12 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: {
+      agent_settings: {
         tools: Array<{ name: string; params: Record<string, unknown> }>;
       };
     };
 
-    const toolNames = payload.agent.tools.map((t) => t.name);
+    const toolNames = payload.agent_settings.tools.map((t) => t.name);
     expect(toolNames).not.toContain("task_tool_set");
   });
 
@@ -382,7 +375,7 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  it("mirrors conversation secrets onto agent.agent_context.secrets for ACP", () => {
+  it("mirrors conversation secrets onto agent_settings.agent_context.secrets for ACP", () => {
     // Until canvas pins to an agent-server build that includes
     // software-agent-sdk PR #3299, the bare ``payload.secrets`` channel
     // only reaches ``secret_registry`` server-side — ``ACPAgent``'s
@@ -390,7 +383,7 @@ describe("buildStartConversationRequest", () => {
     // from the registry, so a Settings → Secrets entry like
     // ``ANTHROPIC_API_KEY`` would silently fail to land in the ACP
     // CLI's environment. Mirror the same LookupSecret map onto
-    // ``agent.agent_context.secrets`` so the existing SDK loop picks
+    // ``agent_settings.agent_context.secrets`` so the existing SDK loop picks
     // it up. Mirrors OpenHands' app-server bridging.
     const payload = buildStartConversationRequest({
       settings: {
@@ -404,7 +397,7 @@ describe("buildStartConversationRequest", () => {
       },
       customSecrets: [{ name: "ANTHROPIC_API_KEY" }],
     }) as {
-      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+      agent_settings: { agent_context?: { secrets?: Record<string, unknown> } };
       secrets: Record<string, unknown>;
     };
 
@@ -412,9 +405,9 @@ describe("buildStartConversationRequest", () => {
     // channel (for any non-ACP consumer / for SDK #3299 once it lands)
     // and the agent_context bridge (for current ACPAgent spawns).
     expect(payload.secrets.ANTHROPIC_API_KEY).toBeDefined();
-    expect(payload.agent.agent_context?.secrets?.ANTHROPIC_API_KEY).toEqual(
-      payload.secrets.ANTHROPIC_API_KEY,
-    );
+    expect(
+      payload.agent_settings.agent_context?.secrets?.ANTHROPIC_API_KEY,
+    ).toEqual(payload.secrets.ANTHROPIC_API_KEY);
   });
 
   it("does not synthesize agent_context.secrets for ACP when no custom secrets are set", () => {
@@ -432,10 +425,10 @@ describe("buildStartConversationRequest", () => {
         },
       },
     }) as {
-      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+      agent_settings: { agent_context?: { secrets?: Record<string, unknown> } };
     };
 
-    expect(payload.agent.agent_context?.secrets).toBeUndefined();
+    expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
   });
 
   it("does not mirror conversation secrets onto agent_context for non-ACP conversations", () => {
@@ -448,10 +441,10 @@ describe("buildStartConversationRequest", () => {
       settings: DEFAULT_SETTINGS,
       customSecrets: [{ name: "ANTHROPIC_API_KEY" }],
     }) as {
-      agent: { agent_context?: { secrets?: Record<string, unknown> } };
+      agent_settings: { agent_context?: { secrets?: Record<string, unknown> } };
     };
 
-    expect(payload.agent.agent_context?.secrets).toBeUndefined();
+    expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
   });
 
   describe("canvas_ui tool injection", () => {
@@ -554,16 +547,83 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
-  it("marks ACP conversations and nulls llm_model so the chat UI can't mislead", () => {
-    // The SDK's ACPAgent carries a sentinel ``llm`` (``acp-managed``) for
-    // cost-attribution only; the *real* model lives on the ACP subprocess via
-    // ``acp_model`` and isn't surfaced on ``agent.llm.model``. Surfacing the
-    // sentinel as ``llm_model`` would let SwitchProfileButton render an
-    // affordance to "change the model" on a Claude-Code conversation while
-    // the running subprocess kept its own — a confusing silent no-op.
+  it("marks ACP conversations and surfaces the configured acp_model", () => {
+    // The SDK's ACPAgent may still carry a sentinel ``llm`` (``acp-managed``)
+    // for cost-attribution. Consumers should see the concrete ACP model Canvas
+    // configured, while SwitchProfileButton remains gated by agent_kind.
     const result = toAppConversation({
       ...baseInfo,
-      agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-sonnet-4-6",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("prefers ACP runtime model fields over configured acp_model", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      current_model_id: "claude-sonnet-4-6",
+      current_model_name: "Claude Sonnet 4.6",
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-opus-4-7",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("Claude Sonnet 4.6");
+  });
+
+  it("does not surface ACP default placeholders when a configured model exists", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      current_model_id: "default",
+      current_model_name: "Default (recommended)",
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "claude-sonnet-4-6",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("falls back to a non-sentinel ACP llm.model for SDKs that mirror acp_model there", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "claude-sonnet-4-6" } },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBe("claude-sonnet-4-6");
+  });
+
+  it("filters ACP default placeholders surfaced via the configured acp_model", () => {
+    // Older settings may have persisted the SDK's literal "default" string
+    // into ``acp_model``. Surfacing it on the chip would lie about what's
+    // running — the placeholder filter is applied to every candidate, not
+    // just the runtime fields.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: {
+        kind: "ACPAgent",
+        acp_model: "Default (recommended)",
+        llm: { model: "acp-managed" },
+      },
+    });
+    expect(result.agent_kind).toBe("acp");
+    expect(result.llm_model).toBeNull();
+  });
+
+  it("filters ACP default placeholders surfaced via agent.llm.model", () => {
+    // Same defense, one rung lower in the precedence chain.
+    const result = toAppConversation({
+      ...baseInfo,
+      agent: { kind: "ACPAgent", llm: { model: "default" } },
     });
     expect(result.agent_kind).toBe("acp");
     expect(result.llm_model).toBeNull();
@@ -647,8 +707,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
             url_from_agent: "http://localhost:18001",
             api_prefix: "/api/automation",
             docs_url: "http://localhost:18001/api/automation/docs",
-            openapi_url:
-              "http://localhost:18001/api/automation/openapi.json",
+            openapi_url: "http://localhost:18001/api/automation/openapi.json",
             auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
           },
         },
@@ -660,9 +719,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("dev:automation");
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
-    expect(suffix).toContain(
-      "http://localhost:18001/api/automation/docs",
-    );
+    expect(suffix).toContain("http://localhost:18001/api/automation/docs");
     expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
@@ -753,7 +810,7 @@ describe("buildRuntimeServicesSystemSuffix", () => {
   });
 });
 
-describe("createAgentFromSettings runtime services suffix", () => {
+describe("agent_settings runtime services suffix", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -763,11 +820,12 @@ describe("createAgentFromSettings runtime services suffix", () => {
       settings: DEFAULT_SETTINGS,
       query: "hello",
     }) as {
-      agent: { agent_context: Record<string, unknown> };
+      agent_settings: { agent_context: Record<string, unknown> };
     };
-    expect(payload.agent.agent_context).toEqual({
+    expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
   });
 
@@ -788,20 +846,20 @@ describe("createAgentFromSettings runtime services suffix", () => {
       settings: DEFAULT_SETTINGS,
       query: "hello",
     }) as {
-      agent: { agent_context: Record<string, unknown> };
+      agent_settings: { agent_context: Record<string, unknown> };
     };
-    expect(payload.agent.agent_context).toMatchObject({
+    expect(payload.agent_settings.agent_context).toMatchObject({
       load_public_skills: true,
       load_user_skills: true,
     });
     expect(
-      payload.agent.agent_context.system_message_suffix as string,
+      payload.agent_settings.agent_context.system_message_suffix as string,
     ).toContain("<RUNTIME_SERVICES>");
   });
 });
 
 describe("buildStartConversationRequest — ACP discriminator", () => {
-  it("builds an ACPAgent payload when agent_kind is 'acp'", () => {
+  it("builds ACP agent settings when agent_kind is 'acp'", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -811,7 +869,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           acp_model: "claude-opus-4-5",
-          // These fields are LLM-only and must NOT leak into the ACP payload.
+          // These fields are LLM-only and must NOT leak into ACP settings.
           agent: "CodeActAgent",
           llm: { model: "gpt-4", api_key: "should-not-appear" },
           condenser: { enabled: true, max_size: 240 },
@@ -821,49 +879,36 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & {
-        kind: string;
+      agent?: unknown;
+      agent_settings: Record<string, unknown> & {
         acp_command?: string[];
         acp_model?: string | null;
-        llm?: unknown;
-        condenser?: unknown;
-        tools?: unknown;
         agent_context?: unknown;
       };
       tags?: Record<string, string>;
     };
 
-    expect(payload.agent.kind).toBe("ACPAgent");
-    expect(payload.agent.acp_command).toEqual([
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.agent_kind).toBe("acp");
+    expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
       "@agentclientprotocol/claude-agent-acp",
     ]);
-    expect(payload.agent.acp_model).toBe("claude-opus-4-5");
-    // LLM-only fields must not leak into the ACPAgent payload.
-    expect(payload.agent.llm).toBeUndefined();
-    expect(payload.agent.condenser).toBeUndefined();
-    expect(payload.agent.tools).toBeUndefined();
-    // ``agent_context`` IS populated on the ACP payload — the SDK marks
-    // ``skills`` / ``system_message_suffix`` / ``load_*_skills`` as
-    // ``acp_compatible: true``, and the ACP CLI's system prompt renders
-    // them via ``ACPAgent._render_suffix``. Without seeding these, an
-    // ACP user would silently lose the skill catalog and the runtime-
-    // services awareness an OpenHands-driven conversation gets.
-    expect(payload.agent.agent_context).toEqual({
+    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-5");
+    // LLM-only fields must not leak into the ACP settings payload.
+    expect(payload.agent_settings.llm).toBeUndefined();
+    expect(payload.agent_settings.condenser).toBeUndefined();
+    expect(payload.agent_settings.tools).toBeUndefined();
+    expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
-    // Conversation tags carry the ACP provider key for chip rendering.
-    // Agent-server validates tag keys against ``^[a-z0-9]+$``, so the
-    // snake_case ``acp_server`` form would be rejected — we use the
-    // flattened ``acpserver`` form instead. Asserted via the exported
-    // constant so a rename surfaces here as a compile error rather
-    // than a silent schema-mismatch at runtime.
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
   });
 
-  it("does not include ACP fields in the OpenHands Agent payload", () => {
+  it("does not include ACP-only fields in OpenHands agent settings", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -876,14 +921,18 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { kind: string };
+      agent?: unknown;
+      agent_settings: Record<string, unknown> & {
+        llm: Record<string, unknown>;
+      };
       tags?: Record<string, string>;
     };
 
-    expect(payload.agent.kind).toBe("Agent");
-    expect(payload.agent.acp_command).toBeUndefined();
-    expect(payload.agent.acp_server).toBeUndefined();
-    expect(payload.agent.agent_kind).toBeUndefined();
+    expect(payload.agent).toBeUndefined();
+    expect(payload.agent_settings.agent_kind).toBe("openhands");
+    expect(payload.agent_settings.acp_command).toBeUndefined();
+    expect(payload.agent_settings.acp_server).toBeUndefined();
+    expect(payload.agent_settings.llm.model).toBe("gpt-4");
     expect(payload.tags).toBeUndefined();
   });
 
@@ -899,20 +948,13 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_model: null,
         },
       },
-    }) as { agent: Record<string, unknown> };
+    }) as { agent_settings: Record<string, unknown> };
 
-    expect((payload.agent as { kind: string }).kind).toBe("ACPAgent");
-    expect(payload.agent.acp_model).toBeUndefined();
+    expect(payload.agent_settings.agent_kind).toBe("acp");
+    expect(payload.agent_settings.acp_model).toBeUndefined();
   });
 
   it("resolves an empty acp_command from the registry by acp_server", () => {
-    // The Settings → Agent page and onboarding both store ``acp_command:
-    // []`` for the default-preset path on the assumption that the agent-
-    // server resolves it from ``acp_server``. The agent-server's ACPAgent
-    // model does no such resolution — empty list crashes the spawn with
-    // ``IndexError: list index out of range`` (acp_agent.py:1013) and the
-    // conversation hangs in ``idle`` forever. The adapter has to expand
-    // the command before the payload leaves the client.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -925,10 +967,10 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { acp_command?: unknown[] };
+      agent_settings: Record<string, unknown> & { acp_command?: unknown[] };
     };
 
-    expect(payload.agent.acp_command).toEqual([
+    expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
       "@agentclientprotocol/claude-agent-acp",
@@ -936,8 +978,6 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
   });
 
   it("resolves an absent acp_command for built-in providers too", () => {
-    // The acp_command field may also be omitted entirely (e.g. on an older
-    // settings shape that predates the field). Same fix applies.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -949,10 +989,10 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { acp_command?: unknown[] };
+      agent_settings: Record<string, unknown> & { acp_command?: unknown[] };
     };
 
-    expect(payload.agent.acp_command).toEqual([
+    expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
       "@zed-industries/codex-acp",
@@ -960,10 +1000,6 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
   });
 
   it("leaves acp_command alone when acp_server is 'custom'", () => {
-    // Custom servers carry the user's explicit command. If they submitted
-    // an empty one, that is their bug to see — the registry has no entry
-    // to fall back to, and silently inventing one would be worse than the
-    // explicit spawn error.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -976,19 +1012,13 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { acp_command?: unknown[] };
+      agent_settings: Record<string, unknown> & { acp_command?: unknown[] };
     };
 
-    expect(payload.agent.acp_command).toEqual([]);
+    expect(payload.agent_settings.acp_command).toEqual([]);
   });
 
   it("leaves acp_command alone for an unknown acp_server key", () => {
-    // Future SDK adds a new provider before canvas's local mirror picks
-    // it up: we don't recognise the key, so we can't expand the command
-    // — but we also don't crash, and don't silently substitute one of
-    // the known commands. The agent-server will produce the same
-    // IndexError as before, which is the correct surface for "your
-    // local canvas is out of date with the SDK."
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -1001,18 +1031,20 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { acp_command?: unknown[] };
+      agent_settings: Record<string, unknown> & { acp_command?: unknown[] };
     };
 
-    expect(payload.agent.acp_command).toEqual([]);
+    expect(payload.agent_settings.acp_command).toEqual([]);
   });
 
-  it("treats acp_model: '' (empty string) as 'no override'", () => {
+  it("seeds the provider default when settings contains an empty acp_model", () => {
     // The form may carry an empty string after a user clears the model
-    // input; the agent-server expects ``null`` for "use provider default."
-    // Empty strings would pass the spawn but bias model selection on
-    // some providers (e.g. claude-agent-acp's _meta would set
-    // ``model: ''``).
+    // input. Older behavior left ``acp_model`` absent and relied on the
+    // agent-server's own default; the registry-default path
+    // (resolveEffectiveAcpModel) is now authoritative on Canvas's side,
+    // so an empty string resolves to the provider's ``default_model``
+    // before the request leaves the client. Keeps the displayed Settings
+    // → Agent default in sync with what the runtime actually starts.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -1025,27 +1057,36 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         },
       },
     }) as {
-      agent: Record<string, unknown> & { acp_model?: unknown };
+      agent_settings: Record<string, unknown> & { acp_model?: unknown };
     };
 
-    // ``buildConfiguredAcpAgentSettings`` already filters undefined +
-    // null; the empty string falls through, which is a known nit. The
-    // adapter's contract is "forward what settings says"; the
-    // canonicalisation belongs in the save path
-    // (``agent-settings.tsx::handleSave`` already does
-    // ``acpModel.trim() || null``). Pin the current behaviour so a
-    // future change to either side is a deliberate decision.
-    expect(payload.agent.acp_model).toBe("");
+    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-7");
+  });
+
+  it("omits acp_model for the custom preset when none is configured", () => {
+    // The Custom preset has no registered ``default_model``, so an empty
+    // ``acp_model`` falls through to ``undefined`` — the agent-server then
+    // applies its own default. Distinct from the built-in providers
+    // which substitute their registry default.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "custom",
+          acp_command: ["my-custom-acp"],
+          acp_model: "",
+        },
+      },
+    }) as {
+      agent_settings: Record<string, unknown> & { acp_model?: unknown };
+    };
+
+    expect(payload.agent_settings.acp_model).toBeUndefined();
   });
 
   it("ACP → OpenHands → ACP round trip leaves no field leakage", () => {
-    // Toggling agent_kind via the UI should not let stale ``acp_*``
-    // state pollute an OpenHands run, and (in the reverse direction)
-    // shouldn't let LLM/condenser/MCP state pollute an ACP payload.
-    // We exercise both legs here against the same starting settings
-    // shape so the round-trip is provable, not just inferred from the
-    // single-direction tests.
-
     const baseAcpSettings = {
       ...DEFAULT_SETTINGS,
       agent_settings: {
@@ -1055,15 +1096,12 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         acp_command: [],
         acp_env: { ANTHROPIC_API_KEY: "user-set-via-api" },
         acp_model: "claude-opus-4-5",
-        // LLM-only crud that would leak without the strip:
         agent: "CodeActAgent",
         llm: { model: "gpt-4o", api_key: "stale-from-prior-oh-run" },
         condenser: { enabled: true, max_size: 200 },
       },
     };
 
-    // Leg 1: ACP → OpenHands. The OpenHands branch must drop every
-    // acp_* field; the LLM block survives.
     const ohPayload = buildStartConversationRequest({
       settings: {
         ...baseAcpSettings,
@@ -1072,21 +1110,23 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           agent_kind: "openhands",
         },
       },
-    }) as { agent: Record<string, unknown> & { llm: Record<string, unknown> } };
+    }) as {
+      agent_settings: Record<string, unknown> & {
+        llm: Record<string, unknown>;
+      };
+    };
 
-    expect(ohPayload.agent.kind).toBe("Agent");
-    expect(ohPayload.agent.acp_command).toBeUndefined();
-    expect(ohPayload.agent.acp_env).toBeUndefined();
-    expect(ohPayload.agent.acp_model).toBeUndefined();
-    expect(ohPayload.agent.acp_server).toBeUndefined();
-    expect(ohPayload.agent.llm.model).toBe("gpt-4o");
+    expect(ohPayload.agent_settings.agent_kind).toBe("openhands");
+    expect(ohPayload.agent_settings.acp_command).toBeUndefined();
+    expect(ohPayload.agent_settings.acp_env).toBeUndefined();
+    expect(ohPayload.agent_settings.acp_model).toBeUndefined();
+    expect(ohPayload.agent_settings.acp_server).toBeUndefined();
+    expect(ohPayload.agent_settings.llm.model).toBe("gpt-4o");
 
-    // Leg 2: OpenHands → ACP (back). The ACP branch must drop the
-    // llm/condenser/agent fields; the acp_* state survives.
     const acpPayload = buildStartConversationRequest({
       settings: baseAcpSettings,
     }) as {
-      agent: Record<string, unknown> & {
+      agent_settings: Record<string, unknown> & {
         acp_command?: unknown;
         acp_env?: unknown;
         acp_model?: unknown;
@@ -1095,17 +1135,17 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       };
     };
 
-    expect(acpPayload.agent.kind).toBe("ACPAgent");
-    expect(acpPayload.agent.acp_command).toEqual([
+    expect(acpPayload.agent_settings.agent_kind).toBe("acp");
+    expect(acpPayload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
       "@agentclientprotocol/claude-agent-acp",
     ]);
-    expect(acpPayload.agent.acp_model).toBe("claude-opus-4-5");
-    expect(acpPayload.agent.acp_env).toEqual({
+    expect(acpPayload.agent_settings.acp_model).toBe("claude-opus-4-5");
+    expect(acpPayload.agent_settings.acp_env).toEqual({
       ANTHROPIC_API_KEY: "user-set-via-api",
     });
-    expect(acpPayload.agent.llm).toBeUndefined();
-    expect(acpPayload.agent.condenser).toBeUndefined();
+    expect(acpPayload.agent_settings.llm).toBeUndefined();
+    expect(acpPayload.agent_settings.condenser).toBeUndefined();
   });
 });

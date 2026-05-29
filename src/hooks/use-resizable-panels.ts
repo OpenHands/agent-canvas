@@ -1,5 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useLayoutEffect } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
+
+/** Full-screen layer above iframes so parent `document` keeps receiving drag events. */
+const PANEL_DRAG_SHIELD_Z_INDEX = 200;
 
 interface UseResizablePanelsOptions {
   defaultLeftWidth?: number;
@@ -57,21 +60,31 @@ export function useResizablePanels({
     }
   }, [isDragging, leftWidth, setPersistedWidth]);
 
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "ew-resize";
-      document.body.style.userSelect = "none";
-    }
+  useLayoutEffect(() => {
+    if (!isDragging) return;
+
+    const shield = document.createElement("div");
+    shield.setAttribute("aria-hidden", "true");
+    shield.dataset.panelDragShield = "";
+    Object.assign(shield.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: String(PANEL_DRAG_SHIELD_Z_INDEX),
+      cursor: "ew-resize",
+    });
+    document.body.appendChild(shield);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
 
     return () => {
-      if (isDragging) {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      shield.remove();
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 

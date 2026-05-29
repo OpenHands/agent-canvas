@@ -137,4 +137,14 @@ describe("ModelSelector", () => {
     });
   });
 
+  it("should not render placeholder text on the provider or model inputs", () => {
+    renderWithQuery(<ModelSelector />);
+
+    const providerInput = screen.getByLabelText("LLM Provider");
+    const modelInput = screen.getByLabelText("LLM Model");
+
+    expect(providerInput.getAttribute("placeholder") ?? "").toBe("");
+    expect(modelInput.getAttribute("placeholder") ?? "").toBe("");
+  });
+
 });

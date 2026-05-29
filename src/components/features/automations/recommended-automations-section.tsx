@@ -1,20 +1,36 @@
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { I18nKey } from "#/i18n/declaration";
 import {
   AUTOMATION_CATALOG,
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
+import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
+import {
+  SkillCardPillRow,
+  type SkillCardPill,
+} from "#/components/features/skills/skill-card-pill-row";
+import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   findInstalledMatch,
+  getInstallableTemplate,
   getMarketplaceEntryById,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
+import { cn } from "#/utils/utils";
+import {
+  extensionModuleCardInteractiveClassName,
+  extensionModuleCardGridClassName,
+  extensionModuleCardGridContainerClassName,
+  extensionModuleCardPillClassName,
+  extensionModuleCardSurfaceClassName,
+} from "#/utils/extension-module-card-classes";
 import ClockIcon from "#/icons/clock.svg?react";
 import { StatusBadge } from "./status-badge";
 
@@ -41,8 +57,8 @@ export function getAutomationsByPopularity(
 const RECOMMENDED_AUTOMATIONS = getAutomationsByPopularity(AUTOMATION_CATALOG);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
-  return automation.requiredMcpIds
-    .map((id) => getMarketplaceEntryById(id, MCP_MARKETPLACE))
+  return automation.requiredIntegrationIds
+    .map((id) => getMarketplaceEntryById(id, INTEGRATION_MARKETPLACE))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -75,6 +91,63 @@ function isAutomationAvailable(
   );
 }
 
+function buildRecommendedAutomationPills(
+  automation: RecommendedAutomation,
+  requiredEntries: MarketplaceEntry[],
+  installedServers: MCPServerConfig[],
+  missingCount: number,
+  translate: TFunction,
+): SkillCardPill[] {
+  const pills: SkillCardPill[] = requiredEntries.map((entry) => {
+    const template = getInstallableTemplate(entry);
+    const installed = template
+      ? !!findInstalledMatch(template, installedServers)
+      : false;
+
+    return {
+      id: `mcp-${entry.id}`,
+      node: (
+        <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+          <McpLogoBadge entry={entry} size="xs" />
+          {entry.name}
+          {installed ? (
+            <span className="text-white">
+              {translate(I18nKey.RECOMMENDED_AUTOMATIONS$CONNECTED)}
+            </span>
+          ) : null}
+        </span>
+      ),
+    };
+  });
+
+  pills.push({
+    id: "setup-minutes",
+    node: (
+      <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
+        <ClockIcon className="size-3 shrink-0" />
+        {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
+          count: automation.estimatedSetupMinutes,
+        })}
+      </span>
+    ),
+  });
+
+  if (missingCount > 0) {
+    pills.push({
+      id: "missing-connect",
+      node: (
+        <span className={extensionModuleCardPillClassName}>
+          {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MISSING_CONNECT, {
+            count: missingCount,
+          })}
+        </span>
+      ),
+    });
+  }
+
+  return pills;
+}
+
 export function RecommendedAutomationsSection({
   backendKind,
   installedServers,
@@ -96,7 +169,7 @@ export function RecommendedAutomationsSection({
   return (
     <section data-testid="recommended-automations-section">
       <div className="flex items-center">
-        <h2 className="text-sm font-semibold text-white">
+        <h2 className="text-base font-semibold text-foreground">
           {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
         </h2>
         <StatusBadge count={visibleAutomations.length} />
@@ -105,84 +178,68 @@ export function RecommendedAutomationsSection({
         {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_DESCRIPTION)}
       </p>
 
-      <div className="mt-3 flex flex-col gap-3">
-        {visibleAutomations.map((automation) => {
-          const requiredEntries = getRequiredEntries(automation);
-          const missingCount = requiredEntries.filter(
-            (entry) => !findInstalledMatch(entry.template, installedServers),
-          ).length;
+      <div className={cn("mt-3", extensionModuleCardGridContainerClassName)}>
+        <div className={extensionModuleCardGridClassName}>
+          {visibleAutomations.map((automation) => {
+            const requiredEntries = getRequiredEntries(automation);
+            const missingCount = requiredEntries.filter((entry) => {
+              const template = getInstallableTemplate(entry);
+              return (
+                !template || !findInstalledMatch(template, installedServers)
+              );
+            }).length;
 
-          return (
-            <button
-              key={automation.id}
-              type="button"
-              data-testid={`recommended-automation-card-${automation.id}`}
-              onClick={() => onSelect(automation)}
-              className="cursor-pointer rounded-2xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-5 text-left transition-colors hover:border-[var(--oh-border)] focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-muted">
-                    {automation.category}
-                  </div>
-                  <h3 className="mt-1 truncate text-base font-semibold text-white">
-                    {automation.name}
-                  </h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted">
-                    {automation.description}
-                  </p>
-                </div>
-                <div className="flex shrink-0 -space-x-1" aria-hidden="true">
-                  {requiredEntries.map((entry) => (
-                    <McpLogoBadge
-                      key={entry.id}
-                      entry={entry}
-                      size="sm"
-                      className="ring-2 ring-[var(--oh-surface)]"
-                    />
-                  ))}
-                </div>
-              </div>
+            return (
+              <button
+                key={automation.id}
+                type="button"
+                data-testid={`recommended-automation-card-${automation.id}`}
+                onClick={() => onSelect(automation)}
+                className={cn(
+                  "flex min-w-0 overflow-hidden p-4 text-left",
+                  extensionModuleCardSurfaceClassName,
+                  extensionModuleCardInteractiveClassName,
+                )}
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <McpLogoStackBadge
+                    entries={requiredEntries}
+                    testId={`recommended-automation-icon-${automation.id}`}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    <header className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-semibold text-white">
+                          {automation.name}
+                        </h3>
+                        <p className="mt-0.5 truncate text-xs text-tertiary-alt">
+                          {automation.category}
+                        </p>
+                      </div>
+                      <CirclePlusBadge
+                        testId={`recommended-automation-plus-${automation.id}`}
+                      />
+                    </header>
+                    <p className="line-clamp-2 text-xs leading-relaxed text-tertiary-light">
+                      {automation.description}
+                    </p>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {requiredEntries.map((entry) => {
-                  const installed = !!findInstalledMatch(
-                    entry.template,
-                    installedServers,
-                  );
-                  return (
-                    <span
-                      key={entry.id}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--oh-border)] px-3 py-1 text-xs text-muted"
-                    >
-                      <McpLogoBadge entry={entry} size="sm" />
-                      {entry.name}
-                      {installed && (
-                        <span className="text-primary">
-                          {t(I18nKey.RECOMMENDED_AUTOMATIONS$CONNECTED)}
-                        </span>
+                    <SkillCardPillRow
+                      pills={buildRecommendedAutomationPills(
+                        automation,
+                        requiredEntries,
+                        installedServers,
+                        missingCount,
+                        t,
                       )}
-                    </span>
-                  );
-                })}
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--oh-border)] px-3 py-1 text-xs text-muted">
-                  <ClockIcon className="size-3.5" />
-                  {t(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
-                    count: automation.estimatedSetupMinutes,
-                  })}
-                </span>
-              </div>
-
-              {missingCount > 0 && (
-                <p className="mt-3 text-xs text-muted">
-                  {t(I18nKey.RECOMMENDED_AUTOMATIONS$MISSING_CONNECT, {
-                    count: missingCount,
-                  })}
-                </p>
-              )}
-            </button>
-          );
-        })}
+                      testId={`recommended-automation-pills-${automation.id}`}
+                    />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

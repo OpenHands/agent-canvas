@@ -1,5 +1,6 @@
 import {
   Links,
+  LinksFunction,
   Meta,
   MetaFunction,
   Outlet,
@@ -11,6 +12,7 @@ import "./index.css";
 import React from "react";
 import { Toaster } from "react-hot-toast";
 import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
@@ -49,7 +51,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <AgentServerUIRoot contentClassName="min-h-screen">
           <ColorThemeApplier />
           {children}
-          <Toaster />
+          <Toaster toastOptions={TOAST_OPTIONS} />
           <TelemetryConsentBanner />
           <div id="modal-portal-exit" />
         </AgentServerUIRoot>
@@ -92,6 +94,10 @@ function MissingAgentServerScreen() {
     </main>
   );
 }
+
+export const links: LinksFunction = () => [
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+];
 
 export const meta: MetaFunction = () => [
   { title: "OpenHands" },
