@@ -11,28 +11,23 @@ import CircuitIcon from "#/icons/u-circuit.svg?react";
 import SettingsIcon from "#/icons/settings.svg?react";
 import CheckIcon from "#/icons/checkmark.svg?react";
 import { cn } from "#/utils/utils";
-import type { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
+import type { ProfileWithPlan } from "#/hooks/use-profile-runtime-plans";
+import { reasonToI18nKey } from "#/utils/agent-profiles/reason-labels";
 
-const rowBaseClassName = cn(
-  "w-full flex flex-col gap-0.5 p-2 rounded",
-  "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
-);
-const profileRowClassName = cn(rowBaseClassName, "h-auto");
+const profileRowClassName = cn("w-full flex flex-col gap-0.5 p-2 h-auto");
 const linkRowClassName = cn(
   "w-full flex items-center gap-2 p-2 rounded",
   "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
 );
 
 interface SwitchProfileContextMenuProps {
-  profiles: ProfileInfo[];
-  activeProfileName: string | null;
+  profiles: ProfileWithPlan[];
   onSelect: (profileName: string) => void;
   onClose: () => void;
 }
 
 export function SwitchProfileContextMenu({
   profiles,
-  activeProfileName,
   onSelect,
   onClose,
 }: SwitchProfileContextMenuProps) {
@@ -47,16 +42,6 @@ export function SwitchProfileContextMenu({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleSelect = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    name: string,
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onSelect(name);
-    onClose();
-  };
-
   return (
     <ContextMenu
       ref={ref}
@@ -70,21 +55,41 @@ export function SwitchProfileContextMenu({
           {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
         </Typography.Text>
       </div>
-      {profiles.map((profile) => {
-        const isActive = profile.name === activeProfileName;
+      {profiles.map(({ profile, plan }) => {
+        const isCurrent = plan.action === "current";
+        const isDisabled = plan.action === "disabled";
+        const reasonLabel =
+          plan.action === "disabled" ? t(reasonToI18nKey(plan.reason)) : null;
+
+        // Block partial application: a disabled row never fires (the button is
+        // disabled), a `current` row is a no-op close, and only `switch-live`
+        // reaches `onSelect`.
+        const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (isCurrent) {
+            onClose();
+            return;
+          }
+          onSelect(profile.name);
+          onClose();
+        };
+
         return (
           <ContextMenuListItem
             key={profile.name}
             testId={`switch-profile-option-${profile.name}`}
-            onClick={(event) => handleSelect(event, profile.name)}
+            isDisabled={isDisabled}
+            onClick={handleClick}
             className={cn(
               profileRowClassName,
-              isActive && "bg-[var(--oh-interactive-hover)]",
+              isCurrent && "bg-[var(--oh-interactive-hover)]",
             )}
           >
             <span
               className="flex items-center gap-2 min-w-0"
-              title={profile.model ?? undefined}
+              // The reason is shown inline; mirror it on the title for a tooltip.
+              title={reasonLabel ?? profile.model ?? undefined}
             >
               <CircuitIcon
                 width={16}
@@ -95,7 +100,7 @@ export function SwitchProfileContextMenu({
               <span className="flex-1 truncate text-sm leading-5">
                 {profile.name}
               </span>
-              {isActive && (
+              {isCurrent && (
                 <CheckIcon
                   width={14}
                   height={14}
@@ -104,10 +109,19 @@ export function SwitchProfileContextMenu({
                 />
               )}
             </span>
-            {profile.model && (
-              <span className="block truncate text-xs leading-4 text-[var(--oh-muted)] pl-6">
-                {profile.model}
+            {reasonLabel ? (
+              <span
+                className="block truncate text-xs leading-4 text-[var(--oh-text-dim)] pl-6"
+                data-testid={`switch-profile-reason-${profile.name}`}
+              >
+                {reasonLabel}
               </span>
+            ) : (
+              profile.model && (
+                <span className="block truncate text-xs leading-4 text-[var(--oh-muted)] pl-6">
+                  {profile.model}
+                </span>
+              )
             )}
           </ContextMenuListItem>
         );

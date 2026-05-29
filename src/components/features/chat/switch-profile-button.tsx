@@ -2,12 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
-import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useSettings } from "#/hooks/query/use-settings";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
-import { useModelStore } from "#/stores/model-store";
+import { useProfileRuntimePlans } from "#/hooks/use-profile-runtime-plans";
 import { cn } from "#/utils/utils";
 import { SwitchProfileContextMenu } from "./switch-profile-context-menu";
 
@@ -17,51 +14,19 @@ export function SwitchProfileButton() {
   // Null on the home page; `useSwitchLlmProfileAndLog` is fine with that
   // because /api/profiles/<name>/activate is a global endpoint.
   const { conversationId } = useOptionalConversationId();
-  const { data } = useLlmProfiles();
-  const { data: conversation } = useActiveConversation();
-  const { data: settings } = useSettings();
+  const { profiles, activeProfileName, isAcpContext } =
+    useProfileRuntimePlans();
   const { switchAndLog, isPending } = useSwitchLlmProfileAndLog();
-  // Optimistic value written by recordSwitch on a successful switch — gives
-  // instant in-conversation feedback before the conversation refetch lands
-  // with the new `llm_model`.
-  const optimisticActiveProfile = useModelStore((s) =>
-    conversationId ? s.activeProfileByConversation[conversationId] : undefined,
-  );
 
-  const profiles = data?.profiles ?? [];
-  const conversationModel = conversation?.llm_model ?? null;
-  // ACPAgent conversations route prompts to a CLI subprocess whose model is
-  // controlled by ``acp_model`` (set in Settings → Agent), not by the LLM
-  // profile picker. Surfacing the switcher here would let the user "change
-  // the model" while the running subprocess silently keeps its own — a
-  // confusing no-op. Hide the button even when ``llm_model`` carries an ACP
-  // display model for chips/headers.
-  //
-  // On the home screen ``conversation`` is undefined; fall back to
-  // ``settings.agent_settings.agent_kind`` so the picker also hides when
-  // ACP is the *default* the next-created conversation would inherit.
-  // Otherwise an ACP user lands on a home page with an LLM-switch
-  // control that contradicts the ACP nav gating everywhere else.
-  const isAcpActive =
-    conversation?.agent_kind === "acp" ||
-    (!conversation && settings?.agent_settings?.agent_kind === "acp");
-
-  // Resolution priority for the active profile name:
-  //   1. Optimistic (just-clicked) — instant feedback before the refetch.
-  //   2. Profile whose model matches the running llm_model — cold loads.
-  //   3. User-level active_profile — home page / before the conversation has
-  //      sent any messages.
-  const activeProfileName =
-    optimisticActiveProfile ??
-    (conversationModel
-      ? (profiles.find((p) => p.model === conversationModel)?.name ?? null)
-      : (data?.active_profile ?? null));
   const activeProfileModel =
-    profiles.find((p) => p.name === activeProfileName)?.model ??
-    conversationModel ??
+    profiles.find((p) => p.profile.name === activeProfileName)?.profile.model ??
     null;
 
-  if (profiles.length === 0 || isAcpActive) {
+  // This control is the OpenHands surface. ACP conversations route the model
+  // through the ACP picker (`ChatInputModel`), which surfaces these same saved
+  // profiles disabled with "Requires a new conversation" — so there is no
+  // silent partial application even though this button is hidden there.
+  if (profiles.length === 0 || isAcpContext) {
     return null;
   }
 
@@ -71,8 +36,12 @@ export function SwitchProfileButton() {
     setContextMenuOpen((open) => !open);
   };
 
+  // Only `switch-live` plans act. `current` is a no-op and `disabled` rows are
+  // non-interactive in the menu — the partial-application guard lives both
+  // here and in the menu.
   const handleSelect = (profileName: string) => {
-    if (profileName === activeProfileName) return;
+    const target = profiles.find((p) => p.profile.name === profileName);
+    if (target?.plan.action !== "switch-live") return;
     switchAndLog(conversationId, profileName);
   };
 
@@ -100,7 +69,6 @@ export function SwitchProfileButton() {
       {contextMenuOpen && (
         <SwitchProfileContextMenu
           profiles={profiles}
-          activeProfileName={activeProfileName}
           onSelect={handleSelect}
           onClose={() => setContextMenuOpen(false)}
         />

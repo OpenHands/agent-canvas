@@ -4,9 +4,12 @@ import {
   type ChatInputModelState,
 } from "#/hooks/use-chat-input-model-state";
 import { useSwitchAcpModel } from "#/hooks/mutation/use-switch-acp-model";
+import { useProfileRuntimePlans } from "#/hooks/use-profile-runtime-plans";
+import { reasonToI18nKey } from "#/utils/agent-profiles/reason-labels";
 import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CheckIcon from "#/icons/checkmark.svg?react";
+import CircuitIcon from "#/icons/u-circuit.svg?react";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ContextMenu } from "#/ui/context-menu";
@@ -50,7 +53,27 @@ export function ChatInputModelMenuContent({
 }: ChatInputModelMenuContentProps) {
   const { t } = useTranslation("openhands");
   const switchAcpModel = useSwitchAcpModel();
+  const { profiles } = useProfileRuntimePlans();
   const hasModelRows = model.showAcpPicker || Boolean(model.displayModel);
+  // Saved AgentProfiles, shown plan-driven: a same-provider ACP profile whose
+  // only difference is the model is switchable live; current is checked;
+  // incompatible ones (different provider, or an OpenHands profile while ACP
+  // runs) stay visible-but-disabled with a reason. Cloud backends have no
+  // profiles, so this section stays empty there.
+  const hasProfilesSection = profiles.length > 0;
+
+  // Switching to a switch-live ACP profile is a live acp_model swap (same
+  // endpoint as picking a raw model). Only `switch-live` acts; `current` is a
+  // no-op and `disabled` rows are non-interactive.
+  const handleSelectProfile = (entry: (typeof profiles)[number]) => {
+    if (entry.plan.action === "switch-live" && entry.profile.acp_model) {
+      switchAcpModel.mutate({
+        conversationId: model.switchConversationId,
+        model: entry.profile.acp_model,
+      });
+    }
+    onClose();
+  };
 
   const handleSelectAcpModel = (modelId: string) => {
     if (modelId !== model.currentModelId) {
@@ -115,7 +138,75 @@ export function ChatInputModelMenuContent({
           </div>
         </li>
       ) : null}
-      {hasModelRows && <Divider inset={dividerInset} />}
+      {hasProfilesSection && (
+        <>
+          {hasModelRows && <Divider inset={dividerInset} />}
+          <li role="presentation" className="px-2 pt-1 pb-0.5">
+            <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
+              {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
+            </Typography.Text>
+          </li>
+          {profiles.map((entry) => {
+            const { profile, plan } = entry;
+            const isCurrent = plan.action === "current";
+            const isDisabled = plan.action === "disabled";
+            const reasonLabel =
+              plan.action === "disabled"
+                ? t(reasonToI18nKey(plan.reason))
+                : null;
+            return (
+              <ContextMenuListItem
+                key={profile.name}
+                testId={`chat-input-profile-option-${profile.name}`}
+                isDisabled={isDisabled}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  // Disabled rows are already non-interactive via isDisabled;
+                  // current is a no-op close; only switch-live acts.
+                  handleSelectProfile(entry);
+                }}
+                className={cn(
+                  "flex flex-col gap-0.5 h-auto",
+                  isCurrent && "bg-[var(--oh-interactive-hover)]",
+                )}
+              >
+                <span
+                  className="flex items-center gap-2 min-w-0"
+                  title={reasonLabel ?? profile.model ?? undefined}
+                >
+                  <CircuitIcon
+                    width={16}
+                    height={16}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                  <span className="flex-1 truncate text-sm leading-5">
+                    {profile.name}
+                  </span>
+                  {isCurrent && (
+                    <CheckIcon
+                      width={14}
+                      height={14}
+                      className="shrink-0"
+                      aria-hidden
+                    />
+                  )}
+                </span>
+                {reasonLabel && (
+                  <span
+                    className="block truncate text-xs leading-4 text-[var(--oh-text-dim)] pl-6"
+                    data-testid={`chat-input-profile-reason-${profile.name}`}
+                  >
+                    {reasonLabel}
+                  </span>
+                )}
+              </ContextMenuListItem>
+            );
+          })}
+        </>
+      )}
+      {(hasModelRows || hasProfilesSection) && <Divider inset={dividerInset} />}
       <li className="text-sm">
         <NavigationLink
           to={model.destinationPath}
