@@ -399,12 +399,8 @@ test.describe("mock-LLM agent-server conversation", () => {
     page,
   }) => {
     // This step depends on the conversation created in step 3.
-    // Since step 3's afterEach cleans up the conversation, we need to
-    // verify the conversation still exists — if step 3 failed, skip gracefully.
-    expect(
-      step3ConversationId,
-      "step 3 must complete successfully and set step3ConversationId",
-    ).toBeTruthy();
+    // If step 3 failed, skip this test instead of failing with a confusing error.
+    test.skip(!step3ConversationId, "step 3 must complete first");
 
     await routeSessionApiKey(page);
 
@@ -434,23 +430,9 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Verify the user's original message is still visible
     await test.step("verify user message is still visible after resume", async () => {
-      await expect
-        .poll(
-          () =>
-            page
-              .evaluate((searchText) => {
-                const userMessages = document.querySelectorAll(
-                  '[data-testid="user-message"]',
-                );
-                for (const el of userMessages) {
-                  if (el.textContent?.includes(searchText)) return true;
-                }
-                return false;
-              }, USER_MESSAGE)
-              .catch(() => false),
-          { timeout: 10_000 },
-        )
-        .toBe(true);
+      await expect(
+        page.locator('[data-testid="user-message"]').filter({ hasText: USER_MESSAGE }),
+      ).toBeVisible({ timeout: 10_000 });
     });
 
     // Verify no error banners after resume
