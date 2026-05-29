@@ -100,6 +100,8 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         # ── Admin API: register a named trajectory ──
         if path == "/admin/trajectory/register":
             body = self._read_body()
+            if body is None:
+                return  # error response already sent
             name = body.get("name", "")
             raw_turns = body.get("turns", [])
             if not name or not raw_turns:
@@ -114,6 +116,8 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         # ── Admin API: activate a named trajectory ──
         if path == "/admin/trajectory/activate":
             body = self._read_body()
+            if body is None:
+                return  # error response already sent
             name = body.get("name", "")
             with self._lock:
                 msgs = MockLLMHandler._named_trajectories.get(name)
@@ -210,7 +214,8 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             {"error": {"message": message, "type": error_type, "code": error_type}},
         )
 
-    def _read_body(self) -> dict:
+    def _read_body(self) -> dict | None:
+        """Read and parse JSON body. Returns None (after sending 400) on parse failure."""
         length = int(self.headers.get("Content-Length", 0))
         if not length:
             return {}
@@ -218,7 +223,7 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             return json.loads(self.rfile.read(length))
         except json.JSONDecodeError as exc:
             self._send_error(400, "invalid_json", str(exc))
-            return {}
+            return None
 
     def log_message(self, format, *args):
         print(f"[mock-llm] {args[0]}", file=sys.stderr, flush=True)

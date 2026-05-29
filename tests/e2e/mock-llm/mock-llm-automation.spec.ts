@@ -446,8 +446,12 @@ test.describe("mock-LLM automation lifecycle", () => {
       const completedIcon = page.getByTestId("run-status-icon-completed");
       await expect(completedIcon).toBeVisible({ timeout: 15_000 });
 
-      // If we have a conversation ID from step 2, verify the run row
-      // is a clickable link to that conversation
+      // Verify step 2 populated runConversationId — without it the
+      // click-through assertion below would silently pass.
+      expect(
+        runConversationId,
+        "step 2 must set runConversationId before step 3 can verify the link",
+      ).toBeTruthy();
       if (runConversationId) {
         const runLinks = page.locator(
           `a[href="/conversations/${runConversationId}"]`,
