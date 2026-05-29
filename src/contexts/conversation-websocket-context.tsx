@@ -133,9 +133,8 @@ export function ConversationWebSocketProvider({
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
-  const clearEvents = useEventStore((state) => state.clearEvents);
-  const setLoadedConversationId = useEventStore(
-    (state) => state.setLoadedConversationId,
+  const clearEventsForConversation = useEventStore(
+    (state) => state.clearEventsForConversation,
   );
   const { setErrorMessage, removeErrorMessage, clearConnectionError } =
     useErrorMessageStore();
@@ -238,9 +237,11 @@ export function ConversationWebSocketProvider({
     if (useEventStore.getState().loadedConversationId === nextId) {
       return;
     }
-    clearEvents();
-    setLoadedConversationId(nextId);
-  }, [conversationId, clearEvents, setLoadedConversationId]);
+    // Single atomic action: clears the previous conversation's events and
+    // records the new loaded id in one `set`, so no subscriber can observe a
+    // half-applied state (events gone but the old id still reported).
+    clearEventsForConversation(nextId);
+  }, [conversationId, clearEventsForConversation]);
 
   useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {

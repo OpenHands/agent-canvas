@@ -116,5 +116,8 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     await waitFor(() =>
       expect(eventIds()).toEqual(["user-msg-conv-a", AGENT_REPLY_ID]),
     );
+    // ...and the re-seed deduped against the existing user message rather than
+    // appending a second copy — exactly two events, no double-insertion.
+    expect(eventIds()).toHaveLength(2);
   });
 });
