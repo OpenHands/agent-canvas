@@ -9,13 +9,17 @@
  * Flow:
  *   1. Navigate to Settings > LLM Profiles
  *   2. Create a new profile pointing at the mock LLM server
- *   3. Set the profile as active
+ *   3. Set the profile as active + verify settings API reflects the model
  *   4. Start a new conversation from the home page
  *   5. Send a user message and verify the agent responds correctly
  *   6. Verify via the events API that a terminal tool call was executed
+ *   7. Verify the conversation appears in the sidebar
+ *   8. Verify the user message is visible in chat
+ *   9. Verify POST /api/conversations payload included worktree: true
+ *  10. Resume the conversation from the sidebar after navigating away
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   BASH_TOKEN,
   REPLY_TOKEN,
@@ -37,11 +41,14 @@ import {
 
 const PROFILE_NAME = "mock-llm-e2e";
 const MOCK_MODEL = "openai/mock-test-model";
+const USER_MESSAGE = "Please run a quick terminal command and then reply.";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("mock-LLM agent-server conversation", () => {
   const conversationIds = new Set<string>();
+  /** Conversation ID from step 3, used by step 4 for resume verification. */
+  let step3ConversationId: string | null = null;
 
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
@@ -52,13 +59,26 @@ test.describe("mock-LLM agent-server conversation", () => {
     const match = page.url().match(/\/conversations\/([^/?#]+)/);
     if (match?.[1]) conversationIds.add(decodeURIComponent(match[1]));
 
-    // Clean up all conversations
+    // Clean up conversations — but skip step3ConversationId because step 4
+    // needs it to verify conversation resume from the sidebar.
     for (const id of Array.from(conversationIds)) {
+      if (id === step3ConversationId) continue;
       try {
         await deleteConversation(request, id);
         conversationIds.delete(id);
       } catch {
         // best-effort cleanup
+      }
+    }
+  });
+
+  // Safety net: delete the shared step3 conversation after all tests complete.
+  test.afterAll(async ({ request }) => {
+    if (step3ConversationId) {
+      try {
+        await deleteConversation(request, step3ConversationId);
+      } catch {
+        // best-effort
       }
     }
   });
@@ -124,7 +144,10 @@ test.describe("mock-LLM agent-server conversation", () => {
 
   // ── Step 2: Set the profile as active ───────────────────────────────
 
-  test("step 2: activate the mock-llm profile", async ({ page }) => {
+  test("step 2: activate the mock-llm profile and verify settings API", async ({
+    page,
+    request,
+  }) => {
     await routeSessionApiKey(page);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
@@ -176,6 +199,29 @@ test.describe("mock-LLM agent-server conversation", () => {
       foundActiveBadge,
       `Profile "${PROFILE_NAME}" should have an "Active" badge`,
     ).toBe(true);
+
+    // Verify the settings API now reflects the activated profile's LLM config
+    await test.step("verify settings API reflects the active profile's model", async () => {
+      const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+        headers: {
+          "X-Session-API-Key": SESSION_API_KEY,
+          "X-Expose-Secrets": "encrypted",
+        },
+      });
+      expect(settingsResp.ok(), `GET /api/settings returned ${settingsResp.status()}`).toBe(true);
+      const settings = await settingsResp.json();
+      const llmModel = settings?.agent_settings?.llm?.model;
+      expect(
+        llmModel,
+        `Expected settings llm.model="${MOCK_MODEL}" but got "${llmModel}"`,
+      ).toBe(MOCK_MODEL);
+
+      const llmBaseUrl = settings?.agent_settings?.llm?.base_url;
+      expect(
+        llmBaseUrl,
+        `Expected settings llm.base_url="${MOCK_LLM_BASE_URL}" but got "${llmBaseUrl}"`,
+      ).toBe(MOCK_LLM_BASE_URL);
+    });
   });
 
   // ── Step 3: Start a conversation and verify the mock agent responds ─
@@ -207,6 +253,25 @@ test.describe("mock-LLM agent-server conversation", () => {
       ).toBe(PROFILE_NAME);
     });
 
+    // Passively observe POST /api/conversations to capture the request body.
+    // Using page.on('request') instead of page.route() avoids conflicts with
+    // the routeSessionApiKey interceptor (Playwright routes are LIFO and only
+    // one handler can call continue/fulfill per request).
+    let capturedConversationPayload: Record<string, unknown> | null = null;
+    const captureConversationPayload = (req: import("@playwright/test").Request) => {
+      if (
+        req.method() === "POST" &&
+        new URL(req.url()).pathname === "/api/conversations"
+      ) {
+        try {
+          capturedConversationPayload = req.postDataJSON();
+        } catch {
+          // non-JSON body — leave null
+        }
+      }
+    };
+    page.on("request", captureConversationPayload);
+
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
@@ -222,7 +287,6 @@ test.describe("mock-LLM agent-server conversation", () => {
     // scripted responses from a deque), so the prompt text is irrelevant.
     // Keeping the tokens out of the user bubble lets us assert they appear
     // *only* in agent output.
-    const userMessage = "Please run a quick terminal command and then reply.";
 
     // Set contenteditable text via evaluate (contentEditable divs don't
     // respond reliably to Playwright's .fill() or .type()).
@@ -240,7 +304,7 @@ test.describe("mock-LLM agent-server conversation", () => {
           }),
         );
       },
-      { testId: "chat-input", text: userMessage },
+      { testId: "chat-input", text: USER_MESSAGE },
     );
 
     // Click the submit button — this triggers conversation creation
@@ -248,8 +312,24 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Wait for navigation to the new conversation page
     await waitForPath(page, /\/conversations\/.+/, 30_000);
+    page.off("request", captureConversationPayload);
     const conversationId = getConversationIdFromURL(page);
     conversationIds.add(conversationId);
+    step3ConversationId = conversationId;
+
+    // ── Verify: POST /api/conversations payload contained worktree: true ──
+
+    await test.step("verify worktree:true in conversation creation payload", async () => {
+      expect(
+        capturedConversationPayload,
+        "POST /api/conversations payload was not captured — " +
+        "the page.on('request') listener may have missed the request",
+      ).not.toBeNull();
+      expect(
+        capturedConversationPayload?.worktree,
+        `Expected worktree=true in payload, got: ${JSON.stringify(capturedConversationPayload?.worktree)}`,
+      ).toBe(true);
+    });
 
     // ── Verify: bash tool was executed (via bash events API) ──
 
@@ -271,6 +351,38 @@ test.describe("mock-LLM agent-server conversation", () => {
       await waitForNonUserMessageText(page, REPLY_TOKEN, 30_000);
     });
 
+    // ── Verify: user message is visible in the chat UI ──
+
+    await test.step("verify user message is visible in chat UI", async () => {
+      const userMessages = page.locator('[data-testid="user-message"]');
+      await expect(userMessages.first()).toBeVisible({ timeout: 5_000 });
+      const allUserText = await userMessages.allTextContents();
+      const hasUserMessage = allUserText.some((text) =>
+        text.includes(USER_MESSAGE),
+      );
+      expect(
+        hasUserMessage,
+        `User message "${USER_MESSAGE}" should be visible in a user-message element. ` +
+        `Found: ${allUserText.map((t) => t.slice(0, 80)).join(" | ")}`,
+      ).toBe(true);
+    });
+
+    // ── Verify: conversation appears in the sidebar ──
+
+    await test.step("verify conversation appears in sidebar", async () => {
+      // The sidebar renders conversation cards with data-testid="conversation-card".
+      // After creating a conversation, at least one card should be visible, and
+      // clicking it should link to our conversation's URL.
+      const sidebarCards = page.locator('[data-testid="conversation-card"]');
+      await expect(sidebarCards.first()).toBeVisible({ timeout: 10_000 });
+
+      // Verify at least one sidebar card links to our conversation
+      const cardLinks = page.locator(
+        `a[href*="/conversations/${conversationId}"]`,
+      );
+      await expect(cardLinks.first()).toBeVisible({ timeout: 5_000 });
+    });
+
     // ── Verify: no error banners are visible ──
 
     await test.step("verify no error banners", async () => {
@@ -279,5 +391,54 @@ test.describe("mock-LLM agent-server conversation", () => {
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
 
+  });
+
+  // ── Step 4: Resume the conversation from the sidebar ────────────────
+
+  test("step 4: resume conversation from sidebar after navigating away", async ({
+    page,
+  }) => {
+    // This step depends on the conversation created in step 3.
+    // If step 3 failed, skip this test instead of failing with a confusing error.
+    test.skip(!step3ConversationId, "step 3 must complete first");
+
+    await routeSessionApiKey(page);
+
+    // Navigate away to the home page
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the sidebar to load conversation cards
+    const sidebarCards = page.locator('[data-testid="conversation-card"]');
+    await expect(sidebarCards.first()).toBeVisible({ timeout: 15_000 });
+
+    // Find the sidebar link to our conversation and click it
+    const conversationLink = page.locator(
+      `a[href*="/conversations/${step3ConversationId}"]`,
+    );
+    await expect(conversationLink.first()).toBeVisible({ timeout: 10_000 });
+    await conversationLink.first().click();
+
+    // Wait for navigation back to the conversation page
+    await waitForPath(page, /\/conversations\/.+/, 15_000);
+    expect(page.url()).toContain(step3ConversationId);
+
+    // Verify the agent's reply token is still visible after resume
+    await test.step("verify agent reply is still visible after resume", async () => {
+      await waitForNonUserMessageText(page, REPLY_TOKEN, 15_000);
+    });
+
+    // Verify the user's original message is still visible
+    await test.step("verify user message is still visible after resume", async () => {
+      await expect(
+        page.locator('[data-testid="user-message"]').filter({ hasText: USER_MESSAGE }),
+      ).toBeVisible({ timeout: 10_000 });
+    });
+
+    // Verify no error banners after resume
+    await test.step("verify no error banners after resume", async () => {
+      const errorBanner = page.getByTestId("error-message-banner");
+      await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
+    });
   });
 });
