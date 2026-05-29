@@ -452,28 +452,9 @@ test.describe("mock-LLM automation lifecycle", () => {
 
     // Verify the cron schedule is displayed in the configuration section.
     // The ConfigurationSection renders schedule_human (e.g. "Every day at 9:00 AM")
-    // or falls back to the raw cron expression. Either way the schedule text
-    // or the cron string should appear somewhere on the detail page.
+    // or falls back to the raw cron expression.
     await test.step("verify cron schedule displayed on detail page", async () => {
-      // The raw cron schedule "0 9 * * *" should appear either directly or
-      // via the human-readable label. Check for the schedule text on the page.
-      await expect
-        .poll(
-          () =>
-            page
-              .evaluate((schedule) => {
-                // Check for the raw cron schedule OR a human-readable version
-                const text = document.body.innerText;
-                return (
-                  text.includes(schedule) ||
-                  text.toLowerCase().includes("9:00") ||
-                  text.toLowerCase().includes("every day")
-                );
-              }, CRON_SCHEDULE)
-              .catch(() => false),
-          { timeout: 10_000 },
-        )
-        .toBe(true);
+      await expect(page.getByText(CRON_SCHEDULE)).toBeVisible({ timeout: 10_000 });
     });
 
     await test.step("verify run shows COMPLETED with conversation link", async () => {

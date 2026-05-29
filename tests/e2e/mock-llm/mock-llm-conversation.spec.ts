@@ -41,6 +41,7 @@ import {
 
 const PROFILE_NAME = "mock-llm-e2e";
 const MOCK_MODEL = "openai/mock-test-model";
+const USER_MESSAGE = "Please run a quick terminal command and then reply.";
 
 test.describe.configure({ mode: "serial" });
 
@@ -260,7 +261,7 @@ test.describe("mock-LLM agent-server conversation", () => {
     page.on("request", (req) => {
       if (
         req.method() === "POST" &&
-        req.url().includes("/api/conversations")
+        new URL(req.url()).pathname === "/api/conversations"
       ) {
         try {
           capturedConversationPayload = req.postDataJSON();
@@ -285,7 +286,6 @@ test.describe("mock-LLM agent-server conversation", () => {
     // scripted responses from a deque), so the prompt text is irrelevant.
     // Keeping the tokens out of the user bubble lets us assert they appear
     // *only* in agent output.
-    const userMessage = "Please run a quick terminal command and then reply.";
 
     // Set contenteditable text via evaluate (contentEditable divs don't
     // respond reliably to Playwright's .fill() or .type()).
@@ -303,7 +303,7 @@ test.describe("mock-LLM agent-server conversation", () => {
           }),
         );
       },
-      { testId: "chat-input", text: userMessage },
+      { testId: "chat-input", text: USER_MESSAGE },
     );
 
     // Click the submit button — this triggers conversation creation
@@ -356,11 +356,11 @@ test.describe("mock-LLM agent-server conversation", () => {
       await expect(userMessages.first()).toBeVisible({ timeout: 5_000 });
       const allUserText = await userMessages.allTextContents();
       const hasUserMessage = allUserText.some((text) =>
-        text.includes(userMessage),
+        text.includes(USER_MESSAGE),
       );
       expect(
         hasUserMessage,
-        `User message "${userMessage}" should be visible in a user-message element. ` +
+        `User message "${USER_MESSAGE}" should be visible in a user-message element. ` +
         `Found: ${allUserText.map((t) => t.slice(0, 80)).join(" | ")}`,
       ).toBe(true);
     });
@@ -447,7 +447,7 @@ test.describe("mock-LLM agent-server conversation", () => {
                   if (el.textContent?.includes(searchText)) return true;
                 }
                 return false;
-              }, "Please run a quick terminal command and then reply.")
+              }, USER_MESSAGE)
               .catch(() => false),
           { timeout: 10_000 },
         )
