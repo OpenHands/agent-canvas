@@ -222,12 +222,14 @@ function tryPort(port, host = "127.0.0.1") {
  * @param {string} [host]
  */
 export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
-  const busy = [];
-  for (const { name, port } of portConfigs) {
-    if (!(await tryPort(port, host))) {
-      busy.push({ name, port });
-    }
-  }
+  const results = await Promise.all(
+    portConfigs.map(async ({ name, port }) => ({
+      name,
+      port,
+      free: await tryPort(port, host),
+    })),
+  );
+  const busy = results.filter(({ free }) => !free);
   if (busy.length === 0) return;
 
   const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
@@ -519,8 +521,11 @@ export async function buildSafeDevConfigAsync(
     preferredBackendPort + 1,
   );
 
-  // Fail fast if the agent-server port is already in use.
-  await assertPortsFree([{ name: "agent-server", port: preferredBackendPort }]);
+  // Fail fast if any required port is already in use.
+  await assertPortsFree([
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "vscode", port: preferredVscodePort },
+  ]);
 
   return buildConfigFromPorts(
     { backendPort: preferredBackendPort, vscodePort: preferredVscodePort },
