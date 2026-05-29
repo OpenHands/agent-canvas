@@ -24,7 +24,6 @@ import { BackendStatusDot } from "./backend-status-dot";
  * against `GET /api/settings` before persisting; wrong keys surface
  * an inline error instead of a blind reload.
  */
-// eslint-disable-next-line import/no-default-export -- React.lazy requires a default export
 export default function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
   const { active, updateBackend } = useActiveBackendContext();
@@ -83,14 +82,12 @@ export default function ApiKeyEntryScreen() {
       // Distinguish auth errors (401) from everything else so a
       // correct key + broken server doesn't say "invalid key".
       const is401 =
-        isSdkHttpError(err) &&
-        (err as { status: number }).status === 401;
+        isSdkHttpError(err) && (err as { status: number }).status === 401;
 
       if (is401) {
         setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
       } else {
-        const detail =
-          err instanceof Error ? err.message : String(err);
+        const detail = err instanceof Error ? err.message : String(err);
         setErrorMessage(
           `${t(I18nKey.AUTH$CONNECTION_FAILED)}${detail ? `: ${detail}` : ""}`,
         );
