@@ -17,6 +17,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { resolve } from "node:path";
 
 // ── Port allocation (separate from live E2E / dev to avoid collisions) ─
 const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
@@ -36,7 +37,10 @@ const sessionApiKey =
 process.env.MOCK_LLM_SESSION_API_KEY = sessionApiKey;
 
 // ── State directory (isolated per test run) ────────────────────────────
-const STATE_DIR = ".tmp/mock-llm-state";
+// MUST be absolute — the automation backend's SQLite DB URL is derived from
+// this path, and a relative path gets double-nested when the child process
+// cwd is also set to stateDir (cwd/stateDir/stateDir/automations.db).
+const STATE_DIR = resolve(".tmp/mock-llm-state");
 
 // ── URLs ───────────────────────────────────────────────────────────────
 const INGRESS_URL = `http://localhost:${INGRESS_PORT}/`;
@@ -81,7 +85,7 @@ export default defineConfig({
     baseURL: INGRESS_URL,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
-    video: "retain-on-failure",
+    video: "on",
   },
   projects: [
     {
@@ -129,7 +133,15 @@ export default defineConfig({
           // the shutdown handler (npm swallows it).
           "node --env-file-if-exists=.env bin/agent-canvas.mjs",
         ].join(" "),
-      url: INGRESS_URL,
+      // Probe the automation list endpoint through the ingress to ensure
+      // the FULL stack (agent-server + automation backend + ingress) is
+      // up before tests start. The automation backend starts last via
+      // uvx and can take 30-60s — checking only the ingress root or
+      // /server_info would let tests begin before it's ready.
+      // GET /api/automation/v1 returns 200 (empty list) without auth
+      // because the dev automation backend does not enforce session-key
+      // auth on the list endpoint (confirmed in CI).
+      url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
       timeout: 180_000, // allow extra time for build + agent-server + automation startup
       reuseExistingServer: !process.env.CI,
     },
