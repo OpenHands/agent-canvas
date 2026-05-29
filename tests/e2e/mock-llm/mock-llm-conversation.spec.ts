@@ -323,7 +323,7 @@ test.describe("mock-LLM agent-server conversation", () => {
       expect(
         capturedConversationPayload,
         "POST /api/conversations payload was not captured — " +
-        "the route interceptor may have missed the request",
+        "the page.on('request') listener may have missed the request",
       ).not.toBeNull();
       expect(
         capturedConversationPayload?.worktree,
