@@ -51,6 +51,15 @@ export interface EventState {
   events: OHEvent[];
   eventIds: Set<string | number>;
   uiEvents: OHEvent[];
+  /**
+   * The conversation whose events currently populate the store. The store is
+   * global (not keyed by conversation), so the conversation route uses this to
+   * tell a genuine conversation switch apart from a remount of the *same*
+   * conversation (e.g. navigating to Settings and back) — only the former
+   * should clear the accumulated events.
+   */
+  loadedConversationId: string | null;
+  setLoadedConversationId: (conversationId: string | null) => void;
   addEvent: (event: OHEvent) => void;
   /**
    * Bulk-insert events. Used for the initial REST history load and for
@@ -108,6 +117,9 @@ export const useEventStore = create<EventState>()((set) => ({
   events: [],
   eventIds: new Set(),
   uiEvents: [],
+  loadedConversationId: null,
+  setLoadedConversationId: (conversationId: string | null) =>
+    set(() => ({ loadedConversationId: conversationId })),
   addEvent: (event: OHEvent) => set((state) => applyAddEvent(state, event)),
   addEvents: (incoming: OHEvent[]) =>
     set((state) => {
