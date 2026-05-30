@@ -655,6 +655,12 @@ export function buildAgentServerEnv(config) {
     // This is a no-op on Linux/macOS where the locale is already UTF-8.
     PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
+    // Explicitly set OH_PERSISTENCE_DIR so the agent-server stores settings
+    // and secrets directly in stateDir (e.g. ~/.openhands/agent-canvas/).
+    // Without this, the agent-server falls back to deriving the persistence
+    // dir as conversations_path.parent / ".openhands", which produces an
+    // unwanted double-nesting: ~/.openhands/agent-canvas/.openhands/
+    OH_PERSISTENCE_DIR: config.stateDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),
