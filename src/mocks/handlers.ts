@@ -18,6 +18,11 @@ import {
   AUTOMATION_HANDLERS,
   resetAutomationMockData,
 } from "./automation-handlers";
+import { MCP_HANDLERS } from "./mcp-handlers";
+import {
+  WORKSPACES_HANDLERS,
+  resetMockWorkspaces,
+} from "./workspaces-handlers";
 
 export const handlers = [
   ...FILE_SERVICE_HANDLERS,
@@ -30,11 +35,14 @@ export const handlers = [
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
   ...AUTOMATION_HANDLERS,
+  ...MCP_HANDLERS,
+  ...WORKSPACES_HANDLERS,
 ];
 
 export {
   MOCK_DEFAULT_USER_SETTINGS,
   resetTestHandlersMockSettings,
   resetAutomationMockData,
+  resetMockWorkspaces,
   setMockGitChanges,
 };
