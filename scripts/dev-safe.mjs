@@ -42,7 +42,6 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
 const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
@@ -68,6 +67,20 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
   ".openhands",
   "agent-canvas",
   "session-api-key.txt",
+);
+
+// Where the OH_SECRET_KEY is persisted so dev mode and Docker mode share the
+// same encryption key when both use ~/.openhands as their state directory.
+// docker/entrypoint.sh reads and writes this same file, so whichever mode runs
+// first generates the key and the other picks it up automatically.
+//
+// To rotate the key, delete this file and restart both modes. To pin a key
+// explicitly, export OH_SECRET_KEY — that takes precedence over the file.
+export const DEFAULT_SECRET_KEY_PATH = path.join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "secret-key.txt",
 );
 
 // Cache so repeated lookups within a single process return the same key,
@@ -211,6 +224,36 @@ function tryPort(port, host = "127.0.0.1") {
 }
 
 /**
+ * Assert that all listed ports are available, throwing a descriptive error if
+ * any are already in use.
+ *
+ * Intended as a pre-flight check before spawning services so that a concurrent
+ * agent-canvas instance is detected immediately rather than silently starting
+ * on a different port.
+ *
+ * @param {Array<{name: string, port: number}>} portConfigs - Named port list
+ * @param {string} [host]
+ */
+export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
+  const results = await Promise.all(
+    portConfigs.map(async ({ name, port }) => ({
+      name,
+      port,
+      free: await tryPort(port, host),
+    })),
+  );
+  const busy = results.filter(({ free }) => !free);
+  if (busy.length === 0) return;
+
+  const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
+  throw new Error(
+    `Cannot start: the following ports are already in use:\n\n${lines}\n\n` +
+      `Another agent-canvas instance may already be running.\n` +
+      `Stop it first, or override the port via environment variables (e.g. PORT=<other>).`,
+  );
+}
+
+/**
  * Find multiple free ports at once, each preferring its specified default.
  *
  * Allocates ports sequentially to avoid race conditions between checks.
@@ -337,7 +380,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.23.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.24.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -491,26 +534,14 @@ export async function buildSafeDevConfigAsync(
     preferredBackendPort + 1,
   );
 
-  // Find available ports, preferring the defaults
-  const ports = await findFreePorts([
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "vscode", preferred: preferredVscodePort },
+  // Fail fast if any required port is already in use.
+  await assertPortsFree([
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "vscode", port: preferredVscodePort },
   ]);
 
-  // Log if we're using non-default ports
-  if (ports.backend !== preferredBackendPort) {
-    console.log(
-      `  ℹ Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-    );
-  }
-  if (ports.vscode !== preferredVscodePort) {
-    console.log(
-      `  ℹ Port ${preferredVscodePort} busy, using ${ports.vscode} for vscode`,
-    );
-  }
-
   return buildConfigFromPorts(
-    { backendPort: ports.backend, vscodePort: ports.vscode },
+    { backendPort: preferredBackendPort, vscodePort: preferredVscodePort },
     cwd,
     env,
   );
@@ -550,8 +581,14 @@ function buildConfigFromPorts(ports, cwd, env) {
   );
   const conversationsPath = path.join(stateDir, "conversations");
   const workspacesPath = path.join(stateDir, "workspaces");
-  // Use provided secret key or default for local development
-  const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
+  // Use provided secret key, or read/generate one persisted to
+  // ~/.openhands/agent-canvas/secret-key.txt. Persisting ensures dev mode
+  // and Docker mode share the same encryption key when they mount the same
+  // ~/.openhands directory (docker/entrypoint.sh reads/writes the same file).
+  const secretKeyPath =
+    env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
+  const secretKey =
+    env.OH_SECRET_KEY || getOrCreatePersistedApiKey(secretKeyPath, "secret");
   // Use provided session API key or fall back to a key persisted to
   // ~/.openhands/agent-canvas/session-api-key.txt. Persisting on disk keeps
   // the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
@@ -606,6 +643,17 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Force Python to use UTF-8 for all file I/O and streams.
+    //
+    // On Windows, Python defaults to the system ANSI codepage (e.g. cp1252).
+    // The agent-server writes conversation metadata JSON that can contain
+    // emoji (e.g. ✅ U+2705) which cp1252 cannot encode, producing:
+    //   UnicodeEncodeError: 'charmap' codec can't encode character '\u2705'
+    // Setting PYTHONUTF8=1 enables Python's UTF-8 mode (PEP 540) for the
+    // entire agent-server process, matching the behaviour on Linux/macOS
+    // where the locale is already UTF-8.
+    // This is a no-op on Linux/macOS where the locale is already UTF-8.
+    PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
@@ -753,17 +801,24 @@ export function buildNpmScriptCommand(
   env = process.env,
   nodeExecPath = process.execPath,
 ) {
-  if (env.npm_execpath) {
-    return {
-      command: env.npm_node_execpath || nodeExecPath,
-      args: [env.npm_execpath, "run", scriptName],
-    };
-  }
-
+  // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
+  // npm_execpath points to a path like
+  // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
+  // spaces. When that path is passed as an argument with shell:true in
+  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
+  // as a command, producing "not recognized as an internal or external command".
+  // Using "npm" via cmd.exe avoids the problem entirely.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
     };
   }
 
@@ -863,7 +918,7 @@ async function main() {
 
   const secretKeySource = process.env.OH_SECRET_KEY
     ? "custom (from OH_SECRET_KEY)"
-    : "default (for local development)";
+    : `persisted (${process.env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH})`;
 
   const sessionKeySource =
     process.env.SESSION_API_KEY ||

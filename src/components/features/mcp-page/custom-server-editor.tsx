@@ -1,14 +1,19 @@
 import React from "react";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
+import type { MCPTestFailure } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
-import { MCPServerForm } from "#/components/features/settings/mcp-settings/mcp-server-form";
+import {
+  MCPServerForm,
+  type TestMessage,
+} from "#/components/features/settings/mcp-settings/mcp-server-form";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
+import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   displayErrorToast,
@@ -38,11 +43,39 @@ export function CustomServerEditor({
     useUpdateMcpServer();
   const { mutate: deleteMcpServer, isPending: isDeleting } =
     useDeleteMcpServer();
+  const {
+    mutate: testServer,
+    isPending: isTesting,
+    data: testResult,
+    reset: resetTest,
+  } = useTestMcpServer();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   const isEditing = !!server.id;
   const isPending = isAdding || isUpdating || isDeleting;
-  const isDismissBlocked = isPending || showDeleteConfirm;
+  const isDismissBlocked = isPending || isTesting || showDeleteConfirm;
+
+  const makeTestErrorMessage = (failure: MCPTestFailure): string => {
+    switch (failure.error_kind) {
+      case "timeout":
+        return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
+      case "connection":
+        return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
+      default:
+        return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
+    }
+  };
+
+  const testMessage: TestMessage | null = React.useMemo(() => {
+    if (!testResult) return null;
+    if (testResult.ok) {
+      return {
+        ok: true,
+        text: t(I18nKey.MCP$TEST_SUCCESS, { count: testResult.tools.length }),
+      };
+    }
+    return { ok: false, text: makeTestErrorMessage(testResult) };
+  }, [testResult, t]);
 
   // Shared error handler so both add and update surface backend errors
   // as a toast instead of failing silently — previously these calls
@@ -54,14 +87,28 @@ export function CustomServerEditor({
   };
 
   const handleSubmit = (payload: MCPServerConfig) => {
-    if (isEditing) {
-      updateMcpServer(
-        { serverId: server.id, server: payload },
-        { onSuccess: onClose, onError: handleError },
-      );
-    } else {
-      addMcpServer(payload, { onSuccess: onClose, onError: handleError });
-    }
+    resetTest();
+    testServer(payload, {
+      onSuccess: (result) => {
+        if (!result.ok) {
+          // Test failed — modal stays open, error shown via testMessage.
+          return;
+        }
+        if (isEditing) {
+          updateMcpServer(
+            { serverId: server.id, server: payload },
+            { onSuccess: onClose, onError: handleError },
+          );
+        } else {
+          addMcpServer(payload, { onSuccess: onClose, onError: handleError });
+        }
+      },
+      onError: handleError,
+    });
+  };
+
+  const handleTestClick = (payload: MCPServerConfig) => {
+    testServer(payload);
   };
 
   const handleConfirmDelete = () => {
@@ -114,6 +161,9 @@ export function CustomServerEditor({
             onCancel={onClose}
             onDelete={isEditing ? () => setShowDeleteConfirm(true) : undefined}
             isActionDisabled={isPending}
+            onTest={handleTestClick}
+            isTestPending={isTesting}
+            testMessage={testMessage}
           />
         </div>
       </ModalBackdrop>
