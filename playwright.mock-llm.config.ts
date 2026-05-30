@@ -85,7 +85,7 @@ export default defineConfig({
     baseURL: INGRESS_URL,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
-    video: "retain-on-failure",
+    video: "on",
   },
   projects: [
     {

@@ -444,6 +444,19 @@ test.describe("mock-LLM automation lifecycle", () => {
       await waitForPath(page, /\/automations\/.+/, 10_000);
     });
 
+    // Verify the automation shows an "Active" enabled-status badge on the detail page
+    await test.step("verify automation shows active status badge", async () => {
+      const activeBadge = page.getByTestId("active-status-badge-active");
+      await expect(activeBadge).toBeVisible({ timeout: 10_000 });
+    });
+
+    // Verify the cron schedule is displayed in the configuration section.
+    // The ConfigurationSection renders schedule_human (e.g. "Every day at 9:00 AM")
+    // or falls back to the raw cron expression.
+    await test.step("verify cron schedule displayed on detail page", async () => {
+      await expect(page.getByText(CRON_SCHEDULE)).toBeVisible({ timeout: 10_000 });
+    });
+
     await test.step("verify run shows COMPLETED with conversation link", async () => {
       // The activity log should show a COMPLETED badge (translated as "Successful")
       const completedIcon = page.getByTestId("run-status-icon-completed");
