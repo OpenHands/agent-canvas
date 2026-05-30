@@ -4,10 +4,40 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AxiosError } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import McpService from "#/api/mcp-service/mcp-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { CustomServerEditor } from "#/components/features/mcp-page/custom-server-editor";
 import { useSettings } from "#/hooks/query/use-settings";
+
+import type { Settings } from "#/types/settings";
+import type { MCPServerConfig } from "#/types/mcp-server";
+
+const EDIT_STDIO_SERVER: MCPServerConfig = {
+  id: "stdio-0",
+  type: "stdio",
+  name: "github",
+  command: "docker",
+  args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
+};
+
+function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
+  return {
+    ...MOCK_DEFAULT_USER_SETTINGS,
+    agent_settings: {
+      ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+      mcp_config: {
+        mcpServers: {
+          github: {
+            command: "docker",
+            args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
+          },
+        },
+      },
+    },
+    ...overrides,
+  };
+}
 
 /**
  * Wrapper that only mounts the editor once `useSettings` has resolved.
@@ -23,6 +53,18 @@ function EditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
     <CustomServerEditor
       server={{ id: "", type: "sse" }}
       existingServers={[]}
+      onClose={onClose}
+    />
+  );
+}
+
+function EditEditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
+  const { data } = useSettings();
+  if (!data) return null;
+  return (
+    <CustomServerEditor
+      server={EDIT_STDIO_SERVER}
+      existingServers={[EDIT_STDIO_SERVER]}
       onClose={onClose}
     />
   );
@@ -48,6 +90,11 @@ describe("CustomServerEditor", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       MOCK_DEFAULT_USER_SETTINGS,
     );
+    // Pre-flight connectivity test must pass so the save mutation is reached.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+    });
   });
 
   it("keeps the modal open and does not call onClose when the add mutation fails", async () => {
@@ -87,11 +134,50 @@ describe("CustomServerEditor", () => {
     });
   });
 
+  it("closes from the top-right close button", async () => {
+    const onClose = vi.fn();
+    renderWith(<EditorOnceSettingsLoaded onClose={onClose} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    fireEvent.click(screen.getByTestId("mcp-custom-editor-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show delete in add mode", async () => {
+    renderWith(<EditorOnceSettingsLoaded onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    expect(
+      screen.queryByTestId("mcp-custom-editor-delete"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes an installed server after confirmation", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp(),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    const onClose = vi.fn();
+    renderWith(<EditEditorOnceSettingsLoaded onClose={onClose} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    fireEvent.click(screen.getByTestId("mcp-custom-editor-delete"));
+    expect(await screen.findByTestId("confirmation-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it("calls onClose when the header close button is clicked", async () => {
     const onClose = vi.fn();
     renderWith(<EditorOnceSettingsLoaded onClose={onClose} />);
 
-    fireEvent.click(await screen.findByTestId("close-mcp-custom-editor"));
+    fireEvent.click(await screen.findByTestId("mcp-custom-editor-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });

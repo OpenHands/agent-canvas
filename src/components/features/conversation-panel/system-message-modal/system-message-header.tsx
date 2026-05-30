@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -10,9 +10,6 @@ interface SystemMessageHeaderProps {
   onClose: () => void;
 }
 
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer";
-
 export function SystemMessageHeader({
   agentClass,
   openhandsVersion,
@@ -21,8 +18,9 @@ export function SystemMessageHeader({
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="flex w-full items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+    <>
+      <ModalCloseButton onClose={onClose} testId="close-system-message-modal" />
+      <div className="flex w-full min-w-0 flex-col gap-2 pr-6">
         <BaseModalTitle title={t(I18nKey.SYSTEM_MESSAGE_MODAL$TITLE)} />
         {(agentClass || openhandsVersion) && (
           <div className="flex flex-col gap-2">
@@ -49,15 +47,6 @@ export function SystemMessageHeader({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className={ICON_BUTTON_CLASS}
-        aria-label={t(I18nKey.BUTTON$CLOSE)}
-        data-testid="close-system-message-modal"
-      >
-        <X size={20} aria-hidden />
-      </button>
-    </div>
+    </>
   );
 }

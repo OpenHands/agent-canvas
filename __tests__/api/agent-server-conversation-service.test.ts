@@ -493,6 +493,69 @@ describe("AgentServerConversationService", () => {
       );
     });
 
+    it("preserves the new ACP model fields through the wire normalizer", async () => {
+      // Direct adapter tests pass DirectConversationInfo objects in-process
+      // and so can't catch the case where the wire-format normalizer
+      // (``normalizeAgent`` + ``requireDirectConversationInfo``) drops the
+      // newly-added ACP fields. Exercises the full HTTP -> AppConversation
+      // path so the chip's model resolution actually has the inputs it
+      // needs on a real local-backend fetch.
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp-model-wire",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: {
+              kind: "ACPAgent",
+              acp_model: "claude-opus-4-7",
+              llm: { model: "acp-managed" },
+            },
+            current_model_id: "claude-opus-4-7",
+            current_model_name: "Claude Opus 4.7",
+            tags: { acpserver: "claude-code" },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp-model-wire",
+        ]);
+
+      // ``current_model_name`` wins the precedence chain in the adapter.
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.llm_model).toBe("Claude Opus 4.7");
+    });
+
+    it("falls back to acp_model when SDK runtime fields are absent on the wire", async () => {
+      // Older agent-servers don't populate ``current_model_*``. The
+      // adapter must still surface a model on the chip — falling through
+      // to ``agent.acp_model`` (the Canvas-configured value).
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp-fallback",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: {
+              kind: "ACPAgent",
+              acp_model: "claude-sonnet-4-6",
+              llm: { model: "acp-managed" },
+            },
+            tags: { acpserver: "claude-code" },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp-fallback",
+        ]);
+
+      expect(conversation?.llm_model).toBe("claude-sonnet-4-6");
+    });
+
     it("extracts the acpserver tag from the wire payload for the sidebar chip", async () => {
       // The agent-server stamps ``tags.acpserver`` at conversation create
       // time (see ``buildStartConversationRequest``); the read path

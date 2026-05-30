@@ -10,7 +10,32 @@ import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
+const sendMessageWithAttachments = vi.fn();
+const mockClearAllFiles = vi.fn();
+const enqueueHomeTaskPendingMessage = vi.fn();
 const mockDisplayErrorToast = vi.fn();
+
+let mockImages: File[] = [];
+let mockFiles: File[] = [];
+
+vi.mock("#/utils/send-message-with-attachments", () => ({
+  sendMessageWithAttachments: (...args: unknown[]) =>
+    sendMessageWithAttachments(...args),
+}));
+
+vi.mock("#/utils/enqueue-home-task-pending-message", () => ({
+  enqueueHomeTaskPendingMessage: (...args: unknown[]) =>
+    enqueueHomeTaskPendingMessage(...args),
+}));
+
+vi.mock("#/stores/conversation-store", () => ({
+  useConversationStore: () => ({
+    images: mockImages,
+    files: mockFiles,
+    imagesMarkedUploadAsFile: [],
+    clearAllFiles: mockClearAllFiles,
+  }),
+}));
 
 vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => {
   const actual =
@@ -210,7 +235,17 @@ describe("HomeChatLauncher", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    mockImages = [];
+    mockFiles = [];
     mockUseActiveBackend.mockReturnValue(localBackend);
+    enqueueHomeTaskPendingMessage.mockResolvedValue(undefined);
+    sendMessageWithAttachments.mockResolvedValue({
+      text: "hello world",
+      content: "hello world",
+      imageUrls: ["data:image/png;base64,abc"],
+      fileUrls: [],
+      timestamp: "2020-01-01T00:00:00.000Z",
+    });
     vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
       workspaces: [],
       workspaceParents: [],
@@ -332,6 +367,35 @@ describe("HomeChatLauncher", () => {
     );
   });
 
+  it("does not pass query to createConversation when attachments are present", async () => {
+    mockImages = [new File(["x"], "shot.png", { type: "image/png" })];
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      undefined,
+      undefined,
+    );
+    await waitFor(() =>
+      expect(sendMessageWithAttachments).toHaveBeenCalledTimes(1),
+    );
+    expect(mockClearAllFiles).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
+    );
+  });
+
   it("surfaces a toast and skips navigation when conversation creation fails", async () => {
     vi.spyOn(
       AgentServerConversationService,
@@ -344,5 +408,78 @@ describe("HomeChatLauncher", () => {
 
     await waitFor(() => expect(mockDisplayErrorToast).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("enqueues an optimistic pending message when cloud returns a start task", async () => {
+    mockUseActiveBackend.mockReturnValue(cloudBackend);
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({
+          id: "start-task-1",
+          app_conversation_id: null,
+        }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(enqueueHomeTaskPendingMessage).toHaveBeenCalledWith({
+        conversationId: "task-start-task-1",
+        text: "hello world",
+        images: [],
+        imagesMarkedUploadAsFile: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/conversations/task-start-task-1",
+      ),
+    );
+  });
+
+  it("defers attachments and enqueues an optimistic pending message for cloud start tasks", async () => {
+    mockUseActiveBackend.mockReturnValue(cloudBackend);
+    mockImages = [new File(["x"], "shot.png", { type: "image/png" })];
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({
+          id: "start-task-2",
+          app_conversation_id: null,
+        }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(sendMessageWithAttachments).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(enqueueHomeTaskPendingMessage).toHaveBeenCalledWith({
+        conversationId: "task-start-task-2",
+        text: "hello world",
+        images: mockImages,
+        imagesMarkedUploadAsFile: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/conversations/task-start-task-2",
+      ),
+    );
   });
 });

@@ -93,7 +93,13 @@ function classifyFetchError(error: unknown): SandboxIssue | null {
 export function useBashCommandLogs(options: UseBashCommandLogsOptions) {
   const { conversationId, bashCommandId, enabled = true } = options;
   const active = useActiveBackend();
-  const conversationQuery = useUserConversation(conversationId ?? null);
+  // Only resolve the conversation when the modal is open. RunLogsModal mounts
+  // (closed) for every activity-log row, so an unconditional lookup would fire
+  // one /api/conversations request per row on page load. Passing null when
+  // disabled trips useUserConversation's own `!!cid` gate.
+  const conversationQuery = useUserConversation(
+    enabled ? (conversationId ?? null) : null,
+  );
   const conversation = conversationQuery.data;
   const conversationUrl = conversation?.conversation_url ?? null;
   const sessionApiKey = conversation?.session_api_key ?? null;

@@ -162,6 +162,38 @@
   }
 }
 
+/* Skills / MCP / Automations tiles: no border at rest; hover/focus-visible only. */
+.extension-module-card-interactive {
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 150ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.extension-module-card-interactive {
+  appearance: none;
+}
+
+.extension-module-card-interactive:hover {
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.extension-module-card-interactive:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.extension-module-card-interactive:focus:not(:focus-visible) {
+  border-color: transparent;
+}
+
+.extension-module-card-interactive:focus-visible {
+  outline: none;
+  border-color: rgb(255 255 255 / 0.4);
+}
+
 .button-base {
   @apply bg-tertiary border border-[var(--oh-border)] rounded-xs;
 }

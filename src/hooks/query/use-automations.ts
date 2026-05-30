@@ -26,7 +26,7 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
       active.orgId,
     ],
     queryFn: () => AutomationService.getAutomations(limit, offset),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     enabled,
   });
 }
@@ -39,18 +39,6 @@ export function useToggleAutomation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
-    },
-  });
-}
-
-export function useDispatchAutomation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => AutomationService.dispatchAutomation(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: AUTOMATION_RUNS_QUERY_KEY });
     },
   });
 }
@@ -73,6 +61,20 @@ export function useDeleteAutomation() {
     mutationFn: (id: string) => AutomationService.deleteAutomation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
+    },
+  });
+}
+
+export function useDispatchAutomation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => AutomationService.dispatchAutomation(id),
+    onSuccess: (_run, id) => {
+      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
+      queryClient.invalidateQueries({
+        queryKey: [...AUTOMATION_RUNS_QUERY_KEY, id],
+      });
     },
   });
 }

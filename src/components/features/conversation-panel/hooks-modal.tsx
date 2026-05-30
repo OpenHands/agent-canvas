@@ -42,7 +42,7 @@ export function HooksModal({ onClose }: HooksModalProps) {
     <ModalBackdrop onClose={onClose}>
       <ModalBody
         width="lg"
-        className="max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
+        className="relative max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
         testID="hooks-modal"
       >
         <HooksModalHeader

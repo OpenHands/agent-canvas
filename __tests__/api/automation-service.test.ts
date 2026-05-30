@@ -7,23 +7,31 @@ import type {
   AutomationRunsResponse,
 } from "#/types/automation";
 import type { Backend } from "#/api/backend-registry/types";
+import type { InternalAxiosRequestConfig } from "axios";
 
 // Use vi.hoisted to define mocks that will be available during vi.mock hoisting
 const {
   mockGet,
-  mockPost,
   mockPatch,
+  mockPost,
   mockDelete,
   mockCallCloudProxy,
   mockGetActive,
-} = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-  mockPost: vi.fn(),
-  mockPatch: vi.fn(),
-  mockDelete: vi.fn(),
-  mockCallCloudProxy: vi.fn(),
-  mockGetActive: vi.fn(),
-}));
+  mockGetEffectiveLocal,
+  capturedInterceptors,
+} = vi.hoisted(() => {
+  const interceptors: Array<(config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig> = [];
+  return {
+    mockGet: vi.fn(),
+    mockPatch: vi.fn(),
+    mockPost: vi.fn(),
+    mockDelete: vi.fn(),
+    mockCallCloudProxy: vi.fn(),
+    mockGetActive: vi.fn(),
+    mockGetEffectiveLocal: vi.fn(),
+    capturedInterceptors: interceptors,
+  };
+});
 
 vi.mock("axios", () => ({
   default: {
@@ -35,7 +43,9 @@ vi.mock("axios", () => ({
       delete: mockDelete,
       interceptors: {
         request: {
-          use: vi.fn(),
+          use: (fn: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig) => {
+            capturedInterceptors.push(fn);
+          },
         },
       },
     }),
@@ -48,6 +58,7 @@ vi.mock("#/api/cloud/proxy", () => ({
 
 vi.mock("#/api/backend-registry/active-store", () => ({
   getActiveBackend: mockGetActive,
+  getEffectiveLocalBackend: mockGetEffectiveLocal,
 }));
 
 // Import after mocking
@@ -68,6 +79,20 @@ const cloudBackend: Backend = {
   apiKey: "bearer-key",
   kind: "cloud",
 };
+
+/** Build a minimal InternalAxiosRequestConfig for interceptor tests. */
+function makeAxiosConfig(
+  overrides: Partial<InternalAxiosRequestConfig> = {},
+): InternalAxiosRequestConfig {
+  const headers = {
+    set: vi.fn(),
+    get: vi.fn(),
+  } as unknown as InternalAxiosRequestConfig["headers"];
+  return {
+    headers,
+    ...overrides,
+  } as unknown as InternalAxiosRequestConfig;
+}
 
 const mockAutomation: Automation = {
   id: "1",
@@ -101,12 +126,13 @@ describe("AutomationService", () => {
     mockGet.mockReset();
     mockPatch.mockReset();
     mockPost.mockReset();
-
     mockDelete.mockReset();
     mockCallCloudProxy.mockReset();
     // Default: active backend is local. Cloud-routing tests override this.
     mockGetActive.mockReset();
     mockGetActive.mockReturnValue({ backend: localBackend, orgId: null });
+    mockGetEffectiveLocal.mockReset();
+    mockGetEffectiveLocal.mockReturnValue(localBackend);
   });
 
   describe("listAutomations", () => {
@@ -288,6 +314,26 @@ describe("AutomationService", () => {
     });
   });
 
+  describe("dispatchAutomation", () => {
+    it("posts to the dispatch endpoint for local backends", async () => {
+      const run = {
+        id: "run-1",
+        status: "PENDING",
+        conversation_id: null,
+        bash_command_id: null,
+        error_detail: null,
+        started_at: "2026-01-01T00:00:00Z",
+        completed_at: null,
+      };
+      mockPost.mockResolvedValue({ data: run });
+
+      const result = await AutomationService.dispatchAutomation("1");
+
+      expect(mockPost).toHaveBeenCalledWith("/api/automation/v1/1/dispatch");
+      expect(result).toEqual(run);
+    });
+  });
+
   // When the active backend is cloud the local axios instance must be
   // bypassed entirely; calls must route through `callCloudProxy` so the
   // bundled local agent-server forwards the request server-side to the
@@ -374,6 +420,100 @@ describe("AutomationService", () => {
         path: "/api/automation/v1/abc",
       });
       expect(mockDelete).not.toHaveBeenCalled();
+    });
+
+    it("dispatchAutomation forwards method POST via callCloudProxy", async () => {
+      const run = {
+        id: "run-1",
+        status: "PENDING",
+        conversation_id: null,
+        bash_command_id: null,
+        error_detail: null,
+        started_at: "2026-01-01T00:00:00Z",
+        completed_at: null,
+      };
+      mockCallCloudProxy.mockResolvedValue(run);
+
+      const result = await AutomationService.dispatchAutomation("abc");
+
+      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+        backend: cloudBackend,
+        method: "POST",
+        path: "/api/automation/v1/abc/dispatch",
+      });
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(result).toEqual(run);
+    });
+  });
+
+  // The interceptor must read the session API key from the active backend
+  // registry rather than the build-time VITE_SESSION_API_KEY env var so that
+  // the published npm package picks up the runtime-injected key (issue #829).
+  describe("localAutomationAxios interceptor", () => {
+    it("sets X-Session-API-Key from the effective local backend apiKey", () => {
+      const interceptor = capturedInterceptors[0];
+      expect(interceptor).toBeDefined();
+
+      const backendWithKey: Backend = {
+        ...localBackend,
+        apiKey: "runtime-injected-key",
+      };
+      mockGetEffectiveLocal.mockReturnValue(backendWithKey);
+
+      const config = makeAxiosConfig();
+      interceptor(config);
+
+      expect(config.headers.set).toHaveBeenCalledWith(
+        "X-Session-API-Key",
+        "runtime-injected-key",
+      );
+    });
+
+    it("does not set X-Session-API-Key when backend apiKey is empty", () => {
+      const interceptor = capturedInterceptors[0];
+      expect(interceptor).toBeDefined();
+
+      mockGetEffectiveLocal.mockReturnValue({
+        ...localBackend,
+        apiKey: "",
+      });
+
+      const config = makeAxiosConfig();
+      interceptor(config);
+
+      expect(config.headers.set).not.toHaveBeenCalled();
+    });
+
+    it("sets baseURL from effective local backend host when not already set", () => {
+      const interceptor = capturedInterceptors[0];
+      expect(interceptor).toBeDefined();
+
+      mockGetEffectiveLocal.mockReturnValue({
+        ...localBackend,
+        host: "http://custom-host:9000",
+        apiKey: "key",
+      });
+
+      const config = makeAxiosConfig();
+      interceptor(config);
+
+      expect(config.baseURL).toBe("http://custom-host:9000");
+    });
+
+    it("does not overwrite an already-set baseURL", () => {
+      const interceptor = capturedInterceptors[0];
+      expect(interceptor).toBeDefined();
+
+      mockGetEffectiveLocal.mockReturnValue({
+        ...localBackend,
+        host: "http://should-not-use:9000",
+        apiKey: "key",
+      });
+
+      const config = makeAxiosConfig({ baseURL: "http://already-set:8000" });
+      interceptor(config);
+
+      expect(config.baseURL).toBe("http://already-set:8000");
     });
   });
 });

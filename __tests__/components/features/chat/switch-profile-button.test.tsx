@@ -123,7 +123,7 @@ describe("SwitchProfileButton", () => {
     expect(screen.getByTestId("switch-profile-button")).toBeDisabled();
   });
 
-  it("renders nothing for ACP conversations even when profiles exist", () => {
+  it("renders nothing for ACP conversations even when profiles and a display model exist", () => {
     // ACPAgent conversations route prompts to a CLI subprocess whose model is
     // set via ``acp_model`` in Settings → Agent, not by the LLM-profile
     // picker. Letting the user "switch the LLM" here would silently no-op
@@ -133,7 +133,7 @@ describe("SwitchProfileButton", () => {
       data: {
         id: "conv-1",
         agent_kind: "acp",
-        llm_model: null,
+        llm_model: "claude-sonnet-4-6",
       },
     });
 

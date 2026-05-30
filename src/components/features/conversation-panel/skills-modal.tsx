@@ -4,7 +4,7 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
-import { useSkills } from "#/hooks/query/use-skills";
+import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { AgentState } from "#/types/agent-state";
 import {
   groupSkillsByScope,
@@ -36,13 +36,15 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
   const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>(
     {},
   );
+  // Scope the catalog to this conversation's attached workspace so the listed
+  // skills match the project skills actually loaded into the conversation.
   const {
     data: skills,
     isLoading,
     isError,
     refetch,
     isRefetching,
-  } = useSkills();
+  } = useConversationSkills();
 
   const groupedSkills = useMemo(
     () => (skills ? groupSkillsByScope(skills, projectDir) : null),
@@ -64,7 +66,7 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
     <ModalBackdrop onClose={onClose}>
       <ModalBody
         width="lg"
-        className="max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
+        className="relative max-h-[80vh] flex flex-col items-start border border-[var(--oh-border)]"
         testID="skills-modal"
       >
         <SkillsModalHeader

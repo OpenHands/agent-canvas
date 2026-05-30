@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { I18nKey } from "#/i18n/declaration";
@@ -12,10 +12,6 @@ import { GitRepoDropdown } from "#/components/features/home/git-repo-dropdown/gi
 import { GitBranchDropdown } from "#/components/features/home/git-branch-dropdown/git-branch-dropdown";
 import { GitProviderDropdown } from "#/components/features/home/git-provider-dropdown/git-provider-dropdown";
 import { useUserProviders } from "#/hooks/use-user-providers";
-import { cn } from "#/utils/utils";
-
-const ICON_BUTTON_CLASS =
-  "rounded-md p-1 text-white hover:bg-tertiary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
 
 interface OpenRepositoryModalProps {
   isOpen: boolean;
@@ -101,19 +97,14 @@ export function OpenRepositoryModal({
     <ModalBackdrop onClose={handleClose}>
       <ModalBody
         width="sm"
-        className="items-start border border-[var(--oh-border)] !gap-4"
+        className="relative items-start border border-[var(--oh-border)] !gap-4"
       >
-        <div className="flex w-full items-start justify-between gap-4">
+        <ModalCloseButton
+          onClose={handleClose}
+          testId="close-open-repository-modal"
+        />
+        <div className="w-full pr-6">
           <BaseModalTitle title={t(I18nKey.CONVERSATION$OPEN_REPOSITORY)} />
-          <button
-            type="button"
-            onClick={handleClose}
-            className={cn(ICON_BUTTON_CLASS, "shrink-0")}
-            data-testid="close-open-repository-modal"
-            aria-label={t(I18nKey.BUTTON$CLOSE)}
-          >
-            <X size={20} aria-hidden />
-          </button>
         </div>
 
         <div className="flex flex-col gap-4 w-full">
