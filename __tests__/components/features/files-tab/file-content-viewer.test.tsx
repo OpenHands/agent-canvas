@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileContentViewer } from "#/components/features/files-tab/file-content-viewer";
+import type { ViewMode } from "#/components/features/files-tab/view-mode";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 
 // Mock the *services* the file-content hook depends on — not the hook itself —
@@ -48,13 +49,13 @@ const fetchMock = vi.fn();
 const BASE_URL =
   "https://agent.example.com/api/conversations/conv-1/workspace/";
 
-function renderViewer(path: string) {
+function renderViewer(path: string, viewMode: ViewMode = "rich") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <FileContentViewer path={path} viewMode="rich" />
+      <FileContentViewer path={path} viewMode={viewMode} />
     </QueryClientProvider>,
   );
 }
@@ -94,23 +95,31 @@ describe("FileContentViewer", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows a clear unsupported-document message when previewing an Office file (.pptx)", async () => {
-    // Arrange: the workspace fileserver returns real .pptx bytes — a ZIP whose
-    // header carries a NUL, so the hook classifies the file as binary.
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      arrayBuffer: () =>
-        Promise.resolve(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]).buffer),
-    });
+  // The acceptance criteria require the clear message in BOTH view modes. The
+  // plain-mode fallback and the rich-mode binary branch both route through
+  // UnpreviewableFallback, so one parametrized spec covers both code paths.
+  it.each(["rich", "plain"] as const)(
+    "shows a clear unsupported-document message for an Office file (.pptx) in %s mode",
+    async (viewMode) => {
+      // Arrange: the workspace fileserver returns real .pptx bytes — a ZIP whose
+      // header carries a NUL, so the hook classifies the file as binary.
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        arrayBuffer: () =>
+          Promise.resolve(
+            new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]).buffer,
+          ),
+      });
 
-    // Act
-    renderViewer("demo.pptx");
+      // Act
+      renderViewer("demo.pptx", viewMode);
 
-    // Assert: the format-aware "no preview" message replaces the generic binary
-    // fallback, so the pane is never blank and the limitation is explicit.
-    expect(
-      await screen.findByTestId("file-content-viewer-unsupported-document"),
-    ).toBeInTheDocument();
-  });
+      // Assert: the format-aware "no preview" message replaces the generic
+      // binary fallback in both modes, so the pane is never blank.
+      expect(
+        await screen.findByTestId("file-content-viewer-unsupported-document"),
+      ).toBeInTheDocument();
+    },
+  );
 });
