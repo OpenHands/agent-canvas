@@ -145,6 +145,10 @@ describe("buildConfig", () => {
   /**
    * Build an env that points persisted dev API key files at a fresh temp dir,
    * so tests don't write to the user's real ~/.openhands/agent-canvas files.
+   *
+   * Also redirects all service ports to high port numbers so that buildConfig's
+   * assertPortsFree check passes even when a real dev stack is running on the
+   * default ports (18000, 18001, 3001, 8000).
    */
   function envWithIsolatedKeyPath(
     extra: Record<string, string> = {},
@@ -153,6 +157,11 @@ describe("buildConfig", () => {
     keyDirs.push(dir);
     return {
       OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
+      // High ports that are almost certainly free, so assertPortsFree passes.
+      PORT: "19902",
+      OH_CANVAS_SAFE_BACKEND_PORT: "19900",
+      OH_CANVAS_SAFE_AUTOMATION_PORT: "19901",
+      OH_CANVAS_SAFE_VITE_PORT: "19903",
       ...extra,
     };
   }
@@ -192,7 +201,7 @@ describe("buildConfig", () => {
     expect(config.ingressPort).toBe(preferredPort);
   });
 
-  it("falls back to alternative port when ingress port is busy", async () => {
+  it("throws when ingress port is busy", async () => {
     const busyPort = 8100;
 
     // Block port 8100
@@ -205,15 +214,10 @@ describe("buildConfig", () => {
       server.on("error", reject);
     });
 
-    // Request the busy port
-    const config = await buildConfig(
-      { port: busyPort },
-      envWithIsolatedKeyPath(),
-    );
-
-    // Should get a different port since busyPort is taken
-    expect(config.ingressPort).not.toBe(busyPort);
-    expect(config.ingressPort).toBeGreaterThan(0);
+    // Should throw instead of falling back to a different port
+    await expect(
+      buildConfig({ port: busyPort }, envWithIsolatedKeyPath()),
+    ).rejects.toThrow(/ingress.*port 8100/i);
   });
 
   it("allocates valid ports for all services", async () => {
@@ -315,7 +319,10 @@ describe("buildConfig", () => {
   });
 
   it("reads sessionApiKey from SESSION_API_KEY", async () => {
-    const config = await buildConfig({}, { SESSION_API_KEY: "my-session-key" });
+    const config = await buildConfig(
+      {},
+      { ...envWithIsolatedKeyPath(), SESSION_API_KEY: "my-session-key" },
+    );
 
     expect(config.sessionApiKey).toBe("my-session-key");
   });
@@ -323,7 +330,7 @@ describe("buildConfig", () => {
   it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
     const config = await buildConfig(
       {},
-      { VITE_SESSION_API_KEY: "vite-session-key" },
+      { ...envWithIsolatedKeyPath(), VITE_SESSION_API_KEY: "vite-session-key" },
     );
 
     expect(config.sessionApiKey).toBe("vite-session-key");
@@ -333,6 +340,7 @@ describe("buildConfig", () => {
     const config = await buildConfig(
       {},
       {
+        ...envWithIsolatedKeyPath(),
         SESSION_API_KEY: "session-key",
         VITE_SESSION_API_KEY: "vite-key",
       },
@@ -344,7 +352,7 @@ describe("buildConfig", () => {
   it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
     const config = await buildConfig(
       {},
-      { OH_SESSION_API_KEYS_0: "v1-session-key" },
+      { ...envWithIsolatedKeyPath(), OH_SESSION_API_KEYS_0: "v1-session-key" },
     );
 
     expect(config.sessionApiKey).toBe("v1-session-key");
@@ -354,6 +362,7 @@ describe("buildConfig", () => {
     const config = await buildConfig(
       {},
       {
+        ...envWithIsolatedKeyPath(),
         SESSION_API_KEY: "v0-key",
         OH_SESSION_API_KEYS_0: "v1-key",
       },
@@ -366,6 +375,7 @@ describe("buildConfig", () => {
     const config = await buildConfig(
       {},
       {
+        ...envWithIsolatedKeyPath(),
         SESSION_API_KEY: "v0-key",
         OH_SESSION_API_KEYS_0: "v1-key",
         VITE_SESSION_API_KEY: "vite-key",

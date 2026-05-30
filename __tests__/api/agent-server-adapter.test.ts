@@ -121,6 +121,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
     expect(payload.agent_settings.agent).toBe("CodeActAgent");
     expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
@@ -870,6 +871,7 @@ describe("agent_settings runtime services suffix", () => {
     expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
   });
 
@@ -947,6 +949,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.agent_context).toEqual({
       load_public_skills: true,
       load_user_skills: true,
+      load_project_skills: true,
     });
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
   });
