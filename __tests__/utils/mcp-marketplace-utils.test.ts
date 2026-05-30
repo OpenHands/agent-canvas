@@ -3,9 +3,12 @@ import {
   findCatalogEntryForServer,
   findInstalledMatch,
   getDefaultTemplate,
+  getInstallableTemplate,
   installedServerMatchesQuery,
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
+  resolveTransportUrl,
+  transportUrlsMatch,
 } from "#/utils/mcp-marketplace-utils";
 import {
   INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
@@ -213,5 +216,53 @@ describe("findCatalogEntryForServer", () => {
       INTEGRATION_MARKETPLACE,
     );
     expect(match?.id).toBe("atlassian");
+  });
+});
+
+describe("transportUrlsMatch", () => {
+  it("matches parameterized catalog URLs by prefix and suffix", () => {
+    const templateUrl = "https://mcp.dev.azure.com/{organization}";
+    expect(
+      transportUrlsMatch(templateUrl, "https://mcp.dev.azure.com/contoso"),
+    ).toBe(true);
+    expect(
+      transportUrlsMatch(templateUrl, "https://mcp.dev.azure.com/other-org"),
+    ).toBe(true);
+    expect(transportUrlsMatch(templateUrl, "https://example.com/contoso")).toBe(
+      false,
+    );
+  });
+});
+
+describe("resolveTransportUrl", () => {
+  it("substitutes url field placeholders", () => {
+    const url = resolveTransportUrl(
+      {
+        kind: "shttp",
+        url: "https://mcp.dev.azure.com/{organization}",
+        urlFields: [
+          {
+            key: "organization",
+            label: "Organization name",
+            required: true,
+          },
+        ],
+      },
+      { organization: "contoso" },
+    );
+    expect(url).toBe("https://mcp.dev.azure.com/contoso");
+  });
+});
+
+describe("getInstallableTemplate", () => {
+  it("prefers the catalog default when it is installable", () => {
+    const azureDevOps = INTEGRATION_MARKETPLACE.find(
+      (e: IntegrationCatalogEntry) => e.id === "azure-devops",
+    )!;
+    const template = getInstallableTemplate(azureDevOps);
+    expect(template?.kind).toBe("shttp");
+    if (template?.kind === "shttp") {
+      expect(template.url).toBe("https://mcp.dev.azure.com/{organization}");
+    }
   });
 });
