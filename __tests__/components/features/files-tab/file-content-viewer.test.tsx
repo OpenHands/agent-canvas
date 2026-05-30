@@ -37,11 +37,11 @@ vi.mock("#/api/backend-registry/active-store", () => ({
   getActiveBackend: () => getActiveBackendMock(),
 }));
 
-const downloadFileMock = vi.fn();
+// The hook statically imports the cloud runtime service; stub the module so
+// this local-path test never loads the real cloud/proxy machinery. The test
+// uses the fetch (local) path, so downloadFile is never called or asserted.
 vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
-  default: {
-    downloadFile: (...args: unknown[]) => downloadFileMock(...args),
-  },
+  default: { downloadFile: vi.fn() },
 }));
 
 const fetchMock = vi.fn();
@@ -68,7 +68,6 @@ describe("FileContentViewer", () => {
     useActiveConversationMock.mockReset();
     useRuntimeIsReadyMock.mockReset();
     getActiveBackendMock.mockReset();
-    downloadFileMock.mockReset();
 
     useRuntimeIsReadyMock.mockReturnValue(true);
     useActiveConversationMock.mockReturnValue({
