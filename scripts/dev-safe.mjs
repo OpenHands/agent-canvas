@@ -655,6 +655,12 @@ export function buildAgentServerEnv(config) {
     // This is a no-op on Linux/macOS where the locale is already UTF-8.
     PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
+    // Prevents deriving a nested .openhands dir from OH_CONVERSATIONS_PATH.
+    // Must match docker/entrypoint.sh (which sets OH_PERSISTENCE_DIR to
+    // $HOME/.openhands, the parent of the agent-canvas state subdir) so
+    // settings and secrets are stored at the same path regardless of whether
+    // the user runs via Docker or `npm run dev`.
+    OH_PERSISTENCE_DIR: path.dirname(config.stateDir),
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),

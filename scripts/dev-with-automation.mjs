@@ -385,6 +385,8 @@ function ensureDirectories(config) {
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
     join(config.stateDir, "storage"),
+    // Automation DB directory — matches docker/entrypoint.sh mkdir -p behaviour.
+    dirname(join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)),
   ];
 
   for (const dir of dirs) {
@@ -589,7 +591,10 @@ function startAutomationBackend(config) {
             }
           : {}),
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
+        // Automation DB is stored under ~/.openhands/automation/ (relative to
+        // the parent of stateDir), matching docker/entrypoint.sh which uses
+        // $HOME/.openhands/${CONFIG_AUTOMATION_DB} = ~/.openhands/automation/automations.db.
+        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)}`,
         // The automation backend uses this as its publicly-reachable base
         // URL: it's appended to callback URLs and injected into each
         // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
