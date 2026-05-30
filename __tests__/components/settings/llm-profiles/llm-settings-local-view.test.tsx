@@ -3,7 +3,10 @@ import { AxiosError } from "axios";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
-import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles/llm-settings-local-view";
+import {
+  LlmSettingsLocalView,
+  shouldReapplyProfileAfterSave,
+} from "#/components/features/settings/llm-profiles/llm-settings-local-view";
 import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
@@ -487,8 +490,7 @@ describe("LlmSettingsLocalView", () => {
         message: "Profile renamed",
       });
 
-      // Mock activateProfile
-      vi.mocked(ProfilesService.activateProfile).mockResolvedValue({
+      mockActivateMutateAsync.mockResolvedValue({
         name: "my-renamed-profile",
         message: "Profile activated",
         llm_applied: true,
@@ -516,9 +518,9 @@ describe("LlmSettingsLocalView", () => {
       // Click save
       await user.click(screen.getByTestId("save-profile-btn"));
 
-      // Verify activateProfile was called after rename and save
+      // Verify activation mutation was called after rename and save
       await waitFor(() => {
-        expect(ProfilesService.activateProfile).toHaveBeenCalledWith(
+        expect(mockActivateMutateAsync).toHaveBeenCalledWith(
           "my-renamed-profile",
         );
       });
@@ -536,5 +538,37 @@ describe("LlmSettingsLocalView", () => {
       // The rename API mock would fail if unexpectedly called since it's not set up.
       expect(true).toBe(true);
     });
+  });
+});
+
+describe("shouldReapplyProfileAfterSave", () => {
+  it("reapplies when saving the active profile without renaming", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: "gpt-4-profile",
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(true);
+  });
+
+  it("reapplies when the active profile was renamed", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: "gpt-4-profile",
+        savedName: "my-renamed-profile",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not reapply inactive profiles", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "claude-profile",
+        originalName: "gpt-4-profile",
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(false);
   });
 });
