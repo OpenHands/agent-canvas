@@ -381,7 +381,7 @@ function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
-    config.conversationsPath,
+    join(config.stateDir, "dev_conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
     join(config.stateDir, "storage"),
