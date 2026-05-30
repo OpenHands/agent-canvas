@@ -8,6 +8,8 @@ import {
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
   saveAgentServerConfig,
+  shouldLoadOrgSkills,
+  shouldLoadProjectSkills,
   shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
 
@@ -106,5 +108,41 @@ describe("agent server config", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
 
     expect(shouldLoadPublicSkills()).toBe(false);
+  });
+
+  it("loads project skills by default when VITE_LOAD_PROJECT_SKILLS is unset", () => {
+    vi.stubEnv("VITE_LOAD_PROJECT_SKILLS", "");
+
+    expect(shouldLoadProjectSkills()).toBe(true);
+  });
+
+  it("loads project skills when VITE_LOAD_PROJECT_SKILLS is explicitly 'true'", () => {
+    vi.stubEnv("VITE_LOAD_PROJECT_SKILLS", "true");
+
+    expect(shouldLoadProjectSkills()).toBe(true);
+  });
+
+  it("does not load project skills only when VITE_LOAD_PROJECT_SKILLS is explicitly 'false'", () => {
+    vi.stubEnv("VITE_LOAD_PROJECT_SKILLS", "false");
+
+    expect(shouldLoadProjectSkills()).toBe(false);
+  });
+
+  it("does not load org skills by default when VITE_LOAD_ORG_SKILLS is unset", () => {
+    vi.stubEnv("VITE_LOAD_ORG_SKILLS", "");
+
+    expect(shouldLoadOrgSkills()).toBe(false);
+  });
+
+  it("loads org skills only when VITE_LOAD_ORG_SKILLS is explicitly 'true'", () => {
+    vi.stubEnv("VITE_LOAD_ORG_SKILLS", "true");
+
+    expect(shouldLoadOrgSkills()).toBe(true);
+  });
+
+  it("does not load org skills when VITE_LOAD_ORG_SKILLS is 'false'", () => {
+    vi.stubEnv("VITE_LOAD_ORG_SKILLS", "false");
+
+    expect(shouldLoadOrgSkills()).toBe(false);
   });
 });

@@ -187,3 +187,23 @@ export function getAgentServerHeaders(): Record<string, string> {
 export function shouldLoadPublicSkills(): boolean {
   return import.meta.env.VITE_LOAD_PUBLIC_SKILLS !== "false";
 }
+
+/**
+ * Returns whether project skills from the repository's `.agents/skills/`
+ * directory should be loaded into conversations.
+ *
+ * Defaults to true. Set VITE_LOAD_PROJECT_SKILLS=false to disable.
+ */
+export function shouldLoadProjectSkills(): boolean {
+  return import.meta.env.VITE_LOAD_PROJECT_SKILLS !== "false";
+}
+
+/**
+ * Returns whether organisation-level skills should be loaded into
+ * conversations.
+ *
+ * Defaults to false. Set VITE_LOAD_ORG_SKILLS=true to enable.
+ */
+export function shouldLoadOrgSkills(): boolean {
+  return import.meta.env.VITE_LOAD_ORG_SKILLS === "true";
+}

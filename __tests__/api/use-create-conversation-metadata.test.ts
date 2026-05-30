@@ -51,6 +51,8 @@ vi.mock("#/api/agent-server-config", () => ({
   ),
   getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
+  shouldLoadProjectSkills: vi.fn(() => true),
+  shouldLoadOrgSkills: vi.fn(() => false),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
