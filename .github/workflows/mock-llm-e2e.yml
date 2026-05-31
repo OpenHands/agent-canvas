@@ -35,6 +35,7 @@ jobs:
         id: defaults
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+          echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -75,6 +76,14 @@ jobs:
         run: |
           uv venv .mock-llm-venv
           uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+
+      - name: Pre-warm automation backend (uvx cache)
+        run: |
+          # Pre-install openhands-automation into the uvx cache so the
+          # agent-canvas binary doesn't need to download it at startup.
+          # Without this, the 180s Playwright webServer timeout expires
+          # before the automation backend finishes installing (~60-90s).
+          uvx --from "openhands-automation==${{ steps.defaults.outputs.automation_version }}" python -c "from openhands.automation.app import app; print('automation package cached')"
 
       - name: Verify mock LLM server starts
         run: |

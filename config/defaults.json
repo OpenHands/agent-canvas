@@ -30,9 +30,5 @@
     "automation": "openhands-automation",
     "tools": "openhands-tools",
     "workspace": "openhands-workspace"
-  },
-
-  "defaults": {
-    "secretKey": "openhands-dev-secret-key-change-in-prod"
   }
 }

@@ -42,7 +42,6 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
 const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
@@ -68,6 +67,20 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
   ".openhands",
   "agent-canvas",
   "session-api-key.txt",
+);
+
+// Where the OH_SECRET_KEY is persisted so dev mode and Docker mode share the
+// same encryption key when both use ~/.openhands as their state directory.
+// docker/entrypoint.sh reads and writes this same file, so whichever mode runs
+// first generates the key and the other picks it up automatically.
+//
+// To rotate the key, delete this file and restart both modes. To pin a key
+// explicitly, export OH_SECRET_KEY — that takes precedence over the file.
+export const DEFAULT_SECRET_KEY_PATH = path.join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "secret-key.txt",
 );
 
 // Cache so repeated lookups within a single process return the same key,
@@ -208,6 +221,36 @@ function tryPort(port, host = "127.0.0.1") {
       server.close(() => resolve(true));
     });
   });
+}
+
+/**
+ * Assert that all listed ports are available, throwing a descriptive error if
+ * any are already in use.
+ *
+ * Intended as a pre-flight check before spawning services so that a concurrent
+ * agent-canvas instance is detected immediately rather than silently starting
+ * on a different port.
+ *
+ * @param {Array<{name: string, port: number}>} portConfigs - Named port list
+ * @param {string} [host]
+ */
+export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
+  const results = await Promise.all(
+    portConfigs.map(async ({ name, port }) => ({
+      name,
+      port,
+      free: await tryPort(port, host),
+    })),
+  );
+  const busy = results.filter(({ free }) => !free);
+  if (busy.length === 0) return;
+
+  const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
+  throw new Error(
+    `Cannot start: the following ports are already in use:\n\n${lines}\n\n` +
+      `Another agent-canvas instance may already be running.\n` +
+      `Stop it first, or override the port via environment variables (e.g. PORT=<other>).`,
+  );
 }
 
 /**
@@ -491,26 +534,14 @@ export async function buildSafeDevConfigAsync(
     preferredBackendPort + 1,
   );
 
-  // Find available ports, preferring the defaults
-  const ports = await findFreePorts([
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "vscode", preferred: preferredVscodePort },
+  // Fail fast if any required port is already in use.
+  await assertPortsFree([
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "vscode", port: preferredVscodePort },
   ]);
 
-  // Log if we're using non-default ports
-  if (ports.backend !== preferredBackendPort) {
-    console.log(
-      `  ℹ Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-    );
-  }
-  if (ports.vscode !== preferredVscodePort) {
-    console.log(
-      `  ℹ Port ${preferredVscodePort} busy, using ${ports.vscode} for vscode`,
-    );
-  }
-
   return buildConfigFromPorts(
-    { backendPort: ports.backend, vscodePort: ports.vscode },
+    { backendPort: preferredBackendPort, vscodePort: preferredVscodePort },
     cwd,
     env,
   );
@@ -550,8 +581,14 @@ function buildConfigFromPorts(ports, cwd, env) {
   );
   const conversationsPath = path.join(stateDir, "conversations");
   const workspacesPath = path.join(stateDir, "workspaces");
-  // Use provided secret key or default for local development
-  const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
+  // Use provided secret key, or read/generate one persisted to
+  // ~/.openhands/agent-canvas/secret-key.txt. Persisting ensures dev mode
+  // and Docker mode share the same encryption key when they mount the same
+  // ~/.openhands directory (docker/entrypoint.sh reads/writes the same file).
+  const secretKeyPath =
+    env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
+  const secretKey =
+    env.OH_SECRET_KEY || getOrCreatePersistedApiKey(secretKeyPath, "secret");
   // Use provided session API key or fall back to a key persisted to
   // ~/.openhands/agent-canvas/session-api-key.txt. Persisting on disk keeps
   // the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
@@ -881,7 +918,7 @@ async function main() {
 
   const secretKeySource = process.env.OH_SECRET_KEY
     ? "custom (from OH_SECRET_KEY)"
-    : "default (for local development)";
+    : `persisted (${process.env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH})`;
 
   const sessionKeySource =
     process.env.SESSION_API_KEY ||
