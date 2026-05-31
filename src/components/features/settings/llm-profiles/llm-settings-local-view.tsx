@@ -41,10 +41,9 @@ export function shouldReapplyProfileAfterSave({
   originalName: string | null | undefined;
   savedName: string;
 }): boolean {
-  return (
-    activeProfileName === (originalName ?? savedName) ||
-    activeProfileName === savedName
-  );
+  if (!activeProfileName) return false;
+  if (originalName) return activeProfileName === originalName;
+  return activeProfileName === savedName;
 }
 
 /**

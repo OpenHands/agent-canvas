@@ -562,6 +562,16 @@ describe("shouldReapplyProfileAfterSave", () => {
     ).toBe(true);
   });
 
+  it("reapplies when creating a profile with the active profile name", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: null,
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(true);
+  });
+
   it("does not reapply inactive profiles", () => {
     expect(
       shouldReapplyProfileAfterSave({
