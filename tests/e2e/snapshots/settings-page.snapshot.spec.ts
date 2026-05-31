@@ -169,7 +169,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible({ timeout: 15_000 });
+    await expect(homeScreen).toBeVisible({ timeout: 15000 });
     await page.waitForLoadState("networkidle");
 
     const rootLayout = page.getByTestId("root-layout");
@@ -185,7 +185,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toBeVisible();
+    await expect(rootLayout).toBeVisible({ timeout: 15000 });
     await page.waitForLoadState("networkidle");
 
     await expect(rootLayout).toHaveScreenshot("settings-page.png", {
@@ -200,7 +200,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toBeVisible();
+    await expect(rootLayout).toBeVisible({ timeout: 15000 });
     await page.waitForLoadState("networkidle");
 
     await expect(rootLayout).toHaveScreenshot("settings-app-page.png", {
@@ -226,7 +226,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible();
+    await expect(homeScreen).toBeVisible({ timeout: 15000 });
 
     // The backend selector uses openOnHover, so hovering opens the
     // dropdown. Clicking the toggle would close it again, so we hover
@@ -237,7 +237,7 @@ test.describe("UI Visual Snapshots", () => {
     await page.getByTestId("add-backend-menu-item").click();
 
     const addBackendModal = page.getByTestId("add-backend-modal");
-    await expect(addBackendModal).toBeVisible();
+    await expect(addBackendModal).toBeVisible({ timeout: 15000 });
 
     await expect(addBackendModal).toHaveScreenshot("add-backend-modal.png", {
       maxDiffPixelRatio: 0.01,

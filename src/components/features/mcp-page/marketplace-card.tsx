@@ -1,6 +1,7 @@
 import { I18nKey } from "#/i18n/declaration";
-import type { McpCatalogEntry as MarketplaceEntry } from "@openhands/extensions/mcps";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
+import { getDefaultTemplate } from "#/utils/mcp-marketplace-utils";
 import { CirclePlusCheckToggle } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { cn } from "#/utils/utils";
 import {
@@ -19,8 +20,10 @@ export function MarketplaceCard({
   onClick,
   onAdd,
 }: MarketplaceCardProps) {
+  const template = getDefaultTemplate(entry);
   const transportLabel = (() => {
-    switch (entry.template.kind) {
+    if (!template) return "";
+    switch (template.kind) {
       case "stdio":
         return "STDIO";
       case "shttp":

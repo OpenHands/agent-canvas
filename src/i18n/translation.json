@@ -8737,6 +8737,23 @@
     "tr": "Kullanılabilir profiller ({{count}})",
     "uk": "Доступні профілі ({{count}})"
   },
+  "MODEL$AVAILABLE_MODELS": {
+    "en": "Available models",
+    "ja": "利用可能なモデル",
+    "zh-CN": "可用模型",
+    "zh-TW": "可用模型",
+    "ko-KR": "사용 가능한 모델",
+    "no": "Tilgjengelige modeller",
+    "ar": "النماذج المتاحة",
+    "de": "Verfügbare Modelle",
+    "fr": "Modèles disponibles",
+    "it": "Modelli disponibili",
+    "pt": "Modelos disponíveis",
+    "es": "Modelos disponibles",
+    "ca": "Models disponibles",
+    "tr": "Kullanılabilir modeller",
+    "uk": "Доступні моделі"
+  },
   "MODEL$NO_SAVED_PROFILES": {
     "en": "No saved profiles",
     "ja": "保存済みプロファイルはありません",

@@ -12,6 +12,7 @@ import { ModalCloseButton } from "#/components/shared/modals/modal-close-button"
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
@@ -393,6 +394,21 @@ export function BackendForm({
 // ── Add-mode two-column layout ──────────────────────────────────────
 
 /**
+ * @spec BM-002 — Adding a backend auto-switches the active selection to it
+ * (BM-001), so a backend-scoped detail page the user is viewing now belongs
+ * to the previous backend. Redirect to that section's list so they never see
+ * stale data, mirroring the switch-backend redirect in BackendSelector.
+ */
+function useRedirectAfterAddBackend() {
+  const { currentPath, navigate } = useNavigation();
+  return React.useCallback(() => {
+    if (/^\/automations\/[^/]+/.test(currentPath)) navigate("/automations");
+    else if (/^\/conversations\/[^/]+/.test(currentPath))
+      navigate("/conversations");
+  }, [currentPath, navigate]);
+}
+
+/**
  * Left column of the "Add a Backend" modal: manual connection via
  * Host + API Key. Designed for self-hosted agent servers and
  * self-hosted OpenHands Cloud with API key auth.
@@ -400,6 +416,7 @@ export function BackendForm({
 function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [name, setName] = React.useState("");
   const [host, setHost] = React.useState("");
@@ -420,6 +437,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
       apiKey: apiKey.trim(),
       kind,
     });
+    redirectAfterAdd();
     onClose();
   };
 
@@ -496,6 +514,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
 function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [customHost, setCustomHost] = React.useState("");
@@ -509,6 +528,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
       apiKey,
       kind: "cloud",
     });
+    redirectAfterAdd();
     onClose();
   };
 

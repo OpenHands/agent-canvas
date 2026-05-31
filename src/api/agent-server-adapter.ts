@@ -508,6 +508,7 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
     ...toRecord(agentSettings.agent_context),
     load_public_skills: shouldLoadPublicSkills(),
     load_user_skills: true,
+    load_project_skills: true,
     ...(runtimeServicesSuffix
       ? { system_message_suffix: runtimeServicesSuffix }
       : {}),
