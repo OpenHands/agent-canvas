@@ -128,16 +128,12 @@ function buildConfig(args, env = process.env) {
 function createRouter(routes, defaultBackend) {
   // Sort routes by path length (longest first) for most-specific matching
   const sortedRoutes = Object.entries(routes).sort(
-    ([a], [b]) => b.length - a.length,
+    ([a], [b]) => b.length - a.length
   );
 
   return function route(url) {
     for (const [prefix, backend] of sortedRoutes) {
-      if (
-        url === prefix ||
-        url.startsWith(prefix + "/") ||
-        url.startsWith(prefix + "?")
-      ) {
+      if (url === prefix || url.startsWith(prefix + "/") || url.startsWith(prefix + "?")) {
         return backend;
       }
     }
@@ -257,10 +253,7 @@ function proxyWebSocket(req, socket, head, backendUrl) {
   // TCP socket would crash the entire ingress process.
   socket.on("error", (err) => {
     if (!isBenignSocketError(err)) {
-      console.error(
-        `WebSocket client socket error for ${req.url}:`,
-        err.message,
-      );
+      console.error(`WebSocket client socket error for ${req.url}:`, err.message);
     }
     proxyReq.destroy();
   });
@@ -285,12 +278,10 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     proxySocket.on("close", () => socket.destroy());
 
     socket.write(
-      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
+      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
     );
     for (let i = 0; i < proxyRes.rawHeaders.length; i += 2) {
-      socket.write(
-        `${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}\r\n`,
-      );
+      socket.write(`${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}\r\n`);
     }
     socket.write("\r\n");
 
@@ -370,27 +361,15 @@ function startIngress(config) {
 
   server.listen(config.port, () => {
     console.log("");
-    console.log(
-      "╔═══════════════════════════════════════════════════════════════╗",
-    );
-    console.log(
-      "║  Ingress Proxy                                                ║",
-    );
-    console.log(
-      "╠═══════════════════════════════════════════════════════════════╣",
-    );
-    console.log(
-      `║  Listening on: http://localhost:${config.port}/`.padEnd(66) + "║",
-    );
-    console.log(
-      "╠═══════════════════════════════════════════════════════════════╣",
-    );
-    console.log(
-      "║  Routes:                                                      ║",
-    );
+    console.log("╔═══════════════════════════════════════════════════════════════╗");
+    console.log("║  Ingress Proxy                                                ║");
+    console.log("╠═══════════════════════════════════════════════════════════════╣");
+    console.log(`║  Listening on: http://localhost:${config.port}/`.padEnd(66) + "║");
+    console.log("╠═══════════════════════════════════════════════════════════════╣");
+    console.log("║  Routes:                                                      ║");
 
     const sortedRoutes = Object.entries(config.routes).sort(
-      ([a], [b]) => b.length - a.length,
+      ([a], [b]) => b.length - a.length
     );
     for (const [path, backend] of sortedRoutes) {
       const line = `    ${path} → ${backend}`;
@@ -402,12 +381,8 @@ function startIngress(config) {
       console.log(`║  ${line.padEnd(61)}║`);
     }
 
-    console.log(
-      "║                                                               ║",
-    );
-    console.log(
-      "╚═══════════════════════════════════════════════════════════════╝",
-    );
+    console.log("║                                                               ║");
+    console.log("╚═══════════════════════════════════════════════════════════════╝");
     console.log("");
   });
 
@@ -422,9 +397,7 @@ const args = parseArgs();
 const config = buildConfig(args);
 
 if (Object.keys(config.routes).length === 0 && !config.defaultBackend) {
-  console.error(
-    "Error: No routes configured. Use --route or --default options.",
-  );
+  console.error("Error: No routes configured. Use --route or --default options.");
   console.error("Run with --help for usage information.");
   process.exit(1);
 }
