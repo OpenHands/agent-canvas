@@ -303,7 +303,7 @@ describe("handleEventForUI", () => {
       expect(afterSecond).toEqual([
         mockMessageEvent,
         {
-          ...second,
+          ...first,
           content: "I'll start working on that.",
           reasoning_content: null,
         },
@@ -370,7 +370,10 @@ describe("handleEventForUI", () => {
       };
 
       const afterFirst = handleEventForUI(first, [mockMessageEvent]);
-      const afterObservation = handleEventForUI(mockObservationEvent, afterFirst);
+      const afterObservation = handleEventForUI(
+        mockObservationEvent,
+        afterFirst,
+      );
       const afterSecond = handleEventForUI(second, afterObservation);
       const result = handleEventForUI(aggregateAgentMessage, afterSecond);
 
@@ -379,6 +382,50 @@ describe("handleEventForUI", () => {
         first,
         mockObservationEvent,
         second,
+      ]);
+    });
+
+    it("appends unstreamed suffix to the last content-bearing delta", () => {
+      const contentDelta = makeStreamingDelta(
+        "delta-content",
+        "I'll start working on that.",
+      );
+      const reasoningDelta: StreamingDeltaEvent = {
+        id: "delta-reasoning",
+        kind: "StreamingDeltaEvent",
+        timestamp: Date.now().toString(),
+        source: "agent",
+        content: null,
+        reasoning_content: "thinking...",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I'll start working on that. Done.",
+            },
+          ],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        contentDelta,
+        mockObservationEvent,
+        reasoningDelta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...contentDelta,
+          content: "I'll start working on that. Done.",
+        },
+        mockObservationEvent,
+        reasoningDelta,
       ]);
     });
 

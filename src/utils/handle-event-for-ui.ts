@@ -12,7 +12,7 @@ const mergeStreamingDeltaEvent = (
   incoming: StreamingDeltaEvent,
   existing: StreamingDeltaEvent,
 ): StreamingDeltaEvent => ({
-  ...incoming,
+  ...existing,
   content: `${existing.content ?? ""}${incoming.content ?? ""}` || null,
   reasoning_content:
     `${existing.reasoning_content ?? ""}${incoming.reasoning_content ?? ""}` ||
@@ -102,11 +102,16 @@ const finalizeStreamingDeltasInPlace = (
   // the finalEvent is appended normally.  This is intentional: reasoning
   // content renders in its own collapsed bubble and never overlaps with the
   // assistant's regular message text in `FinishAction.message`.
-  const streamingSegments = currentTurnStreamingDeltaIndexes
-    .map((index) => uiEvents[index])
-    .filter(isStreamingDeltaEvent)
-    .map((uiEvent) => uiEvent.content ?? "")
-    .filter((content) => content.length > 0);
+  const contentStreamingDeltas = currentTurnStreamingDeltaIndexes
+    .map((index) => ({ event: uiEvents[index], index }))
+    .filter(
+      (item): item is { event: StreamingDeltaEvent; index: number } =>
+        isStreamingDeltaEvent(item.event) &&
+        (item.event.content?.length ?? 0) > 0,
+    );
+  const streamingSegments = contentStreamingDeltas.map(
+    ({ event }) => event.content ?? "",
+  );
 
   if (!finalText || streamingSegments.length === 0) {
     return null;
@@ -126,15 +131,15 @@ const finalizeStreamingDeltasInPlace = (
     unstreamedSuffix = finalText.slice(match.lastMatchEnd);
   }
 
-  const lastDeltaIndex =
-    currentTurnStreamingDeltaIndexes[
-      currentTurnStreamingDeltaIndexes.length - 1
-    ];
-  const lastDelta = nextUiEvents[lastDeltaIndex];
-  // Type narrowing: lastDeltaIndex is guaranteed to point at a StreamingDeltaEvent
-  // (it came from currentTurnStreamingDeltaIndexes, which filtered for them), but
-  // TypeScript cannot infer that from the array access, so the guard is required.
-  if (unstreamedSuffix && isStreamingDeltaEvent(lastDelta)) {
+  const lastDeltaIndex = contentStreamingDeltas.at(-1)?.index;
+  const lastDelta =
+    lastDeltaIndex === undefined ? undefined : nextUiEvents[lastDeltaIndex];
+  if (
+    unstreamedSuffix &&
+    lastDeltaIndex !== undefined &&
+    lastDelta &&
+    isStreamingDeltaEvent(lastDelta)
+  ) {
     nextUiEvents[lastDeltaIndex] = appendContentToStreamingDeltaEvent(
       lastDelta,
       unstreamedSuffix,
@@ -142,9 +147,10 @@ const finalizeStreamingDeltasInPlace = (
   }
 
   // Intentionally return nextUiEvents WITHOUT appending finalEvent.
-  // The last streaming delta (possibly extended with unstreamedSuffix above)
-  // becomes the canonical final rendered bubble for this turn.  Appending
-  // finalEvent here would display the assistant message twice.
+  // The last content-bearing streaming delta (possibly extended with
+  // unstreamedSuffix above) becomes the canonical final rendered bubble for
+  // this turn. Appending finalEvent here would display the assistant message
+  // twice.
   return nextUiEvents;
 };
 
