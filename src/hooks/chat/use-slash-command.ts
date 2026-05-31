@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useSkills } from "#/hooks/query/use-skills";
+import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
 import { SkillInfo } from "#/types/settings";
 import { Microagent } from "#/api/open-hands.types";
 import { BUILT_IN_COMMANDS, MODEL_COMMAND } from "#/utils/constants";
@@ -35,7 +35,9 @@ function getCursorOffset(element: HTMLElement): number {
 export const useSlashCommand = (
   chatInputRef: React.RefObject<HTMLDivElement | null>,
 ) => {
-  const { data: skills, isLoading: isSkillsLoading } = useSkills();
+  // Scope the skill catalog to this conversation's attached workspace so the
+  // slash menu lists the same project skills that were loaded into it.
+  const { data: skills, isLoading: isSkillsLoading } = useConversationSkills();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const { data: profilesData, isLoading: isProfilesLoading } = useLlmProfiles({
     enabled: !isCloud,

@@ -5,15 +5,28 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  NavigationProvider,
+  type NavigationContextValue,
+} from "#/context/navigation-context";
 import { AddBackendModal } from "#/components/features/backends/add-backend-modal";
 
-function renderWithProviders(ui: React.ReactElement) {
+function renderWithProviders(
+  ui: React.ReactElement,
+  navigation?: NavigationContextValue,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ActiveBackendProvider>{ui}</ActiveBackendProvider>
+      <ActiveBackendProvider>
+        {navigation ? (
+          <NavigationProvider value={navigation}>{ui}</NavigationProvider>
+        ) : (
+          ui
+        )}
+      </ActiveBackendProvider>
     </QueryClientProvider>,
   );
 }
@@ -180,5 +193,60 @@ describe("AddBackendModal – two-column layout", () => {
     const loginButton = screen.getByTestId("add-backend-login-button");
     expect(loginButton.textContent?.trim()).not.toMatch(/^🔑/);
     expect(loginButton.textContent).not.toContain("🔑");
+  });
+});
+
+// @spec BM-002 — adding a backend auto-switches the active selection, so a
+// backend-scoped detail page is now stale; the user must land on the section
+// list rather than the previous backend's detail page.
+describe("AddBackendModal – redirect after adding a backend", () => {
+  function renderOnPath(currentPath: string) {
+    const navigate = vi.fn();
+    const navigation: NavigationContextValue = {
+      currentPath,
+      conversationId: null,
+      isNavigating: false,
+      navigate,
+    };
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />, navigation);
+    return { navigate };
+  }
+
+  async function addLocalBackend() {
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://127.0.0.1:18002",
+    );
+    await user.click(screen.getByTestId("add-backend-submit"));
+  }
+
+  it.each([
+    { path: "/automations/auto-1", expected: "/automations" },
+    { path: "/conversations/abc", expected: "/conversations" },
+  ])(
+    "redirects to the section list when adding from $path",
+    async ({ path, expected }) => {
+      // Arrange
+      const { navigate } = renderOnPath(path);
+
+      // Act
+      await addLocalBackend();
+
+      // Assert
+      expect(navigate).toHaveBeenCalledWith(expected);
+    },
+  );
+
+  it("does not redirect when adding from a section list page", async () => {
+    // Arrange
+    const { navigate } = renderOnPath("/automations");
+
+    // Act
+    await addLocalBackend();
+
+    // Assert
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
