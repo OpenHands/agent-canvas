@@ -328,8 +328,15 @@ describe("recommended automations", () => {
     const modal = await screen.findByTestId("mcp-install-modal");
     expect(modal).toHaveAttribute("data-marketplace-id", "github");
     expect(
+      screen.getByTestId("mcp-install-field-command-readonly"),
+    ).toHaveValue(
+      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
+    );
+    expect(
       screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-install-field-url")).toBeNull();
+    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
@@ -398,9 +405,7 @@ describe("recommended automations", () => {
 
     fireEvent.change(
       screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
-      {
-        target: { value: "github-token" },
-      },
+      { target: { value: "github-token" } },
     );
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
