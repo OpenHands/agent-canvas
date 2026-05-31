@@ -10,13 +10,22 @@ import { OnboardingModal } from "#/components/features/onboarding/onboarding-mod
 import { NavigationProvider } from "#/context/navigation-context";
 import SettingsService from "#/api/settings-service/settings-service.api";
 
+const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
+
 // Both the backend status badge in the embedded edit form and the
-// step-1 health probe ride on `useBackendsHealth`, which itself
-// resolves through these two clients.
+// step-1 health probe ride on `useBackendsHealth`, which resolves
+// server metadata through `ServerClient`.
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
     return {
       getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+    };
+  }),
+  // The always-mounted LLM slide initializes settings hooks even though
+  // `LlmSettingsScreen` is stubbed, so provide the minimal client it needs.
+  SettingsClient: vi.fn(function SettingsClientMock() {
+    return {
+      getSettings: vi.fn().mockResolvedValue({}),
     };
   }),
 }));
@@ -31,12 +40,21 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 // The LLM step renders the full `LlmSettingsScreen`, which transitively
 // pulls in agent-server config + schema queries we don't need to
 // exercise here. Stub it to a marker so we can still verify the LLM
-// step is mounted.
-vi.mock("#/routes/llm-settings", () => ({
-  LlmSettingsScreen: () => (
-    <div data-testid="llm-settings-screen-stub">llm settings</div>
-  ),
-}));
+// step is mounted and inspect the onboarding defaults passed to it.
+vi.mock("#/routes/llm-settings", async () => {
+  const React = await import("react");
+
+  return {
+    LlmSettingsScreen: (props: Record<string, unknown>) => {
+      llmSettingsScreenMock(props);
+      return React.createElement(
+        "div",
+        { "data-testid": "llm-settings-screen-stub" },
+        "llm settings",
+      );
+    },
+  };
+});
 
 vi.mock(
   "#/components/features/automations/recommended-automations-launcher",
@@ -91,6 +109,7 @@ function renderModal(onClose = vi.fn()) {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  llmSettingsScreenMock.mockClear();
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
   // (which these tests focus on) isn't gated on a real HTTP call.
@@ -126,6 +145,19 @@ describe("OnboardingModal", () => {
     expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
       "data-state",
       "upcoming",
+    );
+  });
+
+  it("pre-fills the LLM step with the OpenHands provider", () => {
+    renderModal();
+
+    expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
+    expect(llmSettingsScreenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialValueOverrides: {
+          "llm.model": "openhands/claude-opus-4-5-20251101",
+        },
+      }),
     );
   });
 

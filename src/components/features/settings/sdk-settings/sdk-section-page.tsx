@@ -174,7 +174,7 @@ export function SdkSectionPage({
    * marked dirty on hydration so the user can save the form without
    * having to touch the prefilled fields. Useful when the page is
    * embedded in a flow that wants to nudge brand-new users toward a
-   * particular default (e.g. onboarding pre-filling Anthropic/Opus).
+   * particular default (e.g. onboarding pre-filling OpenHands/Opus).
    */
   initialValueOverrides?: SettingsFormValues;
   /**
