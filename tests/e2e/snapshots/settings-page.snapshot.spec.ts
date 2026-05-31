@@ -169,7 +169,7 @@ test.describe("UI Visual Snapshots", () => {
     await dismissConsentModal(page);
 
     const homeScreen = page.getByTestId("home-screen");
-    await expect(homeScreen).toBeVisible({ timeout: 15000 });
+    await expect(homeScreen).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
 
     const rootLayout = page.getByTestId("root-layout");

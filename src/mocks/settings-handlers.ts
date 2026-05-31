@@ -883,6 +883,11 @@ export const SETTINGS_HANDLERS = [
     });
   }),
 
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: ["mock_tool"] });
+  }),
+
   http.get("*/api/settings/agent-schema", async () => {
     await delay();
     return HttpResponse.json(MOCK_AGENT_SETTINGS_SCHEMA);
