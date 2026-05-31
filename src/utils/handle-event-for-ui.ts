@@ -194,6 +194,11 @@ export const handleEventForUI = (
       newUiEvents,
     );
     if (finalizedUiEvents) {
+      // The reconciled streaming delta intentionally replaces this final event
+      // for rendering. Today streamed agent responses only render text and
+      // reasoning content; if final-event metadata such as activated
+      // microagents becomes meaningful for streamed responses, add a rendered
+      // wrapper that carries both the stable delta identity and that metadata.
       return finalizedUiEvents;
     }
   }
