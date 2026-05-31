@@ -662,7 +662,7 @@ function startIngress(config) {
 
   const ingressScript = join(projectRoot, "scripts", "ingress.mjs");
 
-  spawnService(
+  return spawnService(
     "ingress",
     "node",
     [
@@ -979,7 +979,21 @@ async function main(options = {}) {
   // Start services phase
   logStep("2/2", "Starting services...");
 
-  // 1. Start agent-server first (other services depend on it)
+  // 1. Start ingress first so port conflicts fail before spawning
+  // the heavier backend/frontend services.
+  const ingressProcess = startIngress(config);
+
+  // Wait briefly for ingress to either start listening or fail fast.
+  await delay(1000);
+
+  if (!isProcessRunning(ingressProcess)) {
+    logError(
+      `Ingress failed to start on port ${config.ingressPort}. See the ingress logs above for details.`,
+    );
+    process.exit(1);
+  }
+
+  // 2. Start agent-server first (other services depend on it)
   const agentServerStarter = startAgentServerOverride ?? startAgentServer;
   agentServerStarter(config);
 
@@ -990,7 +1004,7 @@ async function main(options = {}) {
     60000, // 60 second timeout for initial startup
   );
 
-  // 2. Seed automation API key into agent-server secrets
+  // 3. Seed automation API key into agent-server secrets
   // This makes the key available to agents during conversations
   // Note: seedAutomationSecret has its own retry logic if server is still warming up
   if (agentServerReady) {
@@ -1003,24 +1017,18 @@ async function main(options = {}) {
     );
   }
 
-  // 3. Start automation backend
+  // 4. Start automation backend
   startAutomationBackend(config);
 
-  // 4. Start frontend server (Vite dev server OR static server)
+  // 5. Start frontend server (Vite dev server OR static server)
   if (useStaticMode) {
     startStaticFrontend(config, staticDir);
   } else {
     startVite(config);
   }
 
-  // 5. Wait for services to be ready
+  // 6. Wait for services to be ready
   await delay(2000);
-
-  // 6. Start ingress proxy (routes traffic to all backends)
-  startIngress(config);
-
-  // Wait for ingress to start
-  await delay(1000);
 
   printBanner(config);
 }
