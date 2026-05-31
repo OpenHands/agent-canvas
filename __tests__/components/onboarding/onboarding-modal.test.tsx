@@ -13,14 +13,16 @@ import SettingsService from "#/api/settings-service/settings-service.api";
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 
 // Both the backend status badge in the embedded edit form and the
-// step-1 health probe ride on `useBackendsHealth`, which itself
-// resolves through these two clients.
+// step-1 health probe ride on `useBackendsHealth`, which resolves
+// server metadata through `ServerClient`.
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
     return {
       getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
     };
   }),
+  // The always-mounted LLM slide initializes settings hooks even though
+  // `LlmSettingsScreen` is stubbed, so provide the minimal client it needs.
   SettingsClient: vi.fn(function SettingsClientMock() {
     return {
       getSettings: vi.fn().mockResolvedValue({}),
@@ -149,6 +151,7 @@ describe("OnboardingModal", () => {
   it("pre-fills the LLM step with the OpenHands provider", () => {
     renderModal();
 
+    expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
     expect(llmSettingsScreenMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialValueOverrides: {
