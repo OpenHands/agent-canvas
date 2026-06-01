@@ -121,6 +121,15 @@ export function Dropdown({
     },
   });
 
+  React.useEffect(
+    () => () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const isDisabled = loading || disabled;
 
   // `selectedItem` is downshift's internal state, frozen to whatever
