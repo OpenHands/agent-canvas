@@ -115,9 +115,7 @@ export function RecommendedAutomationsLauncher({
 
       const prompt = buildAutomationPrompt(
         automation.prompt,
-        activeBackend.backend.kind === "remote"
-          ? "local"
-          : activeBackend.backend.kind,
+        "local",
         activeBackend.backend.host,
       );
 
@@ -146,7 +144,7 @@ export function RecommendedAutomationsLauncher({
       );
     },
     [
-      activeBackend.backend.kind,
+      activeBackend.backend.host,
       createConversation,
       isCreatingConversation,
       navigate,

@@ -21,14 +21,14 @@ interface Snapshot {
 }
 
 /**
- * Pick the local backend the GUI should talk to for local-protocol calls
- * (settings, conversations, secrets, …). Prefers the user's first
- * registered local backend. As a last resort — when the registry has no
- * local entry at all — synthesize one from env/agent-server-config so
- * synchronous call sites never have to handle a `null` backend; the
- * synthesized entry is never persisted.
+ * Pick the agent-server backend the GUI should talk to for direct
+ * agent-server protocol calls (settings, conversations, secrets, …).
+ * Prefers the user's first registered local or remote backend. As a last
+ * resort — when the registry has no agent-server entry at all — synthesize
+ * one from env/agent-server-config so synchronous call sites never have to
+ * handle a `null` backend; the synthesized entry is never persisted.
  */
-function pickLocalBackend(backends: Backend[]): Backend {
+function pickAgentServerBackend(backends: Backend[]): Backend {
   const firstAgentServer = backends.find(isAgentServerBackend);
   return firstAgentServer ?? makeDefaultLocalBackend();
 }
@@ -53,7 +53,7 @@ function computeSnapshot(
 
   // @spec BM-003 — Fallback on active backend removal
   if (!activeBackend) {
-    activeBackend = pickLocalBackend(backends);
+    activeBackend = pickAgentServerBackend(backends);
     activeOrgId = null;
   }
 
@@ -92,7 +92,7 @@ export function getActiveBackend(): ResolvedActiveBackend {
 export function getEffectiveLocalBackend(): Backend {
   const active = snapshot.active.backend;
   if (isAgentServerBackend(active)) return active;
-  return pickLocalBackend(snapshot.backends);
+  return pickAgentServerBackend(snapshot.backends);
 }
 
 export function getRegisteredBackends(): Backend[] {

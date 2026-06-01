@@ -35,6 +35,9 @@ interface BackendFormModalProps {
   onClose: () => void;
 }
 
+// Keep this list to canonical OpenHands Cloud hosts. Other all-hands.dev
+// hosts, such as work-* tunnels, may be standalone remote agent servers.
+
 const CLOUD_BACKEND_HOSTS = new Set([
   "app.all-hands.dev",
   "app.openhands.dev",
