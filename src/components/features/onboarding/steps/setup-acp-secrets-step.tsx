@@ -62,7 +62,8 @@ export function SetupAcpSecretsStep({
   const queryClient = useQueryClient();
   const { mutateAsync: createSecret } = useCreateSecret();
   const { data: existingSecrets } = useSearchSecrets();
-  // Subscription/login detection via GET /api/acp/auth-status — see issue #964.
+  // Login detection via AcpService (provider status commands run through the
+  // agent-server bash endpoint) — see issue #964.
   const { status: authStatus, isChecking: isCheckingAuth } = useAcpAuthStatus(
     providerKey,
     { enabled: isActive },
