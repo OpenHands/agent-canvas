@@ -7,9 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { SetupAcpSecretsStep } from "#/components/features/onboarding/steps/setup-acp-secrets-step";
+import { type OnboardingAgentId } from "#/components/features/onboarding/steps/choose-agent-step";
 import { SecretsService } from "#/api/secrets-service";
 
-function renderStep(providerKey = "claude-code") {
+function renderStep(providerKey: OnboardingAgentId = "claude-code") {
   const onBack = vi.fn();
   const onNext = vi.fn();
   render(
@@ -97,6 +98,34 @@ describe("SetupAcpSecretsStep", () => {
 
     await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
     expect(SecretsService.createSecret).not.toHaveBeenCalled();
+  });
+
+  it("overwrites an existing secret when the user types a replacement", async () => {
+    // Key rotation: a credential is already saved, the user types a new value
+    // over it. The blank-skip guard must not suppress this — the new value has
+    // to be written even though the secret already exists.
+    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
+      { name: "ANTHROPIC_API_KEY" },
+    ]);
+    const { onNext } = renderStep("claude-code");
+    const user = userEvent.setup();
+
+    const apiKey = screen.getByTestId(
+      "onboarding-acp-secret-ANTHROPIC_API_KEY",
+    ) as HTMLInputElement;
+    await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+
+    await user.type(apiKey, "sk-ant-new-key");
+    await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
+
+    await waitFor(() => {
+      expect(SecretsService.createSecret).toHaveBeenCalledWith(
+        "ANTHROPIC_API_KEY",
+        "sk-ant-new-key",
+        undefined,
+      );
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("upserts every filled field as a secret and then advances", async () => {

@@ -11,6 +11,7 @@ import {
   getAcpProviderDisplayName,
   getAcpProviderSecrets,
 } from "#/constants/acp-providers";
+import { type OnboardingAgentId } from "./choose-agent-step";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -18,8 +19,12 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
 interface SetupAcpSecretsStepProps {
-  /** ACP provider whose credentials we're collecting (e.g. ``"claude-code"``). */
-  providerKey: string;
+  /** ACP provider whose credentials we're collecting (e.g. ``"claude-code"``).
+   * Typed as {@link OnboardingAgentId} — the same type the onboarding modal
+   * tracks — so a mistyped key is a compile error rather than a silently empty
+   * form. Providers without a credentials entry (``"openhands"``,
+   * ``"gemini-cli"``) simply yield no fields. */
+  providerKey: OnboardingAgentId;
   onBack: () => void;
   onNext: () => void;
 }
