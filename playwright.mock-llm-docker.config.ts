@@ -157,7 +157,9 @@ export default defineConfig({
       ].join(" "),
       // Probe the automation list endpoint through the ingress to ensure
       // the FULL stack (agent-server + automation backend + ingress) is
-      // up before tests start.
+      // up before tests start. GET /api/automation/v1 returns 200 (empty
+      // list) without auth — the automation backend does not enforce
+      // session-key auth on the list endpoint.
       url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
       timeout: 180_000, // Docker pull + all services startup
       reuseExistingServer: !process.env.CI,

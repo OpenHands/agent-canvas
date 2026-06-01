@@ -17,7 +17,7 @@ on:
     workflows: ["Docker"]
     types: [completed]
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       docker_image:
@@ -127,8 +127,11 @@ jobs:
           done
 
           # Final check — if we exhausted retries
-          if [ "$STATUS" != "completed" ]; then
-            echo "::error::Docker workflow did not complete within 15 minutes"
+          if [ -z "${STATUS:-}" ]; then
+            echo "::error::No Docker workflow run found for SHA ${SHA} after 15 minutes"
+            exit 1
+          elif [ "$STATUS" != "completed" ]; then
+            echo "::error::Docker workflow did not complete within 15 minutes (last status: $STATUS)"
             exit 1
           fi
 

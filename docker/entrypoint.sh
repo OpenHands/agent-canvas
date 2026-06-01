@@ -28,6 +28,16 @@
 #                          Setting this enables local-mode auth so the session
 #                          API key is validated internally instead of against the
 #                          OpenHands cloud API.
+#   FILE_STORE             – Storage backend for automation tarballs (default: local).
+#                          Without this the automation backend may fall back to
+#                          S3/GCS which fails without cloud credentials.
+#   LOCAL_STORAGE_PATH     – Directory for local file storage (default: ~/.openhands/storage)
+#   AUTOMATION_BASE_URL    – Publicly-reachable base URL for the automation
+#                          service, used in callback URLs and injected into
+#                          sandboxes (default: http://127.0.0.1:$PORT).
+#                          Override in production when the external URL differs.
+#   AUTOMATION_WORKSPACE_BASE – Directory for automation run workspaces
+#                          (default: ~/.openhands/workspaces)
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
