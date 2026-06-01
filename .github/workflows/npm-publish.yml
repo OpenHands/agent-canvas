@@ -90,18 +90,19 @@ jobs:
           fi
           echo "✓ Version $PACKAGE_VERSION matches release tag"
 
-      # Temporary: publish all versions (including prerelease) as "latest"
-      # until the first stable release (see cleanup issue #395).
-      # Note: OIDC trusted-publishing tokens cover only the `npm publish`
-      # call itself; a separate `npm dist-tag add` after publish fails
-      # with E401, so we publish directly with --tag latest in one step.
-      #
-      # Named prerelease dist-tags (alpha/beta/rc) are intentionally NOT
-      # published under this policy — only "latest" is used. This means
-      # `npm install @openhands/agent-canvas@alpha` will not resolve to
-      # any published version. When prerelease dist-tags need to be
-      # re-introduced (issue #395 cleanup), update this step to publish
-      # with a versioned dist-tag (e.g. --tag alpha) and only tag stable
-      # releases as "latest".
+      - name: Determine npm dist-tag
+        id: dist_tag
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          # Semver pre-release versions (containing a hyphen, e.g. 1.5.0-rc.1) are
+          # published under the "rc" dist-tag; stable versions go to "latest".
+          if [[ "$PACKAGE_VERSION" == *"-"* ]]; then
+            echo "dist_tag=rc" >> "$GITHUB_OUTPUT"
+            echo "📦 Pre-release version ($PACKAGE_VERSION) — publishing with --tag rc"
+          else
+            echo "dist_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "📦 Stable version ($PACKAGE_VERSION) — publishing with --tag latest"
+          fi
+
       - name: Publish to npm with provenance
-        run: npm publish --access public --provenance --tag latest
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.dist_tag }}

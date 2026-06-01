@@ -1,0 +1,144 @@
+---
+name: Promote RC to Release
+
+# Gated promotion workflow: checks out a stabilization rc branch, validates
+# that the package version matches, confirms CI is passing, then pushes a
+# release tag using a PAT so that create-release.yml, npm-publish.yml, and
+# docker.yml all fire from the resulting tag-push event.
+#
+# Run via: Actions → Promote RC to Release → Run workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc_branch:
+        description: "RC branch to promote (e.g. rc-1.5.0)"
+        required: true
+        type: string
+      version:
+        description: "Release version without v prefix (e.g. 1.5.0)"
+        required: true
+        type: string
+
+concurrency:
+  group: promote-rc-${{ inputs.rc_branch }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.rc_branch }} → v${{ inputs.version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Validate inputs
+        env:
+          RC_BRANCH: ${{ inputs.rc_branch }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$RC_BRANCH" =~ ^rc-[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ rc_branch must match rc-X.Y.Z (or rc-X.Y.Z-pre.N), got: $RC_BRANCH"
+            exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ version must be semver (X.Y.Z or X.Y.Z-pre.N), got: $VERSION"
+            exit 1
+          fi
+          echo "✅ Inputs valid: $RC_BRANCH → v$VERSION"
+
+      - name: Check tag does not already exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if gh release view "v${VERSION}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "❌ Release v${VERSION} already exists — delete it first if this is a re-promotion."
+            exit 1
+          fi
+          echo "✅ Tag v${VERSION} does not yet exist"
+
+      - name: Verify latest CI run on rc branch passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_BRANCH: ${{ inputs.rc_branch }}
+        run: |
+          RUN=$(gh api \
+            "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=${RC_BRANCH}&per_page=1" \
+            --jq '.workflow_runs[0] // empty')
+
+          if [ -z "$RUN" ]; then
+            echo "⚠️ No CI runs found for ${RC_BRANCH} — proceeding without CI confirmation"
+            exit 0
+          fi
+
+          STATUS=$(echo "$RUN" | jq -r '.status')
+          CONCLUSION=$(echo "$RUN" | jq -r '.conclusion')
+          RUN_URL=$(echo "$RUN" | jq -r '.html_url')
+          echo "Latest CI run: status=$STATUS conclusion=$CONCLUSION"
+          echo "  $RUN_URL"
+
+          if [ "$STATUS" != "completed" ]; then
+            echo "❌ Latest CI run is still in progress (status=$STATUS). Wait for it to finish."
+            exit 1
+          fi
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "❌ Latest CI run did not succeed (conclusion=$CONCLUSION). Fix failures before promoting."
+            exit 1
+          fi
+          echo "✅ Latest CI run succeeded"
+
+      # Check out with a PAT so that the git push below triggers downstream
+      # workflow runs (tags pushed via GITHUB_TOKEN are suppressed by GitHub).
+      - name: Check out rc branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.rc_branch }}
+          token: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || secrets.GITHUB_TOKEN }}
+
+      - name: Validate package.json version matches release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "❌ package.json version ($PKG_VERSION) does not match release version ($VERSION)"
+            echo "   Bump the version on the rc branch first:"
+            echo "     npm version $VERSION --no-git-tag-version && git commit -am 'chore: bump version to $VERSION' && git push"
+            exit 1
+          fi
+          echo "✅ package.json version $PKG_VERSION matches release version"
+
+      - name: Create and push release tag
+        env:
+          VERSION: ${{ inputs.version }}
+          RC_BRANCH: ${{ inputs.rc_branch }}
+        run: |
+          git config user.name "openhands-bot"
+          git config user.email "openhands-bot@users.noreply.github.com"
+          git tag "v${VERSION}" -m "Release v${VERSION} from ${RC_BRANCH}"
+          git push origin "v${VERSION}"
+          echo "✅ Pushed tag v${VERSION}"
+          echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${VERSION}"
+
+      - name: Summary
+        env:
+          VERSION: ${{ inputs.version }}
+          RC_BRANCH: ${{ inputs.rc_branch }}
+        run: |
+          echo "## ✅ Promotion Complete: v${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **RC Branch** | \`${RC_BRANCH}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Tag pushed** | \`v${VERSION}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Release** | https://github.com/${{ github.repository }}/releases/tag/v${VERSION} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Downstream workflows triggered by the tag push" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **create-release.yml** — creates the GitHub Release entry" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **npm-publish.yml** — publishes \`@openhands/agent-canvas@${VERSION}\` to npm" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **docker.yml** — builds and pushes \`ghcr.io/openhands/agent-canvas:${VERSION}\` Docker images" >> "$GITHUB_STEP_SUMMARY"

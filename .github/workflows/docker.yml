@@ -3,7 +3,7 @@ name: Docker
 
 on:
   push:
-    branches: [main]
+    branches: [main, "rc-*"]
     tags:
       - "v*"
   pull_request:

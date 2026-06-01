@@ -11,68 +11,82 @@ triggers:
 
 # Release Process for @openhands/agent-canvas
 
-You are guiding a release of the `@openhands/agent-canvas` package. Follow these steps **in order**. Do NOT skip ahead — each step has a checkpoint where you must wait for the user.
+This project uses **stabilization branches** for releases. An `rc-X.Y.Z` branch is
+created from a known-good commit on `main`, fixes are cherry-picked to it as needed,
+QA is run against it, and it is promoted to a release tag when ready. `main` keeps
+moving independently; rc branches are never merged back.
 
-## Step 1: Check Current Version and Ask the User
+Follow these steps **in order**. Do NOT skip ahead — each step has a checkpoint.
 
-**IMPORTANT: You MUST complete this step and get explicit user confirmation before doing anything else.**
+---
 
-First, read the current version from `package.json`:
+## Step 1: Confirm the version
+
+**IMPORTANT: Get explicit user confirmation before doing anything.**
+
+Read the current version from `package.json`:
 
 ```bash
 node -p "require('./package.json').version"
 ```
 
-Then present the result to the user and suggest the next logical version. Use these rules to form your suggestion:
-- If the current version is a pre-release like `1.0.0-alpha.7`, suggest `1.0.0-alpha.8` (bump the last numeric segment).
-- If the current version is stable like `1.2.3`, suggest `1.2.4` (patch bump) but mention they can also do `1.3.0` (minor) or `2.0.0` (major).
+Read the latest release tag so you can suggest a sensible next version:
 
-**Version format**: This project uses semver with optional pre-release suffixes.
-- Pre-release examples: `1.0.0-alpha.8`, `1.0.0-beta.1`, `1.0.0-rc.1`
-- Stable examples: `1.0.0`, `1.1.0`, `2.0.0`
+```bash
+gh release list --limit 5 --json tagName,publishedAt --jq '.[] | "\(.tagName) \(.publishedAt)"'
+```
 
-**STOP HERE.** Tell the user the current version, your suggested next version, and ask:
+Suggest the next version using these rules:
+- Patch release of `1.2.3` → suggest `1.2.4` (but mention `1.3.0` minor or `2.0.0` major)
+- Pre-release `1.0.0-rc.1` → suggest `1.0.0-rc.2` (bump last numeric segment)
 
-> The current version is `<current>`. I'd suggest bumping to `<suggested>`. What version would you like to release?
+**Version format**: semver with optional pre-release suffix.
+- Pre-release: `1.0.0-rc.1`, `1.0.0-beta.2`
+- Stable: `1.0.0`, `1.1.0`, `2.0.0`
+
+**STOP HERE.** Present the current version and latest release, suggest the next version, and ask:
+
+> The current `main` version is `<current>`. The latest release is `<latest-tag>`.
+> I'd suggest releasing `<suggested>`. What version would you like to create an rc branch for?
 
 **Do not proceed to Step 2 until the user confirms a version.**
 
-## Step 2: Create the Release PR
+---
 
-### 2a. Create the release branch
+## Step 2: Create the rc branch and bump the version
 
-The branch **must** be named `rel-<version>` (e.g., `rel-1.0.0-alpha.8`). This naming convention is required — the `create-release.yml` workflow detects merged release PRs by matching the `rel-` branch prefix.
+### 2a. Create the rc branch
+
+The branch **must** be named `rc-<version>` (e.g., `rc-1.5.0`). CI, Docker image
+builds, and snapshot baselines all run automatically on every push to `rc-*` branches.
 
 ```bash
 git checkout main
 git pull origin main
-git checkout -b rel-<version>
+git checkout -b rc-<version>
 ```
 
 ### 2b. Bump the version
 
-Update the version in **both** `package.json` and `package-lock.json`:
+Update `package.json` and `package-lock.json`:
 
 ```bash
 npm version <version> --no-git-tag-version
 ```
 
-This updates both files without creating a git tag (the tag is created automatically on merge).
-
 ### 2c. Update version references in README.md
 
-The `README.md` contains Docker image tags that reference a specific version (e.g., `ghcr.io/openhands/agent-canvas:<version>`). Update **all** version references in `README.md` to match the new release version:
+`README.md` contains Docker image tags referencing a specific version. Update them:
 
 ```bash
-# Find and replace the old version tag with the new one
 sed -i 's/ghcr.io\/openhands\/agent-canvas:[0-9]*\.[0-9]*\.[0-9]*[^ ]*/ghcr.io\/openhands\/agent-canvas:<version>/g' README.md
 ```
 
-Verify the change:
+Verify:
 
 ```bash
 git diff --stat
-# Should show: package.json, package-lock.json, and README.md changed
+# Expected: package.json, package-lock.json, README.md
 ```
 
 ### 2d. Commit and push
@@ -80,122 +94,167 @@ git diff --stat
 ```bash
 git add package.json package-lock.json README.md
 git commit -m "chore: bump version to <version>"
-git push -u origin rel-<version>
+git push -u origin rc-<version>
 ```
 
-### 2e. Create the PR
+The push immediately triggers:
+- **CI** (lint, test, build) on the rc branch
+- **Docker** image build → `ghcr.io/openhands/agent-canvas:rc-<version>` and `sha-<hash>`
+- **Snapshot** baseline generation for this rc branch (stored separately from main's baselines)
 
-Create the PR targeting `main` with the `e2e-tests` label:
+---
+
+## Step 3: Monitor initial CI
 
 ```bash
-gh pr create \
-  --title "chore: bump version to <version>" \
-  --body "## Release v<version>
-
-This PR bumps the version to **<version>** for release.
-
-### Release Checklist
-- [x] Version bumped in package.json and package-lock.json
-- [x] Version references updated in README.md
-- [ ] CI passes (lint, test, build)
-- [ ] Visual snapshot tests pass
-- [ ] Mock-LLM E2E tests pass (triggered by \`e2e-tests\` label)
-- [ ] Review and approve
-
-### What happens on merge
-When this PR is merged, the \`create-release.yml\` workflow will automatically:
-1. Create a GitHub release with tag \`v<version>\` and auto-generated notes
-2. The tag push triggers \`npm-publish.yml\` to publish to npm
-3. The tag push triggers \`docker.yml\` to build and push Docker images to GHCR" \
-  --base main \
-  --head "rel-<version>" \
-  --label "e2e-tests"
+gh run list --branch rc-<version> --limit 5
 ```
 
-## Step 3: Wait for CI and E2E Tests
+Wait for the first CI run to succeed before handing the branch off for QA. If it fails,
+fix it with a direct commit to the rc branch (no PR needed for the initial bump commit).
 
-The following checks must pass before merging:
+---
 
-| Workflow | Trigger | What it checks |
-|---|---|---|
-| **CI** (`ci.yml`) | Every PR | Lint, unit tests, app build, library build |
-| **Snapshot Tests** (`snapshot-tests.yml`) | Every PR | Visual regression screenshots |
-| **Mock-LLM E2E Tests** (`mock-llm-e2e.yml`) | `e2e-tests` label | End-to-end tests with a mock LLM against a real agent-server |
+## Step 4: Stabilization — applying fixes
 
-Monitor the PR checks:
+During QA, fixes are submitted as **PRs targeting `rc-<version>`**. The same fix should
+also be submitted to `main` by the developer (cherry-pick or separate PR).
+
+Each PR to the rc branch triggers:
+- CI checks (required to pass before merge)
+- Snapshot comparison against the rc-branch baselines
+- Mock-LLM E2E tests when the `e2e-tests` label is present
+
+Monitor fixes landing:
 
 ```bash
-gh pr checks <pr-number> --watch
+gh pr list --base rc-<version>
 ```
 
-If the mock-LLM E2E tests fail, investigate the failure in the workflow artifacts. The `e2e-tests` label can be removed and re-added to re-trigger the workflow.
+QA tests against the Docker image:
+```bash
+docker pull ghcr.io/openhands/agent-canvas:rc-<version>
+docker run -it --rm -p 8000:8000 ghcr.io/openhands/agent-canvas:rc-<version>
+```
 
-If snapshot tests show intentional changes (e.g., version string in the UI changed), add the `update-snapshots` label to acknowledge the changes.
+---
 
-## Step 4: Merge the PR
+## Step 5: Promote to release
 
-Once all checks pass and the PR is approved, merge it:
+When QA signs off, trigger the promotion workflow. This is the gated step that:
+1. Validates `package.json` version matches the version input
+2. Confirms the latest CI run on the rc branch succeeded
+3. Pushes the `v<version>` tag using a PAT, which fires the downstream workflows
+
+**Via the GitHub UI:**
+1. Go to **Actions → Promote RC to Release → Run workflow**
+2. Set `rc_branch` = `rc-<version>`
+3. Set `version` = `<version>` (without `v` prefix)
+4. Click **Run workflow**
+
+**Via the CLI:**
 
 ```bash
-gh pr merge <pr-number> --squash --delete-branch
+gh workflow run promote-rc-to-release.yml \
+  --field rc_branch=rc-<version> \
+  --field version=<version>
 ```
 
-### Automatic tagging on merge
+Monitor the promotion run:
 
-The `create-release.yml` workflow automatically runs when a PR from a `rel-*` branch is merged into `main`. It will:
+```bash
+gh run list --workflow=promote-rc-to-release.yml --limit=1
+gh run watch   # paste the run ID
+```
 
-1. **Extract the version** from the branch name (e.g., `rel-1.0.0-alpha.8` → `1.0.0-alpha.8`)
-2. **Create a GitHub release** with tag `v<version>` targeting the merge commit
-3. **Auto-generate release notes** from the commits since the previous release
-4. **Mark pre-release versions** (those containing a hyphen) as pre-releases
+### What happens when the promotion tag is pushed
 
-You do **not** need to manually create a tag or GitHub release.
-
-### Downstream workflows triggered by the tag
-
-The tag push (`v*`) automatically triggers:
+The `v<version>` tag push triggers three concurrent workflows:
 
 | Workflow | What it does |
 |---|---|
-| **npm-publish.yml** | Builds and publishes `@openhands/agent-canvas` to npm with provenance |
-| **docker.yml** | Builds and pushes multi-arch Docker images to `ghcr.io/openhands/agent-canvas` |
+| **create-release.yml** | Creates the GitHub Release with auto-generated notes |
+| **npm-publish.yml** | Publishes `@openhands/agent-canvas@<version>` to npm |
+| **docker.yml** | Builds and pushes `ghcr.io/openhands/agent-canvas:<version>` Docker images |
 
-### Verify the release
+For **stable versions** (`X.Y.Z`), npm publishes under `--tag latest`.
+For **pre-release versions** (`X.Y.Z-rc.N` etc.), npm publishes under `--tag rc`.
 
-After merging, verify the downstream workflows complete successfully:
+---
+
+## Step 6: Verify the release
 
 ```bash
-# Check the GitHub release was created
+# GitHub Release
 gh release view v<version>
 
-# Watch downstream workflow runs
+# npm
+npm view @openhands/agent-canvas@<version>
+
+# Docker
+docker pull ghcr.io/openhands/agent-canvas:<version>
+
+# Downstream workflow status
 gh run list --workflow=npm-publish.yml --limit=1
 gh run list --workflow=docker.yml --limit=1
 ```
 
-Confirm the package is available:
-- **npm**: `npm view @openhands/agent-canvas@<version>`
-- **Docker**: `docker pull ghcr.io/openhands/agent-canvas:<version>`
+---
 
 ## Troubleshooting
 
-### E2E tests not triggering
-The `e2e-tests` label must be present on the PR. If you added it but tests didn't run, remove and re-add the label, or manually trigger the workflow from the Actions tab.
+### Promotion fails: package.json version mismatch
+The rc branch's `package.json` must already be bumped to `<version>`. If you forgot:
+```bash
+git checkout rc-<version>
+npm version <version> --no-git-tag-version
+git commit -am "chore: bump version to <version>"
+git push
+```
+Then re-run the promotion workflow.
+
+### Promotion fails: CI not passing
+Fix the failing test or build on the rc branch (via a PR or direct commit), wait for
+CI to pass, then re-run the promotion workflow.
 
 ### Tag already exists
-If a tag `v<version>` already exists (e.g., from a previous failed attempt), the `create-release.yml` workflow will skip creation. Delete the existing release and tag first:
 ```bash
 gh release delete v<version> --yes
 git push origin :refs/tags/v<version>
 ```
+Then re-run the promotion workflow.
 
-### npm publish failed
-The `npm-publish.yml` workflow validates that `package.json` version matches the tag version. If they don't match, the publish will fail. Ensure the version bump in Step 2b matches the branch name exactly.
+### npm publish failed: version mismatch
+`npm-publish.yml` validates that `package.json` version matches the tag version.
+If they don't match, the publish will fail. Verify the rc branch has the correct version
+and that the promotion used the matching `version` input.
+
+### Snapshot tests: false failures on rc branch PRs
+Snapshot baselines for rc branches are stored separately from `main`'s baselines
+(artifact `snapshot-baselines-rc-<version>`). If no baseline exists yet for the rc
+branch (e.g. the first push to the rc branch hasn't completed its baseline run),
+all snapshots will appear as "new". Wait for the baseline run on the rc branch to
+complete, then re-run the PR snapshot test.
+
+---
 
 ## Reference
 
-This release process is modeled after the [OpenHands/software-agent-sdk release workflow](https://github.com/OpenHands/software-agent-sdk/blob/main/.github/workflows/README-RELEASE.md) for consistency across OpenHands projects. Key differences:
-- agent-canvas uses npm (not PyPI) for package publishing
-- agent-canvas uses `npm version` (not `make set-package-version`) for version bumping
-- agent-canvas release branches use `rel-<version>` naming (same as SDK)
-- Both repos use `create-release.yml` to auto-create GitHub releases on merge of `rel-*` PRs
+The rc-branch stabilization model:
+
+```
+main ─────────────────────────────────────────────────────────────────────────────►
+         │
+         │ create rc-X.Y.Z (version bump first commit)
+         ▼
+   rc-X.Y.Z ──── fix A ──── fix B ──── [QA passes] ──── promote ──── tag vX.Y.Z
+                  │           │                                            │
+                also         also                               npm-publish + docker
+              to main       to main
+```
+
+Key points:
+- `rc-*` branches are **long-lived** and **never merged back** to `main`.
+- The rc branch is retained after the release for historical reference.
+- `main` moves on independently; fixes land there separately from the rc branch.
+- The only way to create a release tag is through the `promote-rc-to-release.yml` workflow.
