@@ -144,6 +144,23 @@ log "Starting automation server on port $AUTOMATION_PORT..."
 # Disable the automation's own frontend — agent-canvas provides the UI.
 export AUTOMATION_FRONTEND_DIR=""
 
+# File storage — use local filesystem unless the user has configured cloud
+# storage.  Without FILE_STORE=local the automation backend may fall back
+# to a cloud provider (S3/GCS) which will fail without credentials, causing
+# tarball-based presets (preset/prompt, preset/plugin) to silently error.
+export FILE_STORE="${FILE_STORE:-local}"
+export LOCAL_STORAGE_PATH="${LOCAL_STORAGE_PATH:-${OPENHANDS_DIR}/storage}"
+mkdir -p "$LOCAL_STORAGE_PATH"
+
+# AUTOMATION_BASE_URL — the publicly-reachable base URL for the automation
+# service.  Appended to callback URLs and injected into each sandbox as
+# AUTOMATION_API_URL.  Defaults to the unified ingress.
+export AUTOMATION_BASE_URL="${AUTOMATION_BASE_URL:-http://127.0.0.1:${PORT}}"
+
+# AUTOMATION_WORKSPACE_BASE — where automation runs unpack tarballs.
+export AUTOMATION_WORKSPACE_BASE="${AUTOMATION_WORKSPACE_BASE:-${OPENHANDS_DIR}/workspaces}"
+mkdir -p "$AUTOMATION_WORKSPACE_BASE"
+
 # Default to SQLite so the automation server works out of the box without
 # an external PostgreSQL instance. Users can override AUTOMATION_DB_URL to
 # point at a real Postgres for production deployments.
