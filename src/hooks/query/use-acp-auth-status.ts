@@ -80,6 +80,9 @@ export function useAcpAuthStatus(
     // intentional: it's a cheap one-off and their login state may have changed.
     staleTime: Infinity,
     gcTime: 1000 * 60 * 15,
+    // ``probeAcpAuth`` always resolves (it catches internally → "unknown"), so
+    // this is redundant today — kept as a guard so the probe still never retries
+    // if that inner catch is ever removed.
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,

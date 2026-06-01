@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BashOutput } from "@openhands/typescript-client";
-import AcpService from "./acp-service.api";
+import AcpService from "#/api/acp-service/acp-service.api";
 
 // Capture the command the service runs and control the BashOutput it sees.
 const executeCommand = vi.hoisted(() => vi.fn());

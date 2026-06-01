@@ -55,9 +55,12 @@ function classifyCodex(out: BashOutput): AcpAuthStatus {
 // its credentials file. The command echoes present/absent and exits 0 either
 // way; anything else (a shell failure) ⇒ unknown.
 function classifyGemini(out: BashOutput): AcpAuthStatus {
-  const text = streams(out);
-  if (text.includes("present")) return "authenticated";
-  if (text.includes("absent")) return "unauthenticated";
+  // The command echoes exactly `present` / `absent`, so match the trimmed value
+  // exactly rather than a substring — stray output then falls through to
+  // `unknown` instead of being misread.
+  const text = streams(out).trim();
+  if (text === "present") return "authenticated";
+  if (text === "absent") return "unauthenticated";
   return "unknown";
 }
 
