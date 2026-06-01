@@ -479,7 +479,9 @@ describe("buildStartConversationRequest", () => {
   // @spec LLD-001 — Frontend always sends its chosen default model
   describe("llm.model fallback — frontend always sends its chosen default", () => {
     type ModelPayload = {
-      agent_settings: Record<string, unknown> & { llm: Record<string, unknown> };
+      agent_settings: Record<string, unknown> & {
+        llm: Record<string, unknown>;
+      };
     };
 
     function getModelFrom(
@@ -509,10 +511,19 @@ describe("buildStartConversationRequest", () => {
     // SettingsValue includes scalars so inline literals are type-safe here.
     it.each([
       ["undefined", { ...DEFAULT_SETTINGS.agent_settings, llm: {} }],
-      ["an empty string", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "" } }],
-      ["whitespace only", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "   " } }],
+      [
+        "an empty string",
+        { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "" } },
+      ],
+      [
+        "whitespace only",
+        { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "   " } },
+      ],
       // No llm key at all — SettingsValue accepts plain scalars.
-      ["absent (no llm block)", { schema_version: 1, agent_kind: "openhands", agent: "CodeActAgent" }],
+      [
+        "absent (no llm block)",
+        { schema_version: 1, agent_kind: "openhands", agent: "CodeActAgent" },
+      ],
       // Mirrors a fresh user who skipped onboarding: server returns {}.
       ["entirely empty", {}],
     ])(
@@ -944,12 +955,11 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into ACP settings.
+          // (mcp_config is handled separately — it IS forwarded for ACP; see
+          // the dedicated tests below.)
           agent: "CodeActAgent",
           llm: { model: "gpt-4", api_key: "should-not-appear" },
           condenser: { enabled: true, max_size: 240 },
-          mcp_config: {
-            mcpServers: { fake: { command: "x", args: [] } },
-          },
         },
       },
     }) as {
@@ -980,6 +990,50 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       load_project_skills: true,
     });
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
+  });
+
+  it("forwards mcp_config to the ACP subprocess when servers are configured", () => {
+    // mcp_config is a shared field: the SDK's ACPAgent forwards these servers
+    // to the ACP subprocess at session creation, so the start payload must
+    // carry it (it is intentionally NOT one of the stripped ACP-only fields).
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          mcp_config: {
+            mcpServers: {
+              fetch: { command: "uvx", args: ["mcp-server-fetch"] },
+            },
+          },
+        },
+      },
+    }) as { agent_settings: { mcp_config?: unknown } };
+
+    expect(payload.agent_settings.mcp_config).toEqual({
+      mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"] } },
+    });
+  });
+
+  it("omits mcp_config from the ACP payload when it carries no servers", () => {
+    // An empty / serverless mcp_config must not be sent as ``mcp_config: {}``.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          mcp_config: {},
+        },
+      },
+    }) as { agent_settings: { mcp_config?: unknown } };
+
+    expect(payload.agent_settings.mcp_config).toBeUndefined();
   });
 
   it("does not include ACP-only fields in OpenHands agent settings", () => {
