@@ -21,7 +21,17 @@ export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
 export const MOCK_LLM_PORT =
   process.env.MOCK_LLM_PORT ?? "9999";
+
+// URL tests use to hit the mock LLM admin API (always on the host).
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
+
+// URL the agent-server uses to reach the mock LLM for inference calls.
+// In the npm path both run on the host, so this equals MOCK_LLM_BASE_URL.
+// In Docker with --network host on Linux this also works as-is.
+// For Docker on macOS (bridge networking), set MOCK_LLM_AGENT_URL to
+// http://host.docker.internal:<port> so the container can reach the host.
+export const MOCK_LLM_AGENT_URL =
+  process.env.MOCK_LLM_AGENT_URL ?? MOCK_LLM_BASE_URL;
 export const BACKEND_URL =
   process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
 export const SESSION_API_KEY = (() => {
@@ -287,7 +297,9 @@ export async function ensureMockLLMProfile(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  // Check if the current profile already has the mock LLM settings
+  // Check if the current profile already has the mock LLM settings.
+  // Use MOCK_LLM_AGENT_URL — this is the URL the agent-server will use to
+  // reach the mock LLM, which may differ from MOCK_LLM_BASE_URL in Docker.
   const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
@@ -298,7 +310,7 @@ export async function ensureMockLLMProfile(
   if (settingsResp.ok()) {
     const settings = await settingsResp.json();
     const llm = settings?.agent_settings?.llm;
-    if (llm?.model === model && llm?.base_url === MOCK_LLM_BASE_URL) {
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
       return; // Already configured
     }
   }
@@ -314,7 +326,7 @@ export async function ensureMockLLMProfile(
         llm: {
           model,
           api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_BASE_URL,
+          base_url: MOCK_LLM_AGENT_URL,
         },
       },
     },

@@ -24,7 +24,7 @@ import {
   BASH_TOKEN,
   REPLY_TOKEN,
   waitForAgentMessageContaining,
-  MOCK_LLM_BASE_URL,
+  MOCK_LLM_AGENT_URL,
   BACKEND_URL,
   SESSION_API_KEY,
   seedLocalStorage,
@@ -117,10 +117,12 @@ test.describe("mock-LLM agent-server conversation", () => {
     await modelInput.click();
     await modelInput.fill(MOCK_MODEL);
 
-    // Fill in base URL pointing to our mock server
+    // Fill in base URL pointing to our mock server.
+    // Use MOCK_LLM_AGENT_URL — the URL the agent-server will use for
+    // inference calls. In Docker this may differ from the host-local URL.
     const baseUrlInput = page.getByTestId("base-url-input");
     await baseUrlInput.click();
-    await baseUrlInput.fill(MOCK_LLM_BASE_URL);
+    await baseUrlInput.fill(MOCK_LLM_AGENT_URL);
 
     // Fill in a fake API key (mock server doesn't validate it)
     const apiKeyInput = page.getByTestId("llm-api-key-input");
@@ -219,8 +221,8 @@ test.describe("mock-LLM agent-server conversation", () => {
       const llmBaseUrl = settings?.agent_settings?.llm?.base_url;
       expect(
         llmBaseUrl,
-        `Expected settings llm.base_url="${MOCK_LLM_BASE_URL}" but got "${llmBaseUrl}"`,
-      ).toBe(MOCK_LLM_BASE_URL);
+        `Expected settings llm.base_url="${MOCK_LLM_AGENT_URL}" but got "${llmBaseUrl}"`,
+      ).toBe(MOCK_LLM_AGENT_URL);
     });
   });
 

@@ -1,0 +1,252 @@
+name: Mock-LLM Docker E2E Tests
+
+# Runs the same mock-LLM E2E test specs as mock-llm-e2e.yml, but against
+# the Docker image instead of the npm build path (bin/agent-canvas.mjs).
+# This validates that the all-in-one Docker image works end-to-end with the
+# same behavioral assertions as the npm-published binary.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      docker_image:
+        description: 'Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)'
+        type: string
+        default: ""
+
+concurrency:
+  group: mock-llm-docker-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+
+jobs:
+  mock-llm-docker-e2e:
+    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      MOCK_LLM_REPORT_PATH: mock-llm-docker-report.md
+      MOCK_LLM_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read defaults from config/defaults.json
+        id: defaults
+        run: |
+          echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+          echo "agent_server_image=$(node -p "require('./config/defaults.json').images.agentServer")" >> "$GITHUB_OUTPUT"
+          echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Docker image
+        id: image
+        run: |
+          if [ -n "${{ inputs.docker_image }}" ]; then
+            echo "tag=${{ inputs.docker_image }}" >> "$GITHUB_OUTPUT"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            # No image specified — build one from the current code.
+            echo "tag=agent-canvas-mock-llm-test:local" >> "$GITHUB_OUTPUT"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.image.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image (local)
+        if: steps.image.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ steps.image.outputs.tag }}
+          build-args: |
+            AGENT_SERVER_IMAGE=${{ steps.defaults.outputs.agent_server_image }}:${{ steps.defaults.outputs.agent_server_version }}-python
+            AUTOMATION_VERSION=${{ steps.defaults.outputs.automation_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Log in to GHCR (for pre-built images)
+        if: steps.image.outputs.build != 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Docker image
+        if: steps.image.outputs.build != 'true'
+        run: docker pull "${{ steps.image.outputs.tag }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Get Playwright version
+        id: pw_version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install openhands-sdk (for mock LLM server)
+        run: |
+          uv venv .mock-llm-venv
+          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+
+      - name: Verify mock LLM server starts
+        run: |
+          .mock-llm-venv/bin/python3 tests/e2e/mock-llm/scripts/mock-llm-server.py --port 9998 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9998/v1/chat/completions \
+              -H "Content-Type: application/json" \
+              -d '{"model":"test","messages":[]}' > /dev/null 2>&1; then
+              echo "Mock LLM server responded on attempt $i"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:9998/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -d '{"model":"test","messages":[]}' | python3 -m json.tool
+          kill $SERVER_PID
+
+      - name: Run mock-LLM Docker E2E tests
+        id: run_tests
+        env:
+          MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
+          MOCK_LLM_DOCKER_IMAGE: ${{ steps.image.outputs.tag }}
+        run: |
+          set +e
+          MARKER_DIR=".mock-llm-markers"
+          DONE_MARKER="$MARKER_DIR/.tests-done"
+          PASS_MARKER="$MARKER_DIR/.all-passed"
+          rm -rf "$MARKER_DIR"
+
+          # Run Playwright in background so our shell survives if we have
+          # to kill it (the Docker container teardown can hang).
+          npm run test:e2e:mock-llm:docker &
+          PW_PID=$!
+
+          # Wait up to 5 min for tests to complete.
+          deadline=$((SECONDS + 300))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! kill -0 "$PW_PID" 2>/dev/null; then
+              break
+            fi
+            if [ -f "$DONE_MARKER" ]; then
+              echo "Tests completed: $(cat "$DONE_MARKER")"
+              break
+            fi
+            sleep 2
+          done
+
+          # If Playwright is still running (teardown hang), give it 5s
+          # grace then force-kill.
+          if kill -0 "$PW_PID" 2>/dev/null; then
+            sleep 5
+            if kill -0 "$PW_PID" 2>/dev/null; then
+              echo "::warning::Killing lingering Playwright process (teardown hung)"
+              kill "$PW_PID" 2>/dev/null
+              sleep 5
+              kill -9 "$PW_PID" 2>/dev/null
+            fi
+            wait "$PW_PID" 2>/dev/null
+            pw_exit=124
+          else
+            wait "$PW_PID"
+            pw_exit=$?
+          fi
+
+          echo "Playwright exited with code $pw_exit"
+
+          # When killed during teardown, the exit code is non-zero but
+          # tests may have passed.
+          if [ "$pw_exit" -ne 0 ] && [ -f "$PASS_MARKER" ]; then
+            echo "::notice::All tests passed (marker file present); non-zero exit was teardown-related"
+            pw_exit=0
+          fi
+
+          # Clean up the Docker container (belt-and-suspenders)
+          docker ps -q --filter "name=agent-canvas-mock-llm" | xargs -r docker stop 2>/dev/null || true
+
+          echo "exit_code=$pw_exit" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload test artifacts
+        id: upload_artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-llm-docker-e2e-results
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            playwright-report-mock-llm-docker/
+            test-results-mock-llm-docker/
+
+      - name: Render test report
+        if: always()
+        run: |
+          node tests/e2e/mock-llm/scripts/render-mock-llm-report.mjs \
+            --results "test-results-mock-llm-docker/results.json" \
+            --output "$MOCK_LLM_REPORT_PATH" \
+            --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
+            --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
+            --title "Mock-LLM Docker E2E Test Results"
+          cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post PR comment
+        if: always() && github.event.pull_request.number
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file "$MOCK_LLM_REPORT_PATH"
+
+      - name: Fail job when tests fail
+        if: always()
+        run: |
+          exit_code="${{ steps.run_tests.outputs.exit_code }}"
+          exit "${exit_code:-1}"
