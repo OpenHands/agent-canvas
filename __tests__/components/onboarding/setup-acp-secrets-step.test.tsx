@@ -13,6 +13,7 @@ import { SecretsService } from "#/api/secrets-service";
 function renderStep(providerKey: OnboardingAgentId = "claude-code") {
   const onBack = vi.fn();
   const onNext = vi.fn();
+  const user = userEvent.setup();
   render(
     <QueryClientProvider
       client={
@@ -28,7 +29,25 @@ function renderStep(providerKey: OnboardingAgentId = "claude-code") {
       </ActiveBackendProvider>
     </QueryClientProvider>,
   );
-  return { onBack, onNext };
+  return { onBack, onNext, user };
+}
+
+/**
+ * Render the Claude Code step with ANTHROPIC_API_KEY already saved, and wait
+ * until that state has loaded (its "already saved" placeholder appears once
+ * `useSearchSecrets` resolves). Shared by every test that exercises the
+ * existing-secret paths so the fixture lives in one place.
+ */
+async function renderWithSavedApiKey() {
+  vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
+    { name: "ANTHROPIC_API_KEY" },
+  ]);
+  const handles = renderStep("claude-code");
+  const apiKey = screen.getByTestId(
+    "onboarding-acp-secret-ANTHROPIC_API_KEY",
+  ) as HTMLInputElement;
+  await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+  return { ...handles, apiKey };
 }
 
 beforeEach(() => {
@@ -61,36 +80,19 @@ describe("SetupAcpSecretsStep", () => {
   });
 
   it("flags a credential that already exists as a saved secret", async () => {
-    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
-      { name: "ANTHROPIC_API_KEY" },
-    ]);
-    renderStep("claude-code");
+    const { apiKey } = await renderWithSavedApiKey();
 
     // The already-saved field carries a non-empty placeholder hint; a
     // not-yet-saved field (base URL) does not.
-    const apiKey = screen.getByTestId(
-      "onboarding-acp-secret-ANTHROPIC_API_KEY",
-    ) as HTMLInputElement;
     const baseUrl = screen.getByTestId(
       "onboarding-acp-secret-ANTHROPIC_BASE_URL",
     ) as HTMLInputElement;
-    await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+    expect(apiKey.placeholder.length).toBeGreaterThan(0);
     expect(baseUrl.placeholder).toBe("");
   });
 
   it("does not write an existing secret when its field is left blank", async () => {
-    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
-      { name: "ANTHROPIC_API_KEY" },
-    ]);
-    const { onNext } = renderStep("claude-code");
-    const user = userEvent.setup();
-
-    // Wait for the existing secret to register (its "already saved" placeholder
-    // appears) so we know the step has loaded before we advance.
-    const apiKey = screen.getByTestId(
-      "onboarding-acp-secret-ANTHROPIC_API_KEY",
-    ) as HTMLInputElement;
-    await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+    const { onNext, user } = await renderWithSavedApiKey();
 
     // Advance without typing: a blank field is a deliberate skip, so the
     // already-saved secret must be left untouched (no overwrite).
@@ -104,16 +106,7 @@ describe("SetupAcpSecretsStep", () => {
     // Key rotation: a credential is already saved, the user types a new value
     // over it. The blank-skip guard must not suppress this — the new value has
     // to be written even though the secret already exists.
-    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
-      { name: "ANTHROPIC_API_KEY" },
-    ]);
-    const { onNext } = renderStep("claude-code");
-    const user = userEvent.setup();
-
-    const apiKey = screen.getByTestId(
-      "onboarding-acp-secret-ANTHROPIC_API_KEY",
-    ) as HTMLInputElement;
-    await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+    const { onNext, user, apiKey } = await renderWithSavedApiKey();
 
     await user.type(apiKey, "sk-ant-new-key");
     await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
@@ -129,8 +122,7 @@ describe("SetupAcpSecretsStep", () => {
   });
 
   it("upserts every filled field as a secret and then advances", async () => {
-    const { onNext } = renderStep("claude-code");
-    const user = userEvent.setup();
+    const { onNext, user } = renderStep("claude-code");
 
     await user.type(
       screen.getByTestId("onboarding-acp-secret-ANTHROPIC_API_KEY"),
@@ -161,8 +153,7 @@ describe("SetupAcpSecretsStep", () => {
     vi.spyOn(SecretsService, "createSecret").mockRejectedValue(
       new Error("boom"),
     );
-    const { onNext } = renderStep("claude-code");
-    const user = userEvent.setup();
+    const { onNext, user } = renderStep("claude-code");
 
     await user.type(
       screen.getByTestId("onboarding-acp-secret-ANTHROPIC_API_KEY"),
