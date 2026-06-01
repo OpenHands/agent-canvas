@@ -2,12 +2,15 @@ name: Mock-LLM Docker E2E Tests
 
 # Runs the same mock-LLM E2E test specs as mock-llm-e2e.yml, but against
 # the Docker image instead of the npm build path (bin/agent-canvas.mjs).
-# This validates that the all-in-one Docker image works end-to-end with the
-# same behavioral assertions as the npm-published binary.
+#
+# Triggered automatically when the "Docker" workflow completes — the image
+# is already built and pushed to GHCR, so this workflow just pulls it.
+# Can also be triggered manually via workflow_dispatch with a custom image tag.
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_run:
+    workflows: ["Docker"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       docker_image:
@@ -16,7 +19,9 @@ on:
         default: ""
 
 concurrency:
-  group: mock-llm-docker-e2e-${{ github.event.pull_request.number || github.ref }}
+  # For workflow_run: use the triggering run ID to avoid cancelling parallel PR runs.
+  # For workflow_dispatch: use the ref.
+  group: mock-llm-docker-e2e-${{ github.event.workflow_run.id || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -26,63 +31,72 @@ permissions:
 
 jobs:
   mock-llm-docker-e2e:
-    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
+    # workflow_run: only run if the Docker build succeeded.
+    # workflow_dispatch: always run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-docker-report.md
       MOCK_LLM_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
+      # ── Resolve which commit / PR to test ──────────────────────────────
+      # workflow_run events run on the default branch, so we must explicitly
+      # check out the code from the commit that triggered the Docker build.
+      - name: Resolve source context
+        id: ctx
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+            # Extract PR number from the workflow_run event (if any).
+            # workflow_run.pull_requests[] is populated for same-repo PRs.
+            PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
+              | jq -r '.[0].number // empty')
+            echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.ctx.outputs.ref }}
 
       - name: Read defaults from config/defaults.json
         id: defaults
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
-          echo "agent_server_image=$(node -p "require('./config/defaults.json').images.agentServer")" >> "$GITHUB_OUTPUT"
-          echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
 
+      # ── Resolve Docker image tag ───────────────────────────────────────
+      # workflow_run: derive from the SHA that the Docker workflow built.
+      # workflow_dispatch: use the provided image, or fail.
       - name: Resolve Docker image
         id: image
         run: |
           if [ -n "${{ inputs.docker_image }}" ]; then
             echo "tag=${{ inputs.docker_image }}" >> "$GITHUB_OUTPUT"
-            echo "build=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
+            # Use the amd64-specific tag (always pushed by the Docker workflow).
+            # The multi-arch manifest (sha-<short>) may not exist yet if
+            # merge-manifests hasn't completed, but the per-arch tag is
+            # available immediately after the build-and-push-image job.
+            echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}-amd64" >> "$GITHUB_OUTPUT"
           else
-            # No image specified — build one from the current code.
-            echo "tag=agent-canvas-mock-llm-test:local" >> "$GITHUB_OUTPUT"
-            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "::error::No docker_image input provided for workflow_dispatch"
+            exit 1
           fi
 
-      - name: Set up Docker Buildx
-        if: steps.image.outputs.build == 'true'
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build Docker image (local)
-        if: steps.image.outputs.build == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: ${{ steps.image.outputs.tag }}
-          build-args: |
-            AGENT_SERVER_IMAGE=${{ steps.defaults.outputs.agent_server_image }}:${{ steps.defaults.outputs.agent_server_version }}-python
-            AUTOMATION_VERSION=${{ steps.defaults.outputs.automation_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Log in to GHCR (for pre-built images)
-        if: steps.image.outputs.build != 'true'
+      - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -90,9 +104,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull Docker image
-        if: steps.image.outputs.build != 'true'
-        run: docker pull "${{ steps.image.outputs.tag }}"
+        run: |
+          echo "Pulling ${{ steps.image.outputs.tag }}..."
+          docker pull "${{ steps.image.outputs.tag }}"
 
+      # ── Test infrastructure setup ──────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -151,6 +167,7 @@ jobs:
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
           kill $SERVER_PID
 
+      # ── Run tests ──────────────────────────────────────────────────────
       - name: Run mock-LLM Docker E2E tests
         id: run_tests
         env:
@@ -213,6 +230,7 @@ jobs:
           echo "exit_code=$pw_exit" >> "$GITHUB_OUTPUT"
           exit 0
 
+      # ── Reporting ──────────────────────────────────────────────────────
       - name: Upload test artifacts
         id: upload_artifacts
         if: always()
@@ -232,17 +250,17 @@ jobs:
             --results "test-results-mock-llm-docker/results.json" \
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
-            --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --commit "${{ steps.ctx.outputs.sha }}" \
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
             --title "Mock-LLM Docker E2E Test Results"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment
-        if: always() && github.event.pull_request.number
+        if: always() && steps.ctx.outputs.pr_number
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ github.event.pull_request.number }}" \
+          gh pr comment "${{ steps.ctx.outputs.pr_number }}" \
             --body-file "$MOCK_LLM_REPORT_PATH"
 
       - name: Fail job when tests fail

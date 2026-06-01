@@ -173,7 +173,7 @@ you are running inside of — NOT the automation backend.
   - `MOCK_LLM_AGENT_URL` — defaults to `MOCK_LLM_BASE_URL`, overridable via `MOCK_LLM_AGENT_URL` env var. Used when configuring the LLM profile (`base_url` field) — this is the URL the agent-server uses for inference calls. The npm path and Docker-with-`--network host` path use the same value; Docker on macOS needs the override.
 - **Docker image**: Set `MOCK_LLM_DOCKER_IMAGE` to the image tag (default: `ghcr.io/openhands/agent-canvas:latest`). The container is started with `--rm --network host` and a unique `--name` for cleanup.
 - **State isolation**: The Docker container uses its internal state directory (no host mount needed for tests). Each test run starts a fresh container.
-- CI workflow: `.github/workflows/mock-llm-docker-e2e.yml` runs on PRs with the `e2e-tests` label or on manual dispatch. It builds the Docker image from the current code (or uses a pre-built image via `docker_image` input), starts the mock LLM server, runs the same specs, and posts a PR comment. Report artifacts go to `test-results-mock-llm-docker/` and `playwright-report-mock-llm-docker/`.
+- CI workflow: `.github/workflows/mock-llm-docker-e2e.yml` triggers automatically via `workflow_run` when the `Docker` workflow completes successfully — it pulls the already-built image from GHCR (no rebuild), starts the mock LLM server, runs the same specs, and posts a PR comment. The image tag is derived from the Docker build's commit SHA (`ghcr.io/openhands/agent-canvas:sha-<short>-amd64`). Can also be triggered manually via `workflow_dispatch` with a custom `docker_image` input. Report artifacts go to `test-results-mock-llm-docker/` and `playwright-report-mock-llm-docker/`.
 
 ## Additional Notes
 
