@@ -17798,6 +17798,23 @@
     "uk": "Системне повідомлення",
     "ca": "Missatge del sistema"
   },
+  "SYSTEM_MESSAGE_MODAL$DYNAMIC_CONTEXT_TAB": {
+    "en": "Dynamic Context",
+    "zh-CN": "动态上下文",
+    "zh-TW": "動態上下文",
+    "ko-KR": "동적 컨텍스트",
+    "ja": "動的コンテキスト",
+    "no": "Dynamisk kontekst",
+    "ar": "السياق الديناميكي",
+    "de": "Dynamischer Kontext",
+    "fr": "Contexte dynamique",
+    "it": "Contesto dinamico",
+    "pt": "Contexto dinâmico",
+    "es": "Contexto dinámico",
+    "tr": "Dinamik Bağlam",
+    "uk": "Динамічний контекст",
+    "ca": "Context dinàmic"
+  },
   "SYSTEM_MESSAGE_MODAL$TOOLS_TAB": {
     "en": "Available Tools",
     "zh-CN": "可用工具",

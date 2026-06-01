@@ -1,14 +1,12 @@
 import { SystemMessageContent } from "./system-message-content";
 import { ToolsList } from "./tools-list";
 import { EmptyToolsState } from "./empty-tools-state";
-import { ChatCompletionToolParam } from "#/types/agent-server/core";
+import { SystemMessageTab } from "./tab-navigation";
+import { SystemMessageForModal } from "#/utils/system-message-adapter";
 
 interface TabContentProps {
-  activeTab: "system" | "tools";
-  systemMessage: {
-    content: string;
-    tools: Array<Record<string, unknown>> | ChatCompletionToolParam[] | null;
-  };
+  activeTab: SystemMessageTab;
+  systemMessage: SystemMessageForModal;
   expandedTools: Record<number, boolean>;
   onToggleTool: (index: number) => void;
 }
@@ -21,6 +19,12 @@ export function TabContent({
 }: TabContentProps) {
   if (activeTab === "system") {
     return <SystemMessageContent content={systemMessage.content} />;
+  }
+
+  if (activeTab === "dynamic") {
+    return (
+      <SystemMessageContent content={systemMessage.dynamicContext ?? ""} />
+    );
   }
 
   if (activeTab === "tools") {

@@ -1,15 +1,19 @@
 import { useTranslation } from "react-i18next";
 import { TabButton } from "./tab-button";
 
+export type SystemMessageTab = "system" | "dynamic" | "tools";
+
 interface TabNavigationProps {
-  activeTab: "system" | "tools";
-  onTabChange: (tab: "system" | "tools") => void;
+  activeTab: SystemMessageTab;
+  onTabChange: (tab: SystemMessageTab) => void;
+  hasDynamicContext: boolean;
   hasTools: boolean;
 }
 
 export function TabNavigation({
   activeTab,
   onTabChange,
+  hasDynamicContext,
   hasTools,
 }: TabNavigationProps) {
   const { t } = useTranslation("openhands");
@@ -25,6 +29,14 @@ export function TabNavigation({
       >
         {t("SYSTEM_MESSAGE_MODAL$SYSTEM_MESSAGE_TAB")}
       </TabButton>
+      {hasDynamicContext && (
+        <TabButton
+          isActive={activeTab === "dynamic"}
+          onClick={() => onTabChange("dynamic")}
+        >
+          {t("SYSTEM_MESSAGE_MODAL$DYNAMIC_CONTEXT_TAB")}
+        </TabButton>
+      )}
       {hasTools && (
         <TabButton
           isActive={activeTab === "tools"}
