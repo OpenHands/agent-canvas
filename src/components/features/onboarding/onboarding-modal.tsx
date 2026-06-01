@@ -181,6 +181,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
                 ) : showAcpSecretsStep ? (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}
+                    isActive={currentStep === 2}
                     onBack={goBack}
                     onNext={goNext}
                   />
