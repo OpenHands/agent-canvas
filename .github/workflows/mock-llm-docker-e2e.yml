@@ -3,14 +3,21 @@ name: Mock-LLM Docker E2E Tests
 # Runs the same mock-LLM E2E test specs as mock-llm-e2e.yml, but against
 # the Docker image instead of the npm build path (bin/agent-canvas.mjs).
 #
-# Triggered automatically when the "Docker" workflow completes — the image
-# is already built and pushed to GHCR, so this workflow just pulls it.
-# Can also be triggered manually via workflow_dispatch with a custom image tag.
+# Trigger chain:
+#   1. workflow_run — fires automatically after the "Docker" workflow
+#      completes on main. The image is already built/pushed to GHCR.
+#   2. pull_request — fires on PRs with the 'e2e-tests' label. Waits for
+#      the Docker workflow to finish, then pulls the image from GHCR.
+#      (workflow_run doesn't fire for new workflow files until they're on
+#      the default branch, so pull_request is needed for first-run PRs.)
+#   3. workflow_dispatch — manual trigger with a custom image tag.
 
 on:
   workflow_run:
     workflows: ["Docker"]
     types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       docker_image:
@@ -19,24 +26,27 @@ on:
         default: ""
 
 concurrency:
-  # For workflow_run: use the triggering run ID to avoid cancelling parallel PR runs.
-  # For workflow_dispatch: use the ref.
-  group: mock-llm-docker-e2e-${{ github.event.workflow_run.id || github.ref }}
+  group: mock-llm-docker-e2e-${{ github.event.workflow_run.id || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
   packages: read
   pull-requests: write
+  actions: read
 
 jobs:
   mock-llm-docker-e2e:
     # workflow_run: only run if the Docker build succeeded.
+    # pull_request: only run with the 'e2e-tests' label, skip fork PRs (no GHCR push).
     # workflow_dispatch: always run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success')
+       github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'e2e-tests') &&
+       !github.event.pull_request.head.repo.fork)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -46,20 +56,19 @@ jobs:
 
     steps:
       # ── Resolve which commit / PR to test ──────────────────────────────
-      # workflow_run events run on the default branch, so we must explicitly
-      # check out the code from the commit that triggered the Docker build.
       - name: Resolve source context
         id: ctx
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-
-            # Extract PR number from the workflow_run event (if any).
-            # workflow_run.pull_requests[] is populated for same-repo PRs.
             PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
               | jq -r '.[0].number // empty')
             echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
             echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
@@ -76,24 +85,63 @@ jobs:
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
 
+      # ── Wait for Docker workflow (pull_request trigger only) ────────────
+      # When triggered by pull_request, the Docker image may still be
+      # building. Poll the Docker workflow until it completes for this SHA.
+      - name: Wait for Docker workflow to complete
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          SHA="${{ steps.ctx.outputs.sha }}"
+          echo "Waiting for Docker workflow to complete for SHA ${SHA}..."
+
+          for i in $(seq 1 60); do
+            # Find the Docker workflow run for this exact commit
+            RUN=$(gh api \
+              "/repos/${{ github.repository }}/actions/workflows/docker.yml/runs?head_sha=${SHA}&per_page=1" \
+              --jq '.workflow_runs[0] // empty' 2>/dev/null || echo "")
+
+            if [ -z "$RUN" ]; then
+              echo "  Attempt $i: No Docker workflow run found yet for ${SHA}..."
+              sleep 15
+              continue
+            fi
+
+            STATUS=$(echo "$RUN" | jq -r '.status')
+            CONCLUSION=$(echo "$RUN" | jq -r '.conclusion // empty')
+            RUN_URL=$(echo "$RUN" | jq -r '.html_url')
+
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "Docker workflow completed successfully: $RUN_URL"
+                break
+              else
+                echo "::error::Docker workflow finished with conclusion '$CONCLUSION': $RUN_URL"
+                exit 1
+              fi
+            fi
+
+            echo "  Attempt $i: Docker workflow status=$STATUS (${RUN_URL})"
+            sleep 15
+          done
+
+          # Final check — if we exhausted retries
+          if [ "$STATUS" != "completed" ]; then
+            echo "::error::Docker workflow did not complete within 15 minutes"
+            exit 1
+          fi
+
       # ── Resolve Docker image tag ───────────────────────────────────────
-      # workflow_run: derive from the SHA that the Docker workflow built.
-      # workflow_dispatch: use the provided image, or fail.
       - name: Resolve Docker image
         id: image
         run: |
           if [ -n "${{ inputs.docker_image }}" ]; then
             echo "tag=${{ inputs.docker_image }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+          else
             SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
             # Use the amd64-specific tag (always pushed by the Docker workflow).
-            # The multi-arch manifest (sha-<short>) may not exist yet if
-            # merge-manifests hasn't completed, but the per-arch tag is
-            # available immediately after the build-and-push-image job.
             echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}-amd64" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::No docker_image input provided for workflow_dispatch"
-            exit 1
           fi
 
       - name: Log in to GHCR
