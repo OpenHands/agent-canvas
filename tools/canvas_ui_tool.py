@@ -90,7 +90,11 @@ When to call (pick the most specific option that matches your last action):
     command="open_tab", tab="terminal"
 
 * You browsed to a URL the user should see →
+    First call browser_get_state(include_screenshot=true) after your final
+    browser interaction so Agent Canvas has a screenshot to display, then call
     command="open_tab", tab="browser"
+    (browser_navigate alone only updates the URL; without browser_get_state,
+    the Browser tab will open without a screenshot.)
 
 Call this BEFORE writing your chat-message summary of the change, so the
 artifact is visible while the user reads what you did. One canvas_ui call

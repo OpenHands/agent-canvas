@@ -143,6 +143,7 @@ export function ConversationWebSocketProvider({
   );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
+  const resetBrowserStore = useBrowserStore((state) => state.reset);
 
   // History loading state.
   // - Main conversation history is now loaded via REST (`useConversationHistory`),
@@ -241,7 +242,8 @@ export function ConversationWebSocketProvider({
     // records the new loaded id in one `set`, so no subscriber can observe a
     // half-applied state (events gone but the old id still reported).
     clearEventsForConversation(nextId);
-  }, [conversationId, clearEventsForConversation]);
+    resetBrowserStore();
+  }, [conversationId, clearEventsForConversation, resetBrowserStore]);
 
   useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
