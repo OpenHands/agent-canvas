@@ -386,12 +386,16 @@ export async function resetMockLLM(request: APIRequestContext) {
  * contentEditable divs don't respond reliably to Playwright's .fill() or
  * .type(), so we set the text programmatically via page.evaluate().
  */
-export async function setChatInput(page: Page, text: string) {
+export async function setChatInput(
+  page: Page,
+  text: string,
+  testId = "chat-input",
+) {
   await page.evaluate(
-    ({ testId, inputText }) => {
-      const el = document.querySelector(`[data-testid="${testId}"]`);
+    ({ tid, inputText }) => {
+      const el = document.querySelector(`[data-testid="${tid}"]`);
       if (!(el instanceof HTMLElement))
-        throw new Error("Chat input not found");
+        throw new Error(`Chat input [data-testid="${tid}"] not found`);
       el.focus();
       el.textContent = inputText;
       el.dispatchEvent(
@@ -402,7 +406,7 @@ export async function setChatInput(page: Page, text: string) {
         }),
       );
     },
-    { testId: "chat-input", inputText: text },
+    { tid: testId, inputText: text },
   );
 }
 

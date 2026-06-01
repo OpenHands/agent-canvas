@@ -242,7 +242,7 @@ test.describe("mock-LLM /model slash command", () => {
       expect(switchProfileBody).toBeTruthy();
       // The switch_profile API uses { profile_name: "..." }
       expect(
-        (switchProfileBody as Record<string, unknown>)?.profile_name,
+        switchProfileBody!.profile_name,
         `switch_profile body.profile_name should be "${PROFILE_B_NAME}"`,
       ).toBe(PROFILE_B_NAME);
     });
