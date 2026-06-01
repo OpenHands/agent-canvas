@@ -5,11 +5,7 @@
  * shorter timeouts (responses are instant), no real credential handling.
  */
 
-import {
-  expect,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // Tokens that the mock LLM server uses — must match mock-llm-server.py.
 export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
@@ -19,17 +15,18 @@ export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
-export const MOCK_LLM_PORT =
-  process.env.MOCK_LLM_PORT ?? "9999";
+export const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
 export const BACKEND_URL =
   process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
+// Public-mode static server (--auth-required, no session key injected).
+export const PUBLIC_MODE_URL =
+  process.env.MOCK_LLM_PUBLIC_MODE_URL ?? "http://localhost:18301";
 export const SESSION_API_KEY = (() => {
   const key =
     process.env.MOCK_LLM_SESSION_API_KEY ??
+    process.env.LOCAL_BACKEND_API_KEY ??
     process.env.LIVE_E2E_SESSION_API_KEY ??
-    process.env.SESSION_API_KEY ??
-    process.env.VITE_SESSION_API_KEY ??
     "";
   if (!key) throw new Error("Session API key is required for mock-LLM E2E.");
   return key;
@@ -66,10 +63,9 @@ export async function waitForPath(
   timeout = 30_000,
 ) {
   await expect
-    .poll(
-      () => page.evaluate(() => window.location.pathname).catch(() => ""),
-      { timeout },
-    )
+    .poll(() => page.evaluate(() => window.location.pathname).catch(() => ""), {
+      timeout,
+    })
     .toMatch(pattern);
 }
 

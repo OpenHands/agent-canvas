@@ -43,9 +43,7 @@ const llmModel =
       : "anthropic/claude-haiku-4-5-20251001");
 export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
-  process.env.SESSION_API_KEY,
-  process.env.OH_SESSION_API_KEYS_0,
-  process.env.VITE_SESSION_API_KEY,
+  process.env.LOCAL_BACKEND_API_KEY,
 );
 
 if (!sessionApiKey) {
@@ -83,7 +81,7 @@ export function getLiveArtifactMask(page: Page): Locator[] {
     page.locator('[data-testid*="token" i]'),
     page.locator('[data-testid*="api-key" i]'),
     page.getByText(
-      /(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|LIVE_E2E_LLM_API_KEY|LLM_API_KEY|SESSION_API_KEY|X-Session-API-Key)\s*[:=]\s*\S+/i,
+      /(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|LIVE_E2E_LLM_API_KEY|LLM_API_KEY|LOCAL_BACKEND_API_KEY|SESSION_API_KEY|X-Session-API-Key)\s*[:=]\s*\S+/i,
     ),
     page.getByText(
       /(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|(?:api[_ -]?key|secret|password|token)\s*[:=]\s*\S+)/i,

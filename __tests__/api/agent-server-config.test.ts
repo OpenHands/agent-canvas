@@ -7,8 +7,11 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  isAuthRequired,
+  isAuthRequiredAndMissing,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
+  syncBakedSessionApiKey,
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
@@ -116,5 +119,155 @@ describe("agent server config", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
 
     expect(shouldLoadPublicSkills()).toBe(false);
+  });
+});
+
+describe("isAuthRequired", () => {
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_AUTH_REQUIRED__;
+  });
+
+  it("returns false when neither env var nor window flag is set", () => {
+    expect(isAuthRequired()).toBe(false);
+  });
+
+  it("returns true when VITE_AUTH_REQUIRED is 'true'", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    expect(isAuthRequired()).toBe(true);
+  });
+
+  it("returns true when window.__AGENT_CANVAS_AUTH_REQUIRED__ is set (static binary path)", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
+    expect(isAuthRequired()).toBe(true);
+  });
+
+  it("returns false when window flag is a non-true value", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = "true";
+    expect(isAuthRequired()).toBe(false);
+  });
+});
+
+describe("isAuthRequiredAndMissing", () => {
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_AUTH_REQUIRED__;
+  });
+
+  it("returns false when VITE_AUTH_REQUIRED is not set", () => {
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns true when VITE_AUTH_REQUIRED is true and no key is configured", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+
+    expect(isAuthRequiredAndMissing()).toBe(true);
+  });
+
+  it("returns true via window flag when no key is configured", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
+
+    expect(isAuthRequiredAndMissing()).toBe(true);
+  });
+
+  it("returns false when VITE_AUTH_REQUIRED is true but a key exists in localStorage", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "stored-key",
+    });
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false when window flag is set but a key exists in localStorage", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_AUTH_REQUIRED__ = true;
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "stored-key",
+    });
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false when VITE_AUTH_REQUIRED is true but VITE_SESSION_API_KEY is baked in", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    vi.stubEnv("VITE_SESSION_API_KEY", "baked-key");
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+
+  it("returns false for non-'true' values of VITE_AUTH_REQUIRED", () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "false");
+
+    expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+});
+
+describe("syncBakedSessionApiKey", () => {
+  it("overwrites a stale stored key when VITE_SESSION_API_KEY differs", () => {
+    // Simulate Run 1: the onboarding or settings page stored the old key.
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "old-key",
+    });
+
+    // Run 2: dev scripts restart with a new key.
+    vi.stubEnv("VITE_SESSION_API_KEY", "new-key");
+
+    syncBakedSessionApiKey();
+
+    // The stored config must reflect the new baked key.
+    expect(getAgentServerSessionApiKey()).toBe("new-key");
+    const raw = JSON.parse(
+      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY) ?? "{}",
+    );
+    expect(raw.sessionApiKey).toBe("new-key");
+  });
+
+  it("does nothing when the stored key already matches the baked key", () => {
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "same-key",
+    });
+    vi.stubEnv("VITE_SESSION_API_KEY", "same-key");
+
+    syncBakedSessionApiKey();
+
+    expect(getAgentServerSessionApiKey()).toBe("same-key");
+  });
+
+  it("does nothing when no key is stored (empty localStorage)", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "baked-key");
+
+    syncBakedSessionApiKey();
+
+    // Falls through to VITE_SESSION_API_KEY as before.
+    expect(getAgentServerSessionApiKey()).toBe("baked-key");
+    // Should NOT have written to localStorage since there was nothing stale.
+    expect(
+      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("does nothing in public mode (no VITE_SESSION_API_KEY)", () => {
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "user-pasted-key",
+    });
+
+    // No VITE_SESSION_API_KEY → public mode or static build without injection.
+    syncBakedSessionApiKey();
+
+    // The user-pasted key must be preserved.
+    expect(getAgentServerSessionApiKey()).toBe("user-pasted-key");
   });
 });

@@ -36,6 +36,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
   getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
+  syncBakedSessionApiKey: vi.fn(),
 }));
 
 vi.mock("#/api/agent-server-compatibility", () => ({

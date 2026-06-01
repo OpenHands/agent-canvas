@@ -67,26 +67,28 @@ if [ -z "${OH_SECRET_KEY:-}" ]; then
 fi
 export OH_SECRET_KEY
 
-# Session API key — generate one if not provided so the image doesn't run
-# wide-open by default. Persisted so restarts reuse the same key.
-SESSION_KEY_FILE="${STATE_DIR}/session-api-key.txt"
-if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
-  if [ -f "$SESSION_KEY_FILE" ]; then
-    SESSION_API_KEY="$(cat "$SESSION_KEY_FILE")"
+# API key — generate one if not provided so the image doesn't run wide-open
+# by default. LOCAL_BACKEND_API_KEY is the single user-facing env var.
+# Persisted so restarts reuse the same key.
+API_KEY_FILE="${STATE_DIR}/api-key.txt"
+
+if [ -z "${LOCAL_BACKEND_API_KEY:-}" ] && [ -z "${OH_SESSION_API_KEYS_0:-}" ]; then
+  if [ -f "$API_KEY_FILE" ]; then
+    LOCAL_BACKEND_API_KEY="$(cat "$API_KEY_FILE")"
   else
-    SESSION_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-    mkdir -p "$(dirname "$SESSION_KEY_FILE")"
-    printf '%s' "$SESSION_API_KEY" > "$SESSION_KEY_FILE"
-    chmod 600 "$SESSION_KEY_FILE"
-    log "Generated session API key (persisted to $SESSION_KEY_FILE)"
+    LOCAL_BACKEND_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    mkdir -p "$(dirname "$API_KEY_FILE")"
+    printf '%s' "$LOCAL_BACKEND_API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    log "Generated API key (persisted to $API_KEY_FILE)"
   fi
-  export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
+  export OH_SESSION_API_KEYS_0="$LOCAL_BACKEND_API_KEY"
 fi
 
 # Both backends share the same API key value and the same `X-Session-API-Key`
 # header for authentication.  Default OPENHANDS_AUTOMATION_API_KEY to the
-# session key so a single credential secures the whole stack.
-EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${SESSION_API_KEY:-}}"
+# API key so a single credential secures the whole stack.
+EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${LOCAL_BACKEND_API_KEY:-}}"
 if [ -z "$EFFECTIVE_SESSION_KEY" ]; then
   log "ERROR: No session API key available — cannot configure automation auth"
   exit 1
@@ -193,7 +195,7 @@ wait "$WAIT_PID1" "$WAIT_PID2"
 # ── 4. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
 
-# EFFECTIVE_SESSION_KEY is set above from ~/.openhands/agent-canvas/session-api-key.txt (or $SESSION_API_KEY)
+# EFFECTIVE_SESSION_KEY is set above from LOCAL_BACKEND_API_KEY or the persisted api-key.txt
 node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
   --host 0.0.0.0 \
