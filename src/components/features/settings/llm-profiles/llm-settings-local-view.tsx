@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { LlmProfilesManager } from "./llm-profiles-manager";
 import { ProfileNameInput } from "./profile-name-input";
@@ -63,6 +69,15 @@ export function LlmSettingsLocalView() {
     settings?.agent_settings_schema,
   );
 
+  // Always hold the freshest schema. `handleEditProfile` awaits a network
+  // round-trip before seeding the form, so reading the schema from a ref
+  // (rather than the value captured in the callback's closure) picks up a
+  // schema that finished loading during that await. This closes the brief
+  // first-load window where the schema is still pending when Edit is clicked
+  // and would otherwise seed only the three hard-coded keys.
+  const agentSchemaRef = useRef(agentSchema);
+  agentSchemaRef.current = agentSchema;
+
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
   const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
@@ -124,10 +139,12 @@ export function LlmSettingsLocalView() {
         // Seed every llm.* form field from the profile config so all tabs —
         // including "All" — reflect the profile's real values rather than the
         // active settings. Fields absent from the schema are still preserved
-        // on save via `baseConfig`.
+        // on save via `baseConfig`. Read the schema from the ref so a schema
+        // that loaded during the `getProfile` await above is used.
+        const schema = agentSchemaRef.current;
         const llmFields =
-          agentSchema?.sections.find((section) => section.key === "llm")
-            ?.fields ?? [];
+          schema?.sections.find((section) => section.key === "llm")?.fields ??
+          [];
         const initialValues: SettingsFormValues = {};
         for (const field of llmFields) {
           const flatKey = field.key.startsWith("llm.")
@@ -155,7 +172,7 @@ export function LlmSettingsLocalView() {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
       }
     },
-    [agentSchema, t],
+    [t],
   );
 
   const handleBackToList = useCallback(() => {
