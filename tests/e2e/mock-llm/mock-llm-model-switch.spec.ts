@@ -17,7 +17,7 @@
  *      working under the new profile.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -34,6 +34,7 @@ import {
   activateTrajectory,
   resetMockLLM,
   ensureMockLLMProfile,
+  setChatInput,
 } from "./utils/mock-llm-helpers";
 
 /** Profile B is the switch target — created via the profiles API. */
@@ -45,11 +46,10 @@ const POST_SWITCH_REPLY_TOKEN = "MODEL_SWITCH_POST_SWITCH_REPLY_OK";
 
 /** Create a named LLM profile via the agent-server profiles API. */
 async function saveProfile(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   name: string,
   model: string,
 ) {
-  // ProfilesClient.saveProfile() uses POST /api/profiles/{name}
   const resp = await request.post(
     `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
     {
@@ -73,42 +73,10 @@ async function saveProfile(
 }
 
 /** Delete a profile (best-effort cleanup). */
-async function deleteProfile(
-  request: import("@playwright/test").APIRequestContext,
-  name: string,
-) {
+async function deleteProfile(request: APIRequestContext, name: string) {
   await request.delete(
     `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
     { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-}
-
-/**
- * Set contentEditable chat input text and dispatch an input event.
- *
- * contentEditable divs don't respond reliably to Playwright's .fill() or
- * .type(), so we set the text programmatically via evaluate.
- */
-async function setChatInput(
-  page: import("@playwright/test").Page,
-  text: string,
-) {
-  await page.evaluate(
-    ({ testId, inputText }) => {
-      const el = document.querySelector(`[data-testid="${testId}"]`);
-      if (!(el instanceof HTMLElement))
-        throw new Error("Chat input not found");
-      el.focus();
-      el.textContent = inputText;
-      el.dispatchEvent(
-        new InputEvent("input", {
-          bubbles: true,
-          data: inputText,
-          inputType: "insertText",
-        }),
-      );
-    },
-    { testId: "chat-input", inputText: text },
   );
 }
 
@@ -172,12 +140,17 @@ test.describe("mock-LLM /model slash command", () => {
     expect(profileNames).toContain(PROFILE_B_NAME);
 
     // Register a trajectory with THREE entries:
-    //   Turn 0: padding for the agent-server's internal LLM call
-    //           (condenser/skill-analysis) that runs before the main loop
+    //   Turn 0: padding — the agent-server makes an internal LLM call
+    //           (condenser/skill-analysis) before the agent's main loop.
+    //           This consumes one trajectory response.  If the SDK removes
+    //           that internal call, this padding entry will cause an
+    //           off-by-one; delete it at that point.
+    //           Ref: same pattern in mock-llm-automation.spec.ts;
+    //           upstream SDK code: openhands-sdk CondensationMixin.
     //   Turn 1: actual reply to the initial user message
     //   Turn 2: reply to the post-switch follow-up message
     await registerTrajectory(request, "model-switch", [
-      { text: "" },
+      { text: "" }, // padding for internal LLM call (see comment above)
       { text: INITIAL_REPLY_TOKEN },
       { text: POST_SWITCH_REPLY_TOKEN },
     ]);
@@ -245,13 +218,9 @@ test.describe("mock-LLM /model slash command", () => {
     // ── Verify: "Switched to profile" message appears in chat UI ──
 
     await test.step("verify 'Switched to profile' message in chat", async () => {
-      // The ModelMessages component renders with data-testid="model-messages"
-      // and contains "Switched to profile <name>"
+      // waitForNonUserMessageText already polls data-testid="model-messages"
+      // elements, so a successful wait proves the container is visible.
       await waitForNonUserMessageText(page, PROFILE_B_NAME, 15_000);
-
-      // Also verify the specific model-messages container is rendered
-      const modelMessages = page.getByTestId("model-messages");
-      await expect(modelMessages.first()).toBeVisible({ timeout: 5_000 });
     });
 
     // ── Verify: the switch_profile POST was made ──
@@ -261,13 +230,12 @@ test.describe("mock-LLM /model slash command", () => {
         switchProfileCalled,
         "POST /switch_profile should have been called",
       ).toBe(true);
-      // The body should contain the profile name
       expect(switchProfileBody).toBeTruthy();
-      const bodyStr = JSON.stringify(switchProfileBody);
+      // The switch_profile API uses { profile_name: "..." }
       expect(
-        bodyStr.includes(PROFILE_B_NAME),
-        `switch_profile body should contain "${PROFILE_B_NAME}", got: ${bodyStr}`,
-      ).toBe(true);
+        (switchProfileBody as Record<string, unknown>)?.profile_name,
+        `switch_profile body.profile_name should be "${PROFILE_B_NAME}"`,
+      ).toBe(PROFILE_B_NAME);
     });
 
     // ── Send a follow-up message to verify conversation still works ──
