@@ -6,7 +6,7 @@ import {
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
 import {
-  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
 import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
@@ -18,9 +18,9 @@ import {
 import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
-  findInstalledMatch,
-  getInstallableTemplate,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
@@ -57,8 +57,9 @@ export function getAutomationsByPopularity(
 const RECOMMENDED_AUTOMATIONS = getAutomationsByPopularity(AUTOMATION_CATALOG);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
   return automation.requiredIntegrationIds
-    .map((id) => getMarketplaceEntryById(id, INTEGRATION_MARKETPLACE))
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -99,10 +100,7 @@ function buildRecommendedAutomationPills(
   translate: TFunction,
 ): SkillCardPill[] {
   const pills: SkillCardPill[] = requiredEntries.map((entry) => {
-    const template = getInstallableTemplate(entry);
-    const installed = template
-      ? !!findInstalledMatch(template, installedServers)
-      : false;
+    const installed = !!findInstalledEntryMatch(entry, installedServers);
 
     return {
       id: `mcp-${entry.id}`,
@@ -182,12 +180,9 @@ export function RecommendedAutomationsSection({
         <div className={extensionModuleCardGridClassName}>
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
-            const missingCount = requiredEntries.filter((entry) => {
-              const template = getInstallableTemplate(entry);
-              return (
-                !template || !findInstalledMatch(template, installedServers)
-              );
-            }).length;
+            const missingCount = requiredEntries.filter(
+              (entry) => !findInstalledEntryMatch(entry, installedServers),
+            ).length;
 
             return (
               <button
