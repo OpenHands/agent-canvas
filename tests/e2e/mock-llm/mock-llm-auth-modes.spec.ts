@@ -136,9 +136,15 @@ test.describe("auth mode: public gate", () => {
     await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
     await waitForTestId(page, "api-key-entry-screen");
 
-    // Fill in the form
-    await page.getByTestId("api-key-entry-name").fill("Test Server");
-    await page.getByTestId("api-key-entry-api-key").fill("wrong-key-12345");
+    // Focus → fill pattern needed for React controlled inputs (see
+    // mock-llm-conversation.spec.ts for the established pattern).
+    const nameInput = page.getByTestId("api-key-entry-name");
+    await nameInput.click();
+    await nameInput.fill("Test Server");
+
+    const keyInput = page.getByTestId("api-key-entry-api-key");
+    await keyInput.click();
+    await keyInput.fill("wrong-key-12345");
 
     // Submit
     await page.getByTestId("api-key-entry-submit").click();
@@ -153,9 +159,14 @@ test.describe("auth mode: public gate", () => {
     await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
     await waitForTestId(page, "api-key-entry-screen");
 
-    // Fill in the form with the CORRECT key
-    await page.getByTestId("api-key-entry-name").fill("Test Server");
-    await page.getByTestId("api-key-entry-api-key").fill(SESSION_API_KEY);
+    // Focus → fill pattern needed for React controlled inputs.
+    const nameInput = page.getByTestId("api-key-entry-name");
+    await nameInput.click();
+    await nameInput.fill("Test Server");
+
+    const keyInput = page.getByTestId("api-key-entry-api-key");
+    await keyInput.click();
+    await keyInput.fill(SESSION_API_KEY);
 
     // Submit — this validates against GET /api/settings, persists the key,
     // and triggers a page reload.
