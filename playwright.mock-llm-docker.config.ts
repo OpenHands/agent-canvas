@@ -9,6 +9,8 @@
  *   1. Mock LLM server (Python on the host, using openhands-sdk TestLLM)
  *   2. Docker container running the agent-canvas all-in-one image
  *      (agent-server + automation backend + static frontend + proxy)
+ *      The container also starts a second static-server instance on
+ *      PUBLIC_MODE_PORT with --auth-required for auth-mode E2E tests.
  *
  * Networking:
  *   Uses --network host on Linux so the container shares the host's network
@@ -44,6 +46,11 @@ const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
 // With --network host this is accessible at localhost directly.
 const INGRESS_PORT = process.env.MOCK_LLM_INGRESS_PORT ?? "18300";
 
+// Public-mode static server — runs inside the Docker container when
+// PUBLIC_MODE_PORT is set (see docker/entrypoint.sh). With --network host
+// the port is accessible from the host at localhost directly.
+const PUBLIC_MODE_PORT = process.env.MOCK_LLM_PUBLIC_MODE_PORT ?? "18301";
+
 // ── Session API key ────────────────────────────────────────────────────
 const sessionApiKey =
   process.env.MOCK_LLM_SESSION_API_KEY?.trim() ||
@@ -63,6 +70,7 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 // calls are proxied to the agent-server, so no direct backend port needed).
 process.env.MOCK_LLM_BACKEND_URL = `http://localhost:${INGRESS_PORT}`;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
+process.env.MOCK_LLM_PUBLIC_MODE_URL = `http://localhost:${PUBLIC_MODE_PORT}`;
 process.env.VITE_SESSION_API_KEY = sessionApiKey;
 
 // MOCK_LLM_AGENT_URL — the URL the agent-server inside Docker uses to
@@ -76,9 +84,6 @@ if (!process.env.MOCK_LLM_AGENT_URL) {
 export default defineConfig({
   testDir: "./tests/e2e/mock-llm",
   testMatch: /.*\.spec\.ts/,
-  // The auth-modes spec tests npm-binary-specific --auth-required behaviour
-  // (a second static-server instance) which doesn't apply to the Docker image.
-  testIgnore: ["**/mock-llm-auth-modes*"],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
@@ -145,6 +150,7 @@ export default defineConfig({
         `-e PORT=${INGRESS_PORT}`,
         `-e SESSION_API_KEY=${sessionApiKey}`,
         `-e OH_SESSION_API_KEYS_0=${sessionApiKey}`,
+        `-e PUBLIC_MODE_PORT=${PUBLIC_MODE_PORT}`,
         "-e VITE_DO_NOT_TRACK=1",
         "-e VITE_ENABLE_BROWSER_TOOLS=false",
         DOCKER_IMAGE,

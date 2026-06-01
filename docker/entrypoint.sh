@@ -2,17 +2,22 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # agent-canvas all-in-one entrypoint
 #
-# Starts three services:
+# Starts three services (plus an optional fourth):
 #   1. Agent Server   on port $AGENT_SERVER_PORT  (default 18000)
 #   2. Automation     on port $AUTOMATION_PORT     (default 18001)
 #   3. Static server  on port $PORT               (default 8000)
 #      Routes /api/automation/* → automation, /api/* → agent-server,
 #      and serves the frontend static build for everything else.
+#   4. (Optional) Public-mode static server on $PUBLIC_MODE_PORT
+#      Same frontend, but with --auth-required (no baked session key).
+#      Used by auth-mode E2E tests. Only started when PUBLIC_MODE_PORT is set.
 #
 # Environment variables:
 #   PORT                 – Unified entry point port (default: 8000)
 #   AGENT_SERVER_PORT    – Internal agent-server port (default: 18000)
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
+#   PUBLIC_MODE_PORT     – If set, starts a second static server on this port
+#                          with --auth-required (no session key injected)
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
 #                          and persisted if not provided)
 #   OPENHANDS_AUTOMATION_API_KEY – Override automation backend auth key
@@ -229,6 +234,31 @@ node /opt/agent-canvas/static-server.mjs \
   --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
 PIDS+=($!)
+
+# ── 5. (Optional) Public-mode static server ─────────────────────────────────
+# When PUBLIC_MODE_PORT is set, start a second static-server instance that
+# serves the same frontend WITHOUT injecting the session key into the HTML
+# (--auth-required). This is used by auth-mode E2E tests to verify the
+# ApiKeyEntryScreen gate, key rotation recovery, etc.
+if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
+  log "Starting public-mode frontend on port $PUBLIC_MODE_PORT (--auth-required)..."
+  node /opt/agent-canvas/static-server.mjs \
+    --port "$PUBLIC_MODE_PORT" \
+    --host 0.0.0.0 \
+    --dir /opt/agent-canvas/frontend \
+    --auth-required \
+    --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
+    --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/sockets=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/alive=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/health=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/ready=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
+  PIDS+=($!)
+fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
