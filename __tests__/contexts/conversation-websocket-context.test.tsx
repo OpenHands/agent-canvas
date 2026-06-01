@@ -5,6 +5,7 @@ import { createUserMessageEvent } from "test-utils";
 import { ConversationWebSocketProvider } from "#/contexts/conversation-websocket-context";
 import { useEventStore } from "#/stores/use-event-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
 import type { MessageEvent } from "#/types/agent-server/core";
@@ -62,6 +63,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
       loadedConversationId: null,
     });
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useBrowserStore.getState().reset();
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: { conversation_url: "http://localhost/api", session_api_key: null },
@@ -100,6 +102,32 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
 
     // Assert: B's history replaced A's — A did not leak into B.
     await waitFor(() => expect(eventIds()).toEqual(["user-msg-conv-b"]));
+  });
+
+  it("resets browser-panel state when switching conversations", async () => {
+    const { rerender } = renderProvider("conv-a");
+    await waitFor(() => expect(eventIds()).toEqual(["user-msg-conv-a"]));
+
+    useBrowserStore.setState({
+      url: "https://example.com",
+      screenshotSrc: "data:image/png;base64,abc123",
+    });
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-b"
+          conversationUrl={null}
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(useBrowserStore.getState().screenshotSrc).toBe(""),
+    );
+    expect(useBrowserStore.getState().url).toBe("");
   });
 
   it("keeps events that arrived after history when re-entering the same conversation", async () => {
