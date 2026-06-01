@@ -96,7 +96,9 @@ function shouldUseProxyOrigin(baseUrl: string): boolean {
     const browserHostname = window.location.hostname;
 
     return (
-      localHosts.has(configuredUrl.hostname) && !localHosts.has(browserHostname)
+      localHosts.has(configuredUrl.hostname) &&
+      (!localHosts.has(browserHostname) ||
+        configuredUrl.hostname !== browserHostname)
     );
   } catch {
     return false;
