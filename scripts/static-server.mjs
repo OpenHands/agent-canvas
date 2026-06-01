@@ -187,11 +187,14 @@ function makeConfigInjectionScript(sessionApiKey, authRequired) {
 
   if (sessionApiKey) {
     const keyLiteral = JSON.stringify(sessionApiKey);
+    // Always overwrite when the stored key differs from the runtime key.
+    // A previous session may have persisted a now-stale key; the runtime
+    // value (from --session-api-key) is the server's truth.
     parts.push(
       `try{` +
         `var _k='openhands-agent-server-config',` +
         `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
-        `if(!_c.sessionApiKey){` +
+        `if(_c.sessionApiKey!==${keyLiteral}){` +
         `_c.sessionApiKey=${keyLiteral};` +
         `localStorage.setItem(_k,JSON.stringify(_c));` +
         `}` +

@@ -78,11 +78,53 @@ function getConfiguredBaseUrl(): string | null {
   return normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL);
 }
 
+/**
+ * Return the baked-in session API key from the Vite env or the runtime
+ * injection by static-server.mjs.  This represents the *server's* truth
+ * and is only set in non-public (local) mode.
+ */
+export function getBakedSessionApiKey(): string | null {
+  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+}
+
 function getConfiguredSessionApiKey(): string | null {
   const storedKey = trimToNull(readStoredConfig().sessionApiKey);
   if (storedKey) return storedKey;
 
-  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  return getBakedSessionApiKey();
+}
+
+/**
+ * Sync the baked-in session API key into `openhands-agent-server-config`
+ * localStorage when the stored value has drifted.
+ *
+ * In non-public (local) mode the dev scripts bake the session key into
+ * `VITE_SESSION_API_KEY` (Vite dev) or inject it via `static-server.mjs`
+ * (`--session-api-key`). That key represents the *server's* truth — the
+ * agent-server was started with the same value as `OH_SESSION_API_KEYS_0`.
+ *
+ * If a user restarts the stack with a different `LOCAL_BACKEND_API_KEY`,
+ * the baked-in key changes but the old value may still be persisted in
+ * localStorage (written by the onboarding form, the Settings page, or a
+ * previous key injection). Without this sync the stale stored key would
+ * shadow the new baked key everywhere (`getConfiguredSessionApiKey()`
+ * reads localStorage first), causing 401s.
+ *
+ * Must run **before** any call to `getConfiguredSessionApiKey()` or
+ * `makeDefaultLocalBackend()` — called from `readStoredBackends()` in
+ * `storage.ts` which is evaluated at module init time.
+ */
+export function syncBakedSessionApiKey(): void {
+  const bakedKey = getBakedSessionApiKey();
+  if (!bakedKey) return; // public mode or no key baked in
+
+  const storedKey = trimToNull(readStoredConfig().sessionApiKey);
+  if (storedKey && storedKey !== bakedKey) {
+    writeStoredConfig({
+      ...readStoredConfig(),
+      sessionApiKey: bakedKey,
+    });
+  }
 }
 
 function shouldUseProxyOrigin(baseUrl: string): boolean {

@@ -11,6 +11,7 @@ import {
   isAuthRequiredAndMissing,
   saveAgentServerConfig,
   shouldLoadPublicSkills,
+  syncBakedSessionApiKey,
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
@@ -198,5 +199,65 @@ describe("isAuthRequiredAndMissing", () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "false");
 
     expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+});
+
+describe("syncBakedSessionApiKey", () => {
+  it("overwrites a stale stored key when VITE_SESSION_API_KEY differs", () => {
+    // Simulate Run 1: the onboarding or settings page stored the old key.
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "old-key",
+    });
+
+    // Run 2: dev scripts restart with a new key.
+    vi.stubEnv("VITE_SESSION_API_KEY", "new-key");
+
+    syncBakedSessionApiKey();
+
+    // The stored config must reflect the new baked key.
+    expect(getAgentServerSessionApiKey()).toBe("new-key");
+    const raw = JSON.parse(
+      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY) ?? "{}",
+    );
+    expect(raw.sessionApiKey).toBe("new-key");
+  });
+
+  it("does nothing when the stored key already matches the baked key", () => {
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "same-key",
+    });
+    vi.stubEnv("VITE_SESSION_API_KEY", "same-key");
+
+    syncBakedSessionApiKey();
+
+    expect(getAgentServerSessionApiKey()).toBe("same-key");
+  });
+
+  it("does nothing when no key is stored (empty localStorage)", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "baked-key");
+
+    syncBakedSessionApiKey();
+
+    // Falls through to VITE_SESSION_API_KEY as before.
+    expect(getAgentServerSessionApiKey()).toBe("baked-key");
+    // Should NOT have written to localStorage since there was nothing stale.
+    expect(
+      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("does nothing in public mode (no VITE_SESSION_API_KEY)", () => {
+    saveAgentServerConfig({
+      baseUrl: "http://localhost:8000",
+      sessionApiKey: "user-pasted-key",
+    });
+
+    // No VITE_SESSION_API_KEY → public mode or static build without injection.
+    syncBakedSessionApiKey();
+
+    // The user-pasted key must be preserved.
+    expect(getAgentServerSessionApiKey()).toBe("user-pasted-key");
   });
 });

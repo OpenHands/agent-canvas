@@ -19,6 +19,9 @@ export const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
 export const BACKEND_URL =
   process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
+// Public-mode static server (--auth-required, no session key injected).
+export const PUBLIC_MODE_URL =
+  process.env.MOCK_LLM_PUBLIC_MODE_URL ?? "http://localhost:18301";
 export const SESSION_API_KEY = (() => {
   const key =
     process.env.MOCK_LLM_SESSION_API_KEY ??
