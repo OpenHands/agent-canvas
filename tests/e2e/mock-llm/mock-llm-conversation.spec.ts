@@ -176,31 +176,32 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Click "Set as active"
     await page.getByTestId("profile-set-active").click();
 
-    // Verify the "Active" badge appears on our profile
-    // Re-find the row after the state change
-    await page.waitForTimeout(1_000); // wait for the mutation to settle
-
-    // Reload to see the persisted state
-    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-    await waitForTestId(page, "add-llm-profile");
-
-    const updatedRows = page.getByTestId("profile-row");
-    const updatedCount = await updatedRows.count();
-    let foundActiveBadge = false;
-
-    for (let i = 0; i < updatedCount; i++) {
-      const row = updatedRows.nth(i);
-      const text = await row.textContent();
-      if (text?.includes(PROFILE_NAME)) {
-        const badge = row.getByTestId("profile-active-badge");
-        foundActiveBadge = (await badge.count()) > 0;
-        break;
-      }
-    }
-    expect(
-      foundActiveBadge,
-      `Profile "${PROFILE_NAME}" should have an "Active" badge`,
-    ).toBe(true);
+    // Verify the "Active" badge appears on our profile.
+    // Poll with reload instead of a fixed timeout — the mutation may take
+    // more than 1s to persist on a loaded CI runner.
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+          await waitForTestId(page, "add-llm-profile");
+          const rows = page.getByTestId("profile-row");
+          const count = await rows.count();
+          for (let i = 0; i < count; i++) {
+            const row = rows.nth(i);
+            const text = await row.textContent();
+            if (text?.includes(PROFILE_NAME)) {
+              return (await row.getByTestId("profile-active-badge").count()) > 0;
+            }
+          }
+          return false;
+        },
+        {
+          message: `Profile "${PROFILE_NAME}" should have an "Active" badge`,
+          timeout: 15_000,
+          intervals: [1_000, 2_000, 3_000],
+        },
+      )
+      .toBe(true);
 
     // Verify the settings API now reflects the activated profile's LLM config
     await test.step("verify settings API reflects the active profile's model", async () => {
