@@ -6,6 +6,8 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useSettings } from "#/hooks/query/use-settings";
+import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import ProfilesService, {
   ProfileInfo,
 } from "#/api/profiles-service/profiles-service.api";
@@ -19,7 +21,10 @@ import {
   isProfileNameValid,
 } from "#/utils/derive-profile-name";
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
-import { SettingsFormValues } from "#/utils/sdk-settings-schema";
+import {
+  normalizeFieldValue,
+  SettingsFormValues,
+} from "#/utils/sdk-settings-schema";
 import { ArrowLeft } from "lucide-react";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
@@ -29,6 +34,13 @@ type ViewMode = "list" | "create" | "edit";
 interface EditingProfile {
   profile: ProfileInfo;
   initialValues: SettingsFormValues;
+  /**
+   * The profile's full LLM config (flat keys; `api_key` is the encrypted
+   * token). Used as the merge base on save so fields the user did not touch —
+   * including ones hidden in the current tab or absent from the schema — are
+   * preserved instead of being reset to LLM defaults by the full-replace save.
+   */
+  baseConfig: Record<string, unknown>;
 }
 
 /**
@@ -46,6 +58,10 @@ export function LlmSettingsLocalView() {
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
   const { data: profilesData } = useLlmProfiles();
+  const { data: settings } = useSettings();
+  const { data: agentSchema } = useAgentSettingsSchema(
+    settings?.agent_settings_schema,
+  );
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
@@ -105,13 +121,33 @@ export function LlmSettingsLocalView() {
         // (NOT nested under a "llm" key)
         const config = (detail.config ?? {}) as Record<string, unknown>;
 
-        const initialValues: SettingsFormValues = {
-          "llm.model": (config.model as string) ?? "",
-          "llm.api_key": (config.api_key as string) ?? "",
-          "llm.base_url": (config.base_url as string) ?? "",
-        };
+        // Seed every llm.* form field from the profile config so all tabs —
+        // including "All" — reflect the profile's real values rather than the
+        // active settings. Fields absent from the schema are still preserved
+        // on save via `baseConfig`.
+        const llmFields =
+          agentSchema?.sections.find((section) => section.key === "llm")
+            ?.fields ?? [];
+        const initialValues: SettingsFormValues = {};
+        for (const field of llmFields) {
+          const flatKey = field.key.startsWith("llm.")
+            ? field.key.slice("llm.".length)
+            : field.key;
+          initialValues[field.key] = normalizeFieldValue(
+            field,
+            config[flatKey],
+          );
+        }
 
-        setEditingProfile({ profile, initialValues });
+        // Safety net for the specially-rendered keys when the schema is
+        // unavailable, so editing still works without it.
+        if (llmFields.length === 0) {
+          initialValues["llm.model"] = (config.model as string) ?? "";
+          initialValues["llm.api_key"] = (config.api_key as string) ?? "";
+          initialValues["llm.base_url"] = (config.base_url as string) ?? "";
+        }
+
+        setEditingProfile({ profile, initialValues, baseConfig: config });
         setProfileName(profile.name);
         setViewMode("edit");
       } catch (error) {
@@ -119,7 +155,7 @@ export function LlmSettingsLocalView() {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
       }
     },
-    [t],
+    [agentSchema, t],
   );
 
   const handleBackToList = useCallback(() => {
@@ -156,14 +192,57 @@ export function LlmSettingsLocalView() {
   const handleSave = useCallback(async () => {
     if (!saveControl || !isNameValid) return;
 
-    const values = saveControl.values;
-    const model =
-      typeof values["llm.model"] === "string" ? values["llm.model"] : "";
-    const apiKey =
-      typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
-    const baseUrl =
-      typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
+    // Coerced, dirty-only changes from the embedded form. Merging these over
+    // the profile's existing full config preserves fields the user did not
+    // touch (incl. ones hidden in the current tab or absent from the schema);
+    // the backend replaces the whole LLM object, so a partial payload would
+    // otherwise reset everything else to defaults.
+    let dirtyLlm: Record<string, unknown>;
+    try {
+      dirtyLlm = (saveControl.getDirtyPayload().llm ?? {}) as Record<
+        string,
+        unknown
+      >;
+    } catch (error) {
+      displayErrorToast(
+        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+      );
+      return;
+    }
 
+    const baseConfig =
+      viewMode === "edit" && editingProfile?.baseConfig
+        ? { ...editingProfile.baseConfig }
+        : {};
+    const llmConfig: Record<string, unknown> = { ...baseConfig, ...dirtyLlm };
+
+    // The Basic tab has no base_url field; the provider implies it. Drop any
+    // (possibly stale, non-proxy) base_url so the backend derives the correct
+    // one — e.g. the All-Hands proxy for openhands/* models, which is required
+    // for the provider to round-trip back to "OpenHands" on reload. Mirrors
+    // LlmSettingsScreen.buildPayload's Basic-view reset.
+    if (saveControl.view === "basic") {
+      delete llmConfig.base_url;
+    }
+
+    // API key handling: an empty value means "no change" (the UX doesn't
+    // support clearing a key). In edit mode preserve the existing encrypted
+    // key from the profile; in create mode omit api_key entirely. A newly
+    // typed key arrives in `dirtyLlm` and wins.
+    if (
+      typeof llmConfig.api_key !== "string" ||
+      llmConfig.api_key.trim() === ""
+    ) {
+      const existingKey =
+        typeof baseConfig.api_key === "string" ? baseConfig.api_key : "";
+      if (existingKey) {
+        llmConfig.api_key = existingKey;
+      } else {
+        delete llmConfig.api_key;
+      }
+    }
+
+    const model = typeof llmConfig.model === "string" ? llmConfig.model : "";
     if (!model) {
       displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
       return;
@@ -180,32 +259,6 @@ export function LlmSettingsLocalView() {
       // If editing and name changed, rename the profile first
       if (isRename) {
         await ProfilesService.renameProfile(originalName, trimmedName);
-      }
-
-      // Build the LLM config object
-      const llmConfig: Record<string, unknown> = { model };
-
-      // API key handling:
-      // - If user entered a new key, use it
-      // - In edit mode with no new key, preserve the existing encrypted key
-      //   (fetched with exposeSecrets='encrypted' and passed back to server)
-      // - In create mode with no key, omit api_key entirely
-      //
-      // Note: The current UX doesn't support explicitly clearing an API key.
-      // If needed, a future enhancement could add a "Clear API Key" option.
-      // The encrypted key format is stable and can be round-tripped to the server.
-      if (apiKey) {
-        llmConfig.api_key = apiKey;
-      } else if (
-        viewMode === "edit" &&
-        editingProfile?.initialValues["llm.api_key"]
-      ) {
-        llmConfig.api_key = editingProfile.initialValues["llm.api_key"];
-      }
-
-      // Only include base_url if set
-      if (baseUrl) {
-        llmConfig.base_url = baseUrl;
       }
 
       await saveProfile.mutateAsync({
