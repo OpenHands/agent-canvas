@@ -7,97 +7,78 @@ import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { SettingsInput } from "#/components/features/settings/settings-input";
 import {
   MODAL_MAX_WIDTH_VIEWPORT,
   modalWidthClassName,
 } from "#/components/shared/modals/modal-body";
 import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
+import {
+  BackendForm,
+  type BackendFormSubmitPayload,
+} from "./backend-form-modal";
 
 /**
  * Full-screen prompt shown when the server is in public mode
  * (`VITE_AUTH_REQUIRED=true`) and no valid API key has been configured.
  *
- * Renders the same form layout as the "Add a Backend" left column in
- * {@link BackendFormModal} — name, host (pre-filled from the current
- * origin), and API key — without the cloud OAuth right column. On
- * submit the key is validated against `GET /api/settings` before
- * persisting; wrong keys surface an inline error instead of a blind
- * reload.
+ * Reuses {@link BackendForm} with `hostReadOnly` + `onSubmitOverride`
+ * to render the standard name / host / API-key inputs while adding
+ * server-side validation (calls `GET /api/settings` before persisting)
+ * and a connection status indicator.
  */
 export default function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
   const { active, updateBackend } = useActiveBackendContext();
 
   const host = window.location.origin;
-  const [name, setName] = React.useState("");
-  // Always start with an empty key so stale credentials don't bleed
-  // through from a previous session / server restart.
-  const [apiKey, setApiKey] = React.useState("");
+
   const [isValidating, setIsValidating] = React.useState(false);
   const [connectionStatus, setConnectionStatus] = React.useState<
     "idle" | "success" | "error"
   >("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const canSubmit =
-    name.trim().length > 0 && apiKey.trim().length > 0 && !isValidating;
+  const handleSubmitOverride = React.useCallback(
+    async (payload: BackendFormSubmitPayload) => {
+      setIsValidating(true);
+      setConnectionStatus("idle");
+      setErrorMessage(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!canSubmit) return;
+      try {
+        await new SettingsClient(
+          getAgentServerClientOptions({
+            host: payload.host,
+            sessionApiKey: payload.apiKey,
+            timeout: 5000,
+          }),
+        ).getSettings();
 
-    setIsValidating(true);
-    setConnectionStatus("idle");
-    setErrorMessage(null);
+        setConnectionStatus("success");
 
-    const trimmedKey = apiKey.trim();
+        updateBackend(active.backend.id, payload);
+        saveAgentServerConfig({
+          baseUrl: payload.host,
+          sessionApiKey: payload.apiKey,
+        });
 
-    try {
-      // Validate against a protected endpoint before persisting.
-      // Use getAgentServerClientOptions so transport-level settings
-      // (e.g. VITE_INSECURE_SKIP_VERIFY) are honoured.
-      await new SettingsClient(
-        getAgentServerClientOptions({
-          host,
-          sessionApiKey: trimmedKey,
-          timeout: 5000,
-        }),
-      ).getSettings();
+        window.location.reload();
+      } catch (err: unknown) {
+        setConnectionStatus("error");
 
-      setConnectionStatus("success");
-
-      // Persist the validated key in both storage layers.
-      updateBackend(active.backend.id, {
-        name: name.trim(),
-        host,
-        apiKey: trimmedKey,
-        kind: "local",
-      });
-      saveAgentServerConfig({
-        baseUrl: host,
-        sessionApiKey: trimmedKey,
-      });
-
-      // Hard reload so every service layer re-reads the key.
-      window.location.reload();
-    } catch (err: unknown) {
-      setConnectionStatus("error");
-
-      // Distinguish auth errors (401) from everything else so a
-      // correct key + broken server doesn't say "invalid key".
-      if (isSdkHttpStatusError(err, 401)) {
-        setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
-      } else {
-        const detail = err instanceof Error ? err.message : String(err);
-        setErrorMessage(
-          `${t(I18nKey.AUTH$CONNECTION_FAILED)}${detail ? `: ${detail}` : ""}`,
-        );
+        if (isSdkHttpStatusError(err, 401)) {
+          setErrorMessage(t(I18nKey.AUTH$INVALID_KEY));
+        } else {
+          const detail = err instanceof Error ? err.message : String(err);
+          setErrorMessage(
+            `${t(I18nKey.AUTH$CONNECTION_FAILED)}${detail ? `: ${detail}` : ""}`,
+          );
+        }
+        setIsValidating(false);
       }
-      setIsValidating(false);
-    }
-  };
+    },
+    [active.backend.id, updateBackend, t],
+  );
 
   return (
     <div
@@ -118,86 +99,50 @@ export default function ApiKeyEntryScreen() {
         </div>
 
         <div className="px-6 pb-6 pt-2">
-          <form
-            data-testid="api-key-entry-form"
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-4 flex-1 min-w-0"
-          >
-            <div className="flex flex-col gap-1">
-              <SettingsInput
-                testId="api-key-entry-name"
-                name="api-key-entry-name"
-                type="text"
-                label={t(I18nKey.BACKEND$NAME_LABEL)}
-                value={name}
-                onChange={setName}
-                placeholder="e.g. My Server"
-                className="w-full"
-              />
-              <p className="text-xs text-[var(--oh-muted)]">
-                {t(I18nKey.BACKEND$NAME_HELPER)}
-              </p>
-            </div>
+          <BackendForm
+            mode="add"
+            backend={{ ...active.backend, host, apiKey: "", name: "" }}
+            onSubmitted={() => {}}
+            testIdRoot="api-key-entry"
+            hostReadOnly
+            requireApiKey
+            onSubmitOverride={handleSubmitOverride}
+            renderActions={({ canSubmit, testIdRoot }) => (
+              <>
+                {connectionStatus !== "idle" && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <BackendStatusDot
+                      isConnected={connectionStatus === "success"}
+                    />
+                    <span
+                      data-testid={`${testIdRoot}-status`}
+                      className={
+                        connectionStatus === "error"
+                          ? "text-red-400"
+                          : "text-green-400"
+                      }
+                    >
+                      {connectionStatus === "error"
+                        ? errorMessage
+                        : t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED)}
+                    </span>
+                  </div>
+                )}
 
-            <div className="flex flex-col gap-1">
-              <SettingsInput
-                testId="api-key-entry-host"
-                name="api-key-entry-host"
-                type="text"
-                label={t(I18nKey.BACKEND$HOST_LABEL)}
-                value={host}
-                className="w-full"
-                isDisabled
-              />
-              <p className="text-xs text-[var(--oh-muted)]">
-                {t(I18nKey.BACKEND$HOST_HELPER)}
-              </p>
-            </div>
-
-            <SettingsInput
-              testId="api-key-entry-api-key"
-              name="api-key-entry-api-key"
-              type="password"
-              label={t(I18nKey.BACKEND$KEY_LABEL)}
-              value={apiKey}
-              onChange={setApiKey}
-              placeholder="sk-••••••••••"
-              className="w-full"
-            />
-
-            {/* Connection status indicator */}
-            {connectionStatus !== "idle" && (
-              <div className="flex items-center gap-3 text-sm">
-                <BackendStatusDot
-                  isConnected={connectionStatus === "success"}
-                />
-                <span
-                  data-testid="api-key-entry-status"
-                  className={
-                    connectionStatus === "error"
-                      ? "text-red-400"
-                      : "text-green-400"
-                  }
+                <BrandButton
+                  type="submit"
+                  variant="secondary"
+                  isDisabled={!canSubmit || isValidating}
+                  testId={`${testIdRoot}-submit`}
+                  className="w-full text-center"
                 >
-                  {connectionStatus === "error"
-                    ? errorMessage
-                    : t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED)}
-                </span>
-              </div>
+                  {isValidating
+                    ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
+                    : t(I18nKey.BACKEND$CONNECT)}
+                </BrandButton>
+              </>
             )}
-
-            <BrandButton
-              type="submit"
-              variant="secondary"
-              isDisabled={!canSubmit}
-              testId="api-key-entry-submit"
-              className="w-full text-center"
-            >
-              {isValidating
-                ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
-                : t(I18nKey.BACKEND$CONNECT)}
-            </BrandButton>
-          </form>
+          />
         </div>
       </div>
     </div>
