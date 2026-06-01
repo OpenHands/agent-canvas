@@ -7,7 +7,7 @@ import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import {
-  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
 
@@ -38,18 +38,14 @@ describe("InstallServerModal", () => {
     });
   });
 
-  it("requires Tavily API key and posts a stdio mcp_config diff", async () => {
-    // Tavily is a stdio-only integration with a single envField.
-    // Slack now defaults to OAuth/shttp, so we test stdio installs with Tavily.
-    const tavily = INTEGRATION_MARKETPLACE.find(
-      (e: MarketplaceEntry) => e.id === "tavily",
-    )!;
+  it("uses Slack's API fallback when the default option is OAuth", async () => {
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
       .mockResolvedValue(true);
 
     const onClose = vi.fn();
-    renderWith(<InstallServerModal entry={tavily} onClose={onClose} />);
+    renderWith(<InstallServerModal entry={slack} onClose={onClose} />);
 
     await screen.findByTestId("mcp-install-modal");
 
@@ -59,8 +55,11 @@ describe("InstallServerModal", () => {
       expect(saveSpy).not.toHaveBeenCalled();
     });
 
-    fireEvent.change(screen.getByTestId("mcp-install-field-TAVILY_API_KEY"), {
-      target: { value: "tvly-test-key" },
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_BOT_TOKEN"), {
+      target: { value: "xoxb-abc" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"), {
+      target: { value: "T01" },
     });
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
@@ -71,10 +70,51 @@ describe("InstallServerModal", () => {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
     expect(sentMcpConfig.mcp_config.mcpServers).toMatchObject({
+      slack: {
+        command: "npx",
+        args: ["-y", "@zencoderai/slack-mcp-server"],
+        env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
+      },
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("installs Tavily as a stdio MCP server with TAVILY_API_KEY env", async () => {
+    // Tavily was previously a fake `kind: "tavily-builtin"` template
+    // that called saveSettings({ search_api_key }) — but that field
+    // was dropped on the floor in both local and cloud save paths, so
+    // installing Tavily silently did nothing. It's now a regular
+    // stdio MCP entry (`npx -y tavily-mcp` + TAVILY_API_KEY) that
+    // goes through the same mcp_config write as every other entry.
+    const tavily = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    const onClose = vi.fn();
+    renderWith(<InstallServerModal entry={tavily} onClose={onClose} />);
+
+    await screen.findByTestId("mcp-install-modal");
+
+    // Submit with no key fails the required-field check.
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+    await waitFor(() => expect(saveSpy).not.toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("mcp-install-field-TAVILY_API_KEY"), {
+      target: { value: "tvly-secret" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    expect(sent.mcp_config.mcpServers).toMatchObject({
       tavily: {
         command: "npx",
         args: ["-y", "tavily-mcp"],
-        env: { TAVILY_API_KEY: "tvly-test-key" },
+        env: { TAVILY_API_KEY: "tvly-secret" },
       },
     });
     expect(onClose).toHaveBeenCalled();
@@ -90,6 +130,7 @@ describe("InstallServerModal", () => {
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
+      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -132,6 +173,7 @@ describe("InstallServerModal", () => {
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
+      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -141,7 +183,7 @@ describe("InstallServerModal", () => {
             url: "https://example.com/mcp",
             apiKeyOptional: true,
           },
-          auth: { strategy: "api_key" },
+          auth: { strategy: "api_key", apiKeyOptional: true },
         },
       ],
     };
@@ -166,10 +208,8 @@ describe("InstallServerModal", () => {
 
   it("closes from the top-right close button", async () => {
     const onClose = vi.fn();
-    const tavily = INTEGRATION_MARKETPLACE.find(
-      (e: MarketplaceEntry) => e.id === "tavily",
-    )!;
-    renderWith(<InstallServerModal entry={tavily} onClose={onClose} />);
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    renderWith(<InstallServerModal entry={slack} onClose={onClose} />);
     await screen.findByTestId("mcp-install-modal");
 
     fireEvent.click(screen.getByTestId("mcp-install-modal-close"));
@@ -178,10 +218,8 @@ describe("InstallServerModal", () => {
 
   it("places Cancel before Install in the footer so the dominant action is the last focusable button", async () => {
     // Arrange: render with any marketplace entry so the footer is mounted.
-    const tavily = INTEGRATION_MARKETPLACE.find(
-      (e: MarketplaceEntry) => e.id === "tavily",
-    )!;
-    renderWith(<InstallServerModal entry={tavily} onClose={vi.fn()} />);
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    renderWith(<InstallServerModal entry={slack} onClose={vi.fn()} />);
     await screen.findByTestId("mcp-install-modal");
 
     // Act: locate both footer buttons.
@@ -212,6 +250,7 @@ describe("InstallServerModal", () => {
       name: "Failing Server",
       description: "Always fails the connection test.",
       iconBg: "#000000",
+      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -221,7 +260,7 @@ describe("InstallServerModal", () => {
             url: "https://example.com/mcp",
             apiKeyOptional: true,
           },
-          auth: { strategy: "api_key" },
+          auth: { strategy: "api_key", apiKeyOptional: true },
         },
       ],
     };
@@ -265,6 +304,7 @@ describe("InstallServerModal", () => {
       name: "Passing Server",
       description: "Always passes the connection test.",
       iconBg: "#000000",
+      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -274,7 +314,7 @@ describe("InstallServerModal", () => {
             url: "https://example.com/mcp",
             apiKeyOptional: true,
           },
-          auth: { strategy: "api_key" },
+          auth: { strategy: "api_key", apiKeyOptional: true },
         },
       ],
     };
@@ -307,6 +347,7 @@ describe("InstallServerModal", () => {
       name: "Pending Server",
       description: "Connection test never resolves.",
       iconBg: "#000000",
+      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -316,7 +357,7 @@ describe("InstallServerModal", () => {
             url: "https://example.com/mcp",
             apiKeyOptional: true,
           },
-          auth: { strategy: "api_key" },
+          auth: { strategy: "api_key", apiKeyOptional: true },
         },
       ],
     };
