@@ -71,12 +71,6 @@ export OH_SECRET_KEY
 # by default. LOCAL_BACKEND_API_KEY is the single user-facing env var.
 # Persisted so restarts reuse the same key.
 API_KEY_FILE="${STATE_DIR}/api-key.txt"
-# Legacy fallback: if only the old file exists, migrate it.
-LEGACY_KEY_FILE="${STATE_DIR}/session-api-key.txt"
-if [ ! -f "$API_KEY_FILE" ] && [ -f "$LEGACY_KEY_FILE" ]; then
-  mv "$LEGACY_KEY_FILE" "$API_KEY_FILE"
-  log "Migrated legacy session-api-key.txt → api-key.txt"
-fi
 
 if [ -z "${LOCAL_BACKEND_API_KEY:-}" ] && [ -z "${OH_SESSION_API_KEYS_0:-}" ]; then
   if [ -f "$API_KEY_FILE" ]; then
