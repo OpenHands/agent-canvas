@@ -77,6 +77,28 @@ describe("SetupAcpSecretsStep", () => {
     expect(baseUrl.placeholder).toBe("");
   });
 
+  it("does not write an existing secret when its field is left blank", async () => {
+    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
+      { name: "ANTHROPIC_API_KEY" },
+    ]);
+    const { onNext } = renderStep("claude-code");
+    const user = userEvent.setup();
+
+    // Wait for the existing secret to register (its "already saved" placeholder
+    // appears) so we know the step has loaded before we advance.
+    const apiKey = screen.getByTestId(
+      "onboarding-acp-secret-ANTHROPIC_API_KEY",
+    ) as HTMLInputElement;
+    await waitFor(() => expect(apiKey.placeholder.length).toBeGreaterThan(0));
+
+    // Advance without typing: a blank field is a deliberate skip, so the
+    // already-saved secret must be left untouched (no overwrite).
+    await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
+
+    await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
+    expect(SecretsService.createSecret).not.toHaveBeenCalled();
+  });
+
   it("upserts every filled field as a secret and then advances", async () => {
     const { onNext } = renderStep("claude-code");
     const user = userEvent.setup();
