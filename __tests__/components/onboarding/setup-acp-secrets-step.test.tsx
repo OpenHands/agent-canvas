@@ -10,7 +10,18 @@ import { SetupAcpSecretsStep } from "#/components/features/onboarding/steps/setu
 import { type OnboardingAgentId } from "#/components/features/onboarding/steps/choose-agent-step";
 import { SecretsService } from "#/api/secrets-service";
 
-function renderStep(providerKey: OnboardingAgentId = "claude-code") {
+// The login-detection probe is exercised in its own hook test; here we stub it
+// so rendering the step doesn't spin a conversation, and so we can drive the
+// banner states directly.
+const acpAuthStatusMock = vi.hoisted(() => vi.fn());
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: (...args: unknown[]) => acpAuthStatusMock(...args),
+}));
+
+function renderStep(
+  providerKey: OnboardingAgentId = "claude-code",
+  isActive = true,
+) {
   const onBack = vi.fn();
   const onNext = vi.fn();
   const user = userEvent.setup();
@@ -23,6 +34,7 @@ function renderStep(providerKey: OnboardingAgentId = "claude-code") {
       <ActiveBackendProvider>
         <SetupAcpSecretsStep
           providerKey={providerKey}
+          isActive={isActive}
           onBack={onBack}
           onNext={onNext}
         />
@@ -53,6 +65,11 @@ async function renderWithSavedApiKey() {
 beforeEach(() => {
   vi.restoreAllMocks();
   __resetActiveStoreForTests();
+  acpAuthStatusMock.mockReturnValue({
+    status: "unknown",
+    isChecking: false,
+    isSupported: false,
+  });
   vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([]);
   vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
@@ -165,5 +182,86 @@ describe("SetupAcpSecretsStep", () => {
       expect(SecretsService.createSecret).toHaveBeenCalledTimes(1),
     );
     expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it("runs the login probe scoped to the active step and provider", () => {
+    renderStep("claude-code", true);
+    expect(acpAuthStatusMock).toHaveBeenCalledWith("claude-code", {
+      enabled: true,
+    });
+  });
+
+  it("disables the login probe when the step is not active", () => {
+    renderStep("claude-code", false);
+    expect(acpAuthStatusMock).toHaveBeenCalledWith("claude-code", {
+      enabled: false,
+    });
+  });
+
+  it("shows the 'checking' banner while the login probe is in flight", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "unknown",
+      isChecking: true,
+      isSupported: true,
+    });
+    renderStep("claude-code");
+
+    expect(
+      screen.getByTestId("onboarding-acp-auth-checking"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-acp-auth-detected"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the 'already signed in' banner when authenticated, keeping the key fields", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "authenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    renderStep("claude-code");
+
+    expect(
+      screen.getByTestId("onboarding-acp-auth-detected"),
+    ).toBeInTheDocument();
+    // The fields stay visible (now optional) even when already logged in.
+    expect(
+      screen.getByTestId("onboarding-acp-secret-ANTHROPIC_API_KEY"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a login-only screen (banner, no key fields) for a credential-less provider", () => {
+    // Gemini authenticates via browser OAuth — no API-key fields. The step is
+    // purely a login-status screen and still shows the "signed in" banner.
+    acpAuthStatusMock.mockReturnValue({
+      status: "authenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    renderStep("gemini-cli");
+
+    expect(
+      screen.getByTestId("onboarding-acp-auth-detected"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no banner when the provider is not authenticated", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "unauthenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    renderStep("claude-code");
+
+    expect(
+      screen.queryByTestId("onboarding-acp-auth-detected"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-acp-auth-checking"),
+    ).not.toBeInTheDocument();
   });
 });
