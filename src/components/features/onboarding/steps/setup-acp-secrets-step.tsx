@@ -72,6 +72,11 @@ export function SetupAcpSecretsStep({
     () => getAcpProviderSecrets(providerKey),
     [providerKey],
   );
+  // Providers like Gemini authenticate via an interactive browser/OAuth login
+  // and have no API-key fields. For those the step is purely a login-status
+  // screen: it shows the "you're signed in" banner (or how to sign in) with no
+  // inputs to fill.
+  const hasFields = fields.length > 0;
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = React.useState(false);
 
@@ -123,12 +128,20 @@ export function SetupAcpSecretsStep({
     >
       <header className="flex flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">
-          {t(I18nKey.ONBOARDING$ACP_SECRETS_TITLE)}
+          {t(
+            hasFields
+              ? I18nKey.ONBOARDING$ACP_SECRETS_TITLE
+              : I18nKey.ONBOARDING$ACP_LOGIN_TITLE,
+            { provider: providerName },
+          )}
         </h2>
         <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBTITLE, {
-            provider: providerName,
-          })}
+          {t(
+            hasFields
+              ? I18nKey.ONBOARDING$ACP_SECRETS_SUBTITLE
+              : I18nKey.ONBOARDING$ACP_LOGIN_SUBTITLE,
+            { provider: providerName },
+          )}
         </p>
       </header>
 
@@ -144,9 +157,12 @@ export function SetupAcpSecretsStep({
             aria-hidden
           />
           <span>
-            {t(I18nKey.ONBOARDING$ACP_AUTH_DETECTED, {
-              provider: providerName,
-            })}
+            {t(
+              hasFields
+                ? I18nKey.ONBOARDING$ACP_AUTH_DETECTED
+                : I18nKey.ONBOARDING$ACP_AUTH_DETECTED_NO_KEY,
+              { provider: providerName },
+            )}
           </span>
         </div>
       ) : isCheckingAuth ? (

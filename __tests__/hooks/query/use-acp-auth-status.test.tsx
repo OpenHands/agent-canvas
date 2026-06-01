@@ -117,14 +117,18 @@ describe("useAcpAuthStatus", () => {
     expect(getAuthStatus).not.toHaveBeenCalled();
   });
 
-  it("does not probe for a provider with no credential fields (gemini-cli)", async () => {
+  it("probes credential-less providers too (e.g. gemini-cli, OAuth login)", async () => {
+    // Eligibility is not tied to having API-key fields — the server can detect
+    // subscription/OAuth providers like Gemini, so the hook must still probe.
+    getAuthStatus.mockResolvedValue(authResponse("authenticated"));
+
     const { result } = renderHook(() => useAcpAuthStatus("gemini-cli"), {
       wrapper,
     });
 
-    await Promise.resolve();
-    expect(result.current.isSupported).toBe(false);
-    expect(getAuthStatus).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.status).toBe("authenticated"));
+    expect(result.current.isSupported).toBe(true);
+    expect(getAuthStatus).toHaveBeenCalledWith("gemini-cli");
   });
 
   it("does not probe when disabled (e.g. the step is not the active slide)", async () => {

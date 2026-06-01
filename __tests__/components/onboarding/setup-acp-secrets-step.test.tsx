@@ -231,6 +231,24 @@ describe("SetupAcpSecretsStep", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders a login-only screen (banner, no key fields) for a credential-less provider", () => {
+    // Gemini authenticates via browser OAuth — no API-key fields. The step is
+    // purely a login-status screen and still shows the "signed in" banner.
+    acpAuthStatusMock.mockReturnValue({
+      status: "authenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    renderStep("gemini-cli");
+
+    expect(
+      screen.getByTestId("onboarding-acp-auth-detected"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows no banner when the provider is not authenticated", () => {
     acpAuthStatusMock.mockReturnValue({
       status: "unauthenticated",

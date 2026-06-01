@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ACPAuthStatusValue } from "@openhands/typescript-client";
 import AcpService from "#/api/acp-service/acp-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { getAcpProviderSecrets } from "#/constants/acp-providers";
 
-export type AcpAuthStatus = "authenticated" | "unauthenticated" | "unknown";
+/** Re-exported from the client so the union has a single source of truth. */
+export type AcpAuthStatus = ACPAuthStatusValue;
 
 /**
  * Probe whether the selected ACP provider's CLI is already authenticated on
@@ -55,6 +56,12 @@ interface UseAcpAuthStatusOptions {
  * probe would needlessly spin a runtime — there we return ``"unknown"`` and let
  * the caller fall back to the (already optional) API-key fields.
  *
+ * Eligibility is intentionally *not* tied to whether the provider has API-key
+ * fields: the server can detect subscription/OAuth providers (e.g. Gemini)
+ * too, and an unknown/unsupported ``providerKey`` simply comes back as
+ * ``"unknown"`` (the endpoint 422s → caught below). The caller renders this
+ * hook only for ACP providers, so any local backend is probeable.
+ *
  * The probe spins and kills a subprocess, so the result is cached for the
  * session (``staleTime: Infinity``, no refetch on focus/mount) — one probe per
  * provider per backend.
@@ -66,8 +73,7 @@ export function useAcpAuthStatus(
   const { enabled = true } = options;
   const active = useActiveBackend();
   const isLocal = active.backend.kind === "local";
-  const hasCredentials = getAcpProviderSecrets(providerKey).length > 0;
-  const isSupported = isLocal && hasCredentials;
+  const isSupported = isLocal;
   const queryEnabled = enabled && isSupported && !!providerKey;
 
   const query = useQuery<AcpAuthStatus, Error>({
@@ -92,7 +98,7 @@ export function useAcpAuthStatus(
     status: query.data ?? "unknown",
     /** True while the first probe for this provider is in flight. */
     isChecking: queryEnabled && query.isFetching && query.data === undefined,
-    /** Whether a probe can run at all on this backend (local + has creds). */
+    /** Whether a probe can run at all on this backend (local backends only). */
     isSupported,
   };
 }
