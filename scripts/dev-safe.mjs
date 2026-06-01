@@ -782,7 +782,7 @@ export function buildRuntimeServicesInfo(options) {
       description:
         "OpenHands Automations service. All routes are mounted under " +
         `'${apiPrefix}'. Authenticate with header ` +
-        `'X-API-Key: $${authEnvVar}'.`,
+        `'X-Session-API-Key: $${authEnvVar}'.`,
       url_from_agent: baseUrl,
       api_prefix: apiPrefix,
       docs_url: `${baseUrl}${apiPrefix}/docs`,
