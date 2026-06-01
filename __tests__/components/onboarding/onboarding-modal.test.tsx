@@ -86,6 +86,17 @@ vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   }),
 }));
 
+// The ACP credentials slide runs a login-detection probe (creates a throwaway
+// conversation). Stub it here so the modal routing tests don't spin one; the
+// probe itself is covered in use-acp-auth-status.test.tsx.
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: () => ({
+    status: "unknown",
+    isChecking: false,
+    isSupported: false,
+  }),
+}));
+
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },

@@ -20,6 +20,12 @@ import { getAcpProviderSecrets } from "#/constants/acp-providers";
 
 const TOTAL_STEPS = 4;
 
+// Index of the per-provider setup slide (LLM form for OpenHands, ACP
+// credentials for Claude Code / Codex). Named so the slide and the
+// ``isActive`` gate that drives the ACP login probe move together — inserting
+// a slide before it can't silently fire the probe on the wrong step.
+const SETUP_SLIDE_INDEX = 2;
+
 interface SlideProps {
   /** Index of this slide in the step sequence. */
   index: number;
@@ -175,12 +181,13 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               <Slide index={1} currentStep={currentStep}>
                 <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
-              <Slide index={2} currentStep={currentStep}>
+              <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
                 {isOpenHands ? (
                   <SetupLlmStep onBack={goBack} onNext={goNext} />
                 ) : showAcpSecretsStep ? (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}
+                    isActive={currentStep === SETUP_SLIDE_INDEX}
                     onBack={goBack}
                     onNext={goNext}
                   />
