@@ -13787,7 +13787,7 @@
     "ca": "Desar també com a secret"
   },
   "MCP$SECRETS_SAVED": {
-    "en": "Secret saved: {{keys}}",
+    "en": "Saved to secrets: {{keys}}",
     "ja": "シークレットを保存しました: {{keys}}",
     "zh-CN": "密钥已保存：{{keys}}",
     "zh-TW": "密鑰已儲存：{{keys}}",

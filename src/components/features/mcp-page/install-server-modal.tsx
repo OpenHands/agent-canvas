@@ -89,6 +89,11 @@ export function InstallServerModal({
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
   );
+  // Always holds the latest state so async callbacks (onSuccess) never read
+  // stale closure values, even under React concurrent-mode scheduling.
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+
   const [globalError, setGlobalError] = React.useState<string | null>(null);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
@@ -139,11 +144,12 @@ export function InstallServerModal({
             // Save checked envFields as secrets in the background so the
             // Automation Server can access them without a separate manual step.
             // Runs after onClose so failures don't block the modal from closing.
+            // Uses stateRef.current to avoid reading a stale closure snapshot.
             if (template?.kind === "stdio") {
               saveFieldsAsSecrets(
                 template.envFields ?? [],
-                state.values,
-                state.savedAsSecret,
+                stateRef.current.values,
+                stateRef.current.savedAsSecret,
               );
             }
           },
@@ -328,6 +334,8 @@ export function InstallServerModal({
             )}
           </div>
         ))}
+        {/* argFields are CLI arguments, not credentials — they don't need
+            a "save as secret" toggle and are excluded from savedAsSecret. */}
         {(stdio.argFields ?? []).map((field) => (
           <div key={field.key} className="flex flex-col gap-1">
             <SettingsInput
