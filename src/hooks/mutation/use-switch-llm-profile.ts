@@ -9,7 +9,7 @@ import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchLlmProfileVars {
   /**
-   * When set, the conversation's running LLM is swapped via /switch_llm and
+   * When set, the conversation's running LLM is swapped via /switch_profile and
    * the user's global default profile is untouched. When null (home page),
    * the profile is activated globally instead.
    */
