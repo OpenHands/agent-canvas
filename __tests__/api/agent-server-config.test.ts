@@ -40,6 +40,16 @@ describe("agent server config", () => {
     expect(getAgentServerBaseUrl()).toBe("https://work-1.example.dev");
   });
 
+  it("uses the browser origin when browser is at localhost but config uses 127.0.0.1 (Docker CORS fix)", () => {
+    mockWindowLocation("http://localhost:8000/");
+    window.localStorage.setItem(
+      AGENT_SERVER_CONFIG_STORAGE_KEY,
+      JSON.stringify({ baseUrl: "http://127.0.0.1:8000" }),
+    );
+
+    expect(getAgentServerBaseUrl()).toBe("http://localhost:8000");
+  });
+
   it("preserves a non-local backend URL from stored config", () => {
     mockWindowLocation("https://work-1.example.dev/settings");
     window.localStorage.setItem(

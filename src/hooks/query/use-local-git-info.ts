@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
-import { getAgentServerWorkingDir } from "#/api/agent-server-config";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
@@ -103,8 +102,7 @@ export const useLocalGitInfo = () => {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
-  const workingDir =
-    conversation?.workspace?.working_dir?.trim() || getAgentServerWorkingDir();
+  const workingDir = conversation?.workspace?.working_dir?.trim();
   const hasConversationRepo = !!conversation?.selected_repository;
   const hasConversationProvider = !!conversation?.git_provider;
   const hasConversationBranch = !!conversation?.selected_branch;
@@ -113,6 +111,7 @@ export const useLocalGitInfo = () => {
     isLocalBackend &&
     runtimeIsReady &&
     !!conversationId &&
+    !!workingDir &&
     (!hasConversationRepo ||
       !hasConversationProvider ||
       !hasConversationBranch);
@@ -146,7 +145,8 @@ export const useLocalGitInfo = () => {
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
         runCommandRef.current(command, cwd, timeout);
-      return probeGitInfo(run, workingDir);
+      // workingDir is guaranteed non-empty by the queryEnabled guard above.
+      return probeGitInfo(run, workingDir!);
     },
     enabled: queryEnabled,
     retry: false,
