@@ -52,11 +52,12 @@ function renderScreen() {
   );
 }
 
-/** Fill the api key — the only required field. */
-async function fillApiKey(
+/** Fill the required fields: name and api key. */
+async function fillRequiredFields(
   user: ReturnType<typeof userEvent.setup>,
-  apiKey = "some-key",
+  { name = "My Server", apiKey = "some-key" } = {},
 ) {
+  await user.type(screen.getByTestId("api-key-entry-name"), name);
   await user.type(screen.getByTestId("api-key-entry-api-key"), apiKey);
 }
 
@@ -95,12 +96,14 @@ afterEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe("ApiKeyEntryScreen", () => {
-  // @spec — UI: host (disabled) + api key + connect — name auto-generated
-  it("renders host (disabled), api key, and connect button (no name field)", () => {
+  // @spec — UI: name + host (disabled) + api key + connect
+  it("renders name, host (disabled), api key, and connect button", () => {
     renderScreen();
 
-    // No name field — name is auto-generated from hostname
-    expect(screen.queryByTestId("api-key-entry-name")).not.toBeInTheDocument();
+    // Name field
+    const nameInput = screen.getByTestId("api-key-entry-name");
+    expect(nameInput).toBeInTheDocument();
+    expect(nameInput).toHaveValue("");
 
     // Host field — pre-filled from window.location.origin, disabled
     const hostInput = screen.getByTestId("api-key-entry-host");
@@ -142,17 +145,21 @@ describe("ApiKeyEntryScreen", () => {
     expect(screen.getByTestId("api-key-entry-api-key")).toHaveValue("");
   });
 
-  // @spec — Connect button requires api key
-  it("disables Connect when api key is empty", async () => {
+  // @spec — Connect button requires both name and api key
+  it("disables Connect when name or api key is empty", async () => {
     renderScreen();
     const user = userEvent.setup();
     const submit = screen.getByTestId("api-key-entry-submit");
 
-    // Empty key
+    // Both empty
     expect(submit).toBeDisabled();
 
-    // Key filled → enabled
+    // Only api key filled → still disabled
     await user.type(screen.getByTestId("api-key-entry-api-key"), "key");
+    expect(submit).toBeDisabled();
+
+    // Name also filled → enabled
+    await user.type(screen.getByTestId("api-key-entry-name"), "Server");
     expect(submit).not.toBeDisabled();
   });
 
@@ -163,7 +170,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillApiKey(user, "correct-key");
+    await fillRequiredFields(user, { apiKey: "correct-key" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {
@@ -192,7 +199,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillApiKey(user, "wrong-key");
+    await fillRequiredFields(user, { apiKey: "wrong-key" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     // Error status appears with "Invalid" text
@@ -227,7 +234,7 @@ describe("ApiKeyEntryScreen", () => {
     renderScreen();
     const user = userEvent.setup();
 
-    await fillApiKey(user, "correct-key");
+    await fillRequiredFields(user, { apiKey: "correct-key" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {
@@ -265,7 +272,7 @@ describe("ApiKeyEntryScreen", () => {
     const apiKeyInput = screen.getByTestId("api-key-entry-api-key");
 
     // First attempt — wrong key
-    await fillApiKey(user, "wrong-key");
+    await fillRequiredFields(user, { apiKey: "wrong-key" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("api-key-entry-status")).toHaveClass(
@@ -306,7 +313,7 @@ describe("ApiKeyEntryScreen", () => {
     expect(apiKeyInput).toHaveValue("");
 
     // Enter fresh key
-    await fillApiKey(user, "fresh-key-BBBB");
+    await fillRequiredFields(user, { apiKey: "fresh-key-BBBB" });
     await user.click(screen.getByTestId("api-key-entry-submit"));
 
     await waitFor(() => {

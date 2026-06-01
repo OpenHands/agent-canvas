@@ -19,17 +19,19 @@ import { BackendStatusDot } from "./backend-status-dot";
  * Full-screen prompt shown when the server is in public mode
  * (`VITE_AUTH_REQUIRED=true`) and no valid API key has been configured.
  *
- * Renders the same card chrome as the "Add a Backend" modal
- * ({@link BackendFormModal} in add mode) but single-column — no cloud
- * OAuth, host pre-filled and read-only. On submit the key is validated
- * against `GET /api/settings` before persisting; wrong keys surface
- * an inline error instead of a blind reload.
+ * Renders the same form layout as the "Add a Backend" left column in
+ * {@link BackendFormModal} — name, host (pre-filled from the current
+ * origin), and API key — without the cloud OAuth right column. On
+ * submit the key is validated against `GET /api/settings` before
+ * persisting; wrong keys surface an inline error instead of a blind
+ * reload.
  */
 export default function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
   const { active, updateBackend } = useActiveBackendContext();
 
   const host = window.location.origin;
+  const [name, setName] = React.useState("");
   // Always start with an empty key so stale credentials don't bleed
   // through from a previous session / server restart.
   const [apiKey, setApiKey] = React.useState("");
@@ -39,7 +41,8 @@ export default function ApiKeyEntryScreen() {
   >("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  const canSubmit = apiKey.trim().length > 0 && !isValidating;
+  const canSubmit =
+    name.trim().length > 0 && apiKey.trim().length > 0 && !isValidating;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -66,10 +69,8 @@ export default function ApiKeyEntryScreen() {
       setConnectionStatus("success");
 
       // Persist the validated key in both storage layers.
-      // Preserve any existing custom name the user gave this backend;
-      // fall back to hostname only for the initial entry.
       updateBackend(active.backend.id, {
-        name: active.backend.name || window.location.hostname,
+        name: name.trim(),
         host,
         apiKey: trimmedKey,
         kind: "local",
@@ -112,11 +113,8 @@ export default function ApiKeyEntryScreen() {
       >
         <div className="px-6 pt-6 pb-2 pr-12">
           <h2 className="text-lg font-semibold">
-            {t(I18nKey.AUTH$API_KEY_REQUIRED_TITLE)}
+            {t(I18nKey.BACKEND$ADD_TITLE)}
           </h2>
-          <p className="mt-1 text-sm text-[var(--oh-muted)]">
-            {t(I18nKey.AUTH$API_KEY_REQUIRED_DESCRIPTION)}
-          </p>
         </div>
 
         <div className="px-6 pb-6 pt-2">
@@ -125,6 +123,22 @@ export default function ApiKeyEntryScreen() {
             onSubmit={handleSubmit}
             className="flex flex-col gap-4 flex-1 min-w-0"
           >
+            <div className="flex flex-col gap-1">
+              <SettingsInput
+                testId="api-key-entry-name"
+                name="api-key-entry-name"
+                type="text"
+                label={t(I18nKey.BACKEND$NAME_LABEL)}
+                value={name}
+                onChange={setName}
+                placeholder="e.g. My Server"
+                className="w-full"
+              />
+              <p className="text-xs text-[var(--oh-muted)]">
+                {t(I18nKey.BACKEND$NAME_HELPER)}
+              </p>
+            </div>
+
             <div className="flex flex-col gap-1">
               <SettingsInput
                 testId="api-key-entry-host"
@@ -181,7 +195,7 @@ export default function ApiKeyEntryScreen() {
             >
               {isValidating
                 ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
-                : t(I18nKey.AUTH$CONNECT)}
+                : t(I18nKey.BACKEND$CONNECT)}
             </BrandButton>
           </form>
         </div>
