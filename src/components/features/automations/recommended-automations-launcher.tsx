@@ -73,7 +73,7 @@ export function buildAutomationPrompt(
     "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
     "- Read the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
     "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
-    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
+    "- Auth: `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
     "- If no local Automation backend is listed in `<RUNTIME_SERVICES>`, stop and ask me to start the full local automation stack instead of using any remote/cloud automation API.",
   ].join("\n");
 }

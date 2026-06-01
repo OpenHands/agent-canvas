@@ -25,7 +25,7 @@
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
-- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
+- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
   - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
   - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
@@ -53,7 +53,7 @@ The env var is a JSON string of:
       "url_from_agent": "http://localhost:3001"
     },
     "automation": {
-      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
       "url_from_agent": "http://localhost:18001",
       "api_prefix": "/api/automation",
       "docs_url": "http://localhost:18001/api/automation/docs",
@@ -81,10 +81,10 @@ from your point of view (i.e., as you should curl/fetch them).
 * Frontend: http://localhost:3001
     Vite dev server hosting the agent-canvas frontend.
 * Automation backend: http://localhost:18001
-    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
     Docs:    http://localhost:18001/api/automation/docs
     OpenAPI: http://localhost:18001/api/automation/openapi.json
-    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+    Auth:    header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
 
 Trust this block over guessing: do not assume any other URLs are running.
 In particular, http://localhost:18000 inside your sandbox is the Agent Server
