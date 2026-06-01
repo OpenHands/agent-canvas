@@ -118,6 +118,15 @@ test.describe("auth mode: non-public key rotation", () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 test.describe("auth mode: public gate", () => {
+  // The analytics consent modal overlays the auth screen and intercepts
+  // pointer events, so suppress it for every public-mode test.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+    });
+  });
+
   test("shows the auth screen when no key is configured", async ({ page }) => {
     // Navigate to the public-mode static server (--auth-required, no
     // baked session key). The browser has a clean context (no localStorage)
@@ -201,6 +210,8 @@ test.describe("auth mode: public gate", () => {
     // appears — giving the user a chance to paste the new key.
     const STALE_KEY = "rotated-out-old-key-from-previous-deploy";
 
+    // The beforeEach already seeds analytics consent. Layer on the stale
+    // backend credentials.
     await page.addInitScript(
       ({ staleKey, host }) => {
         window.localStorage.setItem(
@@ -219,8 +230,6 @@ test.describe("auth mode: public gate", () => {
             },
           ]),
         );
-        window.localStorage.setItem("analytics-consent", "false");
-        window.localStorage.setItem("openhands-telemetry-consent", "denied");
       },
       { staleKey: STALE_KEY, host: PUBLIC_MODE_URL },
     );
