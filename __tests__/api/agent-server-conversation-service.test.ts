@@ -82,6 +82,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getConfiguredWorkerUrls: vi.fn(() => []),
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
+  syncBakedSessionApiKey: vi.fn(),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({

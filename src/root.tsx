@@ -11,7 +11,11 @@ import "./tailwind.css";
 import "./index.css";
 import React from "react";
 import { Toaster } from "react-hot-toast";
-import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import {
+  isAgentServerUnavailableError,
+  isAgentServerAuthError,
+} from "#/api/agent-server-compatibility";
+import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -36,6 +40,11 @@ const ManageBackendsModal = React.lazy(() =>
   import("#/components/features/backends/manage-backends-modal").then((m) => ({
     default: m.ManageBackendsModal,
   })),
+);
+
+// Rendered when the backend returns 401 (public mode — user must paste key).
+const ApiKeyEntryScreen = React.lazy(
+  () => import("#/components/features/backends/api-key-entry-screen"),
 );
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -105,7 +114,24 @@ export const meta: MetaFunction = () => [
 ];
 
 export default function App() {
-  const config = useConfig();
+  // Flag-based gate: in public mode (VITE_AUTH_REQUIRED=true) with no
+  // session key yet, show the auth screen immediately — no network
+  // round-trip needed.
+  const authMissing = isAuthRequiredAndMissing();
+
+  // Skip the /server_info probe entirely when we already know auth is
+  // required and missing — it would just 401 and waste time.
+  const config = useConfig({ enabled: !authMissing });
+
+  // No key at all → instant auth screen (no network).
+  // Stale key → /server_info 401 → auth screen (public mode only).
+  if (authMissing || isAgentServerAuthError(config.error)) {
+    return (
+      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+        <ApiKeyEntryScreen />
+      </React.Suspense>
+    );
+  }
 
   if (config.isPending || config.isLoading) {
     return <AgentServerBootstrapLoading />;
