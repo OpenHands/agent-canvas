@@ -118,12 +118,10 @@ export function syncBakedSessionApiKey(): void {
   const bakedKey = getBakedSessionApiKey();
   if (!bakedKey) return; // public mode or no key baked in
 
-  const storedKey = trimToNull(readStoredConfig().sessionApiKey);
+  const storedConfig = readStoredConfig();
+  const storedKey = trimToNull(storedConfig.sessionApiKey);
   if (storedKey && storedKey !== bakedKey) {
-    writeStoredConfig({
-      ...readStoredConfig(),
-      sessionApiKey: bakedKey,
-    });
+    writeStoredConfig({ ...storedConfig, sessionApiKey: bakedKey });
   }
 }
 
