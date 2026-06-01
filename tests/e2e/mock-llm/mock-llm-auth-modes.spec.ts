@@ -185,4 +185,66 @@ test.describe("auth mode: public gate", () => {
     const authScreen = page.getByTestId("api-key-entry-screen");
     await expect(authScreen).not.toBeVisible({ timeout: 10_000 });
   });
+
+  test("re-prompts when the server rotates its key (stale localStorage)", async ({
+    page,
+  }) => {
+    // Simulate the state after a key rotation:
+    //   - The user previously authenticated with key A (now stale)
+    //   - The server restarted with key B (SESSION_API_KEY)
+    //   - localStorage still holds key A
+    //
+    // On load the app detects auth is required, finds a stored key, so
+    // it skips the instant gate (isAuthRequiredAndMissing → false) and
+    // proceeds to probe /server_info with the stale key. The agent-server
+    // returns 401, isAgentServerAuthError fires, and the auth screen
+    // appears — giving the user a chance to paste the new key.
+    const STALE_KEY = "rotated-out-old-key-from-previous-deploy";
+
+    await page.addInitScript(
+      ({ staleKey, host }) => {
+        window.localStorage.setItem(
+          "openhands-agent-server-config",
+          JSON.stringify({ baseUrl: host, sessionApiKey: staleKey }),
+        );
+        window.localStorage.setItem(
+          "openhands-backends",
+          JSON.stringify([
+            {
+              id: "default-local",
+              name: "Public Server",
+              host,
+              apiKey: staleKey,
+              kind: "local",
+            },
+          ]),
+        );
+        window.localStorage.setItem("analytics-consent", "false");
+        window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      },
+      { staleKey: STALE_KEY, host: PUBLIC_MODE_URL },
+    );
+
+    await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
+
+    // The app tries to probe with the stale key → 401 → auth screen.
+    await waitForTestId(page, "api-key-entry-screen");
+
+    // Enter the new (correct) key.
+    const nameInput = page.getByTestId("api-key-entry-name");
+    await nameInput.click();
+    await nameInput.fill("Rotated Server");
+
+    const keyInput = page.getByTestId("api-key-entry-api-key");
+    await keyInput.click();
+    await keyInput.fill(SESSION_API_KEY);
+
+    await page.getByTestId("api-key-entry-submit").click();
+
+    // After submitting the correct key, the page reloads and the auth
+    // screen should not reappear.
+    await page.waitForLoadState("domcontentloaded", { timeout: 15_000 });
+    const authScreen = page.getByTestId("api-key-entry-screen");
+    await expect(authScreen).not.toBeVisible({ timeout: 10_000 });
+  });
 });
