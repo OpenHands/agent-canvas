@@ -182,9 +182,10 @@ export interface ACPProviderSecretField {
   /** Secret name and env var (e.g. ``"ANTHROPIC_API_KEY"``). Must satisfy the
    * secret-name pattern ``^[a-zA-Z][a-zA-Z0-9_]{0,63}$``. */
   name: string;
-  /** Optional credentials (base URLs, gateway overrides) render with an
-   * "Optional" tag and never gate the step. */
-  optional?: boolean;
+  /** Render as a masked password input (API keys) rather than a plain-text
+   * input (base URLs). Every field is optional regardless — the whole step is
+   * skippable — so this only controls masking, not whether the field gates. */
+  secret?: boolean;
   /** i18n key for the one-line helper text under the field. */
   hint_key: I18nKey;
 }
@@ -193,29 +194,30 @@ export interface ACPProviderSecretField {
 // Only providers that authenticate through an env-var API key appear here:
 // Claude Code (Anthropic) and Codex (OpenAI). Gemini CLI authenticates via an
 // interactive OAuth login rather than a static key, so it has no entry and its
-// onboarding credentials step is skipped. The base-URL entries are optional
+// onboarding credentials step is skipped. Every field is optional (the step is
+// skippable): the API keys render masked, the base-URL entries are plain-text
 // overrides for proxies/gateways. A provider with no entry simply shows no
 // credentials step.
 const ACP_PROVIDER_SECRETS: Record<string, ACPProviderSecretField[]> = {
   "claude-code": [
     {
       name: "ANTHROPIC_API_KEY",
+      secret: true,
       hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
     },
     {
       name: "ANTHROPIC_BASE_URL",
-      optional: true,
       hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
     },
   ],
   codex: [
     {
       name: "OPENAI_API_KEY",
+      secret: true,
       hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
     },
     {
       name: "OPENAI_BASE_URL",
-      optional: true,
       hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
     },
   ],

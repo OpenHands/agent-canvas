@@ -124,12 +124,13 @@ export function SetupAcpSecretsStep({
                 // monospace makes clear it's a literal key, not prose.
                 label={field.name}
                 labelClassName="font-mono"
-                type={field.optional ? "text" : "password"}
+                type={field.secret ? "password" : "text"}
                 value={values[field.name] ?? ""}
                 onChange={(value) =>
                   setValues((prev) => ({ ...prev, [field.name]: value }))
                 }
-                showOptionalTag={field.optional}
+                // Every field is optional — the whole step is skippable.
+                showOptionalTag
                 placeholder={
                   alreadySet ? t(I18nKey.ONBOARDING$ACP_SECRET_ALREADY_SET) : ""
                 }
