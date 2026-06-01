@@ -172,6 +172,71 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
 export const ACP_CUSTOM_PRESET_KEY = "custom";
 
 /**
+ * A credential an ACP provider authenticates with, surfaced during onboarding
+ * so the user can populate it without leaving the flow. The {@link name} is
+ * both the global-secret name and the environment variable the agent-server
+ * exports into the ACP subprocess — keeping them identical is what makes a
+ * saved secret actually reach the provider CLI.
+ */
+export interface ACPProviderSecretField {
+  /** Secret name and env var (e.g. ``"ANTHROPIC_API_KEY"``). Must satisfy the
+   * secret-name pattern ``^[a-zA-Z][a-zA-Z0-9_]{0,63}$``. */
+  name: string;
+  /** Render as a masked password input (API keys) rather than a plain-text
+   * input (base URLs). Every field is optional regardless — the whole step is
+   * skippable — so this only controls masking, not whether the field gates. */
+  secret?: boolean;
+  /** i18n key for the one-line helper text under the field. */
+  hint_key: I18nKey;
+}
+
+// Credentials Canvas prompts for during onboarding, keyed by ACP registry key.
+// Only providers that authenticate through an env-var API key appear here:
+// Claude Code (Anthropic) and Codex (OpenAI). Gemini CLI authenticates via an
+// interactive OAuth login rather than a static key, so it has no entry and its
+// onboarding credentials step is skipped. Every field is optional (the step is
+// skippable): the API keys render masked, the base-URL entries are plain-text
+// overrides for proxies/gateways. A provider with no entry simply shows no
+// credentials step.
+const ACP_PROVIDER_SECRETS: Record<string, ACPProviderSecretField[]> = {
+  "claude-code": [
+    {
+      name: "ANTHROPIC_API_KEY",
+      secret: true,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
+    },
+    {
+      name: "ANTHROPIC_BASE_URL",
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
+    },
+  ],
+  codex: [
+    {
+      name: "OPENAI_API_KEY",
+      secret: true,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
+    },
+    {
+      name: "OPENAI_BASE_URL",
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
+    },
+  ],
+};
+
+/**
+ * List the credentials Canvas should prompt for when onboarding the given ACP
+ * provider. Returns ``[]`` for OpenHands, the ``"custom"`` preset, providers
+ * that don't use a static API key (Gemini CLI), and any unknown key — callers
+ * treat an empty list as "no credentials step for this provider".
+ */
+export function getAcpProviderSecrets(
+  key: string | null | undefined,
+): ACPProviderSecretField[] {
+  if (!key) return [];
+  return ACP_PROVIDER_SECRETS[key] ?? [];
+}
+
+/**
  * Look up a built-in ACP provider config by its registry key.
  *
  * Returns ``undefined`` for an empty / null key, for the ``"custom"`` preset
