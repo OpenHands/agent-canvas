@@ -76,6 +76,9 @@ if (!process.env.MOCK_LLM_AGENT_URL) {
 export default defineConfig({
   testDir: "./tests/e2e/mock-llm",
   testMatch: /.*\.spec\.ts/,
+  // The auth-modes spec tests npm-binary-specific --auth-required behaviour
+  // (a second static-server instance) which doesn't apply to the Docker image.
+  testIgnore: ["**/mock-llm-auth-modes*"],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
