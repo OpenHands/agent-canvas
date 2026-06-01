@@ -62,8 +62,17 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
-              | jq -r '.[0].number // empty')
+            # Only associate with a PR when the triggering Docker workflow
+            # ran on a PR branch.  Main-branch workflow_run events can have
+            # a stale pull_requests[] entry that points at an unrelated PR,
+            # causing failure comments to land on the wrong PR.
+            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+            if [ "$HEAD_BRANCH" = "main" ] || [ "$HEAD_BRANCH" = "master" ]; then
+              PR_NUMBER=""
+            else
+              PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
+                | jq -r '.[0].number // empty')
+            fi
             echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
