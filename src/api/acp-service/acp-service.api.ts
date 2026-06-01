@@ -4,9 +4,10 @@ import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 export type AcpAuthStatus = "authenticated" | "unauthenticated" | "unknown";
 
-// Hard cap (seconds) for a single detection command. Generous so a slow-but-
-// working CLI (cold start) isn't misread as "unknown".
-const PROBE_TIMEOUT_SECONDS = 30;
+// Hard cap (seconds) for a single detection command. These are fast local
+// status checks (no npx download), so 10s is ample for a healthy CLI while
+// keeping the onboarding spinner short before falling back to "unknown".
+const PROBE_TIMEOUT_SECONDS = 10;
 
 interface AcpAuthProbe {
   /** Shell command run on the (local) agent-server host to detect login. */
@@ -55,10 +56,10 @@ function classifyCodex(out: BashOutput): AcpAuthStatus {
 // its credentials file. The command echoes present/absent and exits 0 either
 // way; anything else (a shell failure) ⇒ unknown.
 function classifyGemini(out: BashOutput): AcpAuthStatus {
-  // The command echoes exactly `present` / `absent`, so match the trimmed value
-  // exactly rather than a substring — stray output then falls through to
-  // `unknown` instead of being misread.
-  const text = streams(out).trim();
+  // The command echoes exactly `present` / `absent` to stdout, so match trimmed
+  // stdout exactly. Reading only stdout (not stderr) means a stray shell
+  // warning can't turn a real result into `unknown`.
+  const text = (out.stdout ?? "").trim();
   if (text === "present") return "authenticated";
   if (text === "absent") return "unauthenticated";
   return "unknown";
