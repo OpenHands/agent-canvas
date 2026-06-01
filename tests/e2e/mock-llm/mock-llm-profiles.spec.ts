@@ -28,22 +28,78 @@ const PROFILE_B_RENAMED = "profile-beta-renamed";
 const MODEL_A = "openai/gpt-4o";
 const MODEL_B = "anthropic/claude-sonnet-4-20250514";
 
-/** Delete all profiles via the API so tests start clean. */
+/**
+ * Delete all profiles AND reset settings-level LLM config so tests start
+ * truly clean.
+ *
+ * The automation test's `ensureMockLLMProfile()` PATCHes `/api/settings`
+ * with `agent_settings_diff.llm.*`, which stores LLM config at the
+ * settings layer. Deleting named profiles alone is not enough — the
+ * server may still surface a "default" profile derived from those
+ * settings. We therefore also PATCH settings to clear the LLM model so
+ * the server reports an empty profile list.
+ */
 async function cleanupProfiles(request: APIRequestContext) {
-  const resp = await request.get(`${BACKEND_URL}/api/profiles`, {
-    headers: { "X-Session-API-Key": SESSION_API_KEY },
+  const headers = { "X-Session-API-Key": SESSION_API_KEY };
+
+  // 1. Delete all named profiles
+  const listResp = await request.get(`${BACKEND_URL}/api/profiles`, {
+    headers,
   });
-  if (!resp.ok()) return;
-  const body = (await resp.json()) as {
-    profiles?: { name: string }[];
-  };
-  for (const p of body.profiles ?? []) {
-    await request
-      .delete(
+  if (listResp.ok()) {
+    const body = (await listResp.json()) as {
+      profiles?: { name: string }[];
+    };
+    for (const p of body.profiles ?? []) {
+      const delResp = await request.delete(
         `${BACKEND_URL}/api/profiles/${encodeURIComponent(p.name)}`,
-        { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-      )
-      .catch(() => {});
+        { headers },
+      );
+      if (!delResp.ok()) {
+        console.warn(
+          `DELETE /api/profiles/${p.name} returned ${delResp.status()}`,
+        );
+      }
+    }
+  } else {
+    console.warn(
+      `GET /api/profiles returned ${listResp.status()} — skipping profile cleanup`,
+    );
+  }
+
+  // 2. Clear settings-level LLM config so no implicit profile lingers.
+  //    The automation test's ensureMockLLMProfile() PATCHes agent_settings
+  //    directly; without this reset, the server may derive a "default"
+  //    profile from the lingering settings even after all named profiles
+  //    are deleted.
+  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: { ...headers, "Content-Type": "application/json" },
+    data: {
+      agent_settings_diff: {
+        llm: { model: "", api_key: "", base_url: "" },
+      },
+    },
+  });
+  if (!patchResp.ok()) {
+    console.warn(
+      `PATCH /api/settings (clear LLM) returned ${patchResp.status()}`,
+    );
+  }
+
+  // 3. Verify the cleanup actually worked
+  const verifyResp = await request.get(`${BACKEND_URL}/api/profiles`, {
+    headers,
+  });
+  if (verifyResp.ok()) {
+    const verifyBody = (await verifyResp.json()) as {
+      profiles?: { name: string }[];
+    };
+    const remaining = verifyBody.profiles ?? [];
+    if (remaining.length > 0) {
+      console.warn(
+        `After cleanup, ${remaining.length} profile(s) still exist: ${remaining.map((p) => p.name).join(", ")}`,
+      );
+    }
   }
 }
 
@@ -76,7 +132,7 @@ test.describe("mock-LLM profile lifecycle", () => {
     // ── Verify empty state ──
     await test.step("verify empty state shows no profiles", async () => {
       const profileRows = page.getByTestId("profile-row");
-      await expect(profileRows).toHaveCount(0);
+      await expect(profileRows).toHaveCount(0, { timeout: 10_000 });
     });
 
     // ── Create profile A ──
