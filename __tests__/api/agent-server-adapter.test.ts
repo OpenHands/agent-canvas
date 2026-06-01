@@ -795,7 +795,8 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
     expect(suffix).toContain("http://localhost:18001/api/automation/docs");
-    expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
+    expect(suffix).toContain("X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
+    expect(suffix).not.toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
     // for this stack, not a hardcoded port. The assertion anchors on the URL
