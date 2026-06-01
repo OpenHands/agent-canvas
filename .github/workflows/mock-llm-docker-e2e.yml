@@ -25,8 +25,18 @@ on:
         type: string
         default: ""
 
+# Concurrency: deduplicate runs for the same logical trigger.
+# - pull_request: keyed by PR number (pushes to the same PR cancel earlier runs)
+# - workflow_run: keyed by the triggering workflow's branch (e.g. "wr-main"),
+#   so multiple Docker builds completing on main don't pile up separate E2E runs
+# - workflow_dispatch / fallback: keyed by ref
 concurrency:
-  group: mock-llm-docker-e2e-${{ github.event.workflow_run.id || github.event.pull_request.number || github.ref }}
+  group: >-
+    mock-llm-docker-e2e-${{
+      github.event.pull_request.number ||
+      (github.event.workflow_run.id && format('wr-{0}', github.event.workflow_run.head_branch)) ||
+      github.ref
+    }}
   cancel-in-progress: true
 
 permissions:
@@ -37,13 +47,18 @@ permissions:
 
 jobs:
   mock-llm-docker-e2e:
-    # workflow_run: only run if the Docker build succeeded.
+    # workflow_run: only for main/master — validates the published image.
+    #   PR branches are already covered by the pull_request trigger below;
+    #   without this guard, both triggers fire for e2e-tests PRs, producing
+    #   duplicate (and potentially contradictory) comment pairs.
     # pull_request: only run with the 'e2e-tests' label, skip fork PRs (no GHCR push).
     # workflow_dispatch: always run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success') ||
+       github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'main' ||
+        github.event.workflow_run.head_branch == 'master')) ||
       (github.event_name == 'pull_request' &&
        contains(github.event.pull_request.labels.*.name, 'e2e-tests') &&
        !github.event.pull_request.head.repo.fork)
@@ -60,20 +75,12 @@ jobs:
         id: ctx
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # workflow_run only fires for main (job-level `if` guard), so
+            # this path always tests the main-branch Docker image. Never
+            # post PR comments — results go to the step summary only.
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            # Only associate with a PR when the triggering Docker workflow
-            # ran on a PR branch.  Main-branch workflow_run events can have
-            # a stale pull_requests[] entry that points at an unrelated PR,
-            # causing failure comments to land on the wrong PR.
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-            if [ "$HEAD_BRANCH" = "main" ] || [ "$HEAD_BRANCH" = "master" ]; then
-              PR_NUMBER=""
-            else
-              PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
-                | jq -r '.[0].number // empty')
-            fi
-            echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
