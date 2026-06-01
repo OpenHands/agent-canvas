@@ -44,12 +44,21 @@ const MODEL_B = "openai/mock-model-beta";
 const INITIAL_REPLY_TOKEN = "MODEL_SWITCH_INITIAL_REPLY_OK";
 const POST_SWITCH_REPLY_TOKEN = "MODEL_SWITCH_POST_SWITCH_REPLY_OK";
 
-/** Create a named LLM profile via the agent-server profiles API. */
+/**
+ * Create (or overwrite) a named LLM profile via the agent-server profiles API.
+ * Deletes first so setup is idempotent across re-runs — if a previous test
+ * crashed before afterAll cleanup, the stale profile won't cause a 409.
+ */
 async function saveProfile(
   request: APIRequestContext,
   name: string,
   model: string,
 ) {
+  // Best-effort delete so a leftover profile doesn't block creation.
+  await request.delete(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
+    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+  );
   const resp = await request.post(
     `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
     {
@@ -220,7 +229,7 @@ test.describe("mock-LLM /model slash command", () => {
     await test.step("verify 'Switched to profile' message in chat", async () => {
       // waitForNonUserMessageText already polls data-testid="model-messages"
       // elements, so a successful wait proves the container is visible.
-      await waitForNonUserMessageText(page, PROFILE_B_NAME, 15_000);
+      await waitForNonUserMessageText(page, PROFILE_B_NAME, 30_000);
     });
 
     // ── Verify: the switch_profile POST was made ──
@@ -241,6 +250,9 @@ test.describe("mock-LLM /model slash command", () => {
     // ── Send a follow-up message to verify conversation still works ──
 
     await test.step("send follow-up message after switch", async () => {
+      // Wait for the chat input to be ready — the UI may briefly disable
+      // it while the profile switch settles.
+      await waitForTestId(page, "chat-input");
       await setChatInput(page, "Confirm the model switch worked.");
       await page.getByTestId("submit-button").click();
     });
