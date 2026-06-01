@@ -14,7 +14,9 @@ import {
 } from "./steps/choose-agent-step";
 import { CheckBackendStep } from "./steps/check-backend-step";
 import { SetupLlmStep } from "./steps/setup-llm-step";
+import { SetupAcpSecretsStep } from "./steps/setup-acp-secrets-step";
 import { SayHelloStep } from "./steps/say-hello-step";
+import { getAcpProviderSecrets } from "#/constants/acp-providers";
 
 const TOTAL_STEPS = 4;
 
@@ -86,39 +88,49 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  // The LLM-setup step (index 2) is OpenHands-specific: ACP agents drive
-  // their own LLM via the subprocess and authenticate through the Secrets
-  // panel, so there's nothing to configure in that form for them. Skip
-  // over it in both directions when the user has picked an ACP agent,
-  // keeping the rest of the flow intact (back from SayHello on the ACP
-  // path returns to ChooseAgent, not to a dead-end LLM page).
-  const skipLlmStep = selectedAgentId !== "openhands";
+  // Slide index 2 is the "provider credentials" slot. Its content depends on
+  // the chosen agent:
+  //   * OpenHands           → the LLM-setup form (its own LLM config).
+  //   * Claude Code / Codex → the ACP secrets form (API key + base URL), since
+  //                           these providers authenticate via env-var keys.
+  //   * Gemini CLI          → nothing: it authenticates through an interactive
+  //                           OAuth login, so there's no key to enter and we
+  //                           skip the slide entirely.
+  // ``getAcpProviderSecrets`` returns the field list (empty for Gemini), which
+  // is what distinguishes the ACP-with-secrets case from the skip case.
+  const isOpenHands = selectedAgentId === "openhands";
+  const acpSecretFields = getAcpProviderSecrets(selectedAgentId);
+  const showAcpSecretsStep = !isOpenHands && acpSecretFields.length > 0;
+  // Skip slide 2 only when there's nothing to show there (an ACP provider
+  // with no credentials to collect). Skipping keeps the rest of the flow
+  // intact in both directions (back from SayHello returns to CheckBackend,
+  // not a dead-end blank page).
+  const skipStep2 = !isOpenHands && !showAcpSecretsStep;
   const goNext = React.useCallback(
     () =>
       setCurrentStep((step) => {
-        const delta = skipLlmStep && step === 1 ? 2 : 1;
+        const delta = skipStep2 && step === 1 ? 2 : 1;
         return Math.min(step + delta, TOTAL_STEPS - 1);
       }),
-    [skipLlmStep],
+    [skipStep2],
   );
   const goBack = React.useCallback(
     () =>
       setCurrentStep((step) => {
-        const delta = skipLlmStep && step === 3 ? 2 : 1;
+        const delta = skipStep2 && step === 3 ? 2 : 1;
         return Math.max(step - delta, 0);
       }),
-    [skipLlmStep],
+    [skipStep2],
   );
 
   // The progress bar should show the user's actual visited-step count,
-  // not the underlying index. On the ACP path the LLM-setup slide is
-  // skipped, so:
+  // not the underlying index. When slide 2 is skipped:
   //   * the bar renders 3 segments instead of 4, and
   //   * the SayHello slide (modal index 3) maps to logical step 2 so
   //     segment 2 doesn't pop "completed" on a slide the user never saw.
-  const progressTotal = skipLlmStep ? TOTAL_STEPS - 1 : TOTAL_STEPS;
+  const progressTotal = skipStep2 ? TOTAL_STEPS - 1 : TOTAL_STEPS;
   const progressStep =
-    skipLlmStep && currentStep > 1 ? currentStep - 1 : currentStep;
+    skipStep2 && currentStep > 1 ? currentStep - 1 : currentStep;
 
   return (
     <ModalBackdrop
@@ -164,7 +176,15 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
                 <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
               <Slide index={2} currentStep={currentStep}>
-                <SetupLlmStep onBack={goBack} onNext={goNext} />
+                {isOpenHands ? (
+                  <SetupLlmStep onBack={goBack} onNext={goNext} />
+                ) : showAcpSecretsStep ? (
+                  <SetupAcpSecretsStep
+                    providerKey={selectedAgentId}
+                    onBack={goBack}
+                    onNext={goNext}
+                  />
+                ) : null}
               </Slide>
               <Slide index={3} currentStep={currentStep}>
                 <SayHelloStep onBack={goBack} onLaunched={onClose} />

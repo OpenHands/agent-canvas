@@ -475,6 +475,80 @@ describe("buildStartConversationRequest", () => {
       });
     });
   });
+
+  // @spec LLD-001 — Frontend always sends its chosen default model
+  describe("llm.model fallback — frontend always sends its chosen default", () => {
+    type ModelPayload = {
+      agent_settings: Record<string, unknown> & { llm: Record<string, unknown> };
+    };
+
+    function getModelFrom(
+      options: Parameters<typeof buildStartConversationRequest>[0],
+    ): unknown {
+      return (buildStartConversationRequest(options) as unknown as ModelPayload)
+        .agent_settings.llm.model;
+    }
+
+    it("uses the configured model when one is set", () => {
+      expect(
+        getModelFrom({
+          settings: {
+            ...DEFAULT_SETTINGS,
+            agent_settings: {
+              ...DEFAULT_SETTINGS.agent_settings,
+              llm: { model: "anthropic/claude-opus-4-5" },
+            },
+          },
+        }),
+      ).toBe("anthropic/claude-opus-4-5");
+    });
+
+    // The agent-server returns '' when no model has been saved yet.
+    // Without this guard the empty string passes the old typeof check and
+    // the agent-server falls back to its own SDK default (gpt-5.5).
+    // SettingsValue includes scalars so inline literals are type-safe here.
+    it.each([
+      ["undefined", { ...DEFAULT_SETTINGS.agent_settings, llm: {} }],
+      ["an empty string", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "" } }],
+      ["whitespace only", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "   " } }],
+      // No llm key at all — SettingsValue accepts plain scalars.
+      ["absent (no llm block)", { schema_version: 1, agent_kind: "openhands", agent: "CodeActAgent" }],
+      // Mirrors a fresh user who skipped onboarding: server returns {}.
+      ["entirely empty", {}],
+    ])(
+      "falls back to DEFAULT_SETTINGS.llm_model when agent_settings.llm.model is %s",
+      (_, agentSettings) => {
+        expect(
+          getModelFrom({
+            settings: {
+              ...DEFAULT_SETTINGS,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              agent_settings: agentSettings as any,
+            },
+          }),
+        ).toBe(DEFAULT_SETTINGS.llm_model);
+      },
+    );
+
+    // encryptedAgentSettings overrides settings.agent_settings at conversation
+    // start; if the encrypted payload has no model set the frontend default
+    // must still be sent explicitly.
+    it.each([
+      ["carries an empty model", { llm: { model: "" } }],
+      ["is empty", {}],
+    ])(
+      "falls back to DEFAULT_SETTINGS.llm_model when encryptedAgentSettings %s",
+      (_, encryptedAgentSettings) => {
+        expect(
+          getModelFrom({
+            settings: DEFAULT_SETTINGS,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            encryptedAgentSettings: encryptedAgentSettings as any,
+          }),
+        ).toBe(DEFAULT_SETTINGS.llm_model);
+      },
+    );
+  });
 });
 
 describe("getDefaultConversationTitle", () => {

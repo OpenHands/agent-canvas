@@ -1,17 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import {
-  INTEGRATION_CATALOG,
-  type IntegrationCatalogEntry,
-} from "@openhands/extensions/integrations";
+import { INTEGRATION_CATALOG } from "@openhands/extensions/integrations";
 import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
 
 function entry(id: string) {
-  const match = INTEGRATION_CATALOG.find(
-    (item: IntegrationCatalogEntry) => item.id === id,
-  );
+  const match = INTEGRATION_CATALOG.find((item) => item.id === id);
   if (!match) {
-    throw new Error(`Missing integration catalog entry: ${id}`);
+    throw new Error(`Missing MCP catalog entry: ${id}`);
   }
   return match;
 }

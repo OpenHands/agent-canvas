@@ -6,7 +6,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { SdkSectionPage } from "#/components/features/settings/sdk-settings/sdk-section-page";
+import {
+  SdkSectionPage,
+  type SdkSectionSaveControl,
+} from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import * as ToastHandlers from "#/utils/custom-toast-handlers";
@@ -663,6 +666,36 @@ describe("SdkSectionPage", () => {
       expect(saveSettingsSpy).toHaveBeenCalledWith(
         expect.objectContaining({ search_api_key: "external-search-key" }),
       );
+    });
+  });
+
+  it("exposes the active view and a coerced, dirty-only payload on the save control", async () => {
+    // Arrange — a basic-tier schema with a single editable field.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSavableSettings(),
+    );
+    let latestControl: SdkSectionSaveControl | null = null;
+
+    renderSdkSectionPage({
+      sectionKeys: ["llm"],
+      onSaveControlChange: (control) => {
+        latestControl = control;
+      },
+    });
+
+    // Act — change one field so it becomes dirty.
+    const endpointInput = await screen.findByTestId("sdk-settings-llm.endpoint");
+    await userEvent.clear(endpointInput);
+    await userEvent.type(endpointInput, "https://new.example.com");
+
+    // Assert — the control reports the basic view and returns only the dirty
+    // field, nested under its section. Consumers (e.g. the local profile
+    // editor) rely on both to drive a custom save.
+    await waitFor(() => {
+      expect(latestControl?.view).toBe("basic");
+      expect(latestControl?.getDirtyPayload()).toEqual({
+        llm: { endpoint: "https://new.example.com" },
+      });
     });
   });
 });
