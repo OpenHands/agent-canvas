@@ -18,6 +18,11 @@
 #   OPENHANDS_AUTOMATION_API_KEY – Override automation backend auth key
 #                          (defaults to session API key — both backends
 #                          use the same `X-Session-API-Key` header)
+#   AUTOMATION_AGENT_SERVER_URL  – URL the automation service uses to reach the
+#                          agent-server (default: http://127.0.0.1:AGENT_SERVER_PORT).
+#                          Setting this enables local-mode auth so the session
+#                          API key is validated internally instead of against the
+#                          OpenHands cloud API.
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
@@ -100,6 +105,14 @@ export AUTOMATION_AGENT_SERVER_API_KEY="${AUTOMATION_AGENT_SERVER_API_KEY:-${EFF
 
 # AGENT_SERVER_URL — needed by automation sandbox callbacks.
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
+
+# AUTOMATION_AGENT_SERVER_URL — the URL the automation service uses to reach
+# the agent-server REST API (tarball upload, bash dispatch, auth key minting).
+# When set, ServiceSettings.is_local_mode returns True, enabling local API key
+# authentication. Without this, the automation server falls back to validating
+# keys against the OpenHands cloud API (app.all-hands.dev), which returns 401
+# for locally-generated session keys.
+export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
 # Make custom tools (e.g. canvas_ui_tool.py) importable by the agent-server
 # via tool_module_qualnames. Matches what scripts/dev-safe.mjs does with
