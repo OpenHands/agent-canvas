@@ -49,12 +49,17 @@ describe("getStatusCode", () => {
 });
 
 describe("getTaskStatusI18nKey", () => {
-  // Mappings not already exercised through getStatusCode above: the two
-  // dedicated setup keys and the WORKING collapse (the most common status,
-  // previously rendered as an untranslated "Working" label).
+  // Direct coverage of the shared mapper. Includes WAITING_FOR_SANDBOX and the
+  // two dedicated setup keys, the WORKING collapse (the most common status,
+  // previously rendered as an untranslated "Working" label), and the terminal
+  // READY/ERROR states, which now resolve to their own localized keys instead
+  // of silently falling back to STARTING_CONVERSATION.
   it.each([
+    ["WAITING_FOR_SANDBOX", I18nKey.COMMON$WAITING_FOR_SANDBOX],
     ["SETTING_UP_GIT_HOOKS", I18nKey.STATUS$SETTING_UP_GIT_HOOKS],
     ["SETTING_UP_SKILLS", I18nKey.STATUS$SETTING_UP_SKILLS],
+    ["READY", I18nKey.CONVERSATION$READY],
+    ["ERROR", I18nKey.COMMON$ERROR],
     ["WORKING", I18nKey.CONVERSATION$STARTING_CONVERSATION],
   ])("maps %s to its i18n key", (taskStatus, expectedKey) => {
     expect(getTaskStatusI18nKey(taskStatus)).toBe(expectedKey);

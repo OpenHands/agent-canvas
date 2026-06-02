@@ -36,6 +36,16 @@ export function getTaskStatusI18nKey(taskStatus: string): I18nKey {
       return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
     case "SETTING_UP_SKILLS":
       return I18nKey.STATUS$SETTING_UP_SKILLS;
+    // Terminal states map to their own localized keys so any caller that
+    // delegates here (now or in the future) gets a correct label instead of
+    // silently falling through to STARTING_CONVERSATION. Callers that need a
+    // context-specific terminal label (e.g. getStatusCode's
+    // AGENT_STATUS$ERROR_OCCURRED, or getStatusText's taskDetail precedence)
+    // still handle these states before delegating.
+    case "READY":
+      return I18nKey.CONVERSATION$READY;
+    case "ERROR":
+      return I18nKey.COMMON$ERROR;
     case "STARTING_CONVERSATION":
     case "WORKING":
     case "PREPARING_REPOSITORY":

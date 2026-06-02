@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
-import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { getTaskStatusI18nKey } from "#/utils/status";
 
@@ -18,16 +17,9 @@ export function StartTaskStatusBadge({
     return null;
   }
 
-  // Localized status label
-  const getStatusLabel = () => {
-    if (taskStatus === "READY") {
-      return t(I18nKey.CONVERSATION$READY);
-    }
-    if (taskStatus === "ERROR") {
-      return t(I18nKey.COMMON$ERROR);
-    }
-    return t(getTaskStatusI18nKey(taskStatus));
-  };
+  // Localized status label — getTaskStatusI18nKey maps every status (including
+  // the terminal READY/ERROR states) to its localized key.
+  const getStatusLabel = () => t(getTaskStatusI18nKey(taskStatus));
 
   // Get status color
   const getStatusStyle = () => {
