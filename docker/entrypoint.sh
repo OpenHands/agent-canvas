@@ -137,6 +137,7 @@ cleanup() {
     kill "$pid" 2>/dev/null || true
   done
   wait 2>/dev/null || true
+  exit 0
 }
 trap cleanup EXIT SIGINT SIGTERM
 
@@ -243,7 +244,8 @@ node /opt/agent-canvas/static-server.mjs \
   --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
-PIDS+=($!)
+STATIC_PID=$!
+PIDS+=("$STATIC_PID")
 
 # ── 5. (Optional) Public-mode static server ─────────────────────────────────
 # When PUBLIC_MODE_PORT is set, start a second static-server instance that
@@ -272,13 +274,15 @@ fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
-# Keep the container alive even if a backend service exits.
-# In the non-Docker path each service is an independent host process —
-# one crashing doesn't take down the static-server proxy (it returns
-# 502 for the downed backend).  Using `wait -n … && exit` here would
-# bring down the entire container when a single backend recycles, causing
-# ECONNREFUSED for subsequent requests.
+# Wait on the static-server — the one process that MUST stay alive for the
+# container to serve traffic.  If a backend (agent-server, automation) exits,
+# the static-server proxy stays up and returns 502 for downed backend routes,
+# matching the non-Docker path where each service is an independent process.
 #
-# sleep blocks until SIGTERM/SIGINT, at which point the trap fires
-# cleanup() and kills the remaining children.
-while true; do sleep 86400; done
+# `wait` is a bash builtin, so it is interrupted immediately when a trapped
+# signal (SIGTERM/SIGINT) arrives, allowing cleanup() to fire without delay.
+# cleanup() calls `exit 0` so the script terminates after the trap returns.
+wait "$STATIC_PID"
+EXIT_CODE=$?
+log_error "Static server (PID $STATIC_PID) exited with code $EXIT_CODE"
+exit "$EXIT_CODE"
