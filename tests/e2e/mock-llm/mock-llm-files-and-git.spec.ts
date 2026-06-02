@@ -169,6 +169,10 @@ test.describe("files tab, git control bar, and browser tab", () => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
 
+    // Seed workspace metadata so the git control bar has something to
+    // show even when no git repo is detected (Docker path).
+    await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
+
     await routeSessionApiKey(page);
     await page.goto(`/conversations/${attachedConversationId}`, {
       waitUntil: "domcontentloaded",
@@ -176,19 +180,20 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // The git control bar renders below the chat input. In the mock-LLM
-    // E2E environment the agent-server creates worktrees inside the
-    // agent-canvas repo, so git detection produces the real repo name
-    // (e.g. "OpenHands/agent-canvas") rather than our seeded workspace
-    // basename. We verify the Pull/Push buttons are visible — these only
-    // render when the bar has detected a repository.
-    await test.step("verify git control bar action buttons are visible", async () => {
-      await expect(
-        page.getByRole("button", { name: /Pull/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
-      await expect(
-        page.getByRole("button", { name: /Push/i }).first(),
-      ).toBeVisible({ timeout: 5_000 });
+    // The git control bar renders below the chat input. What it shows
+    // depends on the environment:
+    //   npm path  → git detection finds the host repo → Pull/Push buttons
+    //   Docker    → no git repo in the container → workspace name pill
+    // Assert that at least one of these indicators is present.
+    await test.step("verify git control bar is visible", async () => {
+      const workspaceName = WORKSPACE_PATH.replace(/\/+$/, "").split("/").pop()!;
+      const pullButton = page.getByRole("button", { name: /Pull/i }).first();
+      const workspacePill = page.getByText(workspaceName, { exact: false });
+
+      // Wait for either the Pull button (npm) or workspace name (Docker)
+      await expect(pullButton.or(workspacePill)).toBeVisible({
+        timeout: 15_000,
+      });
     });
   });
 
