@@ -21,6 +21,10 @@ import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
 import { cn } from "#/utils/utils";
+import {
+  dropdownInstantColorClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 
 interface ConversationTabsContextMenuProps {
   isOpen: boolean;
@@ -120,7 +124,7 @@ export function ConversationTabsContextMenu({
           <li key={tab} className="list-none">
             <div
               className={cn(
-                "flex h-[30px] w-full min-w-0 items-stretch rounded",
+                "group flex h-[30px] w-full min-w-0 items-stretch rounded",
                 "hover:bg-[var(--oh-interactive-hover)]",
               )}
             >
@@ -128,29 +132,50 @@ export function ConversationTabsContextMenu({
                 type="button"
                 data-testid={`conversation-tabs-menu-open-${tab}`}
                 className={cn(
-                  "flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l p-2 text-start",
-                  "text-white transition-colors",
+                  "flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l p-2 text-start text-white",
+                  dropdownInstantColorClassName,
                 )}
                 onClick={() => handleOpenTab(tab)}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <span
+                  className={dropdownMenuRowIconWrapperClassName}
+                  aria-hidden
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
                 <span className="text-sm">{t(i18nKey)}</span>
               </button>
               <button
                 type="button"
                 data-testid={`conversation-tabs-menu-pin-${tab}`}
                 className={cn(
-                  "flex shrink-0 cursor-pointer items-center justify-center rounded-r px-2",
-                  "text-white transition-colors hover:bg-white/10",
+                  "flex shrink-0 cursor-pointer items-center justify-center rounded-r px-2 text-white hover:bg-white/10",
+                  dropdownInstantColorClassName,
                 )}
                 aria-pressed={pinned}
                 aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
                 onClick={(e) => handlePinToggle(tab, e)}
               >
                 {pinned ? (
-                  <PillFillIcon className="-mr-[5px] ml-auto h-7 w-7" />
+                  <span
+                    className={cn(
+                      "-mr-[5px] ml-auto",
+                      dropdownMenuRowIconWrapperClassName,
+                    )}
+                    aria-hidden
+                  >
+                    <PillFillIcon className="h-7 w-7" />
+                  </span>
                 ) : (
-                  <PillIcon className="ml-auto h-4.5 w-4.5" />
+                  <span
+                    className={cn(
+                      "ml-auto",
+                      dropdownMenuRowIconWrapperClassName,
+                    )}
+                    aria-hidden
+                  >
+                    <PillIcon className="h-4.5 w-4.5" />
+                  </span>
                 )}
               </button>
             </div>

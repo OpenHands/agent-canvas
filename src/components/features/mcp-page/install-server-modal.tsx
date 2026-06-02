@@ -19,6 +19,7 @@ import {
   type McpMarketplaceConnectionOption,
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 
 /**
  * Renders a helperText string as React nodes, converting any `[text](url)`
@@ -374,7 +375,7 @@ export function InstallServerModal({
         <div className="flex items-start gap-3 pr-6">
           <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
-            <h2 className="text-lg font-semibold">{entry.name}</h2>
+            <h2 className={modalTitleLgClassName}>{entry.name}</h2>
             <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
         </div>
