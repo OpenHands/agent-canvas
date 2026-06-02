@@ -267,9 +267,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
       // The segmented toggle should have the "on" option checked
       // (aria-checked="true") when diff view is the default.
+      // useHasAttachedSource depends on useActiveConversation resolving
+      // first, so allow enough time for the API round-trip + re-render.
       const diffOnOption = page.getByTestId("files-tab-diff-toggle-option-on");
       await expect(diffOnOption).toBeVisible({ timeout: 10_000 });
-      await expect(diffOnOption).toHaveAttribute("aria-checked", "true");
+      await expect(diffOnOption).toHaveAttribute("aria-checked", "true", {
+        timeout: 15_000,
+      });
     });
   });
 
