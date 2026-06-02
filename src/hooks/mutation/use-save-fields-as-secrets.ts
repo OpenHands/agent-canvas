@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import type { MarketplaceField } from "@openhands/extensions/integrations";
 import { SecretsService } from "#/api/secrets-service";
 import { I18nKey } from "#/i18n/declaration";
@@ -24,6 +25,7 @@ function formatKeyList(keys: string[]): string {
  */
 export function useSaveFieldsAsSecrets() {
   const { t } = useTranslation("openhands");
+  const queryClient = useQueryClient();
 
   return useCallback(
     (
@@ -53,6 +55,14 @@ export function useSaveFieldsAsSecrets() {
           .map((f) => f.key);
 
         if (saved.length > 0) {
+          // Refresh any cached secrets lists so a newly-saved secret shows up
+          // in Settings → Secrets immediately. Without this, the 5-minute
+          // staleTime on the secrets query (use-get-secrets.ts) can keep a
+          // previously-loaded list stale and hide the new secret. Mirrors the
+          // invalidation done by secret-form.tsx and secrets-settings.tsx.
+          queryClient.invalidateQueries({ queryKey: ["secrets-search"] });
+          queryClient.invalidateQueries({ queryKey: ["secrets"] });
+
           displaySuccessToast(
             t(I18nKey.MCP$SECRETS_SAVED, { keys: formatKeyList(saved) }),
           );
@@ -64,6 +74,6 @@ export function useSaveFieldsAsSecrets() {
         }
       });
     },
-    [t],
+    [t, queryClient],
   );
 }
