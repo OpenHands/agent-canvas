@@ -141,7 +141,7 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
+function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
   const status = overallStatus(tests);
   const icon = overallIcon(status);
   const passed = tests.filter((t) => t.status === "passed").length;
@@ -154,7 +154,7 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
   const lines = [];
 
   // Header
-  lines.push(`## ${icon} Mock-LLM E2E Tests`);
+  lines.push(`## ${icon} ${title || "Mock-LLM E2E Tests"}`);
   lines.push("");
 
   // Summary line
@@ -274,6 +274,7 @@ const report = renderReport({
   workflowUrl: args.workflow_url || "",
   commit: args.commit || "",
   artifactUrl: args.artifact_url || "",
+  title: args.title || "",
 });
 
 writeFileSync(outputPath, report);

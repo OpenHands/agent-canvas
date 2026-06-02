@@ -13,13 +13,13 @@ import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
-  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
 import {
-  findInstalledMatch,
-  getInstallableTemplate,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
@@ -30,8 +30,9 @@ interface RecommendedAutomationsLauncherProps {
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
   return automation.requiredIntegrationIds
-    .map((id) => getMarketplaceEntryById(id, INTEGRATION_MARKETPLACE))
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -72,7 +73,7 @@ export function buildAutomationPrompt(
     "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
     "- Read the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
     "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
-    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
+    "- Auth: `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
     "- If no local Automation backend is listed in `<RUNTIME_SERVICES>`, stop and ask me to start the full local automation stack instead of using any remote/cloud automation API.",
   ].join("\n");
 }
@@ -154,10 +155,9 @@ export function RecommendedAutomationsLauncher({
 
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
-      getRequiredEntries(automation).filter((entry) => {
-        const template = getInstallableTemplate(entry);
-        return !template || !findInstalledMatch(template, installedMcpServers);
-      }),
+      getRequiredEntries(automation).filter(
+        (entry) => !findInstalledEntryMatch(entry, installedMcpServers),
+      ),
     [installedMcpServers],
   );
 

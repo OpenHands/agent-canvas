@@ -2,46 +2,45 @@ import { describe, expect, it } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
-  getDefaultTemplate,
+  getDefaultMcpTransport,
+  getInstallableMcpConnectionOption,
+  getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import {
-  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
-  type IntegrationCatalogEntry,
-} from "@openhands/extensions/integrations";
+import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
 
-const tavilyEntry = INTEGRATION_MARKETPLACE.find(
-  (e: IntegrationCatalogEntry) => e.id === "tavily",
-)!;
-const filesystemEntry = INTEGRATION_MARKETPLACE.find(
-  (e: IntegrationCatalogEntry) => e.id === "filesystem",
-)!;
-// Atlassian has an SSE server as the default MCP option
-const atlassianEntry = INTEGRATION_MARKETPLACE.find(
-  (e: IntegrationCatalogEntry) => e.id === "atlassian",
-)!;
+const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
+const tavilyEntry = mcpMarketplace.find((e) => e.id === "tavily")!;
+const linearEntry = mcpMarketplace.find((e) => e.id === "linear")!;
+const filesystemEntry = mcpMarketplace.find((e) => e.id === "filesystem")!;
 
-const tavilyTemplate = getDefaultTemplate(tavilyEntry)!;
-const atlassianTemplate = getDefaultTemplate(atlassianEntry)!;
+function optionTransport(entry: typeof slackEntry, optionId = "api") {
+  const transport = entry.connectionOptions.find(
+    (option) => option.id === optionId,
+  )?.transport;
+  if (!transport) throw new Error(`Missing ${optionId} transport`);
+  return transport;
+}
 
 describe("findInstalledMatch", () => {
   it("matches stdio servers by name", () => {
-    const result = findInstalledMatch(tavilyTemplate, [
+    const result = findInstalledMatch(optionTransport(slackEntry), [
       {
         id: "stdio-0",
         type: "stdio",
-        name: "tavily",
+        name: "slack",
         command: "npx",
-        args: ["-y", "tavily-mcp"],
+        args: ["-y", "@zencoderai/slack-mcp-server"],
       },
     ]);
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
   it("does not match a different stdio name", () => {
-    const result = findInstalledMatch(tavilyTemplate, [
+    const result = findInstalledMatch(optionTransport(slackEntry), [
       {
         id: "stdio-0",
         type: "stdio",
@@ -57,7 +56,7 @@ describe("findInstalledMatch", () => {
     // Tavily lives in the catalog as a stdio MCP entry (the previous
     // tavily-builtin / search_api_key flow never persisted anywhere
     // and silently dropped the key); confirm the now-uniform match.
-    const result = findInstalledMatch(tavilyTemplate, [
+    const result = findInstalledMatch(getDefaultMcpTransport(tavilyEntry)!, [
       {
         id: "stdio-0",
         type: "stdio",
@@ -71,19 +70,18 @@ describe("findInstalledMatch", () => {
   });
 
   it("matches SSE servers loosely on URL", () => {
-    // Atlassian has SSE as its default MCP transport
-    const result = findInstalledMatch(atlassianTemplate, [
+    const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       {
         id: "sse-0",
         type: "sse",
-        url: "https://mcp.atlassian.com/v1/sse/",
+        url: "https://mcp.linear.app/sse/",
       },
     ]);
     expect(result).toEqual(expect.objectContaining({ id: "sse-0" }));
   });
 
   it("returns null when servers carry malformed urls (defensive)", () => {
-    const result = findInstalledMatch(atlassianTemplate, [
+    const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       // Cast to any to simulate runtime data slipping past the type.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { id: "sse-0", type: "sse", url: undefined as any },
@@ -92,10 +90,50 @@ describe("findInstalledMatch", () => {
   });
 });
 
+describe("getInstallableMcpConnectionOption", () => {
+  it("prefers Slack's API fallback over the default OAuth option", () => {
+    const option = getInstallableMcpConnectionOption(slackEntry);
+    expect(option?.id).toBe("api");
+    expect(option?.auth.strategy).toBe("api_key");
+    expect(option?.transport.kind).toBe("stdio");
+  });
+
+  it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
+    const oauthOnlyEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "oauth-only",
+        defaultConnectionOptionId: "oauth",
+        connectionOptions: [
+          {
+            id: "oauth",
+            provider: "mcp",
+            auth: { strategy: "oauth2" },
+            transport: { kind: "shttp", url: "https://example.com/mcp" },
+          } as Parameters<typeof getInstallableMcpConnectionOption>[0]["connectionOptions"][number],
+        ],
+      };
+    const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
+    expect(option).toBeUndefined();
+  });
+
+  it("returns undefined when the entry has no MCP connection options", () => {
+    const noOptionsEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "no-mcp",
+        defaultConnectionOptionId: undefined,
+        connectionOptions: [],
+      };
+    const option = getInstallableMcpConnectionOption(noOptionsEntry);
+    expect(option).toBeUndefined();
+  });
+});
+
 describe("isMarketplaceEntryAvailable", () => {
   it("treats unset availability as 'all'", () => {
-    expect(isMarketplaceEntryAvailable(tavilyEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(tavilyEntry, "cloud")).toBe(true);
+    expect(isMarketplaceEntryAvailable(slackEntry, "local")).toBe(true);
+    expect(isMarketplaceEntryAvailable(slackEntry, "cloud")).toBe(true);
   });
 
   it("hides local-only entries on cloud", () => {
@@ -106,12 +144,12 @@ describe("isMarketplaceEntryAvailable", () => {
 
 describe("marketplaceEntryMatchesQuery", () => {
   it("matches by name (case-insensitive)", () => {
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "tavily")).toBe(true);
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "TAVILY")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(slackEntry, "slack")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(slackEntry, "SLACK")).toBe(true);
   });
 
   it("matches by keyword", () => {
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "search")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(slackEntry, "messaging")).toBe(true);
   });
 
   it("matches by substring of description", () => {
@@ -119,35 +157,35 @@ describe("marketplaceEntryMatchesQuery", () => {
   });
 
   it("returns true for empty/whitespace queries", () => {
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "")).toBe(true);
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "   ")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(slackEntry, "")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(slackEntry, "   ")).toBe(true);
   });
 
   it("returns false for non-matches", () => {
-    expect(marketplaceEntryMatchesQuery(tavilyEntry, "zzzz-no-match")).toBe(
+    expect(marketplaceEntryMatchesQuery(slackEntry, "zzzz-no-match")).toBe(
       false,
     );
   });
 });
 
 describe("installedServerMatchesQuery", () => {
-  const tavilyServer = {
+  const slackServer = {
     id: "stdio-0",
     type: "stdio" as const,
-    name: "tavily",
+    name: "slack",
     command: "npx",
-    args: ["-y", "tavily-mcp"],
+    args: ["-y", "@zencoderai/slack-mcp-server"],
   };
 
   it("matches by stdio server name", () => {
-    expect(installedServerMatchesQuery(tavilyServer, undefined, "tavily")).toBe(
+    expect(installedServerMatchesQuery(slackServer, undefined, "slack")).toBe(
       true,
     );
   });
 
   it("matches via the catalog entry's name even if server.name differs", () => {
-    const renamed = { ...tavilyServer, name: "my-tavily-instance" };
-    expect(installedServerMatchesQuery(renamed, tavilyEntry, "tavily")).toBe(
+    const renamed = { ...slackServer, name: "my-slack-instance" };
+    expect(installedServerMatchesQuery(renamed, slackEntry, "slack")).toBe(
       true,
     );
   });
@@ -156,31 +194,31 @@ describe("installedServerMatchesQuery", () => {
     const sseServer = {
       id: "sse-0",
       type: "sse" as const,
-      url: "https://mcp.atlassian.com/v1/sse",
+      url: "https://mcp.linear.app/sse",
     };
-    expect(installedServerMatchesQuery(sseServer, undefined, "atlassian")).toBe(
+    expect(installedServerMatchesQuery(sseServer, undefined, "linear")).toBe(
       true,
     );
   });
 
   it("empty query always matches", () => {
-    expect(installedServerMatchesQuery(tavilyServer, undefined, "")).toBe(true);
+    expect(installedServerMatchesQuery(slackServer, undefined, "")).toBe(true);
   });
 });
 
 describe("findCatalogEntryForServer", () => {
-  it("finds the Tavily catalog entry for an installed Tavily stdio server", () => {
+  it("finds the Slack catalog entry for an installed Slack stdio server", () => {
     const match = findCatalogEntryForServer(
       {
         id: "stdio-0",
         type: "stdio",
-        name: "tavily",
+        name: "slack",
         command: "npx",
         args: [],
       },
-      INTEGRATION_MARKETPLACE,
+      mcpMarketplace,
     );
-    expect(match?.id).toBe("tavily");
+    expect(match?.id).toBe("slack");
   });
 
   it("returns undefined for unknown servers", () => {
@@ -193,7 +231,7 @@ describe("findCatalogEntryForServer", () => {
           command: "npx",
           args: [],
         },
-        INTEGRATION_MARKETPLACE,
+        mcpMarketplace,
       ),
     ).toBeUndefined();
   });
@@ -203,15 +241,16 @@ describe("findCatalogEntryForServer", () => {
     // diverged from findInstalledMatch and caused installed cards to
     // render the generic icon while the marketplace tile said
     // "Installed".
-    // Atlassian has SSE as its default MCP transport
-    if (atlassianTemplate?.kind !== "sse") {
-      throw new Error("Atlassian template should be SSE");
+    const linear = mcpMarketplace.find((e) => e.id === "linear")!;
+    const linearTransport = getDefaultMcpTransport(linear);
+    if (linearTransport?.kind !== "sse") {
+      throw new Error("Linear template should be SSE");
     }
-    const normalizedUrl = atlassianTemplate.url.replace(/\/$/, "");
+    const normalizedUrl = linearTransport.url.replace(/\/$/, "");
     const match = findCatalogEntryForServer(
       { id: "sse-0", type: "sse", url: `${normalizedUrl}/` },
-      INTEGRATION_MARKETPLACE,
+      mcpMarketplace,
     );
-    expect(match?.id).toBe("atlassian");
+    expect(match?.id).toBe("linear");
   });
 });

@@ -318,71 +318,13 @@ describe("buildConfig", () => {
     expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
-  it("reads sessionApiKey from SESSION_API_KEY", async () => {
+  it("reads sessionApiKey from LOCAL_BACKEND_API_KEY", async () => {
     const config = await buildConfig(
       {},
-      { ...envWithIsolatedKeyPath(), SESSION_API_KEY: "my-session-key" },
+      { ...envWithIsolatedKeyPath(), LOCAL_BACKEND_API_KEY: "my-api-key" },
     );
 
-    expect(config.sessionApiKey).toBe("my-session-key");
-  });
-
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
-    const config = await buildConfig(
-      {},
-      { ...envWithIsolatedKeyPath(), VITE_SESSION_API_KEY: "vite-session-key" },
-    );
-
-    expect(config.sessionApiKey).toBe("vite-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "session-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("session-key");
-  });
-
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
-    const config = await buildConfig(
-      {},
-      { ...envWithIsolatedKeyPath(), OH_SESSION_API_KEYS_0: "v1-session-key" },
-    );
-
-    expect(config.sessionApiKey).toBe("v1-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
+    expect(config.sessionApiKey).toBe("my-api-key");
   });
 });
 

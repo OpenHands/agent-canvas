@@ -5,11 +5,7 @@
  * shorter timeouts (responses are instant), no real credential handling.
  */
 
-import {
-  expect,
-  type APIRequestContext,
-  type Page,
-} from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // Tokens that the mock LLM server uses — must match mock-llm-server.py.
 export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
@@ -19,17 +15,28 @@ export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
-export const MOCK_LLM_PORT =
-  process.env.MOCK_LLM_PORT ?? "9999";
+export const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
+
+// URL tests use to hit the mock LLM admin API (always on the host).
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
+
+// URL the agent-server uses to reach the mock LLM for inference calls.
+// In the npm path both run on the host, so this equals MOCK_LLM_BASE_URL.
+// In Docker with --network host on Linux this also works as-is.
+// For Docker on macOS (bridge networking), set MOCK_LLM_AGENT_URL to
+// http://host.docker.internal:<port> so the container can reach the host.
+export const MOCK_LLM_AGENT_URL =
+  process.env.MOCK_LLM_AGENT_URL ?? MOCK_LLM_BASE_URL;
 export const BACKEND_URL =
   process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
+// Public-mode static server (--auth-required, no session key injected).
+export const PUBLIC_MODE_URL =
+  process.env.MOCK_LLM_PUBLIC_MODE_URL ?? "http://localhost:18301";
 export const SESSION_API_KEY = (() => {
   const key =
     process.env.MOCK_LLM_SESSION_API_KEY ??
+    process.env.LOCAL_BACKEND_API_KEY ??
     process.env.LIVE_E2E_SESSION_API_KEY ??
-    process.env.SESSION_API_KEY ??
-    process.env.VITE_SESSION_API_KEY ??
     "";
   if (!key) throw new Error("Session API key is required for mock-LLM E2E.");
   return key;
@@ -66,10 +73,9 @@ export async function waitForPath(
   timeout = 30_000,
 ) {
   await expect
-    .poll(
-      () => page.evaluate(() => window.location.pathname).catch(() => ""),
-      { timeout },
-    )
+    .poll(() => page.evaluate(() => window.location.pathname).catch(() => ""), {
+      timeout,
+    })
     .toMatch(pattern);
 }
 
@@ -287,7 +293,9 @@ export async function ensureMockLLMProfile(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  // Check if the current profile already has the mock LLM settings
+  // Check if the current profile already has the mock LLM settings.
+  // Use MOCK_LLM_AGENT_URL — this is the URL the agent-server will use to
+  // reach the mock LLM, which may differ from MOCK_LLM_BASE_URL in Docker.
   const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
@@ -298,7 +306,7 @@ export async function ensureMockLLMProfile(
   if (settingsResp.ok()) {
     const settings = await settingsResp.json();
     const llm = settings?.agent_settings?.llm;
-    if (llm?.model === model && llm?.base_url === MOCK_LLM_BASE_URL) {
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
       return; // Already configured
     }
   }
@@ -314,7 +322,7 @@ export async function ensureMockLLMProfile(
         llm: {
           model,
           api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_BASE_URL,
+          base_url: MOCK_LLM_AGENT_URL,
         },
       },
     },

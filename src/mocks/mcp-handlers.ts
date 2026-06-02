@@ -1,5 +1,5 @@
-import { http, HttpResponse } from "msw";
 import type { MCPTestResponse } from "@openhands/typescript-client";
+import { http, HttpResponse } from "msw";
 
 /**
  * MSW handlers for the MCP API.
