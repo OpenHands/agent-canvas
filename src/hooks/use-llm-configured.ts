@@ -13,8 +13,10 @@ interface LlmConfiguredResult {
    */
   isConfigured: boolean;
   /**
-   * True while settings/config are still resolving. Consumers should render
-   * nothing in this state so a warning doesn't flash before data loads.
+   * True while the configured/unconfigured state is indeterminate — either
+   * settings/config are still resolving, or a fetch failed and left us with no
+   * data to decide from. Consumers should render nothing in this state so a
+   * warning doesn't flash before data loads or on a transient network error.
    */
   isLoading: boolean;
 }
@@ -25,8 +27,16 @@ interface LlmConfiguredResult {
  * which persists no settings — leaving an OpenHands agent without an API key.
  */
 export function useLlmConfigured(): LlmConfiguredResult {
-  const { data: settings, isLoading: settingsLoading } = useSettings();
-  const { data: config, isLoading: configLoading } = useConfig();
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+  } = useSettings();
+  const {
+    data: config,
+    isLoading: configLoading,
+    isError: configError,
+  } = useConfig();
 
   const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
   const hasApiKey = settings?.llm_api_key_set === true;
@@ -35,8 +45,18 @@ export function useLlmConfigured(): LlmConfiguredResult {
     config?.feature_flags,
   );
 
+  // Treat a fetch failure as indeterminate (same as loading) only when it
+  // leaves us with no data to decide from — otherwise a transient network
+  // error would surface the banner with the same urgency as a genuinely
+  // missing API key. A settings 404 is deliberately not covered here:
+  // `useSettings` maps it to DEFAULT_SETTINGS (no key, OpenHands agent) while
+  // keeping `isError` set, and that is exactly the new-user / "Skip for now"
+  // state the banner exists to catch — so we keep deciding from that data.
+  const settingsIndeterminate = settingsLoading || (settingsError && !settings);
+  const configIndeterminate = configLoading || (configError && !config);
+
   return {
     isConfigured: isAcpAgent || hasApiKey || llmSettingsHidden,
-    isLoading: settingsLoading || configLoading,
+    isLoading: settingsIndeterminate || configIndeterminate,
   };
 }

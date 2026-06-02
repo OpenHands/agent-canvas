@@ -135,6 +135,40 @@ describe("LlmNotConfiguredBanner", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("stays hidden when the LLM settings page is hidden by feature flag", async () => {
+    // Arrange: no key, but the settings page is hidden — routing the user to
+    // /settings/llm would dead-end, so the hook treats the LLM as configured.
+    vi.spyOn(OptionService, "getConfig").mockResolvedValue(buildConfig(true));
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_api_key_set: false }),
+    );
+
+    // Act
+    renderBanner();
+    await screen.findByTestId("queries-settled");
+
+    // Assert
+    expect(
+      screen.queryByTestId("home-llm-not-configured-banner"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns when settings 404 — the genuine new-user state — despite the error flag", async () => {
+    // Arrange: a 404 means no settings exist yet. useSettings maps it to
+    // DEFAULT_SETTINGS (no key) while keeping isError set, so the banner must
+    // still appear — this is the real "Skip for now" state. Guards against
+    // conflating this with a transient fetch error that should suppress it.
+    vi.spyOn(SettingsService, "getSettings").mockRejectedValue({ status: 404 });
+
+    // Act
+    renderBanner();
+
+    // Assert
+    expect(
+      await screen.findByTestId("home-llm-not-configured-banner"),
+    ).toBeInTheDocument();
+  });
+
   it("routes the user to LLM settings when the action is clicked", async () => {
     // Arrange
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
