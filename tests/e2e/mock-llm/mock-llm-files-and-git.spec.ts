@@ -29,6 +29,38 @@ import {
 const USER_MESSAGE = "Hello, please respond.";
 const WORKSPACE_PATH = "/tmp/e2e-test-project/my-app";
 
+/**
+ * Seed `selected_workspace` into the conversation metadata localStorage key.
+ * Each Playwright test gets a fresh browser context, so this must be called
+ * in every test that needs the workspace attachment signal — not just once.
+ *
+ * Uses `addInitScript` (like `seedLocalStorage`) so the script fires on the
+ * real app origin when the first `page.goto()` triggers a document load.
+ * A plain `page.evaluate` on `about:blank` would write to the wrong origin.
+ */
+async function seedWorkspaceMetadata(
+  page: import("@playwright/test").Page,
+  conversationId: string,
+  workspacePath: string,
+) {
+  await page.addInitScript(
+    ({ convId, wsPath }) => {
+      const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      const all = raw ? JSON.parse(raw) : {};
+      all[convId] = {
+        ...(all[convId] || {}),
+        selected_workspace: wsPath,
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    },
+    { convId: conversationId, wsPath: workspacePath },
+  );
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("files tab, git control bar, and browser tab", () => {
@@ -119,22 +151,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // This simulates a user who picked a local folder before starting the
     // conversation — the metadata store is what `useHasAttachedSource`
     // and the git control bar read from.
-    await page.evaluate(
-      ({ convId, workspacePath }) => {
-        const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        const all = raw ? JSON.parse(raw) : {};
-        all[convId] = {
-          ...(all[convId] || {}),
-          selected_workspace: workspacePath,
-          selected_repository: null,
-          selected_branch: null,
-          git_provider: null,
-        };
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-      },
-      { convId: conversationId, workspacePath: WORKSPACE_PATH },
-    );
+    await seedWorkspaceMetadata(page, conversationId, WORKSPACE_PATH);
 
     // Reload so hooks re-read from localStorage
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -151,6 +168,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
   }) => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
+
+    // Re-seed workspace metadata — each test gets a fresh browser context.
+    await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
 
     await routeSessionApiKey(page);
     await page.goto(`/conversations/${attachedConversationId}`, {
@@ -181,6 +201,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
   }) => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
+
+    // Re-seed workspace metadata — each test gets a fresh browser context.
+    await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
 
     await routeSessionApiKey(page);
     await page.goto(`/conversations/${attachedConversationId}`, {
