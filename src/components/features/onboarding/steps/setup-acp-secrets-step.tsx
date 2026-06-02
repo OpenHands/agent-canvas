@@ -2,11 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
+import { Check, Loader2 } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { I18nKey } from "#/i18n/declaration";
 import { useCreateSecret } from "#/hooks/mutation/use-create-secret";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
+import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
 import {
   getAcpProviderDisplayName,
   getAcpProviderSecrets,
@@ -22,29 +24,39 @@ interface SetupAcpSecretsStepProps {
   /** ACP provider whose credentials we're collecting (e.g. ``"claude-code"``).
    * Typed as {@link OnboardingAgentId} — the same type the onboarding modal
    * tracks — so a mistyped key is a compile error rather than a silently empty
-   * form. Providers without a credentials entry (``"openhands"``,
-   * ``"gemini-cli"``) simply yield no fields. */
+   * form. Providers without a credentials entry (``"openhands"``) simply yield
+   * no fields. */
   providerKey: OnboardingAgentId;
+  /**
+   * Whether this is the currently visible onboarding slide. The modal mounts
+   * every slide at once, so we only run the (subprocess-spinning) login probe
+   * once the user has actually reached this step — by which point the backend
+   * is confirmed connected.
+   */
+  isActive: boolean;
   onBack: () => void;
   onNext: () => void;
 }
 
 /**
- * Onboarding credentials step for ACP providers that authenticate via an
- * env-var API key (Claude Code, Codex). The fields are derived from
+ * Onboarding credentials step for ACP providers that expose an env-var API key
+ * (Claude Code, Codex, Gemini CLI). The fields are derived from
  * {@link getAcpProviderSecrets}; each one maps 1:1 to a **global secret**
  * whose name equals the env var the agent-server exports into the provider
  * subprocess. Saving here is therefore the same as adding the secret under
  * Settings → Secrets — it shows up there afterwards.
  *
- * The step is intentionally skippable: a user may authenticate Claude Code via
- * a subscription login, or already have the env var set on the backend, so we
- * never block "Next" on a value. Empty fields are simply not written; a field
- * whose secret already exists shows an "already saved" placeholder and is left
- * untouched unless the user types a replacement.
+ * The step is intentionally skippable: a user may authenticate via a
+ * subscription / OAuth login (a Claude login, or Gemini's Google login), or
+ * already have the env var set on the backend, so we never block "Next" on a
+ * value — and the login probe shows a "you're already signed in" banner when it
+ * detects one. Empty fields are simply not written; a field whose secret
+ * already exists shows an "already saved" placeholder and is left untouched
+ * unless the user types a replacement.
  */
 export function SetupAcpSecretsStep({
   providerKey,
+  isActive,
   onBack,
   onNext,
 }: SetupAcpSecretsStepProps) {
@@ -52,6 +64,12 @@ export function SetupAcpSecretsStep({
   const queryClient = useQueryClient();
   const { mutateAsync: createSecret } = useCreateSecret();
   const { data: existingSecrets } = useSearchSecrets();
+  // Login detection via AcpService (provider status commands run through the
+  // agent-server bash endpoint) — see issue #964.
+  const { status: authStatus, isChecking: isCheckingAuth } = useAcpAuthStatus(
+    providerKey,
+    { enabled: isActive },
+  );
 
   const fields = React.useMemo(
     () => getAcpProviderSecrets(providerKey),
@@ -115,7 +133,45 @@ export function SetupAcpSecretsStep({
             provider: providerName,
           })}
         </p>
+        {authStatus !== "authenticated" && (
+          // When already signed in, the success banner below already says to
+          // leave the fields blank, so this general reminder would be redundant.
+          <p className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBSCRIPTION_NOTE)}
+          </p>
+        )}
       </header>
+
+      {authStatus === "authenticated" ? (
+        <div
+          data-testid="onboarding-acp-auth-detected"
+          // Matches the onboarding "backend connected" success banner
+          // (check-backend-step.tsx) for a consistent look.
+          className="flex items-start gap-2 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
+        >
+          <Check
+            className="mt-0.5 size-4 shrink-0 text-green-400"
+            aria-hidden
+          />
+          <span>
+            {t(I18nKey.ONBOARDING$ACP_AUTH_DETECTED, {
+              provider: providerName,
+            })}
+          </span>
+        </div>
+      ) : isCheckingAuth ? (
+        <div
+          data-testid="onboarding-acp-auth-checking"
+          className="flex items-center gap-2 text-sm text-[var(--oh-muted)]"
+        >
+          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+          <span>
+            {t(I18nKey.ONBOARDING$ACP_AUTH_CHECKING, {
+              provider: providerName,
+            })}
+          </span>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-5">
         {fields.map((field) => {
