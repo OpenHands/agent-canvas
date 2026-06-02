@@ -65,7 +65,7 @@ jobs:
             cancel-in-progress: false
         steps:
             - name: Run issue duplicate check
-              uses: OpenHands/extensions/plugins/issue-duplicate-checker@main
+              uses: OpenHands/extensions/plugins/issue-duplicate-checker@fb020c71eb8e7cd2678f0251ab24327d3738da7d
               with:
                   mode: issue-check
                   repository: ${{ github.repository }}
@@ -85,7 +85,7 @@ jobs:
             cancel-in-progress: false
         steps:
             - name: Auto-close aged duplicate candidates
-              uses: OpenHands/extensions/plugins/issue-duplicate-checker@main
+              uses: OpenHands/extensions/plugins/issue-duplicate-checker@fb020c71eb8e7cd2678f0251ab24327d3738da7d
               with:
                   mode: auto-close
                   repository: ${{ github.repository }}
