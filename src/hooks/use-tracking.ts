@@ -59,6 +59,23 @@ export const useTracking = () => {
     });
   };
 
+  const trackPrebuiltAutomationEnabled = ({
+    automationId,
+    automationName,
+    automationCategory,
+  }: {
+    automationId?: string;
+    automationName: string;
+    automationCategory?: string;
+  }) => {
+    posthog.capture("prebuilt_automation_enabled", {
+      automation_id: automationId,
+      automation_name: automationName,
+      automation_category: automationCategory,
+      ...commonProperties,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -66,5 +83,6 @@ export const useTracking = () => {
     trackPullButtonClick,
     trackCreatePrButtonClick,
     trackUserSignupCompleted,
+    trackPrebuiltAutomationEnabled,
   };
 };

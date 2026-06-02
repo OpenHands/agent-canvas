@@ -29,7 +29,7 @@ import { ErrorState } from "#/components/features/automations/error-state";
 import { BackendNotConfigured } from "#/components/features/automations/backend-not-configured";
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
-import { trackEvent } from "#/services/telemetry";
+import { useTracking } from "#/hooks/use-tracking";
 
 export default function AutomationDetail() {
   const { t } = useTranslation("openhands");
@@ -67,6 +67,7 @@ export default function AutomationDetail() {
     enabled: isBackendHealthy && !backendChanged,
   });
 
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
@@ -130,9 +131,9 @@ export default function AutomationDetail() {
     const willEnable = !automation.enabled;
     toggleMutation.mutate({ id: automation.id, enabled: willEnable });
     if (willEnable) {
-      trackEvent("prebuilt_automation_enabled", {
-        automation_id: automation.id,
-        automation_name: automation.name,
+      trackPrebuiltAutomationEnabled({
+        automationId: automation.id,
+        automationName: automation.name,
       });
     }
   };

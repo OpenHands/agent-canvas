@@ -22,7 +22,7 @@ import {
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
-import { trackEvent } from "#/services/telemetry";
+import { useTracking } from "#/hooks/use-tracking";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
 
 interface RecommendedAutomationsLauncherProps {
@@ -86,6 +86,7 @@ export function RecommendedAutomationsLauncher({
   const activeBackend = useActiveBackend();
   const { navigate } = useNavigation();
   const { data: settings } = useSettings();
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const createConversation = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const setMessageToSend = useConversationStore(
@@ -124,9 +125,9 @@ export function RecommendedAutomationsLauncher({
         {},
         {
           onSuccess: (conversation) => {
-            trackEvent("prebuilt_automation_enabled", {
-              automation_name: automation.name,
-              automation_category: automation.category,
+            trackPrebuiltAutomationEnabled({
+              automationName: automation.name,
+              automationCategory: automation.category,
             });
             if (
               conversation.conversation_id.startsWith("task-") &&
@@ -155,6 +156,7 @@ export function RecommendedAutomationsLauncher({
       navigate,
       onLaunched,
       setMessageToSend,
+      trackPrebuiltAutomationEnabled,
     ],
   );
 
