@@ -2,20 +2,42 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # agent-canvas all-in-one entrypoint
 #
-# Starts three services:
+# Starts three services (plus an optional fourth):
 #   1. Agent Server   on port $AGENT_SERVER_PORT  (default 18000)
 #   2. Automation     on port $AUTOMATION_PORT     (default 18001)
 #   3. Static server  on port $PORT               (default 8000)
 #      Routes /api/automation/* → automation, /api/* → agent-server,
 #      and serves the frontend static build for everything else.
+#   4. (Optional) Public-mode static server on $PUBLIC_MODE_PORT
+#      Same frontend, but with --auth-required (no baked session key).
+#      Used by auth-mode E2E tests. Only started when PUBLIC_MODE_PORT is set.
 #
 # Environment variables:
 #   PORT                 – Unified entry point port (default: 8000)
 #   AGENT_SERVER_PORT    – Internal agent-server port (default: 18000)
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
+#   PUBLIC_MODE_PORT     – If set, starts a second static server on this port
+#                          with --auth-required (no session key injected)
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
 #                          and persisted if not provided)
-#   OPENHANDS_AUTOMATION_API_KEY – API key for automation backend auth
+#   OPENHANDS_AUTOMATION_API_KEY – Override automation backend auth key
+#                          (defaults to session API key — both backends
+#                          use the same `X-Session-API-Key` header)
+#   AUTOMATION_AGENT_SERVER_URL  – URL the automation service uses to reach the
+#                          agent-server (default: http://127.0.0.1:AGENT_SERVER_PORT).
+#                          Setting this enables local-mode auth so the session
+#                          API key is validated internally instead of against the
+#                          OpenHands cloud API.
+#   FILE_STORE             – Storage backend for automation tarballs (default: local).
+#                          Without this the automation backend may fall back to
+#                          S3/GCS which fails without cloud credentials.
+#   LOCAL_STORAGE_PATH     – Directory for local file storage (default: ~/.openhands/storage)
+#   AUTOMATION_BASE_URL    – Publicly-reachable base URL for the automation
+#                          service, used in callback URLs and injected into
+#                          sandboxes (default: http://127.0.0.1:$PORT).
+#                          Override in production when the external URL differs.
+#   AUTOMATION_WORKSPACE_BASE – Directory for automation run workspaces
+#                          (default: ~/.openhands/workspaces)
 #   Any agent-server or automation env vars are passed through.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
@@ -60,24 +82,46 @@ if [ -z "${OH_SECRET_KEY:-}" ]; then
 fi
 export OH_SECRET_KEY
 
-# Session API key — generate one if not provided so the image doesn't run
-# wide-open by default. Persisted so restarts reuse the same key.
-SESSION_KEY_FILE="${STATE_DIR}/session-api-key.txt"
-if [ -z "${OH_SESSION_API_KEYS_0:-}" ] && [ -z "${SESSION_API_KEY:-}" ]; then
-  if [ -f "$SESSION_KEY_FILE" ]; then
-    SESSION_API_KEY="$(cat "$SESSION_KEY_FILE")"
+# API key — generate one if not provided so the image doesn't run wide-open
+# by default. LOCAL_BACKEND_API_KEY is the single user-facing env var.
+# Persisted so restarts reuse the same key.
+API_KEY_FILE="${STATE_DIR}/api-key.txt"
+
+if [ -z "${LOCAL_BACKEND_API_KEY:-}" ] && [ -z "${OH_SESSION_API_KEYS_0:-}" ]; then
+  if [ -f "$API_KEY_FILE" ]; then
+    LOCAL_BACKEND_API_KEY="$(cat "$API_KEY_FILE")"
   else
-    SESSION_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-    mkdir -p "$(dirname "$SESSION_KEY_FILE")"
-    printf '%s' "$SESSION_API_KEY" > "$SESSION_KEY_FILE"
-    chmod 600 "$SESSION_KEY_FILE"
-    log "Generated session API key (persisted to $SESSION_KEY_FILE)"
+    LOCAL_BACKEND_API_KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    mkdir -p "$(dirname "$API_KEY_FILE")"
+    printf '%s' "$LOCAL_BACKEND_API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    log "Generated API key (persisted to $API_KEY_FILE)"
   fi
-  export OH_SESSION_API_KEYS_0="$SESSION_API_KEY"
+  export OH_SESSION_API_KEYS_0="$LOCAL_BACKEND_API_KEY"
 fi
+
+# Both backends share the same API key value and the same `X-Session-API-Key`
+# header for authentication.  Default OPENHANDS_AUTOMATION_API_KEY to the
+# API key so a single credential secures the whole stack.
+EFFECTIVE_SESSION_KEY="${OH_SESSION_API_KEYS_0:-${LOCAL_BACKEND_API_KEY:-}}"
+if [ -z "$EFFECTIVE_SESSION_KEY" ]; then
+  log "ERROR: No session API key available — cannot configure automation auth"
+  exit 1
+fi
+export OPENHANDS_AUTOMATION_API_KEY="${OPENHANDS_AUTOMATION_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
+export AUTOMATION_LOCAL_API_KEY="${AUTOMATION_LOCAL_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
+export AUTOMATION_AGENT_SERVER_API_KEY="${AUTOMATION_AGENT_SERVER_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 
 # AGENT_SERVER_URL — needed by automation sandbox callbacks.
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
+
+# AUTOMATION_AGENT_SERVER_URL — the URL the automation service uses to reach
+# the agent-server REST API (tarball upload, bash dispatch, auth key minting).
+# When set, ServiceSettings.is_local_mode returns True, enabling local API key
+# authentication. Without this, the automation server falls back to validating
+# keys against the OpenHands cloud API (app.all-hands.dev), which returns 401
+# for locally-generated session keys.
+export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
 # Make custom tools (e.g. canvas_ui_tool.py) importable by the agent-server
 # via tool_module_qualnames. Matches what scripts/dev-safe.mjs does with
@@ -93,6 +137,7 @@ cleanup() {
     kill "$pid" 2>/dev/null || true
   done
   wait 2>/dev/null || true
+  exit 0
 }
 trap cleanup EXIT SIGINT SIGTERM
 
@@ -116,6 +161,23 @@ log "Starting automation server on port $AUTOMATION_PORT..."
 
 # Disable the automation's own frontend — agent-canvas provides the UI.
 export AUTOMATION_FRONTEND_DIR=""
+
+# File storage — use local filesystem unless the user has configured cloud
+# storage.  Without FILE_STORE=local the automation backend may fall back
+# to a cloud provider (S3/GCS) which will fail without credentials, causing
+# tarball-based presets (preset/prompt, preset/plugin) to silently error.
+export FILE_STORE="${FILE_STORE:-local}"
+export LOCAL_STORAGE_PATH="${LOCAL_STORAGE_PATH:-${OPENHANDS_DIR}/storage}"
+mkdir -p "$LOCAL_STORAGE_PATH"
+
+# AUTOMATION_BASE_URL — the publicly-reachable base URL for the automation
+# service.  Appended to callback URLs and injected into each sandbox as
+# AUTOMATION_API_URL.  Defaults to the unified ingress.
+export AUTOMATION_BASE_URL="${AUTOMATION_BASE_URL:-http://127.0.0.1:${PORT}}"
+
+# AUTOMATION_WORKSPACE_BASE — where automation runs unpack tarballs.
+export AUTOMATION_WORKSPACE_BASE="${AUTOMATION_WORKSPACE_BASE:-${OPENHANDS_DIR}/workspaces}"
+mkdir -p "$AUTOMATION_WORKSPACE_BASE"
 
 # Default to SQLite so the automation server works out of the box without
 # an external PostgreSQL instance. Users can override AUTOMATION_DB_URL to
@@ -166,10 +228,12 @@ wait "$WAIT_PID1" "$WAIT_PID2"
 # ── 4. Start static server (frontend + proxy) ────────────────────────────────
 log "Starting frontend + proxy on port $PORT..."
 
+# EFFECTIVE_SESSION_KEY is set above from LOCAL_BACKEND_API_KEY or the persisted api-key.txt
 node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
   --host 0.0.0.0 \
   --dir /opt/agent-canvas/frontend \
+  --session-api-key "$EFFECTIVE_SESSION_KEY" \
   --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
   --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
@@ -180,12 +244,49 @@ node /opt/agent-canvas/static-server.mjs \
   --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
   --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
-PIDS+=($!)
+STATIC_PID=$!
+PIDS+=("$STATIC_PID")
+
+# ── 5. (Optional) Public-mode static server ─────────────────────────────────
+# When PUBLIC_MODE_PORT is set, start a second static-server instance that
+# serves the same frontend WITHOUT injecting the session key into the HTML
+# (--auth-required). This is used by auth-mode E2E tests to verify the
+# ApiKeyEntryScreen gate, key rotation recovery, etc.
+if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
+  log "Starting public-mode frontend on port $PUBLIC_MODE_PORT (--auth-required)..."
+  node /opt/agent-canvas/static-server.mjs \
+    --port "$PUBLIC_MODE_PORT" \
+    --host 0.0.0.0 \
+    --dir /opt/agent-canvas/frontend \
+    --auth-required \
+    --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
+    --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/sockets=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/alive=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/health=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/ready=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
+    --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
+  PIDS+=($!)
+fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
-# Wait for any child to exit. If one dies, the trap will clean up the rest.
-wait -n "${PIDS[@]}" 2>/dev/null
-EXIT_CODE=$?
-log_error "A service exited with code $EXIT_CODE"
-exit "$EXIT_CODE"
+# Keep the container alive while the static-server (ingress) is running.
+# Backend crashes (agent-server, automation) are tolerated — the proxy
+# returns 502 for downed routes, matching the non-Docker path where each
+# service is an independent host process.
+#
+# Pattern: `sleep & wait $!` makes `wait` (a bash builtin) the foreground
+# operation.  Unlike a bare `sleep`, the builtin `wait` is interrupted
+# immediately when a trapped signal (SIGTERM/SIGINT) arrives, so cleanup()
+# fires without delay.  cleanup() calls `exit 0` to terminate after the
+# trap returns.  The loop re-checks the static-server PID every 10 s so the
+# container exits promptly if the ingress process dies on its own.
+while kill -0 "$STATIC_PID" 2>/dev/null; do
+  sleep 10 & wait $!
+done
+log_error "Static server (PID $STATIC_PID) exited"
+exit 1

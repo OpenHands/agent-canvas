@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useMemo,
@@ -132,12 +133,17 @@ export function ConversationWebSocketProvider({
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
-  const { setErrorMessage, removeErrorMessage } = useErrorMessageStore();
+  const clearEventsForConversation = useEventStore(
+    (state) => state.clearEventsForConversation,
+  );
+  const { setErrorMessage, removeErrorMessage, clearConnectionError } =
+    useErrorMessageStore();
   const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
     (state) => state.consumeMatchingPendingMessage,
   );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
+  const resetBrowserStore = useBrowserStore((state) => state.reset);
 
   // History loading state.
   // - Main conversation history is now loaded via REST (`useConversationHistory`),
@@ -168,8 +174,10 @@ export function ConversationWebSocketProvider({
     path?.toUpperCase().endsWith("PLAN.MD") ?? false;
 
   const handleNonErrorEvent = useCallback(() => {
-    removeErrorMessage();
-  }, [removeErrorMessage]);
+    // A normal event means connectivity recovered: clear a transient connection
+    // error, but keep sticky conversation errors (e.g. a wrong API key).
+    clearConnectionError();
+  }, [clearConnectionError]);
 
   // Helper function to update metrics from stats event
   const updateMetricsFromStats = useCallback(
@@ -215,12 +223,55 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
-  useEffect(() => {
+  // Clear the (global, not conversation-scoped) event store when the active
+  // conversation changes, BEFORE the preloaded-history effect below re-seeds
+  // it. This MUST live here rather than in the route component: a parent's
+  // passive effect runs *after* this child's layout effects, so clearing from
+  // the route would wipe the freshly seeded history. On a conversation switch
+  // the history page is already cached, so `preloadedHistory` is available
+  // synchronously — without ordering the clear first, the user's already-echoed
+  // message gets seeded then immediately wiped, leaving only the `since`
+  // WebSocket resend (the agent's reply). Re-entering the same conversation is
+  // a no-op, so the store survives navigating away to Settings and back.
+  useLayoutEffect(() => {
+    const nextId = conversationId ?? null;
+    if (useEventStore.getState().loadedConversationId === nextId) {
+      return;
+    }
+    // Single atomic action: clears the previous conversation's events and
+    // records the new loaded id in one `set`, so no subscriber can observe a
+    // half-applied state (events gone but the old id still reported).
+    clearEventsForConversation(nextId);
+    resetBrowserStore();
+  }, [conversationId, clearEventsForConversation, resetBrowserStore]);
+
+  useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
     addEvents(preloadedHistory.events);
-  }, [preloadedHistory, addEvents]);
+
+    // The first user message of a cloud start-task conversation is persisted
+    // server-side and reaches us via this REST preload, not over the WebSocket
+    // (which subscribes with resend_mode='since' after the latest preloaded
+    // timestamp). Consume any matching optimistic "Sending…" bubble here too —
+    // mirroring the WS handler — so it doesn't linger as a duplicate of the echo.
+    if (conversationId) {
+      for (const event of preloadedHistory.events) {
+        if (isUserMessageEvent(event)) {
+          consumeMatchingPendingMessage(
+            conversationId,
+            extractMessageEventText(event),
+          );
+        }
+      }
+    }
+  }, [
+    preloadedHistory,
+    addEvents,
+    conversationId,
+    consumeMatchingPendingMessage,
+  ]);
 
   /**
    * Timestamp of the latest event we already have from REST. Used as
@@ -425,7 +476,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Track credit limit reached if AgentErrorEvent has budget-related error
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -437,7 +489,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -607,7 +658,8 @@ export function ConversationWebSocketProvider({
             handleNonErrorEvent();
           }
 
-          // Handle AgentErrorEvent specifically
+          // LLM errors render inline in the chat (see ErrorEventMessage); track
+          // them for analytics but keep them out of the banner above the chat box.
           if (isAgentErrorEvent(event)) {
             trackError({
               message: event.error,
@@ -619,7 +671,6 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(event.error);
           }
 
           // Clear optimistic user message when a user message is confirmed.
@@ -760,7 +811,7 @@ export function ConversationWebSocketProvider({
       onOpen: () => {
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
       },
       onClose: () => {
         setMainConnectionState("CLOSED");
@@ -769,7 +820,7 @@ export function ConversationWebSocketProvider({
         setMainConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
-          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handleMainMessage,
@@ -777,7 +828,7 @@ export function ConversationWebSocketProvider({
   }, [
     handleMainMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     initialAfterTimestamp,
   ]);
@@ -801,7 +852,7 @@ export function ConversationWebSocketProvider({
       onOpen: async () => {
         setPlanningConnectionState("OPEN");
         hasConnectedRefPlanning.current = true; // Mark that we've successfully connected
-        removeErrorMessage(); // Clear any previous error messages on successful connection
+        clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
 
         // Fetch expected event count for history loading detection
         if (
@@ -833,7 +884,7 @@ export function ConversationWebSocketProvider({
         setPlanningConnectionState("CLOSED");
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefPlanning.current) {
-          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE);
+          setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
         }
       },
       onMessage: handlePlanningMessage,
@@ -841,7 +892,7 @@ export function ConversationWebSocketProvider({
   }, [
     handlePlanningMessage,
     setErrorMessage,
-    removeErrorMessage,
+    clearConnectionError,
     sessionApiKey,
     subConversations,
   ]);

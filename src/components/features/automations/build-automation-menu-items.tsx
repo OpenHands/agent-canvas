@@ -37,7 +37,7 @@ export function buildAutomationMenuItems({
             label: t(I18nKey.AUTOMATIONS$RUN_NOW),
             icon: <PlayIcon className="size-4" />,
             onClick: () => onRunNow(automation.id),
-            disabled: isRunPending,
+            disabled: isRunPending || !automation.enabled,
           },
         ]
       : []),

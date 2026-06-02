@@ -1,7 +1,10 @@
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
-import { ACP_PROVIDERS } from "#/constants/acp-providers";
+import {
+  getAcpProvider,
+  resolveEffectiveAcpModel,
+} from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
 import {
@@ -42,19 +45,18 @@ export interface DirectConversationInfo {
   } | null;
   agent?: {
     /**
-     * Pydantic discriminator from the SDK union. ``"ACPAgent"`` means the
-     * conversation runs an ACP CLI subprocess (model selection lives on
-     * the subprocess via ``acp_model``, not on ``agent.llm``); ``"Agent"``
-     * means the conversation drives an LLM directly through litellm.
-     * Used by ``toAppConversation`` to null out ``llm_model`` for ACP
-     * conversations so the chat UI doesn't expose LLM-switch affordances
-     * that would silently no-op against the running ACP subprocess.
+     * Pydantic discriminator from the SDK union: ``"ACPAgent"`` for ACP CLI
+     * subprocesses (model lives on the subprocess via ``acp_model``),
+     * ``"Agent"`` for direct litellm. Read by {@link toAppConversation}.
      */
     kind?: string | null;
+    acp_model?: string | null;
     llm?: {
       model?: string | null;
     } | null;
   } | null;
+  current_model_id?: string | null;
+  current_model_name?: string | null;
   workspace?: {
     working_dir?: string | null;
   } | null;
@@ -197,8 +199,10 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
       lines.push(`    OpenAPI: ${automation.openapi_url}`);
     }
     if (automation.auth_env_var) {
+      // X-Session-API-Key is the local convention shared by the agent-server
+      // and automation backend (see openhands-automation auth.py).
       lines.push(
-        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+        `    Auth:    header 'X-Session-API-Key: $${automation.auth_env_var}'`,
       );
     }
   } else {
@@ -247,14 +251,10 @@ export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
   const metadata = getStoredConversationMetadata(info.id);
-  // ACPAgent conversations carry a dummy ``llm`` on the SDK side (the real
-  // model lives on the ACP subprocess via ``acp_model``), so surfacing
-  // ``agent.llm.model`` as the conversation's "active LLM" would lie to
-  // every consumer downstream — most visibly the chat header's
-  // SwitchProfileButton, which would otherwise let the user switch
-  // profiles on a Claude-Code conversation while the running subprocess
-  // keeps its own model. Null at the boundary so no consumer has to
-  // re-derive the rule. Mirrors OpenHands PR #14401.
+  // ACPAgent conversations carry a sentinel ``llm`` on older SDKs. Prefer the
+  // runtime model fields when available, then the configured ``acp_model`` that
+  // Canvas saves for built-in providers. ``agent_kind`` still gates model
+  // switching, so surfacing this string is display-only.
   const isAcp = info.agent?.kind === "ACPAgent";
   // Only surface ``acp_server`` for ACP conversations even if the wire
   // payload accidentally carries an ``acpserver`` tag on an OpenHands
@@ -275,8 +275,17 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    // Chip path: no ``providerDefault`` — the chip must distinguish
+    // "no concrete model" (fall back to the provider display name in
+    // ConversationCardFooter) from "default" (would lie about what's
+    // running on the subprocess).
     llm_model: isAcp
-      ? null
+      ? resolveEffectiveAcpModel({
+          runtimeName: info.current_model_name,
+          runtimeId: info.current_model_id,
+          configured: info.agent?.acp_model,
+          sdkLlm: info.agent?.llm?.model,
+        })
       : (info.agent?.llm?.model ?? DEFAULT_SETTINGS.llm_model),
     metrics: info.metrics
       ? {
@@ -501,6 +510,7 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
     ...toRecord(agentSettings.agent_context),
     load_public_skills: shouldLoadPublicSkills(),
     load_user_skills: true,
+    load_project_skills: true,
     ...(runtimeServicesSuffix
       ? { system_message_suffix: runtimeServicesSuffix }
       : {}),
@@ -530,7 +540,7 @@ function resolveAcpCommand(agentSettings: SettingsRecord): unknown {
     typeof agentSettings.acp_server === "string"
       ? agentSettings.acp_server
       : undefined;
-  const provider = ACP_PROVIDERS.find(({ key }) => key === serverKey);
+  const provider = getAcpProvider(serverKey);
   return provider ? [...provider.default_command] : cmd;
 }
 
@@ -544,6 +554,9 @@ function buildConfiguredAcpAgentSettings(
   };
 
   for (const key of ACP_SETTINGS_KEYS) {
+    // ``acp_model`` is resolved separately below so a saved ``null`` still
+    // falls back to the provider's default rather than being dropped.
+    if (key === "acp_model") continue;
     const value =
       key === "acp_command"
         ? resolveAcpCommand(agentSettings)
@@ -551,6 +564,25 @@ function buildConfiguredAcpAgentSettings(
     if (value !== undefined && value !== null) {
       payload[key] = value;
     }
+  }
+
+  // Saved settings may carry ``acp_model: null`` (existing users predating
+  // the default-model registry, or saved fields the agent-server stripped).
+  // Fall back to the provider's ``default_model`` so the conversation starts
+  // with whatever the Settings → Agent UI shows — without that, the form's
+  // displayed default would silently not take effect at runtime until the
+  // user re-saved the page.
+  const serverKey =
+    typeof agentSettings.acp_server === "string"
+      ? agentSettings.acp_server
+      : undefined;
+  const provider = getAcpProvider(serverKey);
+  const effectiveModel = resolveEffectiveAcpModel({
+    configured: agentSettings.acp_model as string | null | undefined,
+    providerDefault: provider?.default_model,
+  });
+  if (effectiveModel) {
+    payload.acp_model = effectiveModel;
   }
 
   return payload;
@@ -563,7 +595,9 @@ function buildConfiguredOpenHandsAgentSettings(
   const llm = toRecord(agentSettings.llm);
 
   llm.model =
-    typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
 
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {

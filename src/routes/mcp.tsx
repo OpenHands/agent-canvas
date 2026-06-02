@@ -18,12 +18,13 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
+  getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
@@ -66,6 +67,7 @@ export default function MCPPage() {
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 
   // Filter installed servers by the search query. We pair each server
   // with its catalog entry (if any) so the search can match friendly
@@ -74,7 +76,7 @@ export default function MCPPage() {
   const filteredInstalledServers = allServers.filter((server) =>
     installedServerMatchesQuery(
       server,
-      findCatalogEntryForServer(server, MCP_MARKETPLACE),
+      findCatalogEntryForServer(server, mcpMarketplace),
       searchQuery,
     ),
   );

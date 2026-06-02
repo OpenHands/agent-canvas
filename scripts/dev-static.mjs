@@ -324,13 +324,14 @@ function startAgentServer(config) {
 }
 
 function buildAutomationBackendEnv(config) {
+  // Both backends share the same session API key value.
   return {
     AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
     AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
     AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
     AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
     AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
-    AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+    AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
     AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
     FILE_STORE: "local",
     LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
@@ -387,6 +388,11 @@ function startStaticServer(config) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
+      // Inject the API key so the pre-built frontend can authenticate
+      // to the agent-server without a baked-in VITE_SESSION_API_KEY.
+      ...(config.sessionApiKey
+        ? ["--session-api-key", config.sessionApiKey]
+        : []),
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route",
@@ -550,7 +556,7 @@ async function main() {
   const { mkdirSync } = await import("node:fs");
   for (const dir of [
     config.stateDir,
-    join(config.stateDir, "conversations"),
+    join(config.stateDir, "dev_conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
     join(config.stateDir, "storage"),
@@ -581,7 +587,7 @@ async function main() {
     );
     process.exit(1);
   }
-  const conversationsPath = join(config.stateDir, "conversations");
+  const conversationsPath = join(config.stateDir, "dev_conversations");
   const cleared = releaseStaleConversationLeases(conversationsPath);
   if (cleared > 0) {
     logService(

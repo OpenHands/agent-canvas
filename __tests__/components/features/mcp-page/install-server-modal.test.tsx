@@ -2,13 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import McpService from "#/api/mcp-service/mcp-service.api";
+import { SecretsService } from "#/api/secrets-service";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -30,9 +32,14 @@ describe("InstallServerModal", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       MOCK_DEFAULT_USER_SETTINGS,
     );
+    // Default: pre-flight test passes so existing save tests remain unaffected.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+    });
   });
 
-  it("requires Slack token + team id and posts a stdio mcp_config diff", async () => {
+  it("uses Slack's API fallback when the default option is OAuth", async () => {
     const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -120,14 +127,23 @@ describe("InstallServerModal", () => {
     // without relying on the catalog choosing to mark one this way.
     const entry: MarketplaceEntry = {
       id: "synthetic-required",
+      kind: "mcp",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: false,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: false,
+          },
+          auth: { strategy: "api_key" },
+        },
+      ],
     };
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -154,14 +170,23 @@ describe("InstallServerModal", () => {
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
     const entry: MarketplaceEntry = {
       id: "synthetic-optional",
+      kind: "mcp",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
     const getSpy = vi
       .spyOn(SettingsService, "getSettings")
@@ -208,4 +233,343 @@ describe("InstallServerModal", () => {
       cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("shows an inline error, does not save, and keeps the modal open when the pre-flight test fails", async () => {
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: false,
+      error: "ECONNREFUSED",
+      error_kind: "connection",
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    const onClose = vi.fn();
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-test-fail",
+      kind: "mcp",
+      name: "Failing Server",
+      description: "Always fails the connection test.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    // Wait for settings to load so the mutation isn't a no-op.
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // Error message must appear.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-modal-error")).toBeInTheDocument(),
+    );
+
+    // Save must never have been called.
+    expect(saveSpy).not.toHaveBeenCalled();
+
+    // Modal must stay open.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
+  });
+
+  it("calls save and closes the modal when the pre-flight test succeeds", async () => {
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: ["tool_a"],
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    const onClose = vi.fn();
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-test-pass",
+      kind: "mcp",
+      name: "Passing Server",
+      description: "Always passes the connection test.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId("mcp-install-modal-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Verifying… on the install button while the pre-flight test is in flight", async () => {
+    // Never resolve so the test stays pending long enough to observe the label.
+    vi.spyOn(McpService, "testServer").mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-pending",
+      kind: "mcp",
+      name: "Pending Server",
+      description: "Connection test never resolves.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // In tests i18n keys are returned as-is, so the button shows the key name.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-submit")).toHaveTextContent(
+        "MCP$VERIFYING",
+      ),
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Save-as-secret toggle behaviour
+  // ---------------------------------------------------------------------------
+
+  // Synthetic stdio entry with one password-type envField, one text-type
+  // envField, and one argField. This gives us complete control over field
+  // types without depending on the live integration catalog.
+  const STDIO_ENTRY = {
+    id: "synthetic-stdio",
+    kind: "mcp",
+    name: "Synthetic Stdio Server",
+    description: "Stdio server used to test the save-as-secret feature.",
+    iconBg: "#000000",
+    defaultConnectionOptionId: "stdio",
+    connectionOptions: [
+      {
+        id: "stdio",
+        provider: "mcp",
+        transport: {
+          kind: "stdio",
+          serverName: "test-server",
+          command: "npx",
+          args: ["-y", "test-mcp"],
+          envFields: [
+            {
+              key: "API_KEY",
+              label: "API Key",
+              type: "password",
+              required: true,
+              placeholder: "Enter API key",
+            },
+            {
+              key: "USERNAME",
+              label: "Username",
+              type: "text",
+              required: false,
+              placeholder: "Enter username",
+            },
+          ],
+          argFields: [
+            {
+              key: "EXTRA_ARG",
+              label: "Extra Arg",
+              type: "text",
+              required: false,
+              placeholder: "optional",
+            },
+          ],
+        },
+        auth: { strategy: "api_key", apiKeyOptional: true },
+      },
+    ],
+  } as unknown as MarketplaceEntry;
+
+  describe("InstallServerModal — save as secret", () => {
+    beforeEach(() => {
+      vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
+    });
+
+    it("pre-checks the toggle for password-type envFields", async () => {
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+
+      const toggle = screen.getByTestId("mcp-install-save-secret-API_KEY");
+      expect(toggle.querySelector("input[type='checkbox']")).toBeChecked();
+    });
+
+    it("leaves non-password envFields unchecked by default", async () => {
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+
+      const toggle = screen.getByTestId("mcp-install-save-secret-USERNAME");
+      expect(toggle.querySelector("input[type='checkbox']")).not.toBeChecked();
+    });
+
+    it("does not render a toggle for argFields", async () => {
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+
+      expect(
+        screen.queryByTestId("mcp-install-save-secret-EXTRA_ARG"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("toggling the checkbox updates its checked state", async () => {
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+
+      // USERNAME starts unchecked; clicking it should flip to checked.
+      const toggle = screen.getByTestId("mcp-install-save-secret-USERNAME");
+      const checkbox = toggle.querySelector(
+        "input[type='checkbox']",
+      ) as HTMLInputElement;
+      expect(checkbox).not.toBeChecked();
+
+      fireEvent.click(checkbox);
+
+      expect(checkbox).toBeChecked();
+    });
+
+    it("setValue preserves savedAsSecret state when a field value changes", async () => {
+      // Before the ...prev bug-fix in setValue, calling onChange on any field
+      // would reset savedAsSecret to {}, unchecking all toggles silently.
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+
+      // API_KEY starts pre-checked. Typing a new value should leave it checked.
+      fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
+        target: { value: "new-value" },
+      });
+
+      const toggle = screen.getByTestId("mcp-install-save-secret-API_KEY");
+      expect(toggle.querySelector("input[type='checkbox']")).toBeChecked();
+    });
+
+    it("calls createSecret for checked envFields after a successful install", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      const onClose = vi.fn();
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+      // Fill in the required password field (API_KEY is pre-checked as secret).
+      fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
+        target: { value: "my-api-key" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(SecretsService.createSecret).toHaveBeenCalledWith(
+          "API_KEY",
+          "my-api-key",
+          "API Key",
+        ),
+      );
+      // USERNAME was unchecked, so no secret call for it.
+      expect(SecretsService.createSecret).not.toHaveBeenCalledWith(
+        "USERNAME",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("does not call createSecret when all toggles are unchecked before install", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      const onClose = vi.fn();
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
+        target: { value: "my-api-key" },
+      });
+
+      // Uncheck the pre-checked API_KEY toggle before submitting.
+      const toggle = screen.getByTestId("mcp-install-save-secret-API_KEY");
+      fireEvent.click(toggle.querySelector("input[type='checkbox']")!);
+
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+      // Flush the fire-and-forget microtask chain.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(SecretsService.createSecret).not.toHaveBeenCalled();
+    });
+
+    it("closes the modal even when the background secret save fails", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      vi.spyOn(SecretsService, "createSecret").mockRejectedValue(
+        new Error("forbidden"),
+      );
+      const onClose = vi.fn();
+      renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
+        target: { value: "my-api-key" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      // The modal must close regardless of the secret-save outcome.
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      // Secret save errors use toasts, not the modal inline error element.
+      expect(
+        screen.queryByTestId("mcp-install-modal-error"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
 });

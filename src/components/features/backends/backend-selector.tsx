@@ -21,6 +21,7 @@ import {
   ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS,
   triggerEnvironmentSwitch,
 } from "#/components/features/backends/environment-switch-store";
+import { NavigationLink } from "#/components/shared/navigation-link";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
@@ -28,6 +29,11 @@ import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
 import { cn } from "#/utils/utils";
 import { formControlTransitionClassName } from "#/utils/form-control-classes";
+import {
+  dropdownFooterActionClassName,
+  dropdownMenuListClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 
 const VALUE_SEPARATOR = "::";
 
@@ -242,15 +248,20 @@ export function BackendSelector({
   );
 
   const addBackendFooter = (
-    <div className="flex flex-col">
+    <div className={dropdownMenuListClassName}>
       <button
         type="button"
         data-testid="add-backend-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openAddBackendModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
+        className={cn(
+          dropdownFooterActionClassName,
+          "cursor-pointer rounded-md",
+        )}
       >
-        <Plus width={16} height={16} className="text-white shrink-0" />
+        <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
+          <Plus width={16} height={16} />
+        </span>
         {t(I18nKey.BACKEND$ADD)}
       </button>
       <button
@@ -258,9 +269,14 @@ export function BackendSelector({
         data-testid="manage-backends-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openManageBackendsModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
+        className={cn(
+          dropdownFooterActionClassName,
+          "cursor-pointer rounded-md",
+        )}
       >
-        <Settings width={16} height={16} className="text-white shrink-0" />
+        <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
+          <Settings width={16} height={16} />
+        </span>
         {t(I18nKey.BACKEND$MANAGE)}
       </button>
     </div>
@@ -336,12 +352,11 @@ export function BackendSelector({
             placement={settingsTooltipPlacement}
             offset={10}
           >
-            <button
-              type="button"
+            <NavigationLink
+              to="/settings"
               data-testid="backend-selector-settings-link"
               data-active={isSettingsActive}
               aria-label={settingsLabel}
-              onClick={() => navigate("/settings")}
               className={
                 isSettingsActive
                   ? cn(
@@ -355,7 +370,7 @@ export function BackendSelector({
               }
             >
               <Settings width={16} height={16} />
-            </button>
+            </NavigationLink>
           </StyledTooltip>
         ) : null}
       </div>

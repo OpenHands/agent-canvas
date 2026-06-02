@@ -29,7 +29,7 @@
 
 import { createServer, request as httpRequest } from "node:http";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -72,6 +72,8 @@ export function parseArgs(argv = process.argv.slice(2)) {
     host: "0.0.0.0",
     dir: "build",
     routes: {},
+    sessionApiKey: null,
+    authRequired: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -104,6 +106,12 @@ export function parseArgs(argv = process.argv.slice(2)) {
         config.routes[prefix] = url;
         break;
       }
+      case "--session-api-key":
+        config.sessionApiKey = argv[++i] || null;
+        break;
+      case "--auth-required":
+        config.authRequired = true;
+        break;
       case "-h":
       case "--help":
         showHelp();
@@ -111,6 +119,19 @@ export function parseArgs(argv = process.argv.slice(2)) {
       default:
         throw new Error(`Unknown flag: ${flag}`);
     }
+  }
+
+  // Guard: --session-api-key and --auth-required are semantically
+  // mutually exclusive. The first auto-injects the key (local mode);
+  // the second forces the user to paste it (public mode). Combining
+  // both is a misconfiguration.
+  if (config.sessionApiKey && config.authRequired) {
+    console.error(
+      "ERROR: --session-api-key and --auth-required are mutually exclusive.\n" +
+        "  Use --session-api-key for local mode (key auto-injected).\n" +
+        "  Use --auth-required for public mode (user pastes key).",
+    );
+    process.exit(1);
   }
 
   return config;
@@ -129,6 +150,12 @@ OPTIONS:
   -d, --dir   <dir>            Directory to serve (default: build)
   -r, --route <prefix=url>     Proxy <prefix> (and subpaths) to <url>;
                                may be repeated. WebSockets supported.
+  --session-api-key <key>      Inject session API key into index.html so the
+                               pre-built frontend authenticates to agent-server
+                               without needing VITE_SESSION_API_KEY baked in.
+  --auth-required              Inject authRequired flag into index.html so the
+                               pre-built frontend shows the API key entry screen
+                               (public mode) without VITE_AUTH_REQUIRED baked in.
   -h, --help                   Show this help
 
 ROUTING:
@@ -138,6 +165,86 @@ ROUTING:
     like an asset request (have a known file extension), in which case
     a 404 is returned.
 `);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Runtime config injection
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build a tiny inline script that seeds runtime config into the page.
+ *
+ * - `sessionApiKey`: written to `openhands-agent-server-config` in localStorage
+ *   so the pre-built frontend authenticates without VITE_SESSION_API_KEY baked in.
+ *   Only writes if no key is already stored — explicit user overrides are preserved.
+ *
+ * - `authRequired`: sets `window.__AGENT_CANVAS_AUTH_REQUIRED__ = true` so the
+ *   pre-built frontend shows the API key entry screen (public mode) without
+ *   VITE_AUTH_REQUIRED baked in.
+ */
+function makeConfigInjectionScript(sessionApiKey, authRequired) {
+  const parts = [];
+
+  if (sessionApiKey) {
+    const keyLiteral = JSON.stringify(sessionApiKey);
+    // Always overwrite when the stored key differs from the runtime key.
+    // A previous session may have persisted a now-stale key; the runtime
+    // value (from --session-api-key) is the server's truth.
+    parts.push(
+      `try{` +
+        `var _k='openhands-agent-server-config',` +
+        `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
+        `if(_c.sessionApiKey!==${keyLiteral}){` +
+        `_c.sessionApiKey=${keyLiteral};` +
+        `localStorage.setItem(_k,JSON.stringify(_c));` +
+        `}` +
+        `}catch(e){}`,
+    );
+  }
+
+  if (authRequired) {
+    parts.push(`window.__AGENT_CANVAS_AUTH_REQUIRED__=true;`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return `<script>(function(){${parts.join("")}}());</script>`;
+}
+
+/**
+ * Serve index.html with runtime config injected into <head>.
+ * Returns true if the response was written, false if the file was not found.
+ */
+async function serveInjectedIndexHtml(
+  req,
+  res,
+  indexPath,
+  { sessionApiKey, authRequired } = {},
+) {
+  let content;
+  try {
+    content = await readFile(indexPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  const script = makeConfigInjectionScript(sessionApiKey, authRequired);
+  // Inject right before </head> so the key is available before any app code runs.
+  // replace() targets the first (and only) </head> in well-formed HTML.
+  const injected = content.includes("</head>")
+    ? content.replace("</head>", `${script}\n</head>`)
+    : content.includes("</body>")
+      ? content.replace("</body>", `${script}\n</body>`)
+      : script + content;
+
+  const buf = Buffer.from(injected, "utf8");
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": buf.length,
+    "Cache-Control": "no-cache",
+  });
+  if (req.method !== "HEAD") res.end(buf);
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,7 +429,7 @@ async function serveFile(req, res, filePath, urlPath) {
   return true;
 }
 
-async function handleStatic(req, res, dirAbs) {
+async function handleStatic(req, res, dirAbs, injectionOpts = {}) {
   const rawPath = req.url.split("?")[0];
   let urlPath;
   try {
@@ -346,6 +453,15 @@ async function handleStatic(req, res, dirAbs) {
     filePath = resolve(filePath, "index.html");
   }
 
+  const needsInjection =
+    injectionOpts.sessionApiKey || injectionOpts.authRequired;
+
+  // Serve index.html with runtime config injection when configured.
+  if (needsInjection && filePath.endsWith("index.html")) {
+    if (await serveInjectedIndexHtml(req, res, filePath, injectionOpts)) return;
+    // Fall through to regular serveFile (handles 404 path correctly).
+  }
+
   if (await serveFile(req, res, filePath, urlPath)) return;
 
   // SPA fallback: only for non-asset requests, and not for non-GET/HEAD.
@@ -354,7 +470,10 @@ async function handleStatic(req, res, dirAbs) {
     !looksLikeAssetRequest(urlPath)
   ) {
     const indexPath = resolve(dirAbs, "index.html");
-    if (await serveFile(req, res, indexPath, "/")) return;
+    if (needsInjection) {
+      if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
+        return;
+    } else if (await serveFile(req, res, indexPath, "/")) return;
   }
 
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
@@ -368,6 +487,10 @@ async function handleStatic(req, res, dirAbs) {
 export function startStaticServer(config) {
   const route = createRouter(config.routes);
   const dirAbs = resolve(config.dir);
+  const injectionOpts = {
+    sessionApiKey: config.sessionApiKey || null,
+    authRequired: config.authRequired || false,
+  };
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
@@ -375,7 +498,7 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs).catch((err) => {
+    handleStatic(req, res, dirAbs, injectionOpts).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {
         res.writeHead(500);

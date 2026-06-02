@@ -15,6 +15,7 @@ import { useConversationWebSocket } from "#/contexts/conversation-websocket-cont
 import { useConfig } from "#/hooks/query/use-config";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { useEventStore } from "#/stores/use-event-store";
+import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 
@@ -107,6 +108,8 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
       conversationId: "test-conversation-id",
     });
 
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+
     (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { app_mode: "local" },
     });
@@ -186,6 +189,35 @@ describe("ChatInterface – message display continuity (spec 3.1)", () => {
 
       // AC5: Genuine first-load shows skeleton
       expect(screen.getByTestId("chat-messages-skeleton")).toBeInTheDocument();
+    });
+
+    it("hides skeleton when a pending user message is visible during history load", () => {
+      vi.mocked(useConversationWebSocket).mockReturnValue({
+        isLoadingHistory: true,
+        connectionState: "OPEN",
+        sendMessage: vi.fn(),
+        reconnect: vi.fn(),
+      });
+
+      useEventStore.setState({
+        events: [],
+        eventIds: new Set(),
+        uiEvents: [],
+      });
+
+      useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+        conversationId: "test-conversation-id",
+        text: "hello from home",
+      });
+
+      renderWithQueryClient(<ChatInterface />, queryClient);
+
+      expect(
+        screen.queryByTestId("chat-messages-skeleton"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("user-message")).toHaveTextContent(
+        "hello from home",
+      );
     });
 
     it("shows messages when loading is already false on mount (edge case)", () => {

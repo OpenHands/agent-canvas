@@ -38,5 +38,9 @@ export const usePaginatedConversations = (limit: number = 20) => {
     // flips back to true on every background refetch, which would cause the
     // skeleton to flicker every 10s when the list is empty.
     refetchInterval: 10_000,
+    // A successful fetch proves the backend is reachable. The global
+    // QueryCache onSuccess handler reads this to clear any persisted
+    // failure state, re-arming the status dot without user intervention.
+    meta: { backendId: active.backend.id },
   });
 };

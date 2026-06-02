@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "rel-*"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -27,14 +28,8 @@ jobs:
     steps:
       - name: Build test matrix
         id: matrix
-        env:
-          GIT_REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "$GIT_REF" = "refs/heads/main" ]; then
-            echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true},{"name":"windows","os":"windows-latest","full_checks":false}]}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true}]}' >> "$GITHUB_OUTPUT"
-          fi
+          echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true},{"name":"windows","os":"windows-latest","full_checks":false}]}' >> "$GITHUB_OUTPUT"
 
   test-and-build:
     needs: prepare-test-matrix
@@ -52,7 +47,10 @@ jobs:
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Install dependencies
@@ -160,16 +158,17 @@ jobs:
         if: steps.pr_context.outputs.is_fork != 'true'
         env:
           PR_HEAD_REPO: ${{ steps.pr_context.outputs.head_repo }}
+          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           set -euo pipefail
           git init .
           git remote remove pr-head >/dev/null 2>&1 || true
           git remote add pr-head "https://github.com/$PR_HEAD_REPO.git"
-          git fetch pr-head "${{ steps.pr_context.outputs.head_sha }}"
+          git fetch pr-head "$PR_HEAD_SHA"
           git checkout --detach FETCH_HEAD
           actual_sha="$(git rev-parse HEAD)"
-          if [ "$actual_sha" != "${{ steps.pr_context.outputs.head_sha }}" ]; then
-            echo "::error::SHA mismatch: expected ${{ steps.pr_context.outputs.head_sha }}, got $actual_sha"
+          if [ "$actual_sha" != "$PR_HEAD_SHA" ]; then
+            echo "::error::SHA mismatch: expected $PR_HEAD_SHA, got $actual_sha"
             exit 1
           fi
 
@@ -201,7 +200,10 @@ jobs:
         if: steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: 22.12.0
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Create live E2E PR comment
@@ -209,12 +211,13 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status running \
             --model "$LIVE_E2E_LLM_MODEL" \
             --workflow-url "$LIVE_E2E_WORKFLOW_URL" \
-            --commit "${{ steps.pr_context.outputs.head_sha }}" \
+            --commit "$PR_HEAD_SHA" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           node tests/e2e/live/scripts/upsert-pr-comment.mjs \
@@ -231,9 +234,26 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install Playwright Chromium
+      - name: Get Playwright version
         if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        run: npx playwright install --with-deps chromium
+        id: pw_version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true' && steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        if: steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run live Agent Server E2E
         id: live_test
@@ -263,8 +283,10 @@ jobs:
         id: live_video_preview
         if: always() && steps.live_media.outputs.video_path != '' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
+        env:
+          VIDEO_PATH: ${{ steps.live_media.outputs.video_path }}
         run: |
-          video_path="${{ steps.live_media.outputs.video_path }}"
+          video_path="$VIDEO_PATH"
           if [ ! -f "$video_path" ]; then
             echo "::warning::Live E2E video file was not found, skipping GIF preview generation."
             exit 0
@@ -402,15 +424,18 @@ jobs:
       - name: Determine live E2E result
         id: live_status
         if: always() && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
+        env:
+          HAS_LLM_KEY: ${{ steps.live_credential.outputs.has_key }}
+          LIVE_TEST_EXIT_CODE: ${{ steps.live_test.outputs.exit_code }}
         run: |
-          if [ "${{ steps.live_credential.outputs.has_key }}" != "true" ]; then
+          if [ "$HAS_LLM_KEY" != "true" ]; then
             echo "status=skipped" >> "$GITHUB_OUTPUT"
             echo "reason=LLM_API_KEY is not configured." >> "$GITHUB_OUTPUT"
             echo "exit_code=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          exit_code="${{ steps.live_test.outputs.exit_code }}"
+          exit_code="$LIVE_TEST_EXIT_CODE"
           if [ -z "$exit_code" ]; then
             exit_code=1
           fi
@@ -432,6 +457,7 @@ jobs:
           LIVE_E2E_REASON: ${{ steps.live_status.outputs.reason }}
           LIVE_E2E_VIDEO_PREVIEW_URL: ${{ steps.publish_live_media.outputs.video_preview_url || '' }}
           LIVE_E2E_VIDEO_URL: ${{ steps.publish_live_media.outputs.video_url || '' }}
+          PR_HEAD_SHA: ${{ steps.pr_context.outputs.head_sha }}
         run: |
           node tests/e2e/live/scripts/render-live-e2e-report.mjs \
             --status "$LIVE_E2E_STATUS" \
@@ -443,7 +469,7 @@ jobs:
             --screenshot-url "$LIVE_E2E_SCREENSHOT_URL" \
             --video-preview-url "$LIVE_E2E_VIDEO_PREVIEW_URL" \
             --video-url "$LIVE_E2E_VIDEO_URL" \
-            --commit "${{ steps.pr_context.outputs.head_sha }}" \
+            --commit "$PR_HEAD_SHA" \
             --timestamp "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
             --output "$LIVE_E2E_REPORT_PATH"
           cat "$LIVE_E2E_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
@@ -459,4 +485,6 @@ jobs:
 
       - name: Fail live E2E job when tests fail
         if: always() && steps.live_credential.outputs.has_key == 'true' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
-        run: exit "${{ steps.live_status.outputs.exit_code }}"
+        env:
+          LIVE_STATUS_EXIT_CODE: ${{ steps.live_status.outputs.exit_code }}
+        run: exit "$LIVE_STATUS_EXIT_CODE"

@@ -12,14 +12,20 @@ import SettingsIcon from "#/icons/settings.svg?react";
 import CheckIcon from "#/icons/checkmark.svg?react";
 import { cn } from "#/utils/utils";
 import type { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
+import {
+  dropdownMenuRowGapClassName,
+  dropdownMenuRowIconWrapperClassName,
+  switchProfileMenuListScrollClassName,
+} from "#/utils/dropdown-classes";
 
 const rowBaseClassName = cn(
   "w-full flex flex-col gap-0.5 p-2 rounded",
   "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
 );
-const profileRowClassName = cn(rowBaseClassName, "h-auto");
+const profileRowClassName = cn(rowBaseClassName, "h-auto items-stretch");
 const linkRowClassName = cn(
-  "w-full flex items-center gap-2 p-2 rounded",
+  "group w-full flex items-center p-2 rounded",
+  dropdownMenuRowGapClassName,
   "text-start hover:bg-[var(--oh-interactive-hover)] cursor-pointer text-nowrap",
 );
 
@@ -63,55 +69,63 @@ export function SwitchProfileContextMenu({
       testId="switch-profile-context-menu"
       position="top"
       alignment="left"
-      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] max-h-[60vh] overflow-y-auto"
+      className="z-[60] left-0 mb-2 bottom-full min-w-[280px] pt-0"
     >
-      <div className="px-2 pt-1 pb-0.5">
+      <div className="px-2 pb-0.5">
         <Typography.Text className="text-[11px] font-medium text-[var(--oh-text-dim)] uppercase tracking-wide leading-4">
           {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
         </Typography.Text>
       </div>
-      {profiles.map((profile) => {
-        const isActive = profile.name === activeProfileName;
-        return (
-          <ContextMenuListItem
-            key={profile.name}
-            testId={`switch-profile-option-${profile.name}`}
-            onClick={(event) => handleSelect(event, profile.name)}
-            className={cn(
-              profileRowClassName,
-              isActive && "bg-[var(--oh-interactive-hover)]",
-            )}
-          >
-            <span
-              className="flex items-center gap-2 min-w-0"
-              title={profile.model ?? undefined}
-            >
-              <CircuitIcon
-                width={16}
-                height={16}
-                className="shrink-0"
-                aria-hidden
-              />
-              <span className="flex-1 truncate text-sm leading-5">
-                {profile.name}
-              </span>
-              {isActive && (
-                <CheckIcon
-                  width={14}
-                  height={14}
-                  className="shrink-0"
-                  aria-hidden
-                />
+      <div
+        data-testid="switch-profile-options-list"
+        className={switchProfileMenuListScrollClassName}
+      >
+        {profiles.map((profile) => {
+          const isActive = profile.name === activeProfileName;
+          return (
+            <ContextMenuListItem
+              key={profile.name}
+              testId={`switch-profile-option-${profile.name}`}
+              onClick={(event) => handleSelect(event, profile.name)}
+              className={cn(
+                profileRowClassName,
+                isActive && "bg-[var(--oh-interactive-hover)]",
               )}
-            </span>
-            {profile.model && (
-              <span className="block truncate text-xs leading-4 text-[var(--oh-muted)] pl-6">
-                {profile.model}
+            >
+              <span
+                className={cn(
+                  "flex items-center min-w-0",
+                  dropdownMenuRowGapClassName,
+                )}
+                title={profile.model ?? undefined}
+              >
+                <span
+                  className={dropdownMenuRowIconWrapperClassName}
+                  aria-hidden
+                >
+                  <CircuitIcon width={16} height={16} />
+                </span>
+                <span className="flex-1 truncate text-sm leading-5">
+                  {profile.name}
+                </span>
+                {isActive && (
+                  <CheckIcon
+                    width={14}
+                    height={14}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                )}
               </span>
-            )}
-          </ContextMenuListItem>
-        );
-      })}
+              {profile.model && (
+                <span className="block truncate text-xs leading-4 text-[var(--oh-muted)] pl-6">
+                  {profile.model}
+                </span>
+              )}
+            </ContextMenuListItem>
+          );
+        })}
+      </div>
       <Divider />
       <NavigationLink
         to="/settings"
@@ -119,7 +133,9 @@ export function SwitchProfileContextMenu({
         data-testid="switch-profile-open-settings"
         className={linkRowClassName}
       >
-        <SettingsIcon width={16} height={16} className="shrink-0" />
+        <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
+          <SettingsIcon width={16} height={16} />
+        </span>
         <span className="text-sm leading-5">
           {t(I18nKey.MODEL$OPEN_SETTINGS)}
         </span>

@@ -9,6 +9,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useModelStore } from "#/stores/model-store";
 import { cn } from "#/utils/utils";
+import { chatInputPillButtonClassName } from "#/utils/form-control-classes";
 import { SwitchProfileContextMenu } from "./switch-profile-context-menu";
 
 export function SwitchProfileButton() {
@@ -34,9 +35,8 @@ export function SwitchProfileButton() {
   // controlled by ``acp_model`` (set in Settings → Agent), not by the LLM
   // profile picker. Surfacing the switcher here would let the user "change
   // the model" while the running subprocess silently keeps its own — a
-  // confusing no-op. Hide the button instead. ``toAppConversation`` also
-  // nulls ``llm_model`` on this boundary so any other consumer that reads
-  // the model directly sees "no model" rather than a misleading value.
+  // confusing no-op. Hide the button even when ``llm_model`` carries an ACP
+  // display model for chips/headers.
   //
   // On the home screen ``conversation`` is undefined; fall back to
   // ``settings.agent_settings.agent_kind`` so the picker also hides when
@@ -88,8 +88,8 @@ export function SwitchProfileButton() {
         aria-haspopup="menu"
         aria-expanded={contextMenuOpen}
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none max-w-[200px]",
-          "hover:text-white hover:bg-white/10 cursor-pointer",
+          chatInputPillButtonClassName,
+          "max-w-[200px]",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
       >

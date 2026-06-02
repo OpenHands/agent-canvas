@@ -2,10 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import {
-  consumePendingTaskDraft,
-  getConversationState,
-} from "#/utils/conversation-local-storage";
+import McpService from "#/api/mcp-service/mcp-service.api";
+import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -116,6 +114,11 @@ describe("recommended automations", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({ mcpServers: {} }),
     });
+    // Pre-flight connectivity test must pass so save mutations are reached.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+    });
   });
 
   afterEach(() => {
@@ -141,7 +144,15 @@ describe("recommended automations", () => {
     );
     expect(cards[1]).toHaveAttribute(
       "data-testid",
+      "recommended-automation-card-github-repo-monitor",
+    );
+    expect(cards[2]).toHaveAttribute(
+      "data-testid",
       "recommended-automation-card-slack-standup-digest",
+    );
+    expect(cards[3]).toHaveAttribute(
+      "data-testid",
+      "recommended-automation-card-slack-channel-monitor",
     );
   });
 
@@ -281,10 +292,10 @@ describe("recommended automations", () => {
     );
     expect(plusBadge.tagName).toBe("SPAN");
     expect(plusBadge).toHaveAttribute("aria-hidden", "true");
-    expect(plusBadge.className).toContain("hover:bg-[var(--oh-interactive-hover)]");
-    expect(
-      plusBadge.querySelector('[role="switch"]'),
-    ).not.toBeInTheDocument();
+    expect(plusBadge.className).toContain(
+      "hover:bg-[var(--oh-interactive-hover)]",
+    );
+    expect(plusBadge.querySelector('[role="switch"]')).not.toBeInTheDocument();
   });
 
   it("selects a recommendation directly from its card", () => {
@@ -317,8 +328,15 @@ describe("recommended automations", () => {
     const modal = await screen.findByTestId("mcp-install-modal");
     expect(modal).toHaveAttribute("data-marketplace-id", "github");
     expect(
+      screen.getByTestId("mcp-install-field-command-readonly"),
+    ).toHaveValue(
+      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
+    );
+    expect(
       screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-install-field-url")).toBeNull();
+    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
@@ -362,34 +380,15 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
   });
 
-  it("stores cloud start-task drafts until the real conversation is ready", () => {
+  it("hides the recommended automations section on cloud backends", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    mockUseSettings.mockReturnValue({
-      data: settingsWithGithubMcp(),
-    });
 
     renderLauncher({ withBackendProvider: true });
 
-    fireEvent.click(
-      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
-    );
-
-    const [, options] = mockCreateConversationMutate.mock.calls[0];
-    options.onSuccess({
-      conversation_id: "task-cloud-start-task",
-      task_id: "cloud-start-task",
-    });
-
     expect(
-      getConversationState("task-cloud-start-task").draftMessage,
-    ).toBeNull();
-    const pendingDraft = consumePendingTaskDraft("cloud-start-task");
-    expect(pendingDraft).toContain(
-      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
-    );
-    expect(pendingDraft).not.toContain("https://staging.all-hands.dev//api");
-    expect(pendingDraft).toContain("$OPENHANDS_API_KEY");
+      screen.queryByTestId("recommended-automations-section"),
+    ).not.toBeInTheDocument();
   });
 
   it("launches the recommendation after the missing MCP is installed", async () => {
@@ -406,9 +405,7 @@ describe("recommended automations", () => {
 
     fireEvent.change(
       screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
-      {
-        target: { value: "github-token" },
-      },
+      { target: { value: "github-token" } },
     );
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 

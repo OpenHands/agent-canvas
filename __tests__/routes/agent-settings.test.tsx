@@ -152,6 +152,10 @@ describe("AgentSettingsScreen", () => {
   });
 
   it("shows the ACP form when the active agent_kind is acp", async () => {
+    // Use a model ID that isn't in CLAUDE_MODELS so the form falls through to
+    // the custom-input branch — that's the path this test is asserting (saved
+    // value round-trips into the visible input). Known IDs go through the
+    // dropdown instead and are covered separately.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -159,7 +163,7 @@ describe("AgentSettingsScreen", () => {
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-          acp_model: "claude-opus-4-5",
+          acp_model: "my-pinned-fork-model",
         },
       }),
     );
@@ -174,7 +178,162 @@ describe("AgentSettingsScreen", () => {
     const modelInput = screen.getByTestId(
       "agent-model-input",
     ) as HTMLInputElement;
-    expect(modelInput.value).toBe("claude-opus-4-5");
+    expect(modelInput.value).toBe("my-pinned-fork-model");
+  });
+
+  it("defaults built-in ACP providers to a suggested model when none is saved", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      }),
+    );
+
+    renderAgentSettingsScreen();
+
+    await screen.findByTestId("agent-command-input");
+    expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
+      "Claude Opus 4.7",
+    );
+  });
+
+  it("saves the selected built-in ACP model", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-command-input");
+    await user.click(screen.getByLabelText("SETTINGS$AGENT_MODEL"));
+    await user.click(await screen.findByText("Claude Haiku 4.5"));
+    await user.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_model).toBe("claude-haiku-4-5");
+  });
+
+  it("clears the model when switching from a built-in provider to Custom", async () => {
+    // F3 from review: built-ins seed ``acp_model`` to their registered
+    // ``default_model`` on load. Picking Custom must not leak that built-in
+    // default into custom settings — otherwise a user choosing Custom from
+    // Claude Code would silently save ``acp_model: "claude-opus-4-7"`` on an
+    // unrelated wrapper.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-command-input");
+    // Form loads with the Claude Code default visible.
+    expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
+      "Claude Opus 4.7",
+    );
+
+    // Switch to the Custom preset, then enter a different command — the
+    // form's ``selectedPreset`` re-derives from the command text, so the
+    // save path only treats it as Custom once the command no longer matches
+    // a built-in provider's default.
+    await user.click(screen.getByTestId("agent-preset-selector"));
+    await user.click(
+      await screen.findByRole("option", { name: "SETTINGS$AGENT_PRESET_CUSTOM" }),
+    );
+    const commandInput = screen.getByTestId(
+      "agent-command-input",
+    ) as HTMLTextAreaElement;
+    await user.clear(commandInput);
+    await user.type(commandInput, "my-custom-acp --flag");
+
+    await user.click(screen.getByTestId("agent-save-button"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    // Custom preset has no registered default — saved acp_model must be null,
+    // not the inherited Claude Opus default.
+    expect(call.agent_settings_diff?.acp_server).toBe("custom");
+    expect(call.agent_settings_diff?.acp_model).toBeNull();
+  });
+
+  it("reconciles the model when the command is retyped to a different provider", async () => {
+    // Editing the command textarea (rather than the preset dropdown) into a
+    // different built-in provider must not leave the previous provider's model
+    // selected — otherwise Save would persist e.g. ``claude-opus-4-7`` against
+    // a Codex wrapper. The detected preset changes, so the model reconciles to
+    // the new provider's default.
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: [],
+          acp_model: null,
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-command-input");
+    expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
+      "Claude Opus 4.7",
+    );
+
+    const commandInput = screen.getByTestId(
+      "agent-command-input",
+    ) as HTMLTextAreaElement;
+    await user.clear(commandInput);
+    await user.type(commandInput, "npx -y @zed-industries/codex-acp");
+
+    // The model field now reflects the Codex default, not the stale Claude one.
+    expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
+      "GPT-5.5 (medium)",
+    );
+
+    await user.click(screen.getByTestId("agent-save-button"));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    expect(call.agent_settings_diff?.acp_server).toBe("codex");
+    expect(call.agent_settings_diff?.acp_model).toBe("gpt-5.5/medium");
   });
 
   it("saves an ACP diff when switching to ACP + Claude Code", async () => {
@@ -205,6 +364,9 @@ describe("AgentSettingsScreen", () => {
     expect(commandInput.value).toBe(
       "npx -y @agentclientprotocol/claude-agent-acp",
     );
+    expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
+      "Claude Opus 4.7",
+    );
 
     await user.click(screen.getByTestId("agent-save-button"));
 
@@ -225,7 +387,7 @@ describe("AgentSettingsScreen", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: null,
+      acp_model: "claude-opus-4-7",
     });
   });
 

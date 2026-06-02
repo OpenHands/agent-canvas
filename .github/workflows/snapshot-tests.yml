@@ -51,14 +51,32 @@ jobs:
       - name: Set up Node.js with npm cache
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
+          # (nodejs/node#63487) that hangs `playwright install` for Playwright
+          # < 1.60.0. Remove this pin after upgrading to Playwright >= 1.60.0.
+          node-version: "24.15"
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Get Playwright version
+        id: pw_version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}
+
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
 
       # ── MAIN BRANCH: generate fresh baselines and store as artifact ──────
 
@@ -88,7 +106,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" \
+          MAIN_SHA=$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
             --jq '.object.sha' 2>/dev/null || echo "")
           if [ -z "$MAIN_SHA" ]; then
             echo "Could not resolve main HEAD SHA — skipping wait."
@@ -98,7 +116,7 @@ jobs:
 
           # Find the snapshot-tests.yml run triggered by exactly this commit.
           if ! RUN_ID=$(gh api \
-            "/repos/${{ github.repository }}/actions/workflows/snapshot-tests.yml/runs?branch=main&per_page=20" \
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/snapshot-tests.yml/runs?branch=main&per_page=20" \
             --jq "[.workflow_runs[] | select(.head_sha == \"$MAIN_SHA\")] | .[0].id // empty"); then
             echo "::warning::Could not query main snapshot workflow runs; proceeding with latest available artifact."
             exit 0
@@ -109,7 +127,7 @@ jobs:
             exit 0
           fi
 
-          if ! STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status'); then
+          if ! STATUS=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.status'); then
             echo "::warning::Could not query main snapshot workflow run status; proceeding with latest available artifact."
             exit 0
           fi
@@ -122,7 +140,7 @@ jobs:
           echo "Waiting for run $RUN_ID to complete (max 10 min)..."
           for i in $(seq 1 60); do
             sleep 10
-            if ! STATUS=$(gh api "/repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status'); then
+            if ! STATUS=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.status'); then
               echo "::warning::Could not query main snapshot workflow run status; proceeding with latest available artifact."
               exit 0
             fi
@@ -143,7 +161,7 @@ jobs:
           # Query the artifacts API by name so we only match runs that actually
           # uploaded the artifact (not just any successful run of the workflow).
           ARTIFACT=$(gh api \
-            "/repos/${{ github.repository }}/actions/artifacts?name=snapshot-baselines&per_page=10" \
+            "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=snapshot-baselines&per_page=10" \
             --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0]')
           if [ -z "$ARTIFACT" ] || [ "$ARTIFACT" = "null" ]; then
             echo "has_baselines=false" >> "$GITHUB_OUTPUT"

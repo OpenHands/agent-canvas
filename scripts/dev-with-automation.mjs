@@ -35,12 +35,11 @@
  *     openhands-tools and openhands-workspace as editable so source edits are
  *     picked up without manual reinstall.
  *   - OH_AGENT_SERVER_GIT_REF: Git ref for agent-server
- *   - AUTOMATION_LOCAL_API_KEY: Custom API key for automation backend auth
- *   - OH_AUTOMATION_API_KEY_PATH: Override persisted default automation key path
- *
  * Secrets:
- *   The automation API key is automatically seeded into agent-server secrets
+ *   The session API key is automatically seeded into agent-server secrets
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
+ *   Both the agent-server and automation backend use the same key value
+ *   and the same `X-Session-API-Key` header for authentication.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -52,13 +51,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import process from "node:process";
 
 import {
+  assertPortsFree,
   buildAgentServerCommand,
   buildSafeDevConfig,
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  findFreePorts,
   getOrCreatePersistedApiKey,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
@@ -86,15 +85,6 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
-// Where the auto-generated default automation API key is persisted. Static
-// frontend builds bake VITE_AUTOMATION_API_KEY at build time, so the default
-// must remain stable across restarts and --skip-build reuse.
-const DEFAULT_AUTOMATION_API_KEY_PATH = join(
-  homedir(),
-  ".openhands",
-  "agent-canvas",
-  "automation-api-key.txt",
-);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -144,6 +134,7 @@ function parseArgs() {
     dynamic: false,
     staticDir: null,
     skipBuild: false,
+    public: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -173,6 +164,9 @@ function parseArgs() {
         break;
       case "--skip-build":
         config.skipBuild = true;
+        break;
+      case "--public":
+        config.public = true;
         break;
       case "-h":
       case "--help":
@@ -213,12 +207,11 @@ ENVIRONMENT VARIABLES:
   OH_AGENT_SERVER_GIT_REF     Git ref for agent-server SDK (overrides default version)
   OH_AGENT_SERVER_VERSION     Specific PyPI version for agent-server
   OH_SECRET_KEY               Secret key for sessions
-  AUTOMATION_LOCAL_API_KEY    Custom API key for automation backend auth
-  OH_AUTOMATION_API_KEY_PATH  Override persisted default automation key path
 
 SECRETS:
-  The automation API key is automatically seeded into agent-server secrets
+  The session API key is automatically seeded into agent-server secrets
   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
+  Both backends (agent-server and automation) share the same key value.
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -292,81 +285,77 @@ async function buildConfig(args, env = process.env) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
   }
 
-  // Preferred ports (from env or defaults)
-  const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
-  const preferredBackendPort = DEFAULT_BACKEND_PORT;
-  const preferredAutomationPort = DEFAULT_AUTOMATION_PORT;
-  const preferredVitePort = 3001;
+  const isPublic = args.public;
 
-  // Find available ports, preferring the defaults
-  logStep("ports", "Allocating ports...");
-  const ports = await findFreePorts([
-    { name: "ingress", preferred: preferredIngressPort },
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "automation", preferred: preferredAutomationPort },
-    { name: "vite", preferred: preferredVitePort },
+  // In public mode, LOCAL_BACKEND_API_KEY is required — without it the
+  // auth screen has nothing to validate against.
+  if (isPublic && !env.LOCAL_BACKEND_API_KEY) {
+    logError(
+      "PUBLIC MODE requires LOCAL_BACKEND_API_KEY environment variable.\n" +
+        "  Example: LOCAL_BACKEND_API_KEY=my-secret npm run dev -- --public",
+    );
+    process.exit(1);
+  }
+
+  // Preferred ports (from env or defaults).
+  // OH_CANVAS_SAFE_BACKEND_PORT / OH_CANVAS_SAFE_AUTOMATION_PORT /
+  // OH_CANVAS_SAFE_VITE_PORT allow tests (and advanced users) to redirect
+  // internal service ports without affecting the production default.
+  const preferredIngressPort = args.port || parseInt(env.PORT, 10) || 8000;
+  const preferredBackendPort =
+    parseInt(env.OH_CANVAS_SAFE_BACKEND_PORT, 10) || DEFAULT_BACKEND_PORT;
+  const preferredAutomationPort =
+    parseInt(env.OH_CANVAS_SAFE_AUTOMATION_PORT, 10) || DEFAULT_AUTOMATION_PORT;
+  const preferredVitePort = parseInt(env.OH_CANVAS_SAFE_VITE_PORT, 10) || 3001;
+
+  // Fail fast if any preferred port is already in use.
+  logStep("ports", "Checking ports...");
+  await assertPortsFree([
+    { name: "ingress", port: preferredIngressPort },
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "automation", port: preferredAutomationPort },
+    { name: "vite", port: preferredVitePort },
   ]);
 
-  // Log any port changes
-  if (ports.ingress !== preferredIngressPort) {
-    logService(
-      "ports",
-      `Port ${preferredIngressPort} busy, using ${ports.ingress} for ingress`,
-      c.yellow,
-    );
-  }
-  if (ports.backend !== preferredBackendPort) {
-    logService(
-      "ports",
-      `Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-      c.yellow,
-    );
-  }
-  if (ports.automation !== preferredAutomationPort) {
-    logService(
-      "ports",
-      `Port ${preferredAutomationPort} busy, using ${ports.automation} for automation`,
-      c.yellow,
-    );
-  }
-  if (ports.vite !== preferredVitePort) {
-    logService(
-      "ports",
-      `Port ${preferredVitePort} busy, using ${ports.vite} for vite`,
-      c.yellow,
-    );
-  }
+  const vscodePort = preferredBackendPort + 1000;
 
-  const vscodePort = ports.backend + 1000;
+  // API key — shared by both agent-server and automation backend.
+  // Both validate it via the `X-Session-API-Key` header.
+  // LOCAL_BACKEND_API_KEY is the single user-facing env var: if set it's
+  // used directly; otherwise one is auto-generated and persisted.
+  const stateDir =
+    env.OH_CANVAS_SAFE_STATE_DIR ||
+    join(homedir(), ".openhands", "agent-canvas");
 
-  // Local API key for automation backend auth. Keep the generated default
-  // stable across restarts because static frontend builds bake this value.
-  const automationApiKeyPath =
-    env.OH_AUTOMATION_API_KEY_PATH || DEFAULT_AUTOMATION_API_KEY_PATH;
-  const localApiKey =
-    env.AUTOMATION_LOCAL_API_KEY ||
-    getOrCreatePersistedApiKey(automationApiKeyPath, "automation");
-
-  // Session API key for agent-server auth
-  // Build a preliminary safe config to get the auto-generated session key
-  // This ensures both agent-server and frontend use the same key
-  const stateDir = join(homedir(), ".openhands", "agent-canvas");
   const safeConfig = buildSafeDevConfig(projectRoot, {
     ...env,
     OH_CANVAS_SAFE_STATE_DIR: stateDir,
-    OH_CANVAS_SAFE_BACKEND_PORT: ports.backend.toString(),
+    OH_CANVAS_SAFE_BACKEND_PORT: preferredBackendPort.toString(),
     OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
   });
   const sessionApiKey = safeConfig.sessionApiKey;
 
+  if (isPublic) {
+    logService(
+      "auth",
+      "PUBLIC MODE — key will NOT be injected into the frontend",
+      c.yellow,
+    );
+    logService(
+      "auth",
+      "Users must paste the LOCAL_BACKEND_API_KEY in the browser",
+      c.dim,
+    );
+  }
+
   return {
     // Ingress port (main entry point)
-    ingressPort: ports.ingress,
+    ingressPort: preferredIngressPort,
 
     // Service ports (internal)
-    agentServerPort: ports.backend,
-    autoBackendPort: ports.automation,
-    vitePort: ports.vite,
+    agentServerPort: preferredBackendPort,
+    autoBackendPort: preferredAutomationPort,
+    vitePort: preferredVitePort,
     vscodePort,
 
     // Paths
@@ -375,9 +364,11 @@ async function buildConfig(args, env = process.env) {
     // Data directories (same as dev-safe.mjs)
     stateDir,
 
-    // Auth
-    localApiKey,
+    // Auth — single key for both backends
     sessionApiKey,
+
+    // Public mode — the session key should NOT be baked into the frontend
+    isPublic,
 
     verbose: args.verbose,
   };
@@ -425,10 +416,12 @@ function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
-    join(config.stateDir, "conversations"),
+    join(config.stateDir, "dev_conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
     join(config.stateDir, "storage"),
+    // Automation DB directory — matches docker/entrypoint.sh mkdir -p behaviour.
+    dirname(join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)),
   ];
 
   for (const dir of dirs) {
@@ -530,12 +523,13 @@ async function waitForService(name, url, timeoutMs = 30000) {
 
 function buildAgentServerAutomationEnv(config) {
   return {
-    // Make the local automation backend key available to terminal commands
-    // spawned by the agent-server. The launcher also seeds this into Settings
-    // > Secrets, but agents commonly create automations with a curl command
-    // that references `$OPENHANDS_AUTOMATION_API_KEY`; exposing it here keeps
-    // that path working even before/without secret-registry env expansion.
-    OPENHANDS_AUTOMATION_API_KEY: config.localApiKey,
+    // Make the session API key available to terminal commands spawned by the
+    // agent-server as OPENHANDS_AUTOMATION_API_KEY. The launcher also seeds
+    // this into Settings > Secrets, but agents commonly create automations
+    // with a curl command that references `$OPENHANDS_AUTOMATION_API_KEY`;
+    // exposing it here keeps that path working even before/without
+    // secret-registry env expansion.
+    OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
   };
 }
 
@@ -560,6 +554,9 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    // Ensure the agent-server uses the resolved key from config. This is
+    // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
+    OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
   spawnService(
@@ -603,6 +600,9 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
+        // Force UTF-8 for all Python file I/O (same reason as agent-server;
+        // see buildAgentServerEnv in dev-safe.mjs).
+        PYTHONUTF8: "1",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //
@@ -629,7 +629,8 @@ function startAutomationBackend(config) {
             }
           : {}),
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
+        // ~/.openhands/automation/automations.db — matches docker/entrypoint.sh.
+        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)}`,
         // The automation backend uses this as its publicly-reachable base
         // URL: it's appended to callback URLs and injected into each
         // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
@@ -651,8 +652,8 @@ function startAutomationBackend(config) {
           process.env.AUTOMATION_WORKSPACE_BASE ||
           config.automationWorkspaceBase ||
           join(config.stateDir, "workspaces"),
-        // Local API key for self-hosted auth (no cloud API needed)
-        AUTOMATION_LOCAL_API_KEY: config.localApiKey,
+        // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
+        AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
         // CORS: allow localhost origins for dev
         AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
@@ -766,38 +767,43 @@ function startVite(config) {
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
   const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
 
+  const viteEnv = {
+    // Point Vite at the ingress (so client-side fetches work)
+    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    VITE_WORKING_DIR:
+      config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    VITE_FRONTEND_PORT: config.vitePort.toString(),
+    // Inform the frontend (and downstream, the agent's system prompt) about
+    // which services are available in this dev stack.
+    VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
+  };
+
+  // In local mode, bake the session key into the frontend so the user
+  // never has to paste it. In public mode, omit the key and set
+  // VITE_AUTH_REQUIRED so the frontend shows the API key entry screen
+  // immediately (no network round-trip needed).
+  if (config.isPublic) {
+    viteEnv.VITE_AUTH_REQUIRED = "true";
+  } else {
+    viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
+  }
+
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
     cwd: config.canvasPath,
-    env: {
-      // Point Vite at the ingress (so client-side fetches work)
-      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-      VITE_WORKING_DIR:
-        config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
-      VITE_FRONTEND_PORT: config.vitePort.toString(),
-      // Session API key for frontend to authenticate with agent-server
-      VITE_SESSION_API_KEY: config.sessionApiKey,
-      // Automation API key for frontend to authenticate with automation backend
-      VITE_AUTOMATION_API_KEY: config.localApiKey,
-      // Inform the frontend (and downstream, the agent's system prompt) about
-      // which services are available in this dev stack.
-      VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
-      // Session API key for agent-server auth (when SESSION_API_KEY is set)
-      ...(config.sessionApiKey && {
-        VITE_SESSION_API_KEY: config.sessionApiKey,
-      }),
-    },
+    env: viteEnv,
     color: c.magenta,
   });
 }
 
 /**
- * Seed the automation API key into agent-server's secrets store.
- * This makes the key available to agents during conversations.
+ * Seed the session API key into agent-server's secrets store as
+ * OPENHANDS_AUTOMATION_API_KEY so agents can authenticate with the
+ * automation backend in curl commands during conversations.
  *
  * Includes retry logic to handle slow server startup or transient failures.
  *
- * @param {object} config - Configuration object with agentServerPort, localApiKey, sessionApiKey
+ * @param {object} config - Configuration object with agentServerPort, sessionApiKey
  * @param {object} options - Options for retry behavior
  * @param {number} options.maxRetries - Maximum number of retry attempts (default: 5)
  * @param {number} options.retryDelayMs - Delay between retries in ms (default: 2000)
@@ -816,7 +822,7 @@ async function seedAutomationSecret(config, options = {}) {
   const url = `http://localhost:${config.agentServerPort}/api/settings/secrets`;
   const body = JSON.stringify({
     name: secretName,
-    value: config.localApiKey,
+    value: config.sessionApiKey,
     description: secretDescription,
   });
 
@@ -949,9 +955,17 @@ async function main(options = {}) {
     // Human-readable label for the dev mode, surfaced in the agent's
     // <RUNTIME_SERVICES> system-prompt block.
     mode = "dev:automation",
+    // When true, enable public mode (require LOCAL_BACKEND_API_KEY,
+    // don't bake session key into frontend).
+    isPublic: isPublicOverride,
   } = options;
 
   const args = parseArgs();
+
+  // Allow options to override CLI args for public mode
+  if (isPublicOverride != null) {
+    args.public = isPublicOverride;
+  }
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
   const useStaticMode =
@@ -1085,6 +1099,13 @@ function startStaticFrontend(config, staticDir) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
+      // In local mode, inject the API key so the pre-built frontend can
+      // authenticate transparently. In public mode, pass --auth-required
+      // so the frontend shows the API key entry screen instead.
+      ...(!config.isPublic && config.sessionApiKey
+        ? ["--session-api-key", config.sessionApiKey]
+        : []),
+      ...(config.isPublic ? ["--auth-required"] : []),
       // Proxy routes to backends (same as ingress but for direct access to vitePort)
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
@@ -1137,7 +1158,6 @@ export {
   DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
-  DEFAULT_AUTOMATION_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

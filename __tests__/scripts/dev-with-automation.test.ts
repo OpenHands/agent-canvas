@@ -117,11 +117,11 @@ describe("buildAutomationCommand", () => {
 });
 
 describe("buildAgentServerAutomationEnv", () => {
-  it("exposes the local automation API key under the name agents use in curl commands", () => {
+  it("exposes the session API key as OPENHANDS_AUTOMATION_API_KEY for agent curl commands", () => {
     expect(
-      buildAgentServerAutomationEnv({ localApiKey: "automation-local-key" }),
+      buildAgentServerAutomationEnv({ sessionApiKey: "shared-session-key" }),
     ).toEqual({
-      OPENHANDS_AUTOMATION_API_KEY: "automation-local-key",
+      OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
     });
   });
 });
@@ -145,6 +145,10 @@ describe("buildConfig", () => {
   /**
    * Build an env that points persisted dev API key files at a fresh temp dir,
    * so tests don't write to the user's real ~/.openhands/agent-canvas files.
+   *
+   * Also redirects all service ports to high port numbers so that buildConfig's
+   * assertPortsFree check passes even when a real dev stack is running on the
+   * default ports (18000, 18001, 3001, 8000).
    */
   function envWithIsolatedKeyPath(
     extra: Record<string, string> = {},
@@ -153,7 +157,11 @@ describe("buildConfig", () => {
     keyDirs.push(dir);
     return {
       OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
-      OH_AUTOMATION_API_KEY_PATH: path.join(dir, "automation-api-key.txt"),
+      // High ports that are almost certainly free, so assertPortsFree passes.
+      PORT: "19902",
+      OH_CANVAS_SAFE_BACKEND_PORT: "19900",
+      OH_CANVAS_SAFE_AUTOMATION_PORT: "19901",
+      OH_CANVAS_SAFE_VITE_PORT: "19903",
       ...extra,
     };
   }
@@ -193,7 +201,7 @@ describe("buildConfig", () => {
     expect(config.ingressPort).toBe(preferredPort);
   });
 
-  it("falls back to alternative port when ingress port is busy", async () => {
+  it("throws when ingress port is busy", async () => {
     const busyPort = 8100;
 
     // Block port 8100
@@ -206,15 +214,10 @@ describe("buildConfig", () => {
       server.on("error", reject);
     });
 
-    // Request the busy port
-    const config = await buildConfig(
-      { port: busyPort },
-      envWithIsolatedKeyPath(),
-    );
-
-    // Should get a different port since busyPort is taken
-    expect(config.ingressPort).not.toBe(busyPort);
-    expect(config.ingressPort).toBeGreaterThan(0);
+    // Should throw instead of falling back to a different port
+    await expect(
+      buildConfig({ port: busyPort }, envWithIsolatedKeyPath()),
+    ).rejects.toThrow(/ingress.*port 8100/i);
   });
 
   it("allocates valid ports for all services", async () => {
@@ -288,33 +291,10 @@ describe("buildConfig", () => {
     expect(config.verbose).toBe(true);
   });
 
-  it("uses a persisted generated local automation API key by default", async () => {
+  it("sessionApiKey is a 64-char hex string by default", async () => {
     const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    // Default is a 64-char hex string (256-bit random key)
-    expect(config.localApiKey).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it("reuses the persisted local automation API key across restarts", async () => {
-    const env = envWithIsolatedKeyPath();
-    const first = await buildConfig({}, env);
-
-    // Simulate a fresh process invocation (the file on disk should be
-    // what makes the key stable).
-    resetPersistedSessionApiKeyCache();
-
-    const second = await buildConfig({}, env);
-
-    expect(second.localApiKey).toBe(first.localApiKey);
-  });
-
-  it("respects custom AUTOMATION_LOCAL_API_KEY from env", async () => {
-    const config = await buildConfig(
-      {},
-      envWithIsolatedKeyPath({ AUTOMATION_LOCAL_API_KEY: "my-custom-key" }),
-    );
-
-    expect(config.localApiKey).toBe("my-custom-key");
+    expect(config.sessionApiKey).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("falls back to a freshly persisted session API key by default", async () => {
@@ -338,65 +318,13 @@ describe("buildConfig", () => {
     expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
-  it("reads sessionApiKey from SESSION_API_KEY", async () => {
-    const config = await buildConfig({}, { SESSION_API_KEY: "my-session-key" });
-
-    expect(config.sessionApiKey).toBe("my-session-key");
-  });
-
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
+  it("reads sessionApiKey from LOCAL_BACKEND_API_KEY", async () => {
     const config = await buildConfig(
       {},
-      { VITE_SESSION_API_KEY: "vite-session-key" },
+      { ...envWithIsolatedKeyPath(), LOCAL_BACKEND_API_KEY: "my-api-key" },
     );
 
-    expect(config.sessionApiKey).toBe("vite-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "session-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("session-key");
-  });
-
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
-    const config = await buildConfig(
-      {},
-      { OH_SESSION_API_KEYS_0: "v1-session-key" },
-    );
-
-    expect(config.sessionApiKey).toBe("v1-session-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
-  });
-
-  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
-    );
-
-    expect(config.sessionApiKey).toBe("v0-key");
+    expect(config.sessionApiKey).toBe("my-api-key");
   });
 });
 
@@ -412,7 +340,7 @@ describe("default constants", () => {
   });
 
   it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a3");
+    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a5");
   });
 
   it("has expected default backend port", () => {
@@ -451,7 +379,6 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--dynamic");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
-    expect(output).toContain("AUTOMATION_LOCAL_API_KEY");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");
     expect(output).toContain("SECRETS:");
   });

@@ -2,6 +2,85 @@
  * Utility functions for chat input component
  */
 /* eslint-disable no-param-reassign */
+
+const CLIPBOARD_IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/bmp": "bmp",
+};
+
+/**
+ * Screenshots and copied images are often exposed only via
+ * `clipboardData.items` (not `clipboardData.files`). Normalize unnamed
+ * clipboard files so validation and loading UI have stable labels.
+ */
+export function normalizePastedFile(file: File): File {
+  if (file.name.trim()) {
+    return file;
+  }
+
+  const extension =
+    CLIPBOARD_IMAGE_EXTENSIONS[file.type] ??
+    (file.type.startsWith("image/") ? "png" : "bin");
+
+  return new File([file], `pasted-image-${Date.now()}.${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+/** Matches names assigned by {@link normalizePastedFile} for clipboard screenshots. */
+export const PASTED_CLIPBOARD_IMAGE_NAME = /^pasted-image-\d+\.[a-z0-9]+$/i;
+
+export function isPastedClipboardImage(file: File): boolean {
+  return PASTED_CLIPBOARD_IMAGE_NAME.test(file.name);
+}
+
+export function partitionImagesForUpload(
+  images: File[],
+  markedUploadAsFileNames: readonly string[],
+): { imagesToEmbed: File[]; imagesAsFiles: File[] } {
+  const marked = new Set(markedUploadAsFileNames);
+  const imagesToEmbed: File[] = [];
+  const imagesAsFiles: File[] = [];
+
+  for (const image of images) {
+    if (marked.has(image.name)) {
+      imagesAsFiles.push(image);
+    } else {
+      imagesToEmbed.push(image);
+    }
+  }
+
+  return { imagesToEmbed, imagesAsFiles };
+}
+
+/**
+ * Collect files from a paste event, including clipboard image items.
+ */
+export function getClipboardFiles(clipboardData: DataTransfer): File[] {
+  const fromFileList = Array.from(clipboardData.files);
+  if (fromFileList.length > 0) {
+    return fromFileList.map(normalizePastedFile);
+  }
+
+  const fromItems: File[] = [];
+  for (let i = 0; i < clipboardData.items.length; i += 1) {
+    const item = clipboardData.items[i];
+    if (item.kind !== "file") {
+      continue;
+    }
+    const file = item.getAsFile();
+    if (file) {
+      fromItems.push(normalizePastedFile(file));
+    }
+  }
+
+  return fromItems;
+}
 /**
  * Check if contentEditable element is truly empty
  */

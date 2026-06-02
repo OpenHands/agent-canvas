@@ -42,14 +42,15 @@ jobs:
         if: steps.check_fork.outputs.is_fork == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          pr_api="repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}"
+          pr_api="repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
           head_ref="$(gh api "$pr_api" --jq '.head.ref')"
           head_sha="$(gh api "$pr_api" --jq '.head.sha')"
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
-          if gh api "repos/${{ github.repository }}/contents/.pr?ref=$head_sha" --silent >/dev/null 2>&1; then
+          if gh api "repos/$GITHUB_REPOSITORY/contents/.pr?ref=$head_sha" --silent >/dev/null 2>&1; then
             echo "has_pr_dir=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_pr_dir=false" >> "$GITHUB_OUTPUT"
@@ -223,9 +224,10 @@ jobs:
       - name: Delete snapshot artifacts branch
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          BRANCH="snapshot-artifacts/pr-${{ github.event.pull_request.number }}"
-          if gh api --method DELETE "/repos/${{ github.repository }}/git/refs/heads/${BRANCH}" 2>/dev/null; then
+          BRANCH="snapshot-artifacts/pr-$PR_NUMBER"
+          if gh api --method DELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/${BRANCH}" 2>/dev/null; then
             echo "Deleted branch '${BRANCH}'."
           else
             echo "Branch '${BRANCH}' did not exist — nothing to clean up."

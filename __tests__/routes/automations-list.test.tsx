@@ -16,7 +16,11 @@ import {
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import AutomationsList from "#/routes/automations-list";
 import type { Backend } from "#/api/backend-registry/types";
-import type { Automation, AutomationsResponse } from "#/types/automation";
+import {
+  AutomationRunStatus,
+  type Automation,
+  type AutomationsResponse,
+} from "#/types/automation";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
@@ -24,8 +28,14 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
     updateAutomation: vi.fn(),
     toggleAutomation: vi.fn(),
     deleteAutomation: vi.fn(),
+    dispatchAutomation: vi.fn(),
     checkHealth: vi.fn(),
   },
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displaySuccessToast: vi.fn(),
+  displayErrorToast: vi.fn(),
 }));
 
 const localBackend: Backend = {
@@ -61,12 +71,14 @@ const listResponse: AutomationsResponse = {
   total: 1,
 };
 
-function renderList() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function renderList(queryClient?: QueryClient) {
+  const client =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ActiveBackendProvider>
         <MemoryRouter initialEntries={["/automations"]}>
           <AutomationsList />
@@ -84,6 +96,7 @@ beforeEach(() => {
   vi.mocked(AutomationService.getAutomations).mockReset();
   vi.mocked(AutomationService.getAutomations).mockResolvedValue(listResponse);
   vi.mocked(AutomationService.updateAutomation).mockReset();
+  vi.mocked(AutomationService.dispatchAutomation).mockReset();
   setRegisteredBackends([localBackend, cloudBackend]);
   setActiveSelection({ backendId: localBackend.id });
 });
@@ -161,9 +174,182 @@ describe("AutomationsList — view mode toggle", () => {
     expect(
       screen.queryByTestId("automation-card-auto-1"),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("automation-list-row-auto-1")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("automation-list-row-auto-1"),
+    ).toBeInTheDocument();
     expect(window.localStorage.getItem("openhands-automations-view")).toBe(
       "list",
     );
+  });
+
+  it("disables the view-mode toggle when the user has no automations", async () => {
+    // Arrange — service returns an empty list, so the page lands on EmptyState.
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [],
+      total: 0,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await waitFor(() => {
+      expect(AutomationService.getAutomations).toHaveBeenCalledTimes(1);
+    });
+
+    // Act — try to open the toggle's grid/list menu.
+    const trigger = await screen.findByTestId("automations-view-toggle");
+    await user.click(trigger);
+
+    // Assert — toggle is disabled and clicking it does not reveal the menu.
+    expect(trigger).toBeDisabled();
+    expect(
+      screen.queryByTestId("automations-view-toggle-list"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("AutomationsList — Run now toasts", () => {
+  beforeEach(async () => {
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    vi.mocked(displaySuccessToast).mockClear();
+    vi.mocked(displayErrorToast).mockClear();
+  });
+
+  it("shows a success toast after the dispatch API resolves", async () => {
+    // Arrange — service resolves with a fresh run record.
+    vi.mocked(AutomationService.dispatchAutomation).mockResolvedValue({
+      id: "run-1",
+      status: AutomationRunStatus.PENDING,
+      conversation_id: null,
+      bash_command_id: null,
+      error_detail: null,
+      started_at: "2026-01-02T00:00:00Z",
+      completed_at: null,
+    });
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByText(automation.name);
+
+    // Act — click the row's "Run now" button.
+    await user.click(screen.getByTestId(`automation-run-now-${automation.id}`));
+
+    // Assert — dispatch was called and success toast fired with the i18n key.
+    await waitFor(() => {
+      expect(AutomationService.dispatchAutomation).toHaveBeenCalledWith(
+        automation.id,
+      );
+    });
+    await waitFor(() => {
+      expect(displaySuccessToast).toHaveBeenCalledWith(
+        I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS,
+      );
+    });
+    expect(displayErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when Run now is clicked on a disabled automation (grid view)", async () => {
+    // Arrange — single automation that is turned off.
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    const button = await screen.findByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act — userEvent honors the disabled attribute, so the click is suppressed.
+    await user.click(button);
+
+    // Assert — the off-state gate prevents the dispatch API from firing.
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when Run now is clicked on a disabled automation (list view)", async () => {
+    // Arrange — pre-seed the stored view mode so the page mounts in list view,
+    // then return a single disabled automation.
+    window.localStorage.setItem("openhands-automations-view", "list");
+    const disabledAutomation: Automation = { ...automation, enabled: false };
+    vi.mocked(AutomationService.getAutomations).mockResolvedValue({
+      automations: [disabledAutomation],
+      total: 1,
+    });
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByTestId(
+      `automation-list-row-${disabledAutomation.id}`,
+    );
+    const button = screen.getByTestId(
+      `automation-run-now-${disabledAutomation.id}`,
+    );
+
+    // Act
+    await user.click(button);
+
+    // Assert
+    expect(button).toBeDisabled();
+    expect(AutomationService.dispatchAutomation).not.toHaveBeenCalled();
+  });
+
+  it("shows an error toast when the dispatch API rejects", async () => {
+    // Arrange — service rejects with a plain Error so the fallback branch fires.
+    vi.mocked(AutomationService.dispatchAutomation).mockRejectedValue(
+      new Error("dispatch failed"),
+    );
+    const { displaySuccessToast, displayErrorToast } =
+      await import("#/utils/custom-toast-handlers");
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByText(automation.name);
+
+    // Act — click the row's "Run now" button.
+    await user.click(screen.getByTestId(`automation-run-now-${automation.id}`));
+
+    // Assert — error toast surfaces the rejection message; success toast never fires.
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("dispatch failed");
+    });
+    expect(displaySuccessToast).not.toHaveBeenCalled();
+  });
+});
+
+describe("AutomationsList — list freshness on remount", () => {
+  it("surfaces automations created since the last visit without a manual refresh", async () => {
+    // Arrange — share a QueryClient across two mounts to simulate the user
+    // navigating away from /automations and back. Between the two mounts an
+    // agent has created a new automation, so the service starts returning
+    // it on the next call. Previously, the cached list was treated as fresh
+    // for 5 minutes and the second mount would have re-rendered the stale
+    // list without refetching.
+    const newAutomation: Automation = {
+      ...automation,
+      id: "auto-2",
+      name: "Hello World",
+    };
+    vi.mocked(AutomationService.getAutomations)
+      .mockReset()
+      .mockResolvedValueOnce(listResponse)
+      .mockResolvedValueOnce({
+        automations: [automation, newAutomation],
+        total: 2,
+      });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    // Act — first mount lands on the original list, then unmount and remount
+    // against the same QueryClient (the cache the bug used to serve stale).
+    const first = renderList(queryClient);
+    await screen.findByText(automation.name);
+    first.unmount();
+    renderList(queryClient);
+
+    // Assert — the remount refetched and surfaced the newly created
+    // automation, which is the user-observable behavior the bug blocked.
+    await screen.findByText(newAutomation.name);
   });
 });
