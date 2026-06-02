@@ -123,6 +123,4 @@ jobs:
           echo "📦 Version $VERSION → dist-tag: $DIST_TAG (stable release exists: $STABLE_EXISTS)"
 
       - name: Publish to npm with provenance
-        env:
-          DIST_TAG: ${{ steps.dist_tag.outputs.dist_tag }}
-        run: npm publish --access public --provenance --tag "$DIST_TAG"
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.dist_tag }}

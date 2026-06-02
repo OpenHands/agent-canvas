@@ -74,26 +74,21 @@ jobs:
       - name: Resolve source context
         id: ctx
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_SHA_VALUE: ${{ github.sha }}
           GITHUB_REF_VALUE: ${{ github.ref }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_run" ]; then
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
             # workflow_run only fires for main (job-level `if` guard), so
             # this path always tests the main-branch Docker image. Never
             # post PR comments — results go to the step summary only.
-            echo "sha=$WORKFLOW_RUN_HEAD_SHA" >> "$GITHUB_OUTPUT"
-            echo "ref=$WORKFLOW_RUN_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
             echo "pr_number=" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
-            echo "ref=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
-            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
-            echo "sha=$GITHUB_SHA_VALUE" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=$GITHUB_REF_VALUE" >> "$GITHUB_OUTPUT"
             echo "pr_number=" >> "$GITHUB_OUTPUT"
           fi
@@ -115,14 +110,14 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.ctx.outputs.sha }}
         run: |
+          SHA="${{ steps.ctx.outputs.sha }}"
           echo "Waiting for Docker workflow to complete for SHA ${SHA}..."
 
           for i in $(seq 1 60); do
             # Find the Docker workflow run for this exact commit
             RUN=$(gh api \
-              "/repos/$GITHUB_REPOSITORY/actions/workflows/docker.yml/runs?head_sha=${SHA}&per_page=1" \
+              "/repos/${{ github.repository }}/actions/workflows/docker.yml/runs?head_sha=${SHA}&per_page=1" \
               --jq '.workflow_runs[0] // empty' 2>/dev/null || echo "")
 
             if [ -z "$RUN" ]; then
@@ -163,12 +158,11 @@ jobs:
         id: image
         env:
           DOCKER_IMAGE_INPUT: ${{ inputs.docker_image }}
-          SOURCE_SHA: ${{ steps.ctx.outputs.sha }}
         run: |
           if [ -n "$DOCKER_IMAGE_INPUT" ]; then
             echo "tag=$DOCKER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
-            SHORT_SHA=$(echo "$SOURCE_SHA" | cut -c1-7)
+            SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
             # Use the amd64-specific tag (always pushed by the Docker workflow).
             echo "tag=ghcr.io/openhands/agent-canvas:sha-${SHORT_SHA}-amd64" >> "$GITHUB_OUTPUT"
           fi
@@ -326,16 +320,13 @@ jobs:
 
       - name: Render test report
         if: always()
-        env:
-          SOURCE_SHA: ${{ steps.ctx.outputs.sha }}
-          ARTIFACT_URL: ${{ steps.upload_artifacts.outputs.artifact-url || '' }}
         run: |
           node tests/e2e/mock-llm/scripts/render-mock-llm-report.mjs \
             --results "test-results-mock-llm-docker/results.json" \
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
-            --commit "$SOURCE_SHA" \
-            --artifact-url "$ARTIFACT_URL" \
+            --commit "${{ steps.ctx.outputs.sha }}" \
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
             --title "Mock-LLM Docker E2E Test Results"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
@@ -343,14 +334,12 @@ jobs:
         if: always() && steps.ctx.outputs.pr_number
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.ctx.outputs.pr_number }}
         run: |
-          gh pr comment "$PR_NUMBER" \
+          gh pr comment "${{ steps.ctx.outputs.pr_number }}" \
             --body-file "$MOCK_LLM_REPORT_PATH"
 
       - name: Fail job when tests fail
         if: always()
-        env:
-          TEST_EXIT_CODE: ${{ steps.run_tests.outputs.exit_code }}
         run: |
-          exit "${TEST_EXIT_CODE:-1}"
+          exit_code="${{ steps.run_tests.outputs.exit_code }}"
+          exit "${exit_code:-1}"

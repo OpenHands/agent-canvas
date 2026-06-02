@@ -190,30 +190,25 @@ jobs:
 
       - name: Render test report
         if: always()
-        env:
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          ARTIFACT_URL: ${{ steps.upload_artifacts.outputs.artifact-url || '' }}
         run: |
           node tests/e2e/mock-llm/scripts/render-mock-llm-report.mjs \
             --results "test-results-mock-llm/results.json" \
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
-            --commit "$SOURCE_SHA" \
-            --artifact-url "$ARTIFACT_URL"
+            --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment
         if: always() && github.event.pull_request.number
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr comment "$PR_NUMBER" \
+          gh pr comment "${{ github.event.pull_request.number }}" \
             --body-file "$MOCK_LLM_REPORT_PATH"
 
       - name: Fail job when tests fail
         if: always()
-        env:
-          TEST_EXIT_CODE: ${{ steps.run_tests.outputs.exit_code }}
         run: |
-          exit "${TEST_EXIT_CODE:-1}"
+          exit_code="${{ steps.run_tests.outputs.exit_code }}"
+          exit "${exit_code:-1}"

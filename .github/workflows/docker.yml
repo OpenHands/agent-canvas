@@ -103,8 +103,6 @@ jobs:
           DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
           AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
           DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
@@ -139,8 +137,8 @@ jobs:
             add_tag "$BRANCH"
           fi
 
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            add_tag "pr-$PR_NUMBER"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            add_tag "pr-${{ github.event.pull_request.number }}"
           fi
 
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
@@ -204,42 +202,36 @@ jobs:
 
       - name: Summary (${{ matrix.arch }})
         env:
-          MATRIX_ARCH: ${{ matrix.arch }}
-          MATRIX_PLATFORM: ${{ matrix.platform }}
-          SHORT_SHA: ${{ steps.prep.outputs.short_sha }}
           TAGS: ${{ steps.prep.outputs.tags }}
-          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           echo "Image: $IMAGE"
-          echo "Architecture: $MATRIX_ARCH"
-          echo "Platform: $MATRIX_PLATFORM"
-          echo "Short SHA: $SHORT_SHA"
+          echo "Architecture: ${{ matrix.arch }}"
+          echo "Platform: ${{ matrix.platform }}"
+          echo "Short SHA: ${{ steps.prep.outputs.short_sha }}"
           echo "Tags: $TAGS"
-          echo "Build digest: $BUILD_DIGEST"
+          echo "Build digest: ${{ steps.build.outputs.digest }}"
 
       - name: Save build info for consolidation
         env:
-          MATRIX_ARCH: ${{ matrix.arch }}
-          MATRIX_PLATFORM: ${{ matrix.platform }}
-          SHORT_SHA: ${{ steps.prep.outputs.short_sha }}
           TAGS: ${{ steps.prep.outputs.tags }}
           AGENT_SERVER_IMAGE: ${{ steps.prep.outputs.agent_server_image }}
           AUTOMATION_VERSION: ${{ steps.prep.outputs.automation_version }}
         run: |
           mkdir -p build-info
           jq -n \
-            --arg arch "$MATRIX_ARCH" \
+            --arg arch "${{ matrix.arch }}" \
             --arg image "$IMAGE" \
-            --arg short_sha "$SHORT_SHA" \
+            --arg short_sha "${{ steps.prep.outputs.short_sha }}" \
             --arg tags "$TAGS" \
             --arg agent_server_image "$AGENT_SERVER_IMAGE" \
             --arg automation_version "$AUTOMATION_VERSION" \
-            --arg platform "$MATRIX_PLATFORM" \
-            --arg git_sha "$RELEVANT_SHA" \
+            --arg platform "${{ matrix.platform }}" \
+            --arg git_sha "${{ env.RELEVANT_SHA }}" \
             --arg git_ref "$RELEVANT_REF" \
             '{arch: $arch, image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, platform: $platform, git_sha: $git_sha, git_ref: $git_ref}' \
-            > "build-info/${MATRIX_ARCH}.json"
-          cat "build-info/${MATRIX_ARCH}.json"
+            > "build-info/${{ matrix.arch }}.json"
+          cat "build-info/${{ matrix.arch }}.json"
+
       - name: Upload build info artifact
         uses: actions/upload-artifact@v7
         with:
@@ -287,8 +279,6 @@ jobs:
 
       - name: Create and push multi-arch manifests
         id: create_manifests
-        env:
-          SHORT_SHA: ${{ steps.get_sha.outputs.short_sha }}
         run: |
           # Validate both architectures built successfully
           if [[ ! -f build-info/amd64.json ]] || [[ ! -f build-info/arm64.json ]]; then
@@ -297,6 +287,7 @@ jobs:
             exit 1
           fi
 
+          SHORT_SHA=${{ steps.get_sha.outputs.short_sha }}
           AMD64_TAGS_CSV=$(jq -r '.tags' build-info/amd64.json)
           declare -A SEEN_MANIFEST_TAGS=()
           MANIFEST_TAGS=()
