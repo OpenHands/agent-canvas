@@ -459,14 +459,18 @@ function checkPrerequisites({
 }
 
 function ensureDirectories(config) {
-  const dirs = [config.stateDir];
+  const dirs = [
+    config.stateDir,
+    // Both agent-server and automation use storage; create it unconditionally
+    // whenever either backend service runs (i.e. not frontend-only).
+    ...(!config.frontendOnly ? [join(config.stateDir, "storage")] : []),
+  ];
 
   if (config.launchAgentServer) {
     dirs.push(
       join(config.stateDir, "dev_conversations"),
       join(config.stateDir, "workspaces"),
       join(config.stateDir, "bash_events"),
-      join(config.stateDir, "storage"),
     );
   }
 
@@ -476,7 +480,6 @@ function ensureDirectories(config) {
       dirname(
         join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb),
       ),
-      join(config.stateDir, "storage"),
     );
   }
 
@@ -984,13 +987,25 @@ function printBanner(config) {
       ? "Agent Canvas Backend Stack"
       : "Agent Canvas + Automation Stack";
 
+  // padEnd counts invisible ANSI escape bytes as visible characters, so we
+  // compute the visible length separately and pad with spaces accordingly.
+  const ansiRe = /\x1b\[[0-9;]*m/g;
+  const ansiPadEnd = (str, targetVisible) => {
+    const visible = str.replace(ansiRe, "").length;
+    return str + " ".repeat(Math.max(0, targetVisible - visible));
+  };
+  // The box has 62-char inner width; each content line needs 63 visible chars
+  // before the trailing border (1 leading ║ + 62 inner).
+  const BOX_INNER = 63;
+
   console.log("");
   console.log(
     `${c.green}${c.bold}╔══════════════════════════════════════════════════════════════╗${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  ${c.bold}${stackName}${c.reset}`.padEnd(
-      75,
+    ansiPadEnd(
+      `${c.green}${c.bold}║${c.reset}  ${c.bold}${stackName}${c.reset}`,
+      BOX_INNER,
     ) + `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
@@ -1000,21 +1015,24 @@ function printBanner(config) {
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  Ingress:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(
-      75,
+    ansiPadEnd(
+      `${c.green}${c.bold}║${c.reset}  Ingress:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`,
+      BOX_INNER,
     ) + `${c.green}${c.bold}║${c.reset}`,
   );
   if (config.launchFrontend) {
     console.log(
-      `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(
-        75,
+      ansiPadEnd(
+        `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`,
+        BOX_INNER,
       ) + `${c.green}${c.bold}║${c.reset}`,
     );
   }
   if (config.launchAutomation) {
     console.log(
-      `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(
-        75,
+      ansiPadEnd(
+        `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`,
+        BOX_INNER,
       ) + `${c.green}${c.bold}║${c.reset}`,
     );
   }
@@ -1085,6 +1103,8 @@ async function main(options = {}) {
   // Setup phase
   checkPrerequisites({
     checkUvx: !args.frontendOnly,
+    // Static-mode + backend-only has no frontend to build, so npm is not
+    // required — unless the caller provides a custom buildStaticFrontend hook.
     checkNpm:
       (!useStaticMode && !args.backendOnly) ||
       typeof buildStaticFrontend === "function",
