@@ -14,7 +14,7 @@ can reach it from anywhere via a browser.
 
 1. **Provision a machine** — a cloud VM or dedicated hardware (Mac Mini, NUC, etc.)
 2. **Secure the machine** — lock down the network firewall
-3. **Run Agent Canvas** — `LOCAL_BACKEND_API_KEY=<key> npx @openhands/agent-canvas --public`
+3. **Run Agent Canvas** — generate a key with `openssl rand -base64 32`, then `export LOCAL_BACKEND_API_KEY=<key>` and `npx @openhands/agent-canvas --public`
 4. **(Optional) Get a domain** — point a domain at the machine with nginx + Let's Encrypt for TLS
 5. **(Optional) Connect locally** — add the remote as a backend in your local Agent Canvas
 
@@ -92,10 +92,6 @@ the agent (step 3) and access the UI through an SSH tunnel. If you also want
 to reach it from a browser without tunneling, you'll open ports 80 and 443
 in step 4.
 
-For an extra host-level backstop, see
-[Advanced: defense in depth](#advanced-defense-in-depth) at the end of this
-document.
-
 ## 3. Run Agent Canvas
 
 Install the prerequisites on the machine. On Ubuntu:
@@ -113,8 +109,13 @@ On macOS (Mac Mini, etc.) install Node and `uv` via `brew` instead.
 Start Agent Canvas in public mode:
 
 ```bash
-LOCAL_BACKEND_API_KEY=<choose-a-strong-secret> npx @openhands/agent-canvas --public
+export LOCAL_BACKEND_API_KEY=$(openssl rand -base64 32)   # generate once; store securely
+npx @openhands/agent-canvas --public
 ```
+
+Using `export` keeps the key out of the process list (`ps aux`). The
+`openssl rand -base64 32` command generates a cryptographically random
+256-bit key — copy the printed value somewhere safe before proceeding.
 
 This single command downloads the latest release, starts the agent server,
 the automation backend, and the static frontend, and fronts them with an
@@ -125,8 +126,8 @@ To keep the service running after your SSH session ends, use a process manager.
 **Option A — tmux (quick):**
 
 ```bash
-tmux new-session -d -s canvas \
-  'LOCAL_BACKEND_API_KEY=<your-key> npx @openhands/agent-canvas --public'
+export LOCAL_BACKEND_API_KEY=<your-saved-key>
+tmux new-session -d -s canvas 'npx @openhands/agent-canvas --public'
 # Reconnect later with: tmux attach -t canvas
 ```
 
