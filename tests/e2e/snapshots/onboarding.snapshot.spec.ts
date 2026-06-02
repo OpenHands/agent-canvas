@@ -52,6 +52,12 @@ async function waitForStep(page: Page, step: number) {
   );
 }
 
+async function clickOnboardingStepButton(page: Page, testId: string) {
+  // Snapshot slides are translated and clipped during transitions. In CI,
+  // Playwright can resolve the button as visible but outside the viewport.
+  await page.getByTestId(testId).dispatchEvent("click");
+}
+
 test.describe("Onboarding Modal Visual Snapshots", () => {
   test.setTimeout(60_000);
 
@@ -84,7 +90,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await waitForStep(page, 0);
 
     // Advance to step 1
-    await page.getByTestId("onboarding-agent-next").click();
+    await clickOnboardingStepButton(page, "onboarding-agent-next");
     await waitForStep(page, 1);
 
     // Wait for the backend connection banner to settle.
@@ -112,14 +118,14 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await waitForStep(page, 0);
 
     // Step 0 → 1
-    await page.getByTestId("onboarding-agent-next").click();
+    await clickOnboardingStepButton(page, "onboarding-agent-next");
     await waitForStep(page, 1);
 
     // Wait for backend connected banner then advance
     await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
       timeout: 10_000,
     });
-    await page.getByTestId("onboarding-backend-next").click();
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
     await waitForStep(page, 2);
 
     // Wait for LLM settings to load (MSW settings + schema endpoints)
@@ -143,14 +149,14 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await waitForStep(page, 0);
 
     // Step 0 → 1
-    await page.getByTestId("onboarding-agent-next").click();
+    await clickOnboardingStepButton(page, "onboarding-agent-next");
     await waitForStep(page, 1);
 
     // Step 1 → 2 (requires backend connected)
     await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
       timeout: 10_000,
     });
-    await page.getByTestId("onboarding-backend-next").click();
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
     await waitForStep(page, 2);
 
     // Allow LLM settings to finish loading so the save control is registered
@@ -160,7 +166,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     // If the LLM form is dirty (it is, because ONBOARDING_LLM_OVERRIDES differs
     // from the mock default model), clicking Next will trigger a PATCH settings
     // mutation. MSW handles the PATCH and resolves onSaveSuccess → onNext.
-    await page.getByTestId("onboarding-llm-next").click();
+    await clickOnboardingStepButton(page, "onboarding-llm-next");
     await waitForStep(page, 3);
 
     // Wait for the say-hello input to be ready
