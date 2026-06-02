@@ -20,6 +20,39 @@ import {
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
+/**
+ * Renders a helperText string as React nodes, converting any `[text](url)`
+ * markdown links into real `<a>` elements. Plain text segments are left as-is.
+ */
+function renderHelperText(text: string): React.ReactNode {
+  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((match = linkPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <a
+        key={match.index}
+        href={match[2]}
+        target="_blank"
+        rel="noreferrer"
+        className="underline hover:text-white transition-colors"
+      >
+        {match[1]}
+      </a>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts;
+}
+
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
   onClose: () => void;
@@ -288,7 +321,9 @@ export function InstallServerModal({
               className="w-full"
             />
             {field.helperText && (
-              <p className="text-xs text-tertiary-alt">{field.helperText}</p>
+              <p className="text-xs text-tertiary-alt">
+                {renderHelperText(field.helperText)}
+              </p>
             )}
             {state.errors[field.key] && (
               <p className="text-xs text-red-500">{state.errors[field.key]}</p>
@@ -310,7 +345,9 @@ export function InstallServerModal({
               className="w-full"
             />
             {field.helperText && (
-              <p className="text-xs text-tertiary-alt">{field.helperText}</p>
+              <p className="text-xs text-tertiary-alt">
+                {renderHelperText(field.helperText)}
+              </p>
             )}
             {state.errors[field.key] && (
               <p className="text-xs text-red-500">{state.errors[field.key]}</p>
