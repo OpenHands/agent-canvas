@@ -15,10 +15,9 @@ vi.mock("#/hooks/query/use-settings", () => ({
 import { useTracking } from "#/hooks/use-tracking";
 
 const TEST_EMAIL = "user@example.com";
-const COMMON = {
-  current_url: "http://localhost/",
-  user_email: TEST_EMAIL,
-};
+// Resolved at test-run time so it matches whatever URL jsdom is configured
+// with in the current environment (varies between local and CI).
+let COMMON: { current_url: string; user_email: string };
 
 describe("useTracking", () => {
   beforeEach(() => {
@@ -26,6 +25,10 @@ describe("useTracking", () => {
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL },
     });
+    COMMON = {
+      current_url: window.location.href,
+      user_email: TEST_EMAIL,
+    };
   });
 
   const getTracking = () => renderHook(() => useTracking()).result.current;

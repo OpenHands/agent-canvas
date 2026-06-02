@@ -887,11 +887,19 @@ describe("ChatInterface - Tracking", () => {
   });
 
   it("calls trackUserMessageSent when a follow-up message is sent (non-empty conversation)", async () => {
-    // Pre-populate the event store so totalEvents > 0.
+    // totalEvents = uiEvents.filter(shouldRenderAgentServerEvent).length.
+    // A MessageEvent (has llm_message.role + content) passes that filter,
+    // so seeding uiEvents with one makes totalEvents = 1.
     useEventStore.setState({
-      events: [{ id: "e1" } as never],
-      eventIds: new Set(["e1"]),
-      uiEvents: [],
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [
+        {
+          id: "e1",
+          source: "user",
+          llm_message: { role: "user", content: "prior message" },
+        } as never,
+      ],
     });
 
     renderInterface();
