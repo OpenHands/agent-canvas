@@ -49,6 +49,16 @@ export const FIELD_HELP_LINKS: Record<
   },
 };
 
+/**
+ * Field keys that should span the full settings grid (both columns on xl
+ * screens) instead of sharing a row with the next field. Used for inputs
+ * whose label + value + help link need horizontal room so they don't
+ * sit awkwardly opposite a single toggle.
+ */
+export const FIELD_FULL_WIDTH_KEYS: ReadonlySet<string> = new Set([
+  "verification.critic_api_key",
+]);
+
 function FieldHelp({ field }: { field: SettingsFieldSchema }) {
   const { t } = useTranslation("openhands");
   const helpLink = FIELD_HELP_LINKS[field.key];

@@ -169,21 +169,6 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           required: false,
         },
         {
-          key: "verification.critic_api_key",
-          label: "Critic API Key",
-          description:
-            "API key the critic uses to call its LLM. Required when the critic is enabled.",
-          section: "verification",
-          section_label: "Verification",
-          value_type: "string",
-          default: null,
-          choices: [],
-          depends_on: ["verification.critic_enabled"],
-          prominence: "critical",
-          secret: true,
-          required: true,
-        },
-        {
           key: "verification.critic_mode",
           label: "Critic Mode",
           description: "Choose when the critic should review and intervene.",
@@ -217,6 +202,24 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           prominence: "critical",
           secret: false,
           required: false,
+        },
+        // Rendered as a full-width row (see FIELD_FULL_WIDTH_KEYS) below the
+        // two critical-prominence toggles so the input + OpenHands Cloud help
+        // link have room to breathe.
+        {
+          key: "verification.critic_api_key",
+          label: "Critic API Key",
+          description:
+            "API key the critic uses to call its LLM. Required when the critic is enabled.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "string",
+          default: null,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "critical",
+          secret: true,
+          required: true,
         },
         {
           key: "verification.critic_threshold",

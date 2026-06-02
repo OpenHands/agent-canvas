@@ -31,7 +31,7 @@ import {
   type SettingsValueSource,
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
-import { SchemaField } from "./schema-field";
+import { FIELD_FULL_WIDTH_KEYS, SchemaField } from "./schema-field";
 import { ViewToggle } from "./view-toggle";
 
 const EMPTY_EXCLUDE_KEYS = new Set<string>();
