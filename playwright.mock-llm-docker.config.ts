@@ -86,7 +86,10 @@ export default defineConfig({
   testMatch: /.*\.spec\.ts/,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  // One retry for transient Docker container startup failures (ECONNREFUSED).
+  // The container health-check (webServer.url) confirms the stack is up, but
+  // occasional races can still cause the first request to fail.
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 60_000,
   globalTimeout: process.env.CI ? 600_000 : 0, // 10 min hard cap in CI
