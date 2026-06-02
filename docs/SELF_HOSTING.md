@@ -14,7 +14,7 @@ can reach it from anywhere via a browser.
 
 1. **Provision a machine** — a cloud VM or dedicated hardware (Mac Mini, NUC, etc.)
 2. **Secure the machine** — lock down the network firewall
-3. **Run the server** — `LOCAL_BACKEND_API_KEY=<key> npx @openhands/agent-canvas --public`
+3. **Run Agent Canvas** — `LOCAL_BACKEND_API_KEY=<key> npx @openhands/agent-canvas --public`
 4. **(Optional) Get a domain** — point a domain at the machine with nginx + Let's Encrypt for TLS
 5. **(Optional) Connect locally** — add the remote as a backend in your local Agent Canvas
 
@@ -96,7 +96,7 @@ For an extra host-level backstop, see
 [Advanced: defense in depth](#advanced-defense-in-depth) at the end of this
 document.
 
-## 3. Run the server
+## 3. Run Agent Canvas
 
 Install the prerequisites on the machine. On Ubuntu:
 
@@ -110,7 +110,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 On macOS (Mac Mini, etc.) install Node and `uv` via `brew` instead.
 
-Start the server in public mode:
+Start Agent Canvas in public mode:
 
 ```bash
 LOCAL_BACKEND_API_KEY=<choose-a-strong-secret> npx @openhands/agent-canvas --public
