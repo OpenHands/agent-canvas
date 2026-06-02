@@ -595,7 +595,7 @@ describe("buildSafeDevConfig", () => {
       path.join(tmpdir(), "openhands-agent-canvas-tmux"),
     );
     expect(config.conversationsPath).toBe(
-      path.join(config.stateDir, "conversations"),
+      path.join(config.stateDir, "dev_conversations"),
     );
     expect(config.workspacesPath).toBe(
       path.join(config.stateDir, "workspaces"),

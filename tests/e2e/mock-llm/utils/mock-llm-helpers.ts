@@ -380,5 +380,35 @@ export async function resetMockLLM(request: APIRequestContext) {
   expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
 }
 
+/**
+ * Set contentEditable chat input text and dispatch an input event.
+ *
+ * contentEditable divs don't respond reliably to Playwright's .fill() or
+ * .type(), so we set the text programmatically via page.evaluate().
+ */
+export async function setChatInput(
+  page: Page,
+  text: string,
+  testId = "chat-input",
+) {
+  await page.evaluate(
+    ({ tid, inputText }) => {
+      const el = document.querySelector(`[data-testid="${tid}"]`);
+      if (!(el instanceof HTMLElement))
+        throw new Error(`Chat input [data-testid="${tid}"] not found`);
+      el.focus();
+      el.textContent = inputText;
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: inputText,
+          inputType: "insertText",
+        }),
+      );
+    },
+    { tid: testId, inputText: text },
+  );
+}
+
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.
