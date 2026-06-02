@@ -11,6 +11,7 @@ import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 import {
   parseCronSchedule,
   buildCronSchedule,
@@ -219,7 +220,7 @@ export function EditAutomationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-medium text-white">
+        <h2 className={modalTitleLgMediumClassName}>
           {t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         </h2>
 

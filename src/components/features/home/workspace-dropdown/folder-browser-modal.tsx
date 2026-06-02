@@ -17,6 +17,7 @@ import {
 } from "#/hooks/query/use-search-subdirs";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
+import { modalTitleSmClassName } from "#/utils/modal-classes";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
 
@@ -218,7 +219,7 @@ export function FolderBrowserModal({
         {/* Title bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
           <BaseModalTitle
-            className="text-sm font-medium text-white"
+            className={modalTitleSmClassName}
             title={t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
           />
         </div>

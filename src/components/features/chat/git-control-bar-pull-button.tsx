@@ -1,6 +1,11 @@
 import { useTranslation } from "react-i18next";
 import ArrowDownIcon from "#/icons/u-arrow-down.svg?react";
 import { cn, getGitPullPrompt } from "#/utils/utils";
+import {
+  gitControlBarActionButtonClassName,
+  gitControlBarActionIconColor,
+  gitControlBarActionLabelClassName,
+} from "#/utils/git-control-bar-classes";
 import { I18nKey } from "#/i18n/declaration";
 import { useTracking } from "#/hooks/use-tracking";
 
@@ -34,17 +39,19 @@ export function GitControlBarPullButton({
       onClick={handlePullClick}
       disabled={!isButtonEnabled}
       className={cn(
-        "flex flex-row gap-1 items-center justify-center px-0.5 py-1 rounded-[100px] w-[76px] min-w-[76px]",
-        isButtonEnabled
-          ? "bg-[var(--oh-surface)] hover:bg-tertiary cursor-pointer"
-          : "bg-[rgba(71,74,84,0.50)] cursor-not-allowed",
+        gitControlBarActionButtonClassName(isButtonEnabled),
+        "px-0.5 py-1 w-[76px] min-w-[76px]",
       )}
     >
       <div className="w-3 h-3 flex items-center justify-center">
-        <ArrowDownIcon width={12} height={12} color="white" />
+        <ArrowDownIcon
+          width={12}
+          height={12}
+          color={gitControlBarActionIconColor(isButtonEnabled)}
+        />
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 max-w-[76px] truncate"
+        className={cn(gitControlBarActionLabelClassName, "max-w-[76px]")}
         title={t(I18nKey.COMMON$PULL)}
       >
         {t(I18nKey.COMMON$PULL)}

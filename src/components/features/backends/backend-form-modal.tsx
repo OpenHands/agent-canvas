@@ -19,6 +19,10 @@ import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
+import {
+  modalTitleLgClassName,
+  modalTitleLgMediumClassName,
+} from "#/utils/modal-classes";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -570,7 +574,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
         <h4
-          className="text-lg font-medium text-white"
+          className={modalTitleLgMediumClassName}
           data-testid="add-backend-cloud-title"
         >
           {t(I18nKey.BACKEND$CLOUD_TITLE)}
@@ -662,7 +666,7 @@ export function BackendFormModal({
           <ModalCloseButton onClose={onClose} testId="add-backend-close" />
           {/* Header */}
           <div className="px-6 pt-6 pb-2 pr-12">
-            <h2 className="text-lg font-semibold">
+            <h2 className={modalTitleLgClassName}>
               {t(I18nKey.BACKEND$ADD_TITLE)}
             </h2>
           </div>
@@ -709,7 +713,7 @@ export function BackendFormModal({
         )}
       >
         <ModalCloseButton onClose={onClose} testId={`${testIdRoot}-close`} />
-        <h2 className="pr-6 text-lg font-semibold">
+        <h2 className={cn("pr-6", modalTitleLgClassName)}>
           {t(I18nKey.BACKEND$EDIT_TITLE)}
         </h2>
         <BackendForm

@@ -588,7 +588,7 @@ function buildConfigFromPorts(ports, cwd, env) {
     env.OH_CANVAS_SAFE_STATE_DIR ||
       path.join(homedir(), ".openhands", "agent-canvas"),
   );
-  const conversationsPath = path.join(stateDir, "conversations");
+  const conversationsPath = path.join(stateDir, "dev_conversations");
   const workspacesPath = path.join(stateDir, "workspaces");
   // Use provided secret key, or read/generate one persisted to
   // ~/.openhands/agent-canvas/secret-key.txt. Persisting ensures dev mode
@@ -658,6 +658,8 @@ export function buildAgentServerEnv(config) {
     // This is a no-op on Linux/macOS where the locale is already UTF-8.
     PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
+    // Parent of stateDir (= ~/.openhands) so settings/secrets match Docker.
+    OH_PERSISTENCE_DIR: path.dirname(config.stateDir),
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),
