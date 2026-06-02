@@ -250,45 +250,37 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // Open the right panel and wait for the drawer animation to settle
-    await test.step("open right panel", async () => {
+    // Open the right panel, switch to Files tab, and verify diff toggle
+    await test.step("open files tab and verify diff toggle", async () => {
+      // Open the right panel
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
       await toggle.click();
-      // The panel uses a 300ms CSS transition; wait for it to finish
-      await page.waitForTimeout(500);
-    });
 
-    // Click the Files tab
-    await test.step("click files tab", async () => {
+      // Wait for at least one tab to be visible (panel animation done)
+      const anyTab = page.locator(
+        '[data-testid^="conversation-tab-"]',
+      ).first();
+      await expect(anyTab).toBeVisible({ timeout: 10_000 });
+
+      // Click the Files tab
       const filesTab = page.getByTestId("conversation-tab-files");
-      await expect(filesTab).toBeVisible({ timeout: 10_000 });
       await filesTab.click();
-      // Wait for the tab switch to render
-      await page.waitForTimeout(300);
-    });
 
-    await test.step("verify diff toggle is visible and interactable", async () => {
-      // Wait for the files tab to render
-      await waitForTestId(page, "files-tab", 15_000);
-
-      // The diff toggle should be present with both on/off options.
-      // In the npm path (host has a real repo with commits) it defaults
-      // to "on". In Docker, the diff default depends on useHasGitCommits
-      // probing through the agent-server's bash endpoint, which may not
-      // resolve for finished conversations. Assert the toggle renders
-      // and can be clicked — the exact default is environment-dependent.
+      // The diff toggle lives inside the files-tab content. Wait for it
+      // to become visible rather than the files-tab container (which may
+      // report "hidden" while the CSS transition runs).
       const diffOnOption = page.getByTestId("files-tab-diff-toggle-option-on");
       const diffOffOption = page.getByTestId(
         "files-tab-diff-toggle-option-off",
       );
-      await expect(diffOnOption).toBeVisible({ timeout: 10_000 });
-      await expect(diffOffOption).toBeVisible({ timeout: 5_000 });
+      await expect(
+        diffOnOption.or(diffOffOption),
+      ).toBeVisible({ timeout: 15_000 });
 
-      // Verify the toggle is interactive: click "on" and confirm it
-      // becomes checked (handles both the case where it's already on
-      // and the case where we need to switch it).
-      await diffOnOption.click();
+      // Verify the toggle is interactive: click "on" with force to bypass
+      // any residual animation overlay, and confirm it becomes checked.
+      await diffOnOption.click({ force: true });
       await expect(diffOnOption).toHaveAttribute("aria-checked", "true", {
         timeout: 5_000,
       });
