@@ -72,6 +72,15 @@ export const switchProfileMenuListScrollClassName = cn(
   "max-h-[13.875rem]",
 );
 
+/**
+ * Tall sidebar/context menus: cap height to the viewport and scroll with the
+ * custom scrollbar when content overflows (no scrollbar when everything fits).
+ */
+export const dropdownMenuViewportScrollClassName = cn(
+  "overflow-y-auto custom-scrollbar",
+  "max-h-[min(60vh,calc(100dvh-5rem))]",
+);
+
 /** Footer action row inside a dropdown panel. */
 export const dropdownFooterActionClassName = cn(
   "group flex w-full items-center rounded-md px-2 py-2 text-sm font-normal text-white",
