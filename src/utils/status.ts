@@ -28,6 +28,23 @@ export function isExecutionErrored(
   return status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK;
 }
 
+export function getTaskStatusI18nKey(taskStatus: string): I18nKey {
+  switch (taskStatus) {
+    case "WAITING_FOR_SANDBOX":
+      return I18nKey.COMMON$WAITING_FOR_SANDBOX;
+    case "SETTING_UP_GIT_HOOKS":
+      return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
+    case "SETTING_UP_SKILLS":
+      return I18nKey.STATUS$SETTING_UP_SKILLS;
+    case "STARTING_CONVERSATION":
+    case "WORKING":
+    case "PREPARING_REPOSITORY":
+    case "RUNNING_SETUP_SCRIPT":
+    default:
+      return I18nKey.CONVERSATION$STARTING_CONVERSATION;
+  }
+}
+
 export function getStatusCode(
   webSocketConnectionState: WebSocketConnectionState,
   executionStatus: ExecutionStatus | null,
@@ -43,22 +60,7 @@ export function getStatusCode(
   }
 
   if (taskStatus && taskStatus !== "READY") {
-    switch (taskStatus) {
-      case "WAITING_FOR_SANDBOX":
-        return I18nKey.COMMON$WAITING_FOR_SANDBOX;
-      case "SETTING_UP_GIT_HOOKS":
-        return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
-      case "SETTING_UP_SKILLS":
-        return I18nKey.STATUS$SETTING_UP_SKILLS;
-      case "STARTING_CONVERSATION":
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-      case "WORKING":
-      case "PREPARING_REPOSITORY":
-      case "RUNNING_SETUP_SCRIPT":
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-      default:
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-    }
+    return getTaskStatusI18nKey(taskStatus);
   }
 
   if (executionStatus === ExecutionStatus.PAUSED) {

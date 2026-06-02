@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getStatusCode } from "#/utils/status";
+import { getStatusCode, getTaskStatusI18nKey } from "#/utils/status";
 import { I18nKey } from "#/i18n/declaration";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -45,5 +45,18 @@ describe("getStatusCode", () => {
       "FUTURE_STATUS_FROM_CLOUD" as AppConversationStartTaskStatus;
     const result = getStatusCode("OPEN", null, unknownStatus);
     expect(result).toBe(I18nKey.CONVERSATION$STARTING_CONVERSATION);
+  });
+});
+
+describe("getTaskStatusI18nKey", () => {
+  // Mappings not already exercised through getStatusCode above: the two
+  // dedicated setup keys and the WORKING collapse (the most common status,
+  // previously rendered as an untranslated "Working" label).
+  it.each([
+    ["SETTING_UP_GIT_HOOKS", I18nKey.STATUS$SETTING_UP_GIT_HOOKS],
+    ["SETTING_UP_SKILLS", I18nKey.STATUS$SETTING_UP_SKILLS],
+    ["WORKING", I18nKey.CONVERSATION$STARTING_CONVERSATION],
+  ])("maps %s to its i18n key", (taskStatus, expectedKey) => {
+    expect(getTaskStatusI18nKey(taskStatus)).toBe(expectedKey);
   });
 });
