@@ -79,6 +79,15 @@ vi.mock("#/hooks/use-agent-state", () => ({
   })),
 }));
 
+const trackInitialQuerySubmittedMock = vi.fn();
+const trackUserMessageSentMock = vi.fn();
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackInitialQuerySubmitted: trackInitialQuerySubmittedMock,
+    trackUserMessageSent: trackUserMessageSentMock,
+  }),
+}));
+
 // Helper function to render with Router context
 const renderChatInterfaceWithRouter = () =>
   renderWithProviders(
@@ -821,5 +830,83 @@ describe("ChatInterface - Status Indicator", () => {
     expect(
       screen.queryByTestId("chat-status-indicator"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatInterface - Tracking", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSend.mockResolvedValue({ queued: false });
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useErrorMessageStore.setState({ errorMessage: null });
+    (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {},
+    });
+    (
+      useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue({ skipped_files: [], uploaded_files: [] }),
+      isLoading: false,
+    });
+    useEventStore.setState({ events: [], eventIds: new Set(), uiEvents: [] });
+  });
+
+  function renderInterface() {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("calls trackInitialQuerySubmitted when the first message is sent (empty conversation)", async () => {
+    renderInterface();
+
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "my first task" });
+    });
+
+    await waitFor(() => {
+      expect(trackInitialQuerySubmittedMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryCharacterLength: "my first task".length,
+        }),
+      );
+    });
+  });
+
+  it("calls trackUserMessageSent when a follow-up message is sent (non-empty conversation)", async () => {
+    // Pre-populate the event store so totalEvents > 0.
+    useEventStore.setState({
+      events: [{ id: "e1" } as never],
+      eventIds: new Set(["e1"]),
+      uiEvents: [],
+    });
+
+    renderInterface();
+
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "follow-up" });
+    });
+
+    await waitFor(() => {
+      expect(trackUserMessageSentMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentMessageLength: "follow-up".length,
+        }),
+      );
+    });
+    expect(trackInitialQuerySubmittedMock).not.toHaveBeenCalled();
   });
 });
