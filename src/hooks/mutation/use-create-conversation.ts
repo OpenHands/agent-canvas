@@ -4,6 +4,7 @@ import { PluginSpec } from "#/api/conversation-service/agent-server-conversation
 import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
+import { trackEvent } from "#/services/telemetry";
 
 interface CreateConversationVariables {
   query?: string;
@@ -83,6 +84,7 @@ export const useCreateConversation = () => {
       trackConversationCreated({
         hasRepository: !!repository,
       });
+      trackEvent("conversation_created", { has_repository: !!repository });
 
       // Invalidate (rather than remove) so the existing paginated list stays
       // rendered while a background refetch picks up the new conversation.

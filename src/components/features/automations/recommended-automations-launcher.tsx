@@ -22,6 +22,7 @@ import {
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
+import { trackEvent } from "#/services/telemetry";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
 
 interface RecommendedAutomationsLauncherProps {
@@ -123,6 +124,10 @@ export function RecommendedAutomationsLauncher({
         {},
         {
           onSuccess: (conversation) => {
+            trackEvent("prebuilt_automation_enabled", {
+              automation_name: automation.name,
+              automation_category: automation.category,
+            });
             if (
               conversation.conversation_id.startsWith("task-") &&
               conversation.task_id
