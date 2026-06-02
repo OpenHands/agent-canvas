@@ -23,6 +23,8 @@ import {
   waitForNonUserMessageText,
   deleteConversation,
   ensureMockLLMProfile,
+  registerTrajectory,
+  activateTrajectory,
   resetMockLLM,
 } from "./utils/mock-llm-helpers";
 
@@ -96,6 +98,29 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
   test("step 1: ensure mock LLM profile is configured", async ({ request }) => {
     await ensureMockLLMProfile(request);
+
+    // Register a trajectory that ensures the workspace is a git repo.
+    // The default trajectory just runs printf; we need a real git repo so
+    // the git control bar renders Pull/Push buttons in ALL environments
+    // (not just the npm path where worktrees inherit the host repo).
+    // Uses `git rev-parse` to skip init when already inside a repo (npm
+    // path runs inside the agent-canvas worktree).
+    await registerTrajectory(request, "files-and-git", [
+      {
+        tool_call: {
+          name: "terminal",
+          arguments: {
+            command: [
+              "git rev-parse --is-inside-work-tree 2>/dev/null",
+              "|| (git init && git commit --allow-empty -m init)",
+              "&& printf 'MOCK_LLM_E2E_BASH_OK\\n'",
+            ].join(" "),
+          },
+        },
+      },
+      { text: REPLY_TOKEN },
+    ]);
+    await activateTrajectory(request, "files-and-git");
   });
 
   // ── Step 2: Start a conversation and seed workspace attachment ──────
@@ -105,13 +130,6 @@ test.describe("files tab, git control bar, and browser tab", () => {
     request,
   }) => {
     test.setTimeout(120_000);
-
-    // Reset the mock LLM to a fresh default trajectory. Previous test
-    // suites (automation, conversation) may have partially consumed or
-    // exhausted the trajectory. Without this reset the 2-turn trajectory
-    // (tool_call + text_reply) is already gone and every subsequent
-    // /chat/completions returns 500 → the agent never finishes.
-    await resetMockLLM(request);
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -163,14 +181,14 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
   // ── Step 3: Verify git control bar shows workspace name pill ────────
 
-  test("step 3: git control bar shows repo/workspace pill", async ({
+  test("step 3: git control bar shows repo pill and action buttons", async ({
     page,
   }) => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
 
-    // Seed workspace metadata so the git control bar has something to
-    // show even when no git repo is detected (Docker path).
+    // Seed workspace metadata so the git control bar can infer the
+    // workspace name even if the detected git remote differs.
     await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
 
     await routeSessionApiKey(page);
@@ -180,20 +198,17 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // The git control bar renders below the chat input. What it shows
-    // depends on the environment:
-    //   npm path  → git detection finds the host repo → Pull/Push buttons
-    //   Docker    → no git repo in the container → workspace name pill
-    // Assert that at least one of these indicators is present.
-    await test.step("verify git control bar is visible", async () => {
-      const workspaceName = WORKSPACE_PATH.replace(/\/+$/, "").split("/").pop()!;
-      const pullButton = page.getByRole("button", { name: /Pull/i }).first();
-      const workspacePill = page.getByText(workspaceName, { exact: false });
-
-      // Wait for either the Pull button (npm) or workspace name (Docker)
-      await expect(pullButton.or(workspacePill)).toBeVisible({
-        timeout: 15_000,
-      });
+    // The trajectory in step 1 ran `git init && git commit` inside the
+    // conversation workspace, so git detection finds a repository in
+    // BOTH the npm path (host worktree) and the Docker path (init'd
+    // repo). The control bar should show Pull and Push buttons.
+    await test.step("verify Pull and Push buttons are visible", async () => {
+      await expect(
+        page.getByRole("button", { name: /Pull/i }).first(),
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        page.getByRole("button", { name: /Push/i }).first(),
+      ).toBeVisible({ timeout: 5_000 });
     });
   });
 
