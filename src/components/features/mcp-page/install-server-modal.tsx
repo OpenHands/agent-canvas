@@ -38,7 +38,7 @@ function renderHelperText(text: string): React.ReactNode {
     parts.push(
       <a
         key={match.index}
-        href={/^https?:\/\//i.test(match[2]) ? match[2] : '#'}
+        href={/^https?:\/\//i.test(match[2]) ? match[2] : "#"}
         target="_blank"
         rel="noreferrer"
         className="underline hover:text-white transition-colors"
