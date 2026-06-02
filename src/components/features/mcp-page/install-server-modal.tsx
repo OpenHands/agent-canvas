@@ -7,6 +7,7 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { SaveAsSecretToggle } from "#/components/features/mcp-page/save-as-secret-toggle";
 import { I18nKey } from "#/i18n/declaration";
 import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
@@ -19,6 +20,8 @@ import {
   type McpMarketplaceConnectionOption,
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -29,6 +32,7 @@ interface InstallServerModalProps {
 interface FieldState {
   values: Record<string, string>;
   errors: Record<string, string | null>;
+  savedAsSecret: Record<string, boolean>;
 }
 
 function optionNeedsCredentialField(
@@ -49,11 +53,14 @@ function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
 
 function makeInitialState(entry: MarketplaceEntry): FieldState {
   const values: Record<string, string> = {};
+  const savedAsSecret: Record<string, boolean> = {};
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
   if (template?.kind === "stdio") {
     for (const field of template.envFields ?? []) {
       values[field.key] = "";
+      // Pre-check password fields; non-password fields default to off.
+      savedAsSecret[field.key] = field.type === "password";
     }
     for (const field of template.argFields ?? []) {
       values[field.key] = "";
@@ -61,7 +68,7 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
   } else if (optionNeedsCredentialField(option)) {
     values.api_key = "";
   }
-  return { values, errors: {} };
+  return { values, errors: {}, savedAsSecret };
 }
 
 // The marketplace install modal is intentionally add-only: clicking
@@ -78,10 +85,16 @@ export function InstallServerModal({
   const { t } = useTranslation("openhands");
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
   const { mutate: testMcpServer, isPending: isTesting } = useTestMcpServer();
+  const saveFieldsAsSecrets = useSaveFieldsAsSecrets();
 
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
   );
+  // Always holds the latest state so async callbacks (onSuccess) never read
+  // stale closure values, even under React concurrent-mode scheduling.
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+
   const [globalError, setGlobalError] = React.useState<string | null>(null);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
@@ -90,10 +103,18 @@ export function InstallServerModal({
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
+      ...prev,
       values: { ...prev.values, [key]: value },
       errors: { ...prev.errors, [key]: null },
     }));
     setGlobalError(null);
+  };
+
+  const toggleSecret = (key: string, value: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      savedAsSecret: { ...prev.savedAsSecret, [key]: value },
+    }));
   };
 
   const makeTestErrorMessage = (failure: MCPTestFailure): string => {
@@ -120,6 +141,18 @@ export function InstallServerModal({
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             onSuccess?.(entry);
             onClose();
+
+            // Save checked envFields as secrets in the background so the
+            // Automation Server can access them without a separate manual step.
+            // Runs after onClose so failures don't block the modal from closing.
+            // Uses stateRef.current to avoid reading a stale closure snapshot.
+            if (template?.kind === "stdio") {
+              saveFieldsAsSecrets(
+                template.envFields ?? [],
+                stateRef.current.values,
+                stateRef.current.savedAsSecret,
+              );
+            }
           },
           onError: (err: unknown) => {
             const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -293,8 +326,17 @@ export function InstallServerModal({
             {state.errors[field.key] && (
               <p className="text-xs text-red-500">{state.errors[field.key]}</p>
             )}
+            {field.key in state.savedAsSecret && (
+              <SaveAsSecretToggle
+                fieldKey={field.key}
+                checked={state.savedAsSecret[field.key]}
+                onToggle={(v) => toggleSecret(field.key, v)}
+              />
+            )}
           </div>
         ))}
+        {/* argFields are CLI arguments, not credentials — they don't need
+            a "save as secret" toggle and are excluded from savedAsSecret. */}
         {(stdio.argFields ?? []).map((field) => (
           <div key={field.key} className="flex flex-col gap-1">
             <SettingsInput
@@ -337,7 +379,7 @@ export function InstallServerModal({
         <div className="flex items-start gap-3 pr-6">
           <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
-            <h2 className="text-lg font-semibold">{entry.name}</h2>
+            <h2 className={modalTitleLgClassName}>{entry.name}</h2>
             <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
         </div>

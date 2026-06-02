@@ -7,6 +7,7 @@ import { SettingsForm } from "./settings-form";
 import { Settings } from "#/types/settings";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { HelpLink } from "#/ui/help-link";
+import { modalTitleClassName } from "#/utils/modal-classes";
 
 interface SettingsModalProps {
   settings?: Settings;
@@ -26,7 +27,7 @@ export function SettingsModal({ onClose, settings }: SettingsModalProps) {
           MODAL_MAX_WIDTH_VIEWPORT,
         )}
       >
-        <span className="text-5 leading-6 font-medium -tracking-[0.2px]">
+        <span className={modalTitleClassName}>
           {t(I18nKey.AI_SETTINGS$TITLE)}
         </span>
         <HelpLink
