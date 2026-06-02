@@ -7,6 +7,7 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
+import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
 import { useHomeStore } from "#/stores/home-store";
@@ -33,6 +34,7 @@ vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/hooks/query/use-task-polling");
 vi.mock("#/hooks/query/use-local-git-info");
 vi.mock("#/hooks/use-unified-websocket-status");
+vi.mock("#/contexts/conversation-websocket-context");
 vi.mock("#/hooks/use-send-message");
 vi.mock("#/hooks/mutation/use-update-conversation-repository");
 vi.mock("#/stores/home-store");
@@ -142,6 +144,9 @@ describe("GitControlBar repo button visibility", () => {
       data: null,
     } as unknown as ReturnType<typeof useLocalGitInfo>);
     vi.mocked(useUnifiedWebSocketStatus).mockReturnValue("OPEN");
+    vi.mocked(useConversationWebSocket).mockReturnValue({
+      isLoadingHistory: false,
+    } as ReturnType<typeof useConversationWebSocket>);
     vi.mocked(useSendMessage).mockReturnValue({
       send: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
@@ -186,6 +191,18 @@ describe("GitControlBar repo button visibility", () => {
     vi.mocked(getStoredConversationMetadata).mockReturnValue({
       selected_workspace: "/projects/my-app",
     } as ReturnType<typeof getStoredConversationMetadata>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    const button = screen.getByTestId("git-control-bar-repo-button");
+    expect(button).toHaveAttribute("data-disabled", "true");
+  });
+
+  it("renders the repo button as disabled while conversation history is loading", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("cloud"));
+    vi.mocked(useConversationWebSocket).mockReturnValue({
+      isLoadingHistory: true,
+    } as ReturnType<typeof useConversationWebSocket>);
 
     renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
 

@@ -9,6 +9,7 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { OnboardingModal } from "#/components/features/onboarding/onboarding-modal";
 import { NavigationProvider } from "#/context/navigation-context";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { SecretsService } from "#/api/secrets-service";
 
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 
@@ -85,6 +86,17 @@ vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   }),
 }));
 
+// The ACP credentials slide runs a login-detection probe (calls
+// GET /api/acp/auth-status). Stub it here so the modal routing tests don't hit
+// the network; the probe itself is covered in use-acp-auth-status.test.tsx.
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: () => ({
+    status: "unknown",
+    isChecking: false,
+    isSupported: false,
+  }),
+}));
+
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -109,11 +121,20 @@ function renderModal(onClose = vi.fn()) {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  llmSettingsScreenMock.mockClear();
+  // Clear accumulated spy/mock call history so per-test assertions (the
+  // ACP secret-write checks and the LLM-defaults mock) don't see calls
+  // leaked from a prior test. Covers `llmSettingsScreenMock` too.
+  vi.clearAllMocks();
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
   // (which these tests focus on) isn't gated on a real HTTP call.
   vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+  // The ACP secrets step lists existing secrets to flag "already saved"
+  // fields. Stub the fetch so it doesn't reach a real client (none is
+  // wired up in this test) and the field placeholders stay in the
+  // not-yet-saved state.
+  vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([]);
+  vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
 afterEach(() => {
   window.localStorage.clear();
@@ -273,25 +294,14 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
-  it("skips the LLM-setup step when the user picks an ACP agent", async () => {
+  it("shows slide 2 with Gemini's credential fields", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Pick Claude Code, then advance from Choose Agent → Check Backend.
-    await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
+    // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
+    // other providers, so the slide shows the GEMINI_API_KEY field.
+    await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-          "data-current-step",
-          "1",
-        ),
-      { timeout: 3000 },
-    );
-
-    // Advancing again should jump straight to Say Hello (index 3) and
-    // bypass the LLM form — ACP agents own their own LLM via the
-    // subprocess.
     await waitFor(
       () =>
         expect(
@@ -301,6 +311,96 @@ describe("OnboardingModal", () => {
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
 
+    // Lands on slide 2 (the ACP step) — not jumped past to Say Hello.
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "2",
+        ),
+      { timeout: 3000 },
+    );
+    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(
+      screen.getByTestId("onboarding-step-setup-acp-secrets"),
+    ).toBeInTheDocument();
+    // Gemini exposes credential fields (GEMINI_API_KEY), derived from the SDK
+    // registry like Claude Code / Codex.
+    expect(
+      screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).toBeInTheDocument();
+
+    // The flow keeps all four progress segments (nothing is skipped).
+    expect(
+      screen.getByTestId("onboarding-progress-step-3"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+  });
+
+  it("shows the ACP credentials step on slide 2 for Claude Code and saves entered keys as secrets", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    // Pick Claude Code → Check Backend.
+    await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+
+    // Slide 2 is the ACP credentials step (not skipped), so the flow keeps
+    // all 4 progress segments and slide 2 — not Say Hello — is now active.
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "2",
+        ),
+      { timeout: 3000 },
+    );
+    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(
+      screen.getByTestId("onboarding-step-setup-acp-secrets"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-progress-step-3"),
+    ).toBeInTheDocument();
+
+    // Both Anthropic credentials are offered; the optional base URL too.
+    const apiKeyField = screen.getByTestId(
+      "onboarding-acp-secret-ANTHROPIC_API_KEY",
+    );
+    expect(apiKeyField).toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-acp-secret-ANTHROPIC_BASE_URL"),
+    ).toBeInTheDocument();
+
+    // Fill the API key and advance: the value is upserted as a global
+    // secret of the same name, then the flow moves on to Say Hello.
+    await user.type(apiKeyField, "sk-ant-test");
+    await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
+
+    await waitFor(() => {
+      expect(SecretsService.createSecret).toHaveBeenCalledWith(
+        "ANTHROPIC_API_KEY",
+        "sk-ant-test",
+        undefined,
+      );
+    });
     await waitFor(
       () =>
         expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -309,35 +409,43 @@ describe("OnboardingModal", () => {
         ),
       { timeout: 3000 },
     );
-    // All four slides remain mounted (the rail just translates them);
-    // the assertion that the LLM step was skipped is that slide 3 (Say
-    // Hello) is the active one immediately after the backend step,
-    // *not* slide 2 (LLM).
-    expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
-      "data-active",
-      "false",
+  });
+
+  it("skips the secret write when the ACP credentials step is left blank", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("onboarding-agent-option-codex"));
+    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByTestId("onboarding-backend-next"),
+        ).not.toBeDisabled(),
+      { timeout: 3000 },
     );
-    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
-      "data-active",
-      "true",
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "2",
+        ),
+      { timeout: 3000 },
     );
 
-    // Progress bar reflects the *visited* step count, not the slide
-    // index — 3 segments total (not 4), and segment 2 is current (not
-    // segment 3, which would imply LLM was completed). Without this
-    // mapping, picking an ACP agent makes the bar show segment 2 as
-    // "completed" despite the user never visiting it.
-    expect(
-      screen.queryByTestId("onboarding-progress-step-3"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
-      "data-state",
-      "current",
+    // Leaving every field empty is a deliberate skip — no secret is
+    // written, and the user still advances to Say Hello.
+    await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+          "data-current-step",
+          "3",
+        ),
+      { timeout: 3000 },
     );
-    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
-      "data-state",
-      "completed",
-    );
+    expect(SecretsService.createSecret).not.toHaveBeenCalled();
   });
 
   it("pre-fills the say-hello input with the default greeting on step 3", async () => {

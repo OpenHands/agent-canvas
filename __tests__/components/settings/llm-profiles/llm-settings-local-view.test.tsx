@@ -539,6 +539,99 @@ describe("LlmSettingsLocalView", () => {
       expect(true).toBe(true);
     });
   });
+
+  describe("Basic tab save", () => {
+    it("omits base_url so an OpenHands model round-trips on reload", async () => {
+      // Arrange — a profile whose stored config pairs an OpenHands model with a
+      // stale, non-proxy base_url. Persisting that base_url is exactly what
+      // makes the provider reload as "litellm_proxy" with an empty model; the
+      // Basic tab must drop it so the backend re-derives the All-Hands proxy.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://stale.example.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the saved LLM config keeps the OpenHands model but no longer
+      // carries the stale base_url.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
+      expect(savedLlm).not.toHaveProperty("base_url");
+    });
+  });
+
+  describe("All tab save", () => {
+    it("persists a changed minor field without wiping untouched fields", async () => {
+      // Arrange — a profile with a minor field (temperature) plus fields the
+      // user will not touch. Saving the All tab must persist the edited minor
+      // field (typed → coerced to a number) while preserving the rest, instead
+      // of resetting everything to LLM defaults via the full-replace save.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "anthropic/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: null,
+          temperature: 0.2,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile, switch to the All tab, edit temperature, save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-all-toggle"));
+      const temperatureInput = await screen.findByTestId(
+        "sdk-settings-llm.temperature",
+      );
+      await user.clear(temperatureInput);
+      await user.type(temperatureInput, "0.7");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the edited minor field is persisted as a number, and the
+      // untouched model and API key survive.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.temperature).toBe(0.7);
+      expect(savedLlm.model).toBe("anthropic/claude-opus-4-5-20251101");
+      expect(savedLlm.api_key).toBe("gAAAA_encrypted_key");
+    });
+  });
 });
 
 describe("shouldReapplyProfileAfterSave", () => {

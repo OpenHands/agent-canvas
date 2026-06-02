@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useDeleteSecret } from "#/hooks/mutation/use-delete-secret";
 import { SecretForm } from "#/components/features/settings/secrets-settings/secret-form";
@@ -126,15 +126,9 @@ export function SecretsSettingsScreen() {
 
       {isFormView ? (
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={handleBackToList}
-            className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-            data-testid="back-to-secrets"
-          >
-            <ArrowLeft size={20} aria-hidden />
-            <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-          </button>
+          <BackNavButton testId="back-to-secrets" onClick={handleBackToList}>
+            {t(I18nKey.BUTTON$BACK)}
+          </BackNavButton>
           <Typography.H2 testId="secret-editor-title">
             {formTitle}
           </Typography.H2>

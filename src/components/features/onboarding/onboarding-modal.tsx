@@ -14,9 +14,16 @@ import {
 } from "./steps/choose-agent-step";
 import { CheckBackendStep } from "./steps/check-backend-step";
 import { SetupLlmStep } from "./steps/setup-llm-step";
+import { SetupAcpSecretsStep } from "./steps/setup-acp-secrets-step";
 import { SayHelloStep } from "./steps/say-hello-step";
 
 const TOTAL_STEPS = 4;
+
+// Index of the per-provider setup slide (LLM form for OpenHands, ACP
+// credentials for Claude Code / Codex). Named so the slide and the
+// ``isActive`` gate that drives the ACP login probe move together — inserting
+// a slide before it can't silently fire the probe on the wrong step.
+const SETUP_SLIDE_INDEX = 2;
 
 interface SlideProps {
   /** Index of this slide in the step sequence. */
@@ -86,39 +93,19 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  // The LLM-setup step (index 2) is OpenHands-specific: ACP agents drive
-  // their own LLM via the subprocess and authenticate through the Secrets
-  // panel, so there's nothing to configure in that form for them. Skip
-  // over it in both directions when the user has picked an ACP agent,
-  // keeping the rest of the flow intact (back from SayHello on the ACP
-  // path returns to ChooseAgent, not to a dead-end LLM page).
-  const skipLlmStep = selectedAgentId !== "openhands";
+  // Slide index 2 is the "provider credentials" slot:
+  //   * OpenHands → the LLM-setup form (its own LLM config).
+  //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
+  //     form: API key + optional base URL, with a login-detection banner.
+  const isOpenHands = selectedAgentId === "openhands";
   const goNext = React.useCallback(
-    () =>
-      setCurrentStep((step) => {
-        const delta = skipLlmStep && step === 1 ? 2 : 1;
-        return Math.min(step + delta, TOTAL_STEPS - 1);
-      }),
-    [skipLlmStep],
+    () => setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS - 1)),
+    [],
   );
   const goBack = React.useCallback(
-    () =>
-      setCurrentStep((step) => {
-        const delta = skipLlmStep && step === 3 ? 2 : 1;
-        return Math.max(step - delta, 0);
-      }),
-    [skipLlmStep],
+    () => setCurrentStep((step) => Math.max(step - 1, 0)),
+    [],
   );
-
-  // The progress bar should show the user's actual visited-step count,
-  // not the underlying index. On the ACP path the LLM-setup slide is
-  // skipped, so:
-  //   * the bar renders 3 segments instead of 4, and
-  //   * the SayHello slide (modal index 3) maps to logical step 2 so
-  //     segment 2 doesn't pop "completed" on a slide the user never saw.
-  const progressTotal = skipLlmStep ? TOTAL_STEPS - 1 : TOTAL_STEPS;
-  const progressStep =
-    skipLlmStep && currentStep > 1 ? currentStep - 1 : currentStep;
 
   return (
     <ModalBackdrop
@@ -139,8 +126,8 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         >
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
             <OnboardingProgressBar
-              currentStep={progressStep}
-              totalSteps={progressTotal}
+              currentStep={currentStep}
+              totalSteps={TOTAL_STEPS}
             />
           </header>
 
@@ -163,8 +150,17 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               <Slide index={1} currentStep={currentStep}>
                 <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
-              <Slide index={2} currentStep={currentStep}>
-                <SetupLlmStep onBack={goBack} onNext={goNext} />
+              <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
+                {isOpenHands ? (
+                  <SetupLlmStep onBack={goBack} onNext={goNext} />
+                ) : (
+                  <SetupAcpSecretsStep
+                    providerKey={selectedAgentId}
+                    isActive={currentStep === SETUP_SLIDE_INDEX}
+                    onBack={goBack}
+                    onNext={goNext}
+                  />
+                )}
               </Slide>
               <Slide index={3} currentStep={currentStep}>
                 <SayHelloStep onBack={goBack} onLaunched={onClose} />

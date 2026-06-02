@@ -1,3 +1,4 @@
+import { syncBakedSessionApiKey } from "../agent-server-config";
 import { makeDefaultLocalBackend } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
@@ -63,6 +64,16 @@ export function writeStoredBackends(backends: Backend[]): void {
 
 export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
+
+  // Ensure the baked-in session API key (VITE_SESSION_API_KEY) is synced
+  // into the legacy `openhands-agent-server-config` localStorage entry
+  // BEFORE we read the backend registry.  This matters when the user
+  // restarts the stack with a different LOCAL_BACKEND_API_KEY — without
+  // this call the stale key in `openhands-agent-server-config` shadows
+  // the new baked key, making `makeDefaultLocalBackend()` (and the
+  // downstream `syncDefaultLocalBackendAuth`) read the wrong value.
+  syncBakedSessionApiKey();
+
   try {
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
 

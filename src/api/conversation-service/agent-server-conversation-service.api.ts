@@ -1,7 +1,4 @@
-import {
-  ConversationSortOrder,
-  type LLMConfig,
-} from "@openhands/typescript-client";
+import { ConversationSortOrder } from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
@@ -66,21 +63,12 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
-const INVALID_PROFILE_CONFIG_MESSAGE =
-  "Unable to switch LLM profiles because the selected agent server returned " +
-  "profile data this UI does not understand. Check the backend URL/session " +
-  "key and update the agent server if needed.";
-
 function invalidConversationResponse(): Error {
   return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isLLMConfig(value: unknown): value is LLMConfig {
-  return isRecord(value) && typeof value.model === "string";
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -665,13 +653,14 @@ class AgentServerConversationService {
 
   /**
    * Switches the LLM profile for the running conversation when one is open
-   * (POST /switch_llm — per-conversation swap, doesn't change the user's
+   * (POST /switch_profile — per-conversation swap, doesn't change the user's
    * default profile). When called without a conversationId (home page),
    * falls back to POST /activate so the next conversation created picks up
    * the chosen profile.
    *
-   * The /switch_llm body needs the LLM config, which we fetch with encrypted
-   * secrets — same flow as conversation-start.
+   * The per-conversation endpoint accepts only the profile name, so the UI does
+   * not need to fetch or forward profile secrets. That keeps switching working
+   * even when the agent server has no OH_SECRET_KEY for encrypted secret export.
    */
   static async switchProfile(
     conversationId: string | null,
@@ -683,29 +672,22 @@ class AgentServerConversationService {
       );
     }
 
-    const profilesClient = new ProfilesClient(getAgentServerClientOptions());
-
     if (!conversationId) {
-      await profilesClient.activateProfile(profileName);
+      await new ProfilesClient(getAgentServerClientOptions()).activateProfile(
+        profileName,
+      );
       return;
     }
 
-    const profile = await profilesClient.getProfile(profileName, {
-      exposeSecrets: "encrypted",
-    });
-    if (!isLLMConfig(profile.config)) {
-      throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
-    }
-
-    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
       conversationId,
-      profile.config,
+      profileName,
     );
   }
 
   /**
    * Switches the model of a running ACP conversation in place (POST
-   * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_llm).
+   * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_profile).
    * The agent-server calls the ACP wrapper's ``session/set_model`` on the live
    * session, preserving context. Mirrors {@link switchProfile}'s
    * local-backend-only guard and per-conversation ConversationClient call.

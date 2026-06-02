@@ -82,6 +82,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getConfiguredWorkerUrls: vi.fn(() => []),
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
+  syncBakedSessionApiKey: vi.fn(),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -99,6 +100,7 @@ describe("AgentServerConversationService", () => {
     mockHttpDelete.mockReset();
     mockGetProfile.mockReset();
     mockActivateProfile.mockReset();
+    mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
@@ -628,27 +630,17 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
     });
 
-    it("swaps the conversation's LLM via /switch_llm when a conversationId is provided", async () => {
-      const llmConfig = {
-        model: "litellm_proxy/claude-haiku",
-        api_key: "encrypted-key",
-        base_url: "encrypted-url",
-      };
-      mockGetProfile.mockResolvedValue({
-        name: "haiku",
-        config: llmConfig,
-        api_key_set: true,
-      });
-      mockSwitchLLM.mockResolvedValue(undefined);
+    it("switches the conversation by profile name when a conversationId is provided", async () => {
+      mockSwitchProfile.mockResolvedValue(undefined);
 
       await AgentServerConversationService.switchProfile("conv-1", "haiku");
 
-      expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
-        exposeSecrets: "encrypted",
-      });
-      expect(mockSwitchLLM).toHaveBeenCalledWith("conv-1", llmConfig);
-      // Per-convo path: global default is left untouched.
+      expect(mockSwitchProfile).toHaveBeenCalledWith("conv-1", "haiku");
+      // Per-convo path: global default is left untouched and profile secrets are
+      // never fetched into the UI.
       expect(mockActivateProfile).not.toHaveBeenCalled();
+      expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
     it("activates the profile globally when called without a conversationId", async () => {
@@ -663,6 +655,7 @@ describe("AgentServerConversationService", () => {
       expect(mockActivateProfile).toHaveBeenCalledWith("haiku");
       // Home-page path: don't touch any conversation's LLM.
       expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
@@ -684,6 +677,7 @@ describe("AgentServerConversationService", () => {
       );
       expect(mockActivateProfile).not.toHaveBeenCalled();
       expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
   });
