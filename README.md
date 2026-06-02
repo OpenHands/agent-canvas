@@ -60,10 +60,17 @@ agent-canvas
 
 ### Option 2: With a Docker Sandbox
 
+**Prerequisites**:
+
+- Docker: Docker Desktop on macOS/Windows, or Docker Engine/Docker Desktop on Linux.
+- A host directory for `PROJECTS_PATH` containing the project folders you want the agent to access. Create it before starting the container.
+
+**macOS / Linux:**
 ```sh
 docker pull ghcr.io/openhands/agent-canvas:1.0.0-beta.6
 
-export PROJECTS_PATH=~/projects  # directory containing your project folders
+export PROJECTS_PATH="$HOME/projects"  # directory containing your project folders
+mkdir -p "$PROJECTS_PATH" "$HOME/.openhands"
 
 docker run -it --rm \
   -p 8000:8000 \
@@ -72,11 +79,14 @@ docker run -it --rm \
   ghcr.io/openhands/agent-canvas:1.0.0-beta.6
 ```
 
+**Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
+
 The agent will be able to access any project under `PROJECTS_PATH`.
 
-
-
 ### Option 3: From Source
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
 **Prerequisites**: Node.js 22.12.x or later, `npm`, `uv` (for running the agent server via `uvx`)
 
