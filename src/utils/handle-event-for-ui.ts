@@ -12,9 +12,9 @@ import {
  * ACPToolCallEvent merge: the SDK emits two events per ``tool_call_id`` — an
  * early ``started`` event (``pending`` / ``in_progress``) and one terminal
  * (completed / failed) event, the action->observation pair for a tool call.
- * Replace the started
- * entry in place with the terminal one so a single card updates from running
- * to its result, exactly like an observation superseding its action below.
+ * Replace the started entry in place with the terminal one so a single card
+ * updates from running to its result, exactly like an observation superseding
+ * its action below.
  */
 export const handleEventForUI = (
   event: OpenHandsEvent,
