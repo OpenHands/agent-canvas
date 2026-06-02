@@ -23,12 +23,27 @@ Releases use a **long-lived release branch** model:
 
 npm dist-tags by version tier:
 
+The workflow checks npm at publish time to see whether any full stable release (no pre-release suffix) has ever been published:
+
+**Before the first stable release** — all versions use `--tag latest`:
+
+| Version | Example | npm dist-tag | `npm install` resolves? |
+|---|---|---|---|
+| Alpha | `1.0.0-alpha.1` | `latest` | ✅ default |
+| Beta | `1.0.0-beta.1` | `latest` | ✅ default |
+| RC | `1.0.0-rc.1` | `latest` | ✅ default |
+| Stable | `1.0.0` | `latest` | ✅ default |
+
+**After the first stable release** — pre-release versions revert to their own dist-tags:
+
 | Version | Example | npm dist-tag | `npm install` resolves? |
 |---|---|---|---|
 | Alpha | `1.0.0-alpha.1` | `alpha` | `@alpha` only |
 | Beta | `1.0.0-beta.1` | `beta` | `@beta` only |
 | RC | `1.0.0-rc.1` | `rc` | `@rc` only |
 | Stable | `1.0.0` | `latest` | ✅ default |
+
+This transition is automatic — no workflow changes are needed when the first stable version ships.
 
 ---
 
@@ -150,4 +165,4 @@ gh release delete v<version> --yes
 Then the workflow will re-create it on the next tag push (or run it manually from the Actions tab).
 
 ### npm publish failed mid-way
-Check the `npm-publish.yml` run logs. The dist-tag is resolved from the `package.json` version — if the version string contains `alpha`, `beta`, or `rc`, it uses the matching dist-tag; otherwise `latest`.
+Check the `npm-publish.yml` run logs. The dist-tag is resolved dynamically: if no stable release (no `-` in the version) has ever been published to npm, all versions use `latest`; once a stable version exists, pre-release versions use their own tag (`alpha` / `beta` / `rc`) and only stable versions use `latest`.
