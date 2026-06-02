@@ -250,11 +250,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // Open the right panel
+    // Open the right panel and wait for the drawer animation to settle
     await test.step("open right panel", async () => {
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
       await toggle.click();
+      // The panel uses a 300ms CSS transition; wait for it to finish
+      await page.waitForTimeout(500);
     });
 
     // Click the Files tab
@@ -262,6 +264,8 @@ test.describe("files tab, git control bar, and browser tab", () => {
       const filesTab = page.getByTestId("conversation-tab-files");
       await expect(filesTab).toBeVisible({ timeout: 10_000 });
       await filesTab.click();
+      // Wait for the tab switch to render
+      await page.waitForTimeout(300);
     });
 
     await test.step("verify diff toggle is visible and interactable", async () => {
@@ -304,11 +308,12 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // Open the right panel
+    // Open the right panel and wait for the drawer animation to settle
     await test.step("open right panel", async () => {
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
       await toggle.click();
+      await page.waitForTimeout(500);
     });
 
     // Click the Browser tab
@@ -370,11 +375,12 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // Wait for the agent to reply
     await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
 
-    // Open the right panel
+    // Open the right panel and wait for the drawer animation to settle
     await test.step("open right panel", async () => {
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
       await toggle.click();
+      await page.waitForTimeout(500);
     });
 
     // Click the Files tab
@@ -382,6 +388,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
       const filesTab = page.getByTestId("conversation-tab-files");
       await expect(filesTab).toBeVisible({ timeout: 10_000 });
       await filesTab.click();
+      await page.waitForTimeout(300);
     });
 
     await test.step("verify diff toggle defaults to off (files view)", async () => {
