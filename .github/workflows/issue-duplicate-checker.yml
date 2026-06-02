@@ -35,13 +35,14 @@ jobs:
     smoke-clone:
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke-clone'
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         steps:
             - name: Clone repository
               env:
                   REPOSITORY: ${{ github.repository }}
               run: |
                   git clone --depth 1 "https://github.com/${REPOSITORY}.git" /tmp/repo-clone
-                  echo "Repository HEAD: $(git -C /tmp/repo-clone rev-parse --short HEAD)"
+                  echo "REPO_HEAD=$(git -C /tmp/repo-clone rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
             - name: Summarize smoke test
               run: |
@@ -49,6 +50,7 @@ jobs:
                     echo "## Smoke clone completed"
                     echo
                     echo "- Repository cloned to /tmp/repo-clone"
+                    echo "- Repository HEAD: ${REPO_HEAD}"
                   } >> "$GITHUB_STEP_SUMMARY"
 
     issue-duplicate-check:
