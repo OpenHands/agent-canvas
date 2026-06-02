@@ -63,7 +63,7 @@ agent-canvas
 **Prerequisites**: Docker, plus a host directory containing the projects you want to mount into the container
 
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.9
+docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
 
 export PROJECTS_PATH=~/projects  # directory containing your project folders
 
@@ -71,7 +71,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v ~/.openhands:/home/openhands/.openhands \
   -v ${PROJECTS_PATH}:/projects \
-  ghcr.io/openhands/agent-canvas:1.0.0-alpha.9
+  ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
 ```
 
 The agent will be able to access any project under `PROJECTS_PATH`.
