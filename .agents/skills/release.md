@@ -23,11 +23,13 @@ Releases use a **long-lived release branch** model:
 
 npm dist-tags by version tier:
 
+> **Note:** Until the first full stable release ships, all versions (alpha, beta, rc, stable) are published with `--tag latest` so `npm install @openhands/agent-canvas` always resolves to the newest release.
+
 | Version | Example | npm dist-tag | `npm install` resolves? |
 |---|---|---|---|
-| Alpha | `1.0.0-alpha.1` | `alpha` | `@alpha` only |
-| Beta | `1.0.0-beta.1` | `beta` | `@beta` only |
-| RC | `1.0.0-rc.1` | `rc` | `@rc` only |
+| Alpha | `1.0.0-alpha.1` | `latest` | ✅ default |
+| Beta | `1.0.0-beta.1` | `latest` | ✅ default |
+| RC | `1.0.0-rc.1` | `latest` | ✅ default |
 | Stable | `1.0.0` | `latest` | ✅ default |
 
 ---
@@ -150,4 +152,4 @@ gh release delete v<version> --yes
 Then the workflow will re-create it on the next tag push (or run it manually from the Actions tab).
 
 ### npm publish failed mid-way
-Check the `npm-publish.yml` run logs. The dist-tag is resolved from the `package.json` version — if the version string contains `alpha`, `beta`, or `rc`, it uses the matching dist-tag; otherwise `latest`.
+Check the `npm-publish.yml` run logs. All releases currently publish with `--tag latest` regardless of version suffix.
