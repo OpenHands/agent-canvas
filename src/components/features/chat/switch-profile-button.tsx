@@ -9,6 +9,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useModelStore } from "#/stores/model-store";
 import { cn } from "#/utils/utils";
+import { chatInputPillButtonClassName } from "#/utils/form-control-classes";
 import { SwitchProfileContextMenu } from "./switch-profile-context-menu";
 
 export function SwitchProfileButton() {
@@ -87,8 +88,8 @@ export function SwitchProfileButton() {
         aria-haspopup="menu"
         aria-expanded={contextMenuOpen}
         className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none max-w-[200px]",
-          "hover:text-white hover:bg-white/10 cursor-pointer",
+          chatInputPillButtonClassName,
+          "max-w-[200px]",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
       >

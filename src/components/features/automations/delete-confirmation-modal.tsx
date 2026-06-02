@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import XMarkIcon from "#/icons/x-mark.svg?react";
+import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 
 interface DeleteConfirmationModalProps {
   automationName: string;
@@ -39,7 +40,7 @@ export function DeleteConfirmationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-medium text-white">
+        <h2 className={modalTitleLgMediumClassName}>
           {t(I18nKey.AUTOMATIONS$DELETE_CONFIRM_TITLE)}
         </h2>
         <p className="mt-2 text-sm text-muted">

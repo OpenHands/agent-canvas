@@ -31,7 +31,7 @@ import {
   normalizeFieldValue,
   SettingsFormValues,
 } from "#/utils/sdk-settings-schema";
-import { ArrowLeft } from "lucide-react";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
 
@@ -346,15 +346,9 @@ export function LlmSettingsLocalView() {
     <div className="flex flex-col gap-6">
       {/* Header with back button */}
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={handleBackToList}
-          className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-          data-testid="back-to-profiles"
-        >
-          <ArrowLeft size={20} aria-hidden />
-          <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-        </button>
+        <BackNavButton testId="back-to-profiles" onClick={handleBackToList}>
+          {t(I18nKey.BUTTON$BACK)}
+        </BackNavButton>
         <Typography.H2 testId="profile-editor-title">
           {profileEditorTitle}
         </Typography.H2>
@@ -394,11 +388,11 @@ export function LlmSettingsLocalView() {
       />
 
       {/* Action buttons */}
-      <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
+      <div className="flex justify-start gap-3 pt-4">
         <BrandButton
           testId="cancel-profile-btn"
           type="button"
-          variant="tertiary"
+          variant="secondary"
           onClick={handleBackToList}
         >
           {t(I18nKey.BUTTON$CANCEL)}
