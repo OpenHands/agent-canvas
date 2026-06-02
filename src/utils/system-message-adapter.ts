@@ -5,7 +5,6 @@ import { redactCustomSecrets } from "#/utils/redact-custom-secrets";
 
 export interface SystemMessageForModal {
   content: string;
-  dynamicContext: string | null;
   tools: ChatCompletionToolParam[] | Record<string, unknown>[] | null;
   openhands_version: string | null;
   agent_class: string | null;
@@ -20,13 +19,15 @@ export function adaptSystemMessage(
     return null;
   }
 
+  // dynamic_context is the runtime-injected tail of the same system prompt the
+  // model receives, so append it to show the full message as one block.
   const dynamicContextText = systemPromptEvent.dynamic_context?.text;
+  const content = dynamicContextText
+    ? `${systemPromptEvent.system_prompt.text}\n\n${redactCustomSecrets(dynamicContextText)}`
+    : systemPromptEvent.system_prompt.text;
 
   return {
-    content: systemPromptEvent.system_prompt.text,
-    dynamicContext: dynamicContextText
-      ? redactCustomSecrets(dynamicContextText)
-      : null,
+    content,
     tools: systemPromptEvent.tools ?? null,
     openhands_version: null,
     agent_class: null,

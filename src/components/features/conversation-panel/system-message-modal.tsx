@@ -1,11 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { SystemMessageHeader } from "./system-message-modal/system-message-header";
-import {
-  TabNavigation,
-  SystemMessageTab,
-} from "./system-message-modal/tab-navigation";
+import { TabNavigation } from "./system-message-modal/tab-navigation";
 import { TabContent } from "./system-message-modal/tab-content";
 import { SystemMessageForModal } from "#/utils/system-message-adapter";
 
@@ -20,18 +17,10 @@ export function SystemMessageModal({
   onClose,
   systemMessage,
 }: SystemMessageModalProps) {
-  const [activeTab, setActiveTab] = useState<SystemMessageTab>("system");
+  const [activeTab, setActiveTab] = useState<"system" | "tools">("system");
   const [expandedTools, setExpandedTools] = useState<Record<number, boolean>>(
     {},
   );
-
-  // Reset to System on open so a previously selected, now-hidden tab can't
-  // leave the modal showing an empty panel.
-  useEffect(() => {
-    if (isOpen) {
-      setActiveTab("system");
-    }
-  }, [isOpen]);
 
   if (!systemMessage) {
     return null;
@@ -62,7 +51,6 @@ export function SystemMessageModal({
             <TabNavigation
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              hasDynamicContext={!!systemMessage.dynamicContext}
               hasTools={
                 !!(systemMessage.tools && systemMessage.tools.length > 0)
               }

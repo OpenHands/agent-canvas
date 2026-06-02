@@ -35,12 +35,12 @@ describe("adaptSystemMessage", () => {
     expect(adaptSystemMessage([])).toBeNull();
   });
 
-  it("should leave dynamicContext null when dynamic_context is absent", () => {
+  it("should leave content unchanged when dynamic_context is absent", () => {
     const result = adaptSystemMessage(v1Event);
-    expect(result?.dynamicContext).toBeNull();
+    expect(result?.content).toBe("v1 prompt");
   });
 
-  it("should surface dynamic_context text when present", () => {
+  it("should append dynamic_context to the system prompt content", () => {
     const events: EventState["events"] = [
       {
         id: "v1-id",
@@ -52,7 +52,8 @@ describe("adaptSystemMessage", () => {
       },
     ];
     const result = adaptSystemMessage(events);
-    expect(result?.dynamicContext).toBe("<SKILLS>my-skill</SKILLS>");
+    expect(result?.content).toContain("v1 prompt");
+    expect(result?.content).toContain("<SKILLS>my-skill</SKILLS>");
   });
 
   it("should redact unmasked custom secret values in dynamic_context", () => {
@@ -70,7 +71,7 @@ describe("adaptSystemMessage", () => {
       },
     ];
     const result = adaptSystemMessage(events);
-    expect(result?.dynamicContext).not.toContain("super-secret-value");
-    expect(result?.dynamicContext).toContain("MY_API_KEY=<secret-hidden>");
+    expect(result?.content).not.toContain("super-secret-value");
+    expect(result?.content).toContain("MY_API_KEY=<secret-hidden>");
   });
 });
