@@ -25,7 +25,7 @@
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
-- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
+- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
   - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
   - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
@@ -53,7 +53,7 @@ The env var is a JSON string of:
       "url_from_agent": "http://localhost:3001"
     },
     "automation": {
-      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
       "url_from_agent": "http://localhost:18001",
       "api_prefix": "/api/automation",
       "docs_url": "http://localhost:18001/api/automation/docs",
@@ -81,10 +81,10 @@ from your point of view (i.e., as you should curl/fetch them).
 * Frontend: http://localhost:3001
     Vite dev server hosting the agent-canvas frontend.
 * Automation backend: http://localhost:18001
-    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
     Docs:    http://localhost:18001/api/automation/docs
     OpenAPI: http://localhost:18001/api/automation/openapi.json
-    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+    Auth:    header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
 
 Trust this block over guessing: do not assume any other URLs are running.
 In particular, http://localhost:18000 inside your sandbox is the Agent Server
@@ -163,6 +163,17 @@ you are running inside of — NOT the automation backend.
 - Tests run serially (`workers: 1`, `mode: "serial"` per describe block). Files are discovered alphabetically so automation tests run before conversation tests; each spec is self-contained (automation test configures its own LLM profile via the settings API). The `afterEach` hook resets the mock LLM to its default trajectory so subsequent specs start fresh even when a preceding test fails.
 - CI workflow: `.github/workflows/mock-llm-e2e.yml` runs on PRs with the `e2e-tests` label or on manual dispatch. It builds the frontend, starts the mock LLM server, runs the tests, and posts a PR comment with results.
 - The custom `DoneMarkerReporter` writes `.mock-llm-markers/.tests-done` after all tests complete (before webServer teardown) so the CI wrapper can detect completion and kill the lingering teardown process.
+
+### Docker Image Testing (Shared Specs)
+
+- The same test specs and helpers are reused to validate the Docker image via `playwright.mock-llm-docker.config.ts`. Run locally with `npm run test:e2e:mock-llm:docker` (requires Docker daemon and a built image).
+- **Architecture**: The Docker config replaces the npm path's `bin/agent-canvas.mjs` webServer with a `docker run --network host` command. The mock LLM server still runs on the host. On Linux (including CI), `--network host` lets the container share the host's network stack so all `127.0.0.1` URLs work identically. On macOS/Windows Docker Desktop (bridge networking), set `MOCK_LLM_AGENT_URL=http://host.docker.internal:<port>` so the agent-server inside Docker can reach the host-side mock LLM server.
+- **URL split**: `mock-llm-helpers.ts` exports two mock LLM URL constants:
+  - `MOCK_LLM_BASE_URL` — always `http://127.0.0.1:<port>`, used by tests for the mock LLM admin API (register/activate/reset trajectories).
+  - `MOCK_LLM_AGENT_URL` — defaults to `MOCK_LLM_BASE_URL`, overridable via `MOCK_LLM_AGENT_URL` env var. Used when configuring the LLM profile (`base_url` field) — this is the URL the agent-server uses for inference calls. The npm path and Docker-with-`--network host` path use the same value; Docker on macOS needs the override.
+- **Docker image**: Set `MOCK_LLM_DOCKER_IMAGE` to the image tag (default: `ghcr.io/openhands/agent-canvas:latest`). The container is started with `--rm --network host` and a unique `--name` for cleanup.
+- **State isolation**: The Docker container uses its internal state directory (no host mount needed for tests). Each test run starts a fresh container.
+- CI workflow: `.github/workflows/mock-llm-docker-e2e.yml` has three triggers — all pull the already-built image from GHCR (no rebuild): (1) `workflow_run` fires automatically after the `Docker` workflow completes on main; (2) `pull_request` with the `e2e-tests` label polls the Docker workflow until it finishes for the PR's head SHA, then pulls the image (needed because `workflow_run` only fires for workflow files already on the default branch); (3) `workflow_dispatch` accepts a custom `docker_image` input. The image tag is derived from the commit SHA (`ghcr.io/openhands/agent-canvas:sha-<short>-amd64`). Fork PRs are skipped (no GHCR push). Report artifacts go to `test-results-mock-llm-docker/` and `playwright-report-mock-llm-docker/`.
 
 ## Additional Notes
 
@@ -293,7 +304,11 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 
 const { t } = useTranslation("openhands");
-return <button aria-label={t(I18nKey.CHAT$DISMISS_LABEL)}>{t(I18nKey.CHAT$DISMISS)}</button>;
+return (
+  <button aria-label={t(I18nKey.CHAT$DISMISS_LABEL)}>
+    {t(I18nKey.CHAT$DISMISS)}
+  </button>
+);
 
 // WRONG -- ships English to every locale; flagged by i18next/no-literal-string
 return <button aria-label="Dismiss">Dismiss</button>;
@@ -402,6 +417,14 @@ When adding code that needs a new string, decide up front which rule it falls un
   2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
      The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
+- Auth modes for `agent-canvas` (dev and production):
+  - **Local mode** (default, no `--public` flag): A session API key is auto-generated and persisted to `~/.openhands/agent-canvas/session-api-key.txt`. The key is baked into the Vite dev server via `VITE_SESSION_API_KEY` or injected into static builds via `static-server.mjs --session-api-key`. Users never need to paste a key.
+  - **Public mode** (`--public` flag): Requires `LOCAL_BACKEND_API_KEY` env var. The key is used as the agent-server session key (`OH_SESSION_API_KEYS_0`) but is NOT baked into the frontend (no `VITE_SESSION_API_KEY`, no `--session-api-key` to static-server). The frontend detects a 401 from `/server_info` via `isAgentServerAuthError()` and shows `ApiKeyEntryScreen` (`src/components/features/backends/api-key-entry-screen.tsx`). The screen reuses `BackendForm` with the host pre-filled (read-only) and prompts for the API key. On submit, the key is persisted to `localStorage['openhands-agent-server-config']` and the page reloads.
+  - Dev usage: `LOCAL_BACKEND_API_KEY=my-secret npm run dev -- --public`
+  - Production usage: `LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public`
+  - The `--public` flag is supported by both `scripts/dev-with-automation.mjs` (parsed in `parseArgs()`, propagated via `config.isPublic`) and `bin/agent-canvas.mjs` (passed as `isPublic` to `main()`).
+  - The 401 detection lives in `src/api/agent-server-compatibility.ts` (`isAgentServerAuthError()`), and the gate is in `src/root.tsx`'s `App` component, between the `AgentServerUnavailableError` check and the `<Outlet />` render.
+  - **Key rotation resilience (non-public):** When `VITE_SESSION_API_KEY` is baked in and differs from the stored key in `openhands-agent-server-config.sessionApiKey` (localStorage), `syncBakedSessionApiKey()` (called from `readStoredBackends()` at module init) overwrites the stale stored key. Without this sync, `getConfiguredSessionApiKey()` returns the stale localStorage value (which takes priority over the env fallback), poisoning the backend registry seed via `makeDefaultLocalBackend()` and causing 401s from `loadAgentServerInfo()`. The `static-server.mjs` injection script also always overwrites when the key differs (changed from `if(!_c.sessionApiKey)` to `if(_c.sessionApiKey!==<runtime_key>)`). E2E coverage: `tests/e2e/mock-llm/mock-llm-auth-modes.spec.ts`.
 - Backend/footer actions that launch modals from inside a dropdown or popover should intercept `onMouseDown` to keep the menu mounted, then perform the actual open on `onClick`. Current examples: `Add backend` / `Manage backends` in `src/components/features/backends/backend-selector.tsx`, plus the mirrored workspace-footer buttons in `src/components/features/conversation-panel/new-conversation-button.tsx`.
 - `BackendSelector`'s cloud-org switch paths should never rethrow from the dropdown `onChange` handler: unexpected non-Axios failures need a generic error toast instead of an unhandled promise rejection, and the malformed `(cloud backend, null org)` self-heal path should fall back to the bundled backend if `/switch` fails.
 - `NewConversationButton` should support keyboard dismissal (`Escape`) for its inline popover, while still keeping the popover open when its modal children (`FolderBrowserModal`, `ManageWorkspacesModal`) are active.
@@ -488,9 +511,11 @@ When adding code that needs a new string, decide up front which rule it falls un
   - `ManageWorkspacesModal` should require a confirmation step before removing either a saved workspace or a workspace parent; parent removals should mention the child-workspace impact, and tests should assert both the confirmation flow and that removing the selected workspace clears the launch selection.
   - In `useWorkspacesStore`, keep `clearWorkspaces()` scoped to literal workspaces only; use explicit helpers like `clearWorkspaceParents()` / `clearAll()` for broader resets so future callers do not accidentally wipe parent registrations.
 
+- Default LLM model — `DEFAULT_SETTINGS.llm_model` (`"openhands/minimax-m2.7"`, defined in `src/services/settings.ts`) is the canonical frontend default. `buildConfiguredOpenHandsAgentSettings` in `src/api/agent-server-adapter.ts` **always** sends this value explicitly when the resolved `llm.model` is absent, empty, or whitespace-only — the frontend never relies on the agent-server SDK's own default (`gpt-5.5`). If you change the default model, update `DEFAULT_SETTINGS.llm_model` in `src/services/settings.ts` **and** the checklist in `specs/llm-defaults.md`. Spec: `@spec LLD-001`.
+
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
-- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data and MCP logo mappings live in `@openhands/extensions/mcps`; the Slack catalog entry there should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server`. Deprecated marketplace entries removed upstream (for example GitLab / Google Maps / Postgres / Puppeteer / SQLite) should disappear from the marketplace grid. The Installed section still needs to render and search arbitrary non-catalog custom servers via the raw server `name` / `command` fallback in `src/utils/mcp-marketplace-utils.ts` + `InstalledServerCard`. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
+- MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. The legacy `/settings/mcp` route still works as a redirect via `src/routes/mcp-settings-redirect.tsx`, and `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. Marketplace catalog data and MCP logo mappings live in the MCP-capable entries from `@openhands/extensions/integrations`; the Slack API catalog option should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server`. Deprecated marketplace entries removed upstream (for example GitLab / Google Maps / Postgres / Puppeteer / SQLite) should disappear from the marketplace grid. The Installed section still needs to render and search arbitrary non-catalog custom servers via the raw server `name` / `command` fallback in `src/utils/mcp-marketplace-utils.ts` + `InstalledServerCard`. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.
@@ -538,6 +563,6 @@ When adding code that needs a new string, decide up front which rule it falls un
 
 - Spec files live under `specs/`. Spec IDs are stable — never renumber. Mark deprecated specs with ~~strikethrough~~. Tag implementation code and tests with `// @spec BM-002 — Short title` comments so specs are grep-able across the codebase (`grep -rn '@spec BM-' src/ __tests__/`). Place the comment on the line immediately above the relevant code block or test. When multiple tests cover the same spec, use `it.each` if the test structure is identical.
 
-- Release automation: `.github/workflows/create-release.yml` automatically creates a GitHub release (with tag `v<version>`) when a PR from a `rel-*` branch is merged into `main`. This is modeled after the SDK's `create-release.yml`. The tag push then triggers `npm-publish.yml` and `docker.yml` downstream. The release skill (`.agents/skills/release.md`, keyword trigger: `release`) guides agents through the full process: version bump PR, `e2e-tests` label for mock-LLM E2E validation, merge with auto-tagging. Pre-release versions (containing a hyphen) are marked as pre-releases on the GitHub release.
+- Release automation: releases use a **long-lived release branch** model — a `rel-X.Y.Z` branch is created from `main`, QA/fixes land there, and publishing is triggered by pushing a `v*` tag directly to that branch (the branch is never merged back to main). Tag format determines the npm dist-tag: `alpha` → `alpha`, `beta` → `beta`, `rc` → `rc`, no suffix → `latest`. Three workflows fire in parallel on every `v*` tag push: `create-release.yml` (creates the GitHub Release object with auto-generated notes and marks pre-release for hyphenated versions), `npm-publish.yml` (builds and publishes to npm with the correct dist-tag), and `docker.yml` (builds multi-arch Docker images). The release skill (`.agents/skills/release.md`, keyword trigger: `release`) guides agents through the full process.
 
 - Cloud conversation resume gating: when a cloud conversation is closed from the UI (`pauseCloudSandbox` is called), the conversation's `conversation_url` is NOT cleared -- it still points to the old sandbox host. `WebSocketProviderWrapper` must suppress the URL (pass `null` to `ConversationWebSocketProvider`) while `sandbox_status === "PAUSED"`, otherwise the WebSocket immediately tries the stale URL before the sandbox wakes. Symmetrically, `useActiveConversation`'s refetch interval must fast-poll (3 s) on both `!conversation_url` AND `sandbox_status === "PAUSED"` -- checking only the missing URL would leave the hook on the 30 s interval while the sandbox is resuming. The resume sequence: navigate -> sandbox PAUSED detected -> `resumeCloudSandbox` called (in `conversation.tsx`) -> fast-poll detects RUNNING -> `conversationUrl` unblocked -> WebSocket connects.

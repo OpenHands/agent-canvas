@@ -199,8 +199,10 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
       lines.push(`    OpenAPI: ${automation.openapi_url}`);
     }
     if (automation.auth_env_var) {
+      // X-Session-API-Key is the local convention shared by the agent-server
+      // and automation backend (see openhands-automation auth.py).
       lines.push(
-        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+        `    Auth:    header 'X-Session-API-Key: $${automation.auth_env_var}'`,
       );
     }
   } else {
@@ -593,7 +595,9 @@ function buildConfiguredOpenHandsAgentSettings(
   const llm = toRecord(agentSettings.llm);
 
   llm.model =
-    typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
 
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {

@@ -153,3 +153,57 @@ describe("cloud settings via local proxy", () => {
     });
   });
 });
+
+describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () => {
+  it("strips a null agent_context while preserving sibling agent settings", async () => {
+    // Arrange: the cloud rejects agent_context: null against OpenHandsAgentSettings.
+    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+    // Act
+    await saveCloudSettings({
+      agent_settings_diff: {
+        llm: { model: "anthropic/claude-sonnet-4-20250514" },
+        agent_context: null,
+      },
+    });
+
+    // Assert: agent_context never reaches the wire, but the real llm change does.
+    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const proxiedBody = (body as { body: Record<string, unknown> }).body;
+    expect(proxiedBody).toEqual({
+      agent_settings_diff: {
+        llm: { model: "anthropic/claude-sonnet-4-20250514" },
+      },
+    });
+  });
+
+  it("preserves a null mcp_config so clearing MCP config still round-trips", async () => {
+    // Arrange: mcp_config: null is an intentional "clear" signal, not an error.
+    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+    // Act
+    await saveCloudSettings({
+      agent_settings_diff: { mcp_config: null },
+    });
+
+    // Assert: the null mcp_config must survive (don't over-strip nulls).
+    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const proxiedBody = (body as { body: Record<string, unknown> }).body;
+    expect(proxiedBody).toEqual({ agent_settings_diff: { mcp_config: null } });
+  });
+
+  it("omits agent_settings_diff when agent_context: null is its only key", async () => {
+    // Arrange
+    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+
+    // Act
+    await saveCloudSettings({
+      agent_settings_diff: { agent_context: null },
+    });
+
+    // Assert: nothing is left to send, so no agent_settings_diff goes on the wire.
+    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const proxiedBody = (body as { body: Record<string, unknown> }).body;
+    expect(proxiedBody).toEqual({});
+  });
+});

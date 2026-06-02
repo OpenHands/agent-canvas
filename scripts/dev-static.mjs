@@ -388,9 +388,8 @@ function startStaticServer(config) {
       "0.0.0.0",
       "--port",
       String(config.vitePort),
-      // Inject the runtime session key so the pre-built frontend can
-      // authenticate to agent-server without VITE_SESSION_API_KEY being baked
-      // into the bundle at publish time.
+      // Inject the API key so the pre-built frontend can authenticate
+      // to the agent-server without a baked-in VITE_SESSION_API_KEY.
       ...(config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),
