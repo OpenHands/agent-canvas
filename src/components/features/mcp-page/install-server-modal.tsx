@@ -19,6 +19,38 @@ import {
   type McpMarketplaceConnectionOption,
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { SecretsService } from "#/api/secrets-service";
+
+/**
+ * Maps MCP stdio env field keys to agent-server secret names.
+ * When an MCP server is installed with one of these env fields, the
+ * corresponding secret is automatically created if it doesn't already exist.
+ * This ensures the token is also available as a named secret for agent use.
+ */
+const ENV_TO_SECRET_MAP: Record<string, string> = {
+  GITHUB_PERSONAL_ACCESS_TOKEN: "GITHUB_TOKEN",
+  SLACK_BOT_TOKEN: "SLACK_TOKEN",
+};
+
+async function maybeSaveAssociatedSecrets(
+  env: Record<string, string>,
+): Promise<void> {
+  const relevantEntries = Object.entries(ENV_TO_SECRET_MAP).filter(
+    ([envKey]) => env[envKey],
+  );
+  if (relevantEntries.length === 0) return;
+
+  const existing = await SecretsService.getSecrets();
+  const existingNames = new Set(existing.map((s) => s.name));
+
+  await Promise.all(
+    relevantEntries
+      .filter(([, secretName]) => !existingNames.has(secretName))
+      .map(([envKey, secretName]) =>
+        SecretsService.createSecret(secretName, env[envKey]),
+      ),
+  );
+}
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -117,6 +149,11 @@ export function InstallServerModal({
         }
         addMcpServer(payload, {
           onSuccess: () => {
+            if (payload.env) {
+              void maybeSaveAssociatedSecrets(payload.env).catch((err) => {
+                console.error("Failed to save associated secrets:", err);
+              });
+            }
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             onSuccess?.(entry);
             onClose();

@@ -29,6 +29,17 @@ interface RecommendedAutomationsLauncherProps {
   onLaunched?: () => void;
 }
 
+/**
+ * Maps automation IDs to their corresponding public skill names.
+ * When an automation has a matching skill, the launcher sends a slash-command
+ * as the conversation opener instead of the full prompt text — the skill file
+ * already contains all setup instructions for that workflow.
+ */
+export const AUTOMATION_SKILL_MAP: Record<string, string> = {
+  "github-repo-monitor": "github-repo-monitor",
+  "slack-channel-monitor": "slack-channel-monitor",
+};
+
 function getRequiredEntries(automation: RecommendedAutomation) {
   const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
   return automation.requiredIntegrationIds
@@ -113,11 +124,14 @@ export function RecommendedAutomationsLauncher({
       }
       launchInFlightRef.current = true;
 
-      const prompt = buildAutomationPrompt(
-        automation.prompt,
-        activeBackend.backend.kind,
-        activeBackend.backend.host,
-      );
+      const skillName = AUTOMATION_SKILL_MAP[automation.id];
+      const prompt = skillName
+        ? `/${skillName}`
+        : buildAutomationPrompt(
+            automation.prompt,
+            activeBackend.backend.kind,
+            activeBackend.backend.host,
+          );
 
       createConversation.mutate(
         {},
