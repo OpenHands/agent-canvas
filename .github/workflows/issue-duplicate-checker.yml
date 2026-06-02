@@ -36,9 +36,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke-clone'
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout repository
-              uses: actions/checkout@v6
-
             - name: Clone repository
               env:
                   REPOSITORY: ${{ github.repository }}
@@ -57,7 +54,7 @@ jobs:
     issue-duplicate-check:
         if: |
             github.event_name == 'issues' ||
-            (github.event_name == 'workflow_dispatch' && inputs.mode == 'issue-check' && inputs.issue_number != null)
+            (github.event_name == 'workflow_dispatch' && inputs.mode == 'issue-check' && inputs.issue_number != '')
         runs-on: ubuntu-latest
         timeout-minutes: 35
         concurrency:
