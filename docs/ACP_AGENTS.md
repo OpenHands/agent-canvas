@@ -51,7 +51,10 @@ See [Authentication](#authentication) for how each one authenticates.
 > ACP agents authenticate **two ways: a subscription login, or an API key** — and
 > the onboarding fields are optional. If you're already signed in to the
 > provider's CLI on the machine the agent runs on, it reuses that login
-> automatically, so locally you often don't need a key at all.
+> automatically, so locally you often don't need a key at all. **The login takes
+> priority over an API key:** while you're signed in, a key set in the
+> environment isn't used — so the onboarding key fields do nothing and can be
+> left blank.
 
 A "subscription login" is the credential the provider's own CLI stores when you
 sign in once — a file in your home directory, or, for Claude Code on macOS, the
@@ -66,24 +69,28 @@ needed instead.
 | **Codex** | A ChatGPT login (`codex login`) cached at `~/.codex/auth.json` | `OPENAI_API_KEY` *(onboarding)* |
 | **Gemini CLI** | Your Google login (`gemini`/`gemini --acp`) cached at `~/.gemini/oauth_creds.json` | `GEMINI_API_KEY` *(onboarding)* |
 
-All three collect an *optional* API key (+ base URL) in onboarding — leave them
-blank to rely on a subscription login. A few provider-specific notes:
+All three collect an *optional* API key (+ base URL) in onboarding. As noted
+above, **a subscription / OAuth login takes priority over an API key** — when the
+provider's CLI is signed in, a key set in the environment is not used. Verified
+per provider:
 
-- **Codex and Gemini CLI** — the SDK detects the cached login file and **prefers
-  it over an API key**. Gemini's free Google login is the common no-key path
-  locally: sign in once and it **just works**, no key required.
-- **Claude Code** — the login is auto-detected too (the macOS Keychain, or
-  `~/.claude/.credentials.json` on Linux); `CLAUDE_CONFIG_DIR` is **not** required
-  for it. `CLAUDE_CONFIG_DIR` only relocates Claude Code's config directory
-  (default `~/.claude`, which holds settings and session history, not the token) —
-  e.g. for containers or multiple accounts. The one difference from the others: if
-  `ANTHROPIC_API_KEY` is set, Claude Code uses it **instead of** the login. A
-  headless setup that wants to force the login despite a key in the environment
-  sets `CLAUDE_CONFIG_DIR`, which signals the SDK to strip a conflicting
+- **Codex** — `codex login status` keeps reporting the ChatGPT login even with
+  `OPENAI_API_KEY` set.
+- **Gemini CLI** — uses the OAuth auth type chosen at `gemini` login;
+  `GEMINI_API_KEY` is only consulted if you switch the auth type. The free Google
+  login is the common no-key path locally — sign in once and it **just works**.
+- **Claude Code** — with both present, `claude auth status` reports it is
+  authenticated via the subscription (`claude.ai`), not the key. The login is
+  auto-detected from the macOS Keychain (or `~/.claude/.credentials.json` on
+  Linux); `CLAUDE_CONFIG_DIR` is **not** required for it — it only relocates
+  Claude Code's config directory (settings/history, not the token; e.g. for
+  containers or multiple accounts) and signals the SDK to strip a conflicting
   `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`.
-- **Gemini base URL caveat:** `GEMINI_BASE_URL` only takes effect on the API-key
-  path (it's passed as the ACP gateway endpoint); under the Google login it's
-  ignored.
+
+The one exception is the **base URL** (`*_BASE_URL`): a custom value points the
+CLI at a different endpoint (a proxy or gateway) and *does* take effect even
+under a login — for Gemini it rides the ACP `gateway` param. It's an advanced
+override, not needed for normal use.
 
 ## Onboarding an ACP agent
 
