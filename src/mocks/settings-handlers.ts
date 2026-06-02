@@ -169,6 +169,21 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           required: false,
         },
         {
+          key: "verification.critic_api_key",
+          label: "Critic API Key",
+          description:
+            "API key the critic uses to call its LLM. Required when the critic is enabled.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "string",
+          default: null,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "critical",
+          secret: true,
+          required: true,
+        },
+        {
           key: "verification.critic_mode",
           label: "Critic Mode",
           description: "Choose when the critic should review and intervene.",

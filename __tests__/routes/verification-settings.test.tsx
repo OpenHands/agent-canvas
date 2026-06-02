@@ -73,9 +73,50 @@ describe("VerificationSettingsScreen", () => {
       ),
     ).toBeInTheDocument();
 
+    // The critic LLM API key is required when the critic is on, and we
+    // surface it alongside the other critical-prominence fields.
+    const apiKeyInput = screen.getByTestId(
+      "sdk-settings-verification.critic_api_key",
+    );
+    expect(apiKeyInput).toBeInTheDocument();
+    expect(apiKeyInput).toHaveAttribute("type", "password");
+    expect(apiKeyInput).toBeRequired();
+
+    // The accompanying help link points users at OpenHands Cloud, mirroring
+    // the hint we already show under the LLM provider's API key field.
+    const helpLink = screen.getByTestId(
+      "help-link-verification.critic_api_key",
+    );
+    expect(helpLink).toBeInTheDocument();
+    expect(
+      helpLink.querySelector('a[href="https://app.all-hands.dev/settings/api-keys"]'),
+    ).not.toBeNull();
+
     // Major-prominence fields (confirmation_mode) are hidden in basic view
     expect(
       screen.queryByTestId("sdk-settings-confirmation_mode"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the critic API key field when the critic is disabled", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          verification: {
+            critic_enabled: false,
+            enable_iterative_refinement: false,
+          },
+        },
+      }),
+    );
+
+    renderVerificationSettingsScreen();
+
+    await screen.findByTestId("verification-settings-screen");
+
+    expect(
+      screen.queryByTestId("sdk-settings-verification.critic_api_key"),
     ).not.toBeInTheDocument();
   });
 

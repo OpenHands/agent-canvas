@@ -25,12 +25,27 @@ import {
 // ---------------------------------------------------------------------------
 export const FIELD_HELP_LINKS: Record<
   string,
-  { textKey: string; linkTextKey: string; href: string }
+  {
+    textKey: string;
+    linkTextKey: string;
+    href: string;
+    /** Optional trailing copy rendered after the link (e.g. " tab of OpenHands Cloud."). */
+    suffixKey?: string;
+  }
 > = {
   "llm.api_key": {
     textKey: "SCHEMA$LLM$API_KEY$HELP_TEXT",
     linkTextKey: "SCHEMA$LLM$API_KEY$HELP_LINK_TEXT",
     href: "https://docs.openhands.dev/usage/local-setup#getting-an-api-key",
+  },
+  // Mirror the hint shown under the LLM provider's API key field when
+  // OpenHands is selected: the critic just needs any LLM API key, and the
+  // easiest one to grab is the user's OpenHands Cloud key.
+  "verification.critic_api_key": {
+    textKey: "SETTINGS$OPENHANDS_API_KEY_HELP_TEXT",
+    linkTextKey: "SETTINGS$NAV_API_KEYS",
+    suffixKey: "SETTINGS$OPENHANDS_API_KEY_HELP_SUFFIX",
+    href: "https://app.all-hands.dev/settings/api-keys",
   },
 };
 
@@ -56,6 +71,7 @@ function FieldHelp({ field }: { field: SettingsFieldSchema }) {
           text={t(helpLink.textKey)}
           linkText={t(helpLink.linkTextKey)}
           href={helpLink.href}
+          suffix={helpLink.suffixKey ? ` ${t(helpLink.suffixKey)}` : undefined}
           size="settings"
           linkColor="white"
         />
