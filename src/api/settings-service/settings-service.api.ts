@@ -45,6 +45,36 @@ export type ExposeSecretsMode = "encrypted" | "plaintext" | undefined;
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+// disabled_skills is not persisted by the local agent-server, so we mirror
+// the app-preferences pattern: write to localStorage on save, read back on fetch.
+export const DISABLED_SKILLS_STORAGE_KEY =
+  "openhands-agent-server-disabled-skills";
+
+const readStoredDisabledSkills = (): string[] | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DISABLED_SKILLS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredDisabledSkills = (skills: string[]): void => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      DISABLED_SKILLS_STORAGE_KEY,
+      JSON.stringify(skills),
+    );
+  } catch {
+    // ignore write failures (e.g. private-browsing quota exceeded)
+  }
+};
+
 const mergeRecords = (
   base: Record<string, SettingsValue> | null | undefined,
   next: Record<string, SettingsValue> | null | undefined,
@@ -111,11 +141,20 @@ const transformApiResponse = (
   const agentSettings = response.agent_settings ?? {};
   const conversationSettings = response.conversation_settings ?? {};
 
-  return {
+  const partial: Partial<Settings> = {
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
     llm_api_key_set: response.llm_api_key_is_set,
   };
+
+  // The local agent-server never returns disabled_skills; read it from
+  // localStorage where saveSettings writes it for local-mode clients.
+  const stored = readStoredDisabledSkills();
+  if (stored !== null) {
+    partial.disabled_skills = stored;
+  }
+
+  return partial;
 };
 
 /**
@@ -458,6 +497,9 @@ class SettingsService {
       // requires at least one of the two diff fields. Strip disabled_skills
       // and skip the request entirely if no diffs remain. App preferences
       // are persisted to localStorage above and never sent to this endpoint.
+      if (Array.isArray(disabledSkills)) {
+        writeStoredDisabledSkills(disabledSkills);
+      }
       const localPayload = { ...payload };
       delete localPayload.disabled_skills;
       const hasLocalDiffs =

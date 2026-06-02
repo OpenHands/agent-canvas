@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SkillsSettingsScreen from "#/routes/skills-settings";
@@ -275,6 +275,56 @@ Full skill body.`,
       within(card).getByTestId(`skill-toggle-${skill.name}`),
     ).toHaveAttribute("aria-checked", "false");
     expect(within(modal).getByText("SETTINGS$SKILLS_DISABLED")).toBeInTheDocument();
+  });
+
+  it("saves disabled_skills to the server when a skill is toggled off and settings has no prior disabled_skills field", async () => {
+    // Reproduces the bug where disabled_skills is absent from settings (undefined),
+    // causing hasHydratedInitialSettings to never become true and the save to be silently skipped.
+    const user = userEvent.setup();
+    const skill = buildSkill({ name: "save-me" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ disabled_skills: undefined }),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId(`skill-card-${skill.name}`);
+    const card = screen.getByTestId(`skill-card-${skill.name}`);
+
+    await user.click(within(card).getByTestId(`skill-toggle-${skill.name}`));
+
+    await waitFor(() =>
+      expect(saveSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ disabled_skills: [skill.name] }),
+      ),
+    );
+  });
+
+  it("saves an updated disabled list when a skill is toggled off and settings already has disabled_skills", async () => {
+    const user = userEvent.setup();
+    const skill = buildSkill({ name: "another-skill" });
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([skill]);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ disabled_skills: [] }),
+    );
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId(`skill-card-${skill.name}`);
+    const card = screen.getByTestId(`skill-card-${skill.name}`);
+
+    await user.click(within(card).getByTestId(`skill-toggle-${skill.name}`));
+
+    await waitFor(() =>
+      expect(saveSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ disabled_skills: [skill.name] }),
+      ),
+    );
   });
 
   it("toggles a skill from the card without opening the modal", async () => {

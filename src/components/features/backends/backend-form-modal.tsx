@@ -12,6 +12,7 @@ import { ModalCloseButton } from "#/components/shared/modals/modal-close-button"
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
@@ -218,6 +219,13 @@ function BackendStatusBadge({
   );
 }
 
+export interface BackendFormSubmitPayload {
+  name: string;
+  host: string;
+  apiKey: string;
+  kind: BackendKind;
+}
+
 export interface BackendFormProps {
   mode: BackendFormMode;
   /** Required when `mode === "edit"`. */
@@ -241,6 +249,21 @@ export interface BackendFormProps {
   }) => React.ReactNode;
   /** Used to disambiguate test ids across the same screen. */
   testIdRoot?: string;
+  /** When true, the host field is pre-filled and disabled. */
+  hostReadOnly?: boolean;
+  /**
+   * When true, a non-empty API key is required for submission regardless
+   * of the inferred backend kind.  The standard add form allows empty
+   * keys for local backends; the auth-gate screen needs to enforce one.
+   */
+  requireApiKey?: boolean;
+  /**
+   * Replace the default synchronous add/update-and-close submit with a
+   * custom async handler.  The form builds the payload, validates
+   * client-side, then hands it to this callback. If the callback throws,
+   * the form remains open so the caller can surface errors.
+   */
+  onSubmitOverride?: (payload: BackendFormSubmitPayload) => Promise<void>;
 }
 
 /**
@@ -259,6 +282,9 @@ export function BackendForm({
   onSubmitted,
   renderActions,
   testIdRoot: explicitTestIdRoot,
+  hostReadOnly,
+  requireApiKey,
+  onSubmitOverride,
 }: BackendFormProps) {
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
@@ -277,10 +303,11 @@ export function BackendForm({
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
+  const needsApiKey = requireApiKey || kind !== "local";
   const canSubmit =
     name.trim().length > 0 &&
     isValidHostUrl(host) &&
-    (kind === "local" || apiKey.trim().length > 0);
+    (!needsApiKey || apiKey.trim().length > 0);
 
   // Error messages — only surfaced after the user has blurred the field.
   const nameError =
@@ -293,7 +320,7 @@ export function BackendForm({
         : undefined
     : undefined;
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
@@ -303,12 +330,17 @@ export function BackendForm({
       return;
     }
 
-    const payload = {
+    const payload: BackendFormSubmitPayload = {
       name: name.trim(),
       host: normalizeHost(host),
       apiKey: apiKey.trim(),
       kind,
     };
+
+    if (onSubmitOverride) {
+      await onSubmitOverride(payload);
+      return;
+    }
 
     if (mode === "edit" && backend) {
       updateBackend(backend.id, payload);
@@ -345,12 +377,13 @@ export function BackendForm({
         type="text"
         label={t(I18nKey.BACKEND$HOST_LABEL)}
         value={host}
-        onChange={setHost}
+        onChange={hostReadOnly ? undefined : setHost}
         onBlur={() => setHostTouched(true)}
         placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
         className="w-full"
         showRequiredTag
         error={hostError}
+        isDisabled={hostReadOnly}
       />
 
       <SettingsInput
@@ -397,6 +430,21 @@ export function BackendForm({
 // ── Add-mode two-column layout ──────────────────────────────────────
 
 /**
+ * @spec BM-002 — Adding a backend auto-switches the active selection to it
+ * (BM-001), so a backend-scoped detail page the user is viewing now belongs
+ * to the previous backend. Redirect to that section's list so they never see
+ * stale data, mirroring the switch-backend redirect in BackendSelector.
+ */
+function useRedirectAfterAddBackend() {
+  const { currentPath, navigate } = useNavigation();
+  return React.useCallback(() => {
+    if (/^\/automations\/[^/]+/.test(currentPath)) navigate("/automations");
+    else if (/^\/conversations\/[^/]+/.test(currentPath))
+      navigate("/conversations");
+  }, [currentPath, navigate]);
+}
+
+/**
  * Left column of the "Add a Backend" modal: manual connection via
  * Host + API Key. Designed for self-hosted agent servers and
  * self-hosted OpenHands Cloud with API key auth.
@@ -404,6 +452,7 @@ export function BackendForm({
 function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [name, setName] = React.useState("");
   const [host, setHost] = React.useState("");
@@ -424,6 +473,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
       apiKey: apiKey.trim(),
       kind,
     });
+    redirectAfterAdd();
     onClose();
   };
 
@@ -500,6 +550,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
 function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [customHost, setCustomHost] = React.useState("");
@@ -513,6 +564,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
       apiKey,
       kind: "cloud",
     });
+    redirectAfterAdd();
     onClose();
   };
 

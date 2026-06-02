@@ -1,8 +1,69 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
-  McpCatalogEntry as MarketplaceEntry,
-  MarketplaceTemplate,
-} from "@openhands/extensions/mcps";
+  IntegrationCatalogEntry as MarketplaceEntry,
+  IntegrationConnectionOption,
+  IntegrationTransport,
+} from "@openhands/extensions/integrations";
+
+export type { MarketplaceEntry };
+
+export type McpMarketplaceConnectionOption = IntegrationConnectionOption & {
+  provider: "mcp";
+  transport: IntegrationTransport;
+};
+
+export function getMcpConnectionOptions(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption[] {
+  return entry.connectionOptions.filter(
+    (option): option is McpMarketplaceConnectionOption =>
+      option.provider === "mcp" && !!option.transport,
+  );
+}
+
+export function getDefaultMcpConnectionOption(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption | undefined {
+  const options = getMcpConnectionOptions(entry);
+  return (
+    options.find((option) => option.id === entry.defaultConnectionOptionId) ??
+    options[0]
+  );
+}
+
+function isLocallyInstallableMcpOption(
+  option: McpMarketplaceConnectionOption,
+): boolean {
+  // The local install modal writes static MCP server config. OAuth options
+  // describe hosted redirect flows, so prefer an API/stdio fallback when one
+  // exists and leave OAuth as the default connection for hosted integrations.
+  return option.auth.strategy !== "oauth2";
+}
+
+export function getInstallableMcpConnectionOption(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption | undefined {
+  const options = getMcpConnectionOptions(entry);
+  const defaultOption = options.find(
+    (option) => option.id === entry.defaultConnectionOptionId,
+  );
+  if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
+    return defaultOption;
+  }
+  return options.find(isLocallyInstallableMcpOption);
+}
+
+export function getDefaultMcpTransport(
+  entry: MarketplaceEntry,
+): IntegrationTransport | undefined {
+  return getDefaultMcpConnectionOption(entry)?.transport;
+}
+
+export function getMcpMarketplaceCatalog(
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry[] {
+  return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
+}
 
 const tryUrl = (raw: string): URL | null => {
   try {
@@ -45,42 +106,54 @@ export function urlsMatch(a: unknown, b: unknown): boolean {
  * the marketplace tile. Returns the first matching server, or null.
  */
 export function findInstalledMatch(
-  template: MarketplaceTemplate,
+  transport: IntegrationTransport,
   servers: MCPServerConfig[],
 ): MCPServerConfig | null {
-  if (template.kind === "shttp") {
-    const tplUrl = template.url;
-    if (!tplUrl) return null;
+  return (
+    servers.find((server) => transportMatchesServer(transport, server)) ?? null
+  );
+}
+
+export function findInstalledEntryMatch(
+  entry: MarketplaceEntry,
+  servers: MCPServerConfig[],
+): MCPServerConfig | null {
+  for (const option of getMcpConnectionOptions(entry)) {
+    const match = findInstalledMatch(option.transport, servers);
+    if (match) return match;
+  }
+  return null;
+}
+
+function transportMatchesServer(
+  transport: IntegrationTransport,
+  server: MCPServerConfig,
+): boolean {
+  if (transport.kind === "shttp") {
+    const tplUrl = transport.url;
     return (
-      servers.find(
-        (s) => s.type === "shttp" && !!s.url && urlsMatch(s.url, tplUrl),
-      ) ?? null
+      server.type === "shttp" && !!server.url && urlsMatch(server.url, tplUrl)
     );
   }
 
-  if (template.kind === "sse") {
-    const tplUrl = template.url;
-    if (!tplUrl) return null;
+  if (transport.kind === "sse") {
+    const tplUrl = transport.url;
     return (
-      servers.find(
-        (s) => s.type === "sse" && !!s.url && urlsMatch(s.url, tplUrl),
-      ) ?? null
+      server.type === "sse" && !!server.url && urlsMatch(server.url, tplUrl)
     );
   }
 
   // stdio: match on the registered server name.
-  return (
-    servers.find((s) => s.type === "stdio" && s.name === template.serverName) ??
-    null
-  );
+  return server.type === "stdio" && server.name === transport.serverName;
 }
 
 export function isMarketplaceEntryAvailable(
   entry: MarketplaceEntry,
   backendKind: "local" | "cloud",
 ): boolean {
-  if (!entry.availability || entry.availability === "all") return true;
-  return entry.availability === backendKind;
+  if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
+    return true;
+  return entry.runtimeAvailability === backendKind;
 }
 
 function normalize(query: string): string {
@@ -170,19 +243,11 @@ export function findCatalogEntryForServer(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry | undefined {
   return catalog.find((entry) => {
-    const tpl = entry.template;
-    if (tpl.kind === "stdio")
-      return server.type === "stdio" && server.name === tpl.serverName;
-    // Reuse the same loose URL match as `findInstalledMatch` so a
-    // server whose URL was normalized by the backend (trailing slash
-    // stripped, query string dropped, etc.) still gets paired with
-    // its catalog tile — otherwise the installed-servers list would
-    // render the generic icon while the marketplace shows the
-    // entry as installed, which is confusing.
-    if (tpl.kind === "shttp")
-      return server.type === "shttp" && urlsMatch(server.url, tpl.url);
-    if (tpl.kind === "sse")
-      return server.type === "sse" && urlsMatch(server.url, tpl.url);
-    return false;
+    // Check every MCP option rather than only the default. Some unified
+    // integration entries default to OAuth-hosted MCP while still exposing
+    // an API/stdio option; existing installed servers should match either.
+    return getMcpConnectionOptions(entry).some((option) =>
+      transportMatchesServer(option.transport, server),
+    );
   });
 }

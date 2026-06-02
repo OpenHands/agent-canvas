@@ -1,0 +1,102 @@
+---
+name: Create GitHub Release
+
+# Automatically create a GitHub release object when a v* tag is pushed.
+# The tag is pushed manually to a rel-X.Y.Z release branch (never merged to main).
+# This workflow creates the GitHub Release; the same tag push also triggers
+# npm-publish.yml and docker.yml in parallel.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+
+          # Accept semver with optional pre-release suffix (e.g. 1.0.0, 1.0.0-rc.1)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Could not extract valid version from tag: $TAG"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "📦 Version: $VERSION"
+
+      - name: Check release does not already exist
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "⚠️ Release $TAG already exists, skipping"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find previous release tag
+        if: steps.check.outputs.exists == 'false'
+        id: prev_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREV_TAG=$(gh release list --repo "${{ github.repository }}" \
+            --exclude-drafts --limit 1 \
+            --json tagName --jq '.[0].tagName')
+          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+          echo "📌 Previous release tag: ${PREV_TAG:-<none>}"
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.prev_tag }}
+        run: |
+          NOTES_START_FLAG=()
+          if [ -n "$PREV_TAG" ]; then
+            NOTES_START_FLAG=(--notes-start-tag "$PREV_TAG")
+          fi
+
+          # Detect pre-release versions (anything with a hyphen, e.g. 1.0.0-rc.1)
+          PRERELEASE_FLAG=()
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE_FLAG=(--prerelease)
+          fi
+
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "$TAG" \
+            --generate-notes \
+            "${NOTES_START_FLAG[@]}" \
+            "${PRERELEASE_FLAG[@]}"
+
+          echo "✅ Release $TAG created!"
+          echo "🔗 https://github.com/${{ github.repository }}/releases/tag/$TAG"
+
+      - name: Summary
+        if: steps.check.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          echo "## ✅ Release $TAG Created" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Tag**: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Release**: https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Downstream workflows triggered by the same tag push:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **npm-publish.yml** — publish \`@openhands/agent-canvas\` to npm" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **docker.yml** — build and push \`ghcr.io/openhands/agent-canvas\` Docker images" >> "$GITHUB_STEP_SUMMARY"

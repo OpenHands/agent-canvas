@@ -2,13 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import McpService from "#/api/mcp-service/mcp-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 
 function renderWith(ui: React.ReactNode) {
   return render(ui, {
@@ -30,9 +31,14 @@ describe("InstallServerModal", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       MOCK_DEFAULT_USER_SETTINGS,
     );
+    // Default: pre-flight test passes so existing save tests remain unaffected.
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+    });
   });
 
-  it("requires Slack token + team id and posts a stdio mcp_config diff", async () => {
+  it("uses Slack's API fallback when the default option is OAuth", async () => {
     const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -120,14 +126,23 @@ describe("InstallServerModal", () => {
     // without relying on the catalog choosing to mark one this way.
     const entry: MarketplaceEntry = {
       id: "synthetic-required",
+      kind: "mcp",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: false,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: false,
+          },
+          auth: { strategy: "api_key" },
+        },
+      ],
     };
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -154,14 +169,23 @@ describe("InstallServerModal", () => {
   it("allows submitting an shttp template with no key when apiKeyOptional is true", async () => {
     const entry: MarketplaceEntry = {
       id: "synthetic-optional",
+      kind: "mcp",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
-      template: {
-        kind: "shttp",
-        url: "https://example.com/mcp",
-        apiKeyOptional: true,
-      },
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
     };
     const getSpy = vi
       .spyOn(SettingsService, "getSettings")
@@ -207,5 +231,151 @@ describe("InstallServerModal", () => {
     expect(
       cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("shows an inline error, does not save, and keeps the modal open when the pre-flight test fails", async () => {
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: false,
+      error: "ECONNREFUSED",
+      error_kind: "connection",
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    const onClose = vi.fn();
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-test-fail",
+      kind: "mcp",
+      name: "Failing Server",
+      description: "Always fails the connection test.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    // Wait for settings to load so the mutation isn't a no-op.
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // Error message must appear.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-modal-error")).toBeInTheDocument(),
+    );
+
+    // Save must never have been called.
+    expect(saveSpy).not.toHaveBeenCalled();
+
+    // Modal must stay open.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
+  });
+
+  it("calls save and closes the modal when the pre-flight test succeeds", async () => {
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: ["tool_a"],
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    const onClose = vi.fn();
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-test-pass",
+      kind: "mcp",
+      name: "Passing Server",
+      description: "Always passes the connection test.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId("mcp-install-modal-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Verifying… on the install button while the pre-flight test is in flight", async () => {
+    // Never resolve so the test stays pending long enough to observe the label.
+    vi.spyOn(McpService, "testServer").mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const entry: MarketplaceEntry = {
+      id: "synthetic-pending",
+      kind: "mcp",
+      name: "Pending Server",
+      description: "Connection test never resolves.",
+      iconBg: "#000000",
+      defaultConnectionOptionId: "api",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://example.com/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // In tests i18n keys are returned as-is, so the button shows the key name.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-submit")).toHaveTextContent(
+        "MCP$VERIFYING",
+      ),
+    );
   });
 });

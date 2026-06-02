@@ -160,7 +160,7 @@ describe("ChatInputActions", () => {
     expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
   });
 
-  it("hides the Change Agent button on the home page on a cloud backend", () => {
+  it("shows the Change Agent button on the home page on a cloud backend", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
 
@@ -172,7 +172,7 @@ describe("ChatInputActions", () => {
     );
 
     expect(
-      screen.queryByTestId("change-agent-button-stub"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("change-agent-button-stub"),
+    ).toBeInTheDocument();
   });
 });

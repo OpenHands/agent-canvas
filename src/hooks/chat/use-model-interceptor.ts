@@ -44,9 +44,8 @@ export const useModelInterceptor = (
       const arg = trimmed.slice(MODEL_COMMAND.length).trim();
 
       if (arg) {
-        // `activateProfile` is global; works whether or not we have an active
-        // conversation. Pass conversationId through so the inline "Switched
-        // to" message gets anchored when one is open.
+        // Switch the running conversation when one is open; otherwise activate
+        // the profile globally so the next conversation starts with it.
         switchAndLog(conversationId ?? null, arg);
         return;
       }

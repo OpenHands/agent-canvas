@@ -13,12 +13,13 @@ import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import {
-  findInstalledMatch,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
@@ -29,8 +30,9 @@ interface RecommendedAutomationsLauncherProps {
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
-  return automation.requiredMcpIds
-    .map((id) => getMarketplaceEntryById(id, MCP_MARKETPLACE))
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+  return automation.requiredIntegrationIds
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -71,7 +73,7 @@ export function buildAutomationPrompt(
     "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
     "- Read the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
     "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
-    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
+    "- Auth: `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
     "- If no local Automation backend is listed in `<RUNTIME_SERVICES>`, stop and ask me to start the full local automation stack instead of using any remote/cloud automation API.",
   ].join("\n");
 }
@@ -154,7 +156,7 @@ export function RecommendedAutomationsLauncher({
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
       getRequiredEntries(automation).filter(
-        (entry) => !findInstalledMatch(entry.template, installedMcpServers),
+        (entry) => !findInstalledEntryMatch(entry, installedMcpServers),
       ),
     [installedMcpServers],
   );
@@ -207,6 +209,10 @@ export function RecommendedAutomationsLauncher({
   };
 
   const installEntry = installQueue[0] ?? null;
+
+  // Recommended automations are a local-backend-only feature; cloud
+  // automations are managed elsewhere.
+  if (activeBackend.backend.kind === "cloud") return null;
 
   return (
     <>

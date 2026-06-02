@@ -6,9 +6,9 @@ import {
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import {
@@ -18,8 +18,9 @@ import {
 import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
-  findInstalledMatch,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
@@ -55,8 +56,9 @@ export function getAutomationsByPopularity(
 const RECOMMENDED_AUTOMATIONS = getAutomationsByPopularity(AUTOMATION_CATALOG);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
-  return automation.requiredMcpIds
-    .map((id) => getMarketplaceEntryById(id, MCP_MARKETPLACE))
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+  return automation.requiredIntegrationIds
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -96,7 +98,7 @@ function buildRecommendedAutomationPills(
   translate: TFunction,
 ): SkillCardPill[] {
   const pills: SkillCardPill[] = requiredEntries.map((entry) => {
-    const installed = !!findInstalledMatch(entry.template, installedServers);
+    const installed = !!findInstalledEntryMatch(entry, installedServers);
 
     return {
       id: `mcp-${entry.id}`,
@@ -165,7 +167,7 @@ export function RecommendedAutomationsSection({
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
             const missingCount = requiredEntries.filter(
-              (entry) => !findInstalledMatch(entry.template, installedServers),
+              (entry) => !findInstalledEntryMatch(entry, installedServers),
             ).length;
 
             return (

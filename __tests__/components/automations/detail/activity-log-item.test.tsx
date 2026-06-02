@@ -135,6 +135,57 @@ describe("ActivityLogItem — logs button", () => {
   });
 });
 
+describe("ActivityLogItem — Conversation not created label", () => {
+  beforeEach(() => {
+    __resetActiveStoreForTests();
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+  });
+
+  afterEach(() => {
+    __resetActiveStoreForTests();
+  });
+
+  it("hides the 'Conversation not created' label while the run is Pending without a conversation", () => {
+    // Arrange: a freshly-dispatched run that hasn't yet been linked to a
+    // conversation by the backend. The label would falsely imply terminal
+    // failure during this transient window.
+    const run = makeRun({
+      status: AutomationRunStatus.PENDING,
+      conversation_id: null,
+      bash_command_id: null,
+    });
+
+    // Act
+    renderItem(run);
+
+    // Assert
+    expect(
+      screen.queryByText((content) => content.includes("NO_CONVERSATION")),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the 'Conversation not created' label when the run has Failed without a conversation", () => {
+    // Arrange: a run that reached a terminal state without ever creating a
+    // conversation (e.g. sandbox provisioning error) — here the label is
+    // accurate and useful.
+    const run = makeRun({
+      status: AutomationRunStatus.FAILED,
+      conversation_id: null,
+      bash_command_id: null,
+      completed_at: "2026-01-01T10:00:30Z",
+    });
+
+    // Act
+    renderItem(run);
+
+    // Assert
+    expect(
+      screen.queryByText((content) => content.includes("NO_CONVERSATION")),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ActivityLogItem — timestamp fallback", () => {
   beforeEach(() => {
     __resetActiveStoreForTests();
