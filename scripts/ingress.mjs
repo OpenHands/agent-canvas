@@ -347,6 +347,18 @@ function startIngress(config) {
     }
   });
 
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `Cannot start ingress: port ${config.port} is already in use.\n` +
+          "Stop the process using that port, or choose another port with --port.",
+      );
+      process.exit(1);
+    }
+
+    throw err;
+  });
+
   server.listen(config.port, () => {
     console.log("");
     console.log("╔═══════════════════════════════════════════════════════════════╗");
