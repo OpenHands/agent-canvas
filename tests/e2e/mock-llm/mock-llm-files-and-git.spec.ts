@@ -104,20 +104,18 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // a provider+repository from `git remote get-url origin`. In the npm
     // path the agent-server worktree already inherits the host repo; in the
     // Docker path we must create one from scratch.
+    const gitBootstrap = [
+      // Skip if already in a repo with an origin remote (npm worktree path)
+      "git remote get-url origin >/dev/null 2>&1",
+      // Otherwise bootstrap a fresh repo with a GitHub remote (Docker path)
+      "|| (git init && git remote add origin https://github.com/test-org/test-repo.git && git commit --allow-empty -m init)",
+    ].join(" ");
     await registerTrajectory(request, "files-and-git", [
       {
         tool_call: {
           name: "terminal",
           arguments: {
-            command: [
-              // If already in a git repo with an origin remote, skip init
-              "if git remote get-url origin >/dev/null 2>&1; then true",
-              // Otherwise bootstrap a fresh repo with a GitHub remote
-              "else git init",
-              "&& git remote add origin https://github.com/test-org/test-repo.git",
-              "&& git commit --allow-empty -m init; fi",
-              "&& printf 'MOCK_LLM_E2E_BASH_OK\\n'",
-            ].join(" "),
+            command: `${gitBootstrap}; printf 'MOCK_LLM_E2E_BASH_OK\\n'`,
           },
         },
       },
@@ -201,14 +199,15 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "chat-interface", 30_000);
 
-    // The trajectory in step 1 ran `git init && git commit` inside the
-    // conversation workspace, so git detection finds a repository in
-    // BOTH the npm path (host worktree) and the Docker path (init'd
-    // repo). The control bar should show Pull and Push buttons.
+    // The trajectory in step 1 ran `git init && git remote add origin`
+    // inside the conversation workspace, so git detection finds a
+    // repository in BOTH the npm path (host worktree) and the Docker
+    // path (init'd repo). The control bar should show Pull and Push
+    // buttons. useLocalGitInfo polls every 10s so give it enough time.
     await test.step("verify Pull and Push buttons are visible", async () => {
       await expect(
         page.getByRole("button", { name: /Pull/i }).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      ).toBeVisible({ timeout: 25_000 });
       await expect(
         page.getByRole("button", { name: /Push/i }).first(),
       ).toBeVisible({ timeout: 5_000 });
