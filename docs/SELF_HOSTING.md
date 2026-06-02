@@ -120,6 +120,42 @@ This single command downloads the latest release, starts the agent server,
 the automation backend, and the static frontend, and fronts them with an
 ingress proxy on `127.0.0.1:8000`.
 
+To keep the service running after your SSH session ends, use a process manager.
+
+**Option A — tmux (quick):**
+
+```bash
+tmux new-session -d -s canvas \
+  'LOCAL_BACKEND_API_KEY=<your-key> npx @openhands/agent-canvas --public'
+# Reconnect later with: tmux attach -t canvas
+```
+
+**Option B — systemd (recommended for long-term deployments):**
+
+Create `/etc/systemd/system/agent-canvas.service`:
+
+```ini
+[Unit]
+Description=Agent Canvas
+After=network.target
+
+[Service]
+Environment=LOCAL_BACKEND_API_KEY=<your-key>
+ExecStart=npx @openhands/agent-canvas --public
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start the unit:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now agent-canvas
+```
+
 > [!WARNING]
 > The agent server runs **directly on the host** with full access to the
 > machine's filesystem, environment, and network. The firewall (step 2) and
