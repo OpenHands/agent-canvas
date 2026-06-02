@@ -58,14 +58,18 @@ jobs:
           node-version: '24'
 
       - name: Log trigger info
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          CLIENT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          INPUT_VALUE: ${{ inputs.sdk_version }}
         run: |
           echo "Triggered by: ${{ github.event_name }}"
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "Event type: ${{ github.event.action }}"
-            echo "Client payload: ${{ toJson(github.event.client_payload) }}"
+            echo "Event type: $EVENT_ACTION"
+            echo "Client payload: $CLIENT_PAYLOAD"
           fi
-          if [ -n "${{ inputs.sdk_version }}" ]; then
-            echo "SDK version input: ${{ inputs.sdk_version }}"
+          if [ -n "$INPUT_VALUE" ]; then
+            echo "SDK version input: $INPUT_VALUE"
           fi
 
       - name: Check SDK version sync
