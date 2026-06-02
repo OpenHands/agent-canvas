@@ -294,13 +294,12 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
-  it("shows slide 2 with Gemini's credential fields (its step is no longer skipped)", async () => {
+  it("shows slide 2 with Gemini's credential fields", async () => {
     renderModal();
     const user = userEvent.setup();
 
     // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
-    // other providers, so the slide shows the GEMINI_API_KEY field — the flow
-    // no longer skips it.
+    // other providers, so the slide shows the GEMINI_API_KEY field.
     await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
     await user.click(screen.getByTestId("onboarding-agent-next"));
     await waitFor(
@@ -328,8 +327,8 @@ describe("OnboardingModal", () => {
     expect(
       screen.getByTestId("onboarding-step-setup-acp-secrets"),
     ).toBeInTheDocument();
-    // Gemini now exposes credential fields (GEMINI_API_KEY), derived from the
-    // SDK registry like Claude Code / Codex.
+    // Gemini exposes credential fields (GEMINI_API_KEY), derived from the SDK
+    // registry like Claude Code / Codex.
     expect(
       screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
     ).toBeInTheDocument();

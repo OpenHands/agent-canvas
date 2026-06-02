@@ -93,16 +93,10 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  // Slide index 2 is the "provider credentials" slot. Its content depends on
-  // the chosen agent:
-  //   * OpenHands           → the LLM-setup form (its own LLM config).
-  //   * Claude Code / Codex → the ACP secrets form (API key + base URL), since
-  //                           these providers authenticate via env-var keys.
-  //   * Gemini CLI          → a login-status screen (no key fields; it signs in
-  //                           via browser OAuth) so the "you're already signed
-  //                           in" banner can still render.
-  // Every agent has slide-2 content, so the flow is a plain 4-step sequence
-  // with no skipping.
+  // Slide index 2 is the "provider credentials" slot:
+  //   * OpenHands → the LLM-setup form (its own LLM config).
+  //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
+  //     form: API key + optional base URL, with a login-detection banner.
   const isOpenHands = selectedAgentId === "openhands";
   const goNext = React.useCallback(
     () => setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS - 1)),
