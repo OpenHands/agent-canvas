@@ -25,7 +25,7 @@
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
-- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
+- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
   - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
   - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
@@ -53,7 +53,7 @@ The env var is a JSON string of:
       "url_from_agent": "http://localhost:3001"
     },
     "automation": {
-      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
       "url_from_agent": "http://localhost:18001",
       "api_prefix": "/api/automation",
       "docs_url": "http://localhost:18001/api/automation/docs",
@@ -81,10 +81,10 @@ from your point of view (i.e., as you should curl/fetch them).
 * Frontend: http://localhost:3001
     Vite dev server hosting the agent-canvas frontend.
 * Automation backend: http://localhost:18001
-    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
     Docs:    http://localhost:18001/api/automation/docs
     OpenAPI: http://localhost:18001/api/automation/openapi.json
-    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+    Auth:    header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
 
 Trust this block over guessing: do not assume any other URLs are running.
 In particular, http://localhost:18000 inside your sandbox is the Agent Server
@@ -148,7 +148,7 @@ you are running inside of — NOT the automation backend.
 - **Production-fidelity launch**: The Playwright config (`playwright.mock-llm.config.ts`) starts the full `agent-canvas` stack via `bin/agent-canvas.mjs` — the same binary that `npx @openhands/agent-canvas` executes when users install the npm package. This means mock-LLM tests exercise the actual production path: pre-built static frontend + static-server.mjs + agent-server via uvx + automation backend via uvx + ingress proxy, all behind a single port.
 - A pre-built `build/` directory is required. The Playwright webServer command runs `npm run build:app` when `build/index.html` is absent, but CI should run the build step explicitly for caching (`npm run build:app` in `.github/workflows/mock-llm-e2e.yml`).
 - **Single ingress URL**: Tests use one URL for both the browser (`baseURL`) and backend API assertions (`BACKEND_URL`). The ingress proxy routes `/api/*` to the agent-server, `/api/automation/*` to the automation backend, and `/*` to the static frontend. Default ingress port for tests is `18300` (override via `MOCK_LLM_INGRESS_PORT` env var).
-- **State isolation**: `OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state` isolates test state from the user's real `~/.openhands/agent-canvas/` directory. The directory is cleaned before each test run.
+- **State isolation**: `OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state` isolates test state from the user's real `~/.openhands/agent-canvas/` directory. Both `STATE_DIR` (`.tmp/mock-llm-state`) and the automation DB dir (`.tmp/automation/`) are cleaned before each test run — the automation DB now lives outside STATE_DIR at `dirname(STATE_DIR)/automation/automations.db`, mirroring Docker's `~/.openhands/automation/automations.db`.
 - **Session API key**: A random key is generated per test run and passed to the stack via `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY`. The static server injects it into `index.html` at serve time so the frontend authenticates automatically.
 - **Mock LLM server** (`tests/e2e/mock-llm/scripts/mock-llm-server.py`): Python HTTP server using openhands-sdk's `TestLLM` to return scripted tool-call + text trajectories. Supports admin API endpoints for dynamic trajectory management:
   - `POST /admin/reset` — reset to the default trajectory (terminal printf + text reply)
