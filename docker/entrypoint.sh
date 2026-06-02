@@ -272,8 +272,45 @@ fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
-# Wait for any child to exit. If one dies, the trap will clean up the rest.
-wait -n "${PIDS[@]}" 2>/dev/null
-EXIT_CODE=$?
-log_error "A service exited with code $EXIT_CODE"
-exit "$EXIT_CODE"
+# Monitor children — log crashes but keep the container alive.
+# In the non-Docker path (bin/agent-canvas.mjs → dev-with-automation.mjs)
+# each service is an independent host process, so one crashing doesn't take
+# down the others.  Replicating that here: if the agent-server or automation
+# backend exits, the static-server proxy layer returns 502 for API calls
+# but the container stays up.  This prevents E2E tests from seeing
+# ECONNREFUSED on the ingress port just because a backend recycled.
+# The container still shuts down cleanly on SIGTERM/SIGINT via the trap.
+while true; do
+  # wait -n exits when ANY tracked PID exits (bash 4.3+).
+  # If all children are already dead, wait -n returns immediately.
+  if ! wait -n "${PIDS[@]}" 2>/dev/null; then
+    # A child exited with non-zero status.
+    :
+  fi
+
+  # Check if ANY tracked PID is still alive.
+  any_alive=false
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      any_alive=true
+      break
+    fi
+  done
+
+  if [ "$any_alive" = false ]; then
+    log_error "All services have exited"
+    exit 1
+  fi
+
+  # Log which PIDs died so operators can diagnose, but keep running.
+  for i in "${!PIDS[@]}"; do
+    pid="${PIDS[$i]}"
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log "WARNING: child PID $pid has exited (container stays up)"
+      # Remove from the array so we don't re-check it.
+      unset 'PIDS[i]'
+    fi
+  done
+  # Re-index the sparse array after unset.
+  PIDS=("${PIDS[@]}")
+done
