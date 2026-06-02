@@ -74,6 +74,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
   }) => {
     test.setTimeout(120_000);
 
+    // Reset the mock LLM to a fresh default trajectory. Previous test
+    // suites (automation, conversation) may have partially consumed or
+    // exhausted the trajectory. Without this reset the 2-turn trajectory
+    // (tool_call + text_reply) is already gone and every subsequent
+    // /chat/completions returns 500 → the agent never finishes.
+    await resetMockLLM(request);
+
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
@@ -249,8 +256,12 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
   test("step 6: files tab defaults to file-tree view without attached workspace", async ({
     page,
+    request,
   }) => {
     test.setTimeout(120_000);
+
+    // Fresh trajectory — step 2's conversation consumed the previous one.
+    await resetMockLLM(request);
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
