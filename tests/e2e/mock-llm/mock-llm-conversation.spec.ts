@@ -37,6 +37,7 @@ import {
   waitForSuccessfulBashObservation,
   deleteConversation,
   resetMockLLM,
+  setChatInput,
 } from "./utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
@@ -291,24 +292,7 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Keeping the tokens out of the user bubble lets us assert they appear
     // *only* in agent output.
 
-    // Set contenteditable text via evaluate (contentEditable divs don't
-    // respond reliably to Playwright's .fill() or .type()).
-    await page.evaluate(
-      ({ testId, text }) => {
-        const el = document.querySelector(`[data-testid="${testId}"]`);
-        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
-        el.focus();
-        el.textContent = text;
-        el.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            data: text,
-            inputType: "insertText",
-          }),
-        );
-      },
-      { testId: "chat-input", text: USER_MESSAGE },
-    );
+    await setChatInput(page, USER_MESSAGE);
 
     // Click the submit button — this triggers conversation creation
     await page.getByTestId("submit-button").click();
