@@ -165,7 +165,9 @@
     ]
   },
   "overrides": {
-    "ajv": "8.20.0",
+    "@vercel/static-config": {
+      "ajv": "8.20.0"
+    },
     "dompurify": "3.4.7"
   },
   "main": "./dist/index.cjs",
