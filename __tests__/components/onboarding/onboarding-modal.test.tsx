@@ -86,6 +86,17 @@ vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   }),
 }));
 
+// The ACP credentials slide runs a login-detection probe (calls
+// GET /api/acp/auth-status). Stub it here so the modal routing tests don't hit
+// the network; the probe itself is covered in use-acp-auth-status.test.tsx.
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: () => ({
+    status: "unknown",
+    isChecking: false,
+    isSupported: false,
+  }),
+}));
+
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -283,26 +294,14 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
-  it("skips the step-2 slide for an ACP agent with no credentials to collect", async () => {
+  it("shows slide 2 with Gemini's credential fields", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Pick Gemini CLI: it authenticates via an interactive OAuth login
-    // (no env-var API key), so it has no credentials step and slide 2 is
-    // skipped — unlike Claude Code / Codex, which now render one there.
+    // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
+    // other providers, so the slide shows the GEMINI_API_KEY field.
     await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
     await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-          "data-current-step",
-          "1",
-        ),
-      { timeout: 3000 },
-    );
-
-    // Advancing again should jump straight to Say Hello (index 3) and
-    // bypass slide 2 — Gemini owns its own auth via the OAuth login.
     await waitFor(
       () =>
         expect(
@@ -312,42 +311,35 @@ describe("OnboardingModal", () => {
     );
     await user.click(screen.getByTestId("onboarding-backend-next"));
 
+    // Lands on slide 2 (the ACP step) — not jumped past to Say Hello.
     await waitFor(
       () =>
         expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
           "data-current-step",
-          "3",
+          "2",
         ),
       { timeout: 3000 },
     );
-    // All four slides remain mounted (the rail just translates them);
-    // the assertion that the LLM step was skipped is that slide 3 (Say
-    // Hello) is the active one immediately after the backend step,
-    // *not* slide 2 (LLM).
     expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
-      "data-active",
-      "false",
-    );
-    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
       "data-active",
       "true",
     );
-
-    // Progress bar reflects the *visited* step count, not the slide
-    // index — 3 segments total (not 4), and segment 2 is current (not
-    // segment 3, which would imply LLM was completed). Without this
-    // mapping, picking an ACP agent makes the bar show segment 2 as
-    // "completed" despite the user never visiting it.
     expect(
-      screen.queryByTestId("onboarding-progress-step-3"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("onboarding-step-setup-acp-secrets"),
+    ).toBeInTheDocument();
+    // Gemini exposes credential fields (GEMINI_API_KEY), derived from the SDK
+    // registry like Claude Code / Codex.
+    expect(
+      screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).toBeInTheDocument();
+
+    // The flow keeps all four progress segments (nothing is skipped).
+    expect(
+      screen.getByTestId("onboarding-progress-step-3"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
       "data-state",
       "current",
-    );
-    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
-      "data-state",
-      "completed",
     );
   });
 
