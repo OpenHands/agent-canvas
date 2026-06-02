@@ -1,6 +1,14 @@
 import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
+/** Upstream registry fields not yet on the pinned client's exported type. */
+type ClientAcpProviderRegistry = NonNullable<
+  ReturnType<typeof getClientAcpProvider>
+> & {
+  available_models?: Array<{ id: string; label: string }>;
+  default_model?: string;
+};
+
 export type ACPProviderIcon =
   | "claude-code"
   | "codex"
@@ -154,7 +162,7 @@ const ACP_PROVIDER_UI: Record<
 export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
   ACP_PROVIDER_UI,
 ).map(([key, ui]) => {
-  const info = getClientAcpProvider(key);
+  const info = getClientAcpProvider(key) as ClientAcpProviderRegistry | null;
   return {
     key,
     display_name: info?.display_name ?? key,

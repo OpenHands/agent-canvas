@@ -13,7 +13,7 @@ export function ExtensionsMobileHub() {
       data-testid="extensions-mobile-hub"
       className="flex flex-col gap-4 px-4 py-2 md:hidden"
     >
-      <Typography.H2>{t(I18nKey.NAV$EXTENSIONS)}</Typography.H2>
+      <Typography.H2>{t(I18nKey.NAV$CUSTOMIZE)}</Typography.H2>
       <nav className="flex flex-col gap-0.5">
         {EXTENSIONS_NAV_ITEMS.map((item) => (
           <SidebarNavLink
