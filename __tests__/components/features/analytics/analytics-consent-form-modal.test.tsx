@@ -19,8 +19,7 @@ vi.mock("#/hooks/mutation/use-save-settings", () => ({
 
 const setTelemetryConsentMock = vi.fn(() => Promise.resolve());
 vi.mock("#/services/telemetry", () => ({
-  setTelemetryConsent: (...args: unknown[]) =>
-    setTelemetryConsentMock(...args),
+  setTelemetryConsent: (consent: string) => setTelemetryConsentMock(consent),
 }));
 
 vi.mock("#/utils/handle-capture-consent", () => ({
