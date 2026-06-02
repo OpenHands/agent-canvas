@@ -21,6 +21,7 @@ flowchart LR
     acp["ACP subprocess<br/>(e.g. claude-agent-acp)"]
     llm["LLM provider<br/>(Anthropic / OpenAI / Google)"]
     canvas -- "PATCH /api/settings<br/>(agent_kind, acp_*)" --> server
+    canvas -- "conversation turns" --> server
     server -- "spawn + JSON-RPC over stdio" --> acp
     acp -- "API calls" --> llm
 ```
