@@ -274,15 +274,19 @@ fi
 
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
-# Wait on the static-server — the one process that MUST stay alive for the
-# container to serve traffic.  If a backend (agent-server, automation) exits,
-# the static-server proxy stays up and returns 502 for downed backend routes,
-# matching the non-Docker path where each service is an independent process.
+# Keep the container alive while the static-server (ingress) is running.
+# Backend crashes (agent-server, automation) are tolerated — the proxy
+# returns 502 for downed routes, matching the non-Docker path where each
+# service is an independent host process.
 #
-# `wait` is a bash builtin, so it is interrupted immediately when a trapped
-# signal (SIGTERM/SIGINT) arrives, allowing cleanup() to fire without delay.
-# cleanup() calls `exit 0` so the script terminates after the trap returns.
-wait "$STATIC_PID"
-EXIT_CODE=$?
-log_error "Static server (PID $STATIC_PID) exited with code $EXIT_CODE"
-exit "$EXIT_CODE"
+# Pattern: `sleep & wait $!` makes `wait` (a bash builtin) the foreground
+# operation.  Unlike a bare `sleep`, the builtin `wait` is interrupted
+# immediately when a trapped signal (SIGTERM/SIGINT) arrives, so cleanup()
+# fires without delay.  cleanup() calls `exit 0` to terminate after the
+# trap returns.  The loop re-checks the static-server PID every 10 s so the
+# container exits promptly if the ingress process dies on its own.
+while kill -0 "$STATIC_PID" 2>/dev/null; do
+  sleep 10 & wait $!
+done
+log_error "Static server (PID $STATIC_PID) exited"
+exit 1
