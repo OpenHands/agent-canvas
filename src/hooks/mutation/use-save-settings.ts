@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usePostHog } from "posthog-js/react";
+import { useTracking } from "#/hooks/use-tracking";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import {
   MCPConfig,
@@ -60,7 +60,7 @@ const saveSettingsMutationFn = async (settings: SettingsUpdate) => {
 };
 
 export const useSaveSettings = (scope: SettingsScope = "personal") => {
-  const posthog = usePostHog();
+  const { trackMcpConfigUpdated } = useTracking();
   const queryClient = useQueryClient();
   const { data: currentSettings } = useSettings(scope);
 
@@ -72,10 +72,9 @@ export const useSaveSettings = (scope: SettingsScope = "personal") => {
         | undefined;
 
       if (nextMcpConfig && currentMcpConfig !== nextMcpConfig) {
-        posthog.capture("mcp_config_updated", {
-          has_mcp_config: true,
-          sse_servers_count: nextMcpConfig.sse_servers?.length || 0,
-          stdio_servers_count: nextMcpConfig.stdio_servers?.length || 0,
+        trackMcpConfigUpdated({
+          sseServersCount: nextMcpConfig.sse_servers?.length ?? 0,
+          stdioServersCount: nextMcpConfig.stdio_servers?.length ?? 0,
         });
       }
 

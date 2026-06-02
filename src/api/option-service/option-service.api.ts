@@ -31,7 +31,9 @@ class OptionService {
     await loadAgentServerInfo();
 
     return {
-      posthog_client_key: null,
+      posthog_client_key:
+        (import.meta.env.VITE_POSTHOG_CLIENT_KEY as string | undefined) ??
+        null,
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: true,
