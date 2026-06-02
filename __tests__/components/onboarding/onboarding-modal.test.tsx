@@ -294,13 +294,13 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
-  it("shows slide 2 as a login screen (no key fields) for a credential-less ACP agent", async () => {
+  it("shows slide 2 with Gemini's credential fields (its step is no longer skipped)", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Pick Gemini CLI: it authenticates via an interactive OAuth login (no
-    // env-var API key), but the slide still shows so the "you're already
-    // signed in" banner can render — the flow no longer skips it.
+    // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
+    // other providers, so the slide shows the GEMINI_API_KEY field — the flow
+    // no longer skips it.
     await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
     await user.click(screen.getByTestId("onboarding-agent-next"));
     await waitFor(
@@ -328,10 +328,11 @@ describe("OnboardingModal", () => {
     expect(
       screen.getByTestId("onboarding-step-setup-acp-secrets"),
     ).toBeInTheDocument();
-    // No API-key inputs for Gemini — it's a login-status-only screen.
+    // Gemini now exposes credential fields (GEMINI_API_KEY), derived from the
+    // SDK registry like Claude Code / Codex.
     expect(
-      screen.queryByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).toBeInTheDocument();
 
     // The flow keeps all four progress segments (nothing is skipped).
     expect(
