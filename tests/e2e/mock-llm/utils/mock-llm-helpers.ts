@@ -272,6 +272,52 @@ export async function deleteConversation(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// Retry helper for transient agent-server failures
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Retry an HTTP request on transient failures (socket hang up, ECONNRESET,
+ * 502, 503). The agent-server may briefly drop connections between test
+ * suites while processing cleanup from the previous spec's afterAll.
+ */
+async function retryOnTransient(
+  request: APIRequestContext,
+  method: "GET" | "PATCH" | "POST" | "DELETE",
+  url: string,
+  options: Parameters<APIRequestContext["get"]>[1],
+  retries = 5,
+  delayMs = 1_000,
+): Promise<import("@playwright/test").APIResponse> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const resp =
+        method === "GET" ? await request.get(url, options) :
+        method === "PATCH" ? await request.patch(url, options) :
+        method === "POST" ? await request.post(url, options) :
+        await request.delete(url, options);
+      // Retry on gateway errors (ingress can't reach backend yet)
+      if ((resp.status() === 502 || resp.status() === 503) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      return resp;
+    } catch (err: unknown) {
+      // Retry on socket-level failures (hang up, reset, refused)
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransient = /socket hang up|ECONNRESET|ECONNREFUSED/i.test(msg);
+      if (isTransient && attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable, but satisfies TS
+  throw new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // LLM profile setup via API (for tests that can't depend on UI setup)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -296,7 +342,11 @@ export async function ensureMockLLMProfile(
   // Check if the current profile already has the mock LLM settings.
   // Use MOCK_LLM_AGENT_URL — this is the URL the agent-server will use to
   // reach the mock LLM, which may differ from MOCK_LLM_BASE_URL in Docker.
-  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+  //
+  // Retry on transient failures (socket hang up, 502, 503) — the
+  // agent-server may briefly drop connections between test suites while
+  // it processes cleanup requests from the previous spec's afterAll.
+  const settingsResp = await retryOnTransient(request, "GET", `${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "X-Expose-Secrets": "encrypted",
@@ -312,7 +362,7 @@ export async function ensureMockLLMProfile(
   }
 
   // Configure the active profile's LLM settings
-  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+  const patchResp = await retryOnTransient(request, "PATCH", `${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "Content-Type": "application/json",
