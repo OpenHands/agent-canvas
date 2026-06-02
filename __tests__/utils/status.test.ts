@@ -49,11 +49,12 @@ describe("getStatusCode", () => {
 });
 
 describe("getTaskStatusI18nKey", () => {
-  // Direct coverage of the shared mapper. Includes WAITING_FOR_SANDBOX and the
-  // two dedicated setup keys, the WORKING collapse (the most common status,
-  // previously rendered as an untranslated "Working" label), and the terminal
-  // READY/ERROR states, which now resolve to their own localized keys instead
-  // of silently falling back to STARTING_CONVERSATION.
+  // Exhaustive coverage of the shared mapper over every AppConversationStartTaskStatus
+  // member: the dedicated keys (WAITING_FOR_SANDBOX + the two setup keys), the
+  // terminal READY/ERROR states (which now resolve to their own localized keys
+  // instead of silently falling back to STARTING_CONVERSATION), and the group
+  // that collapses to the generic "Starting" label (WORKING/PREPARING_REPOSITORY/
+  // RUNNING_SETUP_SCRIPT). `as const` keeps the inputs typed as the union.
   it.each([
     ["WAITING_FOR_SANDBOX", I18nKey.COMMON$WAITING_FOR_SANDBOX],
     ["SETTING_UP_GIT_HOOKS", I18nKey.STATUS$SETTING_UP_GIT_HOOKS],
@@ -61,7 +62,9 @@ describe("getTaskStatusI18nKey", () => {
     ["READY", I18nKey.CONVERSATION$READY],
     ["ERROR", I18nKey.COMMON$ERROR],
     ["WORKING", I18nKey.CONVERSATION$STARTING_CONVERSATION],
-  ])("maps %s to its i18n key", (taskStatus, expectedKey) => {
+    ["PREPARING_REPOSITORY", I18nKey.CONVERSATION$STARTING_CONVERSATION],
+    ["RUNNING_SETUP_SCRIPT", I18nKey.CONVERSATION$STARTING_CONVERSATION],
+  ] as const)("maps %s to its i18n key", (taskStatus, expectedKey) => {
     expect(getTaskStatusI18nKey(taskStatus)).toBe(expectedKey);
   });
 });

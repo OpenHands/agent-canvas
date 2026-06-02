@@ -28,7 +28,9 @@ export function isExecutionErrored(
   return status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK;
 }
 
-export function getTaskStatusI18nKey(taskStatus: string): I18nKey {
+export function getTaskStatusI18nKey(
+  taskStatus: AppConversationStartTaskStatus,
+): I18nKey {
   switch (taskStatus) {
     case "WAITING_FOR_SANDBOX":
       return I18nKey.COMMON$WAITING_FOR_SANDBOX;
@@ -46,6 +48,10 @@ export function getTaskStatusI18nKey(taskStatus: string): I18nKey {
       return I18nKey.CONVERSATION$READY;
     case "ERROR":
       return I18nKey.COMMON$ERROR;
+    // These collapse to the generic "Starting" label. `default` is unreachable
+    // for the typed union but is kept as a runtime safety net: the start-task
+    // API may report a new status before this enum is updated, in which case we
+    // degrade to "Starting" rather than throwing (see FUTURE_STATUS_FROM_CLOUD).
     case "STARTING_CONVERSATION":
     case "WORKING":
     case "PREPARING_REPOSITORY":
