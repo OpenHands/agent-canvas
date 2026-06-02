@@ -20,6 +20,8 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 
 interface CustomServerEditorProps {
   server: MCPServerConfig;
@@ -148,7 +150,7 @@ export function CustomServerEditor({
             testId="mcp-custom-editor-close"
             disabled={isDismissBlocked}
           />
-          <h2 className="mb-4 pr-6 text-lg font-semibold">
+          <h2 className={cn("mb-4 pr-6", modalTitleLgClassName)}>
             {isEditing
               ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
               : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}

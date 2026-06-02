@@ -20,12 +20,12 @@ describe("getMobileTopBarState", () => {
     expect(getMobileTopBarState("/skills")).toEqual({
       mode: "back",
       backTo: "/customize",
-      backLabelKey: I18nKey.NAV$EXTENSIONS,
+      backLabelKey: I18nKey.NAV$CUSTOMIZE,
     });
     expect(getMobileTopBarState("/mcp")).toEqual({
       mode: "back",
       backTo: "/customize",
-      backLabelKey: I18nKey.NAV$EXTENSIONS,
+      backLabelKey: I18nKey.NAV$CUSTOMIZE,
     });
   });
 

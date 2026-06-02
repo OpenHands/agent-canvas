@@ -35,6 +35,7 @@
   --color-muted: var(--oh-muted);
   --color-text-dim: var(--oh-text-dim);
   --color-text-subtle: var(--oh-text-subtle);
+  --color-modal-title: var(--oh-modal-title-foreground);
 
   /* Semantic border aliases */
   --color-border-input: var(--oh-border-input);
@@ -82,6 +83,7 @@
   --oh-surface-deep: var(--cool-grey-975);    /* deep inset, context menus */
   --oh-overlay: var(--cool-grey-925);
   --oh-overlay-foreground: var(--cool-grey-100);
+  --oh-modal-title-foreground: #ffffff;
   --oh-muted: var(--cool-grey-400);
   --oh-text-secondary: var(--cool-grey-300);  /* readable secondary text */
   --oh-text-tertiary: var(--cool-grey-200);   /* tertiary, slightly dimmer */
