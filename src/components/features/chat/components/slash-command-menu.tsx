@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import {
+  dropdownInstantColorClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 import { Text } from "#/ui/typography";
 import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
 
@@ -101,7 +105,8 @@ function SlashCommandMenuItem({
       ref={ref}
       type="button"
       className={cn(
-        "w-full px-3 py-2.5 text-left transition-colors",
+        "w-full px-3 py-2.5 text-left",
+        dropdownInstantColorClassName,
         isSelected ? "bg-tertiary" : "hover:bg-[var(--oh-surface-raised)]",
       )}
       onMouseDown={(e) => {
@@ -159,17 +164,19 @@ export function SlashCommandMenu({
       <div className="px-3 py-2 text-xs text-[var(--oh-muted)] border-b border-[var(--oh-border-subtle)]">
         {t("CHAT_INTERFACE$COMMANDS")}
       </div>
-      {items.map((item, index) => (
-        <SlashCommandMenuItem
-          key={item.command}
-          item={item}
-          isSelected={index === selectedIndex}
-          onSelect={onSelect}
-          ref={(el) => {
-            itemRefs.current[index] = el;
-          }}
-        />
-      ))}
+      <div className={dropdownMenuListClassName}>
+        {items.map((item, index) => (
+          <SlashCommandMenuItem
+            key={item.command}
+            item={item}
+            isSelected={index === selectedIndex}
+            onSelect={onSelect}
+            ref={(el) => {
+              itemRefs.current[index] = el;
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

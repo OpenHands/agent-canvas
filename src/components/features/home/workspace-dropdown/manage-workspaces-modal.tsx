@@ -12,6 +12,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 import { cn } from "#/utils/utils";
+import { modalTitleSmClassName } from "#/utils/modal-classes";
 import FolderIcon from "#/icons/folder.svg?react";
 import CloseIcon from "#/icons/close.svg?react";
 
@@ -83,7 +84,7 @@ export function ManageWorkspacesModal({
         >
           <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
             <BaseModalTitle
-              className="text-sm font-medium text-white"
+              className={modalTitleSmClassName}
               title={t(I18nKey.HOME$MANAGE_WORKSPACES)}
             />
           </div>

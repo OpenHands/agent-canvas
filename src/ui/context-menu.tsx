@@ -1,6 +1,7 @@
 import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/utils";
+import { dropdownMenuListGapClassName } from "#/utils/dropdown-classes";
 
 const contextMenuVariants = cva(
   "z-50 overflow-hidden text-[var(--oh-foreground)]",
@@ -19,7 +20,7 @@ const contextMenuVariants = cva(
         default: "",
       },
       layout: {
-        vertical: "flex flex-col gap-0",
+        vertical: cn("flex flex-col", dropdownMenuListGapClassName),
       },
       position: {
         top: "bottom-full",
