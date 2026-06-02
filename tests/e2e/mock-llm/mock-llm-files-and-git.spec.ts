@@ -99,20 +99,23 @@ test.describe("files tab, git control bar, and browser tab", () => {
   test("step 1: ensure mock LLM profile is configured", async ({ request }) => {
     await ensureMockLLMProfile(request);
 
-    // Register a trajectory that ensures the workspace is a git repo.
-    // The default trajectory just runs printf; we need a real git repo so
-    // the git control bar renders Pull/Push buttons in ALL environments
-    // (not just the npm path where worktrees inherit the host repo).
-    // Uses `git rev-parse` to skip init when already inside a repo (npm
-    // path runs inside the agent-canvas worktree).
+    // Register a trajectory that ensures the workspace is a git repo WITH
+    // a remote. The git control bar only shows Pull/Push when it can parse
+    // a provider+repository from `git remote get-url origin`. In the npm
+    // path the agent-server worktree already inherits the host repo; in the
+    // Docker path we must create one from scratch.
     await registerTrajectory(request, "files-and-git", [
       {
         tool_call: {
           name: "terminal",
           arguments: {
             command: [
-              "git rev-parse --is-inside-work-tree 2>/dev/null",
-              "|| (git init && git commit --allow-empty -m init)",
+              // If already in a git repo with an origin remote, skip init
+              "if git remote get-url origin >/dev/null 2>&1; then true",
+              // Otherwise bootstrap a fresh repo with a GitHub remote
+              "else git init",
+              "&& git remote add origin https://github.com/test-org/test-repo.git",
+              "&& git commit --allow-empty -m init; fi",
               "&& printf 'MOCK_LLM_E2E_BASH_OK\\n'",
             ].join(" "),
           },
