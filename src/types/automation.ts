@@ -1,7 +1,15 @@
 export interface AutomationTrigger {
   type: string;
+  /** Cron expression (cron triggers only). */
   schedule?: string;
+  /** Human-readable schedule description (cron triggers only). */
   schedule_human?: string;
+  /** Event source, e.g. "GitHub" (event triggers only). */
+  source?: string;
+  /** Event key pattern(s) to match, e.g. "pull_request.opened" or ["push", "release.*"]. */
+  on?: string | string[];
+  /** JMESPath filter expression evaluated against the raw webhook payload. */
+  filter?: string;
 }
 
 export interface Automation {
