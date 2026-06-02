@@ -133,9 +133,13 @@ export function SetupAcpSecretsStep({
             provider: providerName,
           })}
         </p>
-        <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBSCRIPTION_NOTE)}
-        </p>
+        {authStatus !== "authenticated" && (
+          // When already signed in, the success banner below already says to
+          // leave the fields blank, so this general reminder would be redundant.
+          <p className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBSCRIPTION_NOTE)}
+          </p>
+        )}
       </header>
 
       {authStatus === "authenticated" ? (
