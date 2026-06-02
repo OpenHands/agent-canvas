@@ -29,7 +29,10 @@ import { ContextMenuListItem } from "../../context-menu/context-menu-list-item";
 import { ContextMenu } from "#/ui/context-menu";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { cn } from "#/utils/utils";
-import { formControlTransitionClassName } from "#/utils/form-control-classes";
+import {
+  chatInputIconButtonClassName,
+  formControlTransitionClassName,
+} from "#/utils/form-control-classes";
 
 interface ChatInputActionsProps {
   disabled: boolean;
@@ -289,7 +292,7 @@ export function ChatInputActions({
             >
               <ContextMenu
                 testId="overflow-agent-submenu"
-                className="overflow-visible min-w-[195px] gap-0"
+                className="overflow-visible min-w-[195px]"
               >
                 <ContextMenuListItem
                   testId="overflow-agent-code"
@@ -413,11 +416,7 @@ export function ChatInputActions({
               <button
                 ref={overflowTriggerRef}
                 type="button"
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-full text-[var(--oh-muted)]",
-                  formControlTransitionClassName,
-                  "hover:bg-white/10 hover:text-white cursor-pointer",
-                )}
+                className={cn(chatInputIconButtonClassName, "size-6")}
                 aria-label="More input actions"
                 aria-expanded={isOverflowOpen}
                 aria-haspopup="menu"

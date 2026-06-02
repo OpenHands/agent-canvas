@@ -21,6 +21,7 @@ import {
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
@@ -378,7 +379,7 @@ export function InstallServerModal({
         <div className="flex items-start gap-3 pr-6">
           <McpLogoBadge entry={entry} />
           <div className="flex flex-col flex-1">
-            <h2 className="text-lg font-semibold">{entry.name}</h2>
+            <h2 className={modalTitleLgClassName}>{entry.name}</h2>
             <p className="text-xs text-tertiary-light">{entry.description}</p>
           </div>
         </div>

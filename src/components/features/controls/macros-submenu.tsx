@@ -39,7 +39,7 @@ export function MacrosSubmenu({ onClose }: MacrosSubmenuProps) {
   };
 
   return (
-    <ContextMenu testId="macros-submenu" className="overflow-visible gap-0">
+    <ContextMenu testId="macros-submenu" className="overflow-visible">
       <ContextMenuListItem
         testId="increase-test-coverage-button"
         onClick={onIncreaseTestCoverage}
