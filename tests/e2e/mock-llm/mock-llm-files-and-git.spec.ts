@@ -107,8 +107,11 @@ test.describe("files tab, git control bar, and browser tab", () => {
     const gitBootstrap = [
       // Skip if already in a repo with an origin remote (npm worktree path)
       "git remote get-url origin >/dev/null 2>&1",
-      // Otherwise bootstrap a fresh repo with a GitHub remote (Docker path)
-      "|| (git init && git remote add origin https://github.com/test-org/test-repo.git && git commit --allow-empty -m init)",
+      // Otherwise bootstrap a fresh repo with a GitHub remote (Docker path).
+      // Must configure user.name/email — Docker containers may not have them.
+      "|| (git init && git config user.email test@test.com && git config user.name test",
+      "&& git remote add origin https://github.com/test-org/test-repo.git",
+      "&& git commit --allow-empty -m init)",
     ].join(" ");
     await registerTrajectory(request, "files-and-git", [
       {
