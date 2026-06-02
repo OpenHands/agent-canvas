@@ -9,6 +9,7 @@ import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import { TextCursor } from "lucide-react";
 import { cn } from "#/utils/utils";
+import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 import { I18nKey } from "#/i18n/declaration";
 import { ConversationNameContextMenuIconText } from "#/components/features/conversation/conversation-name-context-menu-icon-text";
 import EditIcon from "#/icons/u-edit.svg?react";
@@ -179,6 +180,7 @@ export function ProfileActionsMenu({
       ref={menuRef}
       className={cn(
         "absolute right-0 top-full z-10 mt-2 w-[160px] rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 shadow-lg",
+        dropdownMenuListClassName,
         isPortaled &&
           "!static !top-auto !bottom-auto !left-auto !right-auto !mt-0",
       )}

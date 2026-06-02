@@ -1,6 +1,14 @@
 import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
+/** Upstream registry fields not yet on the pinned client's exported type. */
+type ClientAcpProviderRegistry = NonNullable<
+  ReturnType<typeof getClientAcpProvider>
+> & {
+  available_models?: Array<{ id: string; label: string }>;
+  default_model?: string;
+};
+
 export type ACPProviderIcon =
   | "claude-code"
   | "codex"
@@ -154,7 +162,7 @@ const ACP_PROVIDER_UI: Record<
 export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
   ACP_PROVIDER_UI,
 ).map(([key, ui]) => {
-  const info = getClientAcpProvider(key);
+  const info = getClientAcpProvider(key) as ClientAcpProviderRegistry | null;
   return {
     key,
     display_name: info?.display_name ?? key,
@@ -190,50 +198,45 @@ export interface ACPProviderSecretField {
   hint_key: I18nKey;
 }
 
-// Credentials Canvas prompts for during onboarding, keyed by ACP registry key.
-// Only providers that authenticate through an env-var API key appear here:
-// Claude Code (Anthropic) and Codex (OpenAI). Gemini CLI authenticates via an
-// interactive OAuth login rather than a static key, so it has no entry and its
-// onboarding credentials step is skipped. Every field is optional (the step is
-// skippable): the API keys render masked, the base-URL entries are plain-text
-// overrides for proxies/gateways. A provider with no entry simply shows no
-// credentials step.
-const ACP_PROVIDER_SECRETS: Record<string, ACPProviderSecretField[]> = {
-  "claude-code": [
-    {
-      name: "ANTHROPIC_API_KEY",
-      secret: true,
-      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
-    },
-    {
-      name: "ANTHROPIC_BASE_URL",
-      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
-    },
-  ],
-  codex: [
-    {
-      name: "OPENAI_API_KEY",
-      secret: true,
-      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
-    },
-    {
-      name: "OPENAI_BASE_URL",
-      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
-    },
-  ],
-};
-
 /**
  * List the credentials Canvas should prompt for when onboarding the given ACP
- * provider. Returns ``[]`` for OpenHands, the ``"custom"`` preset, providers
- * that don't use a static API key (Gemini CLI), and any unknown key — callers
- * treat an empty list as "no credentials step for this provider".
+ * provider, derived from the SDK registry's ``api_key_env_var`` /
+ * ``base_url_env_var`` (mirrored via ``@openhands/typescript-client``) rather
+ * than a hand-maintained per-provider list — so the field names track the SDK
+ * as providers are added or renamed, with no parallel copy to drift. Each field
+ * name equals the env var the agent-server exports into the provider subprocess
+ * (which is what makes a saved secret reach the CLI); the API key renders
+ * masked, the base URL plain-text. All three built-ins (Claude Code, Codex,
+ * Gemini CLI) expose an API key + optional base URL.
+ *
+ * Every field is optional — the step is skippable — and a subscription / OAuth
+ * login takes precedence over a key at runtime (most relevant for Gemini, whose
+ * Google login is the common local path).
+ *
+ * Returns ``[]`` for OpenHands, the ``"custom"`` preset, any unknown key, and a
+ * future OAuth-only provider whose registry entry has no ``api_key_env_var`` —
+ * callers treat an empty list as "no credentials step for this provider".
  */
 export function getAcpProviderSecrets(
   key: string | null | undefined,
 ): ACPProviderSecretField[] {
-  if (!key) return [];
-  return ACP_PROVIDER_SECRETS[key] ?? [];
+  const info = key ? getClientAcpProvider(key) : null;
+  if (!info) return [];
+  const fields: ACPProviderSecretField[] = [];
+  if (info.api_key_env_var) {
+    fields.push({
+      name: info.api_key_env_var,
+      secret: true,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
+    });
+  }
+  if (info.base_url_env_var) {
+    fields.push({
+      name: info.base_url_env_var,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
+    });
+  }
+  return fields;
 }
 
 /**

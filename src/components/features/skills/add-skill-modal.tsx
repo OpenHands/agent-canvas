@@ -9,6 +9,7 @@ import {
 } from "#/constants/skills-docs";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 import CheckmarkIcon from "#/icons/checkmark.svg?react";
 import CopyIcon from "#/icons/copy.svg?react";
 
@@ -124,7 +125,7 @@ export function AddSkillModal({ onClose }: AddSkillModalProps) {
       >
         <ModalCloseButton onClose={onClose} testId="add-skill-modal-close" />
         <header className="flex-shrink-0 px-6 pb-4 pt-6">
-          <h2 className="pr-6 text-lg font-semibold">
+          <h2 className={cn("pr-6", modalTitleLgClassName)}>
             {t(I18nKey.SETTINGS$SKILLS_ADD_MODAL_TITLE)}
           </h2>
           <p className="mt-4 text-sm text-tertiary-light">
