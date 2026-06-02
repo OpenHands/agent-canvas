@@ -90,18 +90,29 @@ jobs:
           fi
           echo "✓ Version $PACKAGE_VERSION matches release tag"
 
-      # Temporary: publish all versions (including prerelease) as "latest"
-      # until the first stable release (see cleanup issue #395).
-      # Note: OIDC trusted-publishing tokens cover only the `npm publish`
-      # call itself; a separate `npm dist-tag add` after publish fails
-      # with E401, so we publish directly with --tag latest in one step.
-      #
-      # Named prerelease dist-tags (alpha/beta/rc) are intentionally NOT
-      # published under this policy — only "latest" is used. This means
-      # `npm install @openhands/agent-canvas@alpha` will not resolve to
-      # any published version. When prerelease dist-tags need to be
-      # re-introduced (issue #395 cleanup), update this step to publish
-      # with a versioned dist-tag (e.g. --tag alpha) and only tag stable
-      # releases as "latest".
+      # Resolve the npm dist-tag from the version's pre-release identifier:
+      #   alpha  →  --tag alpha   (e.g. 1.0.0-alpha.1)
+      #   beta   →  --tag beta    (e.g. 1.0.0-beta.1)
+      #   rc     →  --tag rc      (e.g. 1.0.0-rc.1)
+      #   stable →  --tag latest  (e.g. 1.0.0)
+      # Note: OIDC trusted-publishing tokens cover only the `npm publish` call
+      # itself; a separate `npm dist-tag add` would fail with E401, so the tag
+      # is resolved and passed directly in one step.
+      - name: Resolve npm dist-tag
+        id: dist_tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-alpha* ]]; then
+            DIST_TAG="alpha"
+          elif [[ "$VERSION" == *-beta* ]]; then
+            DIST_TAG="beta"
+          elif [[ "$VERSION" == *-rc* ]]; then
+            DIST_TAG="rc"
+          else
+            DIST_TAG="latest"
+          fi
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "📦 Version $VERSION → dist-tag: $DIST_TAG"
+
       - name: Publish to npm with provenance
-        run: npm publish --access public --provenance --tag latest
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.dist_tag }}
