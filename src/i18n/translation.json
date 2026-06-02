@@ -21640,6 +21640,23 @@
     "uk": "Двійковий файл – попередній перегляд недоступний",
     "ca": "Fitxer binari – previsualització no disponible"
   },
+  "FILES$UNSUPPORTED_DOCUMENT": {
+    "en": "Preview isn't available for {{type}} files.",
+    "ja": "{{type}} ファイルのプレビューは利用できません。",
+    "zh-CN": "{{type}} 文件无法预览。",
+    "zh-TW": "{{type}} 檔案無法預覽。",
+    "ko-KR": "{{type}} 파일은 미리 보기를 사용할 수 없습니다.",
+    "no": "Forhåndsvisning er ikke tilgjengelig for {{type}}-filer.",
+    "it": "L'anteprima non è disponibile per i file {{type}}.",
+    "pt": "A visualização não está disponível para arquivos {{type}}.",
+    "es": "La vista previa no está disponible para archivos {{type}}.",
+    "ar": "المعاينة غير متاحة لملفات {{type}}.",
+    "fr": "L'aperçu n'est pas disponible pour les fichiers {{type}}.",
+    "tr": "{{type}} dosyaları için önizleme kullanılamıyor.",
+    "de": "Für {{type}}-Dateien ist keine Vorschau verfügbar.",
+    "uk": "Попередній перегляд недоступний для файлів {{type}}.",
+    "ca": "La previsualització no està disponible per als fitxers {{type}}."
+  },
   "FILES$LOADING_FILES": {
     "en": "Loading files…",
     "ja": "ファイルを読み込んでいます…",
