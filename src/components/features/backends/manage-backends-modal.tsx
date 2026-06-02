@@ -21,6 +21,7 @@ import {
 } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 
@@ -160,7 +161,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             testId="close-manage-backends-modal"
           />
           <div className="p-5 pr-12">
-            <h2 className="text-lg font-semibold">
+            <h2 className={modalTitleLgClassName}>
               {t(I18nKey.BACKEND$MANAGE_TITLE)}
             </h2>
           </div>

@@ -28508,6 +28508,23 @@
     "uk": "Бібліотека",
     "ca": "Biblioteca"
   },
+  "NAV$CUSTOMIZE": {
+    "en": "Customize:",
+    "ja": "カスタマイズ:",
+    "zh-CN": "自定义:",
+    "zh-TW": "自訂:",
+    "ko-KR": "사용자 지정:",
+    "no": "Tilpass:",
+    "ar": "تخصيص:",
+    "de": "Anpassen:",
+    "fr": "Personnaliser :",
+    "it": "Personalizza:",
+    "pt": "Personalizar:",
+    "es": "Personalizar:",
+    "tr": "Özelleştir:",
+    "uk": "Налаштувати:",
+    "ca": "Personalitza:"
+  },
   "NAV$EXTENSIONS": {
     "en": "Extensions",
     "ja": "拡張機能",
