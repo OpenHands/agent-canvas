@@ -69,7 +69,12 @@ const MIME = {
 export function parseArgs(argv = process.argv.slice(2)) {
   const config = {
     port: 3001,
-    host: "0.0.0.0",
+    // Default: null → server.listen(port) without a host arg, which binds to
+    // :: (dual-stack: IPv4 + IPv6).  Passing --host 0.0.0.0 explicitly limits
+    // to IPv4.  The dual-stack default matters for Docker/CI where `localhost`
+    // can resolve to ::1 (IPv6) — binding only to 0.0.0.0 causes intermittent
+    // ECONNREFUSED on ::1.
+    host: null,
     dir: "build",
     routes: {},
     sessionApiKey: null,
@@ -517,10 +522,12 @@ export function startStaticServer(config) {
   });
 
   return new Promise((resolveListen) => {
-    server.listen(config.port, config.host, () => {
+    const listenCb = () => {
+      const addr = server.address();
+      const displayHost = config.host ?? addr?.address ?? "::";
       console.log("");
       console.log(
-        `Static-server + proxy listening on http://${config.host}:${config.port}/`,
+        `Static-server + proxy listening on http://${displayHost}:${config.port}/`,
       );
       console.log(`  Static dir: ${dirAbs}`);
       const sortedRoutes = Object.entries(config.routes).sort(
@@ -532,7 +539,14 @@ export function startStaticServer(config) {
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");
       resolveListen(server);
-    });
+    };
+
+    // When host is null, omit the arg so Node binds to :: (dual-stack).
+    if (config.host) {
+      server.listen(config.port, config.host, listenCb);
+    } else {
+      server.listen(config.port, listenCb);
+    }
   });
 }
 
