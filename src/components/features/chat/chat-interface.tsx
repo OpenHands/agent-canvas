@@ -1,5 +1,5 @@
 import React from "react";
-import { usePostHog } from "posthog-js/react";
+import { useTracking } from "#/hooks/use-tracking";
 import { useTranslation } from "react-i18next";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
@@ -53,7 +53,7 @@ function getEntryPoint(
 }
 
 export function ChatInterface() {
-  const posthog = usePostHog();
+  const { trackInitialQuerySubmitted, trackUserMessageSent } = useTracking();
   const { setMessageToSend } = useConversationStore();
   const { errorMessage, removeErrorMessage, setErrorMessage } =
     useErrorMessageStore();
@@ -279,18 +279,18 @@ export function ChatInterface() {
     const images = [...originalImages];
     const files = [...originalFiles];
     if (totalEvents === 0) {
-      posthog.capture("initial_query_submitted", {
-        entry_point: getEntryPoint(
+      trackInitialQuerySubmitted({
+        entryPoint: getEntryPoint(
           selectedRepository !== null,
           replayJson !== null,
         ),
-        query_character_length: content.length,
-        replay_json_size: replayJson?.length,
+        queryCharacterLength: content.length,
+        replayJsonSize: replayJson?.length,
       });
     } else {
-      posthog.capture("user_message_sent", {
-        session_message_count: totalEvents,
-        current_message_length: content.length,
+      trackUserMessageSent({
+        sessionMessageCount: totalEvents,
+        currentMessageLength: content.length,
       });
     }
 
