@@ -16,6 +16,7 @@ import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
 } from "../agent-server-config";
+import { resolveAbsoluteAgentServerPath } from "../agent-server-home";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -375,8 +376,15 @@ class AgentServerConversationService {
 
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
-    const workingDir =
-      workingDirOverride ?? buildConversationWorkingDir(conversationId);
+    // @spec WUP-001 — Send an absolute working_dir to the agent-server.
+    // The default is `workspace/project/<hex>` (relative); without
+    // resolving it here, `/api/file/upload` later prepends `/` and writes
+    // to `/workspace/...` (read-only on macOS and fresh containers). When
+    // the user picks an explicit workspace, `workingDirOverride` is
+    // already absolute (it comes from `search_subdirs`).
+    const workingDir = await resolveAbsoluteAgentServerPath(
+      workingDirOverride ?? buildConversationWorkingDir(conversationId),
+    );
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({

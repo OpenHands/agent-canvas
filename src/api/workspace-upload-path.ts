@@ -1,5 +1,11 @@
+// @spec WUP-001 — Resolve relative working dirs against /api/file/home
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
+import {
+  type AgentServerClientOverrides,
+  getAgentServerClientOptions,
+} from "#/api/agent-server-client-options";
+import { resolveAbsoluteAgentServerPath } from "#/api/agent-server-home";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 
@@ -17,20 +23,66 @@ export function getSafeUploadFileName(fileName: string): string {
   return safeName;
 }
 
-/** Normalize agent-server working_dir values to absolute sandbox paths. */
+/**
+ * @deprecated The old `prepend `/` if not already absolute` behaviour is the
+ * root cause of #XXXX (relative `workspace/project` → `/workspace/project`,
+ * which is on a read-only mount on macOS / fresh containers). Callers that
+ * need an actual absolute path must use {@link resolveAbsoluteWorkspacePath}
+ * so the relative leg is anchored against `/api/file/home` instead.
+ *
+ * Kept for the rare callers that genuinely just want a leading-slash
+ * normaliser on a value already known to be agent-server-rooted (e.g.
+ * cosmetic display, log strings).
+ */
 export function toAbsoluteWorkspacePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-export function buildWorkspaceUploadPath(
-  fileName: string,
+/**
+ * Resolve `workingDir` to an absolute path the agent-server's file APIs
+ * accept. Relative paths are joined against `/api/file/home` (cached per
+ * backend); absolute paths pass through.
+ */
+export async function resolveAbsoluteWorkspacePath(
   workingDir: string,
-): string {
-  const safeName = getSafeUploadFileName(fileName);
-  const base = toAbsoluteWorkspacePath(workingDir.replace(/\/+$/, ""));
-  return `${base}/${safeName}`;
+  overrides: AgentServerClientOverrides = {},
+): Promise<string> {
+  return resolveAbsoluteAgentServerPath(workingDir, overrides);
 }
 
+/**
+ * Build the absolute destination path for a file upload, resolving the
+ * working-dir leg via {@link resolveAbsoluteWorkspacePath}.
+ */
+export async function buildWorkspaceUploadPath(
+  fileName: string,
+  workingDir: string,
+  overrides: AgentServerClientOverrides = {},
+): Promise<string> {
+  const safeName = getSafeUploadFileName(fileName);
+  const absoluteDir = await resolveAbsoluteWorkspacePath(workingDir, overrides);
+  return `${absoluteDir.replace(/[/\\]+$/, "")}/${safeName}`;
+}
+
+/**
+ * Resolve the working directory for a file upload into a conversation's
+ * workspace.
+ *
+ * **Returns the raw working dir string** — which may be relative (e.g.
+ * `workspace/project/<hex>`) when the default `DEFAULT_WORKING_DIR` is in
+ * use. Callers that need an actual filesystem-absolute path (e.g. to pass to
+ * the agent-server's `/api/file/upload` endpoint) **must** funnel this result
+ * through {@link buildWorkspaceUploadPath}, which calls
+ * {@link resolveAbsoluteWorkspacePath} to anchor any relative segment against
+ * the agent-server's home directory.
+ *
+ * Why not resolve here? Because this function is also called by cloud-runtime
+ * upload paths where the overrides (conversationUrl, sessionApiKey) aren't
+ * available until {@link uploadFilesToConversation} assembles them. Keeping
+ * the resolution step in {@link buildWorkspaceUploadPath} means both the
+ * local and cloud legs share a single resolution point with the correct
+ * override context.
+ */
 export async function resolveConversationUploadWorkingDir(
   conversationId: string,
   currentConversation?: AppConversation | null,
@@ -55,3 +107,8 @@ export async function resolveConversationUploadWorkingDir(
 
   return getAgentServerWorkingDir();
 }
+
+// Re-export so callers can construct overrides matching what
+// {@link buildWorkspaceUploadPath} expects without importing two modules.
+export type { AgentServerClientOverrides };
+export { getAgentServerClientOptions };
