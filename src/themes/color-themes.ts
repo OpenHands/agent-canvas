@@ -1,7 +1,4 @@
-export type ColorThemeKey =
-  | "openhands-deepsea"
-  | "openhands-neutral"
-  | "openhands-neo";
+export type ColorThemeKey = "openhands-deepsea" | "openhands-neutral";
 
 export interface ColorThemeDefinition {
   label: string;
@@ -95,16 +92,6 @@ import { AGENT_SERVER_UI_THEMEABLE_BRAND_VARIABLES } from "#/styles/agent-server
 /** CSS custom properties overridden by color themes (see applyColorTheme). */
 export const COLOR_THEME_TOKEN_KEYS = AGENT_SERVER_UI_THEMEABLE_BRAND_VARIABLES;
 
-/** White primary/accent tokens — used by OpenHands-Neo for button surfaces. */
-const NEO_WHITE_BUTTON_TOKENS: Record<
-  (typeof COLOR_THEME_TOKEN_KEYS)[number],
-  string
-> = {
-  "--oh-color-primary": "#ffffff",
-  "--oh-accent": "#ffffff",
-  "--oh-warning": "#ffffff",
-};
-
 export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
   "openhands-deepsea": {
     label: "OpenHands-DeepSea",
@@ -172,13 +159,6 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
     //   heroui-default-200 ← cool-grey-925 position ← neutral-900 (#202020)
     //   ...etc.
     heroui: NEUTRAL_HEROUI,
-  },
-
-  "openhands-neo": {
-    label: "OpenHands-Neo",
-    scale: NEUTRAL_SCALE,
-    heroui: NEUTRAL_HEROUI,
-    tokens: NEO_WHITE_BUTTON_TOKENS,
   },
 };
 
