@@ -73,6 +73,8 @@ jobs:
       # ── Resolve which commit / PR to test ──────────────────────────────
       - name: Resolve source context
         id: ctx
+        env:
+          GITHUB_REF_VALUE: ${{ github.ref }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             # workflow_run only fires for main (job-level `if` guard), so
@@ -87,7 +89,7 @@ jobs:
             echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
             echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$GITHUB_REF_VALUE" >> "$GITHUB_OUTPUT"
             echo "pr_number=" >> "$GITHUB_OUTPUT"
           fi
 
@@ -154,9 +156,11 @@ jobs:
       # ── Resolve Docker image tag ───────────────────────────────────────
       - name: Resolve Docker image
         id: image
+        env:
+          DOCKER_IMAGE_INPUT: ${{ inputs.docker_image }}
         run: |
-          if [ -n "${{ inputs.docker_image }}" ]; then
-            echo "tag=${{ inputs.docker_image }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$DOCKER_IMAGE_INPUT" ]; then
+            echo "tag=$DOCKER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
             SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
             # Use the amd64-specific tag (always pushed by the Docker workflow).
@@ -171,9 +175,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull Docker image
+        env:
+          DOCKER_IMAGE_TAG: ${{ steps.image.outputs.tag }}
         run: |
-          echo "Pulling ${{ steps.image.outputs.tag }}..."
-          docker pull "${{ steps.image.outputs.tag }}"
+          echo "Pulling $DOCKER_IMAGE_TAG..."
+          docker pull "$DOCKER_IMAGE_TAG"
 
       # ── Test infrastructure setup ──────────────────────────────────────
       - name: Set up Node.js
@@ -212,9 +218,11 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install openhands-sdk (for mock LLM server)
+        env:
+          AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
 
       - name: Verify mock LLM server starts
         run: |
