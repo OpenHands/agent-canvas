@@ -56,6 +56,12 @@ function buildCloudQueryString(
 }
 
 class ConfigService {
+  /**
+   * @param verifiedByProvider - Pre-fetched verified-models map used by the
+   *   local reconstruction path. Ignored for cloud backends, which call
+   *   `/api/v1/config/models/search` directly (verified status is embedded in
+   *   each returned item).
+   */
   static async searchModels(
     params: SearchModelsParams = {},
     verifiedByProvider?: Record<string, string[]>,
@@ -122,6 +128,12 @@ class ConfigService {
     return { items, next_page_id: null };
   }
 
+  /**
+   * @param verifiedByProvider - Pre-fetched verified-models map used by the
+   *   local reconstruction path. Ignored for cloud backends, which call
+   *   `/api/v1/config/providers/search` directly (verified status is embedded in
+   *   each returned item).
+   */
   static async searchProviders(
     params: SearchProvidersParams = {},
     verifiedByProvider?: Record<string, string[]>,
