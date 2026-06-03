@@ -264,6 +264,42 @@ test.describe("auth mode: public gate", () => {
     await expect(authScreen).not.toBeVisible({ timeout: 10_000 });
   });
 
+  test("skips auth screen for returning user with valid stored key", async ({
+    page,
+  }) => {
+    // Simulate a returning user who previously authenticated: localStorage
+    // has a backend with the correct API key. The app should bypass the
+    // auth-required instant gate and probe /server_info with the stored
+    // key, which succeeds — so the user goes straight to the app.
+    await page.addInitScript(
+      ({ apiKey, host }) => {
+        window.localStorage.setItem(
+          "openhands-backends",
+          JSON.stringify([
+            {
+              id: "default-local",
+              name: "Public Server",
+              host,
+              apiKey,
+              kind: "local",
+            },
+          ]),
+        );
+        window.localStorage.setItem("openhands-onboarded", "1");
+      },
+      { apiKey: SESSION_API_KEY, host: PUBLIC_MODE_URL },
+    );
+
+    await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
+
+    // The auth screen should NOT appear — the stored key is valid.
+    const authScreen = page.getByTestId("api-key-entry-screen");
+    await expect(authScreen).not.toBeVisible({ timeout: 10_000 });
+
+    // The app should load normally — we should see the home launcher.
+    await waitForTestId(page, "home-chat-launcher");
+  });
+
   test("re-prompts when the server rotates its key (stale localStorage)", async ({
     page,
   }) => {
