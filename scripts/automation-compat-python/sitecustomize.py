@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 
 def _is_enabled() -> bool:
@@ -31,10 +31,26 @@ def _resolve_tarball_path(agent_url: str, run_id: str | None = None) -> str:
     return "/tmp/automation.tar.gz"
 
 
+def _shell_path(path: str) -> str:
+    if os.name == "nt":
+        return path.replace("\\", "/")
+    return path
+
+
 def _patch_automation_execution() -> None:
     from openhands.automation import execution
 
     async def _patched_upload(client, agent_url, session_key, data, dest):
+        params = urlencode({"path": dest})
+        response = await client.post(
+            f"{agent_url}/api/file/upload?{params}",
+            files={"file": ("upload", data)},
+            headers={"X-Session-API-Key": session_key},
+        )
+        if response.status_code not in {404, 405}:
+            response.raise_for_status()
+            return
+
         encoded_dest = quote(dest, safe="")
         response = await client.post(
             f"{agent_url}/api/file/upload/{encoded_dest}",
@@ -76,7 +92,11 @@ def _patch_automation_execution() -> None:
                     "Downloading tarball from URL", extra=_log_ctx()
                 )
                 await execution._download_in_sandbox(
-                    client, agent_url, session_key, tarball_source, tarball_path
+                    client,
+                    agent_url,
+                    session_key,
+                    tarball_source,
+                    _shell_path(tarball_path),
                 )
 
             exports = ""
@@ -87,12 +107,16 @@ def _patch_automation_execution() -> None:
                 ]
                 exports = " && ".join(parts) + " && "
 
-            cleanup = " && rm -f " + tarball_path if _is_local_agent_url(agent_url) else ""
+            tarball_arg = execution._shell_quote(_shell_path(tarball_path))
+            work_dir_arg = execution._shell_quote(_shell_path(work_dir))
+            cleanup = (
+                f" && rm -f {tarball_arg}" if _is_local_agent_url(agent_url) else ""
+            )
             command = (
-                f"mkdir -p {work_dir}"
-                f" && tar xzf {tarball_path} -C {work_dir}"
+                f"mkdir -p {work_dir_arg}"
+                f" && tar xzf {tarball_arg} -C {work_dir_arg}"
                 f"{cleanup}"
-                f" && cd {work_dir}"
+                f" && cd {work_dir_arg}"
                 f" && {exports}([ ! -f setup.sh ] || bash setup.sh)"
                 f" && {entrypoint}"
             )
