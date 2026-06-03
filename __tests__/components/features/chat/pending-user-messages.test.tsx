@@ -82,7 +82,7 @@ describe("PendingUserMessages", () => {
     renderWithProviders(<PendingUserMessages />);
 
     const message = screen.getByTestId("user-message");
-    fireEvent.mouseEnter(message.parentElement!);
+    fireEvent.mouseEnter(message);
     await waitFor(() => {
       expect(screen.getByTestId("chat-message-stop")).toBeVisible();
     });

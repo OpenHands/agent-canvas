@@ -5,10 +5,109 @@ import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipb
 import type { SourceType } from "#/types/agent-server/core/base/common";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { I18nKey } from "#/i18n/declaration";
-import PauseIcon from "#/icons/pause.svg?react";
+import StopCircleIcon from "#/icons/stop-circle.svg?react";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
 export type ChatMessagePendingStatus = "sending" | "error";
+
+const USER_MESSAGE_MAX_LINES = 3;
+const USER_MESSAGE_LINE_HEIGHT_PX = 24;
+
+function UserMessageBody({
+  message,
+  isHovering,
+  showStopButton,
+  isExpanded,
+  onTruncatableChange,
+}: {
+  message: string;
+  isHovering: boolean;
+  showStopButton: boolean;
+  isExpanded: boolean;
+  onTruncatableChange: (truncatable: boolean) => void;
+}) {
+  const { t } = useTranslation("openhands");
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [isTruncatable, setIsTruncatable] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content || isExpanded) {
+      setIsTruncatable(false);
+      onTruncatableChange(false);
+      return undefined;
+    }
+
+    const measure = () => {
+      const lineHeight = Number.parseFloat(
+        getComputedStyle(content).lineHeight,
+      );
+      const linePx =
+        Number.isFinite(lineHeight) && lineHeight > 0
+          ? lineHeight
+          : USER_MESSAGE_LINE_HEIGHT_PX;
+      const maxHeight = USER_MESSAGE_MAX_LINES * linePx;
+      const newlineCount = (message.match(/\n/g) ?? []).length;
+
+      const truncatable =
+        content.scrollHeight > maxHeight + 1 ||
+        newlineCount >= USER_MESSAGE_MAX_LINES ||
+        message.trim().length > 220;
+
+      setIsTruncatable((previous) => {
+        if (previous !== truncatable) {
+          onTruncatableChange(truncatable);
+        }
+        return truncatable;
+      });
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, [message, isExpanded, onTruncatableChange]);
+
+  const isCollapsed = isTruncatable && !isExpanded;
+
+  return (
+    <div className="relative min-w-0">
+      <div
+        ref={contentRef}
+        className={cn(
+          "text-sm leading-6 whitespace-normal [word-break:break-word]",
+          showStopButton && "pr-7",
+          isCollapsed && "line-clamp-3",
+        )}
+      >
+        <MarkdownRenderer includeStandard includeHeadings>
+          {message}
+        </MarkdownRenderer>
+      </div>
+
+      {isCollapsed ? (
+        <>
+          <div
+            aria-hidden
+            data-testid="chat-message-truncation-gradient"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-tertiary to-transparent"
+          />
+          <span
+            data-testid="chat-message-view-more"
+            className={cn(
+              "pointer-events-none absolute bottom-1 left-1/2 z-10 inline-flex -translate-x-1/2 items-center rounded-full border border-[var(--oh-border-subtle)] bg-[var(--oh-surface-raised)] px-2.5 py-0.5 text-xs font-normal text-[var(--oh-foreground)] transition-opacity duration-150",
+              isHovering ? "opacity-100" : "opacity-0",
+            )}
+          >
+            {t(I18nKey.COMMON$VIEW_MORE)}
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 interface ChatMessageProps {
   type: SourceType;
@@ -37,8 +136,12 @@ export function ChatMessage({
   const { t } = useTranslation("openhands");
   const [isHovering, setIsHovering] = React.useState(false);
   const [isCopy, setIsCopy] = React.useState(false);
-  const [isMultiLine, setIsMultiLine] = React.useState(false);
-  const messageContentRef = React.useRef<HTMLDivElement>(null);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isTruncatable, setIsTruncatable] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsExpanded(false);
+  }, [message]);
 
   const handleCopyToClipboard = async () => {
     await navigator.clipboard.writeText(message);
@@ -59,138 +162,129 @@ export function ChatMessage({
     };
   }, [isCopy]);
 
-  React.useLayoutEffect(() => {
-    const content = messageContentRef.current;
-    if (!content || pendingStatus !== "sending") {
-      setIsMultiLine(false);
-      return undefined;
-    }
-
-    const updateIsMultiLine = () => {
-      const lineHeight = Number.parseFloat(
-        getComputedStyle(content).lineHeight,
-      );
-      if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
-        setIsMultiLine(false);
-        return;
-      }
-
-      setIsMultiLine(content.getBoundingClientRect().height > lineHeight * 1.5);
-    };
-
-    updateIsMultiLine();
-
-    const observer = new ResizeObserver(updateIsMultiLine);
-    observer.observe(content);
-
-    return () => observer.disconnect();
-  }, [message, pendingStatus]);
-
   const isPendingUserMessage =
     type === "user" &&
     (pendingStatus === "error" || pendingStatus === "sending");
   const showStopButton =
     pendingStatus === "sending" && onStop != null && isHovering;
+  const useTruncatedUserBody = type === "user" && pendingStatus == null;
+  const isCollapsed = useTruncatedUserBody && isTruncatable && !isExpanded;
+
+  const messageContent = useTruncatedUserBody ? (
+    <UserMessageBody
+      message={message}
+      isHovering={isHovering}
+      showStopButton={showStopButton}
+      isExpanded={isExpanded}
+      onTruncatableChange={setIsTruncatable}
+    />
+  ) : (
+    <div
+      className={cn(
+        "text-sm whitespace-normal [word-break:break-word]",
+        showStopButton && "pr-7",
+      )}
+    >
+      <MarkdownRenderer includeStandard includeHeadings>
+        {message}
+      </MarkdownRenderer>
+    </div>
+  );
 
   const messageBubble = (
-    <div
-      className={cn("relative w-fit max-w-full", type === "user" && "self-end")}
+    <article
+      data-testid={`${type}-message`}
+      data-pending-status={pendingStatus}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
+      className={cn(
+        "rounded-xl relative w-fit max-w-full",
+        "flex flex-col gap-2",
+        type === "user" && "p-4 bg-tertiary self-end",
+        type === "agent" && "mt-6 w-full max-w-full bg-transparent",
+        isFromPlanningAgent &&
+          type === "agent" &&
+          "border border-[#597ff4] bg-tertiary p-4 mt-2",
+        pendingStatus === "sending" &&
+          (isHovering
+            ? "opacity-100 bg-[var(--oh-interactive-hover)]"
+            : "opacity-60"),
+        pendingStatus === "error" &&
+          "border border-[var(--oh-status-error)]/40",
+        !isPendingUserMessage && "last:mb-4",
+      )}
     >
-      <article
-        data-testid={`${type}-message`}
-        data-pending-status={pendingStatus}
+      <div
         className={cn(
-          "rounded-xl relative w-fit max-w-full",
-          "flex flex-col gap-2",
-          type === "user" && "p-4 bg-tertiary",
-          type === "agent" && "mt-6 w-full max-w-full bg-transparent",
-          isFromPlanningAgent &&
-            type === "agent" &&
-            "border border-[#597ff4] bg-tertiary p-4 mt-2",
-          pendingStatus === "sending" &&
-            (isHovering
-              ? "opacity-100 bg-[var(--oh-interactive-hover)]"
-              : "opacity-60"),
-          pendingStatus === "error" &&
-            "border border-[var(--oh-status-error)]/40",
-          !isPendingUserMessage && "last:mb-4",
+          "absolute -top-2.5 -right-2.5 z-10",
+          !isHovering || pendingStatus === "sending" ? "hidden" : "flex",
+          "items-center gap-1",
         )}
+        onClick={(event) => event.stopPropagation()}
       >
-        <div
-          className={cn(
-            "absolute -top-2.5 -right-2.5",
-            !isHovering || pendingStatus === "sending" ? "hidden" : "flex",
-            "items-center gap-1",
-          )}
-        >
-          {actions?.map((action, index) =>
-            action.tooltip ? (
-              <StyledTooltip
-                key={index}
-                content={action.tooltip}
-                placement="top"
-              >
-                <button
-                  type="button"
-                  onClick={action.onClick}
-                  className="button-base p-1 cursor-pointer"
-                  aria-label={action.tooltip}
-                >
-                  {action.icon}
-                </button>
-              </StyledTooltip>
-            ) : (
+        {actions?.map((action, index) =>
+          action.tooltip ? (
+            <StyledTooltip key={index} content={action.tooltip} placement="top">
               <button
-                key={index}
                 type="button"
                 onClick={action.onClick}
                 className="button-base p-1 cursor-pointer"
-                aria-label={`Action ${index + 1}`}
+                aria-label={action.tooltip}
               >
                 {action.icon}
               </button>
-            ),
-          )}
+            </StyledTooltip>
+          ) : (
+            <button
+              key={index}
+              type="button"
+              onClick={action.onClick}
+              className="button-base p-1 cursor-pointer"
+              aria-label={`Action ${index + 1}`}
+            >
+              {action.icon}
+            </button>
+          ),
+        )}
 
-          <CopyToClipboardButton
-            isHidden={!isHovering}
-            isDisabled={isCopy}
-            onClick={handleCopyToClipboard}
-            mode={isCopy ? "copied" : "copy"}
-          />
-        </div>
-
-        <div
-          ref={messageContentRef}
-          className="text-sm whitespace-normal [word-break:break-word]"
-        >
-          <MarkdownRenderer includeStandard includeHeadings>
-            {message}
-          </MarkdownRenderer>
-        </div>
-
-        {children}
-      </article>
+        <CopyToClipboardButton
+          isHidden={!isHovering}
+          isDisabled={isCopy}
+          onClick={handleCopyToClipboard}
+          mode={isCopy ? "copied" : "copy"}
+        />
+      </div>
 
       {showStopButton ? (
         <button
           type="button"
-          onClick={onStop}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStop?.();
+          }}
           data-testid="chat-message-stop"
           aria-label={t(I18nKey.BUTTON$STOP)}
-          className={cn(
-            "absolute button-base cursor-pointer rounded-md p-1 text-[var(--oh-foreground)] hover:bg-[var(--oh-surface-raised)]",
-            isMultiLine
-              ? "bottom-2 right-2"
-              : "-right-2.5 top-1/2 -translate-y-1/2",
-          )}
+          className="absolute bottom-2 right-2 z-10 inline-flex cursor-pointer items-center justify-center rounded-md border border-[var(--oh-border)] bg-tertiary p-1 text-[var(--oh-foreground)] hover:bg-[var(--oh-surface-raised)]"
         >
-          <PauseIcon className="block h-4 w-4 max-w-none text-current" />
+          <StopCircleIcon className="block h-4 w-4 max-w-none text-current" />
         </button>
       ) : null}
-    </div>
+
+      {messageContent}
+
+      {isCollapsed ? (
+        <button
+          type="button"
+          data-testid="chat-message-expand"
+          aria-expanded={false}
+          aria-label={t(I18nKey.COMMON$VIEW_MORE)}
+          className="absolute inset-0 z-[1] cursor-pointer rounded-xl border-0 bg-transparent p-0"
+          onClick={() => setIsExpanded(true)}
+        />
+      ) : null}
+
+      {children}
+    </article>
   );
 
   if (type === "user" && pendingStatus === "error") {
