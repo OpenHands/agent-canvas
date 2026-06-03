@@ -30,6 +30,9 @@ export function PendingUserMessages() {
   const markPendingMessageSending = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageSending,
   );
+  const removePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.removePendingMessage,
+  );
   const { send } = useSendMessage();
 
   const visibleMessages = React.useMemo(
@@ -87,6 +90,11 @@ export function PendingUserMessages() {
           onRetry={
             message.status === "error"
               ? () => handleRetry(message.id)
+              : undefined
+          }
+          onStop={
+            message.status === "sending"
+              ? () => removePendingMessage(message.id)
               : undefined
           }
         >

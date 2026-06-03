@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { PendingUserMessages } from "#/components/features/chat/pending-user-messages";
@@ -71,6 +71,29 @@ describe("PendingUserMessages", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]).toHaveTextContent("mine");
     expect(screen.queryByText("from another conversation")).toBeNull();
+  });
+
+  it("removes a sending message when stop is clicked", async () => {
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
+      text: "cancel me",
+    });
+
+    renderWithProviders(<PendingUserMessages />);
+
+    const message = screen.getByTestId("user-message");
+    fireEvent.mouseEnter(message.parentElement!);
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-message-stop")).toBeVisible();
+    });
+    fireEvent.click(screen.getByTestId("chat-message-stop"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("user-message")).not.toBeInTheDocument();
+    });
+    expect(useOptimisticUserMessageStore.getState().pendingMessages).toHaveLength(
+      0,
+    );
   });
 
   it("shows an error state with a retry link when the message is in 'error'", () => {
