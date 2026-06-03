@@ -72,14 +72,18 @@ function Slide({ index, currentStep, children }: SlideProps) {
 interface OnboardingModalProps {
   /** Called when the user dismisses the modal (skip / X / launch). */
   onClose: () => void;
+  /** Optional slide index for dev preview (`?previewOnboardingStep=`). */
+  initialStep?: number;
+  /** When true, skip/close does not persist onboarding completion. */
+  isPreview?: boolean;
 }
 
 /**
  * Top-level onboarding modal for first-time users.
  *
  * The flow is a fixed sequence of four steps:
- *   0. Check backend
- *   1. Choose agent
+ *   0. Choose agent
+ *   1. Check backend
  *   2. Set up LLM
  *   3. Say hello (creates a fresh conversation, then closes)
  *
@@ -87,9 +91,15 @@ interface OnboardingModalProps {
  * the rail is translated horizontally by step index, so transitioning
  * between steps animates the new step in from the right.
  */
-export function OnboardingModal({ onClose }: OnboardingModalProps) {
+export function OnboardingModal({
+  onClose,
+  initialStep = 0,
+  isPreview = false,
+}: OnboardingModalProps) {
   const { t } = useTranslation("openhands");
-  const [currentStep, setCurrentStep] = React.useState(0);
+  const [currentStep, setCurrentStep] = React.useState(() =>
+    Math.min(Math.max(initialStep, 0), TOTAL_STEPS - 1),
+  );
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
@@ -116,6 +126,7 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         <section
           data-testid="onboarding-modal"
           data-current-step={currentStep}
+          data-preview={isPreview ? "true" : undefined}
           className={cn(
             "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
             modalWidthClassName("lg"),
@@ -140,15 +151,14 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               className="relative overflow-clip"
             >
               <Slide index={0} currentStep={currentStep}>
-                <CheckBackendStep onNext={goNext} />
-              </Slide>
-              <Slide index={1} currentStep={currentStep}>
                 <ChooseAgentStep
                   selectedAgentId={selectedAgentId}
                   onSelect={setSelectedAgentId}
                   onNext={goNext}
-                  onBack={goBack}
                 />
+              </Slide>
+              <Slide index={1} currentStep={currentStep}>
+                <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
               <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
                 {isOpenHands ? (
@@ -163,20 +173,26 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
                 )}
               </Slide>
               <Slide index={3} currentStep={currentStep}>
-                <SayHelloStep onBack={goBack} onLaunched={onClose} />
+                <SayHelloStep
+                  onBack={goBack}
+                  onClose={onClose}
+                  onLaunched={onClose}
+                />
               </Slide>
             </div>
           </div>
         </section>
 
-        <button
-          type="button"
-          data-testid="onboarding-skip"
-          onClick={onClose}
-          className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
-        >
-          {t(I18nKey.ONBOARDING$SKIP)}
-        </button>
+        {currentStep < TOTAL_STEPS - 1 ? (
+          <button
+            type="button"
+            data-testid="onboarding-skip"
+            onClick={onClose}
+            className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+          >
+            {t(I18nKey.ONBOARDING$SKIP)}
+          </button>
+        ) : null}
       </div>
     </ModalBackdrop>
   );
