@@ -22,7 +22,10 @@ import {
 } from "#/components/features/backends/environment-switch-overlay";
 import { ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS } from "#/components/features/backends/environment-switch-store";
 
-import { ServerClient } from "@openhands/typescript-client/clients";
+import {
+  ServerClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import {
   getCloudOrganizations,
   getCloudOrganizationMe,
@@ -37,6 +40,7 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(),
+  SettingsClient: vi.fn(),
 }));
 
 // Shared seed configs reused across tests.
@@ -123,10 +127,13 @@ beforeEach(() => {
   vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
     return {
       getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-      // The dropdown only invokes getServerInfo on the returned client;
-      // the rest of the ServerClient surface is unused here, so a
-      // partial cast is sufficient.
     } as unknown as ServerClient;
+  });
+  vi.mocked(SettingsClient).mockReset();
+  vi.mocked(SettingsClient).mockImplementation(function SettingsClientMock() {
+    return {
+      getSettings: vi.fn().mockResolvedValue({}),
+    } as unknown as SettingsClient;
   });
 });
 
@@ -645,11 +652,13 @@ describe("BackendSelector", () => {
 
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
-      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
-        return {
-          getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-        } as unknown as ServerClient;
-      });
+      vi.mocked(SettingsClient).mockImplementation(
+        function SettingsClientMock() {
+          return {
+            getSettings: vi.fn().mockResolvedValue({}),
+          } as unknown as SettingsClient;
+        },
+      );
 
       renderWithProviders(
         <TestSeed
@@ -676,11 +685,13 @@ describe("BackendSelector", () => {
     });
 
     it("flips the status dot to red when the local probe fails", async () => {
-      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
-        return {
-          getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-        } as unknown as ServerClient;
-      });
+      vi.mocked(SettingsClient).mockImplementation(
+        function SettingsClientMock() {
+          return {
+            getSettings: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+          } as unknown as SettingsClient;
+        },
+      );
 
       renderWithProviders(<BackendSelector />);
 
