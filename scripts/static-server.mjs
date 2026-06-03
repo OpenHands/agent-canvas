@@ -330,6 +330,11 @@ function proxyRequest(req, res, backendUrl) {
     },
   );
 
+  // Absorb client-disconnect errors (EPIPE/ECONNRESET) so the server
+  // process survives abrupt navigations and health-check probes.
+  req.on("error", () => {});
+  res.on("error", () => {});
+
   proxyReq.on("error", (err) => {
     console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
     if (!res.headersSent) {
@@ -355,7 +360,12 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     },
   });
 
+  // Absorb socket errors so the process survives mid-flight disconnects.
+  socket.on("error", () => socket.destroy());
+
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    proxySocket.on("error", () => proxySocket.destroy());
+
     socket.write(
       `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
     );
