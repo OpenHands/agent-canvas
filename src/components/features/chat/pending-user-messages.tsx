@@ -1,5 +1,6 @@
 import React from "react";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useConversationStore } from "#/stores/conversation-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
@@ -32,6 +33,9 @@ export function PendingUserMessages() {
   );
   const removePendingMessage = useOptimisticUserMessageStore(
     (state) => state.removePendingMessage,
+  );
+  const restoreMessageToInputIfEmpty = useConversationStore(
+    (state) => state.restoreMessageToInputIfEmpty,
   );
   const { send } = useSendMessage();
 
@@ -75,6 +79,14 @@ export function PendingUserMessages() {
     [send, markPendingMessageError, markPendingMessageSending],
   );
 
+  const handleStop = React.useCallback(
+    (id: string, text: string) => {
+      restoreMessageToInputIfEmpty(text);
+      removePendingMessage(id);
+    },
+    [restoreMessageToInputIfEmpty, removePendingMessage],
+  );
+
   if (visibleMessages.length === 0) {
     return null;
   }
@@ -94,7 +106,7 @@ export function PendingUserMessages() {
           }
           onStop={
             message.status === "sending"
-              ? () => removePendingMessage(message.id)
+              ? () => handleStop(message.id, message.text)
               : undefined
           }
         >

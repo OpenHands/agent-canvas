@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { PendingUserMessages } from "#/components/features/chat/pending-user-messages";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useConversationStore } from "#/stores/conversation-store";
 
 const ACTIVE_CONVO = "conv-active";
 
@@ -22,6 +23,10 @@ describe("PendingUserMessages", () => {
   beforeEach(() => {
     mockSend.mockReset();
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useConversationStore.setState({
+      messageRestoreIfEmpty: null,
+      messageToSend: null,
+    });
   });
 
   afterEach(() => {
@@ -94,6 +99,21 @@ describe("PendingUserMessages", () => {
     expect(useOptimisticUserMessageStore.getState().pendingMessages).toHaveLength(
       0,
     );
+    expect(useConversationStore.getState().messageRestoreIfEmpty).toEqual(
+      expect.objectContaining({ text: "cancel me" }),
+    );
+  });
+
+  it("keeps a reserved stop-button column on sending messages", () => {
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
+      text: "hold my spot",
+    });
+
+    renderWithProviders(<PendingUserMessages />);
+
+    expect(screen.getByTestId("chat-message-stop-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-stop")).toHaveClass("opacity-0");
   });
 
   it("shows an error state with a retry link when the message is in 'error'", () => {

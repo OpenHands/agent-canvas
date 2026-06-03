@@ -13,16 +13,22 @@ export type ChatMessagePendingStatus = "sending" | "error";
 const USER_MESSAGE_MAX_LINES = 3;
 const USER_MESSAGE_LINE_HEIGHT_PX = 24;
 
+const PENDING_STOP_BUTTON_COLUMN_CLASS = "h-7 w-7 shrink-0";
+
+const chatBubbleMarkdownComponents = {
+  p: ({ children }: React.ComponentProps<"p">) => (
+    <p className="m-0 leading-6">{children}</p>
+  ),
+};
+
 function UserMessageBody({
   message,
   isHovering,
-  reserveStopButtonSpace,
   isExpanded,
   onTruncatableChange,
 }: {
   message: string;
   isHovering: boolean;
-  reserveStopButtonSpace: boolean;
   isExpanded: boolean;
   onTruncatableChange: (truncatable: boolean) => void;
 }) {
@@ -78,11 +84,14 @@ function UserMessageBody({
         ref={contentRef}
         className={cn(
           "text-sm leading-6 whitespace-normal [word-break:break-word]",
-          reserveStopButtonSpace && "pr-8",
           isCollapsed && "line-clamp-3",
         )}
       >
-        <MarkdownRenderer includeStandard includeHeadings>
+        <MarkdownRenderer
+          includeStandard
+          includeHeadings
+          components={chatBubbleMarkdownComponents}
+        >
           {message}
         </MarkdownRenderer>
       </div>
@@ -172,6 +181,7 @@ export function ChatMessage({
   const showStopButton = canStopPendingMessage && isHovering;
   const useTruncatedUserBody = type === "user" && pendingStatus == null;
   const isCollapsed = useTruncatedUserBody && isTruncatable && !isExpanded;
+  const hasBubbleChildren = React.Children.count(children) > 0;
 
   React.useLayoutEffect(() => {
     if (!canStopPendingMessage || useTruncatedUserBody) {
@@ -207,22 +217,60 @@ export function ChatMessage({
     <UserMessageBody
       message={message}
       isHovering={isHovering}
-      reserveStopButtonSpace={canStopPendingMessage}
       isExpanded={isExpanded}
       onTruncatableChange={setIsTruncatable}
     />
   ) : (
     <div
       ref={pendingMessageContentRef}
-      className={cn(
-        "text-sm leading-6 whitespace-normal [word-break:break-word]",
-        canStopPendingMessage && "pr-8",
-      )}
+      className="min-w-0 text-sm leading-6 whitespace-normal [word-break:break-word]"
     >
-      <MarkdownRenderer includeStandard includeHeadings>
+      <MarkdownRenderer
+        includeStandard
+        includeHeadings
+        components={chatBubbleMarkdownComponents}
+      >
         {message}
       </MarkdownRenderer>
     </div>
+  );
+
+  const messageBody = canStopPendingMessage ? (
+    <div
+      className={cn(
+        "flex min-w-0 gap-2",
+        isSingleLinePendingMessage ? "items-center" : "items-end",
+      )}
+    >
+      <div className="min-w-0 flex-1">{messageContent}</div>
+      <div
+        className={cn(
+          "flex items-center justify-center",
+          PENDING_STOP_BUTTON_COLUMN_CLASS,
+        )}
+        data-testid="chat-message-stop-slot"
+      >
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onStop?.();
+          }}
+          data-testid="chat-message-stop"
+          aria-label={t(I18nKey.BUTTON$STOP)}
+          aria-hidden={!showStopButton}
+          tabIndex={showStopButton ? 0 : -1}
+          className={cn(
+            "inline-flex cursor-pointer items-center justify-center text-[var(--oh-foreground)] transition-opacity duration-150 hover:opacity-80",
+            showStopButton ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <StopCircleIcon className="block h-7 w-7 max-w-none text-current" />
+        </button>
+      </div>
+    </div>
+  ) : (
+    messageContent
   );
 
   const messageBubble = (
@@ -232,9 +280,9 @@ export function ChatMessage({
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       className={cn(
-        "rounded-xl relative w-fit max-w-full",
-        "flex flex-col gap-2",
-        type === "user" && "mt-6 p-4 bg-tertiary self-end",
+        "rounded-xl relative w-fit max-w-full flex flex-col",
+        hasBubbleChildren && "gap-2",
+        type === "user" && "mt-6 bg-tertiary self-end px-4 py-2.5",
         type === "agent" && "mt-6 w-full max-w-full bg-transparent",
         isFromPlanningAgent &&
           type === "agent" &&
@@ -285,30 +333,7 @@ export function ChatMessage({
         />
       </div>
 
-      {canStopPendingMessage ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onStop?.();
-          }}
-          data-testid="chat-message-stop"
-          aria-label={t(I18nKey.BUTTON$STOP)}
-          aria-hidden={!showStopButton}
-          tabIndex={showStopButton ? 0 : -1}
-          className={cn(
-            "absolute right-2 z-10 inline-flex cursor-pointer items-center justify-center text-[var(--oh-foreground)] transition-opacity duration-150 hover:opacity-80",
-            isSingleLinePendingMessage
-              ? "top-1/2 -translate-y-1/2"
-              : "bottom-2",
-            showStopButton ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-        >
-          <StopCircleIcon className="block h-7 w-7 max-w-none text-current" />
-        </button>
-      ) : null}
-
-      {messageContent}
+      {messageBody}
 
       {isCollapsed ? (
         <button
