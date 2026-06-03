@@ -9,6 +9,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
+import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
 
 interface CheckBackendStepProps {
@@ -101,6 +102,15 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const isConnected = noBackendSelected
     ? false
     : (healthByBackendId[backend.id]?.isConnected ?? null);
+  const [configurationOpen, setConfigurationOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isConnected === true) {
+      setConfigurationOpen(false);
+    }
+  }, [isConnected]);
+
+  const hideConfigurationFields = isConnected === true && !configurationOpen;
 
   return (
     <div
@@ -118,40 +128,63 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
 
       <ConnectionBanner isConnected={isConnected} />
 
+      {isConnected === true ? (
+        <button
+          type="button"
+          onClick={() => setConfigurationOpen((open) => !open)}
+          aria-expanded={configurationOpen}
+          data-testid="onboarding-backend-show-configuration"
+          className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
+        >
+          <span>
+            {configurationOpen
+              ? t(I18nKey.ONBOARDING$BACKEND_HIDE_CONFIGURATION)
+              : t(I18nKey.ONBOARDING$BACKEND_SHOW_CONFIGURATION)}
+          </span>
+          <ChevronDownSmallIcon
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted transition-transform",
+              configurationOpen && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+
       <BackendForm
         mode={noBackendSelected ? "add" : "edit"}
         backend={backendForForm}
-        onSubmitted={() => {}}
+        onSubmitted={onNext}
         testIdRoot="onboarding-backend"
         requireApiKey
-        renderActions={({ canSubmit, testIdRoot }) => (
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 mt-2 bg-base-secondary pt-4 pb-7">
+        hideConfigurationFields={hideConfigurationFields}
+        renderActions={({ canSubmit, isSubmitting }) => (
+          <div
+            className={cn(
+              "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+              onBack ? "justify-between" : "justify-end",
+            )}
+          >
             {onBack ? (
               <BrandButton
                 testId="onboarding-backend-back"
                 type="button"
                 variant="secondary"
                 onClick={onBack}
+                isDisabled={isSubmitting}
               >
                 {t(I18nKey.ONBOARDING$BACK)}
               </BrandButton>
             ) : null}
             <BrandButton
-              testId={`${testIdRoot}-submit`}
-              type="submit"
-              variant="secondary"
-              isDisabled={!canSubmit}
-            >
-              {t(I18nKey.BACKEND$SAVE)}
-            </BrandButton>
-            <BrandButton
               testId="onboarding-backend-next"
-              type="button"
+              type="submit"
               variant="primary"
-              isDisabled={isConnected !== true}
-              onClick={onNext}
+              isDisabled={!canSubmit || isSubmitting}
             >
-              {t(I18nKey.ONBOARDING$NEXT)}
+              {isSubmitting
+                ? t(I18nKey.SETTINGS$SAVING)
+                : t(I18nKey.ONBOARDING$NEXT)}
             </BrandButton>
           </div>
         )}

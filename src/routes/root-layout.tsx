@@ -18,6 +18,8 @@ import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
+import { OnboardingHost } from "#/components/features/onboarding";
+import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
 
 // Lazy-load components that are only rendered conditionally — keeps them out
 // of the root layout's eager dev/prod graph (and out of every page's first
@@ -111,6 +113,7 @@ export default function MainApp() {
   const hideMobileSidebarMenuBar = /^\/conversations\/[^/]+/.test(
     location.pathname,
   );
+  const showOnboardingPreview = isOnboardingPreviewActive(location.search);
 
   return (
     <ReactRouterNavigationProvider>
@@ -159,6 +162,7 @@ export default function MainApp() {
         <React.Suspense fallback={null}>
           <EnvironmentSwitchOverlay />
         </React.Suspense>
+        {showOnboardingPreview ? <OnboardingHost /> : null}
       </SidebarMobileNavProvider>
     </ReactRouterNavigationProvider>
   );
