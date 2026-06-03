@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { SecretsService } from "#/api/secrets-service";
 import { CustomSecretWithoutValue } from "#/api/secrets-service.types";
+import { isGitProviderSecretName } from "#/api/git-provider-secrets";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface UseSearchSecretsOptions {
   nameContains?: string;
   enabled?: boolean;
+  includeGitProviderSecrets?: boolean;
 }
 
 /**
@@ -15,7 +17,11 @@ interface UseSearchSecretsOptions {
  * all filtering is done client-side.
  */
 export const useSearchSecrets = (options: UseSearchSecretsOptions = {}) => {
-  const { nameContains, enabled = true } = options;
+  const {
+    nameContains,
+    enabled = true,
+    includeGitProviderSecrets = false,
+  } = options;
   const active = useActiveBackend();
 
   const query = useQuery<CustomSecretWithoutValue[], Error>({
@@ -29,12 +35,15 @@ export const useSearchSecrets = (options: UseSearchSecretsOptions = {}) => {
   // Client-side filtering since agent-server doesn't support search params
   const filteredSecrets = useMemo(() => {
     if (!query.data) return [];
-    if (!nameContains) return query.data;
+    const baseSecrets = includeGitProviderSecrets
+      ? query.data
+      : query.data.filter((secret) => !isGitProviderSecretName(secret.name));
+    if (!nameContains) return baseSecrets;
     const lowerFilter = nameContains.toLowerCase();
-    return query.data.filter((secret) =>
+    return baseSecrets.filter((secret) =>
       secret.name.toLowerCase().includes(lowerFilter),
     );
-  }, [query.data, nameContains]);
+  }, [query.data, nameContains, includeGitProviderSecrets]);
 
   return {
     data: filteredSecrets,

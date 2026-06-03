@@ -4946,6 +4946,23 @@
     "uk": "Секрети",
     "ca": "Secrets"
   },
+  "SETTINGS$NAV_GIT": {
+    "en": "Git",
+    "ja": "Git",
+    "zh-CN": "Git",
+    "zh-TW": "Git",
+    "ko-KR": "Git",
+    "no": "Git",
+    "it": "Git",
+    "pt": "Git",
+    "es": "Git",
+    "ar": "Git",
+    "fr": "Git",
+    "tr": "Git",
+    "de": "Git",
+    "uk": "Git",
+    "ca": "Git"
+  },
   "SETTINGS$NAV_API_KEYS": {
     "en": "API Keys",
     "ja": "APIキー",
@@ -5473,6 +5490,40 @@
     "uk": "Іменовані значення, які агент може використовувати під час розмов.",
     "ca": "Valors amb nom que l'agent pot utilitzar durant les converses."
   },
+  "SETTINGS$PAGE_GIT_SUBLINE": {
+    "en": "Store a GitHub personal access token for agent git operations without MCP or Docker.",
+    "ja": "MCPやDockerなしでエージェントのGit操作に使うGitHub personal access tokenを保存します。",
+    "zh-CN": "存储 GitHub 个人访问令牌，供代理进行 Git 操作，无需 MCP 或 Docker。",
+    "zh-TW": "儲存 GitHub 個人存取權杖，供代理進行 Git 操作，無需 MCP 或 Docker。",
+    "ko-KR": "MCP나 Docker 없이 에이전트 Git 작업에 사용할 GitHub personal access token을 저장합니다.",
+    "no": "Lagre et GitHub personal access token for agentens git-operasjoner uten MCP eller Docker.",
+    "it": "Memorizza un personal access token GitHub per le operazioni git dell'agente senza MCP o Docker.",
+    "pt": "Armazene um personal access token do GitHub para operações git do agente sem MCP ou Docker.",
+    "es": "Almacene un token de acceso personal de GitHub para operaciones git del agente sin MCP ni Docker.",
+    "ar": "خزّن رمز وصول شخصي لـ GitHub لعمليات git للوكيل دون MCP أو Docker.",
+    "fr": "Stockez un jeton d'accès personnel GitHub pour les opérations git de l'agent sans MCP ni Docker.",
+    "tr": "MCP veya Docker olmadan aracı git işlemleri için bir GitHub personal access token kaydedin.",
+    "de": "Speichern Sie ein GitHub Personal Access Token für Git-Operationen des Agenten ohne MCP oder Docker.",
+    "uk": "Зберігайте personal access token GitHub для git-операцій агента без MCP або Docker.",
+    "ca": "Desa un personal access token de GitHub per a operacions git de l'agent sense MCP ni Docker."
+  },
+  "SETTINGS$PAGE_GIT_INTRO": {
+    "en": "Tokens are stored encrypted on the server and attached automatically when you start a new conversation.",
+    "ja": "トークンはサーバーに暗号化して保存され、新しい会話を開始すると自動的に添付されます。",
+    "zh-CN": "令牌会加密存储在服务器上，并在您开始新对话时自动附加。",
+    "zh-TW": "權杖會加密儲存在伺服器上，並在您開始新對話時自動附加。",
+    "ko-KR": "토큰은 서버에 암호화되어 저장되며 새 대화를 시작할 때 자동으로 첨부됩니다.",
+    "no": "Tokens lagres kryptert på serveren og legges ved automatisk når du starter en ny samtale.",
+    "it": "I token vengono archiviati crittografati sul server e allegati automaticamente all'avvio di una nuova conversazione.",
+    "pt": "Os tokens são armazenados criptografados no servidor e anexados automaticamente ao iniciar uma nova conversa.",
+    "es": "Los tokens se almacenan cifrados en el servidor y se adjuntan automáticamente al iniciar una nueva conversación.",
+    "ar": "يتم تخزين الرموز مشفرة على الخادم وإرفاقها تلقائياً عند بدء محادثة جديدة.",
+    "fr": "Les jetons sont stockés chiffrés sur le serveur et attachés automatiquement au démarrage d'une nouvelle conversation.",
+    "tr": "Token'lar sunucuda şifreli olarak saklanır ve yeni bir görüşme başlattığınızda otomatik olarak eklenir.",
+    "de": "Tokens werden verschlüsselt auf dem Server gespeichert und beim Start einer neuen Unterhaltung automatisch angehängt.",
+    "uk": "Токени зберігаються на сервері в зашифрованому вигляді та автоматично додаються при початку нової розмови.",
+    "ca": "Els tokens s'emmagatzemen xifrats al servidor i s'adjunten automàticament quan inicies una conversa nova."
+  },
   "GIT$MERGE_REQUEST": {
     "en": "Merge Request",
     "ja": "マージリクエスト",
@@ -5489,6 +5540,23 @@
     "de": "Merge-Anfrage",
     "uk": "Запит на злиття",
     "ca": "Sol·licitud de fusió"
+  },
+  "GIT$DISCONNECT_TOKENS": {
+    "en": "Disconnect",
+    "ja": "切断",
+    "zh-CN": "断开连接",
+    "zh-TW": "中斷連線",
+    "ko-KR": "연결 해제",
+    "no": "Koble fra",
+    "it": "Disconnetti",
+    "pt": "Desconectar",
+    "es": "Desconectar",
+    "ar": "قطع الاتصال",
+    "fr": "Déconnecter",
+    "tr": "Bağlantıyı kes",
+    "de": "Trennen",
+    "uk": "Відключити",
+    "ca": "Desconnecta"
   },
   "GIT$GITLAB_API": {
     "en": "GitLab API",

@@ -7,7 +7,15 @@ import {
   updateCloudSecret,
 } from "./cloud/secrets-service.api";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
+import {
+  clearGitProviderCache,
+  getGitProviderSecretName,
+  getStoredGitProviders,
+  normalizeGitProviderHost,
+  writeGitProviderCache,
+} from "./git-provider-secrets";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
+import { Provider, ProviderToken } from "#/types/settings";
 
 /**
  * Retry helper for API calls with exponential backoff.
@@ -142,6 +150,76 @@ export class SecretsService {
         return;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Add or update git provider tokens.
+   * Stores tokens in the agent-server secrets API for agent runtime use.
+   * On local backends, also mirrors tokens in localStorage for UI state.
+   *
+   * @throws Error if the server API call fails after retries
+   */
+  static async addGitProvider(
+    providers: Partial<Record<Provider, ProviderToken>>,
+  ): Promise<void> {
+    const isLocalBackend = getActiveBackend().backend.kind === "local";
+    const storedProviders = isLocalBackend ? getStoredGitProviders() : {};
+    const nextProviders = { ...storedProviders };
+
+    const entries = Object.entries(providers) as [Provider, ProviderToken][];
+
+    for (const [provider, value] of entries) {
+      const token = value.token.trim();
+      const host = normalizeGitProviderHost(value.host);
+      const nextToken = token || nextProviders[provider]?.token;
+
+      if (nextToken) {
+        const secretName = getGitProviderSecretName(provider);
+
+        await this.createSecret(
+          secretName,
+          nextToken,
+          `Git provider token for ${provider}${host ? ` (${host})` : ""}`,
+        );
+
+        if (isLocalBackend) {
+          nextProviders[provider] = { token: nextToken, host };
+        }
+      }
+    }
+
+    if (isLocalBackend) {
+      writeGitProviderCache(nextProviders);
+    }
+  }
+
+  /**
+   * Delete all cached git provider tokens from localStorage and the server.
+   */
+  static async deleteGitProviders(): Promise<void> {
+    const isLocalBackend = getActiveBackend().backend.kind === "local";
+    const storedProviders = isLocalBackend ? getStoredGitProviders() : {};
+    const providersToDelete = isLocalBackend
+      ? (Object.keys(storedProviders) as Provider[])
+      : (["github"] as Provider[]);
+
+    await Promise.all(
+      providersToDelete.map(async (provider) => {
+        const secretName = getGitProviderSecretName(provider);
+        try {
+          await this.deleteSecret(secretName);
+        } catch (error) {
+          console.warn(
+            `Failed to delete git provider secret for ${provider}:`,
+            error,
+          );
+        }
+      }),
+    );
+
+    if (isLocalBackend) {
+      clearGitProviderCache();
     }
   }
 }

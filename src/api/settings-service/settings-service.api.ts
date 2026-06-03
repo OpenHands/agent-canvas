@@ -14,6 +14,10 @@ import {
   saveCloudSettings,
 } from "../cloud/settings-service.api";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  buildProviderTokensSetFromCache,
+  getStoredGitProviders,
+} from "../git-provider-secrets";
 
 /**
  * Response from GET /api/settings
@@ -176,6 +180,13 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   // server response carries them and overrides the local cache.
   const storedAppPrefs = readStoredAppPreferences();
 
+  // The agent-server has no concept of provider_tokens_set; the GUI derives it
+  // from locally-stored git provider credentials so the UI knows which
+  // providers are configured after a save.
+  const storedProviders = getStoredGitProviders();
+  const derivedProviderTokensSet =
+    buildProviderTokensSetFromCache(storedProviders);
+
   const merged = {
     ...deepClone(DEFAULT_SETTINGS),
     ...storedAppPrefs,
@@ -183,6 +194,7 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
       ...(settings.provider_tokens_set ?? {}),
+      ...derivedProviderTokensSet,
     },
     agent_settings: agentSettings,
     conversation_settings: conversationSettings,
