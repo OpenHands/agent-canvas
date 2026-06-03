@@ -8,6 +8,8 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
+import { resolveOpenHandsModelForApiKey } from "#/utils/resolve-openhands-model";
+import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 
 interface SetupLlmStepProps {
   onBack: () => void;
@@ -61,9 +63,21 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
     const baseUrl =
       typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
 
-    const name = deriveProfileNameFromModel(model);
+    let resolvedModel = model;
+    const { provider, model: providerModel } = extractModelAndProvider(model);
+    if (provider && providerModel && apiKey) {
+      const resolvedModelId = await resolveOpenHandsModelForApiKey({
+        provider,
+        requestedModel: providerModel,
+        apiKey,
+        baseUrl,
+      });
+      resolvedModel = `${provider}/${resolvedModelId}`;
+    }
+
+    const name = deriveProfileNameFromModel(resolvedModel);
     const llmConfig: { model: string; api_key?: string; base_url?: string } = {
-      model,
+      model: resolvedModel,
     };
     if (apiKey) llmConfig.api_key = apiKey;
     if (baseUrl) llmConfig.base_url = baseUrl;
