@@ -126,8 +126,10 @@ describePython("automation compatibility Python shim", () => {
 
     const script = String.raw`
 import asyncio
+import io
 import json
 import sitecustomize
+import tarfile
 
 from openhands.automation import execution
 
@@ -145,10 +147,47 @@ class Client:
     def __init__(self, statuses):
         self.statuses = list(statuses)
         self.urls = []
+        self.uploads = []
 
     async def post(self, url, **kwargs):
         self.urls.append(url)
+        if "files" in kwargs:
+            self.uploads.append(kwargs["files"]["file"][1])
         return Response(self.statuses.pop(0))
+
+
+def build_prompt_tarball():
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        def add_text(name, text):
+            payload = text.encode("utf-8")
+            info = tarfile.TarInfo(name)
+            info.mode = 0o644
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+
+        add_text(
+            "main.py",
+            """import os
+import time
+
+
+def main():
+    if True:
+        conversation.run()
+""",
+        )
+        add_text("prompt.txt", "agentcanvas what is the weather in miami nwo")
+    return buffer.getvalue()
+
+
+def read_prompt_tarball(data):
+    entries = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for member in tar.getmembers():
+            if member.isfile():
+                entries[member.name] = tar.extractfile(member).read().decode("utf-8")
+    return entries
 
 
 async def main():
@@ -184,11 +223,28 @@ async def main():
         work_dir=r"C:\Users\me\workspace path",
         run_id="run-1",
     )
+    command = execution.last_command
+
+    prompt_client = Client([200])
+    await execution.execute_in_context(
+        client=prompt_client,
+        agent_url="http://localhost:18000",
+        session_key="session-key",
+        entrypoint="python main.py",
+        tarball_source=build_prompt_tarball(),
+        work_dir="/workspace/automation-runs/run-2",
+        timeout=120,
+        run_id="run-2",
+    )
+    patched_prompt_entries = read_prompt_tarball(prompt_client.uploads[0])
 
     print(json.dumps({
         "query_urls": query_client.urls,
         "fallback_urls": fallback_client.urls,
-        "command": execution.last_command,
+        "command": command,
+        "prompt_command": execution.last_command,
+        "patched_main": patched_prompt_entries["main.py"],
+        "patched_prompt": patched_prompt_entries["prompt.txt"],
     }))
 
 
@@ -214,6 +270,9 @@ asyncio.run(main())
         query_urls: string[];
         fallback_urls: string[];
         command: string;
+        prompt_command: string;
+        patched_main: string;
+        patched_prompt: string;
       };
 
       expect(output.query_urls).toEqual([
@@ -228,6 +287,25 @@ asyncio.run(main())
       );
       expect(output.command).toContain("rm -f 'C:/Temp/automation.tar.gz'");
       expect(output.command).toContain("cd 'C:/Users/me/workspace path'");
+      expect(output.prompt_command).toContain(
+        "export AUTOMATION_RUN_TIMEOUT_SECONDS='120'",
+      );
+      expect(output.prompt_command).toContain(
+        "export AUTOMATION_CONVERSATION_TIMEOUT_SECONDS='60'",
+      );
+      expect(output.patched_main).toContain(
+        "DEFAULT_AUTOMATION_CONVERSATION_TIMEOUT_SECONDS = 540",
+      );
+      expect(output.patched_main).toContain(
+        "_run_conversation_with_timeout(conversation, timeout_seconds)",
+      );
+      expect(output.patched_main).not.toContain(
+        "__AGENT_CANVAS_AUTOMATION_CONVERSATION_RUN_PLACEHOLDER__",
+      );
+      expect(output.patched_prompt).toContain("## Automation Run Contract");
+      expect(output.patched_prompt).toContain(
+        "agentcanvas what is the weather in miami nwo",
+      );
     } finally {
       rmSync(fakeRoot, { recursive: true, force: true });
     }
