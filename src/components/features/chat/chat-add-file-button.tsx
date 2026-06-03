@@ -3,6 +3,7 @@ import { Paperclip, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { chatInputIconButtonClassName } from "#/utils/form-control-classes";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
@@ -57,10 +58,11 @@ export function ChatAddFileButton({
       <button
         type="button"
         className={cn(
-          "relative shrink-0 size-6 rounded-full transition-colors",
+          chatInputIconButtonClassName,
+          "relative shrink-0 size-6",
           disabled
             ? "cursor-not-allowed text-[var(--oh-text-subtle)]"
-            : "cursor-pointer text-[var(--oh-muted)] hover:text-white hover:bg-white/10",
+            : undefined,
           menuOpen && !disabled && "text-white bg-white/10",
         )}
         aria-label={t(I18nKey.CHAT_INTERFACE$PLUS_MENU)}

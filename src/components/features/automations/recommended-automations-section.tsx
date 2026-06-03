@@ -6,7 +6,7 @@ import {
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
 import {
-  INTEGRATION_CATALOG as INTEGRATION_MARKETPLACE,
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
 import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
@@ -18,9 +18,9 @@ import {
 import { CirclePlusBadge } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
-  findInstalledMatch,
-  getInstallableTemplate,
+  findInstalledEntryMatch,
   getMarketplaceEntryById,
+  getMcpMarketplaceCatalog,
   isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
@@ -31,7 +31,6 @@ import {
   extensionModuleCardPillClassName,
   extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
-import ClockIcon from "#/icons/clock.svg?react";
 import { StatusBadge } from "./status-badge";
 
 interface RecommendedAutomationsSectionProps {
@@ -57,8 +56,9 @@ export function getAutomationsByPopularity(
 const RECOMMENDED_AUTOMATIONS = getAutomationsByPopularity(AUTOMATION_CATALOG);
 
 function getRequiredEntries(automation: RecommendedAutomation) {
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
   return automation.requiredIntegrationIds
-    .map((id) => getMarketplaceEntryById(id, INTEGRATION_MARKETPLACE))
+    .map((id) => getMarketplaceEntryById(id, mcpMarketplace))
     .filter((entry): entry is MarketplaceEntry => !!entry);
 }
 
@@ -92,17 +92,13 @@ function isAutomationAvailable(
 }
 
 function buildRecommendedAutomationPills(
-  automation: RecommendedAutomation,
   requiredEntries: MarketplaceEntry[],
   installedServers: MCPServerConfig[],
   missingCount: number,
   translate: TFunction,
 ): SkillCardPill[] {
   const pills: SkillCardPill[] = requiredEntries.map((entry) => {
-    const template = getInstallableTemplate(entry);
-    const installed = template
-      ? !!findInstalledMatch(template, installedServers)
-      : false;
+    const installed = !!findInstalledEntryMatch(entry, installedServers);
 
     return {
       id: `mcp-${entry.id}`,
@@ -118,18 +114,6 @@ function buildRecommendedAutomationPills(
         </span>
       ),
     };
-  });
-
-  pills.push({
-    id: "setup-minutes",
-    node: (
-      <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
-        <ClockIcon className="size-3 shrink-0" />
-        {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
-          count: automation.estimatedSetupMinutes,
-        })}
-      </span>
-    ),
   });
 
   if (missingCount > 0) {
@@ -182,12 +166,9 @@ export function RecommendedAutomationsSection({
         <div className={extensionModuleCardGridClassName}>
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
-            const missingCount = requiredEntries.filter((entry) => {
-              const template = getInstallableTemplate(entry);
-              return (
-                !template || !findInstalledMatch(template, installedServers)
-              );
-            }).length;
+            const missingCount = requiredEntries.filter(
+              (entry) => !findInstalledEntryMatch(entry, installedServers),
+            ).length;
 
             return (
               <button
@@ -226,7 +207,6 @@ export function RecommendedAutomationsSection({
 
                     <SkillCardPillRow
                       pills={buildRecommendedAutomationPills(
-                        automation,
                         requiredEntries,
                         installedServers,
                         missingCount,

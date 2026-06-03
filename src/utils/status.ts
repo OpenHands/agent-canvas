@@ -28,6 +28,39 @@ export function isExecutionErrored(
   return status === ExecutionStatus.ERROR || status === ExecutionStatus.STUCK;
 }
 
+export function getTaskStatusI18nKey(
+  taskStatus: AppConversationStartTaskStatus,
+): I18nKey {
+  switch (taskStatus) {
+    case "WAITING_FOR_SANDBOX":
+      return I18nKey.COMMON$WAITING_FOR_SANDBOX;
+    case "SETTING_UP_GIT_HOOKS":
+      return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
+    case "SETTING_UP_SKILLS":
+      return I18nKey.STATUS$SETTING_UP_SKILLS;
+    // Terminal states map to their own localized keys so any caller that
+    // delegates here (now or in the future) gets a correct label instead of
+    // silently falling through to STARTING_CONVERSATION. Callers that need a
+    // context-specific terminal label (e.g. getStatusCode's
+    // AGENT_STATUS$ERROR_OCCURRED, or getStatusText's taskDetail precedence)
+    // still handle these states before delegating.
+    case "READY":
+      return I18nKey.CONVERSATION$READY;
+    case "ERROR":
+      return I18nKey.COMMON$ERROR;
+    // These collapse to the generic "Starting" label. `default` is unreachable
+    // for the typed union but is kept as a runtime safety net: the start-task
+    // API may report a new status before this enum is updated, in which case we
+    // degrade to "Starting" rather than throwing (see FUTURE_STATUS_FROM_CLOUD).
+    case "STARTING_CONVERSATION":
+    case "WORKING":
+    case "PREPARING_REPOSITORY":
+    case "RUNNING_SETUP_SCRIPT":
+    default:
+      return I18nKey.CONVERSATION$STARTING_CONVERSATION;
+  }
+}
+
 export function getStatusCode(
   webSocketConnectionState: WebSocketConnectionState,
   executionStatus: ExecutionStatus | null,
@@ -43,22 +76,7 @@ export function getStatusCode(
   }
 
   if (taskStatus && taskStatus !== "READY") {
-    switch (taskStatus) {
-      case "WAITING_FOR_SANDBOX":
-        return I18nKey.COMMON$WAITING_FOR_SANDBOX;
-      case "SETTING_UP_GIT_HOOKS":
-        return I18nKey.STATUS$SETTING_UP_GIT_HOOKS;
-      case "SETTING_UP_SKILLS":
-        return I18nKey.STATUS$SETTING_UP_SKILLS;
-      case "STARTING_CONVERSATION":
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-      case "WORKING":
-      case "PREPARING_REPOSITORY":
-      case "RUNNING_SETUP_SCRIPT":
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-      default:
-        return I18nKey.CONVERSATION$STARTING_CONVERSATION;
-    }
+    return getTaskStatusI18nKey(taskStatus);
   }
 
   if (executionStatus === ExecutionStatus.PAUSED) {

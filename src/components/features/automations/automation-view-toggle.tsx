@@ -6,6 +6,7 @@ import { ContextMenuListItem } from "#/components/features/context-menu/context-
 import { I18nKey } from "#/i18n/declaration";
 import { ContextMenu } from "#/ui/context-menu";
 import { cn } from "#/utils/utils";
+import { dropdownMenuRowIconWrapperClassName } from "#/utils/dropdown-classes";
 import type { AutomationViewMode } from "./automation-view-mode";
 
 interface AutomationViewToggleProps {
@@ -45,10 +46,7 @@ function ViewMenuItemContent({
 }) {
   return (
     <span className="flex min-w-0 w-full items-center gap-2">
-      <span
-        className="flex shrink-0 items-center text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)] [&_svg]:size-4 [&_svg]:text-current"
-        aria-hidden
-      >
+      <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
         <Icon />
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>

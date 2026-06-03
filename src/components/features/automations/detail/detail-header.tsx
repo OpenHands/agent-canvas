@@ -8,6 +8,7 @@ import PowerIcon from "#/icons/power.svg?react";
 import DownloadIcon from "#/icons/download.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
 import EditIcon from "#/icons/u-edit.svg?react";
+import PlayIcon from "#/icons/play.svg?react";
 import { useHasPermission } from "#/hooks/use-has-permission";
 import { ActiveStatusBadge } from "./active-status-badge";
 
@@ -79,11 +80,12 @@ export function DetailHeader({
           {canManage && onRunNow && (
             <button
               type="button"
-              className="rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-content transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isRunningNow || !automation.enabled}
               onClick={onRunNow}
             >
-              {isRunningNow ? "Starting…" : "Run now"}
+              <PlayIcon className="size-3.5 shrink-0" aria-hidden />
+              {isRunningNow ? "Starting…" : t(I18nKey.AUTOMATIONS$RUN_NOW)}
             </button>
           )}
           {canManage && (

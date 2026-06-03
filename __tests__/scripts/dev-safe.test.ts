@@ -595,7 +595,7 @@ describe("buildSafeDevConfig", () => {
       path.join(tmpdir(), "openhands-agent-canvas-tmux"),
     );
     expect(config.conversationsPath).toBe(
-      path.join(config.stateDir, "conversations"),
+      path.join(config.stateDir, "dev_conversations"),
     );
     expect(config.workspacesPath).toBe(
       path.join(config.stateDir, "workspaces"),
@@ -653,14 +653,14 @@ describe("buildSafeDevConfig", () => {
     expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
-  it("env-provided session keys take precedence over the persisted file", () => {
+  it("LOCAL_BACKEND_API_KEY takes precedence over the persisted file", () => {
     const keyPath = tempKeyPath();
     // Pre-seed the file with one key.
     mkdirSync(path.dirname(keyPath), { recursive: true });
     writeFileSync(keyPath, "persisted-key-value\n");
 
     const config = buildSafeDevConfig("/workspace/project/agent-canvas", {
-      SESSION_API_KEY: "env-key-wins",
+      LOCAL_BACKEND_API_KEY: "env-key-wins",
       OH_SESSION_API_KEY_PATH: keyPath,
     });
 

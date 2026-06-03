@@ -72,7 +72,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
     host: "0.0.0.0",
     dir: "build",
     routes: {},
+    rejectPrefixes: [],
     sessionApiKey: null,
+    authRequired: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -108,6 +110,19 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case "--session-api-key":
         config.sessionApiKey = argv[++i] || null;
         break;
+      case "--auth-required":
+        config.authRequired = true;
+        break;
+      case "--reject-prefix": {
+        const prefix = argv[++i];
+        if (!prefix || !prefix.startsWith("/")) {
+          throw new Error(
+            `--reject-prefix value must start with '/': ${prefix ?? "(empty)"}`,
+          );
+        }
+        config.rejectPrefixes.push(prefix);
+        break;
+      }
       case "-h":
       case "--help":
         showHelp();
@@ -115,6 +130,19 @@ export function parseArgs(argv = process.argv.slice(2)) {
       default:
         throw new Error(`Unknown flag: ${flag}`);
     }
+  }
+
+  // Guard: --session-api-key and --auth-required are semantically
+  // mutually exclusive. The first auto-injects the key (local mode);
+  // the second forces the user to paste it (public mode). Combining
+  // both is a misconfiguration.
+  if (config.sessionApiKey && config.authRequired) {
+    console.error(
+      "ERROR: --session-api-key and --auth-required are mutually exclusive.\n" +
+        "  Use --session-api-key for local mode (key auto-injected).\n" +
+        "  Use --auth-required for public mode (user pastes key).",
+    );
+    process.exit(1);
   }
 
   return config;
@@ -136,11 +164,21 @@ OPTIONS:
   --session-api-key <key>      Inject session API key into index.html so the
                                pre-built frontend authenticates to agent-server
                                without needing VITE_SESSION_API_KEY baked in.
+  --auth-required              Inject authRequired flag into index.html so the
+                               pre-built frontend shows the API key entry screen
+                               (public mode) without VITE_AUTH_REQUIRED baked in.
+  --reject-prefix <prefix>     Return 503 for requests matching <prefix>
+                               instead of SPA-fallbacking to index.html;
+                               may be repeated. Useful in --frontend-only
+                               mode to cleanly reject API paths.
   -h, --help                   Show this help
 
 ROUTING:
   • Routes are matched by longest prefix first (most-specific wins).
-  • Anything that does not match a route is served from --dir.
+  • Reject prefixes are checked before SPA fallback — matching requests
+    get 503 immediately.
+  • Anything that does not match a route or reject prefix is served
+    from --dir.
   • Unknown paths fall back to index.html (SPA mode), unless they look
     like an asset request (have a known file extension), in which case
     a 404 is returned.
@@ -152,39 +190,55 @@ ROUTING:
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Build a tiny inline script that seeds the session API key into the
- * `openhands-agent-server-config` localStorage entry the first time the page
- * loads. Only writes if no key is already stored — explicit user overrides
- * (set via Settings > Agent Server in the UI) are always preserved.
+ * Build a tiny inline script that seeds runtime config into the page.
  *
- * This lets the pre-built static binary work without needing VITE_SESSION_API_KEY
- * baked into the bundle at publish time: the runtime key is injected here instead.
+ * - `sessionApiKey`: written to `openhands-agent-server-config` in localStorage
+ *   so the pre-built frontend authenticates without VITE_SESSION_API_KEY baked in.
+ *   Only writes if no key is already stored — explicit user overrides are preserved.
+ *
+ * - `authRequired`: sets `window.__AGENT_CANVAS_AUTH_REQUIRED__ = true` so the
+ *   pre-built frontend shows the API key entry screen (public mode) without
+ *   VITE_AUTH_REQUIRED baked in.
  */
-function makeConfigInjectionScript(sessionApiKey) {
-  if (!sessionApiKey) return "";
-  // JSON.stringify produces a properly escaped JS string literal.
-  const keyLiteral = JSON.stringify(sessionApiKey);
-  return (
-    `<script>` +
-    `(function(){` +
-    `try{` +
-    `var _k='openhands-agent-server-config',` +
-    `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
-    `if(!_c.sessionApiKey){` +
-    `_c.sessionApiKey=${keyLiteral};` +
-    `localStorage.setItem(_k,JSON.stringify(_c));` +
-    `}` +
-    `}catch(e){}` +
-    `}());` +
-    `</script>`
-  );
+function makeConfigInjectionScript(sessionApiKey, authRequired) {
+  const parts = [];
+
+  if (sessionApiKey) {
+    const keyLiteral = JSON.stringify(sessionApiKey);
+    // Always overwrite when the stored key differs from the runtime key.
+    // A previous session may have persisted a now-stale key; the runtime
+    // value (from --session-api-key) is the server's truth.
+    parts.push(
+      `try{` +
+        `var _k='openhands-agent-server-config',` +
+        `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
+        `if(_c.sessionApiKey!==${keyLiteral}){` +
+        `_c.sessionApiKey=${keyLiteral};` +
+        `localStorage.setItem(_k,JSON.stringify(_c));` +
+        `}` +
+        `}catch(e){}`,
+    );
+  }
+
+  if (authRequired) {
+    parts.push(`window.__AGENT_CANVAS_AUTH_REQUIRED__=true;`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return `<script>(function(){${parts.join("")}}());</script>`;
 }
 
 /**
- * Serve index.html with the runtime session key injected into <head>.
+ * Serve index.html with runtime config injected into <head>.
  * Returns true if the response was written, false if the file was not found.
  */
-async function serveInjectedIndexHtml(req, res, indexPath, sessionApiKey) {
+async function serveInjectedIndexHtml(
+  req,
+  res,
+  indexPath,
+  { sessionApiKey, authRequired } = {},
+) {
   let content;
   try {
     content = await readFile(indexPath, "utf8");
@@ -192,7 +246,7 @@ async function serveInjectedIndexHtml(req, res, indexPath, sessionApiKey) {
     return false;
   }
 
-  const script = makeConfigInjectionScript(sessionApiKey);
+  const script = makeConfigInjectionScript(sessionApiKey, authRequired);
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
   const injected = content.includes("</head>")
@@ -393,7 +447,13 @@ async function serveFile(req, res, filePath, urlPath) {
   return true;
 }
 
-async function handleStatic(req, res, dirAbs, sessionApiKey = null) {
+async function handleStatic(
+  req,
+  res,
+  dirAbs,
+  injectionOpts = {},
+  rejectPrefixes = [],
+) {
   const rawPath = req.url.split("?")[0];
   let urlPath;
   try {
@@ -417,13 +477,33 @@ async function handleStatic(req, res, dirAbs, sessionApiKey = null) {
     filePath = resolve(filePath, "index.html");
   }
 
-  // Serve index.html with runtime key injection when a session key is configured.
-  if (sessionApiKey && filePath.endsWith("index.html")) {
-    if (await serveInjectedIndexHtml(req, res, filePath, sessionApiKey)) return;
+  const needsInjection =
+    injectionOpts.sessionApiKey || injectionOpts.authRequired;
+
+  // Serve index.html with runtime config injection when configured.
+  if (needsInjection && filePath.endsWith("index.html")) {
+    if (await serveInjectedIndexHtml(req, res, filePath, injectionOpts)) return;
     // Fall through to regular serveFile (handles 404 path correctly).
   }
 
   if (await serveFile(req, res, filePath, urlPath)) return;
+
+  // Reject prefixes: return 503 for known API paths that have no backend
+  // configured (e.g. in --frontend-only mode). Checked before SPA fallback
+  // so these paths never silently serve index.html.
+  if (rejectPrefixes.length > 0) {
+    for (const prefix of rejectPrefixes) {
+      if (
+        urlPath === prefix ||
+        urlPath.startsWith(prefix + "/") ||
+        urlPath.startsWith(prefix + "?")
+      ) {
+        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Service Unavailable (no backend configured for this route)");
+        return;
+      }
+    }
+  }
 
   // SPA fallback: only for non-asset requests, and not for non-GET/HEAD.
   if (
@@ -431,8 +511,8 @@ async function handleStatic(req, res, dirAbs, sessionApiKey = null) {
     !looksLikeAssetRequest(urlPath)
   ) {
     const indexPath = resolve(dirAbs, "index.html");
-    if (sessionApiKey) {
-      if (await serveInjectedIndexHtml(req, res, indexPath, sessionApiKey))
+    if (needsInjection) {
+      if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
         return;
     } else if (await serveFile(req, res, indexPath, "/")) return;
   }
@@ -448,7 +528,11 @@ async function handleStatic(req, res, dirAbs, sessionApiKey = null) {
 export function startStaticServer(config) {
   const route = createRouter(config.routes);
   const dirAbs = resolve(config.dir);
-  const sessionApiKey = config.sessionApiKey || null;
+  const injectionOpts = {
+    sessionApiKey: config.sessionApiKey || null,
+    authRequired: config.authRequired || false,
+  };
+  const rejectPrefixes = config.rejectPrefixes ?? [];
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
@@ -456,7 +540,7 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs, sessionApiKey).catch((err) => {
+    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {
         res.writeHead(500);
@@ -486,6 +570,11 @@ export function startStaticServer(config) {
       );
       for (const [prefix, backend] of sortedRoutes) {
         console.log(`  ${prefix} -> ${backend}`);
+      }
+      if (rejectPrefixes.length > 0) {
+        for (const prefix of rejectPrefixes) {
+          console.log(`  ${prefix} -> 503 (rejected)`);
+        }
       }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");
