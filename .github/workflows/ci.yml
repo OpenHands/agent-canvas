@@ -282,8 +282,10 @@ jobs:
         id: live_video_preview
         if: always() && steps.live_media.outputs.video_path != '' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
+        env:
+          VIDEO_PATH: ${{ steps.live_media.outputs.video_path }}
         run: |
-          video_path="${{ steps.live_media.outputs.video_path }}"
+          video_path="$VIDEO_PATH"
           if [ ! -f "$video_path" ]; then
             echo "::warning::Live E2E video file was not found, skipping GIF preview generation."
             exit 0
