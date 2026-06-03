@@ -104,7 +104,7 @@ describe("PendingUserMessages", () => {
     );
   });
 
-  it("keeps a reserved stop-button column on sending messages", () => {
+  it("keeps the stop button out of the bubble layout while sending", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
       conversationId: ACTIVE_CONVO,
       text: "hold my spot",
@@ -112,7 +112,6 @@ describe("PendingUserMessages", () => {
 
     renderWithProviders(<PendingUserMessages />);
 
-    expect(screen.getByTestId("chat-message-stop-slot")).toBeInTheDocument();
     expect(screen.getByTestId("chat-message-stop")).toHaveClass("opacity-0");
   });
 

@@ -5,7 +5,7 @@ import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipb
 import type { SourceType } from "#/types/agent-server/core/base/common";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { I18nKey } from "#/i18n/declaration";
-import StopCircleIcon from "#/icons/stop-circle.svg?react";
+import { TextShimmer } from "#/components/shared/text-shimmer";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
 export type ChatMessagePendingStatus = "sending" | "error";
@@ -13,7 +13,32 @@ export type ChatMessagePendingStatus = "sending" | "error";
 const USER_MESSAGE_MAX_LINES = 3;
 const USER_MESSAGE_LINE_HEIGHT_PX = 24;
 
-const PENDING_STOP_BUTTON_COLUMN_CLASS = "h-7 w-7 shrink-0";
+function PendingStopIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className={className}
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        className="fill-[var(--oh-foreground)] transition-colors duration-150 group-hover:fill-[var(--oh-text-secondary)]"
+      />
+      <rect
+        x="9"
+        y="9"
+        width="6"
+        height="6"
+        rx="1"
+        className="fill-[var(--oh-color-tertiary)]"
+      />
+    </svg>
+  );
+}
 
 const chatBubbleMarkdownComponents = {
   p: ({ children }: React.ComponentProps<"p">) => (
@@ -235,43 +260,7 @@ export function ChatMessage({
     </div>
   );
 
-  const messageBody = canStopPendingMessage ? (
-    <div
-      className={cn(
-        "flex min-w-0 gap-2",
-        isSingleLinePendingMessage ? "items-center" : "items-end",
-      )}
-    >
-      <div className="min-w-0 flex-1">{messageContent}</div>
-      <div
-        className={cn(
-          "flex items-center justify-center",
-          PENDING_STOP_BUTTON_COLUMN_CLASS,
-        )}
-        data-testid="chat-message-stop-slot"
-      >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onStop?.();
-          }}
-          data-testid="chat-message-stop"
-          aria-label={t(I18nKey.BUTTON$STOP)}
-          aria-hidden={!showStopButton}
-          tabIndex={showStopButton ? 0 : -1}
-          className={cn(
-            "inline-flex cursor-pointer items-center justify-center text-[var(--oh-foreground)] transition-opacity duration-150 hover:opacity-80",
-            showStopButton ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-        >
-          <StopCircleIcon className="block h-7 w-7 max-w-none text-current" />
-        </button>
-      </div>
-    </div>
-  ) : (
-    messageContent
-  );
+  const renderedMessageContent = messageContent;
 
   const messageBubble = (
     <article
@@ -333,7 +322,30 @@ export function ChatMessage({
         />
       </div>
 
-      {messageBody}
+      {renderedMessageContent}
+
+      {canStopPendingMessage ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onStop?.();
+          }}
+          data-testid="chat-message-stop"
+          aria-label={t(I18nKey.BUTTON$STOP)}
+          aria-hidden={!showStopButton}
+          tabIndex={showStopButton ? 0 : -1}
+          className={cn(
+            "group absolute z-10 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-[var(--oh-color-tertiary)] text-[var(--oh-foreground)] transition-opacity duration-150",
+            isSingleLinePendingMessage
+              ? "right-3 top-1/2 -translate-y-1/2"
+              : "right-3 bottom-2.5",
+            showStopButton ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <PendingStopIcon className="block h-7 w-7 max-w-none" />
+        </button>
+      ) : null}
 
       {isCollapsed ? (
         <button
@@ -377,16 +389,21 @@ export function ChatMessage({
 
   if (type === "user" && pendingStatus === "sending") {
     return (
-      <div className="flex w-full max-w-full flex-col gap-1.5 last:mb-4">
+      <div className="flex w-full max-w-full flex-col last:mb-4">
         {messageBubble}
-        <span
-          role="status"
-          aria-live="polite"
-          data-testid="chat-message-sending"
-          className="gradient-flow text-sm font-normal"
-        >
-          {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
-        </span>
+        <div className="my-1 w-full py-1 text-sm">
+          <TextShimmer
+            as="p"
+            role="status"
+            aria-live="polite"
+            data-testid="chat-message-sending"
+            className="block w-full text-sm font-normal"
+            duration={1}
+            spread={2}
+          >
+            {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
+          </TextShimmer>
+        </div>
       </div>
     );
   }

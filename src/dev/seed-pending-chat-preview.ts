@@ -1,8 +1,11 @@
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 
-const PREVIEW_SEEDED_KEY = "oh-pending-chat-preview-seeded";
-
 const PREVIEW_SENDING_TEXT = "can you review the readme";
+
+const PREVIEW_SENDING_MULTILINE_TEXT =
+  "can you review the readme and then update the contributing guide " +
+  "to match, making sure the setup steps and scripts are consistent " +
+  "across both files";
 
 const PREVIEW_ERROR_TEXT =
   "here's a long message. here's a long message. here's a long message. " +
@@ -15,6 +18,11 @@ export function seedPendingChatPreview(conversationId: string): void {
   store.enqueuePendingMessage({
     conversationId,
     text: PREVIEW_SENDING_TEXT,
+  });
+
+  store.enqueuePendingMessage({
+    conversationId,
+    text: PREVIEW_SENDING_MULTILINE_TEXT,
   });
 
   const errorId = store.enqueuePendingMessage({
@@ -38,7 +46,6 @@ export function installPendingChatPreview(): void {
         __OH_CLEAR_PENDING_PREVIEW__?: () => void;
       }
   ).__OH_CLEAR_PENDING_PREVIEW__ = () => {
-    sessionStorage.removeItem(PREVIEW_SEEDED_KEY);
     useOptimisticUserMessageStore.getState().clearPendingMessages();
   };
 
