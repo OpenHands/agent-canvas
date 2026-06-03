@@ -37,6 +37,12 @@ async function prepareApp() {
     ).__TEST_INVALIDATE_QUERIES__ = (queryKey?: unknown[]) =>
       void queryClient.invalidateQueries(queryKey ? { queryKey } : undefined);
   }
+
+  if (import.meta.env.DEV) {
+    const { installPendingChatPreview } =
+      await import("./dev/seed-pending-chat-preview");
+    installPendingChatPreview();
+  }
 }
 
 prepareApp().then(() =>
