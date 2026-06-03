@@ -293,10 +293,29 @@ test.describe("cross-connect: frontend-only → backend-only", () => {
     // ── 7. Verify the app loads ───────────────────────────────────────
     // The app should reach either the onboarding flow or the home page
     // — crucially NOT the manage-backends modal or auth screen.
-    const onboardingOrHome = page
+    // Both can be visible at the same time (onboarding overlays the home
+    // launcher), so check each individually instead of using .or() which
+    // fails Playwright strict mode when both match.
+    const homeVisible = await page
+      .getByTestId("home-chat-launcher")
+      .isVisible({ timeout: 20_000 })
+      .catch(() => false);
+    const onboardingVisible = await page
       .getByTestId("onboarding-step-choose-agent")
-      .or(page.getByTestId("home-chat-launcher"));
-    await expect(onboardingOrHome).toBeVisible({ timeout: 20_000 });
+      .isVisible({ timeout: 2_000 })
+      .catch(() => false);
+    expect(
+      homeVisible || onboardingVisible,
+      "Expected either home-chat-launcher or onboarding to be visible",
+    ).toBe(true);
+
+    // The manage-backends modal and auth screen must NOT be showing.
+    await expect(
+      page.getByTestId("manage-backends-modal"),
+    ).not.toBeVisible({ timeout: 2_000 });
+    await expect(
+      page.getByTestId("api-key-entry-screen"),
+    ).not.toBeVisible({ timeout: 2_000 });
   });
 });
 
