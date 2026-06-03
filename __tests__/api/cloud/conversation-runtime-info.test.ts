@@ -71,11 +71,12 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
         "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc";
 
       // Act
-      const result = await AgentServerConversationService.getRuntimeConversation(
-        "conv-abc",
-        conversationUrl,
-        "session-xyz",
-      );
+      const result =
+        await AgentServerConversationService.getRuntimeConversation(
+          "conv-abc",
+          conversationUrl,
+          "session-xyz",
+        );
 
       // Assert
       expect(axios.post).toHaveBeenCalledOnce();
@@ -114,11 +115,12 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
         "http://192.168.1.42:8888/api/conversations/conv-abc";
 
       // Act
-      const result = await AgentServerConversationService.getRuntimeConversation(
-        "conv-abc",
-        conversationUrl,
-        "session-xyz",
-      );
+      const result =
+        await AgentServerConversationService.getRuntimeConversation(
+          "conv-abc",
+          conversationUrl,
+          "session-xyz",
+        );
 
       // Assert
       expect(axios.post).not.toHaveBeenCalled();

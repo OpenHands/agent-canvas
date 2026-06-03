@@ -42,14 +42,33 @@ export const SESSION_API_KEY = (() => {
   return key;
 })();
 
-/** Seed localStorage with flags that skip onboarding / analytics modals. */
+/** Seed localStorage with flags that skip onboarding / analytics modals
+ *  and a default local backend so the app doesn't show the manage-backends
+ *  modal. The backend registry must be seeded because the static build has
+ *  no baked VITE_SESSION_API_KEY — makeDefaultLocalBackend() returns null
+ *  and readLegacyBackend() can't infer a host from the injected config. */
 export async function seedLocalStorage(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "false");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem("openhands-onboarded", "1");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
 }
 
 /** Inject session API key header into requests targeting the backend. */
@@ -409,6 +428,18 @@ export async function setChatInput(
     { tid: testId, inputText: text },
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Partial-stack mode ports (frontend-only / backend-only tests)
+// ═══════════════════════════════════════════════════════════════════════
+
+export const FRONTEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_FE_ONLY_PORT ?? "18310";
+export const FRONTEND_ONLY_URL = `http://localhost:${FRONTEND_ONLY_INGRESS_PORT}`;
+
+export const BACKEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_BE_ONLY_PORT ?? "18320";
+export const BACKEND_ONLY_URL = `http://localhost:${BACKEND_ONLY_INGRESS_PORT}`;
 
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.

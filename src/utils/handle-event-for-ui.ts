@@ -9,9 +9,12 @@ import {
  * Replaces actions with observations when they arrive (so UI shows observation instead of action)
  * Exception: ThinkAction is NOT replaced because the thought content is in the action, not in the observation
  *
- * ACPToolCallEvent dedup: multiple events share a ``tool_call_id`` as an ACP
- * tool call progresses (in_progress → completed / failed). Collapse them to
- * the latest state at the original position so the card updates in place.
+ * ACPToolCallEvent merge: the SDK emits two events per ``tool_call_id`` — an
+ * early ``started`` event (``pending`` / ``in_progress``) and one terminal
+ * (completed / failed) event, the action->observation pair for a tool call.
+ * Replace the started entry in place with the terminal one so a single card
+ * updates from running to its result, exactly like an observation superseding
+ * its action below.
  */
 export const handleEventForUI = (
   event: OpenHandsEvent,

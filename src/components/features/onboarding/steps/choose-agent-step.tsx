@@ -91,12 +91,14 @@ function getAgentOptions(): AgentOption[] {
 interface ChooseAgentStepProps {
   selectedAgentId: OnboardingAgentId;
   onSelect: (agentId: OnboardingAgentId) => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
 export function ChooseAgentStep({
   selectedAgentId,
   onSelect,
+  onBack,
   onNext,
 }: ChooseAgentStepProps) {
   const { t } = useTranslation("openhands");
@@ -190,7 +192,18 @@ export function ChooseAgentStep({
         })}
       </div>
 
-      <div className="sticky bottom-0 flex justify-end bg-base-secondary pt-4 pb-7">
+      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+        {onBack ? (
+          <BrandButton
+            testId="onboarding-agent-back"
+            type="button"
+            variant="secondary"
+            onClick={onBack}
+            isDisabled={isSaving}
+          >
+            {t(I18nKey.ONBOARDING$BACK)}
+          </BrandButton>
+        ) : null}
         <BrandButton
           testId="onboarding-agent-next"
           type="button"

@@ -118,7 +118,9 @@ export type SettingsScope = "personal";
  * - ``"acp"``: the conversation is driven by an external ACP subprocess
  *   (Claude Code / Codex / Gemini CLI / Custom). The LLM / condenser / MCP
  *   settings are inert; ``acp_command`` / ``acp_args`` / ``acp_model`` /
- *   ``acp_env`` / ``acp_server`` apply instead.
+ *   ``acp_server`` apply instead. Provider credentials are supplied through the
+ *   Secrets panel (``request.secrets`` / ``agent_context.secrets``), never
+ *   through a per-agent env channel.
  */
 export type AgentKind = "openhands" | "acp";
 

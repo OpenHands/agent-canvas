@@ -7,8 +7,10 @@ import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-confi
 import { NavigationProvider } from "#/context/navigation-context";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import OptionService from "#/api/option-service/option-service.api";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import { WebClientConfig } from "#/api/option-service/option.types";
@@ -44,10 +46,11 @@ function buildConfig(hideLlmSettings = false): WebClientConfig {
 function ProbedBanner() {
   const settings = useSettings();
   const config = useConfig();
+  const profiles = useLlmProfiles();
   return (
     <>
       <LlmNotConfiguredBanner />
-      {settings.isFetched && config.isFetched ? (
+      {settings.isFetched && config.isFetched && profiles.isFetched ? (
         <div data-testid="queries-settled" />
       ) : null}
     </>
@@ -80,6 +83,10 @@ describe("LlmNotConfiguredBanner", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(OptionService, "getConfig").mockResolvedValue(buildConfig());
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
+      profiles: [],
+      active_profile: null,
+    });
   });
 
   it("warns the user when no LLM API key is set (the skip-onboarding case)", async () => {
@@ -102,6 +109,34 @@ describe("LlmNotConfiguredBanner", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({ llm_api_key_set: true }),
     );
+
+    // Act
+    renderBanner();
+    await screen.findByTestId("queries-settled");
+
+    // Assert
+    expect(
+      screen.queryByTestId("home-llm-not-configured-banner"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stays hidden once an active LLM profile has a saved API key", async () => {
+    // Arrange: the profile endpoint is the source of truth for the active
+    // profile shown in LLM settings, even if the legacy settings flag is stale.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_api_key_set: false }),
+    );
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
+      profiles: [
+        {
+          name: "active-profile",
+          model: "openai/gpt-4.1",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: "active-profile",
+    });
 
     // Act
     renderBanner();

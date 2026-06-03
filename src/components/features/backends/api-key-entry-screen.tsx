@@ -2,9 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { I18nKey } from "#/i18n/declaration";
-import { saveAgentServerConfig } from "#/api/agent-server-config";
 import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import {
@@ -29,7 +29,7 @@ import {
  */
 export default function ApiKeyEntryScreen() {
   const { t } = useTranslation("openhands");
-  const { active, updateBackend } = useActiveBackendContext();
+  const { active, addBackend, updateBackend } = useActiveBackendContext();
 
   const host = window.location.origin;
 
@@ -56,11 +56,11 @@ export default function ApiKeyEntryScreen() {
 
         setConnectionStatus("success");
 
-        updateBackend(active.backend.id, payload);
-        saveAgentServerConfig({
-          baseUrl: payload.host,
-          sessionApiKey: payload.apiKey,
-        });
+        if (isNoBackend(active.backend)) {
+          addBackend(payload);
+        } else {
+          updateBackend(active.backend.id, payload);
+        }
 
         window.location.reload();
       } catch (err: unknown) {
@@ -77,7 +77,7 @@ export default function ApiKeyEntryScreen() {
         setIsValidating(false);
       }
     },
-    [active.backend.id, updateBackend, t],
+    [active.backend, addBackend, updateBackend, t],
   );
 
   return (

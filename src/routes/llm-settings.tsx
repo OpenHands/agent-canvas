@@ -22,6 +22,10 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import {
+  OPENHANDS_LLM_PROXY_BASE_URL,
+  isOpenHandsProviderModel,
+} from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -41,11 +45,11 @@ const getSchemaFieldDefaultValue = (
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
   openhands: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
   litellm_proxy: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
 };
@@ -278,7 +282,10 @@ export function LlmSettingsScreen({
       const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
 
       if (context.view === "basic") {
-        llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
+        const model = llm.model ?? context.values["llm.model"];
+        llm.base_url = isOpenHandsProviderModel(model)
+          ? OPENHANDS_LLM_PROXY_BASE_URL
+          : getSchemaFieldDefaultValue(schema, "llm.base_url");
         agentSettings.llm = llm;
       }
 

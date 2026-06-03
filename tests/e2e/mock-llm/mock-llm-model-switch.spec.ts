@@ -10,7 +10,9 @@
  *   2. Conversation + switch: start a conversation from the home page,
  *      wait for the agent to reply, then type `/model <profile-B>` in the
  *      chat input. Verify the "Switched to profile" confirmation renders in
- *      the chat UI. Verify the switch_profile POST was made to the agent-server.
+ *      the chat UI. Verify the switch_llm POST was made to the agent-server
+ *      (the frontend fetches the full encrypted profile config and sends it
+ *      via /switch_llm rather than calling /switch_profile by name).
  *
  *   3. Post-switch verification: send another message after the switch
  *      and verify the agent responds, proving the conversation continues
@@ -174,19 +176,21 @@ test.describe("mock-LLM /model slash command", () => {
   }) => {
     test.setTimeout(120_000);
 
-    // Track whether the switch_profile POST was intercepted.
-    let switchProfileCalled = false;
-    let switchProfileBody: Record<string, unknown> | null = null;
+    // Track whether the switch_llm POST was intercepted.
+    // The frontend calls POST /api/conversations/{id}/switch_llm with the full
+    // encrypted profile config (model + api_key + base_url) rather than calling
+    // /switch_profile by name — this avoids an extra agent-server secrets fetch.
+    let switchLlmCalled = false;
+    let switchLlmBody: Record<string, unknown> | null = null;
     page.on("request", (req) => {
       const url = new URL(req.url());
-      // The switch_profile endpoint is POST /api/conversations/{id}/switch_profile
       if (
         req.method() === "POST" &&
-        url.pathname.match(/\/api\/conversations\/[^/]+\/switch_profile/)
+        url.pathname.match(/\/api\/conversations\/[^/]+\/switch_llm/)
       ) {
-        switchProfileCalled = true;
+        switchLlmCalled = true;
         try {
-          switchProfileBody = req.postDataJSON();
+          switchLlmBody = req.postDataJSON();
         } catch {
           // non-JSON body
         }
@@ -232,19 +236,22 @@ test.describe("mock-LLM /model slash command", () => {
       await waitForNonUserMessageText(page, PROFILE_B_NAME, 30_000);
     });
 
-    // ── Verify: the switch_profile POST was made ──
+    // ── Verify: the switch_llm POST was made ──
 
-    await test.step("verify switch_profile API was called", async () => {
+    await test.step("verify switch_llm API was called with profile B model", async () => {
       expect(
-        switchProfileCalled,
-        "POST /switch_profile should have been called",
+        switchLlmCalled,
+        "POST /switch_llm should have been called",
       ).toBe(true);
-      expect(switchProfileBody).toBeTruthy();
-      // The switch_profile API uses { profile_name: "..." }
+      expect(switchLlmBody).toBeTruthy();
+      // ConversationClient.switchLLM posts { llm: <config> } to switch_llm,
+      // so the model is nested under the "llm" key in the HTTP body.
+      const llm = switchLlmBody!.llm as Record<string, unknown> | undefined;
+      expect(llm, "switch_llm body should contain an llm object").toBeTruthy();
       expect(
-        switchProfileBody!.profile_name,
-        `switch_profile body.profile_name should be "${PROFILE_B_NAME}"`,
-      ).toBe(PROFILE_B_NAME);
+        llm!.model,
+        `switch_llm body.llm.model should be "${MODEL_B}"`,
+      ).toBe(MODEL_B);
     });
 
     // ── Send a follow-up message to verify conversation still works ──

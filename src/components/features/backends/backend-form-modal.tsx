@@ -118,6 +118,42 @@ function isValidHostUrl(host: string): boolean {
 
 const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
+function getConnectionTestFailedTitle(
+  t: ReturnType<typeof useTranslation>["t"],
+  host: string,
+): string {
+  return t(I18nKey.BACKEND$CONNECTION_TEST_FAILED, {
+    host,
+    interpolation: { escapeValue: false },
+  });
+}
+
+function getConnectionErrorDetail(error: unknown): string | null {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return null;
+}
+
+function getConnectionTestFailedMessage(title: string, error: unknown): string {
+  const detail = getConnectionErrorDetail(error);
+  return detail ? `${title}\n${detail}` : title;
+}
+
+async function testBackendConnection(
+  backend: Pick<Backend, "host" | "apiKey" | "kind">,
+): Promise<void> {
+  // Cloud backends authenticate via OAuth; preflight GET is not applicable.
+  if (backend.kind !== "local") return;
+
+  await new ServerClient(
+    getAgentServerClientOptions({
+      host: backend.host,
+      sessionApiKey: backend.apiKey || null,
+      timeout: 5000,
+    }),
+  ).getServerInfo();
+}
+
 /**
  * Live status row for the edit form: shows a connection dot, a
  * "Local"/"Cloud" label, and the agent server's reported version when
@@ -245,6 +281,7 @@ export interface BackendFormProps {
    */
   renderActions?: (state: {
     canSubmit: boolean;
+    isSubmitting: boolean;
     testIdRoot: string;
   }) => React.ReactNode;
   /** Used to disambiguate test ids across the same screen. */
@@ -292,6 +329,10 @@ export function BackendForm({
   const [name, setName] = React.useState(backend?.name ?? "");
   const [host, setHost] = React.useState(backend?.host ?? "");
   const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Inline validation: only show errors after the user has left a field.
   const [nameTouched, setNameTouched] = React.useState(false);
@@ -322,6 +363,8 @@ export function BackendForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
+
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
       // (e.g. user pressed Enter before filling required fields).
@@ -337,18 +380,34 @@ export function BackendForm({
       kind,
     };
 
-    if (onSubmitOverride) {
-      await onSubmitOverride(payload);
-      return;
-    }
+    setConnectionError(null);
+    setIsSubmitting(true);
 
-    if (mode === "edit" && backend) {
-      updateBackend(backend.id, payload);
-    } else {
-      addBackend(payload);
-    }
+    try {
+      if (onSubmitOverride) {
+        await onSubmitOverride(payload);
+        return;
+      }
 
-    onSubmitted();
+      await testBackendConnection(payload);
+
+      if (mode === "edit" && backend) {
+        updateBackend(backend.id, payload);
+      } else {
+        addBackend(payload);
+      }
+
+      onSubmitted();
+    } catch (error) {
+      setConnectionError(
+        getConnectionTestFailedMessage(
+          getConnectionTestFailedTitle(t, payload.host),
+          error,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -363,7 +422,10 @@ export function BackendForm({
         type="text"
         label={t(I18nKey.BACKEND$NAME_LABEL)}
         value={name}
-        onChange={setName}
+        onChange={(value) => {
+          setName(value);
+          setConnectionError(null);
+        }}
         onBlur={() => setNameTouched(true)}
         placeholder="Production"
         className="w-full"
@@ -377,7 +439,14 @@ export function BackendForm({
         type="text"
         label={t(I18nKey.BACKEND$HOST_LABEL)}
         value={host}
-        onChange={hostReadOnly ? undefined : setHost}
+        onChange={
+          hostReadOnly
+            ? undefined
+            : (value) => {
+                setHost(value);
+                setConnectionError(null);
+              }
+        }
         onBlur={() => setHostTouched(true)}
         placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
         className="w-full"
@@ -392,17 +461,34 @@ export function BackendForm({
         type="password"
         label={t(I18nKey.BACKEND$KEY_LABEL)}
         value={apiKey}
-        onChange={setApiKey}
+        onChange={(value) => {
+          setApiKey(value);
+          setConnectionError(null);
+        }}
         placeholder=""
         className="w-full"
       />
+
+      {connectionError ? (
+        <div
+          role="alert"
+          data-testid={`${testIdRoot}-error`}
+          className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
+        >
+          {connectionError}
+        </div>
+      ) : null}
 
       {mode === "edit" && backend && (
         <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
       )}
 
       {renderActions ? (
-        renderActions({ canSubmit, testIdRoot })
+        renderActions({
+          canSubmit: canSubmit && !isSubmitting,
+          isSubmitting,
+          testIdRoot,
+        })
       ) : (
         <div className="flex justify-end gap-2 mt-2 w-full">
           <BrandButton
@@ -416,7 +502,7 @@ export function BackendForm({
           <BrandButton
             type="submit"
             variant="primary"
-            isDisabled={!canSubmit}
+            isDisabled={!canSubmit || isSubmitting}
             testId={`${testIdRoot}-submit`}
           >
             {t(I18nKey.BACKEND$SAVE)}
@@ -457,6 +543,10 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const [name, setName] = React.useState("");
   const [host, setHost] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const kind: BackendKind = inferKindFromHost(host);
   const canSubmit =
@@ -464,17 +554,35 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
     isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    addBackend({
+    if (!canSubmit || isSubmitting) return;
+
+    const payload = {
       name: name.trim(),
       host: normalizeHost(host),
       apiKey: apiKey.trim(),
       kind,
-    });
-    redirectAfterAdd();
-    onClose();
+    };
+
+    setConnectionError(null);
+    setIsSubmitting(true);
+
+    try {
+      await testBackendConnection(payload);
+      addBackend(payload);
+      redirectAfterAdd();
+      onClose();
+    } catch (error) {
+      setConnectionError(
+        getConnectionTestFailedMessage(
+          getConnectionTestFailedTitle(t, payload.host),
+          error,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -490,7 +598,10 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           type="text"
           label={t(I18nKey.BACKEND$NAME_LABEL)}
           value={name}
-          onChange={setName}
+          onChange={(value) => {
+            setName(value);
+            setConnectionError(null);
+          }}
           placeholder="e.g. My Server"
           className="w-full"
         />
@@ -506,7 +617,10 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           type="text"
           label={t(I18nKey.BACKEND$HOST_LABEL)}
           value={host}
-          onChange={setHost}
+          onChange={(value) => {
+            setHost(value);
+            setConnectionError(null);
+          }}
           placeholder="http://localhost:8000"
           className="w-full"
         />
@@ -524,19 +638,34 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         type="password"
         label={t(I18nKey.BACKEND$KEY_LABEL)}
         value={apiKey}
-        onChange={setApiKey}
+        onChange={(value) => {
+          setApiKey(value);
+          setConnectionError(null);
+        }}
         placeholder="sk-••••••••••"
         className="w-full"
       />
 
+      {connectionError ? (
+        <div
+          role="alert"
+          data-testid="add-backend-error"
+          className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
+        >
+          {connectionError}
+        </div>
+      ) : null}
+
       <BrandButton
         type="submit"
         variant="secondary"
-        isDisabled={!canSubmit}
+        isDisabled={!canSubmit || isSubmitting}
         testId="add-backend-submit"
         className="w-full text-center"
       >
-        {t(I18nKey.BACKEND$CONNECT)}
+        {isSubmitting
+          ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
+          : t(I18nKey.BACKEND$CONNECT)}
       </BrandButton>
     </form>
   );

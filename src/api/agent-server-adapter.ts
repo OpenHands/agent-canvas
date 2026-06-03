@@ -368,7 +368,6 @@ type ConversationSettingsPayload = SettingsRecord & {
 const ACP_SETTINGS_KEYS = [
   "acp_command",
   "acp_args",
-  "acp_env",
   "acp_model",
   "acp_session_mode",
   "acp_prompt_timeout",
@@ -622,6 +621,10 @@ function buildConfiguredOpenHandsAgentSettings(
   for (const key of ACP_SETTINGS_KEYS) {
     delete agentSettings[key];
   }
+  // ``acp_env`` is no longer a forwarded ACP setting (provider creds ride the
+  // Secrets panel), but a legacy value may linger on persisted settings —
+  // scrub it so it never leaks onto the OpenHands payload.
+  delete agentSettings.acp_env;
 
   return {
     ...agentSettings,
@@ -797,7 +800,7 @@ export function buildStartConversationRequest(
 
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const headers = buildAuthHeaders(backend);
+    const headers = backend ? buildAuthHeaders(backend) : {};
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {
