@@ -44,7 +44,9 @@ function limitItems<T>(items: T[], limit?: number): T[] {
   return items.slice(0, limit);
 }
 
-function buildCloudQueryString(params: Record<string, string | number | boolean | undefined>): string {
+function buildCloudQueryString(
+  params: Record<string, string | number | boolean | undefined>,
+): string {
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) qs.set(key, String(value));
