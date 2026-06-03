@@ -152,7 +152,7 @@ describe("backend-registry storage", () => {
     expect(readStoredBackends()).toEqual([storedBackend]);
   });
 
-  it("preserves a non-empty stored API key instead of syncing from env defaults", () => {
+  it("syncs a stale default Local API key from env defaults", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
@@ -169,6 +169,70 @@ describe("backend-registry storage", () => {
 
     expect(readStoredBackends()[0]).toMatchObject({
       id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+  });
+
+  it("syncs a stale default Local API key across localhost and 127.0.0.1", () => {
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: "http://localhost:8000",
+          apiKey: "stored-session-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    expect(readStoredBackends()[0]).toMatchObject({
+      id: "default-local",
+      host: "http://localhost:8000",
+      apiKey: "fresh-session-key",
+    });
+  });
+
+  it("preserves a custom backend API key instead of syncing from env defaults", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    const storedBackend: Backend = {
+      id: "custom-local",
+      name: "Custom Local",
+      host: window.location.origin,
+      apiKey: "stored-session-key",
+      kind: "local",
+    };
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([storedBackend]),
+    );
+
+    expect(readStoredBackends()[0]).toMatchObject({
+      id: "custom-local",
+      apiKey: "stored-session-key",
+    });
+  });
+
+  it("preserves a user-edited non-loopback default Local backend API key", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    const storedBackend: Backend = {
+      id: "default-local",
+      name: "Edited Local",
+      host: "https://example.com",
+      apiKey: "stored-session-key",
+      kind: "local",
+    };
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([storedBackend]),
+    );
+
+    expect(readStoredBackends()[0]).toMatchObject({
+      id: "default-local",
+      host: "https://example.com",
       apiKey: "stored-session-key",
     });
   });

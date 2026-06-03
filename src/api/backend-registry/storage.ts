@@ -73,6 +73,59 @@ function seedBackends(backends: Backend[]): Backend[] {
   return backends;
 }
 
+function isLoopbackUrl(value: string): boolean {
+  try {
+    const { hostname } = new URL(value);
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function shouldSyncLauncherDefaultLocalBackend(
+  backend: Backend,
+  defaultBackend: Backend,
+): boolean {
+  if (backend.id !== DEFAULT_LOCAL_BACKEND_ID || backend.kind !== "local") {
+    return false;
+  }
+
+  return (
+    backend.host === defaultBackend.host ||
+    (isLoopbackUrl(backend.host) && isLoopbackUrl(defaultBackend.host))
+  );
+}
+
+function syncLauncherDefaultLocalBackend(backends: Backend[]): Backend[] {
+  const defaultBackend = makeDefaultLocalBackend();
+  if (!defaultBackend) return backends;
+
+  let didSync = false;
+  const syncedBackends = backends.map((backend) => {
+    if (!shouldSyncLauncherDefaultLocalBackend(backend, defaultBackend)) {
+      return backend;
+    }
+
+    if (backend.apiKey === defaultBackend.apiKey) return backend;
+
+    didSync = true;
+    return {
+      ...backend,
+      apiKey: defaultBackend.apiKey,
+    };
+  });
+
+  if (!didSync) return backends;
+
+  writeStoredBackends(syncedBackends);
+  return syncedBackends;
+}
+
 export function writeStoredBackends(backends: Backend[]): void {
   if (typeof window === "undefined") return;
   try {
@@ -114,8 +167,9 @@ export function readStoredBackends(): Backend[] {
       return seedBackends([defaultBackend]);
     }
 
+    const synced = syncLauncherDefaultLocalBackend(valid);
     clearLegacyBackendConfig();
-    return valid;
+    return synced;
   } catch {
     return [];
   }
