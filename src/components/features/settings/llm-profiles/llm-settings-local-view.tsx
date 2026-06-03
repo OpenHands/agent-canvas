@@ -11,6 +11,7 @@ import { ProfileNameInput } from "./profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
@@ -31,7 +32,7 @@ import {
   normalizeFieldValue,
   SettingsFormValues,
 } from "#/utils/sdk-settings-schema";
-import { ArrowLeft } from "lucide-react";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
 
@@ -49,6 +50,20 @@ interface EditingProfile {
   baseConfig: Record<string, unknown>;
 }
 
+export function shouldReapplyProfileAfterSave({
+  activeProfileName,
+  originalName,
+  savedName,
+}: {
+  activeProfileName: string | null | undefined;
+  originalName: string | null | undefined;
+  savedName: string;
+}): boolean {
+  if (!activeProfileName) return false;
+  if (originalName) return activeProfileName === originalName;
+  return activeProfileName === savedName;
+}
+
 /**
  * LlmSettingsLocalView provides an integrated view for managing LLM profiles
  * in local agent-server mode. It supports listing, creating, and editing profiles.
@@ -63,6 +78,7 @@ export function LlmSettingsLocalView() {
   const { t } = useTranslation("openhands");
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
+  const activateProfile = useActivateLlmProfile();
   const { data: profilesData } = useLlmProfiles();
   const { data: settings } = useSettings();
   const { data: agentSchema } = useAgentSettingsSchema(
@@ -269,7 +285,11 @@ export function LlmSettingsLocalView() {
     const originalName = editingProfile?.profile.name;
     const isRename =
       viewMode === "edit" && originalName && originalName !== trimmedName;
-    const wasActive = profilesData?.active_profile === originalName;
+    const shouldReapplyActiveProfile = shouldReapplyProfileAfterSave({
+      activeProfileName: profilesData?.active_profile,
+      originalName,
+      savedName: trimmedName,
+    });
 
     setIsSaving(true);
     try {
@@ -290,10 +310,11 @@ export function LlmSettingsLocalView() {
         },
       });
 
-      // If the renamed profile was the active profile, re-activate it
-      // (the rename operation doesn't automatically update active_profile)
-      if (isRename && wasActive) {
-        await ProfilesService.activateProfile(trimmedName);
+      // Conversation start uses agent_settings.llm, not the profile row
+      // directly. Re-applying an active profile keeps those settings in sync
+      // after editing or recreating a profile with the active profile name.
+      if (shouldReapplyActiveProfile) {
+        await activateProfile.mutateAsync(trimmedName);
       }
 
       displaySuccessToast(
@@ -316,6 +337,7 @@ export function LlmSettingsLocalView() {
     editingProfile,
     profilesData?.active_profile,
     saveProfile,
+    activateProfile,
     t,
     handleBackToList,
   ]);
@@ -346,15 +368,9 @@ export function LlmSettingsLocalView() {
     <div className="flex flex-col gap-6">
       {/* Header with back button */}
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={handleBackToList}
-          className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-          data-testid="back-to-profiles"
-        >
-          <ArrowLeft size={20} aria-hidden />
-          <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-        </button>
+        <BackNavButton testId="back-to-profiles" onClick={handleBackToList}>
+          {t(I18nKey.BUTTON$BACK)}
+        </BackNavButton>
         <Typography.H2 testId="profile-editor-title">
           {profileEditorTitle}
         </Typography.H2>
@@ -394,11 +410,11 @@ export function LlmSettingsLocalView() {
       />
 
       {/* Action buttons */}
-      <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
+      <div className="flex justify-start gap-3 pt-4">
         <BrandButton
           testId="cancel-profile-btn"
           type="button"
-          variant="tertiary"
+          variant="secondary"
           onClick={handleBackToList}
         >
           {t(I18nKey.BUTTON$CANCEL)}

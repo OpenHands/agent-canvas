@@ -35,6 +35,7 @@
   --color-muted: var(--oh-muted);
   --color-text-dim: var(--oh-text-dim);
   --color-text-subtle: var(--oh-text-subtle);
+  --color-modal-title: var(--oh-modal-title-foreground);
 
   /* Semantic border aliases */
   --color-border-input: var(--oh-border-input);
@@ -82,6 +83,7 @@
   --oh-surface-deep: var(--cool-grey-975);    /* deep inset, context menus */
   --oh-overlay: var(--cool-grey-925);
   --oh-overlay-foreground: var(--cool-grey-100);
+  --oh-modal-title-foreground: #ffffff;
   --oh-muted: var(--cool-grey-400);
   --oh-text-secondary: var(--cool-grey-300);  /* readable secondary text */
   --oh-text-tertiary: var(--cool-grey-200);   /* tertiary, slightly dimmer */
@@ -602,6 +604,32 @@ button.extension-module-card-interactive {
     radial-gradient(circle at center, rgb(24 24 27 / 85%), transparent) -200%
       50% / 200% 100% no-repeat,
     var(--cool-grey-50);
+}
+
+/* Flowing gradient text used for live agent activity (matches Proton). */
+@keyframes gradient-slide {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-flow {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--oh-muted) 0%,
+    var(--oh-foreground) 50%,
+    var(--oh-muted) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-slide 1.25s linear infinite;
 }
 
 /* CTA card gradient and shadow */

@@ -1,5 +1,7 @@
+import { useTranslation } from "react-i18next";
 import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { cn } from "#/utils/utils";
+import { getTaskStatusI18nKey } from "#/utils/status";
 
 interface StartTaskStatusBadgeProps {
   taskStatus: AppConversationStartTaskStatus;
@@ -8,17 +10,16 @@ interface StartTaskStatusBadgeProps {
 export function StartTaskStatusBadge({
   taskStatus,
 }: StartTaskStatusBadgeProps) {
+  const { t } = useTranslation("openhands");
+
   // Don't show badge for WORKING status (most common, clutters UI)
   if (taskStatus === "WORKING") {
     return null;
   }
 
-  // Format status for display
-  const formatStatus = (status: string) =>
-    status
-      .toLowerCase()
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+  // Localized status label — getTaskStatusI18nKey maps every status (including
+  // the terminal READY/ERROR states) to its localized key.
+  const getStatusLabel = () => t(getTaskStatusI18nKey(taskStatus));
 
   // Get status color
   const getStatusStyle = () => {
@@ -39,7 +40,7 @@ export function StartTaskStatusBadge({
         getStatusStyle(),
       )}
     >
-      {formatStatus(taskStatus)}
+      {getStatusLabel()}
     </span>
   );
 }

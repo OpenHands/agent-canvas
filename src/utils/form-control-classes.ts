@@ -9,13 +9,56 @@ export const formControlBorderClassName = "border border-[var(--oh-border)]";
 
 export const formControlSurfaceClassName = "bg-base-secondary";
 
+/** Shared transition duration for form controls and chrome buttons. */
+export const formControlTransitionDurationClassName = "duration-75";
+
+export const formControlHeroUiTransitionDurationClassName = "!duration-75";
+
+export const formControlMotionReduceClassName = "motion-reduce:transition-none";
+
+/** Shell properties that animate on hover/focus; foreground color snaps instantly. */
+export const formControlTransitionPropertiesClassName =
+  "transition-[background-color,border-color,box-shadow,opacity]";
+
 /** Animate shell chrome on hover/focus; foreground color snaps instantly. */
-export const formControlTransitionClassName =
-  "transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none";
+export const formControlTransitionClassName = cn(
+  formControlTransitionPropertiesClassName,
+  formControlTransitionDurationClassName,
+  formControlMotionReduceClassName,
+);
 
 /** HeroUI input wrappers ship `transition-colors`; override so caret/text hover is instant. */
-export const formControlHeroUiWrapperTransitionClassName =
-  "!transition-[background-color,border-color,box-shadow,opacity] !duration-150 motion-reduce:transition-none";
+export const formControlHeroUiWrapperTransitionClassName = cn(
+  "!transition-[background-color,border-color,box-shadow,opacity]",
+  formControlHeroUiTransitionDurationClassName,
+  formControlMotionReduceClassName,
+);
+
+/** Transform-only transitions (e.g. combobox carets). */
+export const formControlTransformTransitionClassName = cn(
+  "transition-[transform] ease",
+  formControlTransitionDurationClassName,
+  formControlMotionReduceClassName,
+);
+
+/** Muted icon/pill controls: instant foreground, fading shell on hover. */
+export const formControlMutedHoverClassName =
+  "hover:text-white hover:bg-white/10";
+
+/** Text/icon pill triggers in the chat input actions row. */
+export const chatInputPillButtonClassName = cn(
+  "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5",
+  "text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 cursor-pointer",
+  formControlTransitionClassName,
+  formControlMutedHoverClassName,
+);
+
+/** Circular icon triggers in the chat input actions row. */
+export const chatInputIconButtonClassName = cn(
+  "flex items-center justify-center rounded-full text-[var(--oh-muted)] cursor-pointer",
+  formControlTransitionClassName,
+  formControlMutedHoverClassName,
+);
 
 export const formControlFocusClassName =
   "focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none";
@@ -92,4 +135,12 @@ export const formControlFilterTriggerClassName = cn(
   formControlBorderClassName,
   formControlSurfaceClassName,
   "shrink-0 text-white",
+);
+
+/** Muted back navigation control with tertiary hover fill (settings sub-pages, detail views). */
+export const formControlBackNavButtonClassName = cn(
+  "inline-flex items-center gap-2 self-start rounded-lg p-2",
+  "text-sm font-normal leading-5 text-[var(--oh-muted)] cursor-pointer",
+  formControlTransitionClassName,
+  "hover:bg-tertiary hover:text-white",
 );

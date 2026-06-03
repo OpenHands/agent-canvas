@@ -25,8 +25,18 @@ on:
         type: string
         default: ""
 
+# Concurrency: deduplicate runs for the same logical trigger.
+# - pull_request: keyed by PR number (pushes to the same PR cancel earlier runs)
+# - workflow_run: keyed by the triggering workflow's branch (e.g. "wr-main"),
+#   so multiple Docker builds completing on main don't pile up separate E2E runs
+# - workflow_dispatch / fallback: keyed by ref
 concurrency:
-  group: mock-llm-docker-e2e-${{ github.event.workflow_run.id || github.event.pull_request.number || github.ref }}
+  group: >-
+    mock-llm-docker-e2e-${{
+      github.event.pull_request.number ||
+      (github.event.workflow_run.id && format('wr-{0}', github.event.workflow_run.head_branch)) ||
+      github.ref
+    }}
   cancel-in-progress: true
 
 permissions:
@@ -37,13 +47,18 @@ permissions:
 
 jobs:
   mock-llm-docker-e2e:
-    # workflow_run: only run if the Docker build succeeded.
+    # workflow_run: only for main/master — validates the published image.
+    #   PR branches are already covered by the pull_request trigger below;
+    #   without this guard, both triggers fire for e2e-tests PRs, producing
+    #   duplicate (and potentially contradictory) comment pairs.
     # pull_request: only run with the 'e2e-tests' label, skip fork PRs (no GHCR push).
     # workflow_dispatch: always run.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success') ||
+       github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'main' ||
+        github.event.workflow_run.head_branch == 'master')) ||
       (github.event_name == 'pull_request' &&
        contains(github.event.pull_request.labels.*.name, 'e2e-tests') &&
        !github.event.pull_request.head.repo.fork)
@@ -58,20 +73,23 @@ jobs:
       # ── Resolve which commit / PR to test ──────────────────────────────
       - name: Resolve source context
         id: ctx
+        env:
+          GITHUB_REF_VALUE: ${{ github.ref }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # workflow_run only fires for main (job-level `if` guard), so
+            # this path always tests the main-branch Docker image. Never
+            # post PR comments — results go to the step summary only.
             echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            PR_NUMBER=$(echo '${{ toJSON(github.event.workflow_run.pull_requests) }}' \
-              | jq -r '.[0].number // empty')
-            echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
             echo "ref=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
             echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
             echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$GITHUB_REF_VALUE" >> "$GITHUB_OUTPUT"
             echo "pr_number=" >> "$GITHUB_OUTPUT"
           fi
 
@@ -138,9 +156,11 @@ jobs:
       # ── Resolve Docker image tag ───────────────────────────────────────
       - name: Resolve Docker image
         id: image
+        env:
+          DOCKER_IMAGE_INPUT: ${{ inputs.docker_image }}
         run: |
-          if [ -n "${{ inputs.docker_image }}" ]; then
-            echo "tag=${{ inputs.docker_image }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$DOCKER_IMAGE_INPUT" ]; then
+            echo "tag=$DOCKER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
             SHORT_SHA=$(echo "${{ steps.ctx.outputs.sha }}" | cut -c1-7)
             # Use the amd64-specific tag (always pushed by the Docker workflow).
@@ -155,9 +175,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull Docker image
+        env:
+          DOCKER_IMAGE_TAG: ${{ steps.image.outputs.tag }}
         run: |
-          echo "Pulling ${{ steps.image.outputs.tag }}..."
-          docker pull "${{ steps.image.outputs.tag }}"
+          echo "Pulling $DOCKER_IMAGE_TAG..."
+          docker pull "$DOCKER_IMAGE_TAG"
 
       # ── Test infrastructure setup ──────────────────────────────────────
       - name: Set up Node.js
@@ -196,9 +218,11 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install openhands-sdk (for mock LLM server)
+        env:
+          AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
 
       - name: Verify mock LLM server starts
         run: |

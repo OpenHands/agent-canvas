@@ -137,7 +137,7 @@ export function PluginLaunchModal({
         )}
       >
         <ModalCloseButton onClose={onClose} testId="close-button" />
-        <Typography.H2 className="pr-6 text-content-2">
+        <Typography.H2 className="pr-6">
           {t(I18nKey.LAUNCH$MODAL_TITLE)} {modalTitle}
         </Typography.H2>
 
