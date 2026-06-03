@@ -383,7 +383,7 @@ export function ChatMessage({
           role="status"
           aria-live="polite"
           data-testid="chat-message-sending"
-          className="text-sm font-normal text-[var(--oh-muted)]"
+          className="gradient-flow text-sm font-normal"
         >
           {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
         </span>
