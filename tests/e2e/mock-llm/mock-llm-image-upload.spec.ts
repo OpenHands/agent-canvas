@@ -81,14 +81,24 @@ test.describe("mock-LLM image upload", () => {
 
     await ensureMockLLMProfile(request);
 
-    // ── 2. Register and activate a simple text-reply trajectory ──
+    // ── 2. Register and activate the trajectory ──
     //    The mock LLM ignores the request body, so we don't need the agent to
     //    "understand" the image — we just want a reply that proves the LLM was
     //    called and the conversation completed successfully.
+    //
+    //    ⚠️  Padding note (mirrors the automation test's pattern):
+    //    When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
+    //    the agent-server may make one internal LLM call for skill-analysis
+    //    before the agent loop starts, consuming one trajectory slot.
+    //    Turn 0 is a throwaway empty response that absorbs this internal call.
+    //    Turn 1 is the agent's actual reply (IMAGE_REPLY_TOKEN).
+    //    Turn 2 is a safety buffer in case a follow-up internal call is made.
 
     await resetMockLLM(request); // clears request history too
     await registerTrajectory(request, TRAJECTORY_NAME, [
-      { text: IMAGE_REPLY_TOKEN },
+      { text: "" },              // 0: padding — absorbs any internal skill-activation call
+      { text: IMAGE_REPLY_TOKEN }, // 1: agent's actual reply
+      { text: "" },              // 2: safety buffer for any follow-up internal call
     ]);
     await activateTrajectory(request, TRAJECTORY_NAME);
 
