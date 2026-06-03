@@ -233,14 +233,14 @@ describe("OnboardingModal", () => {
     );
   });
 
-  it("pre-fills the LLM step with the OpenHands provider", () => {
+  it("pre-fills the LLM step with the Anthropic provider's Claude Opus model", () => {
     renderModal();
 
     expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
     expect(llmSettingsScreenMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialValueOverrides: {
-          "llm.model": "openhands/claude-opus-4-5-20251101",
+          "llm.model": "anthropic/claude-opus-4-8",
         },
       }),
     );
