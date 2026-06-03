@@ -27,6 +27,8 @@ import { RecommendedAutomationsSection } from "./recommended-automations-section
 interface RecommendedAutomationsLauncherProps {
   query?: string;
   onLaunched?: () => void;
+  /** When true, only the automation card grid scrolls inside its section. */
+  scrollableGrid?: boolean;
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
@@ -49,6 +51,7 @@ export function buildAutomationPrompt(basePrompt: string): string {
 export function RecommendedAutomationsLauncher({
   query,
   onLaunched,
+  scrollableGrid = false,
 }: RecommendedAutomationsLauncherProps) {
   const activeBackend = useActiveBackend();
   const { navigate } = useNavigation();
@@ -185,6 +188,7 @@ export function RecommendedAutomationsLauncher({
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}
+        scrollableGrid={scrollableGrid}
       />
 
       {installEntry && (

@@ -66,4 +66,20 @@ describe("ModalBackdrop", () => {
     expect(callsAfterContentClick).toBe(0);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("does not call onClose when the backdrop is clicked and closeOnBackdropClick is false", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <ModalBackdrop onClose={onClose} closeOnBackdropClick={false}>
+        <button type="button">inside content</button>
+      </ModalBackdrop>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const backdrop = dialog.firstElementChild as HTMLElement;
+    await user.click(backdrop);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

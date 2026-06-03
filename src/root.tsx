@@ -16,6 +16,7 @@ import {
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
 import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
+import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -117,7 +118,17 @@ export default function App() {
   // Flag-based gate: in public mode (VITE_AUTH_REQUIRED=true) with no
   // session key yet, show the auth screen immediately — no network
   // round-trip needed.
-  const authMissing = isAuthRequiredAndMissing();
+  //
+  // `isAuthRequiredAndMissing()` only checks for a *baked-in* session
+  // key (env var / window global). In public mode the baked key is
+  // intentionally absent — the user enters it through the auth screen,
+  // which persists it to the backend registry (localStorage). After a
+  // reload the baked key is still null, but the registry has the key.
+  // So: skip the instant gate when a registered backend already carries
+  // an API key — let the normal /server_info probe validate it instead.
+  const bakedKeyMissing = isAuthRequiredAndMissing();
+  const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
+  const authMissing = bakedKeyMissing && !hasRegisteredKey;
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time.
