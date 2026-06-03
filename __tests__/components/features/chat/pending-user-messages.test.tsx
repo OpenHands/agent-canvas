@@ -33,7 +33,7 @@ describe("PendingUserMessages", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders each queued message with the faded 'sending' treatment", () => {
+  it("renders each queued message with the sending treatment", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
       conversationId: ACTIVE_CONVO,
       text: "first message",

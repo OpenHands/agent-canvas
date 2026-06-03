@@ -16,13 +16,13 @@ const USER_MESSAGE_LINE_HEIGHT_PX = 24;
 function UserMessageBody({
   message,
   isHovering,
-  showStopButton,
+  reserveStopButtonSpace,
   isExpanded,
   onTruncatableChange,
 }: {
   message: string;
   isHovering: boolean;
-  showStopButton: boolean;
+  reserveStopButtonSpace: boolean;
   isExpanded: boolean;
   onTruncatableChange: (truncatable: boolean) => void;
 }) {
@@ -78,7 +78,7 @@ function UserMessageBody({
         ref={contentRef}
         className={cn(
           "text-sm leading-6 whitespace-normal [word-break:break-word]",
-          showStopButton && "pr-7",
+          reserveStopButtonSpace && "pr-8",
           isCollapsed && "line-clamp-3",
         )}
       >
@@ -138,6 +138,9 @@ export function ChatMessage({
   const [isCopy, setIsCopy] = React.useState(false);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [isTruncatable, setIsTruncatable] = React.useState(false);
+  const [isSingleLinePendingMessage, setIsSingleLinePendingMessage] =
+    React.useState(true);
+  const pendingMessageContentRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     setIsExpanded(false);
@@ -165,24 +168,55 @@ export function ChatMessage({
   const isPendingUserMessage =
     type === "user" &&
     (pendingStatus === "error" || pendingStatus === "sending");
-  const showStopButton =
-    pendingStatus === "sending" && onStop != null && isHovering;
+  const canStopPendingMessage = pendingStatus === "sending" && onStop != null;
+  const showStopButton = canStopPendingMessage && isHovering;
   const useTruncatedUserBody = type === "user" && pendingStatus == null;
   const isCollapsed = useTruncatedUserBody && isTruncatable && !isExpanded;
+
+  React.useLayoutEffect(() => {
+    if (!canStopPendingMessage || useTruncatedUserBody) {
+      return undefined;
+    }
+
+    const content = pendingMessageContentRef.current;
+    if (!content) {
+      return undefined;
+    }
+
+    const measure = () => {
+      const lineHeight = Number.parseFloat(
+        getComputedStyle(content).lineHeight,
+      );
+      const linePx =
+        Number.isFinite(lineHeight) && lineHeight > 0
+          ? lineHeight
+          : USER_MESSAGE_LINE_HEIGHT_PX;
+
+      setIsSingleLinePendingMessage(content.scrollHeight <= linePx + 1);
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, [message, canStopPendingMessage, useTruncatedUserBody]);
 
   const messageContent = useTruncatedUserBody ? (
     <UserMessageBody
       message={message}
       isHovering={isHovering}
-      showStopButton={showStopButton}
+      reserveStopButtonSpace={canStopPendingMessage}
       isExpanded={isExpanded}
       onTruncatableChange={setIsTruncatable}
     />
   ) : (
     <div
+      ref={pendingMessageContentRef}
       className={cn(
-        "text-sm whitespace-normal [word-break:break-word]",
-        showStopButton && "pr-7",
+        "text-sm leading-6 whitespace-normal [word-break:break-word]",
+        canStopPendingMessage && "pr-8",
       )}
     >
       <MarkdownRenderer includeStandard includeHeadings>
@@ -200,15 +234,11 @@ export function ChatMessage({
       className={cn(
         "rounded-xl relative w-fit max-w-full",
         "flex flex-col gap-2",
-        type === "user" && "p-4 bg-tertiary self-end",
+        type === "user" && "mt-6 p-4 bg-tertiary self-end",
         type === "agent" && "mt-6 w-full max-w-full bg-transparent",
         isFromPlanningAgent &&
           type === "agent" &&
           "border border-[#597ff4] bg-tertiary p-4 mt-2",
-        pendingStatus === "sending" &&
-          (isHovering
-            ? "opacity-100 bg-[var(--oh-interactive-hover)]"
-            : "opacity-60"),
         pendingStatus === "error" &&
           "border border-[var(--oh-status-error)]/40",
         !isPendingUserMessage && "last:mb-4",
@@ -255,7 +285,7 @@ export function ChatMessage({
         />
       </div>
 
-      {showStopButton ? (
+      {canStopPendingMessage ? (
         <button
           type="button"
           onClick={(event) => {
@@ -264,9 +294,17 @@ export function ChatMessage({
           }}
           data-testid="chat-message-stop"
           aria-label={t(I18nKey.BUTTON$STOP)}
-          className="absolute bottom-2 right-2 z-10 inline-flex cursor-pointer items-center justify-center rounded-md border border-[var(--oh-border)] bg-tertiary p-1 text-[var(--oh-foreground)] hover:bg-[var(--oh-surface-raised)]"
+          aria-hidden={!showStopButton}
+          tabIndex={showStopButton ? 0 : -1}
+          className={cn(
+            "absolute right-2 z-10 inline-flex cursor-pointer items-center justify-center text-[var(--oh-foreground)] transition-opacity duration-150 hover:opacity-80",
+            isSingleLinePendingMessage
+              ? "top-1/2 -translate-y-1/2"
+              : "bottom-2",
+            showStopButton ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
         >
-          <StopCircleIcon className="block h-4 w-4 max-w-none text-current" />
+          <StopCircleIcon className="block h-7 w-7 max-w-none text-current" />
         </button>
       ) : null}
 
@@ -320,7 +358,7 @@ export function ChatMessage({
           role="status"
           aria-live="polite"
           data-testid="chat-message-sending"
-          className="text-xs italic text-content-muted"
+          className="text-sm font-normal text-[var(--oh-muted)]"
         >
           {t(I18nKey.CHAT_INTERFACE$MESSAGE_SENDING)}
         </span>
