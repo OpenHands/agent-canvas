@@ -120,6 +120,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         <LlmSettingsScreen
           embedded
           hideSaveButton
+          suppressSuccessToast
           initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}

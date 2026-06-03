@@ -72,7 +72,7 @@ export function SayHelloStep({
   return (
     <div
       data-testid="onboarding-step-say-hello"
-      className="flex max-h-[calc(90vh-7rem)] flex-col gap-6"
+      className="flex max-h-[calc(90vh-7rem)] flex-col"
     >
       <header className="flex shrink-0 flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">
@@ -86,7 +86,7 @@ export function SayHelloStep({
       <form
         onSubmit={handleSubmit}
         data-testid="onboarding-hello-input-form"
-        className="box-border flex w-full shrink-0 flex-col items-start justify-center rounded-[15px] border border-[var(--oh-border)] bg-surface-raised p-4"
+        className="mt-6 box-border flex w-full shrink-0 flex-col items-start justify-center rounded-[15px] border border-[var(--oh-border)] bg-surface-raised p-4"
       >
         <div className="relative w-full">
           <div className="box-border flex w-full shrink-0 flex-row items-end justify-between gap-2 p-0 pb-[18px]">
@@ -119,7 +119,7 @@ export function SayHelloStep({
 
       <div
         data-testid="onboarding-recommended-automations"
-        className="flex min-h-0 flex-1 flex-col"
+        className="mt-6 flex min-h-0 flex-1 flex-col"
       >
         <RecommendedAutomationsLauncher
           onLaunched={onLaunched}
@@ -127,7 +127,7 @@ export function SayHelloStep({
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div className="flex shrink-0 items-center justify-between gap-2 bg-base-secondary pt-7 pb-7">
         <BrandButton
           testId="onboarding-hello-back"
           type="button"
