@@ -2,7 +2,7 @@
 /**
  * CLI entry point for @openhands/agent-canvas
  *
- * Runs the full Agent Canvas stack locally:
+ * Runs the full Agent Canvas stack locally by default:
  * - Agent-server via uvx
  * - Automation backend via uvx
  * - Pre-built static frontend
@@ -50,6 +50,9 @@ Override versions via environment variables:
   process.exit(0);
 }
 const isPublic = args.includes("--public");
+const isFrontendOnly = args.includes("--frontend-only");
+const isBackendOnly = args.includes("--backend-only");
+
 if (args.includes("-h") || args.includes("--help")) {
   console.log(`
 @openhands/agent-canvas - Run the Agent Canvas UI with agent-server
@@ -71,6 +74,8 @@ AUTH MODES:
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
   --public              Enable public mode (see above)
+  --frontend-only       Start only the static frontend behind ingress
+  --backend-only        Start only agent-server + automation behind ingress
   -v, --version         Show version number
   --info                Show version and default stack configuration
   -h, --help            Show this help message
@@ -100,6 +105,12 @@ EXAMPLES:
   # Use a specific port
   npx @openhands/agent-canvas --port 3000
 
+  # Start only the static frontend behind ingress
+  npx @openhands/agent-canvas --frontend-only
+
+  # Start only the agent-server and automation backend behind ingress
+  npx @openhands/agent-canvas --backend-only
+
   # Show default stack versions and ports
   npx @openhands/agent-canvas --info
 
@@ -109,8 +120,20 @@ EXAMPLES:
   process.exit(0);
 }
 
-// Check build exists before doing anything else
-if (!existsSync(BUILD_DIR)) {
+if (isFrontendOnly && isBackendOnly) {
+  console.error(
+    "Error: --frontend-only and --backend-only cannot be used together",
+  );
+  process.exit(1);
+}
+
+if (isFrontendOnly && isPublic) {
+  console.error("Error: --public cannot be used with --frontend-only");
+  process.exit(1);
+}
+
+// Check build exists before doing anything else unless no frontend will run.
+if (!isBackendOnly && !existsSync(BUILD_DIR)) {
   console.error(`
 Error: No build found at ${BUILD_DIR}
 

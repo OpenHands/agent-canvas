@@ -72,6 +72,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     host: "0.0.0.0",
     dir: "build",
     routes: {},
+    rejectPrefixes: [],
     sessionApiKey: null,
     authRequired: false,
   };
@@ -112,6 +113,16 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case "--auth-required":
         config.authRequired = true;
         break;
+      case "--reject-prefix": {
+        const prefix = argv[++i];
+        if (!prefix || !prefix.startsWith("/")) {
+          throw new Error(
+            `--reject-prefix value must start with '/': ${prefix ?? "(empty)"}`,
+          );
+        }
+        config.rejectPrefixes.push(prefix);
+        break;
+      }
       case "-h":
       case "--help":
         showHelp();
@@ -156,11 +167,18 @@ OPTIONS:
   --auth-required              Inject authRequired flag into index.html so the
                                pre-built frontend shows the API key entry screen
                                (public mode) without VITE_AUTH_REQUIRED baked in.
+  --reject-prefix <prefix>     Return 503 for requests matching <prefix>
+                               instead of SPA-fallbacking to index.html;
+                               may be repeated. Useful in --frontend-only
+                               mode to cleanly reject API paths.
   -h, --help                   Show this help
 
 ROUTING:
   • Routes are matched by longest prefix first (most-specific wins).
-  • Anything that does not match a route is served from --dir.
+  • Reject prefixes are checked before SPA fallback — matching requests
+    get 503 immediately.
+  • Anything that does not match a route or reject prefix is served
+    from --dir.
   • Unknown paths fall back to index.html (SPA mode), unless they look
     like an asset request (have a known file extension), in which case
     a 404 is returned.
@@ -429,7 +447,13 @@ async function serveFile(req, res, filePath, urlPath) {
   return true;
 }
 
-async function handleStatic(req, res, dirAbs, injectionOpts = {}) {
+async function handleStatic(
+  req,
+  res,
+  dirAbs,
+  injectionOpts = {},
+  rejectPrefixes = [],
+) {
   const rawPath = req.url.split("?")[0];
   let urlPath;
   try {
@@ -464,6 +488,23 @@ async function handleStatic(req, res, dirAbs, injectionOpts = {}) {
 
   if (await serveFile(req, res, filePath, urlPath)) return;
 
+  // Reject prefixes: return 503 for known API paths that have no backend
+  // configured (e.g. in --frontend-only mode). Checked before SPA fallback
+  // so these paths never silently serve index.html.
+  if (rejectPrefixes.length > 0) {
+    for (const prefix of rejectPrefixes) {
+      if (
+        urlPath === prefix ||
+        urlPath.startsWith(prefix + "/") ||
+        urlPath.startsWith(prefix + "?")
+      ) {
+        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Service Unavailable (no backend configured for this route)");
+        return;
+      }
+    }
+  }
+
   // SPA fallback: only for non-asset requests, and not for non-GET/HEAD.
   if (
     (req.method === "GET" || req.method === "HEAD") &&
@@ -491,6 +532,7 @@ export function startStaticServer(config) {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
   };
+  const rejectPrefixes = config.rejectPrefixes ?? [];
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
@@ -498,7 +540,7 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs, injectionOpts).catch((err) => {
+    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {
         res.writeHead(500);
@@ -528,6 +570,11 @@ export function startStaticServer(config) {
       );
       for (const [prefix, backend] of sortedRoutes) {
         console.log(`  ${prefix} -> ${backend}`);
+      }
+      if (rejectPrefixes.length > 0) {
+        for (const prefix of rejectPrefixes) {
+          console.log(`  ${prefix} -> 503 (rejected)`);
+        }
       }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");
