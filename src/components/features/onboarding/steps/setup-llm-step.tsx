@@ -1,6 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
+import { verifyLlmConfig } from "#/api/llm-verify-service";
 import { I18nKey } from "#/i18n/declaration";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-settings/sdk-section-page";
@@ -44,6 +49,10 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const [saveControl, setSaveControl] =
     React.useState<SdkSectionSaveControl | null>(null);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
+  const [verifyState, setVerifyState] = React.useState<LlmVerifyState>({
+    status: "idle",
+  });
+  const [isVerifying, setIsVerifying] = React.useState(false);
 
   // On local backends the LLM profiles list is the user-facing source of
   // truth; without this step the form save only updates agent_settings and
@@ -89,15 +98,64 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
     }
   }, [persistAsProfile, onNext]);
 
-  const handleNext = () => {
+  /** Save without re-testing (after a network_error warning). */
+  const handleSaveAnyway = React.useCallback(() => {
+    setVerifyState({ status: "idle" });
     if (saveControl?.isDirty) {
       saveControl.save();
-      // `onSaveSuccess` (wired to `handleSaveSuccess` below) will advance
-      // once the mutation resolves successfully.
+    } else {
+      onNext();
+    }
+  }, [saveControl, onNext]);
+
+  const handleNext = React.useCallback(async () => {
+    // If the form is untouched, advance without saving or verifying.
+    if (!saveControl?.isDirty) {
+      onNext();
       return;
     }
-    onNext();
-  };
+
+    const model =
+      typeof saveControl.values["llm.model"] === "string"
+        ? saveControl.values["llm.model"]
+        : "";
+    const apiKey =
+      typeof saveControl.values["llm.api_key"] === "string"
+        ? saveControl.values["llm.api_key"]
+        : "";
+    const baseUrl =
+      typeof saveControl.values["llm.base_url"] === "string"
+        ? saveControl.values["llm.base_url"]
+        : "";
+
+    setIsVerifying(true);
+    setVerifyState({ status: "verifying" });
+
+    try {
+      const result = await verifyLlmConfig(model, apiKey, baseUrl || undefined);
+
+      if (result.status === "auth_error") {
+        setVerifyState({ status: "auth_error", message: result.message });
+        return;
+      }
+
+      if (result.status === "network_error") {
+        setVerifyState({ status: "network_error" });
+        return;
+      }
+
+      // success or unsupported → proceed with save
+      setVerifyState({ status: "idle" });
+      saveControl.save();
+      // `onSaveSuccess` (wired to `handleSaveSuccess`) will advance
+      // once the mutation resolves successfully.
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [saveControl, onNext]);
+
+  const isNextDisabled =
+    isVerifying || (saveControl?.isSaving ?? false) || isFinalizing;
 
   return (
     <div
@@ -126,6 +184,11 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         />
       </div>
 
+      <LlmConnectionStatus
+        state={verifyState}
+        onSaveAnyway={handleSaveAnyway}
+      />
+
       <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-llm-back"
@@ -139,7 +202,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           testId="onboarding-llm-next"
           type="button"
           variant="primary"
-          isDisabled={(saveControl?.isSaving ?? false) || isFinalizing}
+          isDisabled={isNextDisabled}
           onClick={handleNext}
         >
           {t(I18nKey.ONBOARDING$NEXT)}

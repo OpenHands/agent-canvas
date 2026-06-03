@@ -9,6 +9,11 @@ import { useTranslation } from "react-i18next";
 import { LlmProfilesManager } from "./llm-profiles-manager";
 import { ProfileNameInput } from "./profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
+import { verifyLlmConfig } from "#/api/llm-verify-service";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
@@ -103,6 +108,10 @@ export function LlmSettingsLocalView() {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [verifyState, setVerifyState] = useState<LlmVerifyState>({
+    status: "idle",
+  });
+  const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     setHideSectionHeader(viewMode !== "list");
@@ -196,6 +205,8 @@ export function LlmSettingsLocalView() {
     setEditingProfile(null);
     setProfileName("");
     setSaveControl(null);
+    setVerifyState({ status: "idle" });
+    setIsVerifying(false);
   }, []);
 
   const handleSaveControlChange = useCallback(
@@ -222,7 +233,8 @@ export function LlmSettingsLocalView() {
     [viewMode, profileName, existingNames],
   );
 
-  const handleSave = useCallback(async () => {
+  /** Run the actual profile-save logic after credentials have been verified. */
+  const doSaveProfile = useCallback(async () => {
     if (!saveControl || !isNameValid) return;
 
     // Coerced, dirty-only changes from the embedded form. Merging these over
@@ -342,6 +354,53 @@ export function LlmSettingsLocalView() {
     handleBackToList,
   ]);
 
+  /** Verify credentials then save the profile. */
+  const handleSave = useCallback(async () => {
+    if (!saveControl || !isNameValid || isVerifying || isSaving) return;
+
+    const model =
+      typeof saveControl.values["llm.model"] === "string"
+        ? saveControl.values["llm.model"]
+        : "";
+    const apiKey =
+      typeof saveControl.values["llm.api_key"] === "string"
+        ? saveControl.values["llm.api_key"]
+        : "";
+    const baseUrl =
+      typeof saveControl.values["llm.base_url"] === "string"
+        ? saveControl.values["llm.base_url"]
+        : "";
+
+    setIsVerifying(true);
+    setVerifyState({ status: "verifying" });
+
+    try {
+      const result = await verifyLlmConfig(model, apiKey, baseUrl || undefined);
+
+      if (result.status === "auth_error") {
+        setVerifyState({ status: "auth_error", message: result.message });
+        return;
+      }
+
+      if (result.status === "network_error") {
+        setVerifyState({ status: "network_error" });
+        return;
+      }
+
+      // success or unsupported → proceed with save
+      setVerifyState({ status: "idle" });
+      await doSaveProfile();
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [saveControl, isNameValid, isVerifying, isSaving, doSaveProfile]);
+
+  /** Skip verification and save immediately (after a network_error warning). */
+  const handleSaveAnyway = useCallback(async () => {
+    setVerifyState({ status: "idle" });
+    await doSaveProfile();
+  }, [doSaveProfile]);
+
   // List view: show profiles manager
   if (viewMode === "list") {
     return (
@@ -409,6 +468,11 @@ export function LlmSettingsLocalView() {
         onSaveControlChange={handleSaveControlChange}
       />
 
+      <LlmConnectionStatus
+        state={verifyState}
+        onSaveAnyway={handleSaveAnyway}
+      />
+
       {/* Action buttons */}
       <div className="flex justify-start gap-3 pt-4">
         <BrandButton
@@ -424,10 +488,14 @@ export function LlmSettingsLocalView() {
           type="button"
           variant="primary"
           onClick={handleSave}
-          isDisabled={!isNameValid || isSaving || !saveControl}
-          aria-busy={isSaving}
+          isDisabled={!isNameValid || isSaving || isVerifying || !saveControl}
+          aria-busy={isSaving || isVerifying}
         >
-          {isSaving ? t(I18nKey.STATUS$SAVING) : t(I18nKey.BUTTON$SAVE)}
+          {isVerifying
+            ? t(I18nKey.LLM_VERIFY$TESTING)
+            : isSaving
+              ? t(I18nKey.STATUS$SAVING)
+              : t(I18nKey.BUTTON$SAVE)}
         </BrandButton>
       </div>
     </div>

@@ -12,6 +12,12 @@ import {
   SdkSectionSaveControl,
 } from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles";
+import { BrandButton } from "#/components/features/settings/brand-button";
+import {
+  LlmConnectionStatus,
+  type LlmVerifyState,
+} from "#/components/features/settings/llm-settings/llm-connection-status";
+import { verifyLlmConfig } from "#/api/llm-verify-service";
 import { I18nKey } from "#/i18n/declaration";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
@@ -115,6 +121,70 @@ export function LlmSettingsScreen({
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
   const { t } = useTranslation("openhands");
+
+  // ── Standalone verification state ─────────────────────────────────────
+  // Used only when `!embedded` (the form renders its own save button).
+  const [innerControl, setInnerControl] =
+    React.useState<SdkSectionSaveControl | null>(null);
+  const [verifyState, setVerifyState] = React.useState<LlmVerifyState>({
+    status: "idle",
+  });
+  const [isVerifying, setIsVerifying] = React.useState(false);
+
+  const handleSaveControlChange = React.useCallback(
+    (control: SdkSectionSaveControl) => {
+      setInnerControl(control);
+      onSaveControlChange?.(control);
+    },
+    [onSaveControlChange],
+  );
+
+  /** Run the connection test then save if credentials are valid. */
+  const handleVerifyAndSave = React.useCallback(async () => {
+    if (!innerControl || isVerifying || innerControl.isSaving) return;
+
+    const model =
+      typeof innerControl.values["llm.model"] === "string"
+        ? innerControl.values["llm.model"]
+        : "";
+    const apiKey =
+      typeof innerControl.values["llm.api_key"] === "string"
+        ? innerControl.values["llm.api_key"]
+        : "";
+    const baseUrl =
+      typeof innerControl.values["llm.base_url"] === "string"
+        ? innerControl.values["llm.base_url"]
+        : "";
+
+    setIsVerifying(true);
+    setVerifyState({ status: "verifying" });
+
+    try {
+      const result = await verifyLlmConfig(model, apiKey, baseUrl || undefined);
+
+      if (result.status === "auth_error") {
+        setVerifyState({ status: "auth_error", message: result.message });
+        return;
+      }
+
+      if (result.status === "network_error") {
+        setVerifyState({ status: "network_error" });
+        return;
+      }
+
+      // success or unsupported → proceed with save
+      setVerifyState({ status: "idle" });
+      innerControl.save();
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [innerControl, isVerifying]);
+
+  /** Skip verification and save immediately (after a network_error warning). */
+  const handleSaveAnyway = React.useCallback(() => {
+    setVerifyState({ status: "idle" });
+    innerControl?.save();
+  }, [innerControl]);
 
   const { data: settings } = useSettings(scope);
   const { data: schema } = useAgentSettingsSchema(
@@ -287,23 +357,63 @@ export function LlmSettingsScreen({
     [schema],
   );
 
+  const isStandalone = !embedded;
+  const isSaveDisabled =
+    isVerifying ||
+    (innerControl?.isSaving ?? false) ||
+    !(innerControl?.isDirty ?? false);
+
   return (
-    <SdkSectionPage
-      scope={scope}
-      sectionKeys={["llm"]}
-      excludeKeys={LLM_EXCLUDED_KEYS}
-      header={buildHeader}
-      buildPayload={buildPayload}
-      getInitialView={getInitialView}
-      forceShowAdvancedView
-      allowAllView
-      onSaveSuccess={onSaveSuccess}
-      initialValueOverrides={initialValueOverrides}
-      embedded={embedded}
-      hideSaveButton={hideSaveButton}
-      onSaveControlChange={onSaveControlChange}
-      testId="llm-settings-screen"
-    />
+    <div
+      className={
+        isStandalone
+          ? "relative w-full min-h-0 flex flex-col gap-4"
+          : "relative flex min-h-0 w-full flex-1 flex-col"
+      }
+    >
+      <SdkSectionPage
+        scope={scope}
+        sectionKeys={["llm"]}
+        excludeKeys={LLM_EXCLUDED_KEYS}
+        header={buildHeader}
+        buildPayload={buildPayload}
+        getInitialView={getInitialView}
+        forceShowAdvancedView
+        allowAllView
+        onSaveSuccess={onSaveSuccess}
+        initialValueOverrides={initialValueOverrides}
+        embedded={embedded}
+        hideSaveButton={isStandalone ? true : hideSaveButton}
+        onSaveControlChange={handleSaveControlChange}
+        testId="llm-settings-screen"
+      />
+
+      {isStandalone && (
+        <>
+          <LlmConnectionStatus
+            state={verifyState}
+            onSaveAnyway={handleSaveAnyway}
+          />
+          {!hideSaveButton && (
+            <div className="flex justify-start pt-2">
+              <BrandButton
+                testId="save-button"
+                type="button"
+                variant="primary"
+                isDisabled={isSaveDisabled}
+                onClick={handleVerifyAndSave}
+              >
+                {isVerifying
+                  ? t(I18nKey.LLM_VERIFY$TESTING)
+                  : (innerControl?.isSaving ?? false)
+                    ? t(I18nKey.SETTINGS$SAVING)
+                    : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+              </BrandButton>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
