@@ -662,16 +662,18 @@ describe("AgentServerConversationService", () => {
       expect(mockSwitchProfile).not.toHaveBeenCalled();
     });
 
-    it("falls back to the profile-name switch when encrypted profile export fails", async () => {
-      mockGetProfile.mockRejectedValueOnce(new Error("No cipher"));
-      mockSwitchProfile.mockResolvedValue(undefined);
+    it("surfaces encrypted profile export failures instead of using the stale profile switch path", async () => {
+      const error = new Error("No cipher");
+      mockGetProfile.mockRejectedValueOnce(error);
 
-      await AgentServerConversationService.switchProfile("conv-1", "haiku");
+      await expect(
+        AgentServerConversationService.switchProfile("conv-1", "haiku"),
+      ).rejects.toThrow(error);
 
       expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
         exposeSecrets: "encrypted",
       });
-      expect(mockSwitchProfile).toHaveBeenCalledWith("conv-1", "haiku");
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
       expect(mockActivateProfile).not.toHaveBeenCalled();
     });

@@ -689,23 +689,19 @@ class AgentServerConversationService {
 
     const clientOptions = getAgentServerClientOptions();
     const conversationClient = new ConversationClient(clientOptions);
-    try {
-      const profile = await new ProfilesClient(clientOptions).getProfile(
-        profileName,
-        { exposeSecrets: "encrypted" },
-      );
-      const model =
-        typeof profile.config.model === "string" ? profile.config.model : "";
-      if (!model) throw new Error(`Profile '${profileName}' has no model.`);
-      await conversationClient.switchLLM(conversationId, {
-        ...profile.config,
-        model,
-        // Avoid stale first-write-wins entries in the backend LLM registry.
-        usage_id: `profile:${profileName}:${uuidv4()}`,
-      } as LLMConfig);
-    } catch {
-      await conversationClient.switchProfile(conversationId, profileName);
-    }
+    const profile = await new ProfilesClient(clientOptions).getProfile(
+      profileName,
+      { exposeSecrets: "encrypted" },
+    );
+    const model =
+      typeof profile.config.model === "string" ? profile.config.model : "";
+    if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await conversationClient.switchLLM(conversationId, {
+      ...profile.config,
+      model,
+      // Avoid stale first-write-wins entries in the backend LLM registry.
+      usage_id: `profile:${profileName}:${uuidv4()}`,
+    } as LLMConfig);
   }
 
   /**
