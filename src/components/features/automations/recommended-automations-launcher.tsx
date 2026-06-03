@@ -6,11 +6,6 @@ import { useCreateConversation } from "#/hooks/mutation/use-create-conversation"
 import { useSettings } from "#/hooks/query/use-settings";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
-import { useConversationStore } from "#/stores/conversation-store";
-import {
-  setConversationState,
-  setPendingTaskDraft,
-} from "#/utils/conversation-local-storage";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 import type { RecommendedAutomation } from "@openhands/extensions/automations";
@@ -47,7 +42,7 @@ function getRequiredEntries(automation: RecommendedAutomation) {
  * is injected into the user-visible chat message.
  */
 export function buildAutomationSlashCommand(id: string): string {
-  return `/create-automation ${id}`;
+  return `/create-${id}`;
 }
 
 export function RecommendedAutomationsLauncher({
@@ -61,9 +56,6 @@ export function RecommendedAutomationsLauncher({
   const { data: healthData } = useAutomationHealth();
   const createConversation = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
-  const setMessageToSend = useConversationStore(
-    (state) => state.setMessageToSend,
-  );
   const [pendingAutomation, setPendingAutomation] =
     useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
@@ -95,25 +87,16 @@ export function RecommendedAutomationsLauncher({
 
       launchInFlightRef.current = true;
 
-      const message = buildAutomationSlashCommand(automation.id);
+      // Pass the slash command as the initial query so it is submitted to the
+      // agent immediately when the conversation opens — no draft pre-fill needed.
+      const query = buildAutomationSlashCommand(automation.id);
 
       createConversation.mutate(
-        {},
+        { query },
         {
           onSuccess: (conversation) => {
-            if (
-              conversation.conversation_id.startsWith("task-") &&
-              conversation.task_id
-            ) {
-              setPendingTaskDraft(conversation.task_id, message);
-            } else {
-              setConversationState(conversation.conversation_id, {
-                draftMessage: message,
-              });
-            }
             onLaunched?.();
             navigate?.(`/conversations/${conversation.conversation_id}`);
-            window.setTimeout(() => setMessageToSend(message), 0);
           },
           onError: () => {
             launchInFlightRef.current = false;
@@ -127,7 +110,6 @@ export function RecommendedAutomationsLauncher({
       isCreatingConversation,
       navigate,
       onLaunched,
-      setMessageToSend,
       t,
     ],
   );

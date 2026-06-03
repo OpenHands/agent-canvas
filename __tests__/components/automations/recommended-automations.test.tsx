@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import McpService from "#/api/mcp-service/mcp-service.api";
-import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -371,14 +370,12 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
 
-    const [, options] = mockCreateConversationMutate.mock.calls[0];
-    options.onSuccess({ conversation_id: "conversation-1" });
-
-    const draft = getConversationState("conversation-1").draftMessage;
-    expect(draft).toBe("/create-automation github-pr-reviewer");
-    expect(draft).not.toContain("RUNTIME_SERVICES");
-    expect(draft).not.toContain("OPENHANDS_AUTOMATION_API_KEY");
-    expect(draft).not.toContain("app.all-hands.dev");
+    // The slash command is passed as the initial query — submitted immediately,
+    // not stored as a draft for the user to press Enter.
+    const [variables] = mockCreateConversationMutate.mock.calls[0];
+    expect(variables.query).toBe("/create-github-pr-reviewer");
+    expect(variables.query).not.toContain("RUNTIME_SERVICES");
+    expect(variables.query).not.toContain("OPENHANDS_AUTOMATION_API_KEY");
   });
 
   it("blocks launch and shows an error toast when the automation backend is unavailable", () => {
@@ -452,9 +449,12 @@ describe("recommended automations", () => {
 });
 
 describe("buildAutomationSlashCommand", () => {
-  it("returns a slash-command trigger using the automation id", () => {
+  it("returns /create-{id} for a given automation id", () => {
     expect(buildAutomationSlashCommand("github-pr-reviewer")).toBe(
-      "/create-automation github-pr-reviewer",
+      "/create-github-pr-reviewer",
+    );
+    expect(buildAutomationSlashCommand("slack-channel-monitor")).toBe(
+      "/create-slack-channel-monitor",
     );
   });
 
@@ -470,7 +470,7 @@ describe("buildAutomationSlashCommand", () => {
     const ids = ["github-pr-reviewer", "slack-channel-monitor", "linear-triage-assistant"];
     ids.forEach((id) => {
       const cmd = buildAutomationSlashCommand(id);
-      expect(cmd).toBe(`/create-automation ${id}`);
+      expect(cmd).toBe(`/create-${id}`);
       expect(cmd.split("\n")).toHaveLength(1);
     });
   });
