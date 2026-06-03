@@ -78,8 +78,8 @@ interface OnboardingModalProps {
  * Top-level onboarding modal for first-time users.
  *
  * The flow is a fixed sequence of four steps:
- *   0. Check backend
- *   1. Choose agent
+ *   0. Choose agent
+ *   1. Check backend
  *   2. Set up LLM
  *   3. Say hello (creates a fresh conversation, then closes)
  *
@@ -141,15 +141,14 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               className="relative overflow-clip"
             >
               <Slide index={0} currentStep={currentStep}>
-                <CheckBackendStep onNext={goNext} />
-              </Slide>
-              <Slide index={1} currentStep={currentStep}>
                 <ChooseAgentStep
                   selectedAgentId={selectedAgentId}
                   onSelect={setSelectedAgentId}
                   onNext={goNext}
-                  onBack={goBack}
                 />
+              </Slide>
+              <Slide index={1} currentStep={currentStep}>
+                <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
               <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
                 {isOpenHands ? (
