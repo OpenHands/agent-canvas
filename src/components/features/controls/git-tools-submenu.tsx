@@ -52,7 +52,7 @@ export function GitToolsSubmenu({ onClose }: GitToolsSubmenuProps) {
   };
 
   return (
-    <ContextMenu testId="git-tools-submenu" className="w-max gap-0">
+    <ContextMenu testId="git-tools-submenu" className="w-max">
       <ContextMenuListItem
         testId="git-pull-button"
         onClick={onGitPull}

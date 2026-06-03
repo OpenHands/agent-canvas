@@ -187,7 +187,9 @@ describe("AutomationDetail — backend-change guard", () => {
   it("dispatches the automation when Run now is clicked", async () => {
     renderDetail();
 
-    const runNow = await screen.findByRole("button", { name: "Run now" });
+    const runNow = await screen.findByRole("button", {
+      name: I18nKey.AUTOMATIONS$RUN_NOW,
+    });
     fireEvent.click(runNow);
 
     await waitFor(() => {
@@ -206,7 +208,9 @@ describe("AutomationDetail — backend-change guard", () => {
     });
     const user = userEvent.setup();
     renderDetail();
-    const runNow = await screen.findByRole("button", { name: "Run now" });
+    const runNow = await screen.findByRole("button", {
+      name: I18nKey.AUTOMATIONS$RUN_NOW,
+    });
 
     // Act — userEvent honors the disabled attribute and suppresses the click.
     await user.click(runNow);
