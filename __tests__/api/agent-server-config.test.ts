@@ -23,6 +23,8 @@ function mockWindowLocation(url: string) {
 afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllEnvs();
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_SESSION_API_KEY__;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: ORIGINAL_LOCATION,
@@ -159,5 +161,61 @@ describe("isAuthRequiredAndMissing", () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "false");
 
     expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+});
+
+// Covers the published `agent-canvas` binary path: the prebuilt bundle has
+// no VITE_SESSION_API_KEY baked in, but `scripts/static-server.mjs` injects
+// the runtime key into `window.__AGENT_CANVAS_SESSION_API_KEY__`. Without
+// this fallback, `makeDefaultLocalBackend()` returns null on a fresh install
+// and the user sees the Manage Backends modal instead of the onboarding flow.
+describe("getAgentServerSessionApiKey runtime-injection fallback", () => {
+  function setInjectedKey(value: unknown) {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_SESSION_API_KEY__ = value;
+  }
+
+  it("returns the env-baked key when VITE_SESSION_API_KEY is set", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "env-key");
+    setInjectedKey("window-key");
+
+    expect(getAgentServerSessionApiKey()).toBe("env-key");
+  });
+
+  it("falls back to the runtime-injected window global when no env key is baked in", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    setInjectedKey("runtime-injected-key");
+
+    expect(getAgentServerSessionApiKey()).toBe("runtime-injected-key");
+  });
+
+  it("includes the injected key in form defaults so the registry can seed", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    setInjectedKey("runtime-injected-key");
+
+    expect(getAgentServerFormDefaults().sessionApiKey).toBe(
+      "runtime-injected-key",
+    );
+  });
+
+  it("returns null when neither env nor window provides a key", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+
+    expect(getAgentServerSessionApiKey()).toBeNull();
+  });
+
+  it("treats a whitespace-only injected key as missing", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    setInjectedKey("   ");
+
+    expect(getAgentServerSessionApiKey()).toBeNull();
+  });
+
+  it("ignores non-string injected values", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    setInjectedKey(12345);
+
+    expect(getAgentServerSessionApiKey()).toBeNull();
   });
 });
