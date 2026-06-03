@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
   AgentServerUnavailableError,
@@ -97,5 +97,28 @@ describe("OptionService", () => {
     expect(models.verified_models).toContain("claude-opus-4-5-20251101");
     expect(models.verified_providers).toEqual(["anthropic", "openhands"]);
     expect(models.default_model).toBeTruthy();
+  });
+
+  describe("posthog_client_key", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns the key from VITE_POSTHOG_CLIENT_KEY when set", async () => {
+      vi.stubEnv("VITE_POSTHOG_CLIENT_KEY", "phc_test_key_123");
+
+      const config = await OptionService.getConfig();
+
+      expect(config.posthog_client_key).toBe("phc_test_key_123");
+    });
+
+    it("returns null when VITE_POSTHOG_CLIENT_KEY is not set", async () => {
+      // No stub — env var is absent in the test environment by default,
+      // so import.meta.env.VITE_POSTHOG_CLIENT_KEY is undefined,
+      // and the ?? null fallback applies.
+      const config = await OptionService.getConfig();
+
+      expect(config.posthog_client_key).toBeNull();
+    });
   });
 });

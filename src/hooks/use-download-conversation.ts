@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { usePostHog } from "posthog-js/react";
+import { useTracking } from "#/hooks/use-tracking";
 import { useTranslation } from "react-i18next";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { downloadBlob } from "#/utils/utils";
@@ -7,13 +7,13 @@ import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
 export const useDownloadConversation = () => {
-  const posthog = usePostHog();
+  const { trackDownloadTrajectoryButtonClicked } = useTracking();
   const { t } = useTranslation("openhands");
 
   return useMutation({
     mutationKey: ["conversations", "download"],
     mutationFn: async (conversationId: string) => {
-      posthog.capture("download_trajectory_button_clicked");
+      trackDownloadTrajectoryButtonClicked();
       const blob =
         await AgentServerConversationService.downloadConversation(
           conversationId,
