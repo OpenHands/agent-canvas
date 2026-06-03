@@ -1,16 +1,72 @@
 import test, { expect, Page } from "@playwright/test";
-import { seedLocalStorage } from "../snapshots/support/seed-local-storage";
+import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
+async function routeOnboardingLlmCatalog(page: Page) {
+  await page.route("**/api/llm/models/verified", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        models: {
+          anthropic: ["claude-opus-4-8"],
+          openhands: ["claude-opus-4-5-20251101"],
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/llm/models", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        models: [
+          "anthropic/claude-opus-4-8",
+          "openhands/claude-opus-4-5-20251101",
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/llm/providers", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ providers: ["anthropic", "openhands"] }),
+    });
+  });
+}
 
 async function showOnboarding(page: Page) {
-  await seedLocalStorage(page, {
-    removeOnboarded: true,
-    extra: [
-      ["analytics-consent", "false"],
-      ["openhands-telemetry-first-use", "true"],
-    ],
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.removeItem("openhands-onboarded");
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+      window.localStorage.setItem(
+        "openhands-active-backend",
+        JSON.stringify({ backendId: "default-local", orgId: null }),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
+
+  await routeSessionApiKey(page);
+  await routeOnboardingLlmCatalog(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("onboarding-modal")).toBeVisible({
     timeout: 20_000,
@@ -26,6 +82,10 @@ async function waitForStep(page: Page, step: number) {
 }
 
 async function advanceToLlmStep(page: Page) {
+  // Current onboarding order is backend check (0) → agent choice (1) →
+  // LLM/provider setup (2). Keep the indexes explicit because this flow was
+  // recently reordered and the E2E test should fail clearly if it drifts.
+
   await waitForStep(page, 0);
   await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
     timeout: 10_000,

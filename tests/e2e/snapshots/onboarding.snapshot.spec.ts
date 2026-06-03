@@ -10,7 +10,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *
  * Steps:
  *   0. Check backend — backend form + connection status banner
- *   1. Choose agent  — agent cards; OpenHands selected, ACP agents available
+ *   1. Choose agent  — static agent cards; mock mode renders deterministic ACP options
  *   2. Setup LLM     — LLM settings form (pre-filled with Anthropic/Claude Opus)
  *   3. Say hello     — pre-filled message input to start a conversation
  *
