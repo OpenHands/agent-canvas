@@ -56,39 +56,6 @@ function renderHelperText(text: string): React.ReactNode {
   return parts;
 }
 
-/**
- * Renders a helperText string as React nodes, converting any `[text](url)`
- * markdown links into real `<a>` elements. Plain text segments are left as-is.
- * Only `http:` and `https:` URLs are rendered as links; anything else falls
- * back to `#` to guard against `javascript:` / `data:` XSS vectors.
- */
-function renderHelperText(text: string): React.ReactNode {
-  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  for (const match of text.matchAll(linkPattern)) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-    parts.push(
-      <a
-        key={match.index}
-        href={/^https?:\/\//i.test(match[2]) ? match[2] : "#"}
-        target="_blank"
-        rel="noreferrer"
-        className="underline hover:text-white transition-colors"
-      >
-        {match[1]}
-      </a>,
-    );
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-  return parts;
-}
-
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
   onClose: () => void;
