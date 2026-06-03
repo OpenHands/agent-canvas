@@ -15,12 +15,14 @@ interface SetupLlmStepProps {
 }
 
 /**
- * Pre-fills the LLM form with the OpenHands provider's default Claude
- * Opus model. Keeping this as an explicit override marks the model
- * dirty so the Next button persists the suggested default immediately.
+ * Pre-fills the LLM form with the Anthropic provider's Claude Opus
+ * model. Most users won't have an OpenHands account, so onboarding
+ * routes directly through Anthropic by default. Keeping this as an
+ * explicit override marks the model dirty so the Next button persists
+ * the suggested default immediately.
  */
 const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": "openhands/claude-opus-4-5-20251101",
+  "llm.model": "anthropic/claude-opus-4-8",
 } as const;
 
 /**
