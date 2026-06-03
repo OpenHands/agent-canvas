@@ -185,14 +185,16 @@ export function OnboardingModal({
           </div>
         </section>
 
-        <button
-          type="button"
-          data-testid="onboarding-skip"
-          onClick={onClose}
-          className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
-        >
-          {t(I18nKey.ONBOARDING$SKIP)}
-        </button>
+        {currentStep < TOTAL_STEPS - 1 ? (
+          <button
+            type="button"
+            data-testid="onboarding-skip"
+            onClick={onClose}
+            className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+          >
+            {t(I18nKey.ONBOARDING$SKIP)}
+          </button>
+        ) : null}
       </div>
     </ModalBackdrop>
   );

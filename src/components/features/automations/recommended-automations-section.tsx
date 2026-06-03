@@ -37,7 +37,7 @@ interface RecommendedAutomationsSectionProps {
   installedServers: MCPServerConfig[];
   query?: string;
   onSelect: (automation: RecommendedAutomation) => void;
-  /** When true, only the card grid scrolls; title and description stay fixed. */
+  /** When true, title, description, and cards share one scroll area. */
   scrollableGrid?: boolean;
 }
 
@@ -157,16 +157,6 @@ export function RecommendedAutomationsSection({
       data-testid="recommended-automations-section"
       className={cn(scrollableGrid && "flex min-h-0 flex-1 flex-col")}
     >
-      <div className="flex shrink-0 items-center">
-        <h2 className="text-base font-semibold text-foreground">
-          {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
-        </h2>
-        <StatusBadge count={visibleAutomations.length} />
-      </div>
-      <p className="mt-1 shrink-0 text-sm text-muted">
-        {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_DESCRIPTION)}
-      </p>
-
       <div
         data-testid={
           scrollableGrid ? "recommended-automations-scroll-area" : undefined
@@ -178,7 +168,17 @@ export function RecommendedAutomationsSection({
             "min-h-0 flex-1 overflow-y-auto custom-scrollbar-always",
         )}
       >
-        <div className={extensionModuleCardGridClassName}>
+        <div className="flex items-center">
+          <h2 className="text-base font-semibold text-foreground">
+            {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
+          </h2>
+          <StatusBadge count={visibleAutomations.length} />
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_DESCRIPTION)}
+        </p>
+
+        <div className={cn("mt-3", extensionModuleCardGridClassName)}>
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
             const missingCount = requiredEntries.filter(

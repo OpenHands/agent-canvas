@@ -118,6 +118,17 @@ export function SayHelloStep({
       </form>
 
       <div
+        data-testid="onboarding-hello-or-separator"
+        className="mt-6 flex w-full items-center gap-3"
+      >
+        <div className="h-px flex-1 bg-[var(--oh-border)]" />
+        <span className="text-xs uppercase text-[var(--oh-muted)]">
+          {t(I18nKey.LANDING$OR)}
+        </span>
+        <div className="h-px flex-1 bg-[var(--oh-border)]" />
+      </div>
+
+      <div
         data-testid="onboarding-recommended-automations"
         className="mt-6 flex min-h-0 flex-1 flex-col"
       >
