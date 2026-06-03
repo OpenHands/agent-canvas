@@ -295,6 +295,12 @@ export interface BackendFormProps {
    */
   requireApiKey?: boolean;
   /**
+   * When true, hides the name/host/API-key inputs (and related inline
+   * errors) while keeping the action row visible — used by onboarding
+   * after a successful connection probe.
+   */
+  hideConfigurationFields?: boolean;
+  /**
    * Replace the default synchronous add/update-and-close submit with a
    * custom async handler.  The form builds the payload, validates
    * client-side, then hands it to this callback. If the callback throws,
@@ -321,6 +327,7 @@ export function BackendForm({
   testIdRoot: explicitTestIdRoot,
   hostReadOnly,
   requireApiKey,
+  hideConfigurationFields = false,
   onSubmitOverride,
 }: BackendFormProps) {
   const { t } = useTranslation("openhands");
@@ -416,72 +423,80 @@ export function BackendForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4"
     >
-      <SettingsInput
-        testId={`${testIdRoot}-name`}
-        name={`${testIdRoot}-name`}
-        type="text"
-        label={t(I18nKey.BACKEND$NAME_LABEL)}
-        value={name}
-        onChange={(value) => {
-          setName(value);
-          setConnectionError(null);
-        }}
-        onBlur={() => setNameTouched(true)}
-        placeholder="Production"
-        className="w-full"
-        showRequiredTag
-        error={nameError}
-      />
+      <div
+        data-testid={`${testIdRoot}-configuration-fields`}
+        className={cn(
+          "flex flex-col gap-4",
+          hideConfigurationFields && "hidden",
+        )}
+      >
+        <SettingsInput
+          testId={`${testIdRoot}-name`}
+          name={`${testIdRoot}-name`}
+          type="text"
+          label={t(I18nKey.BACKEND$NAME_LABEL)}
+          value={name}
+          onChange={(value) => {
+            setName(value);
+            setConnectionError(null);
+          }}
+          onBlur={() => setNameTouched(true)}
+          placeholder="Production"
+          className="w-full"
+          showRequiredTag
+          error={nameError}
+        />
 
-      <SettingsInput
-        testId={`${testIdRoot}-host`}
-        name={`${testIdRoot}-host`}
-        type="text"
-        label={t(I18nKey.BACKEND$HOST_LABEL)}
-        value={host}
-        onChange={
-          hostReadOnly
-            ? undefined
-            : (value) => {
-                setHost(value);
-                setConnectionError(null);
-              }
-        }
-        onBlur={() => setHostTouched(true)}
-        placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-        className="w-full"
-        showRequiredTag
-        error={hostError}
-        isDisabled={hostReadOnly}
-      />
+        <SettingsInput
+          testId={`${testIdRoot}-host`}
+          name={`${testIdRoot}-host`}
+          type="text"
+          label={t(I18nKey.BACKEND$HOST_LABEL)}
+          value={host}
+          onChange={
+            hostReadOnly
+              ? undefined
+              : (value) => {
+                  setHost(value);
+                  setConnectionError(null);
+                }
+          }
+          onBlur={() => setHostTouched(true)}
+          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+          className="w-full"
+          showRequiredTag
+          error={hostError}
+          isDisabled={hostReadOnly}
+        />
 
-      <SettingsInput
-        testId={`${testIdRoot}-api-key`}
-        name={`${testIdRoot}-api-key`}
-        type="password"
-        label={t(I18nKey.BACKEND$KEY_LABEL)}
-        value={apiKey}
-        onChange={(value) => {
-          setApiKey(value);
-          setConnectionError(null);
-        }}
-        placeholder=""
-        className="w-full"
-      />
+        <SettingsInput
+          testId={`${testIdRoot}-api-key`}
+          name={`${testIdRoot}-api-key`}
+          type="password"
+          label={t(I18nKey.BACKEND$KEY_LABEL)}
+          value={apiKey}
+          onChange={(value) => {
+            setApiKey(value);
+            setConnectionError(null);
+          }}
+          placeholder=""
+          className="w-full"
+        />
 
-      {connectionError ? (
-        <div
-          role="alert"
-          data-testid={`${testIdRoot}-error`}
-          className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
-        >
-          {connectionError}
-        </div>
-      ) : null}
+        {connectionError ? (
+          <div
+            role="alert"
+            data-testid={`${testIdRoot}-error`}
+            className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
+          >
+            {connectionError}
+          </div>
+        ) : null}
 
-      {mode === "edit" && backend && (
-        <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
-      )}
+        {mode === "edit" && backend && (
+          <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
+        )}
+      </div>
 
       {renderActions ? (
         renderActions({
