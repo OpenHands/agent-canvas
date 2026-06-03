@@ -44,6 +44,8 @@ describe("buildAutomationCommand", () => {
     expect(cmd.args).toContain(
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
     );
+    expect(cmd.args).toContain("--with");
+    expect(cmd.args).toContain("tzdata");
     expect(cmd.args).toContain("uvicorn");
     expect(cmd.args).toContain("openhands.automation.app:app");
     expect(cmd.source).toBe(`PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`);

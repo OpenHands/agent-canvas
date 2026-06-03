@@ -83,6 +83,7 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
+const AUTOMATION_RUNTIME_DEPENDENCIES = ["tzdata"];
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
 
@@ -251,33 +252,26 @@ function buildAutomationCommand(env = process.env) {
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
     const gitUrl = `git+${repoUrl}@${gitRef}`;
-    uvxArgs.push(
-      "--refresh",
-      "--from",
-      gitUrl,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--refresh", "--from", gitUrl);
     source = `git (${gitRef})`;
   } else if (version) {
     // Use specific PyPI version
-    uvxArgs.push(
-      "--from",
-      `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`);
     source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
-      "uvicorn",
-      "openhands.automation.app:app",
     );
     source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
   }
+
+  for (const dependency of AUTOMATION_RUNTIME_DEPENDENCIES) {
+    uvxArgs.push("--with", dependency);
+  }
+
+  uvxArgs.push("uvicorn", "openhands.automation.app:app");
 
   return {
     command: "uvx",
