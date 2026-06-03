@@ -26553,6 +26553,23 @@
     "uk": "Хмара",
     "ca": "Núvol"
   },
+  "BACKEND$KIND_REMOTE": {
+    "en": "Remote",
+    "ja": "リモート",
+    "zh-CN": "远程",
+    "zh-TW": "遠端",
+    "ko-KR": "원격",
+    "no": "Ekstern",
+    "it": "Remoto",
+    "pt": "Remoto",
+    "es": "Remoto",
+    "ar": "بعيد",
+    "fr": "Distant",
+    "tr": "Uzak",
+    "de": "Remote",
+    "uk": "Віддалений",
+    "ca": "Remot"
+  },
   "BACKEND$VERSION_LABEL": {
     "en": "v{{version}}",
     "ja": "v{{version}}",
