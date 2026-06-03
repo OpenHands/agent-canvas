@@ -128,6 +128,12 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 # OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
+# Pin the agent-server's extensions repo to the same commit the frontend
+# bundled its MCP catalog and automations from (extracted from package.json
+# at image build time and baked into defaults.env as CONFIG_EXTENSIONS_REF).
+# A user-supplied EXTENSIONS_REF always takes precedence.
+export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF:-}}"
+
 # Track child PIDs so we can clean up on exit.
 PIDS=()
 

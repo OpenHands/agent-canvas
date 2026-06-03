@@ -31,6 +31,30 @@ const SHARED_DEFAULTS = JSON.parse(
   ),
 );
 
+/**
+ * Extract the pinned commit SHA for @openhands/extensions from package.json.
+ * Returns the 40-char hex SHA when the dependency is a git+https URL with a
+ * commit hash fragment (e.g. "git+https://…#62594156…"), null otherwise.
+ * @returns {string | null}
+ */
+function getExtensionsRef() {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(
+        path.join(__dev_safe_dirname, "..", "package.json"),
+        "utf-8",
+      ),
+    );
+    const url = pkg.dependencies?.["@openhands/extensions"] ?? "";
+    return url.match(/#([0-9a-f]{40})$/i)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Pinned extensions commit SHA derived from package.json, or null if not pinned. */
+const DEFAULT_EXTENSIONS_REF = getExtensionsRef();
+
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
@@ -681,6 +705,13 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
+    // Pin the agent-server's extensions repo to the same commit that the
+    // frontend bundled its MCP catalog and automations from, keeping skills
+    // and UI in sync. Skipped when the caller has already set EXTENSIONS_REF
+    // so user overrides are always respected.
+    ...(process.env.EXTENSIONS_REF || !DEFAULT_EXTENSIONS_REF
+      ? {}
+      : { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }),
   };
 }
 
