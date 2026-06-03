@@ -24,6 +24,7 @@ import {
   dropdownMenuRowIconClassName,
   dropdownInstantColorClassName,
   dropdownMenuListClassName,
+  dropdownMenuViewportScrollClassName,
 } from "#/utils/dropdown-classes";
 import type {
   ConversationSortField,
@@ -272,6 +273,7 @@ export function ConversationPanelFilterMenu({
           className={cn(
             "absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg",
             dropdownMenuListClassName,
+            dropdownMenuViewportScrollClassName,
           )}
         >
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$ORGANIZE)}</MenuHeading>
