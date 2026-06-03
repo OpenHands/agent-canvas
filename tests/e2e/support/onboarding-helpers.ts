@@ -58,6 +58,17 @@ export async function waitForOnboardingBackendConnected(page: Page) {
   ).toBeVisible({ timeout: 10_000 });
 }
 
+export async function waitForOnboardingLlmSettingsReady(page: Page) {
+  await expect(
+    page.locator('input[name="llm-provider-input"]'),
+    "onboarding LLM provider input should be ready",
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator('input[name="llm-model-input"]'),
+    "onboarding LLM model input should be ready",
+  ).toBeVisible({ timeout: 10_000 });
+}
+
 export async function clickOnboardingStepButton(page: Page, testId: string) {
   // Snapshot slides are translated and clipped during transitions. In CI,
   // Playwright can resolve the button as visible but outside the viewport.

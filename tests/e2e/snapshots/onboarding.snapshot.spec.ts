@@ -6,6 +6,7 @@ import {
   ONBOARDING_HELLO_STEP,
   ONBOARDING_LLM_STEP,
   waitForOnboardingBackendConnected,
+  waitForOnboardingLlmSettingsReady,
   waitForOnboardingStep,
 } from "../support/onboarding-helpers";
 import { seedLocalStorage } from "./support/seed-local-storage";
@@ -114,8 +115,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await clickOnboardingStepButton(page, "onboarding-agent-next");
     await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
-    // Wait for LLM settings to load (MSW settings + schema endpoints)
-    await page.waitForLoadState("networkidle");
+    await waitForOnboardingLlmSettingsReady(page);
 
     const modal = page.getByTestId("onboarding-modal");
     await expect(modal).toHaveScreenshot("onboarding-step-2-setup-llm.png", {
@@ -143,8 +143,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await clickOnboardingStepButton(page, "onboarding-agent-next");
     await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
-    // Allow LLM settings to finish loading so the save control is registered
-    await page.waitForLoadState("networkidle");
+    await waitForOnboardingLlmSettingsReady(page);
 
     // Step 2 → 3:
     // If the LLM form is dirty (it is, because ONBOARDING_LLM_OVERRIDES differs

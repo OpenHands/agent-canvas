@@ -106,6 +106,8 @@ test.describe("onboarding recent regressions", () => {
       providerInput,
       "first-run onboarding should default to the Anthropic provider",
     ).toHaveValue("Anthropic", { timeout: 10_000 });
+    // The model input displays the Anthropic model ID without the provider
+    // prefix.
     await expect(
       modelInput,
       "first-run onboarding should default to Claude Opus",
