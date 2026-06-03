@@ -223,7 +223,7 @@ describe("OnboardingModal", () => {
       screen.getByTestId("onboarding-backend-api-key"),
       "session-key",
     );
-    await user.click(screen.getByTestId("onboarding-backend-submit"));
+    await user.click(screen.getByTestId("onboarding-backend-next"));
 
     expect(
       await screen.findByTestId("onboarding-backend-error"),

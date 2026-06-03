@@ -121,37 +121,36 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       <BackendForm
         mode={noBackendSelected ? "add" : "edit"}
         backend={backendForForm}
-        onSubmitted={() => {}}
+        onSubmitted={onNext}
         testIdRoot="onboarding-backend"
         requireApiKey
-        renderActions={({ canSubmit, testIdRoot }) => (
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 mt-2 bg-base-secondary pt-4 pb-7">
+        renderActions={({ canSubmit, isSubmitting }) => (
+          <div
+            className={cn(
+              "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+              onBack ? "justify-between" : "justify-end",
+            )}
+          >
             {onBack ? (
               <BrandButton
                 testId="onboarding-backend-back"
                 type="button"
                 variant="secondary"
                 onClick={onBack}
+                isDisabled={isSubmitting}
               >
                 {t(I18nKey.ONBOARDING$BACK)}
               </BrandButton>
             ) : null}
             <BrandButton
-              testId={`${testIdRoot}-submit`}
-              type="submit"
-              variant="secondary"
-              isDisabled={!canSubmit}
-            >
-              {t(I18nKey.BACKEND$SAVE)}
-            </BrandButton>
-            <BrandButton
               testId="onboarding-backend-next"
-              type="button"
+              type="submit"
               variant="primary"
-              isDisabled={isConnected !== true}
-              onClick={onNext}
+              isDisabled={!canSubmit || isSubmitting}
             >
-              {t(I18nKey.ONBOARDING$NEXT)}
+              {isSubmitting
+                ? t(I18nKey.SETTINGS$SAVING)
+                : t(I18nKey.ONBOARDING$NEXT)}
             </BrandButton>
           </div>
         )}
