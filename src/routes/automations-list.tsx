@@ -31,6 +31,7 @@ import { EditAutomationModal } from "#/components/features/automations/detail/ed
 import { AddAutomationModal } from "#/components/features/automations/add-automation-modal";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { useTracking } from "#/hooks/use-tracking";
 import type { Automation } from "#/types/automation";
 
 const PAGE_SIZE = 50;
@@ -68,6 +69,7 @@ export default function AutomationsList() {
     offset: 0,
     enabled: isBackendHealthy,
   });
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
@@ -95,7 +97,15 @@ export default function AutomationsList() {
   );
 
   const handleToggle = (id: string, currentEnabled: boolean) => {
-    toggleMutation.mutate({ id, enabled: !currentEnabled });
+    const willEnable = !currentEnabled;
+    toggleMutation.mutate({ id, enabled: willEnable });
+    if (willEnable) {
+      const automation = data?.automations.find((a) => a.id === id);
+      trackPrebuiltAutomationEnabled({
+        automationId: id,
+        automationName: automation?.name ?? id,
+      });
+    }
   };
 
   const handleRunNow = (id: string) => {
