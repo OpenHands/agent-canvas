@@ -246,6 +246,28 @@ describe("OnboardingModal", () => {
     );
   });
 
+  it("collapses backend configuration fields once connected until Show configuration is toggled", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    await completeAgentStep(user);
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    );
+
+    expect(
+      screen.getByTestId("onboarding-backend-configuration-fields"),
+    ).toHaveClass("hidden");
+    expect(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("onboarding-backend-show-configuration"));
+    expect(
+      screen.getByTestId("onboarding-backend-configuration-fields"),
+    ).not.toHaveClass("hidden");
+  });
+
   it("advances each step via the per-step Next button and reframes slide offsets", async () => {
     renderModal();
     const user = userEvent.setup();
