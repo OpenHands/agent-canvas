@@ -105,7 +105,10 @@ export async function loadAgentServerInfo() {
     ).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
-    if (isSdkHttpError(error)) {
+    // Preserve 401 so root.tsx can show the auth screen (public mode).
+    // All other HTTP errors (502, 503, etc.) mean the server is unreachable
+    // or misconfigured — treat them as unavailable.
+    if (isSdkHttpStatusError(error, 401)) {
       throw error;
     }
 
