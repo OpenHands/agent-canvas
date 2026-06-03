@@ -20,7 +20,7 @@
  *
  * Usage (mirrors scripts/ingress.mjs's --route flag style):
  *   node scripts/static-server.mjs \
- *     --port 3001 --host 0.0.0.0 --dir build \
+ *     --port 3001 --dir build \
  *     --route "/api/automation=http://localhost:18001" \
  *     --route "/api=http://localhost:18000" \
  *     --route "/server_info=http://localhost:18000" \
@@ -69,7 +69,7 @@ const MIME = {
 export function parseArgs(argv = process.argv.slice(2)) {
   const config = {
     port: 3001,
-    host: "0.0.0.0",
+    host: "::",
     dir: "build",
     routes: {},
     rejectPrefixes: [],
@@ -157,7 +157,7 @@ USAGE:
 
 OPTIONS:
   -p, --port  <port>           Port to bind (default: 3001)
-  -H, --host  <host>           Hostname to bind (default: 0.0.0.0)
+  -H, --host  <host>           Hostname to bind (default: :: dual-stack)
   -d, --dir   <dir>            Directory to serve (default: build)
   -r, --route <prefix=url>     Proxy <prefix> (and subpaths) to <url>;
                                may be repeated. WebSockets supported.
@@ -330,6 +330,11 @@ function proxyRequest(req, res, backendUrl) {
     },
   );
 
+  // Absorb client-disconnect errors (EPIPE/ECONNRESET) so the server
+  // process survives abrupt navigations and health-check probes.
+  req.on("error", () => {});
+  res.on("error", () => {});
+
   proxyReq.on("error", (err) => {
     console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
     if (!res.headersSent) {
@@ -355,7 +360,12 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     },
   });
 
+  // Absorb socket errors so the process survives mid-flight disconnects.
+  socket.on("error", () => socket.destroy());
+
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    proxySocket.on("error", () => proxySocket.destroy());
+
     socket.write(
       `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
     );
