@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { I18nKey } from "#/i18n/declaration";
 import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
@@ -34,10 +35,23 @@ export function MarketplaceCard({
     }
   })();
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       data-testid={`mcp-marketplace-card-${entry.id}`}
       className={cn(
         "flex min-h-[132px] flex-col overflow-hidden p-4 text-left",
@@ -72,6 +86,6 @@ export function MarketplaceCard({
           </p>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
