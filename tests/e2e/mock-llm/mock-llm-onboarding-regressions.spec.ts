@@ -1,48 +1,13 @@
-import test, { expect, Page } from "@playwright/test";
+import test, { expect } from "@playwright/test";
 import {
   advanceOnboardingToLlmStep,
   ONBOARDING_BACKEND_STEP,
-  routeOnboardingLlmCatalog,
+  showOnboarding,
   waitForOnboardingStep,
 } from "../support/onboarding-helpers";
 import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
-
-async function showOnboarding(page: Page) {
-  await page.addInitScript(
-    ({ apiKey }) => {
-      window.localStorage.removeItem("openhands-onboarded");
-      window.localStorage.setItem("analytics-consent", "false");
-      window.localStorage.setItem("openhands-telemetry-consent", "denied");
-      window.localStorage.setItem("openhands-telemetry-first-use", "true");
-      window.localStorage.setItem(
-        "openhands-backends",
-        JSON.stringify([
-          {
-            id: "default-local",
-            name: "Local",
-            host: window.location.origin,
-            apiKey,
-            kind: "local",
-          },
-        ]),
-      );
-      window.localStorage.setItem(
-        "openhands-active-backend",
-        JSON.stringify({ backendId: "default-local", orgId: null }),
-      );
-    },
-    { apiKey: SESSION_API_KEY },
-  );
-
-  await routeSessionApiKey(page);
-  await routeOnboardingLlmCatalog(page);
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("onboarding-modal")).toBeVisible({
-    timeout: 20_000,
-  });
-}
 
 test.describe("onboarding recent regressions", () => {
   // Regression coverage for #1085 / PR #1100: errant outside
@@ -51,8 +16,13 @@ test.describe("onboarding recent regressions", () => {
   test("keeps the modal open on backdrop click and Escape", async ({
     page,
   }) => {
-    await showOnboarding(page);
+    await showOnboarding(page, {
+      apiKey: SESSION_API_KEY,
+      beforeGoto: () => routeSessionApiKey(page),
+    });
 
+    // Exercise the original first-load path before any onboarding step
+    // interaction.
     await page.mouse.click(8, 8);
     await page.keyboard.press("Escape");
 
@@ -96,7 +66,10 @@ test.describe("onboarding recent regressions", () => {
   test("defaults the LLM setup step to Anthropic Claude Opus", async ({
     page,
   }) => {
-    await showOnboarding(page);
+    await showOnboarding(page, {
+      apiKey: SESSION_API_KEY,
+      beforeGoto: () => routeSessionApiKey(page),
+    });
     await advanceOnboardingToLlmStep(page);
 
     const providerInput = page.locator('input[name="llm-provider-input"]');

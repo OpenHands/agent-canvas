@@ -41,6 +41,50 @@ export async function routeOnboardingLlmCatalog(page: Page) {
   });
 }
 
+type ShowOnboardingOptions = {
+  apiKey: string;
+  beforeGoto?: () => Promise<void>;
+};
+
+export async function showOnboarding(
+  page: Page,
+  { apiKey, beforeGoto }: ShowOnboardingOptions,
+) {
+  await page.addInitScript(
+    ({ apiKey: initApiKey }) => {
+      window.localStorage.removeItem("openhands-onboarded");
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey: initApiKey,
+            kind: "local",
+          },
+        ]),
+      );
+      window.localStorage.setItem(
+        "openhands-active-backend",
+        JSON.stringify({ backendId: "default-local", orgId: null }),
+      );
+    },
+    { apiKey },
+  );
+
+  await beforeGoto?.();
+  await routeOnboardingLlmCatalog(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(
+    page.getByTestId("onboarding-modal"),
+    "onboarding modal should appear for first-run users",
+  ).toBeVisible({ timeout: 20_000 });
+}
+
 export async function waitForOnboardingStep(page: Page, step: number) {
   await expect(
     page.getByTestId("onboarding-slide-rail"),
