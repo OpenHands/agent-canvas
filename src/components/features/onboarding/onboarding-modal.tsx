@@ -121,6 +121,7 @@ export function OnboardingModal({
     <ModalBackdrop
       onClose={onClose}
       closeOnEscape={false}
+      closeOnBackdropClick={false}
       aria-label={t(I18nKey.ONBOARDING$TITLE)}
     >
       <div className="relative flex flex-col items-center gap-4">

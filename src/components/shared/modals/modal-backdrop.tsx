@@ -6,6 +6,8 @@ interface ModalBackdropProps {
   onClose?: () => void;
   /** When false, pressing Escape does not close the modal. Defaults to true. */
   closeOnEscape?: boolean;
+  /** When false, clicking the backdrop does not close the modal. Defaults to true. */
+  closeOnBackdropClick?: boolean;
   "aria-label"?: string;
 }
 
@@ -13,6 +15,7 @@ export function ModalBackdrop({
   children,
   onClose,
   closeOnEscape = true,
+  closeOnBackdropClick = true,
   "aria-label": ariaLabel,
 }: ModalBackdropProps) {
   React.useEffect(() => {
@@ -26,6 +29,7 @@ export function ModalBackdrop({
   }, [closeOnEscape, onClose]);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!closeOnBackdropClick) return;
     if (e.target === e.currentTarget) onClose?.(); // only close if the click was on the backdrop
   };
 
