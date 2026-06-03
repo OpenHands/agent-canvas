@@ -58,7 +58,6 @@ import {
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  getOrCreatePersistedApiKey,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
@@ -68,6 +67,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { buildAutomationCompatEnv } from "./automation-compat-env.mjs";
 import { fileLog, stripAnsi } from "./logger.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -674,7 +674,7 @@ function spawnService(name, command, args, options = {}) {
     logError(`${name} failed to start: ${error.message}`);
   });
 
-  proc.on("exit", (code, signal) => {
+  proc.on("exit", (code, _signal) => {
     if (code !== 0 && code !== null && !shuttingDown) {
       logService(name, `Exited with code ${code}`, c.red);
     }
@@ -811,16 +811,18 @@ function buildAgentServerAutomationEnv(config, env = process.env) {
 function buildAutomationBackendEnv(config, env = process.env) {
   const tempDir = getSharedTempDir(config);
 
+  const compatEnv = buildAutomationCompatEnv(env);
   const patchDir = join(projectRoot, "tools", "automation-sitecustomize");
   const pythonPathDelimiter = process.platform === "win32" ? ";" : ":";
-  const patchedPythonPath = env.PYTHONPATH
-    ? `${patchDir}${pythonPathDelimiter}${env.PYTHONPATH}`
+  const patchedPythonPath = compatEnv.PYTHONPATH
+    ? `${patchDir}${pythonPathDelimiter}${compatEnv.PYTHONPATH}`
     : patchDir;
   const shouldPatchWindowsTarballPath =
     process.platform === "win32" &&
     env.OH_DISABLE_AUTOMATION_TARBALL_PATCH !== "1";
 
   return {
+    ...compatEnv,
     // Force UTF-8 for all Python file I/O (same reason as agent-server;
     // see buildAgentServerEnv in dev-safe.mjs).
     PYTHONUTF8: "1",
@@ -980,7 +982,7 @@ function startAutomationBackend(config) {
     ],
     {
       cwd: config.stateDir,
-      env: buildAutomationBackendEnv(config),
+      env: buildAutomationBackendEnv(config, process.env),
       color: c.green,
     },
   );
@@ -1213,7 +1215,7 @@ function printBanner(config) {
 
   // padEnd counts invisible ANSI escape bytes as visible characters, so we
   // compute the visible length separately and pad with spaces accordingly.
-  const ansiRe = /\x1b\[[0-9;]*m/g;
+  const ansiRe = new RegExp(String.raw`\u001b\[[0-9;]*m`, "g");
   const ansiPadEnd = (str, targetVisible) => {
     const visible = str.replace(ansiRe, "").length;
     return str + " ".repeat(Math.max(0, targetVisible - visible));
@@ -1518,6 +1520,7 @@ export {
   buildAgentServerAutomationEnv,
   buildAutomationBackendEnv,
   buildAutomationCommand,
+  buildAutomationCompatEnv,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,

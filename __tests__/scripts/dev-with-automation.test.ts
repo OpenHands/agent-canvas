@@ -18,6 +18,7 @@ import {
   buildAgentServerAutomationEnv,
   buildAutomationBackendEnv,
   buildAutomationCommand,
+  buildAutomationCompatEnv,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
@@ -152,9 +153,24 @@ describe("buildAutomationBackendEnv", () => {
     expect(env.TEMP).toBe("/tmp/agent-canvas-state/tmp");
     expect(env.AUTOMATION_AGENT_SERVER_URL).toBe("http://localhost:18000");
     expect(env.AUTOMATION_LOCAL_API_KEY).toBe("shared-session-key");
+    expect(env.OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT).toBe("1");
+    expect(env.PYTHONPATH).toContain("automation-compat-python");
+  });
+});
 
-    // In CI we don't run on Windows, so the dev-time patch isn't enabled here.
-    expect(env.PYTHONPATH).toBeUndefined();
+describe("buildAutomationCompatEnv", () => {
+  it("injects the automation compatibility sitecustomize path", () => {
+    const env = buildAutomationCompatEnv({});
+
+    expect(env.OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT).toBe("1");
+    expect(env.PYTHONPATH).toContain("automation-compat-python");
+  });
+
+  it("prepends the compatibility path ahead of existing PYTHONPATH", () => {
+    const env = buildAutomationCompatEnv({ PYTHONPATH: "existing-path" });
+
+    expect(env.PYTHONPATH).toContain("existing-path");
+    expect(env.PYTHONPATH?.startsWith(repoRoot)).toBe(true);
   });
 });
 
