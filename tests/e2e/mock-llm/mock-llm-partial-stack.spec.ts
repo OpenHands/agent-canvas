@@ -354,6 +354,11 @@ test.describe("partial stack: port conflict", () => {
   test("fails with a clear error when the ingress port is occupied", async () => {
     test.setTimeout(30_000);
 
+    test.skip(
+      !existsSync(join(PROJECT_ROOT, "build/index.html")),
+      "build/index.html missing — skipped (run `npm run build:app` or use the npm e2e config)",
+    );
+
     const conflictPort = 18330;
 
     // Block the port with a dummy TCP server
