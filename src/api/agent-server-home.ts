@@ -21,6 +21,11 @@ function isAbsolutePath(path: string): boolean {
   // The agent-server itself is POSIX on Linux/macOS and uses `\\` style
   // on Windows; we just need to know whether `Path(path).is_absolute()`
   // would return true on the server.
+  //
+  // Patterns covered:
+  //   POSIX absolute:      /foo/bar
+  //   Windows drive:       C:\foo  or  C:/foo
+  //   Windows UNC:         \\server\share  (starts with `\`, matches `[/\\]`)
   return /^([/\\]|[a-zA-Z]:[/\\])/.test(path);
 }
 

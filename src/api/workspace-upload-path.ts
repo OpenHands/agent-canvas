@@ -64,6 +64,25 @@ export async function buildWorkspaceUploadPath(
   return `${absoluteDir.replace(/[/\\]+$/, "")}/${safeName}`;
 }
 
+/**
+ * Resolve the working directory for a file upload into a conversation's
+ * workspace.
+ *
+ * **Returns the raw working dir string** — which may be relative (e.g.
+ * `workspace/project/<hex>`) when the default `DEFAULT_WORKING_DIR` is in
+ * use. Callers that need an actual filesystem-absolute path (e.g. to pass to
+ * the agent-server's `/api/file/upload` endpoint) **must** funnel this result
+ * through {@link buildWorkspaceUploadPath}, which calls
+ * {@link resolveAbsoluteWorkspacePath} to anchor any relative segment against
+ * the agent-server's home directory.
+ *
+ * Why not resolve here? Because this function is also called by cloud-runtime
+ * upload paths where the overrides (conversationUrl, sessionApiKey) aren't
+ * available until {@link uploadFilesToConversation} assembles them. Keeping
+ * the resolution step in {@link buildWorkspaceUploadPath} means both the
+ * local and cloud legs share a single resolution point with the correct
+ * override context.
+ */
 export async function resolveConversationUploadWorkingDir(
   conversationId: string,
   currentConversation?: AppConversation | null,
