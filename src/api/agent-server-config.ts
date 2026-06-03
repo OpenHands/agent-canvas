@@ -30,8 +30,36 @@ function getConfiguredBaseUrl(): string | null {
   return normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL);
 }
 
+/**
+ * Return the session API key supplied by the deployment host.
+ *
+ * Two sources are consulted, in order:
+ *   1. `VITE_SESSION_API_KEY` — baked into the bundle at build time (used by
+ *      `npm run dev` so the dev server has the key without a round-trip).
+ *   2. `window.__AGENT_CANVAS_SESSION_API_KEY__` — injected into `index.html`
+ *      at serve time by `scripts/static-server.mjs --session-api-key <key>`.
+ *      This is the path used by the published `agent-canvas` binary, where
+ *      `VITE_SESSION_API_KEY` is empty in the prebuilt bundle and the
+ *      runtime key is generated when the user launches the CLI.
+ *
+ * Without the window-global fallback, the published binary cannot construct a
+ * default local backend (`makeDefaultLocalBackend()` returns null), the
+ * registry is left empty, and the user sees the Manage Backends modal
+ * instead of the onboarding flow.
+ */
 export function getBakedSessionApiKey(): string | null {
-  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  const envKey = trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  if (envKey) return envKey;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    if (typeof injected === "string") {
+      return trimToNull(injected);
+    }
+  }
+
+  return null;
 }
 
 export function getAgentServerFormDefaults(): AgentServerFormDefaults {

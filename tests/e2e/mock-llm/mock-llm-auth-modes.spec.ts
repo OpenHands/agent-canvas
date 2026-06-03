@@ -1,13 +1,20 @@
 /**
  * Mock-LLM E2E tests for authentication modes.
  *
- * Tests two scenarios using the same backend (agent-server) started by the
- * main mock-LLM stack:
+ * Tests three scenarios using the same backend (agent-server) started by
+ * the main mock-LLM stack:
+ *
+ *   0. **Fresh install with runtime-injected key:** No pre-seeded
+ *      localStorage — the static-server's `<head>` injection must be the
+ *      only mechanism that gets the runtime session key into the app.
+ *      Verifies the user reaches the onboarding modal, not the Manage
+ *      Backends "trap" modal that v1.0.0-beta.7 showed.
  *
  *   1. **Key rotation (non-public):** The stack runs with key A, but
  *      localStorage still holds a stale key B from a previous session.
- *      Verifies that the boot-time sync in `syncBakedSessionApiKey()`
- *      clears the stale key so the app loads and can talk to the backend.
+ *      Verifies that `syncLauncherDefaultLocalBackend()` and the
+ *      static-server's localStorage overwrite clear the stale key so the
+ *      app loads and can talk to the backend.
  *
  *   2. **Public-mode auth gate:** A separate static-server instance
  *      serves the same build with `--auth-required` (no baked session
@@ -16,7 +23,7 @@
  *        - Submitting the correct key lets the app through.
  *        - Submitting a wrong key shows an inline error.
  *
- * @spec BM-002 — Key rotation recovery via syncBakedSessionApiKey
+ * @spec BM-002 — Key rotation recovery via syncLauncherDefaultLocalBackend
  */
 
 import { test, expect } from "@playwright/test";
@@ -31,6 +38,66 @@ import {
 } from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
+
+// ═══════════════════════════════════════════════════════════════════════
+// 0. Fresh-install path (the published `agent-canvas` binary case)
+// ═══════════════════════════════════════════════════════════════════════
+
+test.describe("auth mode: fresh install with runtime-injected key", () => {
+  // Regression for the bug a user hit on v1.0.0-beta.7:
+  //
+  //   `npm install -g @openhands/agent-canvas && agent-canvas`
+  //
+  // landed on the Manage Backends modal ("No extra backends added yet.")
+  // with no way out, because the prebuilt bundle has no
+  // VITE_SESSION_API_KEY baked in. The runtime key reaches the bundle via
+  // `window.__AGENT_CANVAS_SESSION_API_KEY__` injected by
+  // `scripts/static-server.mjs`; without that fallback the backend
+  // registry seeds empty and `MissingAgentServerScreen` traps the user.
+  test("reaches the onboarding modal without pre-seeded localStorage", async ({
+    page,
+    request,
+  }) => {
+    // No `addInitScript` here on purpose: we want a fresh browser context
+    // that exactly mirrors the first-launch user experience.
+
+    // Skip the analytics consent modal so it doesn't sit on top of the
+    // onboarding modal in CI screenshots/timeouts.
+    await page.addInitScript(() => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+    });
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    // The static-server injected the runtime key into
+    // `window.__AGENT_CANVAS_SESSION_API_KEY__`; the React app reads it,
+    // seeds the default-local backend, and lands on the home page where
+    // OnboardingHost mounts the first onboarding step.
+    await waitForTestId(page, "onboarding-step-choose-agent");
+
+    // The Manage Backends "trap" modal must NOT be the screen the user
+    // sees on first launch.
+    await expect(
+      page.getByTestId("agent-server-onboarding-screen"),
+    ).not.toBeVisible({ timeout: 1_000 });
+
+    // Sanity check: the backend is actually reachable with the runtime key.
+    const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+      headers: { "X-Session-API-Key": SESSION_API_KEY },
+    });
+    expect(settingsResp.ok()).toBe(true);
+
+    // Sanity check: the runtime key landed on the window global.
+    const injected = await page.evaluate(
+      () =>
+        (window as unknown as Record<string, unknown>)
+          .__AGENT_CANVAS_SESSION_API_KEY__,
+    );
+    expect(injected).toBe(SESSION_API_KEY);
+  });
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // 1. Key rotation (non-public mode)
@@ -81,9 +148,11 @@ test.describe("auth mode: non-public key rotation", () => {
       { staleKey: STALE_KEY },
     );
 
-    // The baked-in VITE_SESSION_API_KEY (from the stack) should be the
-    // CORRECT key. The syncBakedSessionApiKey() function should overwrite
-    // the stale localStorage key on boot.
+    // The runtime session key (injected by static-server) should be the
+    // CORRECT key. `syncLauncherDefaultLocalBackend()` overwrites the
+    // stale apiKey on the registry's default-local entry on boot, and the
+    // static-server's localStorage write overwrites the legacy stored
+    // sessionApiKey so the next read produces the live key.
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
