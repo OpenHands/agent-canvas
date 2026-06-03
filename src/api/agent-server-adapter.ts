@@ -800,7 +800,7 @@ export function buildStartConversationRequest(
 
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const headers = buildAuthHeaders(backend);
+    const headers = backend ? buildAuthHeaders(backend) : {};
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {

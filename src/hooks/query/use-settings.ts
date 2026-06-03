@@ -3,6 +3,7 @@ import axios from "axios";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsScope, SettingsValue } from "#/types/settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import {
@@ -128,6 +129,7 @@ export const getSettingsQueryFn = async (
 
 export const useSettings = (scope: SettingsScope = "personal") => {
   const active = useActiveBackend();
+  const hasBackend = !isNoBackend(active.backend);
   const query = useQuery({
     // Include the active backend identity so switching backends or orgs
     // produces a fresh query — the `staleTime` cache for one backend
@@ -139,6 +141,7 @@ export const useSettings = (scope: SettingsScope = "personal") => {
     ],
     queryFn: () => getSettingsQueryFn(scope),
     retry: (_, error) => getErrorStatus(error) !== 404,
+    enabled: hasBackend,
     refetchOnWindowFocus: false,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15,
@@ -146,6 +149,21 @@ export const useSettings = (scope: SettingsScope = "personal") => {
       disableToast: true,
     },
   });
+
+  if (!hasBackend) {
+    return {
+      data: DEFAULT_SETTINGS,
+      error: null,
+      isError: false,
+      isLoading: false,
+      isFetching: false,
+      isFetched: false,
+      isSuccess: true,
+      status: "success" as const,
+      fetchStatus: "idle" as const,
+      refetch: query.refetch,
+    };
+  }
 
   if (getErrorStatus(query.error) === 404) {
     return {

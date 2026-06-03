@@ -630,17 +630,52 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
     });
 
-    it("switches the conversation by profile name when a conversationId is provided", async () => {
-      mockSwitchProfile.mockResolvedValue(undefined);
+    it("switches an active conversation with the full encrypted profile config", async () => {
+      mockGetProfile.mockResolvedValue({
+        name: "haiku",
+        config: {
+          model: "litellm_proxy/claude-haiku-4-5",
+          api_key: "encrypted-key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+        },
+        api_key_set: true,
+      });
+      mockSwitchLLM.mockResolvedValue(undefined);
 
       await AgentServerConversationService.switchProfile("conv-1", "haiku");
 
-      expect(mockSwitchProfile).toHaveBeenCalledWith("conv-1", "haiku");
+      expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
+        exposeSecrets: "encrypted",
+      });
+      expect(mockSwitchLLM).toHaveBeenCalledWith(
+        "conv-1",
+        expect.objectContaining({
+          model: "litellm_proxy/claude-haiku-4-5",
+          api_key: "encrypted-key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+          usage_id: expect.stringMatching(/^profile:haiku:/),
+        }),
+      );
       // Per-convo path: global default is left untouched and profile secrets are
-      // never fetched into the UI.
+      // only fetched as encrypted values for direct round-trip to switch_llm.
       expect(mockActivateProfile).not.toHaveBeenCalled();
-      expect(mockGetProfile).not.toHaveBeenCalled();
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
+    });
+
+    it("surfaces encrypted profile export failures instead of using the stale profile switch path", async () => {
+      const error = new Error("No cipher");
+      mockGetProfile.mockRejectedValueOnce(error);
+
+      await expect(
+        AgentServerConversationService.switchProfile("conv-1", "haiku"),
+      ).rejects.toThrow(error);
+
+      expect(mockGetProfile).toHaveBeenCalledWith("haiku", {
+        exposeSecrets: "encrypted",
+      });
+      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
+      expect(mockActivateProfile).not.toHaveBeenCalled();
     });
 
     it("activates the profile globally when called without a conversationId", async () => {
@@ -696,7 +731,7 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.post).mockReset();
+      vi.mocked(axios.request).mockReset();
     });
 
     afterEach(() => {
@@ -706,7 +741,7 @@ describe("AgentServerConversationService", () => {
 
     it("forwards parent_conversation_id, agent_type, and sandbox_id to the cloud createConversation payload", async () => {
       // Arrange
-      vi.mocked(axios.post).mockResolvedValue({
+      vi.mocked(axios.request).mockResolvedValue({
         data: {
           id: "task-1",
           status: "WORKING",
@@ -731,13 +766,13 @@ describe("AgentServerConversationService", () => {
       );
 
       // Assert
-      const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-      const upstream = body as {
-        path: string;
-        body: Record<string, unknown>;
-      };
-      expect(upstream.path).toBe("/api/v1/app-conversations");
-      expect(upstream.body).toMatchObject({
+      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(config).toMatchObject({
+        url: `${cloudBackend.host}/api/v1/app-conversations`,
+        method: "POST",
+        headers: { Authorization: "Bearer bearer-token" },
+      });
+      expect((config as { data: Record<string, unknown> }).data).toMatchObject({
         parent_conversation_id: "parent-conv-1",
         agent_type: "plan",
         sandbox_id: "sandbox-9",
@@ -746,7 +781,7 @@ describe("AgentServerConversationService", () => {
 
     it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
-      vi.mocked(axios.post).mockResolvedValue({ data: "# PLAN content" });
+      vi.mocked(axios.request).mockResolvedValue({ data: "# PLAN content" });
 
       // Act
       const content =
@@ -756,11 +791,13 @@ describe("AgentServerConversationService", () => {
 
       // Assert
       expect(content).toBe("# PLAN content");
-      const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-      const upstream = body as { method: string; path: string };
-      expect(upstream.method).toBe("GET");
-      expect(upstream.path).toBe(
-        "/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md",
+      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(config).toMatchObject({
+        method: "GET",
+        headers: { Authorization: "Bearer bearer-token" },
+      });
+      expect((config as { url: string }).url).toBe(
+        `${cloudBackend.host}/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md`,
       );
     });
   });

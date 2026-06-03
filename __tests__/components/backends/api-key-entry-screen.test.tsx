@@ -3,10 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AGENT_SERVER_CONFIG_STORAGE_KEY,
-  saveAgentServerConfig,
-} from "#/api/agent-server-config";
 import { BACKENDS_STORAGE_KEY } from "#/api/backend-registry/storage";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -120,13 +116,7 @@ describe("ApiKeyEntryScreen", () => {
 
   // @spec — API key field always starts empty (stale key wipe)
   it("starts with an empty api key even when localStorage has a stale key", () => {
-    // Seed localStorage with a stale key from a previous session
-    saveAgentServerConfig({
-      baseUrl: "http://localhost:8000",
-      sessionApiKey: "old-stale-key-from-previous-session",
-    });
-
-    // Also seed the backend registry with the stale key
+    // Seed the backend registry with the stale key
     window.localStorage.setItem(
       BACKENDS_STORAGE_KEY,
       JSON.stringify([
@@ -177,11 +167,11 @@ describe("ApiKeyEntryScreen", () => {
       expect(getSettingsMock).toHaveBeenCalledTimes(1);
     });
 
-    // Key persisted to agent-server-config storage
+    // Key persisted to backend registry storage
     const stored = JSON.parse(
-      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY) ?? "{}",
+      window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]",
     );
-    expect(stored.sessionApiKey).toBe("correct-key");
+    expect(stored[0].apiKey).toBe("correct-key");
 
     // Page reloaded
     expect(reloadMock).toHaveBeenCalled();
@@ -213,10 +203,10 @@ describe("ApiKeyEntryScreen", () => {
       "AUTH$INVALID_KEY",
     );
 
-    // Key NOT persisted
-    expect(
-      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY),
-    ).toBeNull();
+    // Rejected key NOT persisted.
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toContain(
+      "wrong-key",
+    );
 
     // Page NOT reloaded
     expect(reloadMock).not.toHaveBeenCalled();
@@ -248,10 +238,10 @@ describe("ApiKeyEntryScreen", () => {
     expect(statusText).toContain("500");
     expect(statusText).not.toContain("AUTH$INVALID_KEY");
 
-    // Key NOT persisted
-    expect(
-      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY),
-    ).toBeNull();
+    // Rejected key NOT persisted.
+    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toContain(
+      "correct-key",
+    );
 
     expect(reloadMock).not.toHaveBeenCalled();
   });
@@ -290,19 +280,13 @@ describe("ApiKeyEntryScreen", () => {
     });
 
     const stored = JSON.parse(
-      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY) ?? "{}",
+      window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]",
     );
-    expect(stored.sessionApiKey).toBe("correct-key");
+    expect(stored[0].apiKey).toBe("correct-key");
   });
 
   // @spec — Stale key in localStorage does not contaminate the new key
   it("persists only the freshly-entered key, not the stale one", async () => {
-    // Seed a stale key from a previous session
-    saveAgentServerConfig({
-      baseUrl: "http://localhost:8000",
-      sessionApiKey: "stale-key-AAAA",
-    });
-
     getSettingsMock.mockResolvedValueOnce({ llm_model: "test" });
 
     renderScreen();
@@ -322,8 +306,8 @@ describe("ApiKeyEntryScreen", () => {
 
     // Stored key is the NEW one, not old + new concatenated
     const stored = JSON.parse(
-      window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY) ?? "{}",
+      window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]",
     );
-    expect(stored.sessionApiKey).toBe("fresh-key-BBBB");
+    expect(stored[0].apiKey).toBe("fresh-key-BBBB");
   });
 });

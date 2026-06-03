@@ -153,6 +153,7 @@ export function SdkSectionPage({
   initialValueOverrides,
   embedded = false,
   hideSaveButton = false,
+  suppressSuccessToast = false,
   onSaveControlChange,
   testId = "sdk-section-settings-screen",
 }: {
@@ -199,6 +200,8 @@ export function SdkSectionPage({
    * action (e.g. an onboarding "Next" button).
    */
   hideSaveButton?: boolean;
+  /** Suppress the default success toast after save completes. */
+  suppressSuccessToast?: boolean;
   /**
    * Fires whenever the save state changes (a mutation starts/finishes,
    * dirty status flips). Provides a stable `save()` callback the
@@ -413,7 +416,9 @@ export function SdkSectionPage({
     saveSettings(payload, {
       onError: handleError,
       onSuccess: () => {
-        displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
+        if (!suppressSuccessToast) {
+          displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
+        }
         setDirty({});
         onSaveSuccess?.();
       },
@@ -449,7 +454,10 @@ export function SdkSectionPage({
     });
   }, [isPending, saveControlIsDirty, values, view]);
 
-  if (isLoading || isFetching || isSchemaLoading) {
+  // Keep existing form content visible during background refetches to avoid
+  // flashing the full skeleton (notably during onboarding Next transitions).
+  const isInitialSettingsLoad = (isLoading || isFetching) && !settings;
+  if (isInitialSettingsLoad || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
 

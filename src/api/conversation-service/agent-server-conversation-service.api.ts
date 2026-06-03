@@ -1,4 +1,7 @@
-import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationSortOrder,
+  type LLMConfig,
+} from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
@@ -37,7 +40,10 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  getAgentServerClientOptions,
+  NoBackendAvailableError,
+} from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
@@ -385,6 +391,8 @@ class AgentServerConversationService {
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).createConversation<DirectConversationInfo>(payload);
+    const localBackend = getEffectiveLocalBackend();
+    if (!localBackend) throw new NoBackendAvailableError();
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/
@@ -407,7 +415,7 @@ class AgentServerConversationService {
       status: "READY",
       detail: null,
       app_conversation_id: data.id,
-      agent_server_url: getEffectiveLocalBackend().host,
+      agent_server_url: localBackend.host,
       request: {
         initial_message: payload.initial_message as
           | AppConversationStartRequest["initial_message"]
@@ -679,10 +687,21 @@ class AgentServerConversationService {
       return;
     }
 
-    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
-      conversationId,
+    const clientOptions = getAgentServerClientOptions();
+    const conversationClient = new ConversationClient(clientOptions);
+    const profile = await new ProfilesClient(clientOptions).getProfile(
       profileName,
+      { exposeSecrets: "encrypted" },
     );
+    const model =
+      typeof profile.config.model === "string" ? profile.config.model : "";
+    if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await conversationClient.switchLLM(conversationId, {
+      ...profile.config,
+      model,
+      // Avoid stale first-write-wins entries in the backend LLM registry.
+      usage_id: `profile:${profileName}:${uuidv4()}`,
+    } as LLMConfig);
   }
 
   /**

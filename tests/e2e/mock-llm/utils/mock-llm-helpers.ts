@@ -42,14 +42,43 @@ export const SESSION_API_KEY = (() => {
   return key;
 })();
 
-/** Seed localStorage with flags that skip onboarding / analytics modals. */
+/** Seed localStorage with flags that skip onboarding / analytics modals
+ *  and a default local backend so the app boots straight into the home
+ *  page. The backend registry is seeded explicitly for two reasons:
+ *
+ *    1. It guarantees a deterministic backend entry across tests even
+ *       when key rotation or stale-state scenarios are exercised.
+ *    2. It avoids depending on the runtime injection ordering between
+ *       `page.addInitScript` and the static-server's `<head>` script.
+ *
+ *  As of the published-binary session-key fix, the static-server also
+ *  exposes the runtime key via `window.__AGENT_CANVAS_SESSION_API_KEY__`,
+ *  which `getBakedSessionApiKey()` reads — so a real user with an empty
+ *  localStorage no longer needs this seeding to reach onboarding.  See
+ *  `auth mode: fresh install with runtime-injected key` in
+ *  `mock-llm-auth-modes.spec.ts` for the test that covers that path. */
 export async function seedLocalStorage(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "false");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem("openhands-onboarded", "1");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
 }
 
 /** Inject session API key header into requests targeting the backend. */

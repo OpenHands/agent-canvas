@@ -19,6 +19,7 @@ import {
   buildAutomationCommand,
   buildConfig,
   buildRouteArgs,
+  buildViteBackendEnv,
   getFrontendBackend,
   getLocalServiceRoutes,
   DEFAULT_AUTOMATION_REPO,
@@ -371,6 +372,69 @@ describe("stack mode routing", () => {
       `http://localhost:${config.vitePort}`,
     );
     expect(buildRouteArgs(getLocalServiceRoutes(config))).toEqual([]);
+  });
+
+  it("does not bake a host workspace path in frontend-only mode by default", async () => {
+    const config = await buildConfig(
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(config.viteWorkingDir).toBeUndefined();
+  });
+
+  it("honors explicit frontend-only VITE_WORKING_DIR values", async () => {
+    const config = await buildConfig(
+      { frontendOnly: true },
+      envWithIsolatedKeyPath({ VITE_WORKING_DIR: "workspace/project" }),
+    );
+
+    expect(config.viteWorkingDir).toBe("workspace/project");
+  });
+
+  it("bakes the host workspace path when this launcher starts the agent-server", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    expect(config.viteWorkingDir).toBe(
+      path.join(config.stateDir, "workspaces"),
+    );
+  });
+
+  it("points frontend-only Vite at a separately running backend by default", async () => {
+    const config = await buildConfig(
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(buildViteBackendEnv(config, {})).toEqual({
+      VITE_BACKEND_HOST: "127.0.0.1:8000",
+      VITE_BACKEND_BASE_URL: "http://127.0.0.1:8000",
+    });
+  });
+
+  it("keeps full-stack Vite pointed at this launcher's ingress", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    expect(buildViteBackendEnv(config, {})).toEqual({
+      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    });
+  });
+
+  it("allows frontend-only Vite to target an explicit backend URL", async () => {
+    const config = await buildConfig(
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(
+      buildViteBackendEnv(config, {
+        VITE_BACKEND_BASE_URL: "https://backend.example.test",
+      }),
+    ).toEqual({
+      VITE_BACKEND_HOST: "backend.example.test",
+      VITE_BACKEND_BASE_URL: "https://backend.example.test",
+    });
   });
 
   it("routes only agent-server and automation in backend-only mode", async () => {
