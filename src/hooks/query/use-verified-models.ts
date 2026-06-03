@@ -12,12 +12,12 @@ export async function fetchVerifiedModelsByProvider(): Promise<
 > {
   const active = getActiveBackend();
   if (active.backend.kind === "cloud") {
-    const result = await callCloudProxy<Record<string, string[]> | null>({
-      backend: active.backend,
-      method: "GET",
-      path: "/api/llm/models/verified",
-    });
-    return result ?? {};
+    // Raw response shape: { models: Record<string, string[]> }
+    // (mirrors what LLMMetadataClient.getVerifiedModels returns via response.data.models)
+    const raw = await callCloudProxy<{ models: Record<string, string[]> | null }>(
+      { backend: active.backend, method: "GET", path: "/api/llm/models/verified" },
+    );
+    return raw?.models ?? {};
   }
   const client = new LLMMetadataClient(getAgentServerClientOptions());
   return (await client.getVerifiedModels()) ?? {};

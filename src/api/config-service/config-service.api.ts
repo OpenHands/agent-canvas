@@ -55,20 +55,23 @@ class ConfigService {
     let verifiedMap: Record<string, string[]> | null;
 
     if (active.backend.kind === "cloud") {
+      // Raw response shapes mirror what LLMMetadataClient extracts:
+      //   GET /api/llm/models          → { models: string[] }
+      //   GET /api/llm/models/verified → { models: Record<string, string[]> }
       const verifiedFetch =
         verifiedByProvider !== undefined
           ? Promise.resolve(verifiedByProvider)
-          : callCloudProxy<Record<string, string[]> | null>({
+          : callCloudProxy<{ models: Record<string, string[]> | null }>({
               backend: active.backend,
               method: "GET",
               path: "/api/llm/models/verified",
-            });
+            }).then((raw) => raw?.models ?? null);
       [models, verifiedMap] = await Promise.all([
-        callCloudProxy<string[] | null>({
+        callCloudProxy<{ models: string[] | null }>({
           backend: active.backend,
           method: "GET",
           path: "/api/llm/models",
-        }),
+        }).then((raw) => raw?.models ?? null),
         verifiedFetch,
       ]);
     } else {
@@ -129,20 +132,23 @@ class ConfigService {
     let verifiedMap: Record<string, string[]> | null;
 
     if (active.backend.kind === "cloud") {
+      // Raw response shapes mirror what LLMMetadataClient extracts:
+      //   GET /api/llm/providers       → { providers: string[] }
+      //   GET /api/llm/models/verified → { models: Record<string, string[]> }
       const verifiedFetch =
         verifiedByProvider !== undefined
           ? Promise.resolve(verifiedByProvider)
-          : callCloudProxy<Record<string, string[]> | null>({
+          : callCloudProxy<{ models: Record<string, string[]> | null }>({
               backend: active.backend,
               method: "GET",
               path: "/api/llm/models/verified",
-            });
+            }).then((raw) => raw?.models ?? null);
       [providers, verifiedMap] = await Promise.all([
-        callCloudProxy<string[] | null>({
+        callCloudProxy<{ providers: string[] | null }>({
           backend: active.backend,
           method: "GET",
           path: "/api/llm/providers",
-        }),
+        }).then((raw) => raw?.providers ?? null),
         verifiedFetch,
       ]);
     } else {
