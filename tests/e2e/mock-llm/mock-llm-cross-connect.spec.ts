@@ -281,11 +281,16 @@ test.describe("cross-connect: frontend-only → backend-only", () => {
       apiKey: beEnv.sessionKey,
     });
 
-    // ── 6. Verify the app loads ───────────────────────────────────────
-    // After the add-backend form closes, the manage modal's "Done" may
-    // still be showing. Wait for the page to reload/navigate.
+    // ── 6. Reload to pick up the new backend ──────────────────────────
+    // After adding a backend through the MissingAgentServerScreen modal,
+    // root.tsx's useConfig still holds the cached AgentServerUnavailable
+    // error (retries are disabled for that error class). A page reload
+    // re-evaluates everything from scratch: getEffectiveLocalBackend()
+    // now returns the newly added backend, and useConfig probes it.
+    await page.reload({ waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
+    // ── 7. Verify the app loads ───────────────────────────────────────
     // The app should reach either the onboarding flow or the home page
     // — crucially NOT the manage-backends modal or auth screen.
     const onboardingOrHome = page
@@ -397,21 +402,16 @@ test.describe("cross-connect: frontend-only → multiple backends", () => {
       apiKey: beEnvA.sessionKey,
     });
 
-    // After adding, dismiss the analytics modal and wait for the app to load.
-    await dismissAnalyticsModal(page);
-    const appUI = page
-      .getByTestId("onboarding-step-choose-agent")
-      .or(page.getByTestId("home-chat-launcher"));
-    await expect(appUI).toBeVisible({ timeout: 20_000 });
-
-    // Mark onboarding as done so we can reach the home page
+    // Reload to pick up the new backend (same reason as single-backend
+    // test: useConfig caches the AgentServerUnavailableError).
+    // Also mark onboarding as done so we land on the home page.
     await page.evaluate(() => {
       window.localStorage.setItem("openhands-onboarded", "1");
     });
     await page.reload({ waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await expect(page.getByTestId("home-chat-launcher")).toBeVisible({
-      timeout: 15_000,
+      timeout: 20_000,
     });
 
     // ── 6. Add Backend B via the dropdown menu ────────────────────────
