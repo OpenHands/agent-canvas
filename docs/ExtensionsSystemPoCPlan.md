@@ -4,6 +4,7 @@ Status: working build plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
 Agent execution checklist: [ExtensionsSystemAgentExecutionPlan.md](./ExtensionsSystemAgentExecutionPlan.md)
 Target branch: `dv/extensions-poc-v1`
+Current repo baseline: merged through `upstream/main` at `929e5afc` / `origin/main` at `62f5eae7`. The plan below has been refreshed for the current launcher/auth split, partial-stack modes, MCP integrations catalog, `agentServer` pin `1.24.0`, and public skills defaulting on.
 
 ## 1. Purpose
 
@@ -16,7 +17,7 @@ The MVP should be built as a vertical proof, not as isolated architecture layers
 1. A local or npm-packed Agent Canvas extension installs into `~/.openhands/agent-canvas/installations`.
 2. The Packages page shows the installed extension and its diagnostics.
 3. A trusted `browser.module` view renders at `/extensions/:extensionId/:viewId/*`.
-4. A view can contribute a primary Sidebar entry after Automations and before the conversation list.
+4. A view can contribute a primary Sidebar entry after Automations and before the conversation list, matching the current `SidebarRailBody` order (`New Chat`, `Customize`, `Automations`, then conversations).
 5. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
 6. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
 
@@ -26,6 +27,7 @@ These decisions should keep the build from spreading sideways:
 
 - First-class install/enable support is for Agent Canvas extension manifests only. Standalone SDK plugins, `SKILL.md` folders, and future MCP-template artifacts can be detected, but they return an explicit unsupported-in-MVP diagnostic unless wrapped by an extension.
 - CLI management commands must dispatch before stack startup, before the static `build/` existence check, and before importing `scripts/dev-with-automation.mjs`.
+- CLI management commands must also dispatch before `--public`, `--frontend-only`, and `--backend-only` stack validation, because `install/list/doctor` should work even when no frontend/backend is being launched.
 - Extension author types need a real package subpath: `@openhands/agent-canvas/extensions`, emitted under `dist/extensions/*` and included in npm release checks.
 - Conversation contribution work targets the current start payload: top-level `agent_settings` plus optional top-level `plugins`. Do not reintroduce the legacy `agent` payload shape.
 - Package-relative/local SDK plugin sources are MVP only when the launcher says `localInstallStoreReadable=true`. ACP runtimes skip extension SDK plugins unless a pinned-version smoke proves the exact plugin shape is compatible.
@@ -42,7 +44,7 @@ Add a tiny fixture SDK plugin under:
 examples/extensions/hello-canvas/agent/hello-plugin
 ```
 
-Start a local conversation with its resolved absolute path in top-level `plugins`. Confirm the current pinned Agent Server (`config/defaults.json` pins `agentServer` to `1.23.0`) accepts the SDK `PluginSource` shape (`source`, optional `ref`, optional `repo_path`) and can load a package-relative path when `localInstallStoreReadable` is true. The plugin root should contain `.plugin/plugin.json`; if a fixture uses a local path, resolve `source` directly to the plugin root and omit `repo_path`.
+Start a local conversation with its resolved absolute path in top-level `plugins`. Confirm the current pinned Agent Server (`config/defaults.json` pins `agentServer` to `1.24.0`) accepts the SDK `PluginSource` shape (`source`, optional `ref`, optional `repo_path`) and can load a package-relative path when `localInstallStoreReadable` is true. The plugin root should contain `.plugin/plugin.json`; if a fixture uses a local path, resolve `source` directly to the plugin root and omit `repo_path`.
 
 Also run the same contribution preflight with an ACP agent configuration. If ACP fails or the plugin injects MCP/hooks/tool/agent-definition state, keep ACP on context-only extension support and show disabled reasons for SDK plugin contributions. If the local-path smoke fails for the pinned server, keep context contributions in MVP and move SDK plugin merge behind a feature flag until the SDK team confirms the loading contract.
 
@@ -64,6 +66,7 @@ Cover:
 - `scripts/dev-safe.mjs` / `dev:minimal`, where direct Vite proxying must handle Extension Host routes without the automation ingress.
 - `scripts/static-server.mjs` routes used by the packaged CLI/static mode.
 - `vite.config.ts` proxy support for direct Vite access, especially `/canvas-extensions/*`.
+- `--frontend-only` and `--backend-only` partial-stack behavior: frontend-only can expose Packages/extension views but should show backend-dependent diagnostics, while backend-only should not start the Extension Host view/assets path unless a future CLI-only host mode explicitly needs it.
 
 Exit criteria: a browser opened through either the ingress port or direct Vite/static port can fetch registry JSON and import a browser module from `/canvas-extensions/...`.
 
@@ -136,7 +139,7 @@ agent-canvas doctor
 agent-canvas --disable-extensions
 ```
 
-This dispatch must happen before checking for `build/` and before importing launcher scripts. MVP install can support local extension paths first, then npm specs. Npm installs must run in the private install store with install scripts denied by default. Standalone SDK plugin/skill/MCP-template inputs should return clear unsupported diagnostics rather than mutating user runtime state.
+This dispatch must happen before public/partial-stack validation, before checking for `build/`, and before importing launcher scripts. MVP install can support local extension paths first, then npm specs. Npm installs must run in the private install store with install scripts denied by default. Standalone SDK plugin/skill/MCP-template inputs should return clear unsupported diagnostics rather than mutating user runtime state.
 
 ### 3.4 Extension Host
 
@@ -174,6 +177,8 @@ Do not expose a write-capable Extension Host key in agent prompts.
 
 Route precedence is the failure-prone part: `/api/canvas/installations/*` and `/canvas-extensions/*` must match before `/api/*` and static SPA fallback in every launcher path.
 
+Partial-stack mode rule: frontend-only may start enough Extension Host surface to render local Packages and extension browser assets, but must mark agent-runtime contributions unavailable because no Agent Server is running. Backend-only should skip frontend asset hosting and extension browser routes by default; CLI management still works because it dispatches before stack startup.
+
 ## 4. Frontend Proof
 
 ### 4.1 API Wrapper
@@ -184,7 +189,7 @@ Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist 
 
 ### 4.2 Packages Page
 
-Replace `/plugins` with a Packages view, while preserving redirects/bookmarks. Use the existing Extensions layout and navigation.
+Replace `/plugins` with a Packages view, while preserving redirects/bookmarks. Use the existing Extensions layout and navigation: `/customize` is the primary-sidebar hub entry, desktop redirects to `/skills`, mobile renders `ExtensionsMobileHub`, and `ExtensionsNavigation` currently contains Skills, MCP Servers, and a coming-soon Plugins item.
 
 The page should:
 
@@ -252,7 +257,7 @@ Compute disabled reasons before launch:
 - Package-relative/local SDK plugin paths: allowed only when `localInstallStoreReadable` is true.
 - ACP runtimes: context-only unless the SDK plugin smoke proves the exact plugin shape is ACP-compatible.
 - MCP templates: visible as setup requirements, never silently installed.
-- Public skills: do not assume public marketplace skills are loaded; current frontend defaults `VITE_LOAD_PUBLIC_SKILLS` to false unless explicitly set true.
+- Public skills: do not assume public marketplace skills are loaded; current frontend defaults to loading them unless `VITE_LOAD_PUBLIC_SKILLS=false`, but users and deployments can opt out.
 
 ### 5.3 Create-Conversation Merge
 
@@ -262,7 +267,7 @@ Extend the create-conversation path with an `extensionSystemSuffix` option:
 - `AgentServerConversationService.createConversation()` asks the extensions service for enabled/selected contributions.
 - Plugin specs merge with existing `/launch` plugin selections and dedupe by `source/ref/repo_path`.
 - `agent-server-adapter.ts` appends `<AGENT_CANVAS_RUNTIME>` and `<AGENT_CANVAS_EXTENSIONS>` after `<RUNTIME_SERVICES>`.
-- The adapter continues to emit top-level `agent_settings` and top-level `plugins`; no `agent` payload field is added.
+- The adapter continues to preserve the current top-level payload shape: `agent_settings`, `workspace`, `confirmation_policy`, `tool_module_qualnames`, optional `initial_message`, optional `plugins`, and runtime fields such as `hook_config`, `agent_definitions`, `security_analyzer`, `tags`, and `secrets`. No `agent` payload field is added.
 - `conversationInstructions` remains user-message content and never receives extension context.
 
 For the first proof, a `hello.canvas` launch template should append a recognizable context block so the payload/unit test can prove the suffix path works without depending on LLM behavior.

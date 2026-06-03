@@ -4,6 +4,7 @@ Status: executable handoff plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
 Source PoC plan: [ExtensionsSystemPoCPlan.md](./ExtensionsSystemPoCPlan.md)
 Target: a working proof of concept that can be built by multiple agents without one agent holding all context
+Current repo baseline: merged through `upstream/main` at `929e5afc` / `origin/main` at `62f5eae7`. This checklist assumes `agentServer` `1.24.0`, the current local/public auth modes, frontend-only/backend-only partial stacks, MCP catalog data from `@openhands/extensions/integrations`, and public skills defaulting on unless `VITE_LOAD_PUBLIC_SKILLS=false`.
 
 ## 1. How To Use This Plan
 
@@ -65,7 +66,7 @@ Avoid these overlapping edits unless one agent owns the integration:
 - [ ] Implement:
   - Create the smallest SDK plugin fixture with a visible skill/context marker.
   - Start a local conversation with top-level `plugins: [{ source: absolutePluginPath }]`.
-  - Confirm pinned Agent Server `1.23.0` accepts `PluginSource` and loads from a local path.
+  - Confirm pinned Agent Server `1.24.0` accepts `PluginSource` and loads from a local path.
   - Run the same preflight against an ACP configuration or document that ACP remains context-only.
 - [ ] Tests:
   - Add a repeatable smoke or unit fixture where possible.
@@ -106,7 +107,7 @@ Avoid these overlapping edits unless one agent owns the integration:
   - `__tests__/extensions/manifest-validation.test.ts`
   - `package.json`
   - `tsconfig.lib.json` if needed for emitted type paths
-  - remove empty `src/addons/`
+  - keep new public types under `src/extensions/`; do not recreate the old `src/addons/` namespace
 - [ ] Implement:
   - Manifest v1 types, contribution types, registry entry types, diagnostics, installable artifact kinds.
   - Validation for required fields, ID regex, duplicate/mutually exclusive `browser.module` and `browser.entry`, path containment, reserved `browser.entry`.
@@ -183,6 +184,7 @@ npm test -- __tests__/extensions/extension-manager.test.ts
   - `__tests__/extensions/extension-cli.test.ts`
 - [ ] Implement:
   - Dispatch `install`, `list`, `enable`, `disable`, `remove`, `update`, `doctor`, and `dev-extension` before stack startup.
+  - Dispatch before `--public`, `--frontend-only`, and `--backend-only` stack validation.
   - Dispatch before checking for `build/`.
   - Dispatch before importing `scripts/dev-with-automation.mjs`.
   - `--disable-extensions` remains a process-local stack-start flag.
@@ -255,11 +257,13 @@ npm test -- __tests__/extensions/extension-host.test.ts
   - Route `/api/canvas/installations/*` and `/canvas-extensions/*` before `/api/*` and before SPA fallback.
   - Add Vite proxy support for direct Vite access.
   - Add static server route support for direct static-port access.
+  - Cover `--frontend-only` and `--backend-only`: frontend-only may expose local Packages/browser assets with agent-runtime diagnostics; backend-only should skip browser asset hosting unless a future CLI-only host mode explicitly needs it.
   - Emit frontend env/runtime metadata: extension enabled flag, `localInstallStoreReadable`, route/base if needed.
   - Do not expose a write-capable Extension Host key in `<RUNTIME_SERVICES>`.
 - [ ] Tests:
   - Route precedence unit tests for `scripts/static-server.mjs` and ingress route ordering.
   - Launcher config test for `localInstallStoreReadable=true` only when this launcher starts the local Agent Server.
+  - Partial-stack route tests for frontend-only/backend-only behavior.
   - Vite config contains extension routes before generic `/api` where applicable.
 - [ ] Verification:
 
@@ -368,7 +372,7 @@ npm run typecheck
   - `tests/e2e/snapshots/**`
 - [ ] Implement:
   - Replace or redirect `/plugins` to Packages while preserving bookmarks.
-  - Packages nav item in the Extensions hub.
+  - Packages nav item in the existing Extensions hub (`/customize` primary entry, desktop redirect to `/skills`, mobile `ExtensionsMobileHub`).
   - Sections for Enabled, Installed/Disabled, Invalid, Dev.
   - Cards show display name, package, version, state, contribution badges, required secrets, diagnostics, source path for dev entries.
   - Actions for install, enable, disable, remove.
@@ -471,7 +475,7 @@ npm run test:e2e:snapshots -- --grep "sidebar"
   - Use launcher-issued `localInstallStoreReadable`.
   - Disable package-relative/local SDK plugin paths unless filesystem-local.
   - Disable extension SDK plugins for ACP unless the G0 smoke proves allowed.
-  - Do not assume public marketplace skills are loaded.
+  - Do not assume public marketplace skills are loaded; they now default on but remain opt-out via `VITE_LOAD_PUBLIC_SKILLS=false`.
 - [ ] Tests:
   - Compatibility matrix across all runtime classes.
   - Disabled reasons are stable and UI-ready.
@@ -496,7 +500,7 @@ npm run test:e2e:snapshots -- --grep "sidebar"
   - Append `<AGENT_CANVAS_RUNTIME>` and `<AGENT_CANVAS_EXTENSIONS>` after `<RUNTIME_SERVICES>`.
   - Merge extension plugin specs with existing `/launch` plugin selections.
   - Dedupe by `source/ref/repo_path`.
-  - Preserve current top-level `agent_settings` and top-level `plugins` payload shape.
+  - Preserve current top-level start payload shape: `agent_settings`, `workspace`, `confirmation_policy`, `tool_module_qualnames`, optional `initial_message`, optional `plugins`, and runtime fields such as `hook_config`, `agent_definitions`, `security_analyzer`, `tags`, and `secrets`.
   - Keep `conversationInstructions` as user-message content only.
 - [ ] Tests:
   - Payload includes extension suffix when selected/enabled.
