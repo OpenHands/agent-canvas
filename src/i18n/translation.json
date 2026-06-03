@@ -29425,5 +29425,22 @@
     "de": "Gib eine gültige URL ein (z. B. http://localhost:8080)",
     "uk": "Введіть дійсну URL-адресу (наприклад, http://localhost:8080)",
     "ca": "Introduïu un URL vàlid (p. ex. http://localhost:8080)"
+  },
+  "BACKEND$NO_BACKEND_AVAILABLE": {
+    "ar": "No Backend Available",
+    "ca": "No Backend Available",
+    "de": "No Backend Available",
+    "en": "No Backend Available",
+    "es": "No Backend Available",
+    "fr": "No Backend Available",
+    "it": "No Backend Available",
+    "ja": "No Backend Available",
+    "ko-KR": "No Backend Available",
+    "no": "No Backend Available",
+    "pt": "No Backend Available",
+    "tr": "No Backend Available",
+    "uk": "No Backend Available",
+    "zh-CN": "No Backend Available",
+    "zh-TW": "No Backend Available"
   }
 }

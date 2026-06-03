@@ -42,14 +42,33 @@ export const SESSION_API_KEY = (() => {
   return key;
 })();
 
-/** Seed localStorage with flags that skip onboarding / analytics modals. */
+/** Seed localStorage with flags that skip onboarding / analytics modals
+ *  and a default local backend so the app doesn't show the manage-backends
+ *  modal. The backend registry must be seeded because the static build has
+ *  no baked VITE_SESSION_API_KEY — makeDefaultLocalBackend() returns null
+ *  and readLegacyBackend() can't infer a host from the injected config. */
 export async function seedLocalStorage(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "false");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem("openhands-onboarded", "1");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
 }
 
 /** Inject session API key header into requests targeting the backend. */

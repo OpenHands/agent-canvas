@@ -6,35 +6,33 @@ import type { Backend } from "./types";
 
 /**
  * Stable id for the default local backend that is auto-seeded into the
- * registry on a fresh install. After seeding, this backend is a normal
- * registered entry — the user can rename it, edit its host/api key, or
- * remove it like any other backend.
- *
- * The id is also used by `saveAgentServerConfig` to keep the registry
- * entry in sync with the legacy `openhands-agent-server-config` storage
- * that the recovery / agent-server settings page edits.
+ * registry when the launcher provides both a backend host and API key.
+ * After seeding, this backend is a normal registered entry — the user can
+ * rename it, edit its host/api key, or remove it like any other backend.
  */
 export const DEFAULT_LOCAL_BACKEND_ID = "default-local";
 
 export const DEFAULT_LOCAL_BACKEND_NAME = "Local";
 
 /**
- * Construct the default local backend from environment / agent-server
- * config (`VITE_BACKEND_BASE_URL`, `VITE_SESSION_API_KEY`, plus the
- * `openhands-agent-server-config` localStorage overrides).
+ * Construct the default local backend from environment/runtime config.
+ * Returns null unless both a backend location and API key are available.
  *
- * Used in two places:
- *   1. As the seed entry written to `openhands-backends` on first load.
- *   2. As a last-resort fallback inside the active store when the
- *      registry has no local backend at all (e.g. the user removed
- *      every entry). The synthetic fallback is never persisted.
+ * Used as the seed entry written to `openhands-backends` on first load;
+ * if it returns null, onboarding is responsible for collecting backend
+ * connection details from the user.
  */
-export function makeDefaultLocalBackend(): Backend {
+export function makeDefaultLocalBackend(): Backend | null {
+  const host = getAgentServerBaseUrl();
+  const apiKey = getAgentServerSessionApiKey();
+
+  if (!host || !apiKey) return null;
+
   return {
     id: DEFAULT_LOCAL_BACKEND_ID,
     name: DEFAULT_LOCAL_BACKEND_NAME,
-    host: getAgentServerBaseUrl(),
-    apiKey: getAgentServerSessionApiKey() ?? "",
+    host,
+    apiKey,
     kind: "local",
   };
 }

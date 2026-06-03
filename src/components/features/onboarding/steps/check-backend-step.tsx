@@ -1,6 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { isNoBackend } from "#/api/backend-registry/active-store";
+import { getAgentServerFormDefaults } from "#/api/agent-server-config";
+import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
 import { BackendForm } from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
@@ -9,7 +12,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
 interface CheckBackendStepProps {
-  onBack: () => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
@@ -81,8 +84,23 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
   const { active } = useActiveBackendContext();
   const { backend } = active;
-  const healthByBackendId = useBackendsHealth([backend]);
-  const isConnected = healthByBackendId[backend.id]?.isConnected ?? null;
+  const noBackendSelected = isNoBackend(backend);
+  const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
+  const backendForForm = noBackendSelected
+    ? {
+        id: "onboarding-local-backend-draft",
+        name: DEFAULT_LOCAL_BACKEND_NAME,
+        host: defaults.baseUrl,
+        apiKey: defaults.sessionApiKey,
+        kind: "local" as const,
+      }
+    : backend;
+  const healthByBackendId = useBackendsHealth(
+    noBackendSelected ? [] : [backend],
+  );
+  const isConnected = noBackendSelected
+    ? false
+    : (healthByBackendId[backend.id]?.isConnected ?? null);
 
   return (
     <div
@@ -101,20 +119,23 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       <ConnectionBanner isConnected={isConnected} />
 
       <BackendForm
-        mode="edit"
-        backend={backend}
+        mode={noBackendSelected ? "add" : "edit"}
+        backend={backendForForm}
         onSubmitted={() => {}}
         testIdRoot="onboarding-backend"
+        requireApiKey
         renderActions={({ canSubmit, testIdRoot }) => (
           <div className="sticky bottom-0 flex items-center justify-end gap-2 mt-2 bg-base-secondary pt-4 pb-7">
-            <BrandButton
-              testId="onboarding-backend-back"
-              type="button"
-              variant="secondary"
-              onClick={onBack}
-            >
-              {t(I18nKey.ONBOARDING$BACK)}
-            </BrandButton>
+            {onBack ? (
+              <BrandButton
+                testId="onboarding-backend-back"
+                type="button"
+                variant="secondary"
+                onClick={onBack}
+              >
+                {t(I18nKey.ONBOARDING$BACK)}
+              </BrandButton>
+            ) : null}
             <BrandButton
               testId={`${testIdRoot}-submit`}
               type="submit"

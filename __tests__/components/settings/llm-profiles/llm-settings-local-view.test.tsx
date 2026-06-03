@@ -11,6 +11,7 @@ import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
@@ -541,11 +542,11 @@ describe("LlmSettingsLocalView", () => {
   });
 
   describe("Basic tab save", () => {
-    it("omits base_url so an OpenHands model round-trips on reload", async () => {
+    it("persists the OpenHands proxy base_url for OpenHands models", async () => {
       // Arrange — a profile whose stored config pairs an OpenHands model with a
-      // stale, non-proxy base_url. Persisting that base_url is exactly what
-      // makes the provider reload as "litellm_proxy" with an empty model; the
-      // Basic tab must drop it so the backend re-derives the All-Hands proxy.
+      // stale, non-proxy base_url. Persisting that stale URL is wrong, but
+      // older local agent-server builds do not derive the All-Hands proxy when
+      // base_url is omitted, so the Basic tab must save the proxy explicitly.
       const user = userEvent.setup();
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
@@ -574,12 +575,12 @@ describe("LlmSettingsLocalView", () => {
       });
       await user.click(screen.getByTestId("save-profile-btn"));
 
-      // Assert — the saved LLM config keeps the OpenHands model but no longer
-      // carries the stale base_url.
+      // Assert — the saved LLM config keeps the OpenHands model and replaces
+      // the stale base_url with the proxy required for litellm_proxy models.
       await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
       const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
       expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
-      expect(savedLlm).not.toHaveProperty("base_url");
+      expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
     });
   });
 

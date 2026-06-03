@@ -27,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -38,7 +38,7 @@ afterEach(() => {
 describe("getCloudRepositoryBranches", () => {
   it("includes an empty query parameter when listing all branches so the upstream schema is satisfied", async () => {
     // Arrange
-    vi.mocked(axios.post).mockResolvedValueOnce(emptyBranchPage);
+    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
 
     // Act
     await getCloudRepositoryBranches({
@@ -47,14 +47,14 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const path = (body as { path: string }).path;
-    expect(path).toMatch(/[?&]query=(&|$)/);
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const url = (config as { url: string }).url;
+    expect(url).toMatch(/[?&]query=(&|$)/);
   });
 
   it("forwards a non-empty query parameter when searching branches", async () => {
     // Arrange
-    vi.mocked(axios.post).mockResolvedValueOnce(emptyBranchPage);
+    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
 
     // Act
     await getCloudRepositoryBranches({
@@ -64,8 +64,8 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const path = (body as { path: string }).path;
-    expect(path).toContain("query=feature%2Flogin");
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const url = (config as { url: string }).url;
+    expect(url).toContain("query=feature%2Flogin");
   });
 });

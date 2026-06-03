@@ -10,14 +10,6 @@ import type { Backend } from "#/api/backend-registry/types";
 
 vi.mock("axios");
 
-const localBackend: Backend = {
-  id: "local-1",
-  name: "Local",
-  host: "http://localhost:9000",
-  apiKey: "local-key",
-  kind: "local",
-};
-
 const cloudPersonal: Backend = {
   id: "cloud-personal",
   name: "Production - Personal",
@@ -37,14 +29,14 @@ const cloudAcme: Backend = {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.post).mockReset();
-  vi.mocked(axios.post).mockResolvedValue({ data: {} });
+  vi.mocked(axios.request).mockReset();
+  vi.mocked(axios.request).mockResolvedValue({ data: {} });
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 describe("callCloudProxy X-Org-Id injection", () => {
@@ -52,7 +44,7 @@ describe("callCloudProxy X-Org-Id injection", () => {
     // Arrange — active selection points at the cloud backend with a
     // resolved orgId. This is the steady-state case after the user picks
     // an org row in the BackendSelector.
-    setRegisteredBackends([localBackend, cloudPersonal]);
+    setRegisteredBackends([cloudPersonal]);
     setActiveSelection({
       backendId: cloudPersonal.id,
       orgId: "org-personal-uuid",
@@ -65,12 +57,16 @@ describe("callCloudProxy X-Org-Id injection", () => {
       path: "/api/v1/app-conversations/search",
     });
 
-    // Assert — the upstream envelope carries the X-Org-Id of the active
-    // selection so the cloud backend can scope this request to the user's
-    // locally-chosen org without depending on user.current_org_id.
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    // Assert — the request carries the X-Org-Id of the active selection so the
+    // cloud backend can scope this request to the user's locally-chosen org
+    // without depending on user.current_org_id.
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudPersonal.host}/api/v1/app-conversations/search`,
+      method: "GET",
+    });
     expect(
-      (body as { headers: Record<string, string> }).headers["X-Org-Id"],
+      (config as { headers: Record<string, string> }).headers["X-Org-Id"],
     ).toBe("org-personal-uuid");
   });
 
@@ -93,9 +89,9 @@ describe("callCloudProxy X-Org-Id injection", () => {
     });
 
     // Assert
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(
-      (body as { headers: Record<string, string> }).headers,
+      (config as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
   });
 });
