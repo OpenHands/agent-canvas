@@ -42,6 +42,13 @@ export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
 };
 
+/** OpenHands Cloud integrations settings page (GitHub / Slack responders). */
+export const OPENHANDS_CLOUD_INTEGRATIONS_URL = `${PRODUCT_URL.PRODUCTION}/settings/integrations`;
+
+/** Docs for running an always-on, self-hosted OpenHands backend. */
+export const OPENHANDS_SELF_HOSTED_DOCS_URL =
+  "https://docs.openhands.dev/openhands/usage/agent-canvas/backends";
+
 export const SETTINGS_FORM = {
   LABEL_CLASSNAME: "text-[11px] font-medium leading-4 tracking-[0.11px]",
 };
