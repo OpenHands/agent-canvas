@@ -20,8 +20,10 @@ export const useChatInputLogic = () => {
 
   const {
     messageToSend: rawMessageToSend,
+    messageRestoreIfEmpty,
     hasRightPanelToggled,
     setMessageToSend,
+    clearMessageRestoreIfEmpty,
     setIsRightPanelShown,
   } = useConversationStore();
 
@@ -38,6 +40,24 @@ export const useChatInputLogic = () => {
   // Returning null here keeps value=undefined in useAutoResize so it never
   // touches the element content on the home page.
   const messageToSend = conversationId ? rawMessageToSend : null;
+
+  // Restore a cancelled pending send back into the input only when empty.
+  useEffect(() => {
+    if (!conversationId || !messageRestoreIfEmpty) {
+      return;
+    }
+
+    const currentText = getTextContent(chatInputRef.current).trim();
+    if (currentText.length === 0) {
+      setMessageToSend(messageRestoreIfEmpty.text);
+    }
+    clearMessageRestoreIfEmpty();
+  }, [
+    conversationId,
+    messageRestoreIfEmpty,
+    setMessageToSend,
+    clearMessageRestoreIfEmpty,
+  ]);
 
   // Save current input value when drawer state changes (conversation view only)
   useEffect(() => {

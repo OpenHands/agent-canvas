@@ -606,6 +606,32 @@ button.extension-module-card-interactive {
     var(--cool-grey-50);
 }
 
+/* Flowing gradient text used for live agent activity (matches Proton). */
+@keyframes gradient-slide {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-flow {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--oh-muted) 0%,
+    var(--oh-foreground) 50%,
+    var(--oh-muted) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-slide 1.25s linear infinite;
+}
+
 /* CTA card gradient and shadow */
 .cta-card-gradient {
   background:

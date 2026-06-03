@@ -31,6 +31,8 @@ describe("agent-canvas CLI", () => {
     expect(stderr).toBe("");
     expect(stdout).toContain("@openhands/agent-canvas");
     expect(stdout).toContain("USAGE:");
+    expect(stdout).toContain("--frontend-only");
+    expect(stdout).toContain("--backend-only");
     expect(stdout).toContain("--help");
   });
 });
