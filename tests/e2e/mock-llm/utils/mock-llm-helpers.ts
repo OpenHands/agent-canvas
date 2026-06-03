@@ -43,10 +43,20 @@ export const SESSION_API_KEY = (() => {
 })();
 
 /** Seed localStorage with flags that skip onboarding / analytics modals
- *  and a default local backend so the app doesn't show the manage-backends
- *  modal. The backend registry must be seeded because the static build has
- *  no baked VITE_SESSION_API_KEY — makeDefaultLocalBackend() returns null
- *  and readLegacyBackend() can't infer a host from the injected config. */
+ *  and a default local backend so the app boots straight into the home
+ *  page. The backend registry is seeded explicitly for two reasons:
+ *
+ *    1. It guarantees a deterministic backend entry across tests even
+ *       when key rotation or stale-state scenarios are exercised.
+ *    2. It avoids depending on the runtime injection ordering between
+ *       `page.addInitScript` and the static-server's `<head>` script.
+ *
+ *  As of the published-binary session-key fix, the static-server also
+ *  exposes the runtime key via `window.__AGENT_CANVAS_SESSION_API_KEY__`,
+ *  which `getBakedSessionApiKey()` reads — so a real user with an empty
+ *  localStorage no longer needs this seeding to reach onboarding.  See
+ *  `auth mode: fresh install with runtime-injected key` in
+ *  `mock-llm-auth-modes.spec.ts` for the test that covers that path. */
 export async function seedLocalStorage(page: Page) {
   await page.addInitScript(
     ({ apiKey }) => {
