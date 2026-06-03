@@ -130,7 +130,7 @@ export function SayHelloStep({
 
       <div
         data-testid="onboarding-recommended-automations"
-        className="mt-6 flex min-h-0 flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col"
       >
         <RecommendedAutomationsLauncher
           onLaunched={onLaunched}
