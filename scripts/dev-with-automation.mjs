@@ -616,6 +616,28 @@ function buildRouteArgs(routes) {
   return routes.flatMap(([prefix, url]) => ["--route", `${prefix}=${url}`]);
 }
 
+/**
+ * Build --reject-prefix args for the static server.
+ * In frontend-only mode, API paths that have no backend should return 503
+ * instead of being SPA-fallbacked to index.html.
+ */
+function getRejectPrefixes(config) {
+  const prefixes = [];
+  if (!config.launchAutomation) {
+    prefixes.push(AUTOMATION_ROUTE_PREFIX);
+  }
+  if (!config.launchAgentServer) {
+    for (const prefix of AGENT_SERVER_ROUTE_PREFIXES) {
+      prefixes.push(prefix);
+    }
+  }
+  return prefixes;
+}
+
+function buildRejectPrefixArgs(prefixes) {
+  return prefixes.flatMap((prefix) => ["--reject-prefix", prefix]);
+}
+
 function getFrontendBackend(config) {
   return config.launchFrontend ? `http://localhost:${config.vitePort}` : null;
 }
@@ -1248,6 +1270,9 @@ function startStaticFrontend(config, staticDir) {
         : []),
       // Proxy routes only to services that this launch mode started.
       ...buildRouteArgs(getLocalServiceRoutes(config)),
+      // Reject known API prefixes that have no backend — returns 503
+      // instead of SPA-fallbacking to index.html.
+      ...buildRejectPrefixArgs(getRejectPrefixes(config)),
     ],
     {
       cwd: config.canvasPath,

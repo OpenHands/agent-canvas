@@ -178,7 +178,7 @@ test.describe("partial stack: --frontend-only", () => {
     if (stateDir) rmSync(stateDir, { recursive: true, force: true });
   });
 
-  test("serves the frontend but has no backend routes configured", async ({
+  test("serves the frontend but returns 503 for backend routes", async ({
     page,
     request,
   }) => {
@@ -209,32 +209,34 @@ test.describe("partial stack: --frontend-only", () => {
     const html = await rootResp.text();
     expect(html).toContain("<!DOCTYPE html");
 
-    // In frontend-only mode no backend routes are configured in the ingress.
-    // All requests (including /server_info, /api/*) fall through to the
-    // static server's default backend, which returns index.html via SPA
-    // fallback — so the HTTP status is 200, but the content is HTML, not
-    // the JSON that the agent-server would return.
+    // Verify: backend API routes return 503 because the static server
+    // rejects known API prefixes via --reject-prefix when no backend
+    // is configured (frontend-only mode).
     const serverInfoResp = await request.get(
       `${FRONTEND_ONLY_URL}/server_info`,
+      { failOnStatusCode: false },
     );
-    expect(serverInfoResp.status()).toBe(200);
-    const serverInfoBody = await serverInfoResp.text();
-    expect(serverInfoBody).toContain("<!DOCTYPE html");
-    // Crucially, it's NOT valid agent-server JSON
-    expect(() => {
-      const parsed = JSON.parse(serverInfoBody);
-      // If somehow it parsed, it shouldn't have the version field
-      expect(parsed).not.toHaveProperty("version");
-    }).toThrow(); // JSON.parse throws on HTML
+    expect(serverInfoResp.status()).toBe(503);
+
+    const settingsResp = await request.get(
+      `${FRONTEND_ONLY_URL}/api/settings`,
+      { failOnStatusCode: false },
+    );
+    expect(settingsResp.status()).toBe(503);
+
+    const automationResp = await request.get(
+      `${FRONTEND_ONLY_URL}/api/automation/v1`,
+      { failOnStatusCode: false },
+    );
+    expect(automationResp.status()).toBe(503);
 
     // Verify: browser loads the app and shows "agent server unavailable"
-    // because the /server_info probe gets HTML instead of JSON.
+    // because the /server_info probe fails with 503.
     await seedLocalStorage(page);
     await page.goto(FRONTEND_ONLY_URL, { waitUntil: "domcontentloaded" });
 
     // The app should detect the missing backend and show the manage-backends
-    // modal or an equivalent unavailable notice. Both paths render a modal
-    // with data-testid="manage-backends-modal".
+    // modal or an equivalent unavailable notice.
     await expect(
       page.getByTestId("manage-backends-modal"),
     ).toBeVisible({ timeout: 15_000 });
