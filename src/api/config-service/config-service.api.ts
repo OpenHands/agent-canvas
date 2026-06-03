@@ -44,6 +44,15 @@ function limitItems<T>(items: T[], limit?: number): T[] {
   return items.slice(0, limit);
 }
 
+function buildCloudQueryString(params: Record<string, string | number | boolean | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) qs.set(key, String(value));
+  }
+  const str = qs.toString();
+  return str ? `?${str}` : "";
+}
+
 class ConfigService {
   static async searchModels(
     params: SearchModelsParams = {},
@@ -51,40 +60,32 @@ class ConfigService {
   ): Promise<LLMModelPage> {
     const active = getActiveBackend();
 
-    let models: string[] | null;
-    let verifiedMap: Record<string, string[]> | null;
-
     if (active.backend.kind === "cloud") {
-      // Raw response shapes mirror what LLMMetadataClient extracts:
-      //   GET /api/llm/models          → { models: string[] }
-      //   GET /api/llm/models/verified → { models: Record<string, string[]> }
-      const verifiedFetch =
-        verifiedByProvider !== undefined
-          ? Promise.resolve(verifiedByProvider)
-          : callCloudProxy<{ models: Record<string, string[]> | null }>({
-              backend: active.backend,
-              method: "GET",
-              path: "/api/llm/models/verified",
-            }).then((raw) => raw?.models ?? null);
-      [models, verifiedMap] = await Promise.all([
-        callCloudProxy<{ models: string[] | null }>({
-          backend: active.backend,
-          method: "GET",
-          path: "/api/llm/models",
-        }).then((raw) => raw?.models ?? null),
-        verifiedFetch,
-      ]);
-    } else {
-      const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
-      const verifiedFetch =
-        verifiedByProvider !== undefined
-          ? Promise.resolve(verifiedByProvider)
-          : llmClient.getVerifiedModels();
-      [models, verifiedMap] = await Promise.all([
-        llmClient.getModels(),
-        verifiedFetch,
-      ]);
+      // Cloud exposes /api/v1/config/models/search which returns LLMModelPage directly.
+      // verifiedByProvider is not needed — the cloud API embeds verified status natively.
+      const qs = buildCloudQueryString({
+        page_id: params.page_id,
+        limit: params.limit,
+        query: params.query,
+        verified__eq: params.verified__eq,
+        provider__eq: params.provider__eq,
+      });
+      return callCloudProxy<LLMModelPage>({
+        backend: active.backend,
+        method: "GET",
+        path: `/api/v1/config/models/search${qs}`,
+      });
     }
+
+    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
+    const verifiedFetch =
+      verifiedByProvider !== undefined
+        ? Promise.resolve(verifiedByProvider)
+        : llmClient.getVerifiedModels();
+    const [models, verifiedMap] = await Promise.all([
+      llmClient.getModels(),
+      verifiedFetch,
+    ]);
 
     const provider = params.provider__eq ?? null;
     const verifiedNames = new Set(
@@ -116,10 +117,7 @@ class ConfigService {
       params.limit,
     );
 
-    return {
-      items,
-      next_page_id: null,
-    };
+    return { items, next_page_id: null };
   }
 
   static async searchProviders(
@@ -128,40 +126,31 @@ class ConfigService {
   ): Promise<ProviderPage> {
     const active = getActiveBackend();
 
-    let providers: string[] | null;
-    let verifiedMap: Record<string, string[]> | null;
-
     if (active.backend.kind === "cloud") {
-      // Raw response shapes mirror what LLMMetadataClient extracts:
-      //   GET /api/llm/providers       → { providers: string[] }
-      //   GET /api/llm/models/verified → { models: Record<string, string[]> }
-      const verifiedFetch =
-        verifiedByProvider !== undefined
-          ? Promise.resolve(verifiedByProvider)
-          : callCloudProxy<{ models: Record<string, string[]> | null }>({
-              backend: active.backend,
-              method: "GET",
-              path: "/api/llm/models/verified",
-            }).then((raw) => raw?.models ?? null);
-      [providers, verifiedMap] = await Promise.all([
-        callCloudProxy<{ providers: string[] | null }>({
-          backend: active.backend,
-          method: "GET",
-          path: "/api/llm/providers",
-        }).then((raw) => raw?.providers ?? null),
-        verifiedFetch,
-      ]);
-    } else {
-      const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
-      const verifiedFetch =
-        verifiedByProvider !== undefined
-          ? Promise.resolve(verifiedByProvider)
-          : llmClient.getVerifiedModels();
-      [providers, verifiedMap] = await Promise.all([
-        llmClient.getProviders(),
-        verifiedFetch,
-      ]);
+      // Cloud exposes /api/v1/config/providers/search which returns ProviderPage directly.
+      // verifiedByProvider is not needed — the cloud API embeds verified status natively.
+      const qs = buildCloudQueryString({
+        page_id: params.page_id,
+        limit: params.limit,
+        query: params.query,
+        verified__eq: params.verified__eq,
+      });
+      return callCloudProxy<ProviderPage>({
+        backend: active.backend,
+        method: "GET",
+        path: `/api/v1/config/providers/search${qs}`,
+      });
     }
+
+    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
+    const verifiedFetch =
+      verifiedByProvider !== undefined
+        ? Promise.resolve(verifiedByProvider)
+        : llmClient.getVerifiedModels();
+    const [providers, verifiedMap] = await Promise.all([
+      llmClient.getProviders(),
+      verifiedFetch,
+    ]);
 
     const verifiedProviders = new Set(Object.keys(verifiedMap ?? {}));
     const names = new Set<string>([...verifiedProviders, ...(providers ?? [])]);
@@ -178,10 +167,7 @@ class ConfigService {
       params.limit,
     );
 
-    return {
-      items,
-      next_page_id: null,
-    };
+    return { items, next_page_id: null };
   }
 }
 
