@@ -254,10 +254,19 @@ describe("AgentServerConversationService", () => {
       await AgentServerConversationService.createConversation();
       await AgentServerConversationService.createConversation();
 
+      // The timeout must be passed through so that POST /api/conversations
+      // is not subject to the SDK's 60s default. On a fresh install
+      // (especially the bundled desktop binary on first run) conversation
+      // creation triggers skill cloning + an initial LLM call and easily
+      // exceeds 60s, which used to surface as "Request timeout after 60000ms"
+      // or "Request failed: signal timed out" in the UI. Five minutes is
+      // the agreed-upon ceiling — see CREATE_CONVERSATION_TIMEOUT_MS in the
+      // service module for the rationale.
       expect(ConversationClient).toHaveBeenCalledWith({
         host: "http://localhost:54928",
         apiKey: "test-api-key",
         workingDir: "/workspace/project/agent-canvas",
+        timeout: 5 * 60 * 1000,
       });
       expect(mockHttpPost).toHaveBeenCalledTimes(2);
       const [firstCall, secondCall] = mockHttpPost.mock.calls;
