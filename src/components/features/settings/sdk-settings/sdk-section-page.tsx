@@ -449,7 +449,10 @@ export function SdkSectionPage({
     });
   }, [isPending, saveControlIsDirty, values, view]);
 
-  if (isLoading || isFetching || isSchemaLoading) {
+  // Keep existing form content visible during background refetches to avoid
+  // flashing the full skeleton (notably during onboarding Next transitions).
+  const isInitialSettingsLoad = (isLoading || isFetching) && !settings;
+  if (isInitialSettingsLoad || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
 
