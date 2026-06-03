@@ -8,11 +8,17 @@ import { BaseEvent } from "../base/event";
 export type ACPToolKind = "execute" | "edit" | "read" | "fetch" | "other";
 
 /**
- * Status of an ACP tool call. Future ACP streaming (software-agent-sdk#2866)
- * will emit multiple events for the same ``tool_call_id`` as the status
- * transitions from ``in_progress`` to a terminal value.
+ * Status of an ACP tool call. The SDK persists two events per
+ * ``tool_call_id``: an early ``started`` event (``pending`` / ``in_progress``)
+ * and one terminal event (``completed`` / ``failed``) — the
+ * action->observation pair. Non-terminal statuses render the card as
+ * "running"; see ``getACPToolCallResult``.
  */
-export type ACPToolCallStatus = "in_progress" | "completed" | "failed";
+export type ACPToolCallStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "failed";
 
 /**
  * An ACP content block as surfaced on ``ACPToolCallEvent.content``. ACP
