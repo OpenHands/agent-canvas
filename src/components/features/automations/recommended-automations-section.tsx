@@ -29,7 +29,6 @@ import {
   extensionModuleCardGridClassName,
   extensionModuleCardGridContainerClassName,
   extensionModuleCardPillClassName,
-  extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
 import { StatusBadge } from "./status-badge";
 
@@ -38,6 +37,8 @@ interface RecommendedAutomationsSectionProps {
   installedServers: MCPServerConfig[];
   query?: string;
   onSelect: (automation: RecommendedAutomation) => void;
+  /** When true, only the card grid scrolls; title and description stay fixed. */
+  scrollableGrid?: boolean;
 }
 
 export function getAutomationsByPopularity(
@@ -137,6 +138,7 @@ export function RecommendedAutomationsSection({
   installedServers,
   query = "",
   onSelect,
+  scrollableGrid = false,
 }: RecommendedAutomationsSectionProps) {
   const { t } = useTranslation("openhands");
 
@@ -151,18 +153,31 @@ export function RecommendedAutomationsSection({
   if (visibleAutomations.length === 0) return null;
 
   return (
-    <section data-testid="recommended-automations-section">
-      <div className="flex items-center">
+    <section
+      data-testid="recommended-automations-section"
+      className={cn(scrollableGrid && "flex min-h-0 flex-1 flex-col")}
+    >
+      <div className="flex shrink-0 items-center">
         <h2 className="text-base font-semibold text-foreground">
           {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE)}
         </h2>
         <StatusBadge count={visibleAutomations.length} />
       </div>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 shrink-0 text-sm text-muted">
         {t(I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_DESCRIPTION)}
       </p>
 
-      <div className={cn("mt-3", extensionModuleCardGridContainerClassName)}>
+      <div
+        data-testid={
+          scrollableGrid ? "recommended-automations-scroll-area" : undefined
+        }
+        className={cn(
+          "mt-3",
+          extensionModuleCardGridContainerClassName,
+          scrollableGrid &&
+            "min-h-0 flex-1 overflow-y-auto custom-scrollbar-always",
+        )}
+      >
         <div className={extensionModuleCardGridClassName}>
           {visibleAutomations.map((automation) => {
             const requiredEntries = getRequiredEntries(automation);
@@ -177,8 +192,7 @@ export function RecommendedAutomationsSection({
                 data-testid={`recommended-automation-card-${automation.id}`}
                 onClick={() => onSelect(automation)}
                 className={cn(
-                  "flex min-w-0 overflow-hidden p-4 text-left",
-                  extensionModuleCardSurfaceClassName,
+                  "flex min-w-0 overflow-hidden p-4 text-left rounded-xl bg-surface-raised",
                   extensionModuleCardInteractiveClassName,
                 )}
               >

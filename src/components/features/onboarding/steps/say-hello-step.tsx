@@ -72,9 +72,9 @@ export function SayHelloStep({
   return (
     <div
       data-testid="onboarding-step-say-hello"
-      className="flex flex-col gap-6"
+      className="flex max-h-[calc(90vh-7rem)] flex-col gap-6"
     >
-      <header className="flex flex-col gap-2">
+      <header className="flex shrink-0 flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$HELLO_TITLE)}
         </h2>
@@ -86,7 +86,7 @@ export function SayHelloStep({
       <form
         onSubmit={handleSubmit}
         data-testid="onboarding-hello-input-form"
-        className="box-border flex w-full flex-col items-start justify-center rounded-[15px] border border-[var(--oh-border)] bg-surface-raised p-4"
+        className="box-border flex w-full shrink-0 flex-col items-start justify-center rounded-[15px] border border-[var(--oh-border)] bg-surface-raised p-4"
       >
         <div className="relative w-full">
           <div className="box-border flex w-full shrink-0 flex-row items-end justify-between gap-2 p-0 pb-[18px]">
@@ -117,11 +117,17 @@ export function SayHelloStep({
         </div>
       </form>
 
-      <div data-testid="onboarding-recommended-automations">
-        <RecommendedAutomationsLauncher onLaunched={onLaunched} />
+      <div
+        data-testid="onboarding-recommended-automations"
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <RecommendedAutomationsLauncher
+          onLaunched={onLaunched}
+          scrollableGrid
+        />
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div className="flex shrink-0 items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-hello-back"
           type="button"
