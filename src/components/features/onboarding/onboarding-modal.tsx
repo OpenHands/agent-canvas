@@ -174,7 +174,11 @@ export function OnboardingModal({
                 )}
               </Slide>
               <Slide index={3} currentStep={currentStep}>
-                <SayHelloStep onBack={goBack} onLaunched={onClose} />
+                <SayHelloStep
+                  onBack={goBack}
+                  onClose={onClose}
+                  onLaunched={onClose}
+                />
               </Slide>
             </div>
           </div>
