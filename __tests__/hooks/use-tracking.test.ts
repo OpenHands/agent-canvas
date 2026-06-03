@@ -2,9 +2,12 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const captureMock = vi.fn();
+let posthogMock: { capture: typeof captureMock } | undefined = {
+  capture: captureMock,
+};
 
 vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
+  usePostHog: () => posthogMock,
 }));
 
 const useSettingsMock = vi.fn();
@@ -22,8 +25,9 @@ let COMMON: { current_url: string; user_email: string };
 describe("useTracking", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    posthogMock = { capture: captureMock };
     useSettingsMock.mockReturnValue({
-      data: { email: TEST_EMAIL },
+      data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
     COMMON = {
       current_url: window.location.href,
@@ -235,10 +239,52 @@ describe("useTracking", () => {
     });
   });
 
+  describe("consent gate", () => {
+    it("does not capture when posthog is not initialized", () => {
+      posthogMock = undefined;
+
+      getTracking().trackPushButtonClick();
+
+      expect(captureMock).not.toHaveBeenCalled();
+    });
+
+    it("does not capture when user_consents_to_analytics is false", () => {
+      useSettingsMock.mockReturnValue({
+        data: { email: TEST_EMAIL, user_consents_to_analytics: false },
+      });
+
+      getTracking().trackPushButtonClick();
+
+      expect(captureMock).not.toHaveBeenCalled();
+    });
+
+    it("does not capture when user_consents_to_analytics is null", () => {
+      useSettingsMock.mockReturnValue({
+        data: { email: TEST_EMAIL, user_consents_to_analytics: null },
+      });
+
+      getTracking().trackPushButtonClick();
+
+      expect(captureMock).not.toHaveBeenCalled();
+    });
+
+    it("does not capture when settings are still loading", () => {
+      useSettingsMock.mockReturnValue({ data: undefined });
+
+      getTracking().trackPushButtonClick();
+
+      expect(captureMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe("commonProperties", () => {
     it("uses git_user_email as fallback when email is absent", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: null, git_user_email: "git@example.com" },
+        data: {
+          email: null,
+          git_user_email: "git@example.com",
+          user_consents_to_analytics: true,
+        },
       });
 
       getTracking().trackPushButtonClick();
@@ -251,7 +297,11 @@ describe("useTracking", () => {
 
     it("sends null user_email when no email fields are present", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: null, git_user_email: null },
+        data: {
+          email: null,
+          git_user_email: null,
+          user_consents_to_analytics: true,
+        },
       });
 
       getTracking().trackPushButtonClick();
