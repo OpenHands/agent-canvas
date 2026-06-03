@@ -19,6 +19,34 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## Tracking / Analytics Architecture
+
+Two distinct PostHog systems exist. **Never mix them at a call site.**
+
+### System 1 — `telemetry.ts` (library-level, anonymous)
+- **Purpose**: anonymous npm-consumer telemetry (`canvas_install`, `canvas_new_session`)
+- **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
+- **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
+- **`canvas_install`** fires once, pre-consent, per installation
+- **Exports**: `trackEvent`, `useTelemetry`, `TelemetryConsentBanner`, etc. from `src/lib/index.ts` — these are the **public library API for npm consumers**
+- **Rule**: Do NOT import `trackEvent` from `#/services/telemetry` in app routes or components
+
+### System 2 — `useTracking` hook (app-level, identified)
+- **Purpose**: product analytics for app behaviour events
+- **Key**: `VITE_POSTHOG_CLIENT_KEY` env var → `OptionService.getConfig()` → `PostHogWrapper` → `PostHogProvider`; routed to `https://us.i.posthog.com`
+- **Consent**: `user_consents_to_analytics` (backend setting) + `useSyncPostHogConsent` in `root-layout`; `AnalyticsConsentFormModal` also calls `setTelemetryConsent` to keep both systems in sync
+- **All events** are typed, named functions in `src/hooks/use-tracking.ts` — add a new function there for every new event; never call `posthog.capture()` raw from a component
+- **`commonProperties`** (`current_url`, `user_email`) are attached automatically by the hook
+- **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
+
+### Adding a new event
+1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`
+2. Add the function to the hook's `return` object
+3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
+
+### Env var
+`VITE_POSTHOG_CLIENT_KEY` — see `.env.sample`. Without it, `PostHogProvider` never mounts and all `useTracking` calls are silently dropped (safe default for local dev).
+
 ## Runtime Services in Dev Stacks
 
 - When the agent-canvas dev launchers (`npm run dev` / `dev:minimal` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
