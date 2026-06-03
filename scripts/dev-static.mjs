@@ -61,6 +61,7 @@ import {
   buildAutomationCommand,
   buildConfig,
 } from "./dev-with-automation.mjs";
+import { buildAutomationCompatEnv } from "./automation-compat-env.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -326,6 +327,7 @@ function startAgentServer(config) {
 function buildAutomationBackendEnv(config) {
   // Both backends share the same session API key value.
   return {
+    ...buildAutomationCompatEnv(process.env),
     AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
     AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
     AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(config.stateDir, "automations.db")}`,
@@ -621,7 +623,12 @@ async function main() {
 // Exports for testing
 // ═══════════════════════════════════════════════════════════════════════════
 
-export { buildAutomationBackendEnv, buildFrontend, startStaticServer };
+export {
+  buildAutomationBackendEnv,
+  buildAutomationCompatEnv,
+  buildFrontend,
+  startStaticServer,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Main entry point (only when run directly, not when imported)

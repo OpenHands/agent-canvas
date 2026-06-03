@@ -17,6 +17,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
+  buildAutomationCompatEnv,
   buildConfig,
   buildRouteArgs,
   getFrontendBackend,
@@ -126,6 +127,22 @@ describe("buildAgentServerAutomationEnv", () => {
     ).toEqual({
       OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
     });
+  });
+});
+
+describe("buildAutomationCompatEnv", () => {
+  it("injects the automation compatibility sitecustomize path", () => {
+    const env = buildAutomationCompatEnv({});
+
+    expect(env.OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT).toBe("1");
+    expect(env.PYTHONPATH).toContain("automation-compat-python");
+  });
+
+  it("prepends the compatibility path ahead of existing PYTHONPATH", () => {
+    const env = buildAutomationCompatEnv({ PYTHONPATH: "existing-path" });
+
+    expect(env.PYTHONPATH).toContain("existing-path");
+    expect(env.PYTHONPATH?.startsWith(repoRoot)).toBe(true);
   });
 });
 

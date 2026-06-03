@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAutomationBackendEnv } from "../../scripts/dev-static.mjs";
+import {
+  buildAutomationBackendEnv,
+  buildAutomationCompatEnv,
+} from "../../scripts/dev-static.mjs";
 
 describe("dev-static", () => {
   it("uses the same session key for both agent-server and automation backend auth", () => {
@@ -11,11 +14,19 @@ describe("dev-static", () => {
       stateDir: "/tmp/agent-canvas-state",
     });
 
-    // Both backends receive the same key value
     expect(env).toMatchObject({
       AUTOMATION_AGENT_SERVER_URL: "http://localhost:18000",
       AUTOMATION_AGENT_SERVER_API_KEY: "shared-session-key",
       AUTOMATION_LOCAL_API_KEY: "shared-session-key",
     });
+    expect(env.OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT).toBe("1");
+    expect(env.PYTHONPATH).toContain("automation-compat-python");
+  });
+
+  it("builds the same compatibility env helper directly", () => {
+    const env = buildAutomationCompatEnv({});
+
+    expect(env.OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT).toBe("1");
+    expect(env.PYTHONPATH).toContain("automation-compat-python");
   });
 });
