@@ -116,7 +116,7 @@ describe("getEventContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("returns empty details for file view action instead of 'Unknown event'", () => {
+  it("renders a file view action through the file-editor visualizer", () => {
     const fileViewAction: ActionEvent = {
       id: "action-2",
       timestamp: new Date().toISOString(),
@@ -151,7 +151,11 @@ describe("getEventContent", () => {
 
     render(<span>{title}</span>);
     expect(screen.getByText("ACTION_MESSAGE$READ")).toBeInTheDocument();
-    expect(details).toBe("");
+    // FileEditor is now migrated to a React visualizer: details is a node that
+    // renders the file-path chip rather than the old empty markdown string.
+    expect(typeof details).not.toBe("string");
+    render(<div>{details}</div>);
+    expect(screen.getByText("/workspace/README.md")).toBeInTheDocument();
   });
 
   it("shows action kind for action-like events missing tool_name/tool_call_id", () => {
