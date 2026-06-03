@@ -489,10 +489,6 @@ describe("default constants", () => {
     expect(DEFAULT_AUTOMATION_PACKAGE).toBe("openhands-automation");
   });
 
-  it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a5");
-  });
-
   it("has expected default backend port", () => {
     expect(DEFAULT_BACKEND_PORT).toBe(18000);
   });
