@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import McpService from "#/api/mcp-service/mcp-service.api";
-import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -13,7 +12,7 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import type { Backend } from "#/api/backend-registry/types";
 import {
   RecommendedAutomationsLauncher,
-  buildAutomationPrompt,
+  buildAutomationSlashCommand,
 } from "#/components/features/automations/recommended-automations-launcher";
 import {
   RecommendedAutomationsSection,
@@ -24,9 +23,11 @@ import {
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
 
-const { mockCreateConversationMutate, mockUseSettings } = vi.hoisted(() => ({
+const { mockCreateConversationMutate, mockUseSettings, mockUseAutomationHealth, mockDisplayErrorToast } = vi.hoisted(() => ({
   mockCreateConversationMutate: vi.fn(),
   mockUseSettings: vi.fn(),
+  mockUseAutomationHealth: vi.fn(),
+  mockDisplayErrorToast: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -49,6 +50,20 @@ vi.mock("#/hooks/mutation/use-create-conversation", () => ({
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => mockUseSettings(),
 }));
+
+vi.mock("#/hooks/query/use-automation-health", () => ({
+  useAutomationHealth: () => mockUseAutomationHealth(),
+}));
+
+vi.mock(
+  "#/utils/custom-toast-handlers",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("#/utils/custom-toast-handlers")
+    >()),
+    displayErrorToast: mockDisplayErrorToast,
+  }),
+);
 
 const localBackend: Backend = {
   id: "local-backend",
@@ -114,6 +129,7 @@ describe("recommended automations", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithMcpConfig({ mcpServers: {} }),
     });
+    mockUseAutomationHealth.mockReturnValue({ data: { status: "ok" } });
     // Pre-flight connectivity test must pass so save mutations are reached.
     vi.spyOn(McpService, "testServer").mockResolvedValue({
       ok: true,
@@ -340,7 +356,7 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  it("launches directly with local automation API instructions when the required MCP is already installed", () => {
+  it("launches with a concise slash-command payload when the required MCP is already installed", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithGithubMcp(),
     });
@@ -354,14 +370,30 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
 
-    const [, options] = mockCreateConversationMutate.mock.calls[0];
-    options.onSuccess({ conversation_id: "conversation-1" });
+    // The slash command is passed as the initial query — submitted immediately,
+    // not stored as a draft for the user to press Enter.
+    const [variables] = mockCreateConversationMutate.mock.calls[0];
+    expect(variables.query).toBe("/create-github-pr-reviewer");
+    expect(variables.query).not.toContain("RUNTIME_SERVICES");
+    expect(variables.query).not.toContain("OPENHANDS_AUTOMATION_API_KEY");
+  });
 
-    const draft = getConversationState("conversation-1").draftMessage;
-    expect(draft).toContain("local");
-    expect(draft).toContain("$OPENHANDS_AUTOMATION_API_KEY");
-    expect(draft).not.toContain("app.all-hands.dev");
-    expect(draft).not.toContain("$OPENHANDS_API_KEY");
+  it("blocks launch and shows an error toast when the automation backend is unavailable", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+    mockUseAutomationHealth.mockReturnValue({ data: { status: "error" } });
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+    expect(mockDisplayErrorToast).toHaveBeenCalledWith(
+      "RECOMMENDED_AUTOMATIONS$BACKEND_UNAVAILABLE",
+    );
   });
 
   it("ignores repeated card clicks while a recommendation launch is in flight", () => {
@@ -416,49 +448,30 @@ describe("recommended automations", () => {
   });
 });
 
-describe("buildAutomationPrompt", () => {
-  const basePrompt = "Create an automation that does something useful.";
-
-  it("appends local API instructions for local backends without cloud endpoints", () => {
-    const result = buildAutomationPrompt(basePrompt, "local");
-    expect(result).toContain(basePrompt);
-    expect(result).toContain("local");
-    expect(result).toContain("<RUNTIME_SERVICES>");
-    expect(result).toContain("$OPENHANDS_AUTOMATION_API_KEY");
-    expect(result).toContain("/api/automation/v1/preset/prompt");
-    expect(result).not.toContain("app.all-hands.dev");
-    expect(result).not.toContain("$OPENHANDS_API_KEY");
-    expect(result).toContain(
-      "instead of using any remote/cloud automation API",
+describe("buildAutomationSlashCommand", () => {
+  it("returns /create-{id} for a given automation id", () => {
+    expect(buildAutomationSlashCommand("github-pr-reviewer")).toBe(
+      "/create-github-pr-reviewer",
+    );
+    expect(buildAutomationSlashCommand("slack-channel-monitor")).toBe(
+      "/create-slack-channel-monitor",
     );
   });
 
-  it("appends cloud API instructions for the active cloud backend", () => {
-    const result = buildAutomationPrompt(
-      basePrompt,
-      "cloud",
-      "https://staging.all-hands.dev/",
-    );
-    expect(result).toContain(basePrompt);
-    expect(result).toContain(
-      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
-    );
-    expect(result).not.toContain("https://staging.all-hands.dev//api");
-    expect(result).not.toContain("app.all-hands.dev");
-    expect(result).toContain("$OPENHANDS_API_KEY");
-    expect(result).toContain("/api/automation/v1/preset/prompt");
-    expect(result).not.toContain("<RUNTIME_SERVICES>");
-    expect(result).not.toContain("$OPENHANDS_AUTOMATION_API_KEY");
+  it("does not include any runtime scaffolding or internal instructions", () => {
+    const result = buildAutomationSlashCommand("slack-standup-digest");
+    expect(result).not.toContain("RUNTIME_SERVICES");
+    expect(result).not.toContain("OPENHANDS_AUTOMATION_API_KEY");
+    expect(result).not.toContain("OPENHANDS_API_KEY");
+    expect(result).not.toContain("/api/automation/v1/preset/prompt");
   });
 
-  it("keeps the original prompt text verbatim at the start", () => {
-    const localResult = buildAutomationPrompt(basePrompt, "local");
-    const cloudResult = buildAutomationPrompt(
-      basePrompt,
-      "cloud",
-      "https://staging.all-hands.dev",
-    );
-    expect(localResult.startsWith(basePrompt)).toBe(true);
-    expect(cloudResult.startsWith(basePrompt)).toBe(true);
+  it("produces a deterministic single-line command regardless of id", () => {
+    const ids = ["github-pr-reviewer", "slack-channel-monitor", "linear-triage-assistant"];
+    ids.forEach((id) => {
+      const cmd = buildAutomationSlashCommand(id);
+      expect(cmd).toBe(`/create-${id}`);
+      expect(cmd.split("\n")).toHaveLength(1);
+    });
   });
 });

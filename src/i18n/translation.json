@@ -29375,6 +29375,23 @@
     "tr": "{{count}} gerekli MCP kaldı.",
     "uk": "Залишилося обов’язкових MCP: {{count}}."
   },
+  "RECOMMENDED_AUTOMATIONS$BACKEND_UNAVAILABLE": {
+    "en": "Automation backend unavailable. Start the full automation stack to use prebuilt automations.",
+    "ja": "自動化バックエンドが利用できません。プリビルド自動化を使用するには、完全な自動化スタックを起動してください。",
+    "zh-CN": "自动化后端不可用。启动完整的自动化堆栈以使用预建自动化。",
+    "zh-TW": "自動化後端不可用。啟動完整的自動化堆疊以使用預建自動化。",
+    "ko-KR": "자동화 백엔드를 사용할 수 없습니다. 사전 빌드된 자동화를 사용하려면 전체 자동화 스택을 시작하세요.",
+    "no": "Automatiseringsbakenden er ikke tilgjengelig. Start den fullstendige automatiseringsstakken for å bruke ferdigbygde automatiseringer.",
+    "ar": "الواجهة الخلفية للأتمتة غير متاحة. ابدأ مكدس الأتمتة الكامل لاستخدام الأتمتة المبنية مسبقًا.",
+    "de": "Automatisierungs-Backend nicht verfügbar. Starten Sie den vollständigen Automatisierungs-Stack, um vorgefertigte Automatisierungen zu verwenden.",
+    "fr": "Backend d'automatisation indisponible. Démarrez la pile d'automatisation complète pour utiliser les automatisations prédéfinies.",
+    "it": "Backend di automazione non disponibile. Avviare lo stack di automazione completo per utilizzare le automazioni predefinite.",
+    "pt": "Backend de automação indisponível. Inicie o stack de automação completo para usar automações pré-criadas.",
+    "es": "Backend de automatización no disponible. Inicie la pila de automatización completa para usar automatizaciones predefinidas.",
+    "ca": "El backend d'automatització no està disponible. Inicieu la pila d'automatització completa per a usar automatitzacions predefinides.",
+    "tr": "Otomasyon arka ucu mevcut değil. Önceden oluşturulmuş otomasyonları kullanmak için tam otomasyon yığınını başlatın.",
+    "uk": "Бекенд автоматизації недоступний. Запустіть повний стек автоматизації, щоб використовувати готові автоматизації."
+  },
   "BACKEND$NAME_REQUIRED": {
     "en": "Name is required",
     "ja": "名前は必須です",
