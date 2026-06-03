@@ -87,8 +87,8 @@ async function waitForExit(
 }
 
 /**
- * Poll a URL until it returns a response (any status) or timeout.
- * Returns the HTTP status or null on connection failure.
+ * Poll a URL until it returns a non-5xx response or timeout.
+ * Returns the HTTP status or null if the service never became ready.
  */
 async function pollUrl(
   url: string,
@@ -101,7 +101,9 @@ async function pollUrl(
       const resp = await fetch(url, {
         signal: AbortSignal.timeout(2_000),
       });
-      return resp.status;
+      // Treat 502/503/504 as "not ready yet" — the ingress can proxy but
+      // the upstream service hasn't started. Only return on a real response.
+      if (resp.status < 500) return resp.status;
     } catch {
       // Connection refused — service not ready yet
     }
@@ -279,6 +281,17 @@ test.describe("partial stack: --backend-only", () => {
       `Backend-only agent-server never became ready.\nOutput: ${output.get().slice(-800)}`,
     ).not.toBeNull();
 
+    // Wait for automation backend to also be ready (starts independently,
+    // may lag behind the agent-server).
+    const automationStatus = await pollUrl(
+      `${BACKEND_ONLY_URL}/api/automation/v1`,
+      60_000,
+    );
+    expect(
+      automationStatus,
+      `Backend-only automation never became ready.\nOutput: ${output.get().slice(-800)}`,
+    ).not.toBeNull();
+
     // Verify: /server_info returns 200 (agent-server running)
     const serverInfoResp = await request.get(
       `${BACKEND_ONLY_URL}/server_info`,
@@ -302,7 +315,6 @@ test.describe("partial stack: --backend-only", () => {
       `${BACKEND_ONLY_URL}/api/automation/v1`,
       { failOnStatusCode: false },
     );
-    // Automation list endpoint returns 200 (empty list) without auth
     expect([200, 401]).toContain(automationResp.status());
 
     // Verify: frontend root returns 503 (no default backend in ingress)
