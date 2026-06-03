@@ -17,6 +17,7 @@ import {
   buildCronSchedule,
   formatTimeOfDay,
   parseTimeOfDay,
+  formatEventOn,
   type SchedulePresetKind,
 } from "#/utils/automation-schedule";
 import { cn } from "#/utils/utils";
@@ -297,9 +298,7 @@ export function EditAutomationModal({
                     {t(I18nKey.AUTOMATIONS$DETAIL$EVENT_TYPE)}
                   </span>
                   <code className="text-xs font-mono text-content">
-                    {Array.isArray(automation.trigger.on)
-                      ? automation.trigger.on.join(", ")
-                      : automation.trigger.on}
+                    {formatEventOn(automation.trigger.on)}
                   </code>
                 </div>
               )}

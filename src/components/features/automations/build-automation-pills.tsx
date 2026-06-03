@@ -27,9 +27,12 @@ export function buildAutomationMetadataPills(
   }
 
   if (automation.trigger.type === "event") {
-    const eventLabel = automation.trigger.source
-      ? `${formatEventOn(automation.trigger.on)} (${automation.trigger.source})`
-      : formatEventOn(automation.trigger.on);
+    const eventLabel = [
+      automation.trigger.on ? formatEventOn(automation.trigger.on) : "",
+      automation.trigger.source ? `(${automation.trigger.source})` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     pills.push({
       id: "event-trigger",

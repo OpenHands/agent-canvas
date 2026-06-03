@@ -86,9 +86,7 @@ describe("ConfigurationSection", () => {
   });
 
   it("renders multiple event patterns joined by comma", () => {
-    render(
-      <ConfigurationSection automation={eventMultiPatternAutomation} />,
-    );
+    render(<ConfigurationSection automation={eventMultiPatternAutomation} />);
 
     expect(screen.getByText("push, release.published")).toBeInTheDocument();
   });
@@ -109,11 +107,11 @@ describe("ConfigurationSection", () => {
     const user = userEvent.setup();
     render(<ConfigurationSection automation={automation} />);
 
-    expect(screen.getByText("Show more")).toBeInTheDocument();
+    expect(screen.getByText("SETTINGS$SKILLS_SHOW_MORE")).toBeInTheDocument();
     expect(screen.queryByText(longFilter)).not.toBeInTheDocument();
 
-    await user.click(screen.getByText("Show more"));
+    await user.click(screen.getByText("SETTINGS$SKILLS_SHOW_MORE"));
     expect(screen.getByText(longFilter)).toBeInTheDocument();
-    expect(screen.getByText("Show less")).toBeInTheDocument();
+    expect(screen.getByText("SETTINGS$SKILLS_SHOW_LESS")).toBeInTheDocument();
   });
 });

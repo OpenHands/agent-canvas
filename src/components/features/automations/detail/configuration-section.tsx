@@ -20,22 +20,30 @@ interface ConfigurationSectionProps {
   automation: Automation;
 }
 
+const FILTER_TRUNCATE_LENGTH = 60;
+
 function FilterExpression({ filter }: { filter: string }) {
+  const { t } = useTranslation("openhands");
   const [expanded, setExpanded] = useState(false);
-  const isLong = filter.length > 60;
+  const isLong = filter.length > FILTER_TRUNCATE_LENGTH;
 
   return (
     <div className="flex flex-col gap-1">
       <span className="break-all">
-        {isLong && !expanded ? `${filter.slice(0, 60)}…` : filter}
+        {isLong && !expanded
+          ? `${filter.slice(0, FILTER_TRUNCATE_LENGTH)}…`
+          : filter}
       </span>
       {isLong && (
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
           className="text-xs text-muted hover:text-content self-start"
         >
-          {expanded ? "Show less" : "Show more"}
+          {expanded
+            ? t(I18nKey.SETTINGS$SKILLS_SHOW_LESS)
+            : t(I18nKey.SETTINGS$SKILLS_SHOW_MORE)}
         </button>
       )}
     </div>

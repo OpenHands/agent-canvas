@@ -176,11 +176,9 @@ export default function AutomationDetail() {
           />
           {automation.prompt && <PromptSection prompt={automation.prompt} />}
           <ConfigurationSection automation={automation} />
-          {automation.trigger.type !== "event" &&
-            automation.plugins &&
-            automation.plugins.length > 0 && (
-              <PluginsSection plugins={automation.plugins} />
-            )}
+          {automation.plugins && automation.plugins.length > 0 && (
+            <PluginsSection plugins={automation.plugins} />
+          )}
           <ActivitySection
             createdAt={automation.created_at}
             lastRunAt={automation.last_triggered_at}
