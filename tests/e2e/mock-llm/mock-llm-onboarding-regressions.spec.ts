@@ -1,42 +1,13 @@
 import test, { expect, Page } from "@playwright/test";
+import {
+  advanceOnboardingToLlmStep,
+  ONBOARDING_BACKEND_STEP,
+  routeOnboardingLlmCatalog,
+  waitForOnboardingStep,
+} from "../support/onboarding-helpers";
 import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
-async function routeOnboardingLlmCatalog(page: Page) {
-  await page.route("**/api/llm/models/verified", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        models: {
-          anthropic: ["claude-opus-4-8"],
-          openhands: ["claude-opus-4-5-20251101"],
-        },
-      }),
-    });
-  });
-
-  await page.route("**/api/llm/models", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        models: [
-          "anthropic/claude-opus-4-8",
-          "openhands/claude-opus-4-5-20251101",
-        ],
-      }),
-    });
-  });
-
-  await page.route("**/api/llm/providers", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ providers: ["anthropic", "openhands"] }),
-    });
-  });
-}
 
 async function showOnboarding(page: Page) {
   await page.addInitScript(
@@ -73,34 +44,6 @@ async function showOnboarding(page: Page) {
   });
 }
 
-async function waitForStep(page: Page, step: number) {
-  await expect(page.getByTestId("onboarding-slide-rail")).toHaveAttribute(
-    "data-current-step",
-    String(step),
-    { timeout: 15_000 },
-  );
-}
-
-async function advanceToLlmStep(page: Page) {
-  // Current onboarding order is backend check (0) → agent choice (1) →
-  // LLM/provider setup (2). Keep the indexes explicit because this flow was
-  // recently reordered and the E2E test should fail clearly if it drifts.
-
-  await waitForStep(page, 0);
-  await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-    timeout: 10_000,
-  });
-  await page.getByTestId("onboarding-backend-next").click();
-
-  await waitForStep(page, 1);
-  await page.getByTestId("onboarding-agent-next").click();
-
-  await waitForStep(page, 2);
-  await expect(page.getByTestId("onboarding-step-setup-llm")).toBeVisible({
-    timeout: 10_000,
-  });
-}
-
 test.describe("onboarding recent regressions", () => {
   // Regression coverage for #1085 / PR #1100: errant outside
   // interactions must not permanently mark onboarding complete.
@@ -113,22 +56,36 @@ test.describe("onboarding recent regressions", () => {
     await page.mouse.click(8, 8);
     await page.keyboard.press("Escape");
 
-    await expect(page.getByTestId("onboarding-modal")).toBeVisible();
-    await expect(page.getByTestId("onboarding-slide-rail")).toHaveAttribute(
-      "data-current-step",
-      "0",
-    );
+    await expect(
+      page.getByTestId("onboarding-modal"),
+      "onboarding modal should ignore backdrop clicks and Escape",
+    ).toBeVisible();
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
     await expect
-      .poll(() =>
-        page.evaluate(() => window.localStorage.getItem("openhands-onboarded")),
+      .poll(
+        () =>
+          page.evaluate(() =>
+            window.localStorage.getItem("openhands-onboarded"),
+          ),
+        {
+          message:
+            "onboarding should not be marked complete by outside interactions",
+        },
       )
       .toBeNull();
 
     await page.getByTestId("onboarding-skip").click();
-    await expect(page.getByTestId("onboarding-modal")).toHaveCount(0);
+    await expect(
+      page.getByTestId("onboarding-modal"),
+      "skip should close the onboarding modal",
+    ).toHaveCount(0);
     await expect
-      .poll(() =>
-        page.evaluate(() => window.localStorage.getItem("openhands-onboarded")),
+      .poll(
+        () =>
+          page.evaluate(() =>
+            window.localStorage.getItem("openhands-onboarded"),
+          ),
+        { message: "skip should persist onboarding completion" },
       )
       .toBe("1");
   });
@@ -140,15 +97,24 @@ test.describe("onboarding recent regressions", () => {
     page,
   }) => {
     await showOnboarding(page);
-    await advanceToLlmStep(page);
+    await advanceOnboardingToLlmStep(page);
 
     const providerInput = page.locator('input[name="llm-provider-input"]');
     const modelInput = page.locator('input[name="llm-model-input"]');
 
-    await expect(providerInput).toHaveValue("Anthropic", { timeout: 10_000 });
-    await expect(modelInput).toHaveValue("claude-opus-4-8", {
+    await expect(
+      providerInput,
+      "first-run onboarding should default to the Anthropic provider",
+    ).toHaveValue("Anthropic", { timeout: 10_000 });
+    await expect(
+      modelInput,
+      "first-run onboarding should default to Claude Opus",
+    ).toHaveValue("claude-opus-4-8", {
       timeout: 10_000,
     });
-    await expect(page.getByTestId("openhands-account-help")).toHaveCount(0);
+    await expect(
+      page.getByTestId("openhands-account-help"),
+      "OpenHands account helper should stay hidden for Anthropic defaults",
+    ).toHaveCount(0);
   });
 });

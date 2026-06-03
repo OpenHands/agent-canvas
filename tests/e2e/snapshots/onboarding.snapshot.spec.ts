@@ -1,4 +1,13 @@
 import { test, expect, Page } from "@playwright/test";
+import {
+  clickOnboardingStepButton,
+  ONBOARDING_AGENT_STEP,
+  ONBOARDING_BACKEND_STEP,
+  ONBOARDING_HELLO_STEP,
+  ONBOARDING_LLM_STEP,
+  waitForOnboardingBackendConnected,
+  waitForOnboardingStep,
+} from "../support/onboarding-helpers";
 import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
@@ -39,25 +48,6 @@ async function dismissConsentModal(page: Page) {
     .catch(() => undefined);
 }
 
-/**
- * Wait for the slide rail to display the given step index as current.
- * More reliable than checking child visibility since inactive slides remain
- * in the DOM (absolute-positioned, clipped by overflow:clip).
- */
-async function waitForStep(page: Page, step: number) {
-  await expect(page.getByTestId("onboarding-slide-rail")).toHaveAttribute(
-    "data-current-step",
-    String(step),
-    { timeout: 15_000 },
-  );
-}
-
-async function clickOnboardingStepButton(page: Page, testId: string) {
-  // Snapshot slides are translated and clipped during transitions. In CI,
-  // Playwright can resolve the button as visible but outside the viewport.
-  await page.getByTestId(testId).dispatchEvent("click");
-}
-
 test.describe("Onboarding Modal Visual Snapshots", () => {
   test.setTimeout(60_000);
 
@@ -70,14 +60,12 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
     // Wait for the backend connection banner to settle.
     // In MSW mode /server_info returns 200, so the health probe should
     // quickly resolve to "connected".
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
+    await waitForOnboardingBackendConnected(page);
 
     const modal = page.getByTestId("onboarding-modal");
     await expect(modal).toHaveScreenshot(
@@ -94,13 +82,11 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
+    await waitForOnboardingBackendConnected(page);
     await clickOnboardingStepButton(page, "onboarding-backend-next");
-    await waitForStep(page, 1);
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
 
     const modal = page.getByTestId("onboarding-modal");
     await expect(modal).toHaveScreenshot("onboarding-step-1-choose-agent.png", {
@@ -117,18 +103,16 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
     // Step 0 → 1
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
+    await waitForOnboardingBackendConnected(page);
     await clickOnboardingStepButton(page, "onboarding-backend-next");
-    await waitForStep(page, 1);
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
 
     // Step 1 → 2
     await clickOnboardingStepButton(page, "onboarding-agent-next");
-    await waitForStep(page, 2);
+    await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
     // Wait for LLM settings to load (MSW settings + schema endpoints)
     await page.waitForLoadState("networkidle");
@@ -148,18 +132,16 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
     // Step 0 → 1 (requires backend connected)
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
+    await waitForOnboardingBackendConnected(page);
     await clickOnboardingStepButton(page, "onboarding-backend-next");
-    await waitForStep(page, 1);
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
 
     // Step 1 → 2
     await clickOnboardingStepButton(page, "onboarding-agent-next");
-    await waitForStep(page, 2);
+    await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
     // Allow LLM settings to finish loading so the save control is registered
     await page.waitForLoadState("networkidle");
@@ -169,7 +151,7 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
     // from the mock default model), clicking Next will trigger a PATCH settings
     // mutation. MSW handles the PATCH and resolves onSaveSuccess → onNext.
     await clickOnboardingStepButton(page, "onboarding-llm-next");
-    await waitForStep(page, 3);
+    await waitForOnboardingStep(page, ONBOARDING_HELLO_STEP);
 
     // Wait for the say-hello input to be ready
     await expect(page.getByTestId("onboarding-hello-input")).toBeVisible({
