@@ -59,6 +59,17 @@ export const useTracking = () => {
     });
   };
 
+  const trackGitProviderConnected = ({
+    providers,
+  }: {
+    providers: string[];
+  }) => {
+    posthog.capture("git_provider_connected", {
+      providers,
+      ...commonProperties,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -66,5 +77,6 @@ export const useTracking = () => {
     trackPullButtonClick,
     trackCreatePrButtonClick,
     trackUserSignupCompleted,
+    trackGitProviderConnected,
   };
 };

@@ -1,4 +1,4 @@
-import { AppWindow, Shield } from "lucide-react";
+import { AppWindow, GitBranch, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -58,5 +58,11 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/secrets",
     text: "SETTINGS$NAV_SECRETS",
     subtitle: "SETTINGS$PAGE_SECRETS_SUBLINE",
+  },
+  {
+    icon: <GitBranch className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/git",
+    text: "SETTINGS$NAV_GIT",
+    subtitle: "SETTINGS$PAGE_GIT_SUBLINE",
   },
 ];

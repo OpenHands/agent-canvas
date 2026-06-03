@@ -271,24 +271,17 @@ describe("SettingsService", () => {
     });
   });
 
-  it("ignores any stale localStorage git-provider-tokens key (PAT layer removed)", async () => {
-    // Arrange: a previous version of the app may have written PATs to
-    // localStorage under this key. After removing the integrations page and
-    // the PAT layer, getSettings must not resurrect those stale tokens into
-    // provider_tokens_set — that would re-enable the removed flow.
+  it("hydrates provider_tokens_set from localStorage git-provider cache", async () => {
     window.localStorage.setItem(
       "openhands-agent-server-git-provider-tokens",
       JSON.stringify({
-        github: { token: "ghp_stale_xyz", host: "github.com" },
-        gitlab: { token: "glpat_stale_xyz", host: null },
+        github: { token: "ghp_test_xyz", host: "github.com" },
       }),
     );
 
-    // Act
     const settings = await SettingsService.getSettings();
 
-    // Assert
-    expect(settings.provider_tokens_set).toEqual({});
+    expect(settings.provider_tokens_set.github).toBe("github.com");
   });
 
   it("pre-clears mcp_config before writing the new value on the local backend", async () => {
