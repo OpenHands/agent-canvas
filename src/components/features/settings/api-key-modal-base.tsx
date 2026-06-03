@@ -92,11 +92,7 @@ export function ApiKeyModalBase({
           MODAL_MAX_WIDTH_VIEWPORT,
         )}
       >
-        <BaseModalTitle
-          id="modal-title"
-          title={title}
-          className="text-xl font-medium text-white"
-        />
+        <BaseModalTitle id="modal-title" title={title} />
         {children}
         <div className="w-full flex justify-end gap-2 mt-2">{footer}</div>
       </div>

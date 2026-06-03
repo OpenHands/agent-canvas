@@ -1,54 +1,46 @@
 ---
 name: Create GitHub Release
 
-# Automatically create a GitHub release when a release PR is merged into main.
-# This bridges the gap between merging the release PR and the downstream
-# workflows (npm-publish, docker) which trigger on tag push (v*).
-#
-# Modeled after OpenHands/software-agent-sdk's create-release.yml for consistency.
+# Automatically create a GitHub release object when a v* tag is pushed.
+# The tag is pushed manually to a rel-X.Y.Z release branch (never merged to main).
+# This workflow creates the GitHub Release; the same tag push also triggers
+# npm-publish.yml and docker.yml in parallel.
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   create-release:
-    # Only run when a release PR is merged (not just closed)
-    # and the branch follows the rel-X.Y.Z naming convention.
-    if: >
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'rel-')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      pull-requests: read
     steps:
-      - name: Extract version from branch name
+      - name: Extract version from tag
         id: version
-        env:
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          BRANCH="$PR_HEAD_REF"
-          VERSION="${BRANCH#rel-}"
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
 
-          # Accept semver with optional pre-release suffix (e.g. 1.0.0, 1.0.0-alpha.8)
+          # Accept semver with optional pre-release suffix (e.g. 1.0.0, 1.0.0-rc.1)
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "❌ Could not extract valid version from branch: $BRANCH"
+            echo "❌ Could not extract valid version from tag: $TAG"
             exit 1
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "📦 Version: $VERSION"
 
       - name: Check release does not already exist
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if gh release view "v${VERSION}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
-            echo "⚠️ Release v${VERSION} already exists, skipping"
+          if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "⚠️ Release $TAG already exists, skipping"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -69,12 +61,9 @@ jobs:
       - name: Create GitHub Release
         if: steps.check.outputs.exists == 'false'
         env:
-          # Use a PAT (not GITHUB_TOKEN) so the resulting tag-push event
-          # propagates to downstream workflows (npm-publish.yml, docker.yml).
-          # Tags created via GITHUB_TOKEN are silently suppressed by GitHub
-          # and will not trigger other workflow runs.
-          GH_TOKEN: ${{ secrets.OPENHANDS_BOT_GITHUB_PAT_PUBLIC || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
           PREV_TAG: ${{ steps.prev_tag.outputs.prev_tag }}
         run: |
           NOTES_START_FLAG=()
@@ -82,34 +71,32 @@ jobs:
             NOTES_START_FLAG=(--notes-start-tag "$PREV_TAG")
           fi
 
-          # Detect pre-release versions (anything with a hyphen, e.g. 1.0.0-alpha.8)
+          # Detect pre-release versions (anything with a hyphen, e.g. 1.0.0-rc.1)
           PRERELEASE_FLAG=()
           if [[ "$VERSION" == *-* ]]; then
             PRERELEASE_FLAG=(--prerelease)
           fi
 
-          gh release create "v${VERSION}" \
+          gh release create "$TAG" \
             --repo "${{ github.repository }}" \
-            --target "${{ github.event.pull_request.merge_commit_sha }}" \
-            --title "v${VERSION}" \
+            --title "$TAG" \
             --generate-notes \
             "${NOTES_START_FLAG[@]}" \
             "${PRERELEASE_FLAG[@]}"
 
-          echo "✅ Release v${VERSION} created!"
-          echo "🔗 https://github.com/${{ github.repository }}/releases/tag/v${VERSION}"
+          echo "✅ Release $TAG created!"
+          echo "🔗 https://github.com/${{ github.repository }}/releases/tag/$TAG"
 
       - name: Summary
         if: steps.check.outputs.exists == 'false'
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          echo "## ✅ Release v${VERSION} Created" >> "$GITHUB_STEP_SUMMARY"
+          echo "## ✅ Release $TAG Created" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Tag**: v${VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Release**: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Tag**: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Release**: https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Triggered Downstream Workflows" >> "$GITHUB_STEP_SUMMARY"
-          echo "The tag push \`v${VERSION}\` will automatically trigger:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Downstream workflows triggered by the same tag push:" >> "$GITHUB_STEP_SUMMARY"
           echo "- **npm-publish.yml** — publish \`@openhands/agent-canvas\` to npm" >> "$GITHUB_STEP_SUMMARY"
           echo "- **docker.yml** — build and push \`ghcr.io/openhands/agent-canvas\` Docker images" >> "$GITHUB_STEP_SUMMARY"

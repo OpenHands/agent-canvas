@@ -31,7 +31,6 @@ import {
   extensionModuleCardPillClassName,
   extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
-import ClockIcon from "#/icons/clock.svg?react";
 import { StatusBadge } from "./status-badge";
 
 interface RecommendedAutomationsSectionProps {
@@ -93,7 +92,6 @@ function isAutomationAvailable(
 }
 
 function buildRecommendedAutomationPills(
-  automation: RecommendedAutomation,
   requiredEntries: MarketplaceEntry[],
   installedServers: MCPServerConfig[],
   missingCount: number,
@@ -116,18 +114,6 @@ function buildRecommendedAutomationPills(
         </span>
       ),
     };
-  });
-
-  pills.push({
-    id: "setup-minutes",
-    node: (
-      <span className={cn(extensionModuleCardPillClassName, "gap-1")}>
-        <ClockIcon className="size-3 shrink-0" />
-        {translate(I18nKey.RECOMMENDED_AUTOMATIONS$MINUTES, {
-          count: automation.estimatedSetupMinutes,
-        })}
-      </span>
-    ),
   });
 
   if (missingCount > 0) {
@@ -221,7 +207,6 @@ export function RecommendedAutomationsSection({
 
                     <SkillCardPillRow
                       pills={buildRecommendedAutomationPills(
-                        automation,
                         requiredEntries,
                         installedServers,
                         missingCount,

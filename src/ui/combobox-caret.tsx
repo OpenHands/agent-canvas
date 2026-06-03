@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { formControlTransformTransitionClassName } from "#/utils/form-control-classes";
 
 export function ComboboxCaretIcon({ className }: { className?: string }) {
   return (
@@ -22,8 +23,10 @@ export function ComboboxCaretIcon({ className }: { className?: string }) {
 }
 
 /** Matches HeroUI Autocomplete selectorButton styling. */
-export const comboboxCaretButtonClassName =
-  "inline-flex items-center justify-center shrink-0 rounded-none bg-transparent px-1 min-w-0 w-auto h-auto text-medium cursor-pointer outline-none transition-[transform] duration-150 ease motion-reduce:transition-none";
+export const comboboxCaretButtonClassName = cn(
+  "inline-flex items-center justify-center shrink-0 rounded-none bg-transparent px-1 min-w-0 w-auto h-auto text-medium cursor-pointer outline-none",
+  formControlTransformTransitionClassName,
+);
 
 /** HeroUI Autocomplete selectorButton slot — keep only chevron rotation animated. */
 export const heroUiAutocompleteSelectorButtonClassName = cn(
@@ -70,7 +73,8 @@ export function ComboboxCaretInline({
   return (
     <ComboboxCaretIcon
       className={cn(
-        "shrink-0 transition-[transform] duration-150 ease motion-reduce:transition-none",
+        "shrink-0",
+        formControlTransformTransitionClassName,
         isOpen && "rotate-180",
         className,
       )}

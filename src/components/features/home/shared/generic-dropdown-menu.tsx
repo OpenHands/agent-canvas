@@ -4,6 +4,7 @@ import {
   UseComboboxGetItemPropsOptions,
 } from "downshift";
 import { cn } from "#/utils/utils";
+import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 
 export interface GenericDropdownMenuProps<T> {
   isOpen: boolean;
@@ -87,6 +88,7 @@ export function GenericDropdownMenu<T>({
             ref: menuRef,
             className: cn(
               "w-full overflow-auto p-1 custom-scrollbar-always",
+              dropdownMenuListClassName,
               stickyTopItem || stickyFooterItem
                 ? "max-h-[calc(15rem-3rem)]"
                 : "max-h-60", // Reserve space for sticky items
