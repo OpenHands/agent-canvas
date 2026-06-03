@@ -178,6 +178,20 @@ function AppContent() {
     t,
   ]);
 
+  // A backend switch is in flight (BackendSelector flips the active backend
+  // and redirects to /conversations on the next tick). The conversationId in
+  // the URL belongs to the *previous* backend, so unmount the whole
+  // conversation subtree now — before any per-conversation query (history,
+  // metrics, sub-conversations, runtime info, …) re-fires against a backend
+  // the id is foreign to. Those foreign fetches fail response validation and
+  // surface "agent server returned data this UI does not understand". This is
+  // deterministic regardless of the navigate-vs-setActive render race: React
+  // re-renders this parent before its children, so returning null removes them
+  // before they can issue the request.
+  if (backendChanged) {
+    return null;
+  }
+
   const content = (
     <EventHandler>
       <div data-testid="app-route" className="flex h-full flex-col">
