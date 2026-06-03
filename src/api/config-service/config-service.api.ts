@@ -1,5 +1,7 @@
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import { getActiveBackend } from "../backend-registry/active-store";
+import { callCloudProxy } from "../cloud/proxy";
 import type {
   LLMModel,
   LLMModelPage,
@@ -47,15 +49,39 @@ class ConfigService {
     params: SearchModelsParams = {},
     verifiedByProvider?: Record<string, string[]>,
   ): Promise<LLMModelPage> {
-    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
-    const verifiedFetch =
-      verifiedByProvider !== undefined
-        ? Promise.resolve(verifiedByProvider)
-        : llmClient.getVerifiedModels();
-    const [models, verifiedMap] = await Promise.all([
-      llmClient.getModels(),
-      verifiedFetch,
-    ]);
+    const active = getActiveBackend();
+
+    let models: string[] | null;
+    let verifiedMap: Record<string, string[]> | null;
+
+    if (active.backend.kind === "cloud") {
+      const verifiedFetch =
+        verifiedByProvider !== undefined
+          ? Promise.resolve(verifiedByProvider)
+          : callCloudProxy<Record<string, string[]> | null>({
+              backend: active.backend,
+              method: "GET",
+              path: "/api/llm/models/verified",
+            });
+      [models, verifiedMap] = await Promise.all([
+        callCloudProxy<string[] | null>({
+          backend: active.backend,
+          method: "GET",
+          path: "/api/llm/models",
+        }),
+        verifiedFetch,
+      ]);
+    } else {
+      const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
+      const verifiedFetch =
+        verifiedByProvider !== undefined
+          ? Promise.resolve(verifiedByProvider)
+          : llmClient.getVerifiedModels();
+      [models, verifiedMap] = await Promise.all([
+        llmClient.getModels(),
+        verifiedFetch,
+      ]);
+    }
 
     const provider = params.provider__eq ?? null;
     const verifiedNames = new Set(
@@ -97,15 +123,39 @@ class ConfigService {
     params: SearchProvidersParams = {},
     verifiedByProvider?: Record<string, string[]>,
   ): Promise<ProviderPage> {
-    const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
-    const verifiedFetch =
-      verifiedByProvider !== undefined
-        ? Promise.resolve(verifiedByProvider)
-        : llmClient.getVerifiedModels();
-    const [providers, verifiedMap] = await Promise.all([
-      llmClient.getProviders(),
-      verifiedFetch,
-    ]);
+    const active = getActiveBackend();
+
+    let providers: string[] | null;
+    let verifiedMap: Record<string, string[]> | null;
+
+    if (active.backend.kind === "cloud") {
+      const verifiedFetch =
+        verifiedByProvider !== undefined
+          ? Promise.resolve(verifiedByProvider)
+          : callCloudProxy<Record<string, string[]> | null>({
+              backend: active.backend,
+              method: "GET",
+              path: "/api/llm/models/verified",
+            });
+      [providers, verifiedMap] = await Promise.all([
+        callCloudProxy<string[] | null>({
+          backend: active.backend,
+          method: "GET",
+          path: "/api/llm/providers",
+        }),
+        verifiedFetch,
+      ]);
+    } else {
+      const llmClient = new LLMMetadataClient(getAgentServerClientOptions());
+      const verifiedFetch =
+        verifiedByProvider !== undefined
+          ? Promise.resolve(verifiedByProvider)
+          : llmClient.getVerifiedModels();
+      [providers, verifiedMap] = await Promise.all([
+        llmClient.getProviders(),
+        verifiedFetch,
+      ]);
+    }
 
     const verifiedProviders = new Set(Object.keys(verifiedMap ?? {}));
     const names = new Set<string>([...verifiedProviders, ...(providers ?? [])]);
