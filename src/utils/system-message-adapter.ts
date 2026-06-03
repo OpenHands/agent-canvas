@@ -23,7 +23,7 @@ export function adaptSystemMessage(
   // model receives, so append it to show the full message as one block.
   const dynamicContextText = systemPromptEvent.dynamic_context?.text;
   const content = dynamicContextText
-    ? `${systemPromptEvent.system_prompt.text}\n\n${redactCustomSecrets(dynamicContextText)}`
+    ? `${systemPromptEvent.system_prompt.text.trimEnd()}\n\n${redactCustomSecrets(dynamicContextText)}`
     : systemPromptEvent.system_prompt.text;
 
   return {
