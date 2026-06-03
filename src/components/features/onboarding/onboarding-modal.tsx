@@ -108,11 +108,10 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
   );
 
   return (
-    <ModalBackdrop
-      onClose={onClose}
-      closeOnEscape={false}
-      aria-label={t(I18nKey.ONBOARDING$TITLE)}
-    >
+    // No `onClose`: the flow must only be dismissed via explicit actions
+    // (the skip button or launching), never by an errant backdrop click or
+    // Escape press — see https://github.com/OpenHands/agent-canvas/issues/1085.
+    <ModalBackdrop aria-label={t(I18nKey.ONBOARDING$TITLE)}>
       <div className="relative flex flex-col items-center gap-4">
         <section
           data-testid="onboarding-modal"
