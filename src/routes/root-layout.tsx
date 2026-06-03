@@ -15,6 +15,7 @@ import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobi
 import { useSettings } from "#/hooks/query/use-settings";
 import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
+import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
@@ -79,6 +80,7 @@ export default function MainApp() {
   const [consentFormIsOpen, setConsentFormIsOpen] = React.useState(false);
 
   useSyncPostHogConsent();
+  usePostHogIdentify();
 
   React.useEffect(() => {
     if (settings?.language) {
