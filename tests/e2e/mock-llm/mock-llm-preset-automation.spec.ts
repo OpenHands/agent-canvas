@@ -74,6 +74,9 @@ test.describe("preset automation → slash command conversation", () => {
     // The server won't actually connect — we just need the settings to
     // list "slack" as installed so the automation card becomes launchable
     // without the install modal intercepting the click.
+    //
+    // The SDK mcp_config format wraps servers under a `mcpServers` key,
+    // mirroring the shape that toSdkMcpConfig() produces in the frontend.
     const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
       headers: {
         "X-Session-API-Key": SESSION_API_KEY,
@@ -82,12 +85,14 @@ test.describe("preset automation → slash command conversation", () => {
       data: {
         agent_settings_diff: {
           mcp_config: {
-            slack: {
-              command: "echo",
-              args: ["dummy-slack-mcp"],
-              env: {
-                SLACK_BOT_TOKEN: "xoxb-test-token",
-                SLACK_TEAM_ID: "T0000000000",
+            mcpServers: {
+              slack: {
+                command: "echo",
+                args: ["dummy-slack-mcp"],
+                env: {
+                  SLACK_BOT_TOKEN: "xoxb-test-token",
+                  SLACK_TEAM_ID: "T0000000000",
+                },
               },
             },
           },
@@ -99,7 +104,7 @@ test.describe("preset automation → slash command conversation", () => {
       `PATCH /api/settings (Slack MCP): ${patchResp.status()}`,
     ).toBe(true);
 
-    // Verify the MCP config is saved
+    // Verify the MCP config is saved and the "slack" server is present.
     const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
       headers: { "X-Session-API-Key": SESSION_API_KEY },
     });
@@ -110,10 +115,10 @@ test.describe("preset automation → slash command conversation", () => {
       mcpConfig,
       "mcp_config should be set in agent_settings",
     ).toBeTruthy();
-    // The server should be present under the "slack" key
+    // The server is stored under mcpServers.slack
     expect(
-      mcpConfig?.slack || mcpConfig?.stdio,
-      "Slack MCP server should be configured",
+      mcpConfig?.mcpServers?.slack,
+      `Slack MCP server should be configured. Got: ${JSON.stringify(mcpConfig).slice(0, 300)}`,
     ).toBeTruthy();
   });
 
