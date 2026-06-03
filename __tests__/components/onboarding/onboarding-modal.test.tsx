@@ -286,6 +286,26 @@ describe("OnboardingModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("stays open when the user clicks outside it or presses Escape", async () => {
+    // Arrange
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const user = userEvent.setup();
+
+    // Act: errant interactions outside the modal box — click the dark
+    // backdrop overlay, then press Escape.
+    const backdrop = screen.getByRole("dialog")
+      .firstElementChild as HTMLElement;
+    await user.click(backdrop);
+    await user.keyboard("{Escape}");
+
+    // Assert: neither dismisses the flow nor marks onboarding completed
+    // (https://github.com/OpenHands/agent-canvas/issues/1085); the modal
+    // only closes via explicit actions (Skip / launch).
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("onboarding-modal")).toBeInTheDocument();
+  });
+
   it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
     // Arrange + act: render the modal once.
     renderModal();
