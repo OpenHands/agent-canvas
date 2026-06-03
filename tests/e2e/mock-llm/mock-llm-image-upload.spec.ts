@@ -78,8 +78,12 @@ test.describe("mock-LLM image upload", () => {
     request,
   }) => {
     // ── 1. Configure mock LLM via API (avoids repeating the UI profile steps) ──
+    //    Use a vision-capable model name so litellm does not strip image_url
+    //    content blocks when constructing the completion request.  The base_url
+    //    still points at the local mock server; the model name is purely a hint
+    //    to litellm about what content types the model accepts.
 
-    await ensureMockLLMProfile(request);
+    await ensureMockLLMProfile(request, "openai/gpt-4o");
 
     // ── 2. Register and activate the trajectory ──
     //    The mock LLM ignores the request body, so we don't need the agent to
@@ -250,12 +254,17 @@ test.describe("mock-LLM image upload", () => {
       expect(
         anyRequestHadImage,
         `At least one LLM completion call should include a base64 image data: URL.\n` +
-          `Received ${llmRequests.length} request(s). First request messages:\n` +
-          JSON.stringify(
-            (llmRequests[0] as any)?.messages?.slice(0, 3) ?? [],
-            null,
-            2,
-          ).slice(0, 2000),
+          `Received ${llmRequests.length} request(s).\n` +
+          llmRequests
+            .map(
+              (req, i) =>
+                `Request ${i} messages:\n` +
+                JSON.stringify((req as any)?.messages ?? [], null, 2).slice(
+                  0,
+                  800,
+                ),
+            )
+            .join("\n---\n"),
       ).toBe(true);
     });
 
