@@ -26,6 +26,10 @@ vi.mock("#/hooks/use-sync-posthog-consent", () => ({
   useSyncPostHogConsent: () => {},
 }));
 
+vi.mock("#/hooks/use-posthog-identify", () => ({
+  usePostHogIdentify: () => {},
+}));
+
 vi.mock("#/hooks/use-app-title", () => ({
   useAppTitle: () => "OpenHands",
 }));

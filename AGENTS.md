@@ -19,6 +19,34 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## Tracking / Analytics Architecture
+
+Two distinct PostHog systems exist. **Never mix them at a call site.**
+
+### System 1 — `telemetry.ts` (library-level, anonymous)
+- **Purpose**: anonymous npm-consumer telemetry (`canvas_install`, `canvas_new_session`)
+- **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
+- **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
+- **`canvas_install`** fires once, pre-consent, per installation
+- **Exports**: `trackEvent`, `useTelemetry`, `TelemetryConsentBanner`, etc. from `src/lib/index.ts` — these are the **public library API for npm consumers**
+- **Rule**: Do NOT import `trackEvent` from `#/services/telemetry` in app routes or components
+
+### System 2 — `useTracking` hook (app-level, identified)
+- **Purpose**: product analytics for app behaviour events
+- **Key**: `VITE_POSTHOG_CLIENT_KEY` env var → `OptionService.getConfig()` → `PostHogWrapper` → `PostHogProvider`; routed to `https://us.i.posthog.com`
+- **Consent**: `user_consents_to_analytics` (backend setting) + `useSyncPostHogConsent` in `root-layout`; `AnalyticsConsentFormModal` also calls `setTelemetryConsent` to keep both systems in sync
+- **All events** are typed, named functions in `src/hooks/use-tracking.ts` — add a new function there for every new event; never call `posthog.capture()` raw from a component
+- **`commonProperties`** (`current_url`, `user_email`) are attached automatically by the hook
+- **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
+
+### Adding a new event
+1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`
+2. Add the function to the hook's `return` object
+3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
+
+### Env var
+`VITE_POSTHOG_CLIENT_KEY` — see `.env.sample`. Without it, `PostHogProvider` never mounts and all `useTracking` calls are silently dropped (safe default for local dev).
+
 ## Runtime Services in Dev Stacks
 
 - When the agent-canvas dev launchers (`npm run dev` / `dev:minimal` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
@@ -169,7 +197,7 @@ you are running inside of — NOT the automation backend.
 
 - The same test specs and helpers are reused to validate the Docker image via `playwright.mock-llm-docker.config.ts`. Run locally with `npm run test:e2e:mock-llm:docker` (requires Docker daemon and a built image).
 - **Architecture**: The Docker config replaces the npm path's `bin/agent-canvas.mjs` webServer with a `docker run --network host` command. The mock LLM server still runs on the host. On Linux (including CI), `--network host` lets the container share the host's network stack so all `127.0.0.1` URLs work identically. On macOS/Windows Docker Desktop (bridge networking), set `MOCK_LLM_AGENT_URL=http://host.docker.internal:<port>` so the agent-server inside Docker can reach the host-side mock LLM server.
-- **IPv4 URLs in Docker tests**: `playwright.mock-llm-docker.config.ts` uses `127.0.0.1` (not `localhost`) for all URLs — `INGRESS_URL`, `MOCK_LLM_BACKEND_URL`, `MOCK_LLM_PUBLIC_MODE_URL`, and webServer health-check probes. The Docker entrypoint's `static-server.mjs` binds to `0.0.0.0` (IPv4 only), but `localhost` can resolve to `::1` (IPv6) on Ubuntu CI runners, causing `ECONNREFUSED`. The non-Docker config can use `localhost` because its `ingress.mjs` binds to `::` (dual-stack). If you add new URLs or health-check probes to the Docker Playwright config, always use `127.0.0.1`.
+- **Dual-stack binding**: Both `scripts/static-server.mjs` and `scripts/ingress.mjs` default to `::` (dual-stack, accepting IPv4 and IPv6 connections). The Docker entrypoint passes `--host ::` explicitly. This means `localhost` is safe in both the Docker and npm Playwright configs — whether it resolves to `127.0.0.1` (IPv4) or `::1` (IPv6), the server accepts the connection. The mock LLM server URL (`MOCK_LLM_URL`) still uses `127.0.0.1` because the Python mock server is a separate process whose bind behavior we don't control.
 - **Entrypoint crash resilience**: `docker/entrypoint.sh` uses a `while kill -0 "$STATIC_PID"; do sleep 10 & wait $!; done` loop instead of `wait -n "${PIDS[@]}"` (any child). If the agent-server or automation backend exits mid-test, the static-server proxy stays up and returns 502s for backend routes — the container doesn't disappear with `ECONNREFUSED`. The container exits only when the static-server (ingress) dies or on SIGTERM/SIGINT. The `sleep & wait $!` pattern ensures `wait` (a bash builtin) is the foreground op, so trapped signals fire immediately. `cleanup()` includes `exit 0` so the script terminates after a signal-triggered trap return.
 - **URL split**: `mock-llm-helpers.ts` exports two mock LLM URL constants:
   - `MOCK_LLM_BASE_URL` — always `http://127.0.0.1:<port>`, used by tests for the mock LLM admin API (register/activate/reset trajectories).
