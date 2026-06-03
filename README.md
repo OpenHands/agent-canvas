@@ -58,6 +58,13 @@ npm install -g @openhands/agent-canvas
 agent-canvas
 ```
 
+The `agent-canvas` command starts the full local stack by default. You can also split it when you want to run pieces separately:
+
+```sh
+agent-canvas --frontend-only  # static frontend + ingress only
+agent-canvas --backend-only   # agent server + automation backend + ingress only
+```
+
 ### Option 2: With a Docker Sandbox
 
 **Prerequisites**:

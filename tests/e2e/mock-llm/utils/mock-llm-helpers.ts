@@ -410,5 +410,17 @@ export async function setChatInput(
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Partial-stack mode ports (frontend-only / backend-only tests)
+// ═══════════════════════════════════════════════════════════════════════
+
+export const FRONTEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_FE_ONLY_PORT ?? "18310";
+export const FRONTEND_ONLY_URL = `http://localhost:${FRONTEND_ONLY_INGRESS_PORT}`;
+
+export const BACKEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_BE_ONLY_PORT ?? "18320";
+export const BACKEND_ONLY_URL = `http://localhost:${BACKEND_ONLY_INGRESS_PORT}`;
+
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.
