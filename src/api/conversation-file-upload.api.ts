@@ -132,7 +132,16 @@ async function uploadFilesToRuntime(options: {
   const uploadFile = async (file: File) => {
     try {
       const safeName = getSafeUploadFileName(file.name);
-      const uploadPath = buildWorkspaceUploadPath(file.name, workingDir);
+      // @spec WUP-001 — Build an absolute upload path that's anchored against
+      // the agent-server's home dir (when `workingDir` is relative) instead
+      // of the filesystem root. Without this, default conversations whose
+      // working_dir is `workspace/project/<hex>` (relative) land at
+      // `/workspace/project/<hex>/...` on the agent-server, which on macOS
+      // and fresh containers is a read-only mount.
+      const uploadPath = await buildWorkspaceUploadPath(file.name, workingDir, {
+        conversationUrl,
+        sessionApiKey,
+      });
       await workspace.fileUpload(file, uploadPath);
       return { uploadedFile: safeName, skippedFile: null };
     } catch (error) {

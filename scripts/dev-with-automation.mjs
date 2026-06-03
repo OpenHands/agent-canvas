@@ -1277,8 +1277,6 @@ function startStaticFrontend(config, staticDir) {
       staticServerScript,
       "--dir",
       staticDir,
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
       // In local mode, inject the API key so the pre-built frontend can

@@ -163,7 +163,6 @@ export default defineConfig({
       command: [
         "exec node scripts/static-server.mjs",
         "--dir build",
-        "--host 0.0.0.0",
         `--port ${PUBLIC_MODE_PORT}`,
         "--auth-required",
         "--route /api/automation=http://localhost:18001",
