@@ -20,7 +20,7 @@
  *
  * Usage (mirrors scripts/ingress.mjs's --route flag style):
  *   node scripts/static-server.mjs \
- *     --port 3001 --host 0.0.0.0 --dir build \
+ *     --port 3001 --dir build \
  *     --route "/api/automation=http://localhost:18001" \
  *     --route "/api=http://localhost:18000" \
  *     --route "/server_info=http://localhost:18000" \
@@ -69,7 +69,7 @@ const MIME = {
 export function parseArgs(argv = process.argv.slice(2)) {
   const config = {
     port: 3001,
-    host: "0.0.0.0",
+    host: "::",
     dir: "build",
     routes: {},
     rejectPrefixes: [],
@@ -157,7 +157,7 @@ USAGE:
 
 OPTIONS:
   -p, --port  <port>           Port to bind (default: 3001)
-  -H, --host  <host>           Hostname to bind (default: 0.0.0.0)
+  -H, --host  <host>           Hostname to bind (default: :: dual-stack)
   -d, --dir   <dir>            Directory to serve (default: build)
   -r, --route <prefix=url>     Proxy <prefix> (and subpaths) to <url>;
                                may be repeated. WebSockets supported.
