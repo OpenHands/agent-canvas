@@ -52,9 +52,14 @@ export function ProfilesBody({
 
   if (profiles.length === 0) {
     return (
-      <p className="text-sm text-[var(--oh-muted)] italic">
-        {t(I18nKey.SETTINGS$PROFILES_EMPTY)}
-      </p>
+      <div
+        data-testid="profiles-empty-state"
+        className="rounded-xl border border-[var(--oh-border)] p-6 text-center"
+      >
+        <p className="text-sm text-tertiary-light">
+          {t(I18nKey.SETTINGS$PROFILES_EMPTY)}
+        </p>
+      </div>
     );
   }
 
