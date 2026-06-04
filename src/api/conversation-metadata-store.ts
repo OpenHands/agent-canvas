@@ -15,6 +15,14 @@ export interface ConversationMetadata {
    * git baseline to compare against.
    */
   selected_workspace?: string | null;
+  /**
+   * The LLM profile the conversation was created with (or last switched to).
+   * Client-side only. Lets the chat-header switcher show the exact profile
+   * name even when several profiles share the same underlying model — the
+   * agent-server only round-trips the model string, so matching on it alone
+   * is ambiguous (issue #1082).
+   */
+  active_profile?: string | null;
 }
 
 type StoredMetadata = Record<string, ConversationMetadata>;
