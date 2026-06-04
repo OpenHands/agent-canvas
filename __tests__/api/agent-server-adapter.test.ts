@@ -448,7 +448,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
   });
 
-  describe("ACP reserved credentials (StaticSecret path)", () => {
+  describe("ACP secret delivery", () => {
     // Settings factory for a containerized ACP conversation.
     const acpSettings = (overrides: Record<string, unknown> = {}) => ({
       ...DEFAULT_SETTINGS,
@@ -462,118 +462,41 @@ describe("buildStartConversationRequest", () => {
       },
     });
 
-    it("emits reserved ACP credentials as inline StaticSecrets and mirrors them onto agent_context", () => {
-      // This is the validated container contract: the SDK's acp_file_secrets
-      // defaults read agent_context.secrets at spawn time to materialise the
-      // *_JSON blob — a LookupSecret wouldn't be resolved in time.
+    it("delivers provider credentials and user secrets uniformly as LookupSecrets, mirrored onto agent_context", () => {
+      // Provider credentials (e.g. a saved CODEX_AUTH_JSON) are no longer special
+      // on the wire — they ride as LookupSecrets like any custom secret. The SDK
+      // resolves them off the event loop at spawn, so the loopback fetch is safe
+      // (software-agent-sdk#3510). "Reserved" is now only an onboarding concept.
       const payload = buildStartConversationRequest({
         settings: acpSettings(),
-        acpStaticSecrets: { CODEX_AUTH_JSON: '{"tokens":{"access":"abc"}}' },
+        customSecrets: [{ name: "CODEX_AUTH_JSON" }, { name: "MY_TOKEN" }],
       }) as {
         agent_settings: {
           acp_model?: string;
-          agent_context?: { secrets?: Record<string, unknown> };
+          agent_context?: { secrets?: Record<string, { kind: string }> };
         };
-        secrets: Record<string, unknown>;
+        secrets: Record<string, { kind: string }>;
       };
 
-      const expected = {
-        kind: "StaticSecret",
-        value: '{"tokens":{"access":"abc"}}',
-      };
-      expect(payload.secrets.CODEX_AUTH_JSON).toEqual(expected);
-      expect(payload.agent_settings.agent_context?.secrets?.CODEX_AUTH_JSON).toEqual(
-        expected,
-      );
+      expect(payload.secrets.CODEX_AUTH_JSON?.kind).toBe("LookupSecret");
+      expect(payload.secrets.MY_TOKEN?.kind).toBe("LookupSecret");
+      // The same LookupSecret map is mirrored onto agent_context (the channel
+      // ACPAgent's spawn-time env loop reads).
+      expect(
+        payload.agent_settings.agent_context?.secrets?.CODEX_AUTH_JSON?.kind,
+      ).toBe("LookupSecret");
       // The configured model rides along unchanged.
       expect(payload.agent_settings.acp_model).toBe("gpt-5.5/medium");
     });
 
-    it("sends the Vertex-safe model + Vertex credentials for Gemini", () => {
-      const payload = buildStartConversationRequest({
-        settings: acpSettings({
-          acp_server: "gemini-cli",
-          acp_command: ["npx", "-y", "@google/gemini-cli", "--acp"],
-          acp_model: "gemini-2.5-flash",
-        }),
-        acpStaticSecrets: {
-          GOOGLE_APPLICATION_CREDENTIALS_JSON: '{"type":"service_account"}',
-          GOOGLE_CLOUD_PROJECT: "my-project",
-          GOOGLE_CLOUD_LOCATION: "us-central1",
-          GOOGLE_GENAI_USE_VERTEXAI: "true",
-        },
-      }) as {
-        agent_settings: { acp_model?: string };
-        secrets: Record<string, { kind: string; value?: string }>;
-      };
-
-      expect(payload.agent_settings.acp_model).toBe("gemini-2.5-flash");
-      expect(payload.secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON).toEqual({
-        kind: "StaticSecret",
-        value: '{"type":"service_account"}',
-      });
-      expect(payload.secrets.GOOGLE_CLOUD_PROJECT).toEqual({
-        kind: "StaticSecret",
-        value: "my-project",
-      });
-      expect(payload.secrets.GOOGLE_GENAI_USE_VERTEXAI).toEqual({
-        kind: "StaticSecret",
-        value: "true",
-      });
-    });
-
-    it("lets a StaticSecret override a same-named LookupSecret from the global store", () => {
-      // A reserved credential saved as a global secret would otherwise be sent
-      // as a LookupSecret too; the inline StaticSecret must win so the value
-      // reaches the CLI before spawn.
-      const payload = buildStartConversationRequest({
-        settings: acpSettings(),
-        customSecrets: [{ name: "CODEX_AUTH_JSON" }],
-        acpStaticSecrets: { CODEX_AUTH_JSON: "inline-value" },
-      }) as { secrets: Record<string, { kind: string; value?: string }> };
-
-      expect(payload.secrets.CODEX_AUTH_JSON).toEqual({
-        kind: "StaticSecret",
-        value: "inline-value",
-      });
-    });
-
-    it("drops empty / whitespace-only StaticSecret values (a deliberate skip)", () => {
-      const payload = buildStartConversationRequest({
-        settings: acpSettings(),
-        acpStaticSecrets: { CODEX_AUTH_JSON: "   ", OPENAI_API_KEY: "" },
-      }) as { secrets?: Record<string, unknown> };
-
-      expect(payload.secrets).toBeUndefined();
-    });
-
-    it("trims surrounding whitespace from the StaticSecret value", () => {
-      const payload = buildStartConversationRequest({
-        settings: acpSettings(),
-        acpStaticSecrets: { OPENAI_API_KEY: "  sk-abc\n" },
-      }) as { secrets: Record<string, { value?: string }> };
-
-      expect(payload.secrets.OPENAI_API_KEY.value).toBe("sk-abc");
-    });
-
-    it("ignores acpStaticSecrets for a non-ACP (OpenHands) conversation", () => {
-      const payload = buildStartConversationRequest({
-        settings: DEFAULT_SETTINGS,
-        acpStaticSecrets: { CODEX_AUTH_JSON: "value" },
-      }) as { secrets?: Record<string, unknown> };
-
-      expect(payload.secrets).toBeUndefined();
-    });
-
-    it("does NOT set secrets_encrypted for ACP — plaintext StaticSecrets must not be cipher-decrypted", () => {
-      // The agent-server runs every secret value through cipher.decrypt() when
-      // secrets_encrypted=true. Reserved ACP creds are plaintext, so flagging
-      // them encrypted silently drops them (decrypt fails → None) on a cipher
-      // backend, or hard-fails ("cipher not configured") on a fresh container.
+    it("does NOT set secrets_encrypted for ACP — there is no encrypted payload to decrypt", () => {
+      // An ACP request carries no encrypted secret (no LLM api_key; credentials
+      // are LookupSecrets resolved at runtime). Flagging it encrypted hard-fails
+      // ("cipher not configured") on a fresh ACP container without OH_SECRET_KEY.
       const payload = buildStartConversationRequest({
         settings: acpSettings(),
         secretsEncrypted: true,
-        acpStaticSecrets: { CODEX_AUTH_JSON: '{"a":1}' },
+        customSecrets: [{ name: "CODEX_AUTH_JSON" }],
       }) as { secrets_encrypted?: boolean };
       expect(payload.secrets_encrypted).toBeUndefined();
     });
@@ -584,36 +507,6 @@ describe("buildStartConversationRequest", () => {
         secretsEncrypted: true,
       }) as { secrets_encrypted?: boolean };
       expect(payload.secrets_encrypted).toBe(true);
-    });
-
-    it("drops a different provider's leftover file-content secret instead of sending it as a LookupSecret", () => {
-      // A CODEX_AUTH_JSON saved while onboarding Codex must not leak into a
-      // Claude conversation: as a LookupSecret the SDK's eager file-secret
-      // materialisation stalls (httpx resolve) and times out the whole spawn.
-      const payload = buildStartConversationRequest({
-        settings: acpSettings({
-          acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-          acp_model: "claude-opus-4-7",
-        }),
-        // Both saved globally; only the active provider's is read back inline.
-        customSecrets: [{ name: "CODEX_AUTH_JSON" }, { name: "MY_TOKEN" }],
-        acpStaticSecrets: { CLAUDE_CODE_OAUTH_TOKEN: "oauth" },
-      }) as {
-        secrets: Record<string, { kind: string }>;
-        agent_settings: { agent_context?: { secrets?: Record<string, unknown> } };
-      };
-
-      // The leftover file blob is dropped entirely (no LookupSecret, no Static).
-      expect(payload.secrets.CODEX_AUTH_JSON).toBeUndefined();
-      // A non-reserved global secret still rides as a LookupSecret.
-      expect(payload.secrets.MY_TOKEN?.kind).toBe("LookupSecret");
-      // The active provider's credential is inline.
-      expect(payload.secrets.CLAUDE_CODE_OAUTH_TOKEN?.kind).toBe("StaticSecret");
-      // And the dropped blob never reaches agent_context (the materialisation source).
-      expect(
-        payload.agent_settings.agent_context?.secrets?.CODEX_AUTH_JSON,
-      ).toBeUndefined();
     });
   });
 

@@ -63,48 +63,6 @@ export class SecretsService {
   }
 
   /**
-   * Read back the plaintext values of specific secrets by name, for inlining as
-   * ``StaticSecret``s in a conversation start request (the ACP reserved-credential
-   * path — see ``buildStartConversationRequestWithEncryptedSettings``).
-   *
-   * Local agent-servers only: ``GET /api/settings/secrets/{name}`` returns the
-   * raw value to whoever holds the backend session key (the same channel a
-   * ``LookupSecret`` resolves through), so reading it back to send inline is no
-   * broader an exposure than the lookup. Cloud is intentionally skipped — its
-   * proxy redacts values and containerized-ACP credentials on cloud are separate
-   * backend work (OpenHands#1016) — so this returns ``{}`` there.
-   *
-   * Each name is fetched independently; a missing/errored secret is omitted
-   * rather than failing the batch (the caller only requests names it believes
-   * are saved, but the store can race with deletion). Blank values are dropped.
-   */
-  static async getSecretValues(
-    names: string[],
-  ): Promise<Record<string, string>> {
-    if (names.length === 0) return {};
-    if (getActiveBackend().backend.kind === "cloud") return {};
-
-    const client = new SettingsClient(getAgentServerClientOptions());
-    const entries = await Promise.all(
-      names.map(async (name): Promise<[string, string] | null> => {
-        try {
-          const value = await client.getSecret(name);
-          return typeof value === "string" && value.trim().length > 0
-            ? [name, value]
-            : null;
-        } catch (error) {
-          console.error(
-            `Failed to read secret "${name}" for conversation:`,
-            error,
-          );
-          return null;
-        }
-      }),
-    );
-    return Object.fromEntries(entries.filter((entry) => entry !== null));
-  }
-
-  /**
    * Create or update a custom secret (upsert by name).
    * Uses the agent-server API endpoint: PUT /api/settings/secrets
    *
