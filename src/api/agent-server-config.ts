@@ -112,8 +112,26 @@ export function getAgentServerHeaders(): Record<string, string> {
   return sessionApiKey ? { "X-Session-API-Key": sessionApiKey } : {};
 }
 
+function isWindowsBrowser(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const navigatorWithUserAgentData = window.navigator as Navigator & {
+    userAgentData?: { platform?: string };
+  };
+  const platform =
+    navigatorWithUserAgentData.userAgentData?.platform ||
+    window.navigator.platform ||
+    window.navigator.userAgent;
+
+  return /\bWin/i.test(platform);
+}
+
 export function shouldLoadPublicSkills(): boolean {
-  return import.meta.env.VITE_LOAD_PUBLIC_SKILLS !== "false";
+  const value = import.meta.env.VITE_LOAD_PUBLIC_SKILLS?.trim().toLowerCase();
+  if (value === "false") return false;
+  if (value === "true") return true;
+
+  return !isWindowsBrowser();
 }
 
 export function isAuthRequired(): boolean {
