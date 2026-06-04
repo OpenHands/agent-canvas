@@ -1,12 +1,6 @@
-const OPENHANDS_PROXY_BASE_URLS = new Set([
-  "https://llm-proxy.app.all-hands.dev",
-  "https://llm-proxy.app.all-hands.dev/v1",
-]);
+import { isOpenHandsProxyBaseUrl } from "#/utils/openhands-llm";
 
 const LITELLM_PROXY_PREFIX = "litellm_proxy/";
-
-const stripTrailingSlashes = (value: string) =>
-  value.trim().replace(/\/+$/, "");
 
 /**
  * Reverse the SDK's `openhands/* -> litellm_proxy/*` rewrite for display.
@@ -23,10 +17,7 @@ export function normalizeDisplayModel(
 ): string {
   if (!rawModel) return "";
   if (!rawModel.startsWith(LITELLM_PROXY_PREFIX)) return rawModel;
-  if (!baseUrl) return rawModel;
-  if (!OPENHANDS_PROXY_BASE_URLS.has(stripTrailingSlashes(baseUrl))) {
-    return rawModel;
-  }
+  if (!isOpenHandsProxyBaseUrl(baseUrl)) return rawModel;
   const modelName = rawModel.slice(LITELLM_PROXY_PREFIX.length);
   if (!openhandsVerifiedModels.includes(modelName)) return rawModel;
   return `openhands/${modelName}`;
