@@ -49,6 +49,9 @@ export function HomeChatLauncher() {
   const isCreating = isPending || isCreatingElsewhere;
   const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
     useLlmConfigured();
+  // Block sending entirely when there's no usable LLM; the banner above the
+  // launcher (rendered by the home route) explains it and offers setup.
+  const llmBlocked = !isLlmConfigLoading && !isLlmConfigured;
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
   const { handleUpload } = useChatAttachmentUpload();
@@ -66,15 +69,10 @@ export function HomeChatLauncher() {
     const hasAttachments = images.length > 0 || files.length > 0;
     if ((!trimmed && !hasAttachments) || isCreating) return;
 
-    // Don't start a conversation the agent can't run. Without a usable LLM the
-    // backend accepts the request but fails with a cryptic API-key error on the
-    // first turn, so send the user to configure one instead. The typed prompt
-    // is preserved in the home draft.
-    if (!isLlmConfigLoading && !isLlmConfigured) {
-      toast.error(t(I18nKey.HOME$LLM_NOT_CONFIGURED_MESSAGE), TOAST_OPTIONS);
-      navigate("/settings/llm");
-      return;
-    }
+    // Safety net: the input is disabled when there's no usable LLM, but never
+    // create a conversation that can't run (it would fail with a cryptic
+    // API-key error on the first turn).
+    if (llmBlocked) return;
 
     const attachmentSnapshot = {
       images: [...images],
@@ -208,7 +206,7 @@ export function HomeChatLauncher() {
         <CustomChatInput
           onSubmit={handleSubmitWithModelGuard}
           onFilesPaste={handleUpload}
-          disabled={isCreating}
+          disabled={isCreating || llmBlocked}
         />
       </div>
 

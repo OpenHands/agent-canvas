@@ -290,7 +290,7 @@ describe("HomeChatLauncher", () => {
     );
   });
 
-  it("blocks starting and routes to LLM settings when no LLM is configured", async () => {
+  it("disables the chat input and won't create a conversation when no LLM is configured", async () => {
     mockUseLlmConfigured.mockReturnValue({
       isConfigured: false,
       isLoading: false,
@@ -300,12 +300,9 @@ describe("HomeChatLauncher", () => {
       .mockResolvedValue(makeConversationResponse());
 
     renderLauncher();
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("stub-chat-submit"));
 
-    await waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith("/settings/llm"),
-    );
+    // The send is disabled, so the agent can't be handed a request it can't run.
+    expect(screen.getByTestId("stub-chat-submit")).toBeDisabled();
     expect(createSpy).not.toHaveBeenCalled();
   });
 
