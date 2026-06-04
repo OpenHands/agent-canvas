@@ -55,9 +55,10 @@ Two distinct PostHog systems exist. **Never mix them at a call site.**
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
 - Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
-  - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
-  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
-  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
+  - `scripts/runtime-services-info.mjs::buildRuntimeServicesInfo()` — dependency-free module that constructs the info object; also runs as a CLI for the Docker entrypoint. Re-exported by `scripts/dev-safe.mjs` for backward compat.
+  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from Vite spawn (`startVite`), static frontend spawn (`startStaticFrontend` → `--runtime-services-info` flag), and the static build (`static-build.mjs`).
+  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` (Vite dev) or `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` (static builds, injected by `static-server.mjs`) and renders the `<RUNTIME_SERVICES>` markdown block; `buildAgentContext()` attaches it to `agent_context.system_message_suffix` when present.
+  - E2E coverage: the mock-LLM automation test (`tests/e2e/mock-llm/mock-llm-automation.spec.ts`) verifies the `<RUNTIME_SERVICES>` block reaches the LLM via `getMockLLMRequests()` and checks for Agent Server, Automation backend, and `/api/automation` entries.
 
 ### `VITE_RUNTIME_SERVICES_INFO` shape
 

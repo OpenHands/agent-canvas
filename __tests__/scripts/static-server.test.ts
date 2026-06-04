@@ -60,6 +60,95 @@ describe("static-server.mjs", () => {
       const config = parseArgs(["--session-api-key", ""]);
       expect(config.sessionApiKey).toBeNull();
     });
+
+    it("defaults runtimeServicesInfo to null", () => {
+      const config = parseArgs([]);
+      expect(config.runtimeServicesInfo).toBeNull();
+    });
+
+    it("parses --runtime-services-info", () => {
+      const json = '{"mode":"docker"}';
+      const config = parseArgs(["--runtime-services-info", json]);
+      expect(config.runtimeServicesInfo).toBe(json);
+    });
+
+    it("treats empty string as null for runtime services info", () => {
+      const config = parseArgs(["--runtime-services-info", ""]);
+      expect(config.runtimeServicesInfo).toBeNull();
+    });
+  });
+
+  describe("runtime services info injection", () => {
+    async function startServerWithRuntimeInfo(
+      dir: string,
+      runtimeServicesInfo: string,
+    ) {
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir,
+        routes: {},
+        runtimeServicesInfo,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    // Regression test for the Docker / published-binary path: static builds
+    // have no VITE_RUNTIME_SERVICES_INFO baked in, so the agent's
+    // <RUNTIME_SERVICES> block is populated from this injected window global
+    // (see `parseRuntimeServicesInfo()` in src/api/agent-server-adapter.ts).
+    it("exposes the JSON on window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const info = JSON.stringify({
+        mode: "docker",
+        services: {
+          agent_server: { url_from_agent: "http://127.0.0.1:18000" },
+        },
+      });
+      const origin = await startServerWithRuntimeInfo(buildDir, info);
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__");
+      // Stored as a JSON *string* (note the escaped quotes) so the browser can
+      // JSON.parse it, exactly like the VITE_RUNTIME_SERVICES_INFO env var.
+      expect(body).toContain('\\"mode\\"');
+      expect(body).toContain("docker");
+    });
+
+    it("does not inject when runtimeServicesInfo is null", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {},
+        runtimeServicesInfo: null,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("No port");
+      const origin = `http://127.0.0.1:${(address as { port: number }).port}`;
+
+      const body = await (await fetch(`${origin}/`)).text();
+      expect(body).not.toContain("__AGENT_CANVAS_RUNTIME_SERVICES_INFO__");
+    });
   });
 
   describe("session key injection", () => {
