@@ -959,9 +959,36 @@ function spawnProcess(command, args, options = {}) {
 export function preseedExtensionsCache(sha, cacheDir) {
   const repoDir = path.join(cacheDir, "public-skills");
   if (existsSync(path.join(repoDir, ".git"))) {
-    return; // Cache already exists — SDK update path handles it.
+    // Verify the pinned SHA is actually accessible in the existing clone.
+    // A shallow clone (e.g. from a prior `EXTENSIONS_REF=main` run) may not
+    // contain the pinned commit, causing `git checkout <sha>` to fail at runtime.
+    const check = spawnSync("git", ["-C", repoDir, "cat-file", "-t", sha], {
+      stdio: "pipe",
+    });
+    if (check.status === 0 && check.stdout?.toString().trim() === "commit") {
+      return; // SHA is present — SDK's fetch + checkout will succeed.
+    }
+
+    // SHA absent — unshallow the existing clone so the full history is available.
+    console.log(
+      `Extensions cache exists but is missing pinned commit ${sha.slice(0, 12)} (shallow clone). Unshallowing...`,
+    );
+    const unshallow = spawnSync(
+      "git",
+      ["-C", repoDir, "fetch", "--unshallow"],
+      { stdio: "inherit" },
+    );
+    if (unshallow.status !== 0) {
+      console.warn(
+        "Warning: extensions cache unshallow failed; agent-server will use the cached version.",
+      );
+      return;
+    }
+    spawnSync("git", ["-C", repoDir, "checkout", sha], { stdio: "inherit" });
+    return;
   }
 
+  // No cache yet — do a fresh full clone + checkout.
   console.log(
     `Pre-seeding extensions cache for pinned commit ${sha.slice(0, 12)}...`,
   );
