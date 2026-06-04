@@ -801,9 +801,6 @@ export function ConversationPanel({
                 isOpen={isSearchModalOpen}
                 onToggle={handleSearchToggle}
               />
-              <ConversationPanelNewThreadPicker
-                backendKind={activeBackend.kind}
-              />
               <ConversationPanelFilterMenu
                 filterMenuOpen={filterMenuOpen}
                 setFilterMenuOpen={setFilterMenuOpen}
@@ -825,6 +822,9 @@ export function ConversationPanel({
                 toggleShowHoverMetadata={toggleShowHoverMetadata}
                 totalConversationsCount={conversations.length}
                 onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
+              />
+              <ConversationPanelNewThreadPicker
+                backendKind={activeBackend.kind}
               />
             </div>
           </div>
