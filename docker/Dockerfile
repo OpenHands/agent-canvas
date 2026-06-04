@@ -67,6 +67,30 @@ RUN node -e " \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
 
+# ── Stage 1c: Pre-clone extensions repo at the pinned commit ─────────────────
+# The SDK calls  git clone --depth 1 --branch <ref>  to seed the skills cache.
+# That works for branch/tag names but fails for raw 40-char commit SHAs.
+# We bake the clone into the image here so entrypoint.sh can seed the runtime
+# cache with a fast filesystem copy instead of a network git clone.
+# When @openhands/extensions is NOT pinned to a SHA this stage exits early and
+# produces an empty directory; the SDK handles cloning itself at runtime.
+FROM node:24-slim AS extensions-cache
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json /tmp/package.json
+RUN node -e " \
+  const fs = require('fs'); \
+  const pkg = JSON.parse(fs.readFileSync('/tmp/package.json', 'utf-8')); \
+  const url = (pkg.dependencies || pkg.devDependencies || {})['@openhands/extensions'] || ''; \
+  const m = url.match(/#([0-9a-f]{40})\$/i); \
+  if (!m) { fs.mkdirSync('/tmp/public-skills', {recursive: true}); process.exit(0); } \
+  const sha = m[1]; \
+  const { execSync } = require('child_process'); \
+  execSync('git clone https://github.com/OpenHands/extensions /tmp/public-skills', {stdio: 'inherit'}); \
+  execSync('git -C /tmp/public-skills checkout ' + sha, {stdio: 'inherit'}); \
+"
+
 # ── Stage 2: Combined image ──────────────────────────────────────────────────
 FROM ${AGENT_SERVER_IMAGE} AS final
 
@@ -115,6 +139,12 @@ COPY tools/ /opt/agent-canvas/tools/
 # Copy generated defaults.env (from config/defaults.json via config-gen stage)
 COPY --from=config-gen /tmp/defaults.env /opt/agent-canvas/defaults.env
 
+# Copy the pre-baked extensions cache (populated by the extensions-cache stage
+# when @openhands/extensions is pinned to a commit SHA; otherwise an empty dir).
+# Stored outside the /home/openhands/.openhands VOLUME so it survives bind-mounts;
+# entrypoint.sh copies it into the runtime cache path on first container start.
+COPY --from=extensions-cache /tmp/public-skills /opt/agent-canvas/extensions-cache/
+
 # Copy the entrypoint
 COPY docker/entrypoint.sh /opt/agent-canvas/entrypoint.sh
 RUN chmod +x /opt/agent-canvas/entrypoint.sh
@@ -126,7 +156,8 @@ RUN mkdir -p /home/openhands/.openhands/agent-canvas/conversations \
              /home/openhands/.openhands/agent-canvas/bash_events \
              /home/openhands/.openhands/automation \
              /projects && \
-    chown -R openhands:openhands /home/openhands/.openhands /projects
+    chown -R openhands:openhands /home/openhands/.openhands /projects \
+                                  /opt/agent-canvas/extensions-cache
 
 USER openhands
 

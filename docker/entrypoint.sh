@@ -140,23 +140,20 @@ export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
 # When EXTENSIONS_REF is a raw commit SHA the SDK cannot do
 #   git clone --depth 1 --branch <sha>
-# because --branch only accepts branch/tag names, not raw SHAs.  Pre-seed the
-# cache with a plain full clone + checkout so the SDK's update path (which CAN
-# handle SHAs via fetch + git checkout) takes over from there.
-# This block is a no-op when EXTENSIONS_REF is empty, a branch/tag name, or
-# the cache already exists from a previous container start.
+# because --branch only accepts branch/tag names, not raw SHAs.
+# The image pre-bakes the clone in the extensions-cache Dockerfile stage and
+# stores it at /opt/agent-canvas/extensions-cache.  On first container start
+# we seed the runtime cache with a fast filesystem copy — no network required.
+# This block is a no-op when EXTENSIONS_REF is empty/a branch name, the cache
+# already exists, or the pre-baked directory was not populated at build time.
 if echo "${EXTENSIONS_REF:-}" | grep -qE '^[0-9a-f]{40}$'; then
+    _ext_baked="/opt/agent-canvas/extensions-cache"
     _ext_cache="${HOME}/.openhands/cache/skills/public-skills"
-    if [ ! -d "${_ext_cache}/.git" ]; then
-        log "Pre-seeding extensions cache for pinned commit ${EXTENSIONS_REF:0:12}..."
-        mkdir -p "${_ext_cache%/*}"
-        if git clone https://github.com/OpenHands/extensions "${_ext_cache}" \
-           && git -C "${_ext_cache}" checkout "${EXTENSIONS_REF}"; then
-            log "Extensions cache ready at ${EXTENSIONS_REF:0:12}."
-        else
-            log "Warning: extensions pre-seed failed; agent-server will use default."
-            rm -rf "${_ext_cache}"
-        fi
+    if [ ! -d "${_ext_cache}/.git" ] && [ -d "${_ext_baked}/.git" ]; then
+        log "Seeding extensions cache from image for commit ${EXTENSIONS_REF:0:12}..."
+        mkdir -p "${_ext_cache}"
+        cp -r "${_ext_baked}/." "${_ext_cache}/"
+        log "Extensions cache ready."
     fi
 fi
 
