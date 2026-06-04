@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { OnboardingModal } from "#/components/features/onboarding/onboarding-modal";
+import { ONBOARDING_DEFAULT_LLM_MODEL } from "#/components/features/onboarding/steps/setup-llm-step";
 import { NavigationProvider } from "#/context/navigation-context";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SecretsService } from "#/api/secrets-service";
@@ -233,14 +234,14 @@ describe("OnboardingModal", () => {
     );
   });
 
-  it("pre-fills the LLM step with the Anthropic provider's Claude Opus model", () => {
+  it("pre-fills the LLM step with OpenAI GPT-5.5", () => {
     renderModal();
 
     expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
     expect(llmSettingsScreenMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialValueOverrides: {
-          "llm.model": "anthropic/claude-opus-4-8",
+          "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
         },
       }),
     );
