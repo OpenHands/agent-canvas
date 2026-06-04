@@ -108,6 +108,12 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
+  it("disables Delete button when isActive is true", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    expect(screen.getByTestId("profile-delete")).toBeDisabled();
+  });
+
   it("calls onDelete and onClose when Delete is clicked", async () => {
     const user = userEvent.setup();
     const handleDelete = vi.fn();

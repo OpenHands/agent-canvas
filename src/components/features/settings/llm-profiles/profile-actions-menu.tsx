@@ -223,6 +223,7 @@ export function ProfileActionsMenu({
         onClick={() => handleAction(onDelete)}
         onKeyDown={handleKeyDown}
         menuItemsRef={menuItemsRef}
+        disabled={isActive}
         testId="profile-delete"
       />
     </div>
