@@ -29,6 +29,8 @@ export const FIELD_HELP_LINKS: Record<
     textKey: string;
     linkTextKey: string;
     href: string;
+    /** Skip rendering the schema description separately when the help text already includes it. */
+    hideDescription?: boolean;
     /** Optional trailing copy rendered after the link (e.g. " tab of OpenHands Cloud."). */
     suffixKey?: string;
   }
@@ -39,13 +41,14 @@ export const FIELD_HELP_LINKS: Record<
     href: "https://docs.openhands.dev/usage/local-setup#getting-an-api-key",
   },
   // Mirror the hint shown under the LLM provider's API key field when
-  // OpenHands is selected: the critic just needs any LLM API key, and the
-  // easiest one to grab is the user's OpenHands Cloud key.
+  // OpenHands is selected as the active provider; the SDK reuses that active
+  // LLM key when the critic key is empty.
   "verification.critic_api_key": {
-    textKey: "SETTINGS$OPENHANDS_API_KEY_HELP_TEXT",
+    textKey: "SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_TEXT",
     linkTextKey: "SETTINGS$NAV_API_KEYS",
-    suffixKey: "SETTINGS$OPENHANDS_API_KEY_HELP_SUFFIX",
+    suffixKey: "SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_SUFFIX",
     href: "https://app.all-hands.dev/settings/api-keys",
+    hideDescription: true,
   },
 };
 
@@ -70,7 +73,7 @@ function FieldHelp({ field }: { field: SettingsFieldSchema }) {
 
   return (
     <>
-      {description ? (
+      {description && !helpLink?.hideDescription ? (
         <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
           {description}
         </Typography.Paragraph>

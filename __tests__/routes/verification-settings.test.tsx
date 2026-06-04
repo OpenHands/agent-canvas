@@ -73,14 +73,15 @@ describe("VerificationSettingsScreen", () => {
       ),
     ).toBeInTheDocument();
 
-    // The critic LLM API key is required when the critic is on, and we
-    // surface it alongside the other critical-prominence fields.
+    // The critic LLM API key is optional because the SDK falls back to the
+    // active LLM API key when this field is blank. It is still surfaced
+    // alongside the other critical-prominence fields when the critic is on.
     const apiKeyInput = screen.getByTestId(
       "sdk-settings-verification.critic_api_key",
     );
     expect(apiKeyInput).toBeInTheDocument();
     expect(apiKeyInput).toHaveAttribute("type", "password");
-    expect(apiKeyInput).toBeRequired();
+    expect(apiKeyInput).not.toBeRequired();
 
     // The accompanying help link points users at OpenHands Cloud, mirroring
     // the hint we already show under the LLM provider's API key field.

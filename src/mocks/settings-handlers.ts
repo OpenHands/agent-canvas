@@ -210,7 +210,7 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           key: "verification.critic_api_key",
           label: "Critic API Key",
           description:
-            "API key the critic uses to call its LLM. Required when the critic is enabled.",
+            "If OpenHands is selected as your active LLM provider, leave this empty; the critic reuses the OpenHands Provider LLM Key.",
           section: "verification",
           section_label: "Verification",
           value_type: "string",
@@ -219,7 +219,7 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           depends_on: ["verification.critic_enabled"],
           prominence: "critical",
           secret: true,
-          required: true,
+          required: false,
         },
         {
           key: "verification.critic_threshold",
