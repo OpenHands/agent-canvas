@@ -5,10 +5,8 @@ import {
   AUTOMATION_CATALOG,
   type RecommendedAutomation,
 } from "@openhands/extensions/automations";
-import {
-  INTEGRATION_CATALOG as MCP_MARKETPLACE,
-  type IntegrationCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/integrations";
+import { MCP_INTEGRATION_CATALOG as MCP_MARKETPLACE } from "#/constants/mcp-integration-catalog";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoStackBadge } from "#/components/features/mcp-page/mcp-logo-stack-badge";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import {

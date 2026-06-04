@@ -12,10 +12,8 @@ import {
 import type { RecommendedAutomation } from "@openhands/extensions/automations";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
-import {
-  INTEGRATION_CATALOG as MCP_MARKETPLACE,
-  type IntegrationCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/integrations";
+import { MCP_INTEGRATION_CATALOG as MCP_MARKETPLACE } from "#/constants/mcp-integration-catalog";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import {
   findInstalledEntryMatch,
   getMarketplaceEntryById,

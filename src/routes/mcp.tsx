@@ -21,10 +21,8 @@ import {
   getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import {
-  INTEGRATION_CATALOG as MCP_MARKETPLACE,
-  type IntegrationCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/integrations";
+import { MCP_INTEGRATION_CATALOG as MCP_MARKETPLACE } from "#/constants/mcp-integration-catalog";
+import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
