@@ -69,22 +69,22 @@ describe("findInstalledMatch", () => {
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
-  it("matches SSE servers loosely on URL", () => {
+  it("matches HTTP servers loosely on URL", () => {
     const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       {
-        id: "sse-0",
-        type: "sse",
-        url: "https://mcp.linear.app/sse/",
+        id: "shttp-0",
+        type: "shttp",
+        url: "https://mcp.linear.app/mcp/",
       },
     ]);
-    expect(result).toEqual(expect.objectContaining({ id: "sse-0" }));
+    expect(result).toEqual(expect.objectContaining({ id: "shttp-0" }));
   });
 
   it("returns null when servers carry malformed urls (defensive)", () => {
     const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       // Cast to any to simulate runtime data slipping past the type.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { id: "sse-0", type: "sse", url: undefined as any },
+      { id: "shttp-0", type: "shttp", url: undefined as any },
     ]);
     expect(result).toBeNull();
   });
@@ -236,19 +236,19 @@ describe("findCatalogEntryForServer", () => {
     ).toBeUndefined();
   });
 
-  it("matches an SSE server whose URL differs only by trailing slash", () => {
+  it("matches an HTTP server whose URL differs only by trailing slash", () => {
     // Regression coverage for the strict-=== URL match that previously
     // diverged from findInstalledMatch and caused installed cards to
     // render the generic icon while the marketplace tile said
     // "Installed".
     const linear = mcpMarketplace.find((e) => e.id === "linear")!;
     const linearTransport = getDefaultMcpTransport(linear);
-    if (linearTransport?.kind !== "sse") {
-      throw new Error("Linear template should be SSE");
+    if (linearTransport?.kind !== "shttp") {
+      throw new Error("Linear template should be shttp");
     }
     const normalizedUrl = linearTransport.url.replace(/\/$/, "");
     const match = findCatalogEntryForServer(
-      { id: "sse-0", type: "sse", url: `${normalizedUrl}/` },
+      { id: "shttp-0", type: "shttp", url: `${normalizedUrl}/` },
       mcpMarketplace,
     );
     expect(match?.id).toBe("linear");
