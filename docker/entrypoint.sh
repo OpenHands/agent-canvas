@@ -128,21 +128,16 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 # OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
-# Pin the agent-server's extensions to the version baked into the image.
-# Set EXTENSIONS_REF unconditionally so the value always matches the pre-seeded
-# cache — guard only against an absent CONFIG_EXTENSIONS_REF so we don't export
-# an empty string when the image was built without a pinned SHA.
-[ -n "${CONFIG_EXTENSIONS_REF:-}" ] && export EXTENSIONS_REF="${CONFIG_EXTENSIONS_REF}"
-
-# Always copy the pre-baked extensions into the skills cache, overwriting any
-# existing content so stale files from a prior container run are replaced.
+# Copy the pre-baked extensions into the skills cache and tell the agent-server
+# to use that directory directly via OH_PUBLIC_SKILLS_PATH, bypassing git polling.
 _ext_baked="/opt/agent-canvas/extensions-cache"
 _ext_cache="${HOME}/.openhands/cache/skills/public-skills"
 if [ -d "${_ext_baked}" ]; then
-    log "Seeding extensions cache from image${EXTENSIONS_REF:+ (${EXTENSIONS_REF:0:12})}..."
+    log "Seeding extensions cache from image${CONFIG_EXTENSIONS_REF:+ (${CONFIG_EXTENSIONS_REF:0:12})}..."
     rm -rf "${_ext_cache}"
     mkdir -p "${_ext_cache}"
     cp -r "${_ext_baked}/." "${_ext_cache}/"
+    export OH_PUBLIC_SKILLS_PATH="${_ext_cache}"
     log "Extensions cache ready."
 fi
 

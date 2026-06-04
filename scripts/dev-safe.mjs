@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   existsSync,
@@ -724,10 +724,19 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    // Pin the agent-server's extensions to the same commit the frontend was
-    // built against. Only injected when the caller has not already set it.
-    ...(DEFAULT_EXTENSIONS_REF && !process.env.EXTENSIONS_REF
-      ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }
+    // Point the agent-server at the pre-cloned skills directory so the SDK
+    // bypasses git polling entirely. Only injected when the caller has not
+    // already set it. Requires cloneExtensionsForSkillsCache() to have run.
+    ...(DEFAULT_EXTENSIONS_REF && !process.env.OH_PUBLIC_SKILLS_PATH
+      ? {
+          OH_PUBLIC_SKILLS_PATH: path.join(
+            homedir(),
+            ".openhands",
+            "cache",
+            "skills",
+            "public-skills",
+          ),
+        }
       : {}),
   };
 }
@@ -944,24 +953,64 @@ function spawnProcess(command, args, options = {}) {
   return child;
 }
 
+const EXTENSIONS_REPO = "https://github.com/OpenHands/extensions";
+
 /**
- * Delete the agent-server's extensions skills cache so the SDK starts with a
- * clean slate on the next startup.  Combined with `EXTENSIONS_REF` being set
- * unconditionally, this prevents the SDK from using stale files left over from
- * a prior run that checked out a different branch or commit.
+ * Clone the OpenHands extensions repo at the pinned commit SHA into the
+ * agent-server's skills cache directory.  If the directory already contains
+ * the exact target commit it is reused with no network access.
  *
- * The SDK will attempt its normal clone/checkout on startup; for a raw SHA ref
- * it will warn "Using cached version" — that is the expected behaviour until
- * SDK polling is disabled in a follow-up change.
+ * Uses a targeted shallow fetch (`git fetch --depth=1 origin <sha>`) so only
+ * the single commit is downloaded, not the full history.
  *
+ * @param {string} sha - 40-char hex commit SHA to clone.
  * @param {string} cacheDir - Path to the skills cache dir (~/.openhands/cache/skills).
  */
-export function clearExtensionsCache(cacheDir) {
+export function cloneExtensionsForSkillsCache(sha, cacheDir) {
   const destDir = path.join(cacheDir, "public-skills");
-  if (existsSync(destDir)) {
-    console.log("Clearing extensions cache for fresh SDK clone on startup...");
+
+  // Reuse the existing clone if it is already at the target commit.
+  if (existsSync(path.join(destDir, ".git"))) {
+    const head = spawnSync("git", ["-C", destDir, "rev-parse", "HEAD"], {
+      stdio: "pipe",
+    });
+    if (head.status === 0 && head.stdout?.toString().trim() === sha) {
+      return; // Already at the right commit.
+    }
+    rmSync(destDir, { recursive: true, force: true });
+  } else if (existsSync(destDir)) {
     rmSync(destDir, { recursive: true, force: true });
   }
+
+  console.log(`Cloning extensions at ${sha.slice(0, 12)} into skills cache...`);
+  mkdirSync(destDir, { recursive: true });
+
+  const init = spawnSync("git", ["init"], { cwd: destDir, stdio: "pipe" });
+  if (init.status !== 0) {
+    console.warn("Warning: git init failed; skipping extensions clone.");
+    rmSync(destDir, { recursive: true, force: true });
+    return;
+  }
+
+  spawnSync("git", ["remote", "add", "origin", EXTENSIONS_REPO], {
+    cwd: destDir,
+    stdio: "pipe",
+  });
+
+  // Shallow-fetch only the pinned commit — avoids downloading full history.
+  const fetch = spawnSync("git", ["fetch", "--depth=1", "origin", sha], {
+    cwd: destDir,
+    stdio: "inherit",
+  });
+  if (fetch.status !== 0) {
+    console.warn(
+      "Warning: extensions clone failed; agent-server will load no public skills.",
+    );
+    rmSync(destDir, { recursive: true, force: true });
+    return;
+  }
+
+  spawnSync("git", ["checkout", "FETCH_HEAD"], { cwd: destDir, stdio: "pipe" });
 }
 
 async function main() {
@@ -1008,9 +1057,14 @@ async function main() {
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
 
-  // Always clear the extensions cache so the SDK clones fresh on every startup
-  // rather than reusing stale files from a prior run.
-  clearExtensionsCache(path.join(homedir(), ".openhands", "cache", "skills"));
+  // Clone the pinned extensions commit into the skills cache so the SDK can
+  // use it directly via OH_PUBLIC_SKILLS_PATH without any git polling.
+  if (DEFAULT_EXTENSIONS_REF) {
+    cloneExtensionsForSkillsCache(
+      DEFAULT_EXTENSIONS_REF,
+      path.join(homedir(), ".openhands", "cache", "skills"),
+    );
+  }
 
   const backend = spawnProcess(
     agentServerCmd.command,

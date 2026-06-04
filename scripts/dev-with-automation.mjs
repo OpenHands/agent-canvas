@@ -57,7 +57,8 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
-  clearExtensionsCache,
+  cloneExtensionsForSkillsCache,
+  DEFAULT_EXTENSIONS_REF,
   formatMissingUvxGuidance,
   getOrCreatePersistedApiKey,
   validateFrontendDependencies,
@@ -702,9 +703,14 @@ function startAgentServer(config) {
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
-  // Always clear the extensions cache so the SDK clones fresh on every startup
-  // rather than reusing stale files from a prior run.
-  clearExtensionsCache(join(homedir(), ".openhands", "cache", "skills"));
+  // Clone the pinned extensions commit into the skills cache so the SDK can
+  // use it directly via OH_PUBLIC_SKILLS_PATH without any git polling.
+  if (DEFAULT_EXTENSIONS_REF) {
+    cloneExtensionsForSkillsCache(
+      DEFAULT_EXTENSIONS_REF,
+      join(homedir(), ".openhands", "cache", "skills"),
+    );
+  }
 
   spawnService(
     "agent-server",
