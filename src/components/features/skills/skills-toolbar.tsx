@@ -2,21 +2,28 @@ import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
-import type { SkillTypeFilter } from "./skill-type-filter";
-import { SkillsTypeFilterDropdown } from "./skills-type-filter-dropdown";
+import type { SkillScopeFilter, SkillStatusFilter } from "./skill-type-filter";
+import {
+  SkillsScopeFilterDropdown,
+  SkillsStatusFilterDropdown,
+} from "./skills-type-filter-dropdown";
 
 interface SkillsToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
-  typeFilter: SkillTypeFilter;
-  onTypeFilterChange: (filter: SkillTypeFilter) => void;
+  scopeFilter: SkillScopeFilter;
+  onScopeFilterChange: (filter: SkillScopeFilter) => void;
+  statusFilter: SkillStatusFilter;
+  onStatusFilterChange: (filter: SkillStatusFilter) => void;
 }
 
 export function SkillsToolbar({
   search,
   onSearchChange,
-  typeFilter,
-  onTypeFilterChange,
+  scopeFilter,
+  onScopeFilterChange,
+  statusFilter,
+  onStatusFilterChange,
 }: SkillsToolbarProps) {
   const { t } = useTranslation("openhands");
 
@@ -59,9 +66,13 @@ export function SkillsToolbar({
         ) : null}
       </div>
 
-      <SkillsTypeFilterDropdown
-        value={typeFilter}
-        onChange={onTypeFilterChange}
+      <SkillsScopeFilterDropdown
+        value={scopeFilter}
+        onChange={onScopeFilterChange}
+      />
+      <SkillsStatusFilterDropdown
+        value={statusFilter}
+        onChange={onStatusFilterChange}
       />
     </div>
   );

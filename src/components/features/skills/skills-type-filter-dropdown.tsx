@@ -1,33 +1,65 @@
 import { I18nKey } from "#/i18n/declaration";
 import { EnumFilterDropdown } from "#/components/shared/filters/enum-filter-dropdown";
 import {
-  SKILL_TYPE_FILTER_OPTIONS,
-  type SkillTypeFilter,
+  SKILL_SCOPE_FILTER_OPTIONS,
+  SKILL_STATUS_FILTER_OPTIONS,
+  type SkillScopeFilter,
+  type SkillStatusFilter,
 } from "./skill-type-filter";
 
-const FILTER_LABEL_KEY: Record<SkillTypeFilter, I18nKey> = {
+// --- Scope dropdown ---
+
+const SCOPE_LABEL_KEY: Record<SkillScopeFilter, I18nKey> = {
   all: I18nKey.SETTINGS$SKILLS_TYPE_ALL,
-  agentskills: I18nKey.SETTINGS$SKILLS_TYPE_AGENTSKILLS,
-  knowledge: I18nKey.SETTINGS$SKILLS_TYPE_KNOWLEDGE,
-  repo: I18nKey.SETTINGS$SKILLS_TYPE_REPO,
+  public: I18nKey.SETTINGS$SKILLS_SCOPE_PUBLIC,
+  personal: I18nKey.SETTINGS$SKILLS_SCOPE_PERSONAL,
+  project: I18nKey.SETTINGS$SKILLS_SCOPE_PROJECT,
 };
 
-interface SkillsTypeFilterDropdownProps {
-  value: SkillTypeFilter;
-  onChange: (filter: SkillTypeFilter) => void;
+interface SkillsScopeFilterDropdownProps {
+  value: SkillScopeFilter;
+  onChange: (filter: SkillScopeFilter) => void;
 }
 
-export function SkillsTypeFilterDropdown({
+export function SkillsScopeFilterDropdown({
   value,
   onChange,
-}: SkillsTypeFilterDropdownProps) {
+}: SkillsScopeFilterDropdownProps) {
   return (
     <EnumFilterDropdown
-      testId="skills-type-filter"
+      testId="skills-scope-filter"
       value={value}
       onChange={onChange}
-      options={SKILL_TYPE_FILTER_OPTIONS}
-      labelKeyByValue={FILTER_LABEL_KEY}
+      options={SKILL_SCOPE_FILTER_OPTIONS}
+      labelKeyByValue={SCOPE_LABEL_KEY}
+    />
+  );
+}
+
+// --- Status dropdown ---
+
+const STATUS_LABEL_KEY: Record<SkillStatusFilter, I18nKey> = {
+  all: I18nKey.SETTINGS$SKILLS_TYPE_ALL,
+  enabled: I18nKey.SETTINGS$SKILLS_ENABLED,
+  disabled: I18nKey.SETTINGS$SKILLS_DISABLED,
+};
+
+interface SkillsStatusFilterDropdownProps {
+  value: SkillStatusFilter;
+  onChange: (filter: SkillStatusFilter) => void;
+}
+
+export function SkillsStatusFilterDropdown({
+  value,
+  onChange,
+}: SkillsStatusFilterDropdownProps) {
+  return (
+    <EnumFilterDropdown
+      testId="skills-status-filter"
+      value={value}
+      onChange={onChange}
+      options={SKILL_STATUS_FILTER_OPTIONS}
+      labelKeyByValue={STATUS_LABEL_KEY}
     />
   );
 }
