@@ -60,9 +60,8 @@ test.describe("onboarding happy path", () => {
         // best-effort
       }
     }
-  });
-
-  test.afterAll(async ({ request }) => {
+    // Reset the mock LLM to its default trajectory so subsequent specs
+    // (e.g. onboarding-regressions) start with a clean slate.
     try {
       await resetMockLLM(request);
     } catch {
@@ -78,7 +77,13 @@ test.describe("onboarding happy path", () => {
 
     // Register a trajectory so the mock LLM can respond once the
     // conversation is created by the Say Hello step.
+    //
+    // Turn 0 is padding: the agent-server makes an internal LLM call
+    // (condenser/skill-analysis) before the agent's main loop starts.
+    // This consumes one trajectory response. Same pattern used by the
+    // automation and model-switch specs.
     await registerTrajectory(request, "onboarding-hello", [
+      { text: "" }, // padding for internal condenser call
       { text: REPLY_TOKEN },
     ]);
     await activateTrajectory(request, "onboarding-hello");
