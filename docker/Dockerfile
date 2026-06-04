@@ -52,7 +52,7 @@ COPY config/defaults.json package.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
   const pkg = JSON.parse(require('fs').readFileSync('/tmp/package.json','utf-8')); \
-  const extUrl = (pkg.dependencies || {})['@openhands/extensions'] || ''; \
+  const extUrl = (pkg.dependencies || pkg.devDependencies || {})['@openhands/extensions'] || ''; \
   const extSha = (extUrl.match(/#([0-9a-f]{40})\$/i) || [])[1] || ''; \
   const lines = [ \
     'CONFIG_AGENT_SERVER_PORT=' + c.ports.agentServer, \

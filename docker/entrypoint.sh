@@ -132,7 +132,11 @@ export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 # bundled its MCP catalog and automations from (extracted from package.json
 # at image build time and baked into defaults.env as CONFIG_EXTENSIONS_REF).
 # A user-supplied EXTENSIONS_REF always takes precedence.
-export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF:-}}"
+# Guard: only export when a non-empty value is available, so an absent
+# CONFIG_EXTENSIONS_REF doesn't overwrite the agent-server's own default
+# with an empty string (which would cause os.environ.get('EXTENSIONS_REF','main')
+# to return '' instead of 'main').
+[ -n "${CONFIG_EXTENSIONS_REF:-}" ] && export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF}}"
 
 # Track child PIDs so we can clean up on exit.
 PIDS=()

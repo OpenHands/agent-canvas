@@ -45,7 +45,9 @@ function getExtensionsRef() {
         "utf-8",
       ),
     );
-    const url = pkg.dependencies?.["@openhands/extensions"] ?? "";
+    const url =
+      (pkg.dependencies ?? pkg.devDependencies ?? {})["@openhands/extensions"] ??
+      "";
     return url.match(/#([0-9a-f]{40})$/i)?.[1] ?? null;
   } catch {
     return null;
