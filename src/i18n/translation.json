@@ -28508,6 +28508,23 @@
     "uk": "Видалити",
     "ca": "Suprimeix"
   },
+  "SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE": {
+    "en": "Cannot delete the active profile",
+    "ja": "アクティブなプロファイルは削除できません",
+    "zh-CN": "无法删除活动配置文件",
+    "zh-TW": "無法刪除使用中的設定檔",
+    "ko-KR": "활성 프로필은 삭제할 수 없습니다",
+    "no": "Kan ikke slette den aktive profilen",
+    "it": "Impossibile eliminare il profilo attivo",
+    "pt": "Não é possível excluir o perfil ativo",
+    "es": "No se puede eliminar el perfil activo",
+    "ar": "لا يمكن حذف الملف الشخصي النشط",
+    "fr": "Impossible de supprimer le profil actif",
+    "tr": "Etkin profil silinemez",
+    "de": "Das aktive Profil kann nicht gelöscht werden",
+    "uk": "Неможливо видалити активний профіль",
+    "ca": "No es pot suprimir el perfil actiu"
+  },
   "CHAT_INTERFACE$FETCHING_OLDER_MESSAGES": {
     "en": "Fetching older messages…",
     "ja": "古いメッセージを取得中…",

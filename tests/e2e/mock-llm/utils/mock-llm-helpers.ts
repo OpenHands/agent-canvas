@@ -12,6 +12,18 @@ export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
 export const REPLY_TOKEN = "MOCK_LLM_E2E_REPLY_OK";
 export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 
+/** Reply token used by the image-upload test trajectory. */
+export const IMAGE_REPLY_TOKEN = "MOCK_LLM_IMAGE_OK";
+
+/**
+ * A minimal valid 1×1 white pixel PNG, base64-encoded.
+ * Used as a lightweight test fixture for image-upload E2E tests — small
+ * enough to keep request bodies manageable while still being a real PNG that
+ * the browser's FileReader can process.
+ */
+export const MINIMAL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAABjE+ibYAAAAASUVORK5CYII=";
+
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
@@ -403,10 +415,27 @@ export async function activateTrajectory(
 
 /**
  * Reset the mock LLM server to its default trajectory.
+ * Also clears the stored completion-request history.
  */
 export async function resetMockLLM(request: APIRequestContext) {
   const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
   expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Fetch all chat-completion request bodies captured by the mock LLM server
+ * since the last /admin/reset.
+ *
+ * The server stores every POST to /v1/chat/completions, so callers can assert
+ * that at least one request contained image content (or any other field).
+ */
+export async function getMockLLMRequests(
+  request: APIRequestContext,
+): Promise<Record<string, unknown>[]> {
+  const resp = await request.get(`${MOCK_LLM_BASE_URL}/admin/requests`);
+  expect(resp.ok(), `GET /admin/requests: ${resp.status()}`).toBe(true);
+  const body = await resp.json();
+  return (body.requests as Record<string, unknown>[]) ?? [];
 }
 
 /**
