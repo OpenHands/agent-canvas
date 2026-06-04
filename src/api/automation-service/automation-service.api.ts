@@ -10,7 +10,7 @@ import {
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
 import { NoBackendAvailableError } from "../agent-server-client-options";
-import { callCloudProxy } from "../cloud/proxy";
+import { callCloudProxy, type CloudProxyRequest } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
 
@@ -53,6 +53,18 @@ function buildPaginationQuery(limit: number, offset: number): string {
   return params.toString();
 }
 
+// All /api/automation/* paths are served by the standalone automation
+// service, whose CORS allowlist (unlike the main cloud API's bearer-aware
+// CORS) excludes the local GUI origin — so cloud calls must tunnel through
+// the agent-server's /api/cloud-proxy instead of going direct from the
+// browser. Funnel every cloud branch through here so a future method can't
+// reintroduce the CORS failure.
+function callAutomationCloudProxy<TResponse>(
+  req: Omit<CloudProxyRequest, "forceProxy">,
+): Promise<TResponse> {
+  return callCloudProxy<TResponse>({ ...req, forceProxy: true });
+}
+
 class AutomationService {
   static async listAutomations(
     params: { limit?: number; offset?: number } = {},
@@ -61,7 +73,7 @@ class AutomationService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationsResponse>({
+      return callAutomationCloudProxy<AutomationsResponse>({
         backend: active,
         method: "GET",
         path: `${AUTOMATION_BASE_PATH}/v1?${buildPaginationQuery(limit, offset)}`,
@@ -87,7 +99,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<Automation>({
+      return callAutomationCloudProxy<Automation>({
         backend: active,
         method: "GET",
         path,
@@ -106,7 +118,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<Automation>({
+      return callAutomationCloudProxy<Automation>({
         backend: active,
         method: "PATCH",
         path,
@@ -123,7 +135,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      await callCloudProxy<unknown>({
+      await callAutomationCloudProxy<unknown>({
         backend: active,
         method: "DELETE",
         path,
@@ -139,7 +151,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/dispatch`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationRun>({
+      return callAutomationCloudProxy<AutomationRun>({
         backend: active,
         method: "POST",
         path,
@@ -159,7 +171,7 @@ class AutomationService {
     const basePath = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/runs`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationRunsResponse>({
+      return callAutomationCloudProxy<AutomationRunsResponse>({
         backend: active,
         method: "GET",
         path: `${basePath}?${buildPaginationQuery(limit, offset)}`,
@@ -194,7 +206,7 @@ class AutomationService {
 
     let blob: Blob;
     if (active.kind === "cloud") {
-      blob = await callCloudProxy<Blob>({
+      blob = await callAutomationCloudProxy<Blob>({
         backend: active,
         method: "GET",
         path,
@@ -221,11 +233,14 @@ class AutomationService {
 
     try {
       if (active.kind === "cloud") {
-        const response = await callCloudProxy<AutomationHealthResponse>({
-          backend: active,
-          method: "GET",
-          path,
-        });
+        const response =
+          await callAutomationCloudProxy<AutomationHealthResponse>({
+            backend: active,
+            method: "GET",
+            path,
+            // Fail fast, matching the local branch's 5s timeout below.
+            timeoutSeconds: 5,
+          });
         return response;
       }
 
