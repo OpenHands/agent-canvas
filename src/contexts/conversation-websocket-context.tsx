@@ -70,6 +70,16 @@ export type WebSocketConnectionState =
   | "CLOSED"
   | "CLOSING";
 
+const WS_AUTH_RECOVERY_SESSION_KEY = "openhands-ws-auth-recovery";
+const WS_AUTH_FAILURE_CLOSE_CODES: ReadonlySet<number> = new Set([
+  1006, // abnormal closure (common for failed handshake)
+  1008, // policy violation
+  4401, // unauthorized (backend-specific)
+  4403, // forbidden (backend-specific)
+]);
+const WS_AUTH_FAILURE_REASON_PATTERN =
+  /(auth|unauthori[sz]ed|forbidden|api key|403)/i;
+
 interface SendMessageResult {
   queued: boolean; // true if message was queued for later delivery, false if sent immediately
 }
@@ -79,6 +89,42 @@ interface ConversationWebSocketContextType {
   sendMessage: (message: SendMessageRequest) => Promise<SendMessageResult>;
   isLoadingHistory: boolean;
   reconnect: () => void;
+}
+
+function isAuthFailureCloseEvent(event: Event): event is CloseEvent {
+  if (!(event instanceof CloseEvent)) {
+    return false;
+  }
+  return (
+    WS_AUTH_FAILURE_CLOSE_CODES.has(event.code) ||
+    WS_AUTH_FAILURE_REASON_PATTERN.test(event.reason)
+  );
+}
+
+function shouldAttemptOneTimeAuthRecovery(
+  conversationId: string | undefined,
+  sessionApiKey: string | null | undefined,
+): boolean {
+  if (
+    typeof window === "undefined" ||
+    !conversationId ||
+    typeof sessionStorage === "undefined"
+  ) {
+    return false;
+  }
+
+  const signature = `${conversationId}:${sessionApiKey ?? ""}`;
+  try {
+    if (
+      window.sessionStorage.getItem(WS_AUTH_RECOVERY_SESSION_KEY) === signature
+    ) {
+      return false;
+    }
+    window.sessionStorage.setItem(WS_AUTH_RECOVERY_SESSION_KEY, signature);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const ConversationWebSocketContext = createContext<
@@ -128,6 +174,7 @@ export function ConversationWebSocketProvider({
   // Don't show errors until after first successful connection
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
+  const hasTriggeredAuthRecoveryRef = React.useRef(false);
 
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -811,10 +858,27 @@ export function ConversationWebSocketProvider({
       onOpen: () => {
         setMainConnectionState("OPEN");
         hasConnectedRefMain.current = true; // Mark that we've successfully connected
+        hasTriggeredAuthRecoveryRef.current = false;
+        try {
+          window.sessionStorage.removeItem(WS_AUTH_RECOVERY_SESSION_KEY);
+        } catch {
+          // best-effort cleanup
+        }
         clearConnectionError(); // Clear a previous connection error; keep sticky conversation errors
       },
-      onClose: () => {
+      onClose: (event) => {
         setMainConnectionState("CLOSED");
+        const isLikelyAuthFailure =
+          !hasConnectedRefMain.current && isAuthFailureCloseEvent(event);
+
+        if (
+          isLikelyAuthFailure &&
+          !hasTriggeredAuthRecoveryRef.current &&
+          shouldAttemptOneTimeAuthRecovery(conversationId, sessionApiKey)
+        ) {
+          hasTriggeredAuthRecoveryRef.current = true;
+          window.location.reload();
+        }
       },
       onError: () => {
         setMainConnectionState("CLOSED");
@@ -829,6 +893,7 @@ export function ConversationWebSocketProvider({
     handleMainMessage,
     setErrorMessage,
     clearConnectionError,
+    conversationId,
     sessionApiKey,
     initialAfterTimestamp,
   ]);
