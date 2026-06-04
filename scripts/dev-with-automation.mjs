@@ -57,7 +57,7 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
-  copyExtensionsToSkillsCache,
+  clearExtensionsCache,
   DEFAULT_EXTENSIONS_REF,
   formatMissingUvxGuidance,
   getOrCreatePersistedApiKey,
@@ -703,10 +703,10 @@ function startAgentServer(config) {
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
-  // Seed the extensions cache from the bundled npm package so the agent-server
-  // uses the same pinned version as the frontend, always overwriting stale content.
+  // Clear any stale extensions cache so the SDK starts with a clean slate and
+  // picks up the version specified by EXTENSIONS_REF rather than leftover files.
   if (DEFAULT_EXTENSIONS_REF) {
-    copyExtensionsToSkillsCache(join(homedir(), ".openhands", "cache", "skills"));
+    clearExtensionsCache(join(homedir(), ".openhands", "cache", "skills"));
   }
 
   spawnService(

@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -945,41 +944,23 @@ function spawnProcess(command, args, options = {}) {
 }
 
 /**
- * Copy the bundled `@openhands/extensions` npm package into the agent-server's
- * skills cache, always overwriting any existing content so stale files from a
- * prior run are replaced.  The npm package is already installed at the pinned
- * commit SHA recorded in `package.json`, so no network access is needed.
+ * Delete the agent-server's extensions skills cache so the SDK starts with a
+ * clean slate on the next startup.  Combined with `EXTENSIONS_REF` being set
+ * unconditionally, this prevents the SDK from using stale files left over from
+ * a prior run that checked out a different branch or commit.
  *
- * The agent-server SDK will still attempt its normal git-checkout update on
- * startup; that will warn "Using cached version" for a raw SHA ref — that is
- * the expected fallback until SDK polling is disabled in a follow-up change.
+ * The SDK will attempt its normal clone/checkout on startup; for a raw SHA ref
+ * it will warn "Using cached version" — that is the expected behaviour until
+ * SDK polling is disabled in a follow-up change.
  *
  * @param {string} cacheDir - Path to the skills cache dir (~/.openhands/cache/skills).
  */
-export function copyExtensionsToSkillsCache(cacheDir) {
-  const extensionsDir = path.join(
-    __dev_safe_dirname,
-    "..",
-    "node_modules",
-    "@openhands",
-    "extensions",
-  );
-  if (!existsSync(extensionsDir)) {
-    console.warn(
-      "Warning: node_modules/@openhands/extensions not found; run `npm ci` first.",
-    );
-    return;
-  }
-
+export function clearExtensionsCache(cacheDir) {
   const destDir = path.join(cacheDir, "public-skills");
-  console.log(
-    "Seeding extensions cache from node_modules/@openhands/extensions...",
-  );
-  // Always overwrite so stale content from a prior run is replaced.
   if (existsSync(destDir)) {
+    console.log("Clearing extensions cache for fresh SDK clone on startup...");
     rmSync(destDir, { recursive: true, force: true });
   }
-  cpSync(extensionsDir, destDir, { recursive: true });
 }
 
 async function main() {
@@ -1026,12 +1007,10 @@ async function main() {
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
 
-  // Seed the extensions cache from the bundled npm package so the agent-server
-  // uses the same pinned version as the frontend, always overwriting stale content.
+  // Clear any stale extensions cache so the SDK starts with a clean slate and
+  // picks up the version specified by EXTENSIONS_REF rather than leftover files.
   if (DEFAULT_EXTENSIONS_REF) {
-    copyExtensionsToSkillsCache(
-      path.join(homedir(), ".openhands", "cache", "skills"),
-    );
+    clearExtensionsCache(path.join(homedir(), ".openhands", "cache", "skills"));
   }
 
   const backend = spawnProcess(
