@@ -5,13 +5,42 @@ import {
   showOnboarding,
   waitForOnboardingStep,
 } from "../support/onboarding-helpers";
-import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
+import {
+  BACKEND_URL,
+  routeSessionApiKey,
+  SESSION_API_KEY,
+} from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("onboarding recent regressions", () => {
   // Regression coverage for #1085 / PR #1100: errant outside
   // interactions must not permanently mark onboarding complete.
+
+  // Earlier spec files (conversation, model-switch, etc.) leave the
+  // active profile's base_url pointing at the mock LLM server. The
+  // LlmSettingsScreen's getInitialView callback treats any non-default
+  // base_url as "all" mode, hiding the basic-mode provider/model
+  // selectors. Clear it so the onboarding LLM step starts in basic
+  // mode as a fresh install would.
+  test.beforeAll(async ({ request }) => {
+    try {
+      await request.patch(`${BACKEND_URL}/api/settings`, {
+        headers: {
+          "X-Session-API-Key": SESSION_API_KEY,
+          "Content-Type": "application/json",
+        },
+        data: {
+          agent_settings_diff: {
+            llm: { base_url: "" },
+          },
+        },
+      });
+    } catch {
+      // best-effort — if the server rejects null, the test will fail
+      // with its original assertion, not a setup error.
+    }
+  });
 
   test("keeps the modal open on backdrop click and Escape", async ({
     page,
