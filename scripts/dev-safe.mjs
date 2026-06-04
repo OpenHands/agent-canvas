@@ -453,13 +453,19 @@ export function buildAgentServerCommand(env = process.env) {
     );
     source = `local (${localPath})`;
   } else if (gitRef) {
-    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // Use git ref with subdirectory syntax for uv workspace monorepo.
     // The software-agent-sdk repo has packages in subdirectories:
-    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
+    // All four must come from the same ref so inter-package APIs (e.g.
+    // OH_PUBLIC_SKILLS_PATH support added to both the server and the SDK) stay
+    // in sync. Omitting openhands-sdk here causes uv to fall back to the
+    // released PyPI version, which may not have the matching API changes.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
     uvxArgs.push(
       "--from",
       `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
       "--with",
       `${baseGitUrl}#subdirectory=openhands-tools`,
       "--with",
