@@ -1,0 +1,415 @@
+/**
+ * Mock-LLM E2E test: ACP (Agent Client Protocol) agent conversation.
+ *
+ * Exercises the full ACP agent stack through the browser UI — the same
+ * way a real user would configure and use an ACP agent:
+ *
+ *   1. Navigate to Settings → Agent and switch the agent type to ACP
+ *   2. Select "Custom" preset, paste the mock ACP server command, save
+ *   3. Reload and verify the UI reflects the saved ACP configuration
+ *   4. Start a conversation from the home page and verify the ACP agent
+ *      responds with the expected reply token
+ *   5. Resume the conversation from the sidebar after navigating away
+ *
+ * The mock ACP server (`mock-acp-server.py`) speaks JSON-RPC over stdio
+ * and replies with a deterministic token so the test can verify the full
+ * round-trip without any real LLM.
+ */
+
+import { test, expect, type Page } from "@playwright/test";
+import {
+  ACP_REPLY_TOKEN,
+  MOCK_ACP_COMMAND_PYTHON,
+  MOCK_ACP_COMMAND_SCRIPT,
+  seedLocalStorage,
+  routeSessionApiKey,
+  dismissAnalyticsModal,
+  waitForTestId,
+  waitForPath,
+  getConversationIdFromURL,
+  waitForNonUserMessageText,
+  deleteConversation,
+  resetToOpenHandsAgent,
+  resetMockLLM,
+  ensureMockLLMProfile,
+  setChatInput,
+  BACKEND_URL,
+  SESSION_API_KEY,
+} from "./utils/mock-llm-helpers";
+
+const USER_MESSAGE = "Hello ACP agent, please reply.";
+
+/**
+ * The command string the user types into the ACP command textarea.
+ *
+ * Uses environment-aware paths: in Docker E2E the agent-server runs
+ * inside a container, so we use the container-side paths set by the
+ * Docker Playwright config; in the npm path we use host-local paths.
+ */
+const ACP_COMMAND_TEXT = `${MOCK_ACP_COMMAND_PYTHON} ${MOCK_ACP_COMMAND_SCRIPT}`;
+
+// ── UI interaction helpers for HeroUI Autocomplete dropdowns ──────────
+
+/**
+ * Select an option from a HeroUI Autocomplete dropdown (SettingsDropdownInput).
+ *
+ * HeroUI Autocomplete does NOT forward `data-testid` to the underlying
+ * `<input>`, so we locate the combobox by its `aria-label` (which the
+ * component sets to the label prop or the name prop). We then click to
+ * open the listbox and click the matching option.
+ */
+async function selectDropdownOption(
+  page: Page,
+  /** aria-label of the combobox (= the SettingsDropdownInput label text) */
+  comboboxLabel: string | RegExp,
+  /** Visible text of the option to click */
+  optionText: string | RegExp,
+) {
+  const combobox = page.getByRole("combobox", { name: comboboxLabel });
+  await expect(combobox).toBeVisible({ timeout: 10_000 });
+  // Clear any existing text (so all options show) and open
+  await combobox.click();
+  await combobox.fill("");
+  // Wait for the option to appear and click it
+  const option = page.getByRole("option", { name: optionText });
+  await expect(option).toBeVisible({ timeout: 5_000 });
+  await option.click();
+}
+
+test.describe.configure({ mode: "serial" });
+
+test.describe("mock-LLM ACP agent conversation", () => {
+  let conversationId: string | null = null;
+
+  test.beforeEach(async ({ page }) => {
+    await seedLocalStorage(page);
+  });
+
+  test.afterAll(async ({ request }) => {
+    // Clean up the conversation
+    if (conversationId) {
+      try {
+        await deleteConversation(request, conversationId);
+      } catch {
+        // best-effort
+      }
+    }
+
+    // Reset agent-server back to OpenHands + restore mock LLM profile
+    // so subsequent test suites (which expect agent_kind=openhands) are
+    // not affected by our ACP configuration.
+    try {
+      await resetToOpenHandsAgent(request);
+    } catch {
+      // best-effort
+    }
+    try {
+      await ensureMockLLMProfile(request);
+    } catch {
+      // best-effort
+    }
+    try {
+      await resetMockLLM(request);
+    } catch {
+      // best-effort
+    }
+  });
+
+  // ── Step 1: Configure ACP agent through the Settings → Agent UI ─────
+
+  test("step 1: configure ACP agent via Settings → Agent UI", async ({
+    page,
+    request,
+  }) => {
+    // The agent-server may make internal LLM calls (condenser) even for
+    // ACP conversations. Ensure a mock LLM profile exists so those calls
+    // don't fail. This API call is not what we're testing — the ACP UI is.
+    await ensureMockLLMProfile(request);
+
+    await routeSessionApiKey(page);
+    await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the agent settings form to load
+    await waitForTestId(page, "agent-settings-screen");
+
+    // ── Switch agent type from OpenHands → ACP ──
+
+    await test.step("select ACP agent type", async () => {
+      await selectDropdownOption(
+        page,
+        /Agent/,
+        /ACP/,
+      );
+    });
+
+    // ── After selecting ACP, the preset dropdown + command fields appear ──
+
+    await test.step("select Custom preset and enter command", async () => {
+      // Wait for the ACP-specific fields to appear
+      await waitForTestId(page, "agent-preset-selector");
+
+      // Select "Custom" preset so we can enter our own command
+      await selectDropdownOption(
+        page,
+        /Preset/,
+        /Custom/,
+      );
+
+      // Fill in the ACP command pointing to our mock server
+      const commandInput = page.getByTestId("agent-command-input");
+      await expect(commandInput).toBeVisible({ timeout: 5_000 });
+      await commandInput.click();
+      await commandInput.fill(ACP_COMMAND_TEXT);
+    });
+
+    // ── Save the configuration ──
+
+    await test.step("save agent settings", async () => {
+      const saveBtn = page.getByTestId("agent-save-button");
+      await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
+      await saveBtn.click();
+
+      // Wait for the save to complete — the button text changes briefly
+      // to "Saving..." and then back to "Save Changes", and becomes
+      // disabled again (isDirty flips to false).
+      await expect(saveBtn).toBeDisabled({ timeout: 10_000 });
+    });
+
+    // ── Verify: settings API reflects the ACP configuration ──
+
+    await test.step("verify settings API reflects ACP config", async () => {
+      const resp = await request.get(`${BACKEND_URL}/api/settings`, {
+        headers: {
+          "X-Session-API-Key": SESSION_API_KEY,
+          "X-Expose-Secrets": "encrypted",
+        },
+      });
+      expect(resp.ok(), `GET /api/settings returned ${resp.status()}`).toBe(
+        true,
+      );
+      const settings = await resp.json();
+      const agentSettings = settings?.agent_settings as Record<string, unknown>;
+      expect(agentSettings?.agent_kind).toBe("acp");
+
+      const command = agentSettings?.acp_command;
+      expect(
+        Array.isArray(command),
+        `acp_command should be an array, got: ${JSON.stringify(command)}`,
+      ).toBe(true);
+      expect(
+        (command as string[]).some((tok: string) =>
+          tok.includes("mock-acp-server.py"),
+        ),
+        `acp_command should reference mock-acp-server.py, got: ${JSON.stringify(command)}`,
+      ).toBe(true);
+    });
+  });
+
+  // ── Step 2: Reload and verify the UI reflects saved ACP config ──────
+
+  test("step 2: reload and verify ACP settings are persisted in UI", async ({
+    page,
+  }) => {
+    await routeSessionApiKey(page);
+    await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "agent-settings-screen");
+
+    // The command textarea should show the mock server command
+    const commandInput = page.getByTestId("agent-command-input");
+    await expect(commandInput).toBeVisible({ timeout: 5_000 });
+    const commandValue = await commandInput.inputValue();
+    expect(
+      commandValue.includes("mock-acp-server.py"),
+      `Command should contain mock-acp-server.py after reload, got: "${commandValue}"`,
+    ).toBe(true);
+
+    // The preset dropdown should indicate the custom server is active.
+    // Since we used a custom command that doesn't match any built-in
+    // provider, the preset should show "Custom".
+    const presetSelector = page.getByTestId("agent-preset-selector");
+    await expect(presetSelector).toBeVisible({ timeout: 5_000 });
+  });
+
+  // ── Step 3: Start an ACP conversation from the home page ────────────
+
+  test("step 3: start ACP conversation and verify agent reply", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+
+    // Passively capture POST /api/conversations payload to verify ACP tags
+    let capturedPayload: Record<string, unknown> | null = null;
+    const capturePayload = (req: import("@playwright/test").Request) => {
+      if (
+        req.method() === "POST" &&
+        new URL(req.url()).pathname === "/api/conversations"
+      ) {
+        try {
+          capturedPayload = req.postDataJSON();
+        } catch {
+          // non-JSON body
+        }
+      }
+    };
+    page.on("request", capturePayload);
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the home page chat launcher
+    await waitForTestId(page, "home-chat-launcher");
+
+    // Send a message to start the conversation
+    await setChatInput(page, USER_MESSAGE);
+    await page.getByTestId("submit-button").click();
+
+    // Wait for navigation to the new conversation page
+    await waitForPath(page, /\/conversations\/.+/, 30_000);
+    page.off("request", capturePayload);
+    conversationId = getConversationIdFromURL(page);
+
+    // ── Verify: POST /api/conversations payload has ACP agent settings ──
+
+    await test.step("verify conversation payload contains ACP settings", async () => {
+      expect(
+        capturedPayload,
+        "POST /api/conversations payload was not captured",
+      ).not.toBeNull();
+
+      const agentSettings = capturedPayload!.agent_settings as
+        | Record<string, unknown>
+        | undefined;
+      expect(
+        agentSettings,
+        "payload should contain agent_settings",
+      ).toBeTruthy();
+      expect(
+        agentSettings!.agent_kind,
+        `Expected agent_kind="acp" in payload, got: ${agentSettings!.agent_kind}`,
+      ).toBe("acp");
+    });
+
+    // ── Verify: agent reply contains the ACP reply token ──
+
+    await test.step("verify ACP agent reply appears in chat UI", async () => {
+      try {
+        await waitForNonUserMessageText(page, ACP_REPLY_TOKEN, 60_000);
+      } catch (err) {
+        // On failure, query the events API for diagnostic context
+        let diag = "";
+        try {
+          const eventsResp = await request.get(
+            `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId!)}/events/search`,
+            {
+              headers: { "X-Session-API-Key": SESSION_API_KEY },
+              params: { limit: "50", sort_order: "TIMESTAMP_DESC" },
+            },
+          );
+          if (eventsResp.ok()) {
+            const body = (await eventsResp.json()) as { items?: unknown[] };
+            const items = body.items ?? [];
+            diag =
+              `Events API returned ${items.length} events:\n` +
+              items
+                .map(
+                  (e: any) =>
+                    `  [${e.kind ?? "?"}] source=${e.source ?? "?"} ${JSON.stringify(
+                      e.llm_message?.content ?? e.content ?? e.message ?? "",
+                    ).slice(0, 120)}`,
+                )
+                .join("\n");
+          } else {
+            diag = `Events API returned ${eventsResp.status()}`;
+          }
+        } catch (diagErr) {
+          diag = `Events API query failed: ${diagErr}`;
+        }
+
+        throw new Error(
+          `ACP reply token "${ACP_REPLY_TOKEN}" not found in chat UI after 60s.\n` +
+            `Conversation: ${conversationId}\n` +
+            `ACP command: ${ACP_COMMAND_TEXT}\n` +
+            `${diag}`,
+          { cause: err },
+        );
+      }
+    });
+
+    // ── Verify: user message is visible in the chat UI ──
+
+    await test.step("verify user message is visible in chat UI", async () => {
+      await expect(
+        page
+          .locator('[data-testid="user-message"]')
+          .filter({ hasText: USER_MESSAGE }),
+      ).toBeVisible({ timeout: 5_000 });
+    });
+
+    // ── Verify: conversation appears in the sidebar ──
+
+    await test.step("verify conversation appears in sidebar", async () => {
+      const cardLinks = page.locator(
+        `a[href*="/conversations/${conversationId}"]`,
+      );
+      await expect(cardLinks.first()).toBeVisible({ timeout: 10_000 });
+    });
+
+    // ── Verify: no error banners ──
+
+    await test.step("verify no error banners", async () => {
+      const errorBanner = page.getByTestId("error-message-banner");
+      await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
+    });
+  });
+
+  // ── Step 4: Resume the ACP conversation from the sidebar ────────────
+
+  test("step 4: resume ACP conversation from sidebar after navigating away", async ({
+    page,
+  }) => {
+    test.skip(!conversationId, "step 3 must complete first");
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the sidebar to load conversation cards
+    const sidebarCards = page.locator('[data-testid="conversation-card"]');
+    await expect(sidebarCards.first()).toBeVisible({ timeout: 15_000 });
+
+    // Find the sidebar link to our conversation and click it
+    const conversationLink = page.locator(
+      `a[href*="/conversations/${conversationId}"]`,
+    );
+    await expect(conversationLink.first()).toBeVisible({ timeout: 10_000 });
+    await conversationLink.first().click();
+
+    // Wait for navigation back to the conversation page
+    await waitForPath(page, /\/conversations\/.+/, 15_000);
+    expect(page.url()).toContain(conversationId);
+
+    // Verify the ACP agent's reply token is still visible after resume
+    await test.step("verify ACP agent reply is still visible after resume", async () => {
+      await waitForNonUserMessageText(page, ACP_REPLY_TOKEN, 15_000);
+    });
+
+    // Verify the user's original message is still visible
+    await test.step("verify user message is still visible after resume", async () => {
+      await expect(
+        page
+          .locator('[data-testid="user-message"]')
+          .filter({ hasText: USER_MESSAGE }),
+      ).toBeVisible({ timeout: 10_000 });
+    });
+
+    // Verify no error banners after resume
+    await test.step("verify no error banners after resume", async () => {
+      const errorBanner = page.getByTestId("error-message-banner");
+      await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
+    });
+  });
+});
