@@ -9,12 +9,13 @@ import { queryClient } from "#/query-client-config";
  * Issue a ``redirect`` to ``/settings/agent`` when the personal settings
  * say the active agent is ACP.
  *
- * The ACP sub-agent owns its own LLM, MCP servers, and condenser, so the
- * canvas-side surfaces that configure those concepts (``/settings``,
- * ``/settings/condenser``, ``/mcp``) have nothing useful to do while ACP
- * is active. Doing the redirect in a ``clientLoader`` (instead of a
- * per-route ``useEffect``) prevents the one-frame flash of the old
- * content before the guard fires.
+ * The ACP sub-agent owns its own LLM and condenser, so the canvas-side
+ * surfaces that configure those concepts (``/settings``,
+ * ``/settings/condenser``) have nothing useful to do while ACP is active.
+ * (``/mcp`` is intentionally *not* guarded: ``mcp_config`` is now forwarded
+ * to the ACP subprocess at session creation.) Doing the redirect in a
+ * ``clientLoader`` (instead of a per-route ``useEffect``) prevents the
+ * one-frame flash of the old content before the guard fires.
  *
  * ``staleTime: 0`` is intentional: the read drives a redirect, and a
  * 5-minute stale tolerance would let a cross-tab agent-kind flip route

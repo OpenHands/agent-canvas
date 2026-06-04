@@ -566,6 +566,15 @@ function buildConfiguredAcpAgentSettings(
     }
   }
 
+  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // so the ACP subprocess connects to the configured MCP servers at session
+  // creation. Only include it when it actually carries servers — an empty or
+  // malformed value is dropped rather than sending ``mcp_config: {}``.
+  const mcpConfig = toRecord(agentSettings.mcp_config);
+  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
+    payload.mcp_config = mcpConfig;
+  }
+
   // Saved settings may carry ``acp_model: null`` (existing users predating
   // the default-model registry, or saved fields the agent-server stripped).
   // Fall back to the provider's ``default_model`` so the conversation starts

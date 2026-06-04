@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -648,7 +648,23 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendPort,
     vscodePort,
     stateDir,
-    tmuxTmpDir: path.join(tmpdir(), "openhands-agent-canvas-tmux"),
+    // tmux socket directory. Defaults to <stateDir>/tmux (under
+    // ~/.openhands/agent-canvas), matching where the rest of dev state lives
+    // and persisting across restarts.
+    //
+    // Do NOT use os.tmpdir() here: on macOS it resolves to the per-user
+    // $TMPDIR (/var/folders/.../T), which the OS periodically reaps
+    // (com.apple.bsd.dirhelper deletes entries untouched for a few days).
+    // Reaping deletes the live tmux socket while the server process keeps
+    // running, orphaning it — every later new-window then fails with
+    // "error connecting to .../openhands (No such file or directory)".
+    //
+    // The only hosts where <stateDir>/tmux can't hold the socket are those
+    // whose $HOME is a network/overlay mount without Unix-domain-socket
+    // support (some devcontainers, NFS/CIFS homes). Those rare cases can point
+    // tmux at a local, socket-capable path with the standard TMUX_TMPDIR env
+    // var (e.g. TMUX_TMPDIR=/tmp), which we honor and pass through below.
+    tmuxTmpDir: env.TMUX_TMPDIR || path.join(stateDir, "tmux"),
     conversationsPath,
     workspacesPath,
     bashEventsDir: path.join(stateDir, "bash_events"),
