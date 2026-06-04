@@ -54,6 +54,7 @@ import EventService from "#/api/event-service/event-service.api";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useConversationStore } from "#/stores/conversation-store";
 import { trackError } from "#/utils/error-handler";
+import { enhanceErrorMessage } from "#/utils/enhance-error-message";
 import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-file";
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
@@ -462,16 +463,24 @@ export function ConversationWebSocketProvider({
             const errorEvent = event as
               | ConversationErrorEvent
               | ServerErrorEvent;
+            
+            // Enhance error message for better user guidance
+            const enhanced = enhanceErrorMessage(
+              errorEvent.detail,
+              errorEvent.code,
+            );
+            
             trackError({
               message: errorEvent.detail,
               source: "conversation",
               metadata: {
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
+                isAuthError: enhanced.isAuthError,
               },
               posthog,
             });
-            setErrorMessage(errorEvent.detail);
+            setErrorMessage(enhanced.message);
           } else {
             handleNonErrorEvent();
           }
