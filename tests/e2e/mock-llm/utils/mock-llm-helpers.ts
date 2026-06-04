@@ -5,6 +5,7 @@
  * shorter timeouts (responses are instant), no real credential handling.
  */
 
+import { resolve } from "node:path";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // Tokens that the mock LLM server uses — must match mock-llm-server.py.
@@ -482,3 +483,73 @@ export const BACKEND_ONLY_URL = `http://localhost:${BACKEND_ONLY_INGRESS_PORT}`;
 
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACP agent configuration helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Reply token the mock ACP server includes in its responses. */
+export const ACP_REPLY_TOKEN = "MOCK_ACP_E2E_REPLY_OK";
+
+/**
+ * Absolute path to the Python binary for the mock ACP server.
+ *
+ * In CI, ``MOCK_LLM_PYTHON`` is a relative venv path like
+ * ``.mock-llm-venv/bin/python3``. The agent-server spawns the ACP
+ * subprocess from its own CWD (which may differ from the repo root),
+ * so we resolve relative paths to absolute here. Bare executable
+ * names (no directory separator) are left for PATH lookup.
+ */
+export const MOCK_ACP_PYTHON = (() => {
+  const raw = process.env.MOCK_LLM_PYTHON ?? "python3";
+  // Resolve paths containing a directory separator (relative like
+  // ".mock-llm-venv/bin/python3"); leave bare names like "python3"
+  // for PATH lookup.
+  return raw.includes("/") || raw.includes("\\") ? resolve(raw) : raw;
+})();
+
+/**
+ * Absolute path to the mock ACP server script, resolved from the project root.
+ * The agent-server spawns this as a subprocess via ``acp_command``.
+ */
+export const MOCK_ACP_SERVER_PATH = resolve(
+  "tests/e2e/mock-llm/scripts/mock-acp-server.py",
+);
+
+/**
+ * The Python + script path the test types into the ACP command textarea.
+ *
+ * When running the Docker E2E config, the agent-server lives inside a
+ * container where host-filesystem paths don't exist. The Docker config
+ * volume-mounts the mock ACP script and sets ``MOCK_ACP_CONTAINER_*``
+ * env vars with the container-side paths. The npm config leaves those
+ * vars unset, so we fall back to the host-local absolute paths.
+ */
+export const MOCK_ACP_COMMAND_PYTHON =
+  process.env.MOCK_ACP_CONTAINER_PYTHON || MOCK_ACP_PYTHON;
+export const MOCK_ACP_COMMAND_SCRIPT =
+  process.env.MOCK_ACP_CONTAINER_SCRIPT || MOCK_ACP_SERVER_PATH;
+
+/**
+ * Reset the agent-server back to the default OpenHands agent.
+ * Used in afterAll cleanup to avoid polluting other test suites.
+ */
+export async function resetToOpenHandsAgent(
+  request: APIRequestContext,
+) {
+  const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        agent_kind: "openhands",
+      },
+    },
+  });
+  // Best-effort — don't fail the test if cleanup fails
+  if (!resp.ok()) {
+    console.warn(`[cleanup] Reset to OpenHands failed: ${resp.status()}`);
+  }
+}

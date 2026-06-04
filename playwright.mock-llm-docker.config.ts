@@ -29,6 +29,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { resolve } from "node:path";
 
 // ── Docker image ────────────────────────────────────────────────────────
 const DOCKER_IMAGE =
@@ -84,6 +85,19 @@ process.env.VITE_SESSION_API_KEY = sessionApiKey;
 if (!process.env.MOCK_LLM_AGENT_URL) {
   process.env.MOCK_LLM_AGENT_URL = MOCK_LLM_URL;
 }
+
+// ── ACP test support ──────────────────────────────────────────────────
+// The mock ACP server script lives on the host. We volume-mount it into
+// the container and tell the test which container-side paths to use when
+// typing the `acp_command` into the Settings UI.
+const MOCK_ACP_HOST_PATH = resolve(
+  "tests/e2e/mock-llm/scripts/mock-acp-server.py",
+);
+const MOCK_ACP_CONTAINER_PATH = "/opt/mock-acp-server.py";
+
+// The agent-server image ships Python 3 via the openhands-sdk base.
+process.env.MOCK_ACP_CONTAINER_PYTHON = "python3";
+process.env.MOCK_ACP_CONTAINER_SCRIPT = MOCK_ACP_CONTAINER_PATH;
 
 export default defineConfig({
   testDir: "./tests/e2e/mock-llm",
@@ -152,6 +166,9 @@ export default defineConfig({
         "--rm",
         `--name ${CONTAINER_NAME}`,
         "--network host",
+        // Mount the mock ACP server script so the agent-server inside
+        // Docker can spawn it as an ACP subprocess.
+        `-v ${MOCK_ACP_HOST_PATH}:${MOCK_ACP_CONTAINER_PATH}:ro`,
         `-e PORT=${INGRESS_PORT}`,
         `-e SESSION_API_KEY=${sessionApiKey}`,
         `-e OH_SESSION_API_KEYS_0=${sessionApiKey}`,
