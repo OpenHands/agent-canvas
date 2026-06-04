@@ -237,7 +237,7 @@ log "Starting frontend + proxy on port $PORT..."
 # EFFECTIVE_SESSION_KEY is set above from LOCAL_BACKEND_API_KEY or the persisted api-key.txt
 node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
-  --host 0.0.0.0 \
+  --host :: \
   --dir /opt/agent-canvas/frontend \
   --session-api-key "$EFFECTIVE_SESSION_KEY" \
   --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
@@ -262,7 +262,7 @@ if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
   log "Starting public-mode frontend on port $PUBLIC_MODE_PORT (--auth-required)..."
   node /opt/agent-canvas/static-server.mjs \
     --port "$PUBLIC_MODE_PORT" \
-    --host 0.0.0.0 \
+    --host :: \
     --dir /opt/agent-canvas/frontend \
     --auth-required \
     --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \

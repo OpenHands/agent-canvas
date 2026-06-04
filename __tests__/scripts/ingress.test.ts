@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { connect as netConnect, type Socket } from "node:net";
+import { connect as netConnect, type AddressInfo, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -14,6 +14,109 @@ const repoRoot = path.resolve(
 );
 
 const ingressScript = path.join(repoRoot, "scripts", "ingress.mjs");
+const loopbackHost = "127.0.0.1";
+
+function originForPort(port: number) {
+  return `http://${loopbackHost}:${port}`;
+}
+
+function serverPort(server: Server) {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Expected server to be listening on a TCP port");
+  }
+  return (address as AddressInfo).port;
+}
+
+async function listenOnLoopback(server: Server) {
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => {
+      server.off("error", onError);
+      reject(error);
+    };
+    server.once("error", onError);
+    server.listen(0, loopbackHost, () => {
+      server.off("error", onError);
+      resolve();
+    });
+  });
+  return serverPort(server);
+}
+
+async function closeServer(server?: Server) {
+  if (!server?.listening) {
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function getFreePort() {
+  const server = createServer();
+  try {
+    return await listenOnLoopback(server);
+  } finally {
+    await closeServer(server);
+  }
+}
+
+async function canConnect(port: number) {
+  return new Promise<boolean>((resolve) => {
+    const socket = netConnect({ host: loopbackHost, port });
+    let settled = false;
+    const finish = (connected: boolean) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(connected);
+    };
+    socket.setTimeout(500);
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+    socket.once("timeout", () => finish(false));
+  });
+}
+
+async function waitForPort(port: number, child?: ChildProcess) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    if (child && child.exitCode !== null) {
+      throw new Error(
+        `Process exited before port ${port} was ready: ${child.exitCode}`,
+      );
+    }
+    if (await canConnect(port)) {
+      return;
+    }
+    await delay(50);
+  }
+  throw new Error(`Timed out waiting for port ${port}`);
+}
+
+async function stopChild(child?: ChildProcess) {
+  if (!child || child.exitCode !== null) {
+    return;
+  }
+  child.kill("SIGTERM");
+  const exited = once(child, "exit");
+  const result = await Promise.race([
+    exited.then(() => "exit" as const),
+    delay(2000).then(() => "timeout" as const),
+  ]);
+  if (result === "timeout" && child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([exited, delay(1000)]);
+  }
+}
 
 describe("ingress.mjs CLI", () => {
   it("shows help with --help flag", async () => {
@@ -54,9 +157,16 @@ describe("ingress.mjs CLI", () => {
   });
 
   it("parses --port argument correctly", async () => {
+    const port = await getFreePort();
     const child = spawn(
       process.execPath,
-      [ingressScript, "--port", "9999", "--default", "http://localhost:3000"],
+      [
+        ingressScript,
+        "--port",
+        port.toString(),
+        "--default",
+        "http://localhost:3000",
+      ],
       {
         cwd: repoRoot,
         stdio: ["ignore", "pipe", "pipe"],
@@ -68,20 +178,20 @@ describe("ingress.mjs CLI", () => {
       output += chunk.toString();
     });
 
-    // Wait for startup message
-    await delay(500);
-    child.kill("SIGTERM");
+    await waitForPort(port, child);
+    await stopChild(child);
 
-    expect(output).toContain("9999");
+    expect(output).toContain(port.toString());
   });
 
   it("parses --route arguments correctly", async () => {
+    const port = await getFreePort();
     const child = spawn(
       process.execPath,
       [
         ingressScript,
         "--port",
-        "9998",
+        port.toString(),
         "--route",
         "/api=http://localhost:8000",
         "--route",
@@ -98,8 +208,8 @@ describe("ingress.mjs CLI", () => {
       output += chunk.toString();
     });
 
-    await delay(500);
-    child.kill("SIGTERM");
+    await waitForPort(port, child);
+    await stopChild(child);
 
     expect(output).toContain("/api");
     expect(output).toContain("http://localhost:8000");
@@ -112,10 +222,9 @@ describe("ingress proxy functionality", () => {
   let backend1: Server;
   let backend2: Server;
   let ingressProcess: ChildProcess;
-  // Use ports in 29000 range to avoid conflicts with VS Code server (19000)
-  const backend1Port = 29001;
-  const backend2Port = 29002;
-  const ingressPort = 29000;
+  let backend1Port: number;
+  let backend2Port: number;
+  let ingressPort: number;
 
   beforeAll(async () => {
     // Create mock backend 1
@@ -123,16 +232,17 @@ describe("ingress proxy functionality", () => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ backend: 1, path: req.url }));
     });
-    await new Promise<void>((resolve) => backend1.listen(backend1Port, resolve));
+    backend1Port = await listenOnLoopback(backend1);
 
     // Create mock backend 2
     backend2 = createServer((req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ backend: 2, path: req.url }));
     });
-    await new Promise<void>((resolve) => backend2.listen(backend2Port, resolve));
+    backend2Port = await listenOnLoopback(backend2);
 
     // Start ingress
+    ingressPort = await getFreePort();
     ingressProcess = spawn(
       process.execPath,
       [
@@ -140,11 +250,11 @@ describe("ingress proxy functionality", () => {
         "--port",
         ingressPort.toString(),
         "--route",
-        `/api/v2=http://localhost:${backend2Port}`,
+        `/api/v2=${originForPort(backend2Port)}`,
         "--route",
-        `/api=http://localhost:${backend1Port}`,
+        `/api=${originForPort(backend1Port)}`,
         "--default",
-        `http://localhost:${backend1Port}`,
+        originForPort(backend1Port),
       ],
       {
         cwd: repoRoot,
@@ -152,18 +262,17 @@ describe("ingress proxy functionality", () => {
       },
     );
 
-    // Wait for ingress to start
-    await delay(1000);
+    await waitForPort(ingressPort, ingressProcess);
   });
 
   afterAll(async () => {
-    ingressProcess?.kill("SIGTERM");
-    await new Promise<void>((resolve) => backend1?.close(() => resolve()));
-    await new Promise<void>((resolve) => backend2?.close(() => resolve()));
+    await stopChild(ingressProcess);
+    await closeServer(backend1);
+    await closeServer(backend2);
   });
 
   it("routes /api requests to backend1", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/api/test`);
+    const response = await fetch(`${originForPort(ingressPort)}/api/test`);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -172,7 +281,7 @@ describe("ingress proxy functionality", () => {
   });
 
   it("routes /api/v2 requests to backend2 (more specific route)", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/api/v2/test`);
+    const response = await fetch(`${originForPort(ingressPort)}/api/v2/test`);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -181,7 +290,7 @@ describe("ingress proxy functionality", () => {
   });
 
   it("routes unmatched paths to default backend", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/other/path`);
+    const response = await fetch(`${originForPort(ingressPort)}/other/path`);
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -191,7 +300,7 @@ describe("ingress proxy functionality", () => {
 
   it("preserves query parameters", async () => {
     const response = await fetch(
-      `http://localhost:${ingressPort}/api/test?foo=bar&baz=123`,
+      `${originForPort(ingressPort)}/api/test?foo=bar&baz=123`,
     );
     const data = await response.json();
 
@@ -201,7 +310,8 @@ describe("ingress proxy functionality", () => {
 
   it("returns 502 when backend is unavailable", async () => {
     // Start a fresh ingress pointing to a non-existent backend
-    const badIngressPort = 29003;
+    const badBackendPort = await getFreePort();
+    const badIngressPort = await getFreePort();
     const badIngress = spawn(
       process.execPath,
       [
@@ -209,7 +319,7 @@ describe("ingress proxy functionality", () => {
         "--port",
         badIngressPort.toString(),
         "--default",
-        "http://localhost:59999", // Non-existent port
+        originForPort(badBackendPort),
       ],
       {
         cwd: repoRoot,
@@ -217,15 +327,15 @@ describe("ingress proxy functionality", () => {
       },
     );
 
-    await delay(500);
+    await waitForPort(badIngressPort, badIngress);
 
     try {
-      const response = await fetch(`http://localhost:${badIngressPort}/test`);
+      const response = await fetch(`${originForPort(badIngressPort)}/test`);
       expect(response.status).toBe(502);
       const text = await response.text();
       expect(text).toContain("Bad Gateway");
     } finally {
-      badIngress.kill("SIGTERM");
+      await stopChild(badIngress);
     }
   });
 });
@@ -233,16 +343,17 @@ describe("ingress proxy functionality", () => {
 describe("ingress route matching", () => {
   let backend: Server;
   let ingressProcess: ChildProcess;
-  const backendPort = 19011;
-  const ingressPort = 19010;
+  let backendPort: number;
+  let ingressPort: number;
 
   beforeAll(async () => {
     backend = createServer((req, res) => {
       res.writeHead(200, { "Content-Type": "text/plain" });
       res.end(req.url);
     });
-    await new Promise<void>((resolve) => backend.listen(backendPort, resolve));
+    backendPort = await listenOnLoopback(backend);
 
+    ingressPort = await getFreePort();
     ingressProcess = spawn(
       process.execPath,
       [
@@ -250,11 +361,11 @@ describe("ingress route matching", () => {
         "--port",
         ingressPort.toString(),
         "--route",
-        `/api/automation=http://localhost:${backendPort}`,
+        `/api/automation=${originForPort(backendPort)}`,
         "--route",
-        `/api=http://localhost:${backendPort}`,
+        `/api=${originForPort(backendPort)}`,
         "--route",
-        `/sockets=http://localhost:${backendPort}`,
+        `/sockets=${originForPort(backendPort)}`,
       ],
       {
         cwd: repoRoot,
@@ -262,21 +373,21 @@ describe("ingress route matching", () => {
       },
     );
 
-    await delay(1000);
+    await waitForPort(ingressPort, ingressProcess);
   });
 
   afterAll(async () => {
-    ingressProcess?.kill("SIGTERM");
-    await new Promise<void>((resolve) => backend?.close(() => resolve()));
+    await stopChild(ingressProcess);
+    await closeServer(backend);
   });
 
   it("matches exact path", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/api`);
+    const response = await fetch(`${originForPort(ingressPort)}/api`);
     expect(response.status).toBe(200);
   });
 
   it("matches path with trailing content", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/api/users`);
+    const response = await fetch(`${originForPort(ingressPort)}/api/users`);
     expect(response.status).toBe(200);
     const text = await response.text();
     expect(text).toBe("/api/users");
@@ -284,7 +395,7 @@ describe("ingress route matching", () => {
 
   it("matches longer prefix before shorter", async () => {
     const response = await fetch(
-      `http://localhost:${ingressPort}/api/automation/docs`,
+      `${originForPort(ingressPort)}/api/automation/docs`,
     );
     expect(response.status).toBe(200);
     const text = await response.text();
@@ -292,16 +403,14 @@ describe("ingress route matching", () => {
   });
 
   it("matches path with query string", async () => {
-    const response = await fetch(
-      `http://localhost:${ingressPort}/api?foo=bar`,
-    );
+    const response = await fetch(`${originForPort(ingressPort)}/api?foo=bar`);
     expect(response.status).toBe(200);
     const text = await response.text();
     expect(text).toBe("/api?foo=bar");
   });
 
   it("returns 503 for unmatched routes with no default", async () => {
-    const response = await fetch(`http://localhost:${ingressPort}/unknown`);
+    const response = await fetch(`${originForPort(ingressPort)}/unknown`);
     expect(response.status).toBe(503);
   });
 });
@@ -315,8 +424,8 @@ describe("ingress socket-error resilience", () => {
   let upstreamSockets: Duplex[];
   let ingressProcess: ChildProcess;
   let ingressStderr: string;
-  const upstreamPort = 29111;
-  const ingressPort = 29110;
+  let upstreamPort: number;
+  let ingressPort: number;
 
   beforeAll(async () => {
     upstreamSockets = [];
@@ -349,8 +458,9 @@ describe("ingress socket-error resilience", () => {
       });
     });
 
-    await new Promise<void>((resolve) => upstream.listen(upstreamPort, resolve));
+    upstreamPort = await listenOnLoopback(upstream);
 
+    ingressPort = await getFreePort();
     ingressStderr = "";
     ingressProcess = spawn(
       process.execPath,
@@ -359,7 +469,7 @@ describe("ingress socket-error resilience", () => {
         "--port",
         ingressPort.toString(),
         "--default",
-        `http://localhost:${upstreamPort}`,
+        originForPort(upstreamPort),
       ],
       {
         cwd: repoRoot,
@@ -370,11 +480,11 @@ describe("ingress socket-error resilience", () => {
       ingressStderr += chunk.toString();
     });
 
-    await delay(800);
+    await waitForPort(ingressPort, ingressProcess);
   });
 
   afterAll(async () => {
-    ingressProcess?.kill("SIGTERM");
+    await stopChild(ingressProcess);
     for (const s of upstreamSockets) {
       try {
         s.destroy();
@@ -382,7 +492,7 @@ describe("ingress socket-error resilience", () => {
         // ignore
       }
     }
-    await new Promise<void>((resolve) => upstream?.close(() => resolve()));
+    await closeServer(upstream);
   });
 
   function openWebSocketHandshake(port: number): Promise<Socket> {
@@ -420,7 +530,7 @@ describe("ingress socket-error resilience", () => {
     expect(ingressProcess.signalCode).toBeNull();
 
     // And it must still be serving HTTP traffic.
-    const response = await fetch(`http://localhost:${ingressPort}/health`);
+    const response = await fetch(`${originForPort(ingressPort)}/health`);
     expect(response.status).toBe(200);
 
     // The unhandled-error crash signature must not appear in stderr.

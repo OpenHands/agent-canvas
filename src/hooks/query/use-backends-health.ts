@@ -1,7 +1,8 @@
 import React from "react";
 import { useQueries } from "@tanstack/react-query";
-import { ServerClient } from "@openhands/typescript-client/clients";
+import { SettingsClient } from "@openhands/typescript-client/clients";
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
+import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import type { Backend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import {
@@ -14,14 +15,20 @@ import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage"
 
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
+export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
+
+export function isInvalidBackendApiKeyHealthError(
+  error: string | null | undefined,
+): boolean {
+  return error === INVALID_BACKEND_API_KEY_ERROR;
+}
 
 /**
  * Probe a single backend for connectivity. The probe path differs by
  * backend kind:
  *
- *  - Local agent-server: GET `/server_info` via the typescript-client.
- *    That's the same endpoint the root compatibility check uses, so a
- *    healthy backend always answers it.
+ *  - Local agent-server: GET `/api/settings` via the typescript-client.
+ *    Unlike `/server_info`, this validates the configured session API key.
  *  - Cloud: GET `/api/keys/current` via the bundled local
  *    agent-server's `/api/cloud-proxy`. That endpoint is lightweight,
  *    requires auth, and `getCurrentCloudApiKey` already absorbs the
@@ -38,13 +45,20 @@ async function probeBackend(backend: Backend): Promise<true> {
     return true;
   }
 
-  await new ServerClient(
-    getAgentServerClientOptions({
-      host: backend.host,
-      sessionApiKey: backend.apiKey || null,
-      timeout: PROBE_TIMEOUT_MS,
-    }),
-  ).getServerInfo();
+  try {
+    await new SettingsClient(
+      getAgentServerClientOptions({
+        host: backend.host,
+        sessionApiKey: backend.apiKey || null,
+        timeout: PROBE_TIMEOUT_MS,
+      }),
+    ).getSettings();
+  } catch (error) {
+    if (isSdkHttpStatusError(error, 401)) {
+      throw new Error(INVALID_BACKEND_API_KEY_ERROR);
+    }
+    throw error;
+  }
   return true;
 }
 

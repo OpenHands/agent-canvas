@@ -22,11 +22,14 @@ import {
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
+import { useTracking } from "#/hooks/use-tracking";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
   onLaunched?: () => void;
+  /** When true, only the automation card grid scrolls inside its section. */
+  scrollableGrid?: boolean;
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
@@ -81,10 +84,12 @@ export function buildAutomationPrompt(
 export function RecommendedAutomationsLauncher({
   query,
   onLaunched,
+  scrollableGrid = false,
 }: RecommendedAutomationsLauncherProps) {
   const activeBackend = useActiveBackend();
   const { navigate } = useNavigation();
   const { data: settings } = useSettings();
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const createConversation = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const setMessageToSend = useConversationStore(
@@ -123,6 +128,10 @@ export function RecommendedAutomationsLauncher({
         {},
         {
           onSuccess: (conversation) => {
+            trackPrebuiltAutomationEnabled({
+              automationName: automation.name,
+              automationCategory: automation.category,
+            });
             if (
               conversation.conversation_id.startsWith("task-") &&
               conversation.task_id
@@ -150,6 +159,7 @@ export function RecommendedAutomationsLauncher({
       navigate,
       onLaunched,
       setMessageToSend,
+      trackPrebuiltAutomationEnabled,
     ],
   );
 
@@ -221,6 +231,7 @@ export function RecommendedAutomationsLauncher({
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}
+        scrollableGrid={scrollableGrid}
       />
 
       {installEntry && (

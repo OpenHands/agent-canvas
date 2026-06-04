@@ -97,6 +97,36 @@ describe("static-server.mjs", () => {
       expect(body).toContain("sessionApiKey");
     });
 
+    // Regression test: the published `agent-canvas` binary builds without
+    // VITE_SESSION_API_KEY baked in, so the React app reads the key from
+    // `window.__AGENT_CANVAS_SESSION_API_KEY__` (see
+    // `getBakedSessionApiKey()` in `src/api/agent-server-config.ts`).
+    // Without this assignment, `makeDefaultLocalBackend()` returns null
+    // on a fresh install and the user gets the Manage Backends modal
+    // instead of onboarding.
+    it("exposes the session key on window.__AGENT_CANVAS_SESSION_API_KEY__", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerWithKey(buildDir, "runtime-key");
+      const response = await fetch(`${origin}/`);
+      const body = await response.text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_SESSION_API_KEY__");
+      expect(body).toContain('"runtime-key"');
+      // The window assignment must precede the localStorage write so the
+      // global is set even if storage access throws (private mode, etc.).
+      const windowIdx = body.indexOf("__AGENT_CANVAS_SESSION_API_KEY__");
+      const localStorageIdx = body.indexOf("openhands-agent-server-config");
+      expect(windowIdx).toBeGreaterThan(-1);
+      expect(localStorageIdx).toBeGreaterThan(-1);
+      expect(windowIdx).toBeLessThan(localStorageIdx);
+    });
+
     it("injects session key into SPA fallback index.html", async () => {
       const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
       tempDirs.push(buildDir);
@@ -171,6 +201,7 @@ describe("static-server.mjs", () => {
       const response = await fetch(`${origin}/`);
       const body = await response.text();
       expect(body).not.toContain("openhands-agent-server-config");
+      expect(body).not.toContain("__AGENT_CANVAS_SESSION_API_KEY__");
     });
 
     it("injects session key into HTML without </head> tag (falls back to </body>)", async () => {

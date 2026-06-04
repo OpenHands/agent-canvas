@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
   getActiveBackend,
+  getEffectiveLocalBackend,
+  NO_BACKEND_ID,
   setActiveSelection,
   setRegisteredBackends,
   subscribeActiveBackend,
@@ -37,7 +39,21 @@ const localBackend: Backend = {
 };
 
 describe("active-store", () => {
-  it("seeds the registry with a default local backend on first read and uses it as the active backend", () => {
+  it("uses the no-backend sentinel when no backend details are available", () => {
+    window.localStorage.clear();
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    __resetActiveStoreForTests();
+
+    const { backend, orgId } = getActiveBackend();
+    expect(backend.id).toBe(NO_BACKEND_ID);
+    expect(orgId).toBeNull();
+  });
+
+  it("seeds the registry with a default local backend when host and API key are available", () => {
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
+    vi.stubEnv("VITE_SESSION_API_KEY", "session-key");
+    __resetActiveStoreForTests();
+
     const { backend, orgId } = getActiveBackend();
     expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
     expect(backend.kind).toBe("local");
@@ -62,13 +78,25 @@ describe("active-store", () => {
     expect(getActiveBackend().orgId).toBeNull();
   });
 
-  it("falls back to a synthetic env-derived backend when the registry has no local entry", () => {
+  it("falls back to the first registered backend when the registry has no local entry", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection(null);
 
-    const { backend } = getActiveBackend();
-    expect(backend.kind).toBe("local");
-    expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(getActiveBackend().backend).toEqual(cloudBackend);
+  });
+
+  it("uses the active local backend as the effective local backend", () => {
+    setRegisteredBackends([localBackend, cloudBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    expect(getEffectiveLocalBackend()).toEqual(localBackend);
+  });
+
+  it("does not borrow a registered local backend when the active backend is cloud", () => {
+    setRegisteredBackends([localBackend, cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    expect(getEffectiveLocalBackend()).toBeNull();
   });
 
   it("notifies subscribers when selection changes", () => {

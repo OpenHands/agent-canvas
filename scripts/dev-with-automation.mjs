@@ -394,6 +394,13 @@ async function buildConfig(args, env = process.env) {
 
     // Data directories (same as dev-safe.mjs)
     stateDir,
+    // Only bake the host-side workspace path when this launcher also starts
+    // the agent-server that can read it. In frontend-only mode the backend may
+    // be a tunnel/remote service, so leave VITE_WORKING_DIR unset unless the
+    // user explicitly supplied a backend-relative value.
+    viteWorkingDir: launchAgentServer
+      ? safeConfig.workingDir
+      : env.VITE_WORKING_DIR,
 
     // Auth — single key for both backends
     sessionApiKey,
@@ -642,6 +649,20 @@ function getFrontendBackend(config) {
   return config.launchFrontend ? `http://localhost:${config.vitePort}` : null;
 }
 
+function buildViteBackendEnv(config, env = process.env) {
+  const backendBaseUrl = config.launchAgentServer
+    ? `http://127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_BASE_URL ?? "http://127.0.0.1:8000");
+  const backendHost = config.launchAgentServer
+    ? `127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_HOST ?? new URL(backendBaseUrl).host);
+
+  return {
+    VITE_BACKEND_HOST: backendHost,
+    VITE_BACKEND_BASE_URL: backendBaseUrl,
+  };
+}
+
 function buildAgentServerAutomationEnv(config) {
   return {
     // Make the session API key available to terminal commands spawned by the
@@ -874,13 +895,14 @@ function startVite(config) {
     : null;
 
   const viteEnv = {
-    // Point Vite at the ingress (so client-side fetches work)
-    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-    VITE_WORKING_DIR:
-      config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    // Full-stack mode points Vite at this launcher's ingress. Frontend-only
+    // mode uses the separately running backend ingress instead.
+    ...buildViteBackendEnv(config),
     VITE_FRONTEND_PORT: config.vitePort.toString(),
   };
+  if (config.viteWorkingDir) {
+    viteEnv.VITE_WORKING_DIR = config.viteWorkingDir;
+  }
 
   if (runtimeServicesInfo) {
     // Inform the frontend (and downstream, the agent's system prompt) about
@@ -1255,8 +1277,6 @@ function startStaticFrontend(config, staticDir) {
       staticServerScript,
       "--dir",
       staticDir,
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
       // In local mode, inject the API key so the pre-built frontend can
@@ -1290,6 +1310,7 @@ export {
   buildAutomationCommand,
   buildConfig,
   buildRouteArgs,
+  buildViteBackendEnv,
   getFrontendBackend,
   getLocalServiceRoutes,
   main,

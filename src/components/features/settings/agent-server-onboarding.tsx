@@ -1,10 +1,7 @@
 import React from "react";
 import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  getAgentServerFormDefaults,
-  saveAgentServerConfig,
-} from "#/api/agent-server-config";
+import { getAgentServerFormDefaults } from "#/api/agent-server-config";
 import {
   getRegisteredBackends,
   setRegisteredBackends,
@@ -83,15 +80,6 @@ export function AgentServerConnectionForm({
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Persist to the legacy config so the next-session seed and any
-    // module-level fallbacks pick up the new values …
-    saveAgentServerConfig({
-      baseUrl,
-      sessionApiKey,
-    });
-
-    // … and propagate the change into the registry so the active-store
-    // snapshot reflects the new host/api key on this session too.
     syncDefaultBackendInRegistry();
 
     reconnect();
