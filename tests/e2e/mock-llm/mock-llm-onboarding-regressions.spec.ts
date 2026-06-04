@@ -73,24 +73,27 @@ test.describe("onboarding recent regressions", () => {
   test("defaults the LLM setup step to Anthropic Claude Opus", async ({
     page,
   }) => {
-    // Intercept settings so the LLM form sees a clean base_url, forcing
-    // basic view mode regardless of what earlier specs configured.
-    await page.route("**/api/settings", async (route, req) => {
-      if (req.method() !== "GET") {
-        await route.fallback();
-        return;
-      }
-      const response = await route.fetch();
-      const body = await response.json();
-      if (body?.agent_settings?.llm) {
-        body.agent_settings.llm.base_url = null;
-      }
-      await route.fulfill({ response, json: body });
-    });
-
     await showOnboarding(page, {
       apiKey: SESSION_API_KEY,
-      beforeGoto: () => routeSessionApiKey(page),
+      beforeGoto: async () => {
+        await routeSessionApiKey(page);
+        // Intercept GET /api/settings so the LLM form sees a clean
+        // base_url, forcing basic view mode regardless of what earlier
+        // specs configured. Registered AFTER routeSessionApiKey so
+        // Playwright's LIFO matching picks this up first for settings.
+        await page.route("**/api/settings", async (route, req) => {
+          if (req.method() !== "GET") {
+            await route.fallback();
+            return;
+          }
+          const response = await route.fetch();
+          const body = await response.json();
+          if (body?.agent_settings?.llm) {
+            body.agent_settings.llm.base_url = null;
+          }
+          await route.fulfill({ response, json: body });
+        });
+      },
     });
     await advanceOnboardingToLlmStep(page);
 
