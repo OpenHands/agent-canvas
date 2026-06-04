@@ -151,3 +151,102 @@ describe("toSdkMcpConfig", () => {
     expect("myname" in out2).toBe(true);
   });
 });
+
+describe("parseMcpConfig — deprecated Linear SSE migration", () => {
+  // Linear removed its MCP SSE transport; persisted configs that still
+  // point at https://mcp.linear.app/sse must be rewritten to streamable
+  // HTTP at https://mcp.linear.app/mcp.
+
+  it("migrates a legacy Linear SSE server to the /mcp endpoint", () => {
+    // Arrange
+    const persisted = {
+      mcpServers: {
+        sse: { url: "https://mcp.linear.app/sse", transport: "sse" },
+      },
+    };
+
+    // Act
+    const parsed = parseMcpConfig(persisted);
+
+    // Assert
+    expect(parsed.sse_servers).toEqual([]);
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://mcp.linear.app/mcp" },
+    ]);
+  });
+
+  it("preserves the api key and tolerates a trailing slash when migrating", () => {
+    // Arrange
+    const persisted = {
+      mcpServers: {
+        sse: {
+          url: "https://mcp.linear.app/sse/",
+          transport: "sse",
+          auth: "lin_api_secret",
+        },
+      },
+    };
+
+    // Act
+    const parsed = parseMcpConfig(persisted);
+
+    // Assert
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://mcp.linear.app/mcp", api_key: "lin_api_secret" },
+    ]);
+  });
+
+  it("leaves non-Linear SSE servers untouched", () => {
+    // Arrange
+    const persisted = {
+      mcpServers: {
+        sse: { url: "https://other.example/sse", transport: "sse" },
+      },
+    };
+
+    // Act
+    const parsed = parseMcpConfig(persisted);
+
+    // Assert
+    expect(parsed.sse_servers).toEqual([{ url: "https://other.example/sse" }]);
+    expect(parsed.shttp_servers).toEqual([]);
+  });
+
+  it("keeps a hand-added /mcp entry instead of duplicating it on migration", () => {
+    // Arrange: legacy SSE install plus a manual /mcp entry that already
+    // carries its own credential — the manual entry must win.
+    const persisted = {
+      mcpServers: {
+        sse: { url: "https://mcp.linear.app/sse", transport: "sse" },
+        shttp: { url: "https://mcp.linear.app/mcp", auth: "manual_key" },
+      },
+    };
+
+    // Act
+    const parsed = parseMcpConfig(persisted);
+
+    // Assert
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://mcp.linear.app/mcp", api_key: "manual_key" },
+    ]);
+  });
+
+  it("persists the migration as an shttp server on the next save", () => {
+    // Arrange: the exact broken state from the field — the server key
+    // "sse" is what produced the rejected `sse_save_comment` tool name.
+    const persisted = {
+      mcpServers: {
+        sse: { url: "https://mcp.linear.app/sse", transport: "sse" },
+      },
+    };
+
+    // Act: parse (load) then serialize (what every MCP save does).
+    const written = toSdkMcpConfig(parseMcpConfig(persisted));
+
+    // Assert: re-persisted under the shttp key with no transport field,
+    // so the backend connects via streamable HTTP to the new endpoint.
+    expect(written).toEqual({
+      mcpServers: { shttp: { url: "https://mcp.linear.app/mcp" } },
+    });
+  });
+});
