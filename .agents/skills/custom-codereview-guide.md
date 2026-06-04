@@ -300,8 +300,9 @@ When in doubt, add it — running the tests is cheap, missing a regression is no
 Skip it for obviously safe changes like docs-only, pure styling, or CI config
 tweaks.
 
-If the PR touches an area that lacks E2E coverage and would benefit from it,
-suggest adding a test in `tests/e2e/mock-llm/` as part of the PR or a follow-up.
+If the PR touches an area that lacks mock-LLM E2E coverage and would benefit
+from it, suggest adding a test in `tests/e2e/mock-llm/` as part of the PR or a
+follow-up.
 
 ## What NOT to Comment On
 
