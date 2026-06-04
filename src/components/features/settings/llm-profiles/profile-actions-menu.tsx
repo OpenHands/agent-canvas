@@ -9,8 +9,10 @@ import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import { TextCursor } from "lucide-react";
 import { cn } from "#/utils/utils";
+import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 import { I18nKey } from "#/i18n/declaration";
 import { ConversationNameContextMenuIconText } from "#/components/features/conversation/conversation-name-context-menu-icon-text";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import EditIcon from "#/icons/u-edit.svg?react";
 import CheckCircleIcon from "#/icons/u-check-circle.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
@@ -179,6 +181,7 @@ export function ProfileActionsMenu({
       ref={menuRef}
       className={cn(
         "absolute right-0 top-full z-10 mt-2 w-[160px] rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 shadow-lg",
+        dropdownMenuListClassName,
         isPortaled &&
           "!static !top-auto !bottom-auto !left-auto !right-auto !mt-0",
       )}
@@ -214,15 +217,30 @@ export function ProfileActionsMenu({
         disabled={setActiveDisabled}
         testId="profile-set-active"
       />
-      <MenuItem
-        index={3}
-        icon={<DeleteIcon width={16} height={16} />}
-        label={t(I18nKey.BUTTON$DELETE)}
-        onClick={() => handleAction(onDelete)}
-        onKeyDown={handleKeyDown}
-        menuItemsRef={menuItemsRef}
-        testId="profile-delete"
-      />
+      {(() => {
+        const deleteItem = (
+          <MenuItem
+            index={3}
+            icon={<DeleteIcon width={16} height={16} />}
+            label={t(I18nKey.BUTTON$DELETE)}
+            onClick={() => handleAction(onDelete)}
+            onKeyDown={handleKeyDown}
+            menuItemsRef={menuItemsRef}
+            disabled={isActive}
+            testId="profile-delete"
+          />
+        );
+        if (!isActive) return deleteItem;
+        return (
+          <StyledTooltip
+            content={t(I18nKey.SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE)}
+            placement="left"
+          >
+            {/* span needed so pointer events reach the tooltip trigger on a disabled button */}
+            <span className="inline-flex w-full">{deleteItem}</span>
+          </StyledTooltip>
+        );
+      })()}
     </div>
   );
 

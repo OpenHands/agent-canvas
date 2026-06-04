@@ -19,11 +19,11 @@ function getActiveCloudBackend(): Backend {
 }
 
 /**
- * Fetch the full list of skills from the cloud backend via the bundled
- * /api/cloud-proxy. The cloud endpoint is paginated (page_id cursor); we
- * walk all pages so the settings UI gets a complete list in one call. The
- * cloud SkillInfo shape (name/type/source/triggers) matches the GUI's
- * SkillInfo type, so items are passed through unchanged.
+ * Fetch the full list of skills from the cloud backend. The cloud endpoint is
+ * paginated (page_id cursor); we walk all pages so the settings UI gets a
+ * complete list in one call. The cloud SkillInfo shape
+ * (name/type/source/triggers) matches the GUI's SkillInfo type, so items are
+ * passed through unchanged.
  */
 export async function fetchCloudSkills(): Promise<SkillInfo[]> {
   const backend = getActiveCloudBackend();

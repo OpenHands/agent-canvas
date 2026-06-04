@@ -20,7 +20,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 // ── Port allocation (separate from live E2E / dev to avoid collisions) ─
 const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
@@ -45,10 +45,12 @@ const sessionApiKey =
 process.env.MOCK_LLM_SESSION_API_KEY = sessionApiKey;
 
 // ── State directory (isolated per test run) ────────────────────────────
-// MUST be absolute — the automation backend's SQLite DB URL is derived from
-// this path, and a relative path gets double-nested when the child process
-// cwd is also set to stateDir (cwd/stateDir/stateDir/automations.db).
 const STATE_DIR = resolve(".tmp/mock-llm-state");
+
+// Automation DB lives at $parent_of_STATE_DIR/automation/automations.db,
+// mirroring docker/entrypoint.sh which uses $HOME/.openhands/automation/automations.db.
+// Both STATE_DIR and AUTOMATION_DB_DIR must be cleaned between runs to avoid stale data.
+const AUTOMATION_DB_DIR = join(dirname(STATE_DIR), "automation");
 
 // ── URLs ───────────────────────────────────────────────────────────────
 const INGRESS_URL = `http://localhost:${INGRESS_PORT}/`;
@@ -124,8 +126,10 @@ export default defineConfig({
     // kills children via process groups and exits cleanly.
     {
       command:
-        // Clean state dir to avoid stale profile/conversation data between runs
-        `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true});" && ` +
+        // Clean state dir and automation DB dir to avoid stale data between runs.
+        // Automation DB is stored outside STATE_DIR (at AUTOMATION_DB_DIR) so both
+        // must be cleaned; see scripts/dev-with-automation.mjs startAutomationBackend.
+        `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true}); fs.rmSync('${AUTOMATION_DB_DIR}',{recursive:true,force:true});" && ` +
         // Build frontend if not already built (CI should pre-build for caching)
         "[ -f build/index.html ] || npm run build:app && " +
         [
@@ -159,7 +163,6 @@ export default defineConfig({
       command: [
         "exec node scripts/static-server.mjs",
         "--dir build",
-        "--host 0.0.0.0",
         `--port ${PUBLIC_MODE_PORT}`,
         "--auth-required",
         "--route /api/automation=http://localhost:18001",

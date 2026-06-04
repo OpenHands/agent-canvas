@@ -58,25 +58,40 @@ npm install -g @openhands/agent-canvas
 agent-canvas
 ```
 
-### Option 2: With a Docker Sandbox
+The `agent-canvas` command starts the full local stack by default. You can also split it when you want to run pieces separately:
 
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
+agent-canvas --frontend-only  # static frontend + ingress only
+agent-canvas --backend-only   # agent server + automation backend + ingress only
+```
 
-export PROJECTS_PATH=~/projects  # directory containing your project folders
+### Option 2: With a Docker Sandbox
+
+**Prerequisites**:
+
+- Docker: Docker Desktop on macOS/Windows, or Docker Engine/Docker Desktop on Linux.
+- A host directory for `PROJECTS_PATH` containing the project folders you want the agent to access. Create it before starting the container.
+
+**macOS / Linux:**
+```sh
+export PROJECTS_PATH="$HOME/projects"  # directory containing your project folders
+mkdir -p "$PROJECTS_PATH" "$HOME/.openhands"
 
 docker run -it --rm \
   -p 8000:8000 \
-  -v ~/.openhands:/home/openhands/.openhands \
-  -v ${PROJECTS_PATH}:/projects \
-  ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
+  -v "$HOME/.openhands:/home/openhands/.openhands" \
+  -v "${PROJECTS_PATH}:/projects" \
+  ghcr.io/openhands/agent-canvas:1.0.0-beta.6
 ```
+
+**Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
 
 The agent will be able to access any project under `PROJECTS_PATH`.
 
-
-
 ### Option 3: From Source
+
+> [!WARNING]
+> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
 
 **Prerequisites**: Node.js 22.12.x or later, `npm`, `uv` (for running the agent server via `uvx`)
 

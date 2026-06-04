@@ -2,6 +2,8 @@ import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { CreateInstructionsContent } from "./create-instructions";
 
 interface AddAutomationModalProps {
@@ -33,7 +35,7 @@ export function AddAutomationModal({
         <header className="flex-shrink-0 px-6 pb-4 pt-6">
           <h2
             id="add-automation-modal-title"
-            className="pr-6 text-lg font-semibold"
+            className={cn("pr-6", modalTitleLgClassName)}
           >
             {t(I18nKey.AUTOMATIONS$EMPTY_HOW_TO_CREATE_TITLE)}
           </h2>

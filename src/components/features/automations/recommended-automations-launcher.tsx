@@ -22,11 +22,14 @@ import {
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
+import { useTracking } from "#/hooks/use-tracking";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
   onLaunched?: () => void;
+  /** When true, only the automation card grid scrolls inside its section. */
+  scrollableGrid?: boolean;
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
@@ -73,7 +76,7 @@ export function buildAutomationPrompt(
     "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
     "- Read the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
     "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
-    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
+    "- Auth: `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
     "- If no local Automation backend is listed in `<RUNTIME_SERVICES>`, stop and ask me to start the full local automation stack instead of using any remote/cloud automation API.",
   ].join("\n");
 }
@@ -81,10 +84,12 @@ export function buildAutomationPrompt(
 export function RecommendedAutomationsLauncher({
   query,
   onLaunched,
+  scrollableGrid = false,
 }: RecommendedAutomationsLauncherProps) {
   const activeBackend = useActiveBackend();
   const { navigate } = useNavigation();
   const { data: settings } = useSettings();
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const createConversation = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const setMessageToSend = useConversationStore(
@@ -123,6 +128,10 @@ export function RecommendedAutomationsLauncher({
         {},
         {
           onSuccess: (conversation) => {
+            trackPrebuiltAutomationEnabled({
+              automationName: automation.name,
+              automationCategory: automation.category,
+            });
             if (
               conversation.conversation_id.startsWith("task-") &&
               conversation.task_id
@@ -150,6 +159,7 @@ export function RecommendedAutomationsLauncher({
       navigate,
       onLaunched,
       setMessageToSend,
+      trackPrebuiltAutomationEnabled,
     ],
   );
 
@@ -221,6 +231,7 @@ export function RecommendedAutomationsLauncher({
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}
+        scrollableGrid={scrollableGrid}
       />
 
       {installEntry && (

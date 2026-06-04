@@ -16,11 +16,13 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
+  isInvalidBackendApiKeyHealthError,
   useBackendsHealth,
   type BackendHealth,
 } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 
@@ -76,13 +78,30 @@ interface BackendRowProps {
 
 function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
   const { t } = useTranslation("openhands");
+  const isInvalidApiKey = isInvalidBackendApiKeyHealthError(health?.lastError);
+  let statusLabel: string;
+  let statusClassName = "text-[var(--oh-muted)]";
+
+  if (isInvalidApiKey) {
+    statusLabel = t(I18nKey.AUTH$INVALID_KEY);
+    statusClassName = "text-red-300";
+  } else if (health?.isConnected === true) {
+    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
+    statusClassName = "text-green-300";
+  } else if (health?.isConnected === false) {
+    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
+    statusClassName = "text-red-300";
+  } else {
+    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
+  }
+  const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
 
   return (
     <li
       className="flex items-center gap-3 px-3 py-3"
       data-testid={`manage-backends-row-${backend.name}`}
     >
-      <BackendStatusDot isConnected={health?.isConnected ?? null} />
+      <BackendStatusDot isConnected={dotStatus} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm text-white">{backend.name}</span>
@@ -90,6 +109,12 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
         </div>
         <span className="truncate text-xs text-[var(--oh-muted)]">
           {backend.host}
+        </span>
+        <span
+          data-testid={`manage-backends-status-${backend.name}`}
+          className={cn("truncate text-xs", statusClassName)}
+        >
+          {statusLabel}
         </span>
       </div>
       <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
@@ -160,7 +185,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             testId="close-manage-backends-modal"
           />
           <div className="p-5 pr-12">
-            <h2 className="text-lg font-semibold">
+            <h2 className={modalTitleLgClassName}>
               {t(I18nKey.BACKEND$MANAGE_TITLE)}
             </h2>
           </div>

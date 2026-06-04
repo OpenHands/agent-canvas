@@ -199,8 +199,10 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
       lines.push(`    OpenAPI: ${automation.openapi_url}`);
     }
     if (automation.auth_env_var) {
+      // X-Session-API-Key is the local convention shared by the agent-server
+      // and automation backend (see openhands-automation auth.py).
       lines.push(
-        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+        `    Auth:    header 'X-Session-API-Key: $${automation.auth_env_var}'`,
       );
     }
   } else {
@@ -266,6 +268,7 @@ export function toAppConversation(
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
     selected_workspace: metadata?.selected_workspace ?? null,
+    active_profile: metadata?.active_profile ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -366,7 +369,6 @@ type ConversationSettingsPayload = SettingsRecord & {
 const ACP_SETTINGS_KEYS = [
   "acp_command",
   "acp_args",
-  "acp_env",
   "acp_model",
   "acp_session_mode",
   "acp_prompt_timeout",
@@ -629,6 +631,10 @@ function buildConfiguredOpenHandsAgentSettings(
   for (const key of ACP_SETTINGS_KEYS) {
     delete agentSettings[key];
   }
+  // ``acp_env`` is no longer a forwarded ACP setting (provider creds ride the
+  // Secrets panel), but a legacy value may linger on persisted settings —
+  // scrub it so it never leaks onto the OpenHands payload.
+  delete agentSettings.acp_env;
 
   return {
     ...agentSettings,
@@ -804,7 +810,7 @@ export function buildStartConversationRequest(
 
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const headers = buildAuthHeaders(backend);
+    const headers = backend ? buildAuthHeaders(backend) : {};
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {

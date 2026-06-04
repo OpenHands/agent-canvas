@@ -16,9 +16,14 @@ import { CheckBackendStep } from "./steps/check-backend-step";
 import { SetupLlmStep } from "./steps/setup-llm-step";
 import { SetupAcpSecretsStep } from "./steps/setup-acp-secrets-step";
 import { SayHelloStep } from "./steps/say-hello-step";
-import { getAcpProviderSecrets } from "#/constants/acp-providers";
 
 const TOTAL_STEPS = 4;
+
+// Index of the per-provider setup slide (LLM form for OpenHands, ACP
+// credentials for Claude Code / Codex). Named so the slide and the
+// ``isActive`` gate that drives the ACP login probe move together — inserting
+// a slide before it can't silently fire the probe on the wrong step.
+const SETUP_SLIDE_INDEX = 2;
 
 interface SlideProps {
   /** Index of this slide in the step sequence. */
@@ -67,6 +72,10 @@ function Slide({ index, currentStep, children }: SlideProps) {
 interface OnboardingModalProps {
   /** Called when the user dismisses the modal (skip / X / launch). */
   onClose: () => void;
+  /** Optional slide index for dev preview (`?previewOnboardingStep=`). */
+  initialStep?: number;
+  /** When true, skip/close does not persist onboarding completion. */
+  isPreview?: boolean;
 }
 
 /**
@@ -82,66 +91,42 @@ interface OnboardingModalProps {
  * the rail is translated horizontally by step index, so transitioning
  * between steps animates the new step in from the right.
  */
-export function OnboardingModal({ onClose }: OnboardingModalProps) {
+export function OnboardingModal({
+  onClose,
+  initialStep = 0,
+  isPreview = false,
+}: OnboardingModalProps) {
   const { t } = useTranslation("openhands");
-  const [currentStep, setCurrentStep] = React.useState(0);
+  const [currentStep, setCurrentStep] = React.useState(() =>
+    Math.min(Math.max(initialStep, 0), TOTAL_STEPS - 1),
+  );
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  // Slide index 2 is the "provider credentials" slot. Its content depends on
-  // the chosen agent:
-  //   * OpenHands           → the LLM-setup form (its own LLM config).
-  //   * Claude Code / Codex → the ACP secrets form (API key + base URL), since
-  //                           these providers authenticate via env-var keys.
-  //   * Gemini CLI          → nothing: it authenticates through an interactive
-  //                           OAuth login, so there's no key to enter and we
-  //                           skip the slide entirely.
-  // ``getAcpProviderSecrets`` returns the field list (empty for Gemini), which
-  // is what distinguishes the ACP-with-secrets case from the skip case.
+  // Slide index 2 is the "provider credentials" slot:
+  //   * OpenHands → the LLM-setup form (its own LLM config).
+  //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
+  //     form: API key + optional base URL, with a login-detection banner.
   const isOpenHands = selectedAgentId === "openhands";
-  const acpSecretFields = getAcpProviderSecrets(selectedAgentId);
-  const showAcpSecretsStep = !isOpenHands && acpSecretFields.length > 0;
-  // Skip slide 2 only when there's nothing to show there (an ACP provider
-  // with no credentials to collect). Skipping keeps the rest of the flow
-  // intact in both directions (back from SayHello returns to CheckBackend,
-  // not a dead-end blank page).
-  const skipStep2 = !isOpenHands && !showAcpSecretsStep;
   const goNext = React.useCallback(
-    () =>
-      setCurrentStep((step) => {
-        const delta = skipStep2 && step === 1 ? 2 : 1;
-        return Math.min(step + delta, TOTAL_STEPS - 1);
-      }),
-    [skipStep2],
+    () => setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS - 1)),
+    [],
   );
   const goBack = React.useCallback(
-    () =>
-      setCurrentStep((step) => {
-        const delta = skipStep2 && step === 3 ? 2 : 1;
-        return Math.max(step - delta, 0);
-      }),
-    [skipStep2],
+    () => setCurrentStep((step) => Math.max(step - 1, 0)),
+    [],
   );
 
-  // The progress bar should show the user's actual visited-step count,
-  // not the underlying index. When slide 2 is skipped:
-  //   * the bar renders 3 segments instead of 4, and
-  //   * the SayHello slide (modal index 3) maps to logical step 2 so
-  //     segment 2 doesn't pop "completed" on a slide the user never saw.
-  const progressTotal = skipStep2 ? TOTAL_STEPS - 1 : TOTAL_STEPS;
-  const progressStep =
-    skipStep2 && currentStep > 1 ? currentStep - 1 : currentStep;
-
   return (
-    <ModalBackdrop
-      onClose={onClose}
-      closeOnEscape={false}
-      aria-label={t(I18nKey.ONBOARDING$TITLE)}
-    >
+    // No `onClose`: the flow must only be dismissed via explicit actions
+    // (the skip button or launching), never by an errant backdrop click or
+    // Escape press — see https://github.com/OpenHands/agent-canvas/issues/1085.
+    <ModalBackdrop aria-label={t(I18nKey.ONBOARDING$TITLE)}>
       <div className="relative flex flex-col items-center gap-4">
         <section
           data-testid="onboarding-modal"
           data-current-step={currentStep}
+          data-preview={isPreview ? "true" : undefined}
           className={cn(
             "flex flex-col gap-6 overflow-hidden rounded-2xl border border-white/10 bg-base-secondary shadow-2xl",
             modalWidthClassName("lg"),
@@ -151,8 +136,8 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
         >
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
             <OnboardingProgressBar
-              currentStep={progressStep}
-              totalSteps={progressTotal}
+              currentStep={currentStep}
+              totalSteps={TOTAL_STEPS}
             />
           </header>
 
@@ -175,32 +160,39 @@ export function OnboardingModal({ onClose }: OnboardingModalProps) {
               <Slide index={1} currentStep={currentStep}>
                 <CheckBackendStep onBack={goBack} onNext={goNext} />
               </Slide>
-              <Slide index={2} currentStep={currentStep}>
+              <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
                 {isOpenHands ? (
                   <SetupLlmStep onBack={goBack} onNext={goNext} />
-                ) : showAcpSecretsStep ? (
+                ) : (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}
+                    isActive={currentStep === SETUP_SLIDE_INDEX}
                     onBack={goBack}
                     onNext={goNext}
                   />
-                ) : null}
+                )}
               </Slide>
               <Slide index={3} currentStep={currentStep}>
-                <SayHelloStep onBack={goBack} onLaunched={onClose} />
+                <SayHelloStep
+                  onBack={goBack}
+                  onClose={onClose}
+                  onLaunched={onClose}
+                />
               </Slide>
             </div>
           </div>
         </section>
 
-        <button
-          type="button"
-          data-testid="onboarding-skip"
-          onClick={onClose}
-          className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
-        >
-          {t(I18nKey.ONBOARDING$SKIP)}
-        </button>
+        {currentStep < TOTAL_STEPS - 1 ? (
+          <button
+            type="button"
+            data-testid="onboarding-skip"
+            onClick={onClose}
+            className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+          >
+            {t(I18nKey.ONBOARDING$SKIP)}
+          </button>
+        ) : null}
       </div>
     </ModalBackdrop>
   );

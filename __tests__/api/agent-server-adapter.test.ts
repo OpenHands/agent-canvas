@@ -624,6 +624,27 @@ describe("toAppConversation", () => {
     }
   });
 
+  it("hydrates active_profile from stored metadata so the switcher shows the exact profile (#1082)", () => {
+    setStoredConversationMetadata(baseInfo.id, {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      active_profile: "claude-sonnet-4.6",
+    });
+    try {
+      const result = toAppConversation({
+        ...baseInfo,
+        agent: {
+          kind: "Agent",
+          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+        },
+      });
+      expect(result.active_profile).toBe("claude-sonnet-4.6");
+    } finally {
+      removeStoredConversationMetadata(baseInfo.id);
+    }
+  });
+
   it("marks openhands conversations and surfaces the agent.llm.model", () => {
     const result = toAppConversation({
       ...baseInfo,
@@ -806,7 +827,10 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
     expect(suffix).toContain("http://localhost:18001/api/automation/docs");
-    expect(suffix).toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
+    expect(suffix).toContain(
+      "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY",
+    );
+    expect(suffix).not.toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
     // for this stack, not a hardcoded port. The assertion anchors on the URL
@@ -1223,6 +1247,9 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         agent_kind: "acp",
         acp_server: "claude-code",
         acp_command: [],
+        // Legacy persisted value: provider creds no longer ride acp_env —
+        // they flow through the Secrets panel (request.secrets). A stale
+        // acp_env left on saved settings must be dropped, not forwarded.
         acp_env: { ANTHROPIC_API_KEY: "user-set-via-api" },
         acp_model: "claude-opus-4-5",
         agent: "CodeActAgent",
@@ -1271,9 +1298,9 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       "@agentclientprotocol/claude-agent-acp",
     ]);
     expect(acpPayload.agent_settings.acp_model).toBe("claude-opus-4-5");
-    expect(acpPayload.agent_settings.acp_env).toEqual({
-      ANTHROPIC_API_KEY: "user-set-via-api",
-    });
+    // acp_env is no longer a forwarded ACP setting — a stale value on saved
+    // settings is dropped rather than leaked into the conversation request.
+    expect(acpPayload.agent_settings.acp_env).toBeUndefined();
     expect(acpPayload.agent_settings.llm).toBeUndefined();
     expect(acpPayload.agent_settings.condenser).toBeUndefined();
   });

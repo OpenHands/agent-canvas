@@ -12,14 +12,15 @@ import SettingsService from "#/api/settings-service/settings-service.api";
 import { SecretsService } from "#/api/secrets-service";
 
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
+const getServerInfoMock = vi.hoisted(() => vi.fn());
 
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which resolves
 // server metadata through `ServerClient`.
 vi.mock("@openhands/typescript-client/clients", () => ({
-  ServerClient: vi.fn(function ServerClientMock() {
+  ServerClient: vi.fn(function ServerClientMock(options?: { host?: string }) {
     return {
-      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      getServerInfo: vi.fn(() => getServerInfoMock(options)),
     };
   }),
   // The always-mounted LLM slide initializes settings hooks even though
@@ -86,6 +87,46 @@ vi.mock("#/hooks/mutation/use-create-conversation", () => ({
   }),
 }));
 
+// The ACP credentials slide runs a login-detection probe (calls
+// GET /api/acp/auth-status). Stub it here so the modal routing tests don't hit
+// the network; the probe itself is covered in use-acp-auth-status.test.tsx.
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: () => ({
+    status: "unknown",
+    isChecking: false,
+    isSupported: false,
+  }),
+}));
+
+async function completeAgentStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("onboarding-agent-next"));
+  await waitFor(
+    () =>
+      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+        "data-current-step",
+        "1",
+      ),
+    { timeout: 3000 },
+  );
+}
+
+async function completeBackendStep(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(
+    () =>
+      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+    { timeout: 3000 },
+  );
+  await user.click(screen.getByTestId("onboarding-backend-next"));
+  await waitFor(
+    () =>
+      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+        "data-current-step",
+        "2",
+      ),
+    { timeout: 3000 },
+  );
+}
+
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -109,11 +150,20 @@ function renderModal(onClose = vi.fn()) {
 
 beforeEach(() => {
   window.localStorage.clear();
+  vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
+  vi.stubEnv("VITE_SESSION_API_KEY", "session-key");
   __resetActiveStoreForTests();
   // Clear accumulated spy/mock call history so per-test assertions (the
   // ACP secret-write checks and the LLM-defaults mock) don't see calls
   // leaked from a prior test. Covers `llmSettingsScreenMock` too.
   vi.clearAllMocks();
+  getServerInfoMock.mockReset();
+  getServerInfoMock.mockImplementation((options?: { host?: string }) => {
+    if (options?.host?.startsWith("https://127.0.0.1:8000")) {
+      return Promise.reject(new Error("Failed to fetch"));
+    }
+    return Promise.resolve({ version: "1.18.0" });
+  });
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
   // (which these tests focus on) isn't gated on a real HTTP call.
@@ -127,11 +177,12 @@ beforeEach(() => {
 });
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllEnvs();
   __resetActiveStoreForTests();
 });
 
 describe("OnboardingModal", () => {
-  it("starts on the Choose Agent step with each slide offset by its index", () => {
+  it("starts on the choose-agent step with each slide offset by its index", () => {
     renderModal();
 
     expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -158,50 +209,78 @@ describe("OnboardingModal", () => {
     );
   });
 
-  it("pre-fills the LLM step with the OpenHands provider", () => {
+  it("shows a connection error when saving an unreachable backend", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByTestId("onboarding-backend-host"));
+    await user.type(
+      screen.getByTestId("onboarding-backend-host"),
+      "https://127.0.0.1:8000",
+    );
+    await user.clear(screen.getByTestId("onboarding-backend-api-key"));
+    await user.type(
+      screen.getByTestId("onboarding-backend-api-key"),
+      "session-key",
+    );
+    await user.click(screen.getByTestId("onboarding-backend-next"));
+
+    expect(
+      await screen.findByTestId("onboarding-backend-error"),
+    ).toHaveTextContent("BACKEND$CONNECTION_TEST_FAILED");
+    expect(screen.getByTestId("onboarding-backend-error")).toHaveTextContent(
+      "Failed to fetch",
+    );
+  });
+
+  it("pre-fills the LLM step with the Anthropic provider's Claude Opus model", () => {
     renderModal();
 
     expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
     expect(llmSettingsScreenMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialValueOverrides: {
-          "llm.model": "openhands/claude-opus-4-5-20251101",
+          "llm.model": "anthropic/claude-opus-4-8",
         },
       }),
     );
+  });
+
+  it("collapses backend configuration fields once connected until Show configuration is toggled", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    await completeAgentStep(user);
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    );
+
+    expect(
+      screen.getByTestId("onboarding-backend-configuration-fields"),
+    ).toHaveClass("hidden");
+    expect(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("onboarding-backend-show-configuration"));
+    expect(
+      screen.getByTestId("onboarding-backend-configuration-fields"),
+    ).not.toHaveClass("hidden");
   });
 
   it("advances each step via the per-step Next button and reframes slide offsets", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Step 0 → 1. ChooseAgentStep now does an async save before
-    // advancing, so the modal can take a beat to flip steps while
-    // SayHello/CheckBackend queries are still settling on the four
-    // mounted slides. Bump the default 1s waitFor timeout.
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-          "data-current-step",
-          "1",
-        ),
-      { timeout: 3000 },
-    );
+    // Step 0 → 1. ChooseAgentStep does an async save before advancing.
+    await completeAgentStep(user);
     expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
       "data-active",
       "true",
     );
 
-    // Once the backend health probe resolves, step 1's Next is enabled.
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
-    expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-      "data-current-step",
-      "2",
-    );
+    // Step 1 → 2. Once the backend health probe resolves, step 1's Next is enabled.
+    await completeBackendStep(user);
     expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
       "data-active",
       "true",
@@ -229,6 +308,26 @@ describe("OnboardingModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("stays open when the user clicks outside it or presses Escape", async () => {
+    // Arrange
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const user = userEvent.setup();
+
+    // Act: errant interactions outside the modal box — click the dark
+    // backdrop overlay, then press Escape.
+    const backdrop = screen.getByRole("dialog")
+      .firstElementChild as HTMLElement;
+    await user.click(backdrop);
+    await user.keyboard("{Escape}");
+
+    // Assert: neither dismisses the flow nor marks onboarding completed
+    // (https://github.com/OpenHands/agent-canvas/issues/1085); the modal
+    // only closes via explicit actions (Skip / launch).
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("onboarding-modal")).toBeInTheDocument();
+  });
+
   it("wraps the slide rail in a dedicated scroll region so the modal chrome stays put", () => {
     // Arrange + act: render the modal once.
     renderModal();
@@ -245,15 +344,8 @@ describe("OnboardingModal", () => {
     // Arrange: render the modal and walk through to the LLM step.
     renderModal();
     const user = userEvent.setup();
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(
-          screen.getByTestId("onboarding-backend-next"),
-        ).not.toBeDisabled(),
-      { timeout: 3000 },
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
     // Wait for the LLM slide to become the active one before querying
     // by role — otherwise the heading is `aria-hidden` from inside a
     // not-yet-active slide and getByRole filters it out.
@@ -283,71 +375,45 @@ describe("OnboardingModal", () => {
     expect(settings.contains(next)).toBe(false);
   });
 
-  it("skips the step-2 slide for an ACP agent with no credentials to collect", async () => {
+  it("shows slide 2 with Gemini's credential fields", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Pick Gemini CLI: it authenticates via an interactive OAuth login
-    // (no env-var API key), so it has no credentials step and slide 2 is
-    // skipped — unlike Claude Code / Codex, which now render one there.
+    // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
+    // other providers, so the slide shows the GEMINI_API_KEY field.
     await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
-    await user.click(screen.getByTestId("onboarding-agent-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
+
+    // Lands on slide 2 (the ACP step) — not jumped past to Say Hello.
     await waitFor(
       () =>
         expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
           "data-current-step",
-          "1",
+          "2",
         ),
       { timeout: 3000 },
     );
-
-    // Advancing again should jump straight to Say Hello (index 3) and
-    // bypass slide 2 — Gemini owns its own auth via the OAuth login.
-    await waitFor(
-      () =>
-        expect(
-          screen.getByTestId("onboarding-backend-next"),
-        ).not.toBeDisabled(),
-      { timeout: 3000 },
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
-
-    await waitFor(
-      () =>
-        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-          "data-current-step",
-          "3",
-        ),
-      { timeout: 3000 },
-    );
-    // All four slides remain mounted (the rail just translates them);
-    // the assertion that the LLM step was skipped is that slide 3 (Say
-    // Hello) is the active one immediately after the backend step,
-    // *not* slide 2 (LLM).
     expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
-      "data-active",
-      "false",
-    );
-    expect(screen.getByTestId("onboarding-slide-3")).toHaveAttribute(
       "data-active",
       "true",
     );
-
-    // Progress bar reflects the *visited* step count, not the slide
-    // index — 3 segments total (not 4), and segment 2 is current (not
-    // segment 3, which would imply LLM was completed). Without this
-    // mapping, picking an ACP agent makes the bar show segment 2 as
-    // "completed" despite the user never visiting it.
     expect(
-      screen.queryByTestId("onboarding-progress-step-3"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("onboarding-step-setup-acp-secrets"),
+    ).toBeInTheDocument();
+    // Gemini exposes credential fields (GEMINI_API_KEY), derived from the SDK
+    // registry like Claude Code / Codex.
+    expect(
+      screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+    ).toBeInTheDocument();
+
+    // The flow keeps all four progress segments (nothing is skipped).
+    expect(
+      screen.getByTestId("onboarding-progress-step-3"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("onboarding-progress-step-2")).toHaveAttribute(
       "data-state",
       "current",
-    );
-    expect(screen.getByTestId("onboarding-progress-step-1")).toHaveAttribute(
-      "data-state",
-      "completed",
     );
   });
 
@@ -357,15 +423,8 @@ describe("OnboardingModal", () => {
 
     // Pick Claude Code → Check Backend.
     await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(
-          screen.getByTestId("onboarding-backend-next"),
-        ).not.toBeDisabled(),
-      { timeout: 3000 },
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
 
     // Slide 2 is the ACP credentials step (not skipped), so the flow keeps
     // all 4 progress segments and slide 2 — not Say Hello — is now active.
@@ -424,15 +483,8 @@ describe("OnboardingModal", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("onboarding-agent-option-codex"));
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(
-          screen.getByTestId("onboarding-backend-next"),
-        ).not.toBeDisabled(),
-      { timeout: 3000 },
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
     await waitFor(
       () =>
         expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -460,15 +512,8 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(
-          screen.getByTestId("onboarding-backend-next"),
-        ).not.toBeDisabled(),
-      { timeout: 3000 },
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
     await user.click(screen.getByTestId("onboarding-llm-next"));
 
     const helloInput = screen.getByTestId(
@@ -486,19 +531,8 @@ describe("OnboardingModal", () => {
     renderModal(onClose);
     const user = userEvent.setup();
 
-    await user.click(screen.getByTestId("onboarding-agent-next"));
-    await waitFor(
-      () =>
-        expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-          "data-current-step",
-          "1",
-        ),
-      { timeout: 3000 },
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
-    );
-    await user.click(screen.getByTestId("onboarding-backend-next"));
+    await completeAgentStep(user);
+    await completeBackendStep(user);
     await waitFor(() =>
       expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
         "data-active",

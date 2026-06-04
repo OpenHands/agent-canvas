@@ -5,7 +5,11 @@ import {
 import type { ServerInfo as BaseServerInfo } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { isAuthRequired } from "#/api/agent-server-config";
-import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
+import {
+  getActiveBackend,
+  getEffectiveLocalBackend,
+  isNoBackend,
+} from "#/api/backend-registry/active-store";
 
 const AGENT_SERVER_INFO_TIMEOUT_MS = 5000;
 
@@ -92,6 +96,20 @@ export async function loadAgentServerInfo() {
   // backend when that backend is cloud, because cloud hosts don't
   // expose /api/server_info and would fail with a CORS error besides.
   const local = getEffectiveLocalBackend();
+  if (!local) {
+    clearCachedAgentServerInfo();
+
+    // Empty registry (NO_BACKEND sentinel) — the user has no backend
+    // configured at all.  Throw so root.tsx shows the manage-backends
+    // modal instead of silently rendering a broken home page.
+    if (isNoBackend(getActiveBackend().backend)) {
+      throw new AgentServerUnavailableError("No backend configured");
+    }
+
+    // Active backend is cloud — no local probe needed.
+    return null;
+  }
+
   const clientOptions = getAgentServerClientOptions({
     host: local.host,
     sessionApiKey: local.apiKey || null,
@@ -105,7 +123,10 @@ export async function loadAgentServerInfo() {
     ).getServerInfo()) as AgentServerInfo;
   } catch (error) {
     clearCachedAgentServerInfo();
-    if (isSdkHttpError(error)) {
+    // Preserve 401 so root.tsx can show the auth screen (public mode).
+    // All other HTTP errors (502, 503, etc.) mean the server is unreachable
+    // or misconfigured — treat them as unavailable.
+    if (isSdkHttpStatusError(error, 401)) {
       throw error;
     }
 

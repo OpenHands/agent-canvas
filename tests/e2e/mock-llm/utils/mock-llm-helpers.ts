@@ -12,11 +12,33 @@ export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
 export const REPLY_TOKEN = "MOCK_LLM_E2E_REPLY_OK";
 export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 
+/** Reply token used by the image-upload test trajectory. */
+export const IMAGE_REPLY_TOKEN = "MOCK_LLM_IMAGE_OK";
+
+/**
+ * A minimal valid 1×1 white pixel PNG, base64-encoded.
+ * Used as a lightweight test fixture for image-upload E2E tests — small
+ * enough to keep request bodies manageable while still being a real PNG that
+ * the browser's FileReader can process.
+ */
+export const MINIMAL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAABjE+ibYAAAAASUVORK5CYII=";
+
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
 export const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
+
+// URL tests use to hit the mock LLM admin API (always on the host).
 export const MOCK_LLM_BASE_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
+
+// URL the agent-server uses to reach the mock LLM for inference calls.
+// In the npm path both run on the host, so this equals MOCK_LLM_BASE_URL.
+// In Docker with --network host on Linux this also works as-is.
+// For Docker on macOS (bridge networking), set MOCK_LLM_AGENT_URL to
+// http://host.docker.internal:<port> so the container can reach the host.
+export const MOCK_LLM_AGENT_URL =
+  process.env.MOCK_LLM_AGENT_URL ?? MOCK_LLM_BASE_URL;
 export const BACKEND_URL =
   process.env.MOCK_LLM_BACKEND_URL ?? "http://localhost:18300";
 // Public-mode static server (--auth-required, no session key injected).
@@ -32,14 +54,43 @@ export const SESSION_API_KEY = (() => {
   return key;
 })();
 
-/** Seed localStorage with flags that skip onboarding / analytics modals. */
+/** Seed localStorage with flags that skip onboarding / analytics modals
+ *  and a default local backend so the app boots straight into the home
+ *  page. The backend registry is seeded explicitly for two reasons:
+ *
+ *    1. It guarantees a deterministic backend entry across tests even
+ *       when key rotation or stale-state scenarios are exercised.
+ *    2. It avoids depending on the runtime injection ordering between
+ *       `page.addInitScript` and the static-server's `<head>` script.
+ *
+ *  As of the published-binary session-key fix, the static-server also
+ *  exposes the runtime key via `window.__AGENT_CANVAS_SESSION_API_KEY__`,
+ *  which `getBakedSessionApiKey()` reads — so a real user with an empty
+ *  localStorage no longer needs this seeding to reach onboarding.  See
+ *  `auth mode: fresh install with runtime-injected key` in
+ *  `mock-llm-auth-modes.spec.ts` for the test that covers that path. */
 export async function seedLocalStorage(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "false");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem("openhands-onboarded", "1");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
 }
 
 /** Inject session API key header into requests targeting the backend. */
@@ -283,7 +334,9 @@ export async function ensureMockLLMProfile(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  // Check if the current profile already has the mock LLM settings
+  // Check if the current profile already has the mock LLM settings.
+  // Use MOCK_LLM_AGENT_URL — this is the URL the agent-server will use to
+  // reach the mock LLM, which may differ from MOCK_LLM_BASE_URL in Docker.
   const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
@@ -294,7 +347,7 @@ export async function ensureMockLLMProfile(
   if (settingsResp.ok()) {
     const settings = await settingsResp.json();
     const llm = settings?.agent_settings?.llm;
-    if (llm?.model === model && llm?.base_url === MOCK_LLM_BASE_URL) {
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
       return; // Already configured
     }
   }
@@ -310,7 +363,7 @@ export async function ensureMockLLMProfile(
         llm: {
           model,
           api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_BASE_URL,
+          base_url: MOCK_LLM_AGENT_URL,
         },
       },
     },
@@ -362,11 +415,70 @@ export async function activateTrajectory(
 
 /**
  * Reset the mock LLM server to its default trajectory.
+ * Also clears the stored completion-request history.
  */
 export async function resetMockLLM(request: APIRequestContext) {
   const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
   expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
 }
+
+/**
+ * Fetch all chat-completion request bodies captured by the mock LLM server
+ * since the last /admin/reset.
+ *
+ * The server stores every POST to /v1/chat/completions, so callers can assert
+ * that at least one request contained image content (or any other field).
+ */
+export async function getMockLLMRequests(
+  request: APIRequestContext,
+): Promise<Record<string, unknown>[]> {
+  const resp = await request.get(`${MOCK_LLM_BASE_URL}/admin/requests`);
+  expect(resp.ok(), `GET /admin/requests: ${resp.status()}`).toBe(true);
+  const body = await resp.json();
+  return (body.requests as Record<string, unknown>[]) ?? [];
+}
+
+/**
+ * Set contentEditable chat input text and dispatch an input event.
+ *
+ * contentEditable divs don't respond reliably to Playwright's .fill() or
+ * .type(), so we set the text programmatically via page.evaluate().
+ */
+export async function setChatInput(
+  page: Page,
+  text: string,
+  testId = "chat-input",
+) {
+  await page.evaluate(
+    ({ tid, inputText }) => {
+      const el = document.querySelector(`[data-testid="${tid}"]`);
+      if (!(el instanceof HTMLElement))
+        throw new Error(`Chat input [data-testid="${tid}"] not found`);
+      el.focus();
+      el.textContent = inputText;
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: inputText,
+          inputType: "insertText",
+        }),
+      );
+    },
+    { tid: testId, inputText: text },
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Partial-stack mode ports (frontend-only / backend-only tests)
+// ═══════════════════════════════════════════════════════════════════════
+
+export const FRONTEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_FE_ONLY_PORT ?? "18310";
+export const FRONTEND_ONLY_URL = `http://localhost:${FRONTEND_ONLY_INGRESS_PORT}`;
+
+export const BACKEND_ONLY_INGRESS_PORT =
+  process.env.MOCK_LLM_BE_ONLY_PORT ?? "18320";
+export const BACKEND_ONLY_URL = `http://localhost:${BACKEND_ONLY_INGRESS_PORT}`;
 
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.

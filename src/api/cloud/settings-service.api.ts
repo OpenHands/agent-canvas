@@ -154,11 +154,21 @@ export async function saveCloudSettings(diff: {
 }): Promise<void> {
   const backend = getActiveCloudBackend();
   const body: Record<string, unknown> = {};
-  if (
-    diff.agent_settings_diff &&
-    Object.keys(diff.agent_settings_diff).length > 0
-  ) {
-    body.agent_settings_diff = diff.agent_settings_diff;
+  if (diff.agent_settings_diff) {
+    const agentDiff: Record<string, SettingsValue> = {
+      ...diff.agent_settings_diff,
+    };
+    // The cloud validates agent settings against the SDK's
+    // OpenHandsAgentSettings, whose `agent_context` is a required
+    // AgentContext (not Optional). A literal `agent_context: null` fails
+    // backend validation, so drop it and let the backend keep/default it.
+    // See OpenHands/agent-canvas#981.
+    if (agentDiff.agent_context === null) {
+      delete agentDiff.agent_context;
+    }
+    if (Object.keys(agentDiff).length > 0) {
+      body.agent_settings_diff = agentDiff;
+    }
   }
   if (
     diff.conversation_settings_diff &&
