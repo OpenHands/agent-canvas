@@ -11,6 +11,7 @@ vi.mock("react-i18next", () => ({
         "BUTTON$RENAME": "Rename",
         "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
+        "SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE": "Cannot delete the active profile",
       };
       return translations[key] || key;
     },
@@ -112,6 +113,12 @@ describe("ProfileActionsMenu", () => {
     render(<ProfileActionsMenu {...defaultProps} isActive />);
 
     expect(screen.getByTestId("profile-delete")).toBeDisabled();
+  });
+
+  it("enables Delete button when isActive is false", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive={false} />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
   });
 
   it("calls onDelete and onClose when Delete is clicked", async () => {
