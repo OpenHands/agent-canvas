@@ -284,6 +284,59 @@ When reviewing server endpoints that create conversations or persistent artifact
 2. Check that subsequent operations are wrapped in try/except with cleanup.
 3. For client-supplied IDs, verify there's a duplicate check before creating state (return 409 Conflict if taken).
 
+## E2E Test Label Triage
+
+When reviewing a PR, evaluate whether the changes would benefit from end-to-end
+testing. The `e2e-tests` label gates the mock-LLM E2E test suite (conversation,
+automation, auth, onboarding, ACP agent, image upload, partial-stack, and Docker
+E2E workflows). Adding the label triggers those tests automatically.
+
+**Action:** If the PR meets the criteria below and does **not** already carry
+the `e2e-tests` label, add it:
+
+```bash
+gh pr edit <PR_NUMBER> --add-label "e2e-tests" --repo OpenHands/agent-canvas
+```
+
+Mention in your review body that you added the label and why (one sentence is
+enough).
+
+### When to add `e2e-tests`
+
+Add the label when the PR modifies **any** of the following areas:
+
+- **App bootstrap / routing** — `src/root.tsx`, `src/entry.client.tsx`, `src/routes.ts`, files under `src/routes/`
+- **Agent-server communication** — `src/api/` (adapter, client options, services, conversation/event/settings service files)
+- **Backend management / auth** — `src/components/features/backends/`, `src/components/features/onboarding/`
+- **Conversation UI plumbing** — `src/components/features/conversation-panel/`, `src/hooks/query/use-conversation*.ts`, WebSocket providers
+- **Settings pages** — `src/routes/*-settings.tsx`, `src/components/features/settings/`
+- **State stores** — `src/stores/` (especially conversation, settings, or workspace stores)
+- **Static server / ingress / binary** — `scripts/static-server.mjs`, `scripts/ingress.mjs`, `bin/agent-canvas.mjs`
+- **Docker image** — `docker/Dockerfile`, `docker/entrypoint.sh`
+- **Dev launchers** — `scripts/dev-safe.mjs`, `scripts/dev-with-automation.mjs`, `scripts/dev-static.mjs`
+- **MSW mock handlers** — `src/mocks/` (changes here can break the mock-LLM test harness itself)
+- **Automation service** — `src/api/automation-service/`
+
+### When NOT to add `e2e-tests`
+
+Do **not** add the label for changes that are purely:
+
+- Documentation (`docs/`, `*.md`, `specs/`, `AGENTS.md`)
+- Translations / i18n (`src/i18n/`, `public/locales/`)
+- Unit or snapshot tests only (`__tests__/`, `tests/e2e/snapshots/`)
+- E2E test files themselves (`tests/e2e/mock-llm/`, `tests/e2e/live/`) — those
+  already run as part of the E2E suite
+- CI / workflow config (`.github/workflows/`) that doesn't change app behavior
+- Pure CSS / styling / icon / asset changes
+- Dependency bumps that don't change application logic
+
+### Edge cases
+
+- If a PR mixes documentation with code changes to any of the above areas,
+  **add the label** — the code changes are the deciding factor.
+- If you're uncertain whether a change is risky enough, **add the label** — it's
+  cheap to run the tests and expensive to miss a regression.
+
 ## What NOT to Comment On
 
 Do not leave comments for:
