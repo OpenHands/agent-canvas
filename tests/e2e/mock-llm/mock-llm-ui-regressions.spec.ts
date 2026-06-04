@@ -87,31 +87,40 @@ function searchPaginationEvents(
   };
 }
 
+const MOCK_CONVERSATION = {
+  conversation_id: PAGINATION_CONVERSATION_ID,
+  status: "STOPPED",
+  created_at: timestampForEvent(1),
+  updated_at: timestampForEvent(PAGINATION_EVENT_COUNT),
+  title: "Pagination test",
+};
+
 /** Intercept conversation lookup + event search for pagination tests. */
 async function routePaginationConversation(page: Page) {
   const allEvents = createAllPaginationEvents("Pagination message");
 
-  // Stub the conversation object so the app renders a chat view.
-  await page.route(
-    `**/api/conversations/${PAGINATION_CONVERSATION_ID}`,
-    async (route, req) => {
-      if (req.method() !== "GET") {
-        await route.fallback();
-        return;
-      }
+  // The app fetches conversations via the batch endpoint:
+  //   GET /api/conversations?ids=<id>
+  // Intercept any /api/conversations request and check if our ID is in
+  // the query params. If so, return the mock conversation in the batch
+  // response format. Otherwise fall through to the real agent-server.
+  await page.route("**/api/conversations?*", async (route, req) => {
+    if (req.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const url = new URL(req.url());
+    const ids = url.searchParams.getAll("ids");
+    if (ids.includes(PAGINATION_CONVERSATION_ID)) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          conversation_id: PAGINATION_CONVERSATION_ID,
-          status: "STOPPED",
-          created_at: timestampForEvent(1),
-          updated_at: timestampForEvent(PAGINATION_EVENT_COUNT),
-          title: "Pagination test",
-        }),
+        body: JSON.stringify([MOCK_CONVERSATION]),
       });
-    },
-  );
+    } else {
+      await route.fallback();
+    }
+  });
 
   // Stub the event search endpoint with the synthetic paginated events.
   await page.route(
