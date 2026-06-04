@@ -7,11 +7,12 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        "SETTINGS$PROFILE_EDIT": "Edit",
-        "BUTTON$RENAME": "Rename",
-        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
-        "BUTTON$DELETE": "Delete",
-        "SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE": "Cannot delete the active profile",
+        SETTINGS$PROFILE_EDIT: "Edit",
+        BUTTON$RENAME: "Rename",
+        SETTINGS$PROFILE_SET_ACTIVE: "Set as active",
+        BUTTON$DELETE: "Delete",
+        SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE:
+          "Cannot delete the active profile",
       };
       return translations[key] || key;
     },
@@ -34,7 +35,9 @@ describe("ProfileActionsMenu", () => {
 
     expect(screen.getByTestId("profile-edit")).toHaveTextContent("Edit");
     expect(screen.getByTestId("profile-rename")).toHaveTextContent("Rename");
-    expect(screen.getByTestId("profile-set-active")).toHaveTextContent("Set as active");
+    expect(screen.getByTestId("profile-set-active")).toHaveTextContent(
+      "Set as active",
+    );
     expect(screen.getByTestId("profile-delete")).toHaveTextContent("Delete");
   });
 
@@ -109,10 +112,10 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
-  it("disables Delete button when isActive is true", () => {
+  it("enables Delete button when isActive is true", () => {
     render(<ProfileActionsMenu {...defaultProps} isActive />);
 
-    expect(screen.getByTestId("profile-delete")).toBeDisabled();
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
   });
 
   it("enables Delete button when isActive is false", () => {

@@ -10,11 +10,26 @@ export function useDeleteLlmProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => ProfilesService.deleteProfile(name),
+    mutationFn: async (name: string) => {
+      const response = await ProfilesService.deleteProfile(name);
+      const profiles = await ProfilesService.listProfiles();
+      const remainingProfiles = profiles.profiles.filter(
+        (profile) => profile.name !== name,
+      );
+      const hasActiveProfile = remainingProfiles.some(
+        (profile) => profile.name === profiles.active_profile,
+      );
+      const fallbackProfile = remainingProfiles[0];
+
+      if (!hasActiveProfile && fallbackProfile) {
+        await ProfilesService.activateProfile(fallbackProfile.name);
+      }
+
+      return response;
+    },
     onSuccess: async () => {
       // Invalidate the SettingsService internal cache so getSettingsForConversation
-      // fetches fresh settings after the profile is deleted (backend may have
-      // deactivated it or reset agent_settings.llm)
+      // fetches fresh settings after the profile is deleted or fallback-activated.
       SettingsService.invalidateCache();
       await queryClient.invalidateQueries({
         queryKey: LLM_PROFILES_QUERY_KEYS.all,

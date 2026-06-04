@@ -12,30 +12,30 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, string>) => {
       const translations: Record<string, string> = {
-        "SETTINGS$AVAILABLE_PROFILES": "Available LLM Profiles",
-        "SETTINGS$ADD_LLM_PROFILE": "Add LLM Profile",
-        "SETTINGS$PROFILES_LOAD_ERROR": "Failed to load profiles",
-        "SETTINGS$PROFILES_EMPTY": "No profiles saved yet",
-        "SETTINGS$PROFILE_ACTIVE": "Active",
-        "SETTINGS$PROFILE_MENU": "Profile menu",
-        "SETTINGS$PROFILE_EDIT": "Edit",
-        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
-        "SETTINGS$PROFILE_RENAME_TITLE": "Rename Profile",
-        "SETTINGS$PROFILE_DELETE_TITLE": "Delete Profile",
-        "SETTINGS$PROFILE_DELETE_CONFIRMATION": params?.name
+        SETTINGS$AVAILABLE_PROFILES: "Available LLM Profiles",
+        SETTINGS$ADD_LLM_PROFILE: "Add LLM Profile",
+        SETTINGS$PROFILES_LOAD_ERROR: "Failed to load profiles",
+        SETTINGS$PROFILES_EMPTY: "No profiles saved yet",
+        SETTINGS$PROFILE_ACTIVE: "Active",
+        SETTINGS$PROFILE_MENU: "Profile menu",
+        SETTINGS$PROFILE_EDIT: "Edit",
+        SETTINGS$PROFILE_SET_ACTIVE: "Set as active",
+        SETTINGS$PROFILE_RENAME_TITLE: "Rename Profile",
+        SETTINGS$PROFILE_DELETE_TITLE: "Delete Profile",
+        SETTINGS$PROFILE_DELETE_CONFIRMATION: params?.name
           ? `Are you sure you want to delete "${params.name}"?`
           : "Are you sure you want to delete this profile?",
-        "SETTINGS$PROFILE_ACTIVATED": params?.name
+        SETTINGS$PROFILE_ACTIVATED: params?.name
           ? `Profile "${params.name}" activated`
           : "Profile activated",
-        "SETTINGS$PROFILE_NAME_LABEL": "Profile Name",
-        "SETTINGS$PROFILE_NAME_PLACEHOLDER": "Enter profile name",
-        "SETTINGS$PROFILE_NAME_RULE":
+        SETTINGS$PROFILE_NAME_LABEL: "Profile Name",
+        SETTINGS$PROFILE_NAME_PLACEHOLDER: "Enter profile name",
+        SETTINGS$PROFILE_NAME_RULE:
           "1-64 chars, start with alphanumeric, then alphanumerics or . _ -",
-        "BUTTON$RENAME": "Rename",
-        "BUTTON$DELETE": "Delete",
-        "BUTTON$CANCEL": "Cancel",
-        "ERROR$GENERIC": "An error occurred",
+        BUTTON$RENAME: "Rename",
+        BUTTON$DELETE: "Delete",
+        BUTTON$CANCEL: "Cancel",
+        ERROR$GENERIC: "An error occurred",
       };
       return translations[key] || key;
     },
@@ -63,10 +63,12 @@ const mockProfiles: ProfileInfo[] = [
 describe("LlmProfilesManager", () => {
   let queryClient: QueryClient;
 
-  const renderManager = (props: {
-    onAddProfile?: () => void;
-    onEditProfile?: (profile: ProfileInfo) => void;
-  } = {}) => {
+  const renderManager = (
+    props: {
+      onAddProfile?: () => void;
+      onEditProfile?: (profile: ProfileInfo) => void;
+    } = {},
+  ) => {
     return render(
       <QueryClientProvider client={queryClient}>
         <LlmProfilesManager {...props} />
@@ -90,7 +92,8 @@ describe("LlmProfilesManager", () => {
 
   it("displays the section title", async () => {
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
@@ -100,7 +103,8 @@ describe("LlmProfilesManager", () => {
 
   it("shows Add LLM Profile button when onAddProfile is provided", async () => {
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: [], active_profile: null,
+      profiles: [],
+      active_profile: null,
     });
 
     renderManager({ onAddProfile: vi.fn() });
@@ -111,7 +115,8 @@ describe("LlmProfilesManager", () => {
 
   it("does not show Add LLM Profile button when onAddProfile is not provided", async () => {
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: [], active_profile: null,
+      profiles: [],
+      active_profile: null,
     });
 
     renderManager();
@@ -123,7 +128,8 @@ describe("LlmProfilesManager", () => {
     const user = userEvent.setup();
     const handleAddProfile = vi.fn();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: [], active_profile: null,
+      profiles: [],
+      active_profile: null,
     });
 
     renderManager({ onAddProfile: handleAddProfile });
@@ -135,7 +141,8 @@ describe("LlmProfilesManager", () => {
 
   it("displays profiles when they exist", async () => {
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
@@ -146,7 +153,8 @@ describe("LlmProfilesManager", () => {
 
   it("shows empty state when no profiles exist", async () => {
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: [], active_profile: null,
+      profiles: [],
+      active_profile: null,
     });
 
     renderManager();
@@ -179,7 +187,8 @@ describe("LlmProfilesManager", () => {
     const user = userEvent.setup();
     const handleEditProfile = vi.fn();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager({ onEditProfile: handleEditProfile });
@@ -200,7 +209,8 @@ describe("LlmProfilesManager", () => {
   it("opens rename modal when Rename is clicked from profile menu", async () => {
     const user = userEvent.setup();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
@@ -217,31 +227,31 @@ describe("LlmProfilesManager", () => {
     );
   });
 
-  it("opens delete modal when Delete is clicked from profile menu", async () => {
+  it("opens delete modal when Delete is clicked for the active profile", async () => {
     const user = userEvent.setup();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
 
-    await screen.findByText("claude-profile");
+    await screen.findByText("gpt-4-profile");
 
-    // Use the second profile (claude-profile) — the active profile's Delete is disabled
     const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
-    await user.click(menuTriggers[1]);
+    await user.click(menuTriggers[0]);
     await user.click(screen.getByText("Delete"));
 
-    // Delete modal should appear with confirmation message
     expect(
-      screen.getByText('Are you sure you want to delete "claude-profile"?'),
+      screen.getByText('Are you sure you want to delete "gpt-4-profile"?'),
     ).toBeInTheDocument();
   });
 
   it("closes rename modal when onClose is called", async () => {
     const user = userEvent.setup();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
@@ -259,20 +269,22 @@ describe("LlmProfilesManager", () => {
     await user.click(screen.getByText("Cancel"));
 
     // Modal should be closed
-    expect(screen.queryByTestId("rename-profile-input")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("rename-profile-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("closes delete modal when onClose is called", async () => {
     const user = userEvent.setup();
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
-      profiles: mockProfiles, active_profile: "gpt-4-profile",
+      profiles: mockProfiles,
+      active_profile: "gpt-4-profile",
     });
 
     renderManager();
 
     await screen.findByText("claude-profile");
 
-    // Open delete modal — use the second profile (claude-profile); active profile's Delete is disabled
     const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
     await user.click(menuTriggers[1]);
     await user.click(screen.getByText("Delete"));

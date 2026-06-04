@@ -41,6 +41,7 @@ import {
 } from "./utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
+const FALLBACK_PROFILE_NAME = "fallback-llm-e2e";
 const MOCK_MODEL = "openai/mock-test-model";
 const USER_MESSAGE = "Please run a quick terminal command and then reply.";
 
@@ -73,11 +74,22 @@ test.describe("mock-LLM agent-server conversation", () => {
     }
   });
 
-  // Safety net: delete the shared step3 conversation after all tests complete.
+  // Safety net: delete the shared step3 conversation and test profiles after all tests complete.
   test.afterAll(async ({ request }) => {
     if (step3ConversationId) {
       try {
         await deleteConversation(request, step3ConversationId);
+      } catch {
+        // best-effort
+      }
+    }
+
+    for (const profileName of [PROFILE_NAME, FALLBACK_PROFILE_NAME]) {
+      try {
+        await request.delete(
+          `${BACKEND_URL}/api/profiles/${encodeURIComponent(profileName)}`,
+          { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+        );
       } catch {
         // best-effort
       }
@@ -139,10 +151,11 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Verify the profile appears in the list
     const profileRows = page.getByTestId("profile-row");
     const profileTexts = await profileRows.allTextContents();
-    const hasProfile = profileTexts.some((text) =>
-      text.includes(PROFILE_NAME),
-    );
-    expect(hasProfile, `Profile "${PROFILE_NAME}" should appear in the list`).toBe(true);
+    const hasProfile = profileTexts.some((text) => text.includes(PROFILE_NAME));
+    expect(
+      hasProfile,
+      `Profile "${PROFILE_NAME}" should appear in the list`,
+    ).toBe(true);
   });
 
   // ── Step 2: Set the profile as active ───────────────────────────────
@@ -169,7 +182,10 @@ test.describe("mock-LLM agent-server conversation", () => {
         break;
       }
     }
-    expect(targetRow, `Could not find profile row for "${PROFILE_NAME}"`).not.toBeNull();
+    expect(
+      targetRow,
+      `Could not find profile row for "${PROFILE_NAME}"`,
+    ).not.toBeNull();
 
     // Open the actions menu for this profile
     await targetRow!.getByTestId("profile-menu-trigger").click();
@@ -191,7 +207,9 @@ test.describe("mock-LLM agent-server conversation", () => {
             const row = rows.nth(i);
             const text = await row.textContent();
             if (text?.includes(PROFILE_NAME)) {
-              return (await row.getByTestId("profile-active-badge").count()) > 0;
+              return (
+                (await row.getByTestId("profile-active-badge").count()) > 0
+              );
             }
           }
           return false;
@@ -212,7 +230,10 @@ test.describe("mock-LLM agent-server conversation", () => {
           "X-Expose-Secrets": "encrypted",
         },
       });
-      expect(settingsResp.ok(), `GET /api/settings returned ${settingsResp.status()}`).toBe(true);
+      expect(
+        settingsResp.ok(),
+        `GET /api/settings returned ${settingsResp.status()}`,
+      ).toBe(true);
       const settings = await settingsResp.json();
       const llmModel = settings?.agent_settings?.llm?.model;
       expect(
@@ -245,15 +266,20 @@ test.describe("mock-LLM agent-server conversation", () => {
       const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
         headers: { "X-Session-API-Key": SESSION_API_KEY },
       });
-      expect(profilesResp.ok(), `GET /api/profiles returned ${profilesResp.status()}`).toBe(true);
+      expect(
+        profilesResp.ok(),
+        `GET /api/profiles returned ${profilesResp.status()}`,
+      ).toBe(true);
       const profiles = await profilesResp.json();
       const activeProfile = profiles?.active_profile;
-      const profileNames = profiles?.profiles ? Object.keys(profiles.profiles) : [];
+      const profileNames = profiles?.profiles
+        ? Object.keys(profiles.profiles)
+        : [];
       expect(
         activeProfile,
         `Expected active_profile="${PROFILE_NAME}" but got "${activeProfile}". ` +
-        `Available profiles: [${profileNames.join(", ")}]. ` +
-        `Full response: ${JSON.stringify(profiles).slice(0, 500)}`,
+          `Available profiles: [${profileNames.join(", ")}]. ` +
+          `Full response: ${JSON.stringify(profiles).slice(0, 500)}`,
       ).toBe(PROFILE_NAME);
     });
 
@@ -262,7 +288,9 @@ test.describe("mock-LLM agent-server conversation", () => {
     // the routeSessionApiKey interceptor (Playwright routes are LIFO and only
     // one handler can call continue/fulfill per request).
     let capturedConversationPayload: Record<string, unknown> | null = null;
-    const captureConversationPayload = (req: import("@playwright/test").Request) => {
+    const captureConversationPayload = (
+      req: import("@playwright/test").Request,
+    ) => {
       if (
         req.method() === "POST" &&
         new URL(req.url()).pathname === "/api/conversations"
@@ -310,7 +338,7 @@ test.describe("mock-LLM agent-server conversation", () => {
       expect(
         capturedConversationPayload,
         "POST /api/conversations payload was not captured — " +
-        "the page.on('request') listener may have missed the request",
+          "the page.on('request') listener may have missed the request",
       ).not.toBeNull();
       expect(
         capturedConversationPayload?.worktree,
@@ -328,7 +356,10 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     await test.step("verify agent reply via conversation events API", async () => {
       await waitForAgentMessageContaining(
-        request, conversationId, REPLY_TOKEN, 30_000,
+        request,
+        conversationId,
+        REPLY_TOKEN,
+        30_000,
       );
     });
 
@@ -350,7 +381,7 @@ test.describe("mock-LLM agent-server conversation", () => {
       expect(
         hasUserMessage,
         `User message "${USER_MESSAGE}" should be visible in a user-message element. ` +
-        `Found: ${allUserText.map((t) => t.slice(0, 80)).join(" | ")}`,
+          `Found: ${allUserText.map((t) => t.slice(0, 80)).join(" | ")}`,
       ).toBe(true);
     });
 
@@ -377,7 +408,6 @@ test.describe("mock-LLM agent-server conversation", () => {
       // No .catch() — if the banner IS visible, this step must fail the test.
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
-
   });
 
   // ── Step 4: Resume the conversation from the sidebar ────────────────
@@ -418,7 +448,9 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Verify the user's original message is still visible
     await test.step("verify user message is still visible after resume", async () => {
       await expect(
-        page.locator('[data-testid="user-message"]').filter({ hasText: USER_MESSAGE }),
+        page
+          .locator('[data-testid="user-message"]')
+          .filter({ hasText: USER_MESSAGE }),
       ).toBeVisible({ timeout: 10_000 });
     });
 
@@ -427,5 +459,122 @@ test.describe("mock-LLM agent-server conversation", () => {
       const errorBanner = page.getByTestId("error-message-banner");
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
+  });
+
+  // ── Step 5: Delete active profile and verify fallback activation ───────
+
+  test("step 5: deleting the active LLM profile activates a remaining profile", async ({
+    page,
+    request,
+  }) => {
+    await request.delete(
+      `${BACKEND_URL}/api/profiles/${encodeURIComponent(FALLBACK_PROFILE_NAME)}`,
+      { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+    );
+
+    const fallbackResp = await request.post(
+      `${BACKEND_URL}/api/profiles/${encodeURIComponent(FALLBACK_PROFILE_NAME)}`,
+      {
+        headers: {
+          "X-Session-API-Key": SESSION_API_KEY,
+          "Content-Type": "application/json",
+        },
+        data: {
+          llm: {
+            model: MOCK_MODEL,
+            api_key: "mock-api-key-for-testing",
+            base_url: MOCK_LLM_AGENT_URL,
+          },
+        },
+      },
+    );
+    expect(
+      fallbackResp.ok(),
+      `POST /api/profiles/${FALLBACK_PROFILE_NAME} returned ${fallbackResp.status()}`,
+    ).toBe(true);
+
+    await routeSessionApiKey(page);
+    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "add-llm-profile");
+
+    const profileRows = page.getByTestId("profile-row");
+    const rowCount = await profileRows.count();
+    let activeRowIndex = -1;
+
+    for (let i = 0; i < rowCount; i++) {
+      const row = profileRows.nth(i);
+      const text = await row.textContent();
+      if (text?.includes(PROFILE_NAME)) {
+        activeRowIndex = i;
+        break;
+      }
+    }
+
+    expect(
+      activeRowIndex,
+      `Could not find active profile ${PROFILE_NAME}`,
+    ).toBeGreaterThanOrEqual(0);
+    await expect(
+      profileRows.nth(activeRowIndex).getByTestId("profile-active-badge"),
+    ).toBeVisible();
+    await profileRows
+      .nth(activeRowIndex)
+      .getByTestId("profile-menu-trigger")
+      .click();
+    await page.getByTestId("profile-delete").click();
+    await page.getByTestId("delete-profile-confirm").click();
+
+    await expect
+      .poll(
+        async () => {
+          const profilesResp = await request.get(
+            `${BACKEND_URL}/api/profiles`,
+            {
+              headers: { "X-Session-API-Key": SESSION_API_KEY },
+            },
+          );
+          if (!profilesResp.ok()) return false;
+          const profiles = await profilesResp.json();
+          const profileNames: string[] = profiles.profiles.map(
+            (profile: { name: string }) => profile.name,
+          );
+          return (
+            profiles.active_profile !== null &&
+            profiles.active_profile !== PROFILE_NAME &&
+            profileNames.includes(profiles.active_profile) &&
+            !profileNames.includes(PROFILE_NAME)
+          );
+        },
+        {
+          message:
+            "Deleting the active profile should activate a remaining profile",
+          timeout: 15_000,
+          intervals: [1_000, 2_000, 3_000],
+        },
+      )
+      .toBe(true);
+
+    await expect
+      .poll(
+        async () => {
+          const rows = page.getByTestId("profile-row");
+          const texts = await rows.allTextContents();
+          const deletedProfileVisible = texts.some((text) =>
+            text.includes(PROFILE_NAME),
+          );
+          const activeBadgeCount = await page
+            .getByTestId("profile-active-badge")
+            .count();
+          return !deletedProfileVisible && activeBadgeCount > 0;
+        },
+        {
+          message:
+            "Profiles list should refresh with an active remaining profile",
+          timeout: 15_000,
+          intervals: [1_000, 2_000, 3_000],
+        },
+      )
+      .toBe(true);
   });
 });

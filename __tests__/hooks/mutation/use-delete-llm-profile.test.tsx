@@ -5,14 +5,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { LLM_PROFILES_QUERY_KEYS, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  LLM_PROFILES_QUERY_KEYS,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 
 vi.mock("#/api/profiles-service/profiles-service.api");
 vi.mock("#/api/settings-service/settings-service.api");
 
 describe("useDeleteLlmProfile", () => {
   let queryClient: QueryClient;
-  let wrapper: ({ children }: { children: React.ReactNode }) => React.ReactElement;
+  let wrapper: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => React.ReactElement;
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -27,6 +34,10 @@ describe("useDeleteLlmProfile", () => {
         { client: queryClient },
         children,
       );
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
+      profiles: [],
+      active_profile: null,
+    });
   });
 
   afterEach(() => {
@@ -56,7 +67,14 @@ describe("useDeleteLlmProfile", () => {
     });
 
     queryClient.setQueryData(LLM_PROFILES_QUERY_KEYS.all, {
-      profiles: [{ name: "deleted-profile", model: "gpt-4", base_url: null, api_key_set: true }],
+      profiles: [
+        {
+          name: "deleted-profile",
+          model: "gpt-4",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const invalidateCacheSpy = vi.spyOn(SettingsService, "invalidateCache");
@@ -75,6 +93,66 @@ describe("useDeleteLlmProfile", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: SETTINGS_QUERY_KEYS.personal(),
     });
+  });
+
+  it("activates the first remaining profile when deletion clears active_profile", async () => {
+    vi.mocked(ProfilesService.deleteProfile).mockResolvedValue({
+      name: "active-profile",
+      message: "Profile deleted",
+    });
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
+      profiles: [
+        {
+          name: "remaining-profile",
+          model: "openai/gpt-4o",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: null,
+    });
+    vi.mocked(ProfilesService.activateProfile).mockResolvedValue({
+      name: "remaining-profile",
+      message: "Profile activated",
+      llm_applied: true,
+    });
+
+    const { result } = renderHook(() => useDeleteLlmProfile(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("active-profile");
+    });
+
+    expect(ProfilesService.listProfiles).toHaveBeenCalledOnce();
+    expect(ProfilesService.activateProfile).toHaveBeenCalledWith(
+      "remaining-profile",
+    );
+  });
+
+  it("does not activate a fallback profile when the backend already has an active profile", async () => {
+    vi.mocked(ProfilesService.deleteProfile).mockResolvedValue({
+      name: "inactive-profile",
+      message: "Profile deleted",
+    });
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
+      profiles: [
+        {
+          name: "remaining-profile",
+          model: "openai/gpt-4o",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: "remaining-profile",
+    });
+
+    const { result } = renderHook(() => useDeleteLlmProfile(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("inactive-profile");
+    });
+
+    expect(ProfilesService.activateProfile).not.toHaveBeenCalled();
   });
 
   it("handles delete errors", async () => {
