@@ -306,8 +306,29 @@ test.describe("UI regressions", () => {
     test.setTimeout(60_000);
     await routeSessionApiKey(page);
 
-    // Stub the workspace listing so we have deterministic entries
-    // regardless of the real filesystem.
+    // Stub the workspace listing endpoint (GET /api/workspaces) to return
+    // deterministic entries in the server-persisted shape:
+    //   { workspaces: [...], workspaceParents: [...] }
+    const workspacesMock = {
+      workspaces: [
+        {
+          id: "/workspace/project/demo-app",
+          name: "demo-app",
+          path: "/workspace/project/demo-app",
+        },
+        {
+          id: "/workspace/project/sample-tools",
+          name: "sample-tools",
+          path: "/workspace/project/sample-tools",
+        },
+        {
+          id: "/workspace/project/notes-service",
+          name: "notes-service",
+          path: "/workspace/project/notes-service",
+        },
+      ],
+      workspaceParents: [],
+    };
     await page.route("**/api/workspaces**", async (route, req) => {
       if (req.method() !== "GET") {
         await route.fallback();
@@ -316,11 +337,7 @@ test.describe("UI regressions", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([
-          "/workspace/project/demo-app",
-          "/workspace/project/sample-tools",
-          "/workspace/project/notes-service",
-        ]),
+        body: JSON.stringify(workspacesMock),
       });
     });
 
@@ -388,10 +405,21 @@ test.describe("UI regressions", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([
-          "/workspace/project/demo-app",
-          "/workspace/project/sample-tools",
-        ]),
+        body: JSON.stringify({
+          workspaces: [
+            {
+              id: "/workspace/project/demo-app",
+              name: "demo-app",
+              path: "/workspace/project/demo-app",
+            },
+            {
+              id: "/workspace/project/sample-tools",
+              name: "sample-tools",
+              path: "/workspace/project/sample-tools",
+            },
+          ],
+          workspaceParents: [],
+        }),
       });
     });
 
